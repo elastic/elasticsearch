@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.eql.plan.physical.LimitWithOffsetExec;
 import org.elasticsearch.xpack.eql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.eql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.eql.plan.physical.ProjectExec;
-import org.elasticsearch.xpack.eql.plan.physical.SamplingExec;
+import org.elasticsearch.xpack.eql.plan.physical.SampleExec;
 import org.elasticsearch.xpack.eql.plan.physical.SequenceExec;
 import org.elasticsearch.xpack.eql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.eql.querydsl.container.QueryContainer;
@@ -119,9 +119,9 @@ class QueryFolder extends RuleExecutor<PhysicalPlan> {
         }
     }
 
-    private static class PropagateCompositeKeys extends FoldingRule<SamplingExec> {
+    private static class PropagateCompositeKeys extends FoldingRule<SampleExec> {
         @Override
-        protected PhysicalPlan rule(SamplingExec plan) {
+        protected PhysicalPlan rule(SampleExec plan) {
             List<PhysicalPlan> newChildren = new ArrayList<>();
 
             for (int i = 0; i < plan.children().size(); i++) {

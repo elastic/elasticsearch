@@ -40,7 +40,7 @@ public class FieldExtractorRegistry {
             if (fa.isNested()) {
                 throw new UnsupportedOperationException("Nested not yet supported");
             }
-            return new CompositeAggRef(fa.name(), false);
+            return new CompositeAggRef(fa.name());
         }
         throw new EqlIllegalArgumentException("Unsupported expression [{}]", expression);
     }

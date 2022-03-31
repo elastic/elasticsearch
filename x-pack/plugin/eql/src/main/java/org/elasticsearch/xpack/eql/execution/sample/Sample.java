@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.eql.execution.sampling;
+package org.elasticsearch.xpack.eql.execution.sample;
 
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
@@ -20,18 +20,18 @@ import java.util.Objects;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 /**
- * Holder class representing the instance of a sampling. Used at runtime by the engine to track samplings.
- * Defined by its key and stage.
+ * Holder class representing the instance of a sample. Used at runtime by the engine to track samples.
+ * Defined by its key.
  * This class is NOT immutable (to optimize memory) which means its associations need to be managed.
  */
-class Sampling implements Accountable {
+class Sample implements Accountable {
 
-    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Sampling.class);
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(Sample.class);
 
     private final SequenceKey key;
     private final HitReference[] matches;
 
-    Sampling(SequenceKey key, List<SearchHit> searchHits) {
+    Sample(SequenceKey key, List<SearchHit> searchHits) {
         this.key = key;
         this.matches = new HitReference[searchHits.size()];
 
@@ -68,7 +68,7 @@ class Sampling implements Accountable {
             return false;
         }
 
-        Sampling other = (Sampling) obj;
+        Sample other = (Sample) obj;
         return Objects.equals(key, other.key);
     }
 

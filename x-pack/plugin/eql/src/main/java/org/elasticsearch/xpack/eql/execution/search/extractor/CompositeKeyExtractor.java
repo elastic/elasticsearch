@@ -11,10 +11,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
-import org.elasticsearch.xpack.ql.util.DateUtils;
 
 import java.io.IOException;
-import java.time.ZoneId;
 import java.util.Map;
 import java.util.Objects;
 
@@ -24,24 +22,20 @@ public class CompositeKeyExtractor implements BucketExtractor {
      * Key or Composite extractor.
      */
     static final String NAME = "k";
-
     private final String key;
-    private final ZoneId zoneId;
     private final boolean isDateTimeBased;
 
     /**
      * Constructs a new <code>CompositeKeyExtractor</code> instance.
      */
-    public CompositeKeyExtractor(String key, ZoneId zoneId, boolean isDateTimeBased) {
+    public CompositeKeyExtractor(String key, boolean isDateTimeBased) {
         this.key = key;
-        this.zoneId = zoneId;
         this.isDateTimeBased = isDateTimeBased;
     }
 
     CompositeKeyExtractor(StreamInput in) throws IOException {
         key = in.readString();
         isDateTimeBased = in.readBoolean();
-        zoneId = readZoneId(in);
     }
 
     @Override
@@ -50,20 +44,8 @@ public class CompositeKeyExtractor implements BucketExtractor {
         out.writeBoolean(isDateTimeBased);
     }
 
-    private ZoneId readZoneId(StreamInput in) throws IOException {
-        return DateUtils.UTC;
-    }
-
     public String key() {
         return key;
-    }
-
-    ZoneId zoneId() {
-        return zoneId;
-    }
-
-    public boolean isDateTimeBased() {
-        return isDateTimeBased;
     }
 
     @Override
@@ -98,7 +80,7 @@ public class CompositeKeyExtractor implements BucketExtractor {
 
     @Override
     public int hashCode() {
-        return Objects.hash(key, zoneId, isDateTimeBased);
+        return Objects.hash(key, isDateTimeBased);
     }
 
     @Override
@@ -112,9 +94,7 @@ public class CompositeKeyExtractor implements BucketExtractor {
         }
 
         CompositeKeyExtractor other = (CompositeKeyExtractor) obj;
-        return Objects.equals(key, other.key)
-            && Objects.equals(zoneId, other.zoneId)
-            && Objects.equals(isDateTimeBased, other.isDateTimeBased);
+        return Objects.equals(key, other.key) && Objects.equals(isDateTimeBased, other.isDateTimeBased);
     }
 
     @Override

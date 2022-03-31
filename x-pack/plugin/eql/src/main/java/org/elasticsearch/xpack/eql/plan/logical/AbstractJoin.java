@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.eql.plan.logical;
 import org.elasticsearch.xpack.ql.capabilities.Resolvables;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
 import org.elasticsearch.xpack.ql.tree.Source;
 import org.elasticsearch.xpack.ql.util.Check;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
@@ -19,11 +18,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public class Sampling extends LogicalPlan {
+public abstract class AbstractJoin extends LogicalPlan {
 
-    private final List<KeyedFilter> queries;
+    protected final List<KeyedFilter> queries;
 
-    public Sampling(Source source, List<KeyedFilter> queries, KeyedFilter... query) {
+    public AbstractJoin(Source source, List<KeyedFilter> queries, KeyedFilter... query) {
         super(source, CollectionUtils.combine(queries, query));
         this.queries = queries;
     }
@@ -45,16 +44,6 @@ public class Sampling extends LogicalPlan {
     }
 
     @Override
-    protected NodeInfo<? extends Sampling> info() {
-        return NodeInfo.create(this, Sampling::new, queries);
-    }
-
-    @Override
-    public Sampling replaceChildren(List<LogicalPlan> newChildren) {
-        return new Sampling(source(), asKeyed(newChildren));
-    }
-
-    @Override
     public List<Attribute> output() {
         List<Attribute> out = new ArrayList<>();
         for (KeyedFilter query : queries) {
@@ -72,10 +61,6 @@ public class Sampling extends LogicalPlan {
         return queries;
     }
 
-    public Sampling with(List<KeyedFilter> queries) {
-        return new Sampling(source(), queries);
-    }
-
     @Override
     public int hashCode() {
         return Objects.hash(queries);
@@ -90,8 +75,8 @@ public class Sampling extends LogicalPlan {
             return false;
         }
 
-        Sampling other = (Sampling) obj;
-
+        AbstractJoin other = (AbstractJoin) obj;
         return Objects.equals(queries, other.queries);
     }
+
 }

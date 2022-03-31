@@ -7,14 +7,14 @@
 
 package org.elasticsearch.xpack.eql;
 
-import org.elasticsearch.test.eql.EqlSamplingTestCase;
+import org.elasticsearch.test.eql.EqlSampleTestCase;
 
-import static org.elasticsearch.test.eql.DataLoader.TEST_SAMPLING;
+import static org.elasticsearch.test.eql.DataLoader.TEST_SAMPLE;
 import static org.elasticsearch.xpack.eql.RemoteClusterTestUtils.remoteClusterIndex;
 
-public class EqlSamplingIT extends EqlSamplingTestCase {
+public class EqlSampleIT extends EqlSampleTestCase {
 
-    public EqlSamplingIT(String query, String name, long[] eventIds, String[] joinKeys) {
-        super(remoteClusterIndex(TEST_SAMPLING), query, name, eventIds, joinKeys);
+    public EqlSampleIT(String query, String name, long[] eventIds, String[] joinKeys) {
+        super(remoteClusterIndex(TEST_SAMPLE), query, name, eventIds, joinKeys);
     }
 }

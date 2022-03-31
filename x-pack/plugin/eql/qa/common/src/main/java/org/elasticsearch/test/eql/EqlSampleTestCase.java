@@ -11,15 +11,15 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import java.util.List;
 
-import static org.elasticsearch.test.eql.DataLoader.TEST_SAMPLING;
+import static org.elasticsearch.test.eql.DataLoader.TEST_SAMPLE;
 
-public abstract class EqlSamplingTestCase extends BaseEqlSpecTestCase {
+public abstract class EqlSampleTestCase extends BaseEqlSpecTestCase {
 
-    public EqlSamplingTestCase(String query, String name, long[] eventIds, String[] joinKeys) {
-        this(TEST_SAMPLING, query, name, eventIds, joinKeys);
+    public EqlSampleTestCase(String query, String name, long[] eventIds, String[] joinKeys) {
+        this(TEST_SAMPLE, query, name, eventIds, joinKeys);
     }
 
-    public EqlSamplingTestCase(String index, String query, String name, long[] eventIds, String[] joinKeys) {
+    public EqlSampleTestCase(String index, String query, String name, long[] eventIds, String[] joinKeys) {
         super(index, query, name, eventIds, joinKeys);
     }
 

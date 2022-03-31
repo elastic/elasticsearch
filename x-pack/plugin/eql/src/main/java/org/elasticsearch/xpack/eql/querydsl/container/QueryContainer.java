@@ -46,7 +46,7 @@ public class QueryContainer {
     // list of fields available in the output
     private final List<Tuple<FieldExtraction, String>> fields;
     // composite keys to be extracted from composite aggregation result
-    private final List<Tuple<FieldExtraction, String>> keysValues;
+    private final List<Tuple<FieldExtraction, String>> keyValues;
 
     private final Map<String, Sort> sort;
     private final boolean trackHits;
@@ -72,7 +72,7 @@ public class QueryContainer {
         Query query,
         List<Tuple<FieldExtraction, String>> fields,
         AttributeMap<Expression> attributes,
-        List<Tuple<FieldExtraction, String>> keysValues,
+        List<Tuple<FieldExtraction, String>> keyValues,
         AttributeMap<Expression> keys,
         Map<String, Sort> sort,
         boolean trackHits,
@@ -84,7 +84,7 @@ public class QueryContainer {
         this.sort = sort;
         this.attributes = attributes;
         this.keys = keys;
-        this.keysValues = keysValues;
+        this.keyValues = keyValues;
         this.trackHits = trackHits;
         this.includeFrozen = includeFrozen;
 
@@ -103,8 +103,8 @@ public class QueryContainer {
         return fields;
     }
 
-    public List<Tuple<FieldExtraction, String>> keysValues() {
-        return keysValues;
+    public List<Tuple<FieldExtraction, String>> keyValues() {
+        return keyValues;
     }
 
     public Map<String, Sort> sort() {
@@ -120,11 +120,11 @@ public class QueryContainer {
     }
 
     public QueryContainer with(Query q) {
-        return new QueryContainer(q, fields, attributes, keysValues, keys, sort, trackHits, includeFrozen, limit);
+        return new QueryContainer(q, fields, attributes, keyValues, keys, sort, trackHits, includeFrozen, limit);
     }
 
     public QueryContainer with(Limit limit) {
-        return new QueryContainer(query, fields, attributes, keysValues, keys, sort, trackHits, includeFrozen, limit);
+        return new QueryContainer(query, fields, attributes, keyValues, keys, sort, trackHits, includeFrozen, limit);
     }
 
     public QueryContainer addColumn(Attribute attr) {
@@ -166,7 +166,7 @@ public class QueryContainer {
             query,
             fields,
             attributes,
-            combine(keysValues, new Tuple<>(ref, id)),
+            combine(keyValues, new Tuple<>(ref, id)),
             keys,
             sort,
             trackHits,
@@ -192,7 +192,7 @@ public class QueryContainer {
     public QueryContainer addSort(String expressionId, Sort sortable) {
         Map<String, Sort> newSort = new LinkedHashMap<>(this.sort);
         newSort.put(expressionId, sortable);
-        return new QueryContainer(query, fields, attributes, keysValues, keys, newSort, trackHits, includeFrozen, limit);
+        return new QueryContainer(query, fields, attributes, keyValues, keys, newSort, trackHits, includeFrozen, limit);
     }
 
     //
@@ -204,7 +204,7 @@ public class QueryContainer {
             query,
             combine(fields, new Tuple<>(ref, id)),
             attributes,
-            keysValues,
+            keyValues,
             keys,
             sort,
             trackHits,
@@ -215,7 +215,7 @@ public class QueryContainer {
 
     @Override
     public int hashCode() {
-        return Objects.hash(query, attributes, fields, keysValues, keys, trackHits, includeFrozen, limit);
+        return Objects.hash(query, attributes, fields, keyValues, keys, trackHits, includeFrozen, limit);
     }
 
     @Override
@@ -233,7 +233,7 @@ public class QueryContainer {
             && Objects.equals(attributes, other.attributes)
             && Objects.equals(fields, other.fields)
             && Objects.equals(keys, other.keys)
-            && Objects.equals(keysValues, other.keysValues)
+            && Objects.equals(keyValues, other.keyValues)
             && trackHits == other.trackHits
             && includeFrozen == other.includeFrozen
             && Objects.equals(limit, other.limit);

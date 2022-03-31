@@ -20,7 +20,7 @@ import java.util.Objects;
 
 import static java.util.Collections.singletonList;
 
-public class Join extends Sampling {
+public class Join extends AbstractJoin {
 
     private final KeyedFilter until;
     private final Attribute timestamp;

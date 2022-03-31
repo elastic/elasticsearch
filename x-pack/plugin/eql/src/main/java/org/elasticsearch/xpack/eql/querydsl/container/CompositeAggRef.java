@@ -11,19 +11,13 @@ import org.elasticsearch.xpack.ql.execution.search.AggRef;
 public class CompositeAggRef extends AggRef {
 
     private final String key;
-    private final boolean isDateTimeBased;
 
-    public CompositeAggRef(String key, boolean isDateTimeBased) {
+    public CompositeAggRef(String key) {
         this.key = key;
-        this.isDateTimeBased = isDateTimeBased;
     }
 
     public String key() {
         return key;
-    }
-
-    public boolean isDateTimeBased() {
-        return isDateTimeBased;
     }
 
     @Override

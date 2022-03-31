@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.eql.execution.assembler;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
-import org.elasticsearch.xpack.eql.execution.sampling.SamplingIterator;
+import org.elasticsearch.xpack.eql.execution.sample.SampleIterator;
 import org.elasticsearch.xpack.eql.execution.search.Limit;
 import org.elasticsearch.xpack.eql.execution.search.PITAwareQueryClient;
 import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
@@ -43,6 +43,7 @@ import java.util.List;
 import java.util.Set;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.wrapAsFilter;
 
 public class ExecutionManager {
 
@@ -152,7 +153,7 @@ public class ExecutionManager {
 
     public Executable assemble(List<List<Attribute>> listOfKeys, List<PhysicalPlan> plans) {
         FieldExtractorRegistry extractorRegistry = new FieldExtractorRegistry();
-        List<SamplingCriterion<AggregatedQueryRequest>> criteria = new ArrayList<>(plans.size() - 1);
+        List<SampleCriterion<AggregatedQueryRequest>> criteria = new ArrayList<>(plans.size() - 1);
 
         // build a criterion for each query
         for (int i = 0; i < plans.size(); i++) {
@@ -170,19 +171,35 @@ public class ExecutionManager {
             PhysicalPlan query = plans.get(i);
             // search query
             if (query instanceof EsQueryExec esQueryExec) {
-                AggregatedQueryRequest r1 = new AggregatedQueryRequest(() -> esQueryExec.source(session, false), keyFields);
-                AggregatedQueryRequest r2 = new AggregatedQueryRequest(() -> esQueryExec.source(session, false), keyFields);
-                AggregatedQueryRequest r3 = new AggregatedQueryRequest(() -> esQueryExec.source(session, false), keyFields);
-                r1.withCompositeAggregation();
-                r2.withCompositeAggregation();
-                SamplingCriterion<AggregatedQueryRequest> criterion = new SamplingCriterion<>(r1, r2, r3, keyExtractors);
+                AggregatedQueryRequest firstQuery = new AggregatedQueryRequest(
+                    () -> wrapAsFilter(esQueryExec.source(session, false)),
+                    keyFields
+                );
+                AggregatedQueryRequest midQuery = new AggregatedQueryRequest(
+                    () -> wrapAsFilter(esQueryExec.source(session, false)),
+                    keyFields
+                );
+                AggregatedQueryRequest finalQuery = new AggregatedQueryRequest(
+                    () -> wrapAsFilter(esQueryExec.source(session, false)),
+                    keyFields
+                );
+                firstQuery.withCompositeAggregation();
+                midQuery.withCompositeAggregation();
+                SampleCriterion<AggregatedQueryRequest> criterion = new SampleCriterion<>(
+                    firstQuery,
+                    midQuery,
+                    finalQuery,
+                    keyFields,
+                    keyExtractors
+                );
+
                 criteria.add(criterion);
             } else {
                 throw new EqlIllegalArgumentException("Expected a query but got [{}]", query.getClass());
             }
         }
 
-        return new SamplingIterator(new PITAwareQueryClient(session), criteria);
+        return new SampleIterator(new PITAwareQueryClient(session), criteria);
     }
 
     private HitExtractor timestampExtractor(HitExtractor hitExtractor) {
@@ -207,7 +224,7 @@ public class ExecutionManager {
     private List<BucketExtractor> compositeKeyExtractors(List<? extends Expression> exps, FieldExtractorRegistry registry) {
         List<BucketExtractor> extractors = new ArrayList<>(exps.size());
         for (Expression exp : exps) {
-            extractors.add(RuntimeUtils.createBucketExtractor(registry.compositeKeyExtraction(exp), cfg));
+            extractors.add(RuntimeUtils.createBucketExtractor(registry.compositeKeyExtraction(exp)));
         }
         return extractors;
     }

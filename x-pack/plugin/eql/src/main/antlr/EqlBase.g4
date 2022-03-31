@@ -24,7 +24,7 @@ query
     : sequence
     | join
     | eventQuery
-    | sampling
+    | sample
     ;
 
 sequenceParams
@@ -37,8 +37,8 @@ sequence
       (UNTIL until=sequenceTerm)?
     ;
 
-sampling
-    : SAMPLING (by=joinKeys)?
+sample
+    : SAMPLE (by=joinKeys)?
       joinTerm joinTerm+
     ;
 
@@ -180,7 +180,7 @@ OF: 'of';
 OR: 'or';
 REGEX: 'regex';
 REGEX_INSENSITIVE: 'regex~';
-SAMPLING: 'sampling';
+SAMPLE: 'sample';
 SEQUENCE: 'sequence';
 TRUE: 'true';
 UNTIL: 'until';

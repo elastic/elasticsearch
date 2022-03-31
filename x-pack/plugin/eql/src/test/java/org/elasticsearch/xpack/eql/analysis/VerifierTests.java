@@ -158,7 +158,7 @@ public class VerifierTests extends ESTestCase {
 
     public void testOptionalFieldsUnsupported() {
         assertEquals(
-            "1:1: extraneous input '?' expecting {'any', 'join', 'sampling', 'sequence', STRING, IDENTIFIER}",
+            "1:1: extraneous input '?' expecting {'any', 'join', 'sample', 'sequence', STRING, IDENTIFIER}",
             errorParsing("?x where true")
         );
     }

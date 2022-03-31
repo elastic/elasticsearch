@@ -1,12 +1,57 @@
 [[queries]]
-name = "basic"
+name = "anyRulesWithOneDifferentNameKey"
 query = '''
-  sampling by host
+  sample by host
     [ any where uptime > 0 ]   by os
     [ any where port > 100 ]   by op_sys 
     [ any where bool == true ] by os
 '''
-expected_event_ids  = [7,6,6,
-                       3,3,10]
+expected_event_ids  = [17,26,16,
+                       13,23,110]
 join_keys = ["doom","redhat",
              "farcry","win10"]
+
+[[queries]]
+name = "anyRulesWithORFilters"
+query = '''
+  sample by bool, host
+    [any where uptime > 0 or bool == false]
+    [any where port > 10000 or bool == false]
+'''
+expected_event_ids  = [13,23,
+                       17,16]
+join_keys = [false,"farcry",
+             true,"doom"]
+
+[[queries]]
+name = "failureEventTypeWithORFilters"
+query = '''
+  sample by bool, host
+    [failure where uptime > 0 or bool == false]
+    [any where port > 10000 or bool == false]
+'''
+expected_event_ids  = [17,16]
+join_keys = [true,"doom"]
+
+
+[[queries]]
+name = "alertEventTypeRulesWithORFilters"
+query = '''
+  sample by bool, host
+    [alert where uptime > 0 or bool == false]
+    [alert where port > 10000 or bool == false]
+'''
+expected_event_ids  = [13,23]
+join_keys = [false,"farcry"]
+
+
+[[queries]]
+name = "ipAsKey"
+query = '''
+  sample by host
+    [any where bool == true] by host_ip
+    [any where uptime > 0] by ip
+    [any where port > 100] by ip
+'''
+expected_event_ids  = [36,28,11]
+join_keys = ["doom","10.0.0.1"]

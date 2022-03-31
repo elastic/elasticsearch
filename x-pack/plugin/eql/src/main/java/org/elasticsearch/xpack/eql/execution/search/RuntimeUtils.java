@@ -127,9 +127,9 @@ public final class RuntimeUtils {
         return extractors;
     }
 
-    public static BucketExtractor createBucketExtractor(FieldExtraction ref, EqlConfiguration cfg) {
+    public static BucketExtractor createBucketExtractor(FieldExtraction ref) {
         if (ref instanceof CompositeAggRef aggRef) {
-            return new CompositeKeyExtractor(aggRef.key(), cfg.zoneId(), false);
+            return new CompositeKeyExtractor(aggRef.key(), false);
         }
         throw new EqlIllegalArgumentException("Unexpected value reference {}", ref.getClass());
     }
@@ -233,6 +233,17 @@ public final class RuntimeUtils {
 
             source.query(bool);
         }
+        return source;
+    }
+
+    public static SearchSourceBuilder wrapAsFilter(SearchSourceBuilder source) {
+        QueryBuilder query = source.query();
+        BoolQueryBuilder bool = boolQuery();
+        if (query != null) {
+            bool.filter(query);
+        }
+
+        source.query(bool);
         return source;
     }
 }

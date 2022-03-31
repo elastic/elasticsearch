@@ -14,21 +14,20 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
-import org.elasticsearch.xpack.eql.execution.sampling.SamplingIterator;
+import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
+import org.elasticsearch.xpack.eql.execution.sample.SampleIterator;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
 import org.elasticsearch.xpack.eql.execution.search.RuntimeUtils;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -47,8 +46,8 @@ public class AggregatedQueryRequest implements QueryRequest {
     private SearchSourceBuilder searchSource;
     private final List<String> keys; // the name of the join keys
     private CompositeAggregationBuilder agg;
-    private List<QueryBuilder> multipleKeysFilters;
-    private List<QueryBuilder> singleKeysPairFilters;
+    private List<QueryBuilder> multipleKeyFilters;
+    private List<QueryBuilder> singleKeyPairFilters;
 
     public AggregatedQueryRequest(QueryRequest original, List<String> keyNames) {
         this.searchSource = original.searchSource();
@@ -65,6 +64,14 @@ public class AggregatedQueryRequest implements QueryRequest {
 
     public void nextAfter(Map<String, Object> afterKeys) {
         agg.aggregateAfter(afterKeys);
+        // Map<String, Object> stringAfterKey = new HashMap<>(mapSize(afterKeys.size()));
+        // for (Entry<String, Object> entry : afterKeys.entrySet()) {
+        // if a field is missing from an index, the after_key of the composite aggregation always expects a String
+        // for example, setting after key as Integer on a field "X" and the field doesn't exist in the index targeted by the query,
+        // then "composite" parsing will throw an exception
+        // stringAfterKey.put(entry.getKey(), entry.getValue().toString());
+        // }
+        // agg.aggregateAfter(stringAfterKey);
     }
 
     public List<String> keys() {
@@ -75,13 +82,13 @@ public class AggregatedQueryRequest implements QueryRequest {
      * Sets keys / terms to filter on in an intermediate stage filtering.
      * Can be removed through null.
      */
-    public void multipleKeysPairs(List<Map<String, Object>> values, List<String> previousCriterionKeys) {
+    public void multipleKeyPairs(List<Map<String, Object>> values, List<String> previousCriterionKeys) {
         assert previousCriterionKeys != null && previousCriterionKeys.size() == keys.size();
 
         List<QueryBuilder> newFilters;
         if (values.isEmpty()) {
             // no keys have been specified and none have been set
-            if (CollectionUtils.isEmpty(multipleKeysFilters)) {
+            if (CollectionUtils.isEmpty(multipleKeyFilters)) {
                 return;
             }
             newFilters = emptyList();
@@ -90,48 +97,79 @@ public class AggregatedQueryRequest implements QueryRequest {
             newFilters = Collections.singletonList(orKeys);
 
             for (Map<String, Object> bucket : values) {
-                BoolQueryBuilder joinKeyBoolQuery = boolQuery();
+                BoolQueryBuilder joinKeyBoolQuery = null;
                 // the list of keys order is important because a key on one position corresponds to another key on the same
                 // position from another query. For example, [host, os] corresponds to [hostname, op_sys].
                 for (int i = 0; i < keys.size(); i++) {
                     // build a bool must for the key of this criterion, but using the value of the previous criterion results
-                    joinKeyBoolQuery.must(termQuery(keys.get(i), bucket.get(previousCriterionKeys.get(i))));
+                    Object value = bucket.get(previousCriterionKeys.get(i));
+                    if (value != null) {
+                        if (joinKeyBoolQuery == null) {
+                            joinKeyBoolQuery = boolQuery();
+                        }
+                        joinKeyBoolQuery.must(termQuery(keys.get(i), value));
+                    } else {
+                        /*
+                         * Joining on null values can generate technically valid results, but difficult o understand by users. For example,
+                         *
+                         * sample by host [any where bool == true] by os [any where uptime > 0] by os [any where port > 100] by op_sys
+                         *
+                         * If we would allow "null" values as valid join keys, it is possible to get a match on documents that do not
+                         * have a value for "op_sys" in some indices (but have a value on "os") and other documents that do not have a value
+                         * for "os" (but have a value in "op_sys").
+                         *
+                         * Result for the above query:
+                         * "join_keys": ["doom",null]
+                         * "events": [{"_index":"test2","_id": "6","host": "doom","port": 65123,"bool": true,"op_sys": "redhat"}
+                         *           {"_index": "test2","_id": "7","host": "doom","uptime": 15,"port": 1234,"bool": true,"op_sys": "redhat"}
+                         *           {"_index": "test1","_id": "1","host": "doom","uptime": 0,"port": 1234,"os": "win10"}]
+                         */
+                        // joinKeyBoolQuery.mustNot(existsQuery(keys.get(i)));
+                    }
                 }
 
-                orKeys.should(joinKeyBoolQuery);
+                if (joinKeyBoolQuery != null) {
+                    orKeys.should(joinKeyBoolQuery);
+                }
             }
         }
 
-        RuntimeUtils.replaceFilter(multipleKeysFilters, newFilters, searchSource);
-        multipleKeysFilters = newFilters;
+        RuntimeUtils.replaceFilter(multipleKeyFilters, newFilters, searchSource);
+        multipleKeyFilters = newFilters;
     }
 
     /**
      * Sets keys / terms to filter on in the final stage filtering (where actual events are gathered).
      * Can be removed through null.
      */
-    public void singleKeysPair(final List<Object> compositeKeyValues, int maxStages) {
+    public void singleKeyPair(final List<Object> compositeKeyValues, int maxStages) {
         List<QueryBuilder> newFilters = new ArrayList<>();
         if (compositeKeyValues.isEmpty()) {
             // no keys have been specified and none have been set
-            if (CollectionUtils.isEmpty(singleKeysPairFilters)) {
+            if (CollectionUtils.isEmpty(singleKeyPairFilters)) {
                 return;
             }
             newFilters = emptyList();
         } else {
+            Object value;
             for (int i = 0; i < keys.size(); i++) {
-                newFilters.add(new TermQueryBuilder(keys.get(i), compositeKeyValues.get(i)));
+                value = compositeKeyValues.get(i);
+                // if (value != null) {
+                newFilters.add(termQuery(keys.get(i), value));
+                // } else {
+                // newFilters.add(boolQuery().mustNot(existsQuery(keys.get(i))));
+                // }
             }
         }
 
-        SearchSourceBuilder newSource = copySource();
-        RuntimeUtils.replaceFilter(singleKeysPairFilters, newFilters, newSource);
+        SearchSourceBuilder newSource = copySource(searchSource);
+        RuntimeUtils.replaceFilter(singleKeyPairFilters, newFilters, newSource);
         newSource.size(maxStages) // ask for exactly number of filters/stages documents
             .terminateAfter(maxStages) // no need to ask for more from each shard since we don't need sorting or more docs
             .fetchSource(FetchSourceContext.DO_NOT_FETCH_SOURCE) // we'll get the source in a separate step
             .trackTotalHits(false)
             .trackScores(false);
-        singleKeysPairFilters = newFilters;
+        singleKeyPairFilters = newFilters;
         searchSource = newSource;
     }
 
@@ -143,24 +181,25 @@ public class AggregatedQueryRequest implements QueryRequest {
         List<CompositeValuesSourceBuilder<?>> compositeAggSources = new ArrayList<>(keys.size());
         for (int i = 0; i < keys.size(); i++) {
             String key = keys.get(i);
+            // compositeAggSources.add(new TermsValuesSourceBuilder(key).field(key).missingBucket(true));
             compositeAggSources.add(new TermsValuesSourceBuilder(key).field(key));
         }
         agg = new CompositeAggregationBuilder(COMPOSITE_AGG_NAME, compositeAggSources);
-        agg.size(SamplingIterator.MAX_PAGE_SIZE);
+        agg.size(SampleIterator.MAX_PAGE_SIZE);
         searchSource.aggregation(agg);
     }
 
     /*
      * Not a great way of getting a copy of a SearchSourceBuilder
      */
-    private SearchSourceBuilder copySource() {
+    private static SearchSourceBuilder copySource(SearchSourceBuilder source) {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
-            searchSource.writeTo(output);
+            source.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), registry)) {
                 return new SearchSourceBuilder(in);
             }
         } catch (IOException e) {
-            throw new UncheckedIOException(e);
+            throw new EqlIllegalArgumentException("Error copying search source", e);
         }
     }
 }

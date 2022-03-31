@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.eql.execution.sampling;
+package org.elasticsearch.xpack.eql.execution.sample;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -19,7 +19,7 @@ import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.execution.assembler.AggregatedQueryRequest;
 import org.elasticsearch.xpack.eql.execution.assembler.Executable;
-import org.elasticsearch.xpack.eql.execution.assembler.SamplingCriterion;
+import org.elasticsearch.xpack.eql.execution.assembler.SampleCriterion;
 import org.elasticsearch.xpack.eql.execution.search.HitReference;
 import org.elasticsearch.xpack.eql.execution.search.QueryClient;
 import org.elasticsearch.xpack.eql.execution.search.RuntimeUtils;
@@ -41,24 +41,24 @@ import static org.elasticsearch.common.Strings.EMPTY_ARRAY;
 import static org.elasticsearch.xpack.eql.execution.assembler.AggregatedQueryRequest.COMPOSITE_AGG_NAME;
 import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.prepareRequest;
 
-public class SamplingIterator implements Executable {
+public class SampleIterator implements Executable {
 
     public static final int MAX_PAGE_SIZE = 1; // for testing purposes it's set to such a low value
-    private final Logger log = LogManager.getLogger(SamplingIterator.class);
+    private final Logger log = LogManager.getLogger(SampleIterator.class);
 
     private final QueryClient client;
-    private final List<SamplingCriterion<AggregatedQueryRequest>> criteria;
+    private final List<SampleCriterion<AggregatedQueryRequest>> criteria;
     private final Stack<Page> stack = new Stack<>();
     private final int maxStages;
-    private final List<Sampling> samplings;
+    private final List<Sample> samples;
 
     private long startTime;
 
-    public SamplingIterator(QueryClient client, List<SamplingCriterion<AggregatedQueryRequest>> criteria) {
+    public SampleIterator(QueryClient client, List<SampleCriterion<AggregatedQueryRequest>> criteria) {
         this.client = client;
         this.criteria = criteria;
         this.maxStages = criteria.size();
-        this.samplings = new ArrayList<>();
+        this.samples = new ArrayList<>();
     }
 
     @Override
@@ -67,7 +67,7 @@ public class SamplingIterator implements Executable {
         // clear the memory at the end of the algorithm
         advance(runAfter(listener, () -> {
             stack.clear();
-            samplings.clear();
+            samples.clear();
             client.close(listener.delegateFailure((l, r) -> {}));
         }));
     }
@@ -80,18 +80,17 @@ public class SamplingIterator implements Executable {
         if (currentStage < maxStages) {
             // excessive logging for testing purposes
             log.trace("Advancing from stage [{}]", currentStage);
-            SamplingCriterion<AggregatedQueryRequest> criterion = criteria.get(currentStage);
-            AggregatedQueryRequest request = criterion.firstQuery();
+            SampleCriterion<AggregatedQueryRequest> criterion = criteria.get(currentStage);
+            AggregatedQueryRequest request;
 
             // incorporate the previous stage composite keys in the current stage query
             if (currentStage > 0) {
                 request = criterion.midQuery();
                 Page previousResults = stack.peek();
-                List<Map<String, Object>> values = new ArrayList<>(previousResults.size);
-                for (InternalComposite.InternalBucket bucket : previousResults.hits) {
-                    values.add(bucket.getKey());
-                }
-                request.multipleKeysPairs(values, previousResults.keys);
+                SampleCriterion<AggregatedQueryRequest> previousCriterion = criteria.get(currentStage - 1);
+                request.multipleKeyPairs(previousCriterion.keys(previousResults.hits), previousResults.keys);
+            } else {
+                request = criterion.firstQuery();
             }
 
             final AggregatedQueryRequest rr = request;
@@ -117,7 +116,7 @@ public class SamplingIterator implements Executable {
                 }
             }, listener::onFailure));
         } else if (currentStage > maxStages) {
-            throw new EqlIllegalArgumentException("Unexpected stage [{}], max stages in this sampling [{}]", currentStage, maxStages);
+            throw new EqlIllegalArgumentException("Unexpected stage [{}], max stages in this sample [{}]", currentStage, maxStages);
         } else {
             finalStage(listener);
         }
@@ -126,7 +125,7 @@ public class SamplingIterator implements Executable {
     /*
      * Creates a _msearch request containing maxStages (number of filters in the query) * number_of_join_keys queries.
      * For a query with three filters
-     *          sampling by host [any where uptime > 0] by os [any where port > 5] by op_sys [any where bool == true] by os
+     *          sample by host [any where uptime > 0] by os [any where port > 5] by op_sys [any where bool == true] by os
      * and one pair of join keys values (host = H1, os = win10) the msearch will look like
      * ...{"bool":{"must":[{"term":{"host":"H1"}},{"term":{"os":"win10"}},{"range":{"uptime":{"gt":0}}}]}},"terminate_after":3,"size":3}
      * ...{"bool":{"must":[{"term":{"host":"H1"}},{"term":{"op_sys":"win10"}},{"range":{"port":{"gt":5}}}]}},"terminate_after": 3,"size":3}
@@ -141,29 +140,23 @@ public class SamplingIterator implements Executable {
         List<SearchRequest> searches = new ArrayList<>(maxStages * page.hits.size());
 
         // should this one be a Set instead? Meaning, unique SequenceKeys? The algorithm should already be generating unique keys...
-        List<SequenceKey> samplingKeys = new ArrayList<>();
-
-        for (InternalComposite.InternalBucket hit : page.hits) {
-            Map<String, Object> hitCompositeKeyValue = hit.getKey(); // the composite key that should be used with all other criteria
-            final List<Object> compositeKeyValues = new ArrayList<>(hitCompositeKeyValue.size());
-            // put the values in a list, each value's location within the list corresponds to the join keys' same location
-            for (String keyName : page.keys) {
-                compositeKeyValues.add(hitCompositeKeyValue.get(keyName));
-            }
-
+        List<SequenceKey> sampleKeys = new ArrayList<>();
+        // get all composite key values as a list of list
+        List<List<Object>> allCompositeKeyValues = criteria.get(maxStages - 1).keyValues(page.hits);
+        for (List<Object> compositeKeyValues : allCompositeKeyValues) {
             // take each filter query and add to it a filter by join keys with the corresponding values
-            for (SamplingCriterion<AggregatedQueryRequest> criterion : criteria) {
+            for (SampleCriterion<AggregatedQueryRequest> criterion : criteria) {
                 AggregatedQueryRequest r = criterion.finalQuery();
-                r.singleKeysPair(compositeKeyValues, maxStages);
+                r.singleKeyPair(compositeKeyValues, maxStages);
                 searches.add(prepareRequest(r.searchSource(), false, EMPTY_ARRAY));
             }
-            samplingKeys.add(new SequenceKey(compositeKeyValues.toArray()));
+            sampleKeys.add(new SequenceKey(compositeKeyValues.toArray()));
         }
 
-        int initialSize = samplings.size();
+        int initialSize = samples.size();
         client.multiQuery(searches, ActionListener.wrap(r -> {
-            List<List<SearchHit>> finalSamplings = new ArrayList<>();
-            List<List<SearchHit>> sampling = new ArrayList<>(maxStages);
+            List<List<SearchHit>> finalSamples = new ArrayList<>();
+            List<List<SearchHit>> sample = new ArrayList<>(maxStages);
             MultiSearchResponse.Item[] response = r.getResponses();
 
             int i = 0; // response items iterator
@@ -173,23 +166,23 @@ public class SamplingIterator implements Executable {
                 MultiSearchResponse.Item item = response[i];
                 List<SearchHit> hits = RuntimeUtils.searchHits(item.getResponse());
                 if (hits.size() > 0) {
-                    sampling.add(hits);
+                    sample.add(hits);
                 }
                 if (j == maxStages) {
-                    List<SearchHit> match = matchSampling(sampling, maxStages);
+                    List<SearchHit> match = matchSample(sample, maxStages);
                     if (match != null) {
-                        finalSamplings.add(match);
-                        samplings.add(new Sampling(samplingKeys.get(i / maxStages), match));
+                        finalSamples.add(match);
+                        samples.add(new Sample(sampleKeys.get(i / maxStages), match));
                     }
                     j = 1;
-                    sampling = new ArrayList<>(maxStages);
+                    sample = new ArrayList<>(maxStages);
                 } else {
                     j++;
                 }
                 i++;
             }
 
-            log.trace("Final stage... found [{}] new Samplings", samplings.size() - initialSize);
+            log.trace("Final stage... found [{}] new Samples", samples.size() - initialSize);
             // if this final page is max_page_size in size it means: either it's the last page and it happens to have max_page_size elements
             // or it's just not the last page and we should advance
             if (page.size() == MAX_PAGE_SIZE) {
@@ -237,26 +230,26 @@ public class SamplingIterator implements Executable {
     }
 
     /*
-     * Final step for gathering all the documents (fetch phase) of the found samplings.
+     * Final step for gathering all the documents (fetch phase) of the found samples.
      */
     private void payload(ActionListener<Payload> listener) {
-        log.trace("Sending payload for [{}] samplings", samplings.size());
+        log.trace("Sending payload for [{}] samples", samples.size());
 
-        if (samplings.isEmpty()) {
+        if (samples.isEmpty()) {
             listener.onResponse(new EmptyPayload(Type.SEQUENCE, timeTook()));
             return;
         }
 
         // get results through search (to keep using PIT)
-        client.fetchHits(hits(samplings), ActionListeners.map(listener, listOfHits -> {
-            SamplingPayload payload = new SamplingPayload(samplings, listOfHits, false, timeTook());
+        client.fetchHits(hits(samples), ActionListeners.map(listener, listOfHits -> {
+            SamplePayload payload = new SamplePayload(samples, listOfHits, false, timeTook());
             return payload;
         }));
     }
 
-    Iterable<List<HitReference>> hits(List<Sampling> samplings) {
+    Iterable<List<HitReference>> hits(List<Sample> samples) {
         return () -> {
-            Iterator<Sampling> delegate = samplings.iterator();
+            Iterator<Sample> delegate = samples.iterator();
 
             return new Iterator<>() {
 
@@ -275,7 +268,7 @@ public class SamplingIterator implements Executable {
 
     /*
      * Backtracking for choosing unique combination of documents/search hits from a list.
-     * For example, for a sampling with three filters, there will be at most 3 documents matching each filter. But, because one document
+     * For example, for a sample with three filters, there will be at most 3 documents matching each filter. But, because one document
      * can potentially match multiple filters, the same document can be found in all three lists. The aim of the algorithm is to pick
      * three different documents from each group.
      *
@@ -291,7 +284,7 @@ public class SamplingIterator implements Executable {
      * [doc1, doc1, doc3]
      * there is no solution.
      */
-    static List<SearchHit> matchSampling(List<List<SearchHit>> hits, int hitsCount) {
+    static List<SearchHit> matchSample(List<List<SearchHit>> hits, int hitsCount) {
         if (hits.size() < hitsCount) {
             return null;
         }

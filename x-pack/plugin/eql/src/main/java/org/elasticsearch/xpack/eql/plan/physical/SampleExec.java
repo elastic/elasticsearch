@@ -21,23 +21,23 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 
-public class SamplingExec extends PhysicalPlan {
+public class SampleExec extends PhysicalPlan {
 
     private final List<List<Attribute>> keys;
 
-    public SamplingExec(Source source, List<PhysicalPlan> children, List<List<Attribute>> keys) {
+    public SampleExec(Source source, List<PhysicalPlan> children, List<List<Attribute>> keys) {
         super(source, children);
         this.keys = keys;
     }
 
     @Override
-    protected NodeInfo<SamplingExec> info() {
-        return NodeInfo.create(this, SamplingExec::new, children(), keys);
+    protected NodeInfo<SampleExec> info() {
+        return NodeInfo.create(this, SampleExec::new, children(), keys);
     }
 
     @Override
     public PhysicalPlan replaceChildren(List<PhysicalPlan> newChildren) {
-        return new SamplingExec(source(), newChildren, keys);
+        return new SampleExec(source(), newChildren, keys);
     }
 
     @Override
@@ -73,7 +73,7 @@ public class SamplingExec extends PhysicalPlan {
             return false;
         }
 
-        SamplingExec other = (SamplingExec) obj;
+        SampleExec other = (SampleExec) obj;
         return Objects.equals(children(), other.children()) && Objects.equals(keys, other.keys);
     }
 }

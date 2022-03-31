@@ -81,16 +81,16 @@ interface EqlBaseListener extends ParseTreeListener {
     void exitSequence(EqlBaseParser.SequenceContext ctx);
 
     /**
-     * Enter a parse tree produced by {@link EqlBaseParser#sampling}.
+     * Enter a parse tree produced by {@link EqlBaseParser#sample}.
      * @param ctx the parse tree
      */
-    void enterSampling(EqlBaseParser.SamplingContext ctx);
+    void enterSample(EqlBaseParser.SampleContext ctx);
 
     /**
-     * Exit a parse tree produced by {@link EqlBaseParser#sampling}.
+     * Exit a parse tree produced by {@link EqlBaseParser#sample}.
      * @param ctx the parse tree
      */
-    void exitSampling(EqlBaseParser.SamplingContext ctx);
+    void exitSample(EqlBaseParser.SampleContext ctx);
 
     /**
      * Enter a parse tree produced by {@link EqlBaseParser#join}.

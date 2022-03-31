@@ -14,10 +14,11 @@ import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.Inse
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveEquals;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveWildcardEquals;
 import org.elasticsearch.xpack.eql.expression.predicate.operator.comparison.InsensitiveWildcardNotEquals;
+import org.elasticsearch.xpack.eql.plan.logical.AbstractJoin;
 import org.elasticsearch.xpack.eql.plan.logical.Join;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
 import org.elasticsearch.xpack.eql.plan.logical.LimitWithOffset;
-import org.elasticsearch.xpack.eql.plan.logical.Sampling;
+import org.elasticsearch.xpack.eql.plan.logical.Sample;
 import org.elasticsearch.xpack.eql.plan.logical.Sequence;
 import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
 import org.elasticsearch.xpack.eql.session.Payload.Type;
@@ -200,15 +201,15 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
      * Add the constraint manually to each query - this helps simplifying as well
      * as propagating the constraint.
      */
-    static class AddMandatoryJoinKeyFilter extends OptimizerRule<Sampling> {
+    static class AddMandatoryJoinKeyFilter extends OptimizerRule<AbstractJoin> {
         @Override
-        protected LogicalPlan rule(Sampling sampling) {
-            if (sampling instanceof Sequence == false) {
-                return sampling;
+        protected LogicalPlan rule(AbstractJoin join) {
+            if (join instanceof Sequence == false) {
+                return join;
             }
             // collect all mandatory keys and add them as a filter
             boolean changed = false;
-            List<KeyedFilter> filters = new ArrayList<>(sampling.queries());
+            List<KeyedFilter> filters = new ArrayList<>(join.queries());
             for (int i = 0; i < filters.size(); i++) {
                 Set<NamedExpression> mandatoryKeys = new LinkedHashSet<>();
 
@@ -224,18 +225,18 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
                     Expression constraint = Predicates.combineAnd(
                         mandatoryKeys.stream().map(m -> new IsNotNull(m.source(), m)).collect(toList())
                     );
-                    Filter joinKeyNotNull = new Filter(sampling.source(), k.child(), constraint);
+                    Filter joinKeyNotNull = new Filter(join.source(), k.child(), constraint);
                     filters.set(i, new KeyedFilter(k.source(), joinKeyNotNull, k.keys(), k.timestamp(), k.timestamp()));
                 }
             }
             if (changed) {
-                if (sampling instanceof Join join) {
-                    sampling = join.with(filters, join.until(), join.direction());
-                } else {
-                    sampling = sampling.with(filters);
+                if (join instanceof Join j) {
+                    join = j.with(filters, j.until(), j.direction());
+                } else if (join instanceof Sample sample) {
+                    join = sample.with(filters);
                 }
             }
-            return sampling;
+            return join;
         }
     }
 
@@ -350,9 +351,9 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     }
 
     /**
-     * Any condition applied on a join/sequence key, gets propagated to all rules.
+     * Any condition applied on a join/sequence/sample key, gets propagated to all rules.
      */
-    static class PropagateJoinKeyConstraints extends OptimizerRule<Sampling> {
+    static class PropagateJoinKeyConstraints extends OptimizerRule<AbstractJoin> {
 
         static class Constraint {
             private final Expression condition;
@@ -384,23 +385,23 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
 
         @Override
-        protected LogicalPlan rule(Sampling sampling) {
+        protected LogicalPlan rule(AbstractJoin join) {
             List<Constraint> constraints = new ArrayList<>();
 
             // collect constraints for each filter
-            sampling.queries().forEach(k -> k.forEachDown(Filter.class, f -> constraints.addAll(detectKeyConstraints(f.condition(), k))));
+            join.queries().forEach(k -> k.forEachDown(Filter.class, f -> constraints.addAll(detectKeyConstraints(f.condition(), k))));
 
             if (constraints.isEmpty() == false) {
-                List<KeyedFilter> queries = sampling.queries().stream().map(k -> addConstraint(k, constraints)).collect(toList());
+                List<KeyedFilter> queries = join.queries().stream().map(k -> addConstraint(k, constraints)).collect(toList());
 
-                if (sampling instanceof Join join) {
-                    sampling = join.with(queries, join.until(), join.direction());
-                } else {
-                    sampling = sampling.with(queries);
+                if (join instanceof Join j) {
+                    join = j.with(queries, j.until(), j.direction());
+                } else if (join instanceof Sample sample) {
+                    join = sample.with(queries);
                 }
             }
 
-            return sampling;
+            return join;
         }
 
         private List<Constraint> detectKeyConstraints(Expression condition, KeyedFilter filter) {
@@ -535,10 +536,10 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
         }
     }
 
-    static class SkipEmptyJoin extends OptimizerRule<Sampling> {
+    static class SkipEmptyJoin extends OptimizerRule<AbstractJoin> {
 
         @Override
-        protected LogicalPlan rule(Sampling plan) {
+        protected LogicalPlan rule(AbstractJoin plan) {
             // check for empty filters
             for (KeyedFilter filter : plan.queries()) {
                 if (filter.anyMatch(LocalRelation.class::isInstance)) {

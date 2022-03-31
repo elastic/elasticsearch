@@ -1,12 +1,13 @@
 [
   {
     "@timestamp": "1234567991",
+    "ip": "10.0.0.1",
     "event_type": "alert",
     "host": "doom",
     "uptime": 0,
     "port": 1234,
     "op_sys": "win10",
-    "id": 1
+    "id": 21
   },
   {
     "@timestamp": "1234567992",
@@ -15,7 +16,7 @@
     "uptime": 5,
     "port": 1,
     "op_sys": "win10",
-    "id": 2
+    "id": 22
   },
   {
     "@timestamp": "1234567993",
@@ -25,7 +26,7 @@
     "port": 1234,
     "bool": false,
     "op_sys": "win10",
-    "id": 3
+    "id": 23
   },
   {
     "@timestamp": "1234567994",
@@ -34,7 +35,7 @@
     "uptime": 3,
     "port": 12,
     "op_sys": "slack",
-    "id": 4
+    "id": 24
   },
   {
     "@timestamp": "1234567995",
@@ -43,16 +44,17 @@
     "uptime": 6,
     "port": 1234,
     "op_sys": "fedora",
-    "id": 5
+    "id": 25
   },
   {
     "@timestamp": "1234568996",
+    "ip": "10.0.0.5",
     "event_type": "alert",
     "host": "doom",
     "port": 65123,
     "bool": true,
     "op_sys": "redhat",
-    "id": 6
+    "id": 26
   },
   {
     "@timestamp": "1234567997",
@@ -62,24 +64,26 @@
     "port": 1234,
     "bool": true,
     "op_sys": "redhat",
-    "id": 7
+    "id": 27
   },
   {
     "@timestamp": "1234567998",
+    "ip": "10.0.0.1",
     "event_type": "success",
     "host": "doom",
     "uptime": 16,
     "port": 512,
     "op_sys": "win10",
-    "id": 8
+    "id": 28
   },
   {
     "@timestamp": "1234567999",
+    "ip": "10.0.0.1",
     "event_type": "success",
     "host": "GTA",
     "port": 12,
-    "bool": true,
+    "bool": false,
     "op_sys": "win10",
-    "id": 9
+    "id": 29
   }
 ]

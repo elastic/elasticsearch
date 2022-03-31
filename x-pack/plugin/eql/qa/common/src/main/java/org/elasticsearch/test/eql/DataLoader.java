@@ -49,7 +49,7 @@ import static org.junit.Assert.assertThat;
  * - endgame-140       - for existing data
  * - endgame-140-nanos - same as endgame-140, but with nano-precision timestamps
  * - extra             - additional data
- * - sampling*         - data for "sampling" functionality
+ * - sampling*         - data for "sample" functionality
  *
  * While the loader could be made generic, the queries are bound to each index and generalizing that would make things way too complicated.
  */
@@ -58,7 +58,7 @@ public class DataLoader {
     public static final String TEST_INDEX = "endgame-140";
     public static final String TEST_EXTRA_INDEX = "extra";
     public static final String TEST_NANOS_INDEX = "endgame-140-nanos";
-    public static final String TEST_SAMPLING = "sampling1,sampling2,sampling3";
+    public static final String TEST_SAMPLE = "sampling1,sampling2,sampling3";
 
     private static final Map<String, String[]> replacementPatterns = Collections.unmodifiableMap(getReplacementPatterns());
 
@@ -102,7 +102,7 @@ public class DataLoader {
         // chosen Windows filetime timestamps (2017+) can coincidentally also be readily used as nano-resolution unix timestamps (1973+).
         // There are mixed values with and without nanos precision so that the filtering is properly tested for both cases.
         load(client, TEST_NANOS_INDEX, TEST_INDEX, DataLoader::timestampToUnixNanos, p);
-        load(client, TEST_SAMPLING, null, null, p);
+        load(client, TEST_SAMPLE, null, null, p);
     }
 
     private static void load(

@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.eql.parser.EqlBaseParser.JoinKeysContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.JoinTermContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.NumberContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.PipeContext;
-import org.elasticsearch.xpack.eql.parser.EqlBaseParser.SamplingContext;
+import org.elasticsearch.xpack.eql.parser.EqlBaseParser.SampleContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.SequenceContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.SequenceParamsContext;
 import org.elasticsearch.xpack.eql.parser.EqlBaseParser.SequenceTermContext;
@@ -28,7 +28,7 @@ import org.elasticsearch.xpack.eql.plan.logical.Head;
 import org.elasticsearch.xpack.eql.plan.logical.Join;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
 import org.elasticsearch.xpack.eql.plan.logical.LimitWithOffset;
-import org.elasticsearch.xpack.eql.plan.logical.Sampling;
+import org.elasticsearch.xpack.eql.plan.logical.Sample;
 import org.elasticsearch.xpack.eql.plan.logical.Sequence;
 import org.elasticsearch.xpack.eql.plan.logical.Tail;
 import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
@@ -119,7 +119,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
         if (Expressions.isPresent(tiebreaker)) {
             orders.add(new Order(defaultOrderSource, tiebreaker, resultPosition(), position));
         }
-        // sequences and event queries support ordering vs. sampling which do not
+        // sequences and event queries support ordering vs. sample which do not
         if (plan instanceof Join || plan instanceof Filter) {
             plan = new OrderBy(defaultOrderSource, plan, orders);
 
@@ -381,7 +381,7 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
     }
 
     @Override
-    public Object visitSampling(SamplingContext ctx) {
+    public Object visitSample(SampleContext ctx) {
         Source source = source(ctx);
 
         List<Attribute> parentJoinKeys = visitJoinKeys(ctx.by);
@@ -409,16 +409,16 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
             int numberOfQueries = queries.size();
             if (numberOfQueries > 5) {
-                throw new ParsingException(source(joinTermCtx), "Sampling cannot contain more than 5 queries; found [{}]", numberOfQueries);
+                throw new ParsingException(source(joinTermCtx), "Sample cannot contain more than 5 queries; found [{}]", numberOfQueries);
             }
             queries.add(joinTerm);
         }
 
         if (queries.size() < 2) {
-            throw new ParsingException(source, "A sampling requires a minimum of 2 queries, found [{}]", queries.size());
+            throw new ParsingException(source, "A sample requires a minimum of 2 queries, found [{}]", queries.size());
         }
 
-        return new Sampling(source, queries);
+        return new Sample(source, queries);
     }
 
     private LogicalPlan pipe(PipeContext ctx, LogicalPlan plan) {

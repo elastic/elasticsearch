@@ -18,14 +18,14 @@ class EqlBaseParser extends Parser {
     protected static final DFA[] _decisionToDFA;
     protected static final PredictionContextCache _sharedContextCache = new PredictionContextCache();
     public static final int AND = 1, ANY = 2, BY = 3, FALSE = 4, IN = 5, IN_INSENSITIVE = 6, JOIN = 7, LIKE = 8, LIKE_INSENSITIVE = 9,
-        MAXSPAN = 10, NOT = 11, NULL = 12, OF = 13, OR = 14, REGEX = 15, REGEX_INSENSITIVE = 16, SAMPLING = 17, SEQUENCE = 18, TRUE = 19,
+        MAXSPAN = 10, NOT = 11, NULL = 12, OF = 13, OR = 14, REGEX = 15, REGEX_INSENSITIVE = 16, SAMPLE = 17, SEQUENCE = 18, TRUE = 19,
         UNTIL = 20, WHERE = 21, WITH = 22, SEQ = 23, ASGN = 24, EQ = 25, NEQ = 26, LT = 27, LTE = 28, GT = 29, GTE = 30, PLUS = 31, MINUS =
             32, ASTERISK = 33, SLASH = 34, PERCENT = 35, DOT = 36, COMMA = 37, LB = 38, RB = 39, LP = 40, RP = 41, PIPE = 42, OPTIONAL = 43,
         STRING = 44, INTEGER_VALUE = 45, DECIMAL_VALUE = 46, IDENTIFIER = 47, QUOTED_IDENTIFIER = 48, TILDE_IDENTIFIER = 49, LINE_COMMENT =
             50, BRACKETED_COMMENT = 51, WS = 52;
     public static final int RULE_singleStatement = 0, RULE_singleExpression = 1, RULE_statement = 2, RULE_query = 3, RULE_sequenceParams =
-        4, RULE_sequence = 5, RULE_sampling = 6, RULE_join = 7, RULE_pipe = 8, RULE_joinKeys = 9, RULE_joinTerm = 10, RULE_sequenceTerm =
-            11, RULE_subquery = 12, RULE_eventQuery = 13, RULE_eventFilter = 14, RULE_expression = 15, RULE_booleanExpression = 16,
+        4, RULE_sequence = 5, RULE_sample = 6, RULE_join = 7, RULE_pipe = 8, RULE_joinKeys = 9, RULE_joinTerm = 10, RULE_sequenceTerm = 11,
+        RULE_subquery = 12, RULE_eventQuery = 13, RULE_eventFilter = 14, RULE_expression = 15, RULE_booleanExpression = 16,
         RULE_valueExpression = 17, RULE_operatorExpression = 18, RULE_predicate = 19, RULE_primaryExpression = 20, RULE_functionExpression =
             21, RULE_functionName = 22, RULE_constant = 23, RULE_comparisonOperator = 24, RULE_booleanValue = 25, RULE_qualifiedName = 26,
         RULE_identifier = 27, RULE_timeUnit = 28, RULE_number = 29, RULE_string = 30, RULE_eventValue = 31;
@@ -38,7 +38,7 @@ class EqlBaseParser extends Parser {
             "query",
             "sequenceParams",
             "sequence",
-            "sampling",
+            "sample",
             "join",
             "pipe",
             "joinKeys",
@@ -87,7 +87,7 @@ class EqlBaseParser extends Parser {
             "'or'",
             "'regex'",
             "'regex~'",
-            "'sampling'",
+            "'sample'",
             "'sequence'",
             "'true'",
             "'until'",
@@ -137,7 +137,7 @@ class EqlBaseParser extends Parser {
             "OR",
             "REGEX",
             "REGEX_INSENSITIVE",
-            "SAMPLING",
+            "SAMPLE",
             "SEQUENCE",
             "TRUE",
             "UNTIL",
@@ -432,8 +432,8 @@ class EqlBaseParser extends Parser {
             return getRuleContext(EventQueryContext.class, 0);
         }
 
-        public SamplingContext sampling() {
-            return getRuleContext(SamplingContext.class, 0);
+        public SampleContext sample() {
+            return getRuleContext(SampleContext.class, 0);
         }
 
         public QueryContext(ParserRuleContext parent, int invokingState) {
@@ -489,10 +489,10 @@ class EqlBaseParser extends Parser {
                     eventQuery();
                 }
                     break;
-                case SAMPLING:
+                case SAMPLE:
                     enterOuterAlt(_localctx, 4); {
                     setState(80);
-                    sampling();
+                    sample();
                 }
                     break;
                 default:
@@ -717,11 +717,11 @@ class EqlBaseParser extends Parser {
         return _localctx;
     }
 
-    public static class SamplingContext extends ParserRuleContext {
+    public static class SampleContext extends ParserRuleContext {
         public JoinKeysContext by;
 
-        public TerminalNode SAMPLING() {
-            return getToken(EqlBaseParser.SAMPLING, 0);
+        public TerminalNode SAMPLE() {
+            return getToken(EqlBaseParser.SAMPLE, 0);
         }
 
         public List<JoinTermContext> joinTerm() {
@@ -736,48 +736,48 @@ class EqlBaseParser extends Parser {
             return getRuleContext(JoinKeysContext.class, 0);
         }
 
-        public SamplingContext(ParserRuleContext parent, int invokingState) {
+        public SampleContext(ParserRuleContext parent, int invokingState) {
             super(parent, invokingState);
         }
 
         @Override
         public int getRuleIndex() {
-            return RULE_sampling;
+            return RULE_sample;
         }
 
         @Override
         public void enterRule(ParseTreeListener listener) {
-            if (listener instanceof EqlBaseListener) ((EqlBaseListener) listener).enterSampling(this);
+            if (listener instanceof EqlBaseListener) ((EqlBaseListener) listener).enterSample(this);
         }
 
         @Override
         public void exitRule(ParseTreeListener listener) {
-            if (listener instanceof EqlBaseListener) ((EqlBaseListener) listener).exitSampling(this);
+            if (listener instanceof EqlBaseListener) ((EqlBaseListener) listener).exitSample(this);
         }
 
         @Override
         public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-            if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitSampling(this);
+            if (visitor instanceof EqlBaseVisitor) return ((EqlBaseVisitor<? extends T>) visitor).visitSample(this);
             else return visitor.visitChildren(this);
         }
     }
 
-    public final SamplingContext sampling() throws RecognitionException {
-        SamplingContext _localctx = new SamplingContext(_ctx, getState());
-        enterRule(_localctx, 12, RULE_sampling);
+    public final SampleContext sample() throws RecognitionException {
+        SampleContext _localctx = new SampleContext(_ctx, getState());
+        enterRule(_localctx, 12, RULE_sample);
         int _la;
         try {
             enterOuterAlt(_localctx, 1);
             {
                 setState(108);
-                match(SAMPLING);
+                match(SAMPLE);
                 setState(110);
                 _errHandler.sync(this);
                 _la = _input.LA(1);
                 if (_la == BY) {
                     {
                         setState(109);
-                        ((SamplingContext) _localctx).by = joinKeys();
+                        ((SampleContext) _localctx).by = joinKeys();
                     }
                 }
 

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.eql.execution.sampling;
+package org.elasticsearch.xpack.eql.execution.sample;
 
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchHit;
@@ -17,16 +17,16 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.eql.util.SearchHitUtils.qualifiedIndex;
 
-class SamplingPayload extends AbstractPayload {
+class SamplePayload extends AbstractPayload {
 
     private final List<org.elasticsearch.xpack.eql.action.EqlSearchResponse.Sequence> values;
 
-    SamplingPayload(List<Sampling> samplings, List<List<SearchHit>> docs, boolean timedOut, TimeValue timeTook) {
+    SamplePayload(List<Sample> samples, List<List<SearchHit>> docs, boolean timedOut, TimeValue timeTook) {
         super(timedOut, timeTook);
-        values = new ArrayList<>(samplings.size());
+        values = new ArrayList<>(samples.size());
 
-        for (int i = 0; i < samplings.size(); i++) {
-            Sampling s = samplings.get(i);
+        for (int i = 0; i < samples.size(); i++) {
+            Sample s = samples.get(i);
             List<SearchHit> hits = docs.get(i);
             List<Event> events = new ArrayList<>(hits.size());
             for (SearchHit hit : hits) {

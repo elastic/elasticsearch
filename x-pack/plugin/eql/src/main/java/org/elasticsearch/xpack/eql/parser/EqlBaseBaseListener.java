@@ -113,7 +113,7 @@ class EqlBaseBaseListener implements EqlBaseListener {
      * <p>The default implementation does nothing.</p>
      */
     @Override
-    public void enterSampling(EqlBaseParser.SamplingContext ctx) {}
+    public void enterSample(EqlBaseParser.SampleContext ctx) {}
 
     /**
      * {@inheritDoc}
@@ -121,7 +121,7 @@ class EqlBaseBaseListener implements EqlBaseListener {
      * <p>The default implementation does nothing.</p>
      */
     @Override
-    public void exitSampling(EqlBaseParser.SamplingContext ctx) {}
+    public void exitSample(EqlBaseParser.SampleContext ctx) {}
 
     /**
      * {@inheritDoc}

@@ -1,5 +1,5 @@
 pr: 85393
-summary: Warn on user roles disabled due licensing requirements for document or field level security
+summary: Warn on user roles disabled due to licensing requirements for document or field level security
 area: Authentication
 type: enhancement
 issues:

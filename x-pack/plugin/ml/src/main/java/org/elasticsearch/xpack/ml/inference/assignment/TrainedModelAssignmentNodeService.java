@@ -178,17 +178,19 @@ public class TrainedModelAssignmentNodeService implements ClusterStateListener {
 
     void loadQueuedModels() {
         TrainedModelDeploymentTask loadingTask;
-        List<String> unassignedIndices = AbstractJobPersistentTasksExecutor.verifyIndicesPrimaryShardsAreActive(
-            latestState,
-            expressionResolver,
-            // we allow missing as that means the index doesn't exist at all and our loading will fail for the models and we need
-            // to notify as necessary
-            true,
-            InferenceIndexConstants.INDEX_PATTERN
-        );
-        if (unassignedIndices.size() > 0) {
-            logger.trace("not loading models as indices {} primary shards are unassigned", unassignedIndices);
-            return;
+        if (latestState != null) {
+            List<String> unassignedIndices = AbstractJobPersistentTasksExecutor.verifyIndicesPrimaryShardsAreActive(
+                latestState,
+                expressionResolver,
+                // we allow missing as that means the index doesn't exist at all and our loading will fail for the models and we need
+                // to notify as necessary
+                true,
+                InferenceIndexConstants.INDEX_PATTERN
+            );
+            if (unassignedIndices.size() > 0) {
+                logger.trace("not loading models as indices {} primary shards are unassigned", unassignedIndices);
+                return;
+            }
         }
         logger.trace("attempting to load all currently queued models");
         // NOTE: As soon as this method exits, the timer for the scheduler starts ticking

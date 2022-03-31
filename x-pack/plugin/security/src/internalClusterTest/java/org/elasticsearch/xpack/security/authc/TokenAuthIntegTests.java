@@ -714,8 +714,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
     }
 
     private OAuth2Token createToken(RequestOptions options) throws IOException {
-        final TestSecurityClient client = securityClient(options);
-        return client.clientCredentialsToken();
+        return securityClient(options).createTokenWithClientCredentialsGrant();
     }
 
     private OAuth2Token createToken(String user, SecureString password) throws IOException {
@@ -723,8 +722,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
     }
 
     private OAuth2Token createToken(String user, SecureString password, RequestOptions options) throws IOException {
-        final TestSecurityClient client = securityClient(options);
-        return client.createToken(new UsernamePasswordToken(user, password));
+        return securityClient(options).createToken(new UsernamePasswordToken(user, password));
     }
 
     private OAuth2Token refreshToken(String refreshToken) throws IOException {
@@ -732,8 +730,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
     }
 
     private OAuth2Token refreshToken(String refreshToken, RequestOptions options) throws IOException {
-        final TestSecurityClient client = securityClient(options);
-        return client.refreshToken(refreshToken);
+        return securityClient(options).refreshToken(refreshToken);
     }
 
     private TokenInvalidation invalidateAccessToken(String accessToken) throws IOException {
@@ -741,8 +738,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
     }
 
     private TokenInvalidation invalidateAccessToken(String accessToken, RequestOptions options) throws IOException {
-        final TestSecurityClient client = securityClient(options);
-        return client.invalidateAccessToken(accessToken);
+        return securityClient(options).invalidateAccessToken(accessToken);
     }
 
     private TokenInvalidation invalidateRefreshToken(String refreshToken) throws IOException {
@@ -750,8 +746,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
     }
 
     private TokenInvalidation invalidateRefreshToken(String refreshToken, RequestOptions options) throws IOException {
-        final TestSecurityClient client = securityClient(options);
-        return client.invalidateRefreshToken(refreshToken);
+        return securityClient(options).invalidateRefreshToken(refreshToken);
     }
 
     private TestSecurityClient securityClient(RequestOptions options) {

@@ -265,7 +265,7 @@ public class TestSecurityClient {
      * Uses the REST API to create a new access token via a client_credentials grant
      * @see org.elasticsearch.xpack.security.rest.action.oauth2.RestGetTokenAction
      */
-    public OAuth2Token clientCredentialsToken() throws IOException {
+    public OAuth2Token createTokenWithClientCredentialsGrant() throws IOException {
         return createToken("""
             {
               "grant_type":"client_credentials"

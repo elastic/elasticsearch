@@ -271,13 +271,10 @@ public class AuthorizationService {
                 } else {
                     final RequestInfo requestInfo = new RequestInfo(authentication, unwrappedRequest, action, enclosingContext);
                     final AuthorizationEngine engine = getAuthorizationEngine(authentication);
-                    final ActionListener<AuthorizationInfo> authzInfoListener = wrapPreservingContext(
-                        ActionListener.wrap(authorizationInfo -> {
-                            threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfo);
-                            maybeAuthorizeRunAs(requestInfo, auditId, authorizationInfo, listener);
-                        }, listener::onFailure),
-                        threadContext
-                    );
+                    final ActionListener<AuthorizationInfo> authzInfoListener = wrapPreservingContext(ActionListener.wrap(authorizationInfo -> {
+                        threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfo);
+                        maybeAuthorizeRunAs(requestInfo, auditId, authorizationInfo, listener);
+                    }, listener::onFailure), threadContext);
                     engine.resolveAuthorizationInfo(requestInfo, authzInfoListener);
                 }
             }

@@ -42,7 +42,6 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
-import static org.elasticsearch.xpack.core.security.SecurityField.FIELD_LEVEL_SECURITY_FEATURE;
 
 public class RoleDescriptorStore implements RoleReferenceResolver {
 
@@ -139,14 +138,9 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
             if (missingRoles) {
                 logger.debug(() -> new ParameterizedMessage("Could not find roles with names {}", rolesRetrievalResult.getMissingRoles()));
             }
-            final Set<RoleDescriptor> effectiveDescriptors;
-            Set<RoleDescriptor> roleDescriptors = rolesRetrievalResult.getRoleDescriptors();
-            if (roleDescriptors.stream().anyMatch(RoleDescriptor::isUsingDocumentOrFieldLevelSecurity)
-                && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false) {
-                effectiveDescriptors = skipRolesUsingDocumentOrFieldLevelSecurity(roleDescriptors);
-            } else {
-                effectiveDescriptors = roleDescriptors;
-            }
+            final Set<RoleDescriptor> effectiveDescriptors = maybeSkipRolesUsingDocumentOrFieldLevelSecurity(
+                rolesRetrievalResult.getRoleDescriptors()
+            );
             logger.trace(
                 () -> new ParameterizedMessage(
                     "Exposing effective role descriptors [{}] for role names [{}]",
@@ -168,20 +162,21 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
         }, listener::onFailure));
     }
 
-    private Set<RoleDescriptor> skipRolesUsingDocumentOrFieldLevelSecurity(Set<RoleDescriptor> roleDescriptors) {
+    private Set<RoleDescriptor> maybeSkipRolesUsingDocumentOrFieldLevelSecurity(Set<RoleDescriptor> roleDescriptors) {
+        boolean shouldSkip = roleDescriptors.stream().anyMatch(RoleDescriptor::isUsingDocumentOrFieldLevelSecurity)
+            && DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(licenseState) == false;
+        if (shouldSkip == false) {
+            return roleDescriptors;
+        }
+
         final Map<Boolean, Set<RoleDescriptor>> roles = roleDescriptors.stream()
             .collect(Collectors.partitioningBy(RoleDescriptor::isUsingDocumentOrFieldLevelSecurity, Collectors.toSet()));
 
         final Set<RoleDescriptor> rolesToSkip = roles.get(true);
         logger.warn(
-            "User roles [{}] are disabled since they require document or field level security to determine user access. "
-                + "These security features [{}, {}] are not available under the current license. "
-                + "Access to documents or fields granted by above roles will be denied. "
-                + "To re-enable the roles, upgrade license to [{}] or above, or renew if it's expired.",
-            DOCUMENT_LEVEL_SECURITY_FEATURE.getName(),
-            FIELD_LEVEL_SECURITY_FEATURE.getName(),
-            rolesToSkip.stream().map(RoleDescriptor::getName).collect(Collectors.joining(",")),
-            DOCUMENT_LEVEL_SECURITY_FEATURE.getMinimumOperationMode()
+            "User roles [{}] are disabled because they require field or document level security. "
+                + "The current license is non-compliant for field and document level security features.",
+            rolesToSkip.stream().map(RoleDescriptor::getName).collect(Collectors.joining(","))
         );
 
         return roles.get(false);

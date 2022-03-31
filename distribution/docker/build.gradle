@@ -330,7 +330,8 @@ private static List<String> generateTags(DockerBase base) {
   return [
     "${image}:test",
     "${image}:${version}",
-    "docker.elastic.co/${namespace}/${image}:${version}"
+    "docker.elastic.co/${namespace}/${image}:${version}",
+    "docker.elastic.co/${namespace}/${image}:${version}-agent"
   ]
 }
 

@@ -257,8 +257,8 @@ setup:
 "Wildcard highlighting":
 
   - skip:
-      version: " - 8.1.99"
-      reason: "Wildcard highlighting on match_only_text was fixed in 8.2"
+      version: " - 8.2.99"
+      reason: "Wildcard highlighting on match_only_text was fixed in 8.3"
 
   - do:
       search:

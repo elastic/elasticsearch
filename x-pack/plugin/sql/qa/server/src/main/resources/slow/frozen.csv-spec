@@ -8,6 +8,7 @@ showTables
 SHOW TABLES INCLUDE FROZEN;
 
  catalog       |       name        | type  |  kind
+integTest      |apps               |TABLE  |INDEX
 integTest      |empty_mapping      |TABLE  |INDEX
 integTest      |frozen_emp         |TABLE  |FROZEN INDEX
 integTest      |logs               |TABLE  |INDEX

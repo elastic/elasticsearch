@@ -121,7 +121,7 @@ public class SecuritySystemIndices {
             .build();
     }
 
-    private Settings getMainIndexSettings() {
+    private static Settings getMainIndexSettings() {
         return Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -546,7 +546,7 @@ public class SecuritySystemIndices {
         }
     }
 
-    private SystemIndexDescriptor getSecurityTokenIndexDescriptor() {
+    private static SystemIndexDescriptor getSecurityTokenIndexDescriptor() {
         return SystemIndexDescriptor.builder()
             .setIndexPattern(".security-tokens-[0-9]+*")
             .setPrimaryIndex(TOKENS_INDEX_CONCRETE_NAME)
@@ -572,7 +572,7 @@ public class SecuritySystemIndices {
             .build();
     }
 
-    private XContentBuilder getTokenIndexMappings() {
+    private static XContentBuilder getTokenIndexMappings() {
         try {
             final XContentBuilder builder = jsonBuilder();
 
@@ -741,7 +741,7 @@ public class SecuritySystemIndices {
             .build();
     }
 
-    private Settings getProfileIndexSettings() {
+    private static Settings getProfileIndexSettings() {
         return Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -874,7 +874,7 @@ public class SecuritySystemIndices {
         }
     }
 
-    private void defineRealmDomain(XContentBuilder builder, String fieldName) throws IOException {
+    private static void defineRealmDomain(XContentBuilder builder, String fieldName) throws IOException {
         builder.startObject(fieldName);
         {
             builder.field("type", "object");

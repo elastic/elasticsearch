@@ -260,7 +260,7 @@ final class SearchResponseMerger {
             return clusterAlias1.compareTo(clusterAlias2);
         }
 
-        private ShardId extractShardId(ShardSearchFailure failure) {
+        private static ShardId extractShardId(ShardSearchFailure failure) {
             SearchShardTarget shard = failure.shard();
             if (shard != null) {
                 return shard.getShardId();

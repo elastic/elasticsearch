@@ -126,7 +126,7 @@ public class TransportPutAutoFollowPatternAction extends AcknowledgedTransportMa
         clusterStateRequest.clear();
         clusterStateRequest.metadata(true);
 
-        ccrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(
+        CcrLicenseChecker.checkRemoteClusterLicenseAndFetchClusterState(
             client,
             request.getRemoteCluster(),
             clusterStateRequest,

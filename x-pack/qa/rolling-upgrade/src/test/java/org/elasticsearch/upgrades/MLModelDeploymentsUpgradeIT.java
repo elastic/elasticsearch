@@ -127,7 +127,6 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
         }
     }
 
-
     private void setupDeployment(String modelId) throws IOException {
         createTrainedModel(modelId);
         putModelDefinition(modelId);
@@ -248,20 +247,11 @@ public class MLModelDeploymentsUpgradeIT extends AbstractUpgradeTestCase {
             "_cluster/state?filter_path=metadata.trained_model_assignment." + modelId
         );
         Response getTrainedModelAssignmentMetadataResponse = client().performRequest(getTrainedModelAssignmentMetadataRequest);
-        assertThat(
-            EntityUtils.toString(getTrainedModelAssignmentMetadataResponse.getEntity()),
-            containsString("{}")
-        );
+        assertThat(EntityUtils.toString(getTrainedModelAssignmentMetadataResponse.getEntity()), containsString("{}"));
 
-        getTrainedModelAssignmentMetadataRequest = new Request(
-            "GET",
-            "_cluster/state?filter_path=metadata.trained_model_allocation"
-        );
+        getTrainedModelAssignmentMetadataRequest = new Request("GET", "_cluster/state?filter_path=metadata.trained_model_allocation");
         getTrainedModelAssignmentMetadataResponse = client().performRequest(getTrainedModelAssignmentMetadataRequest);
-        assertThat(
-            EntityUtils.toString(getTrainedModelAssignmentMetadataResponse.getEntity()),
-            equalTo("{}")
-        );
+        assertThat(EntityUtils.toString(getTrainedModelAssignmentMetadataResponse.getEntity()), equalTo("{}"));
     }
 
     private Response getTrainedModelStats(String modelId) throws IOException {

@@ -7,18 +7,16 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,36 +26,30 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceCo
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-public class TextClassificationConfigUpdateTests extends AbstractBWCSerializationTestCase<TextClassificationConfigUpdate> {
+public class TextClassificationConfigUpdateTests extends AbstractNlpConfigUpdateTestCase<TextClassificationConfigUpdate> {
 
-    public void testFromMap() {
+    @Override
+    Tuple<Map<String, Object>, TextClassificationConfigUpdate> fromMapTestInstances(TokenizationUpdate expectedTokenization) {
+        int numClasses = randomIntBetween(1, 10);
         TextClassificationConfigUpdate expected = new TextClassificationConfigUpdate(
             List.of("foo", "bar"),
-            3,
+            numClasses,
             "ml-results",
-            new BertTokenizationUpdate(Tokenization.Truncate.FIRST, null)
+            expectedTokenization
         );
         Map<String, Object> config = new HashMap<>() {
             {
                 put(NlpConfig.RESULTS_FIELD.getPreferredName(), "ml-results");
                 put(NlpConfig.CLASSIFICATION_LABELS.getPreferredName(), List.of("foo", "bar"));
-                put(NlpConfig.NUM_TOP_CLASSES.getPreferredName(), 3);
-                Map<String, Object> truncate = new HashMap<>();
-                truncate.put("truncate", "first");
-                Map<String, Object> bert = new HashMap<>();
-                bert.put("bert", truncate);
-                put("tokenization", bert);
+                put(NlpConfig.NUM_TOP_CLASSES.getPreferredName(), numClasses);
             }
         };
-        assertThat(TextClassificationConfigUpdate.fromMap(config), equalTo(expected));
+        return Tuple.tuple(config, expected);
     }
 
-    public void testFromMapWithUnknownField() {
-        ElasticsearchException ex = expectThrows(
-            ElasticsearchException.class,
-            () -> TextClassificationConfigUpdate.fromMap(Collections.singletonMap("some_key", 1))
-        );
-        assertThat(ex.getMessage(), equalTo("Unrecognized fields [some_key]."));
+    @Override
+    TextClassificationConfigUpdate fromMap(Map<String, Object> map) {
+        return TextClassificationConfigUpdate.fromMap(map);
     }
 
     public void testIsNoop() {

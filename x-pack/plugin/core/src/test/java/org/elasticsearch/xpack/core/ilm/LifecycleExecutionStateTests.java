@@ -137,59 +137,57 @@ public class LifecycleExecutionStateTests extends ESTestCase {
         LifecycleExecutionState.Builder newState = LifecycleExecutionState.builder(toMutate);
         switch (randomIntBetween(0, 17)) {
             case 0:
-                newState.setPhase(randomValueOtherThan(toMutate.getPhase(), () -> randomAlphaOfLengthBetween(5, 20)));
+                newState.setPhase(randomValueOtherThan(toMutate.phase(), () -> randomAlphaOfLengthBetween(5, 20)));
                 break;
             case 1:
-                newState.setAction(randomValueOtherThan(toMutate.getAction(), () -> randomAlphaOfLengthBetween(5, 20)));
+                newState.setAction(randomValueOtherThan(toMutate.action(), () -> randomAlphaOfLengthBetween(5, 20)));
                 break;
             case 2:
-                newState.setStep(randomValueOtherThan(toMutate.getStep(), () -> randomAlphaOfLengthBetween(5, 20)));
+                newState.setStep(randomValueOtherThan(toMutate.step(), () -> randomAlphaOfLengthBetween(5, 20)));
                 break;
             case 3:
-                newState.setPhaseDefinition(randomValueOtherThan(toMutate.getPhaseDefinition(), () -> randomAlphaOfLengthBetween(5, 20)));
+                newState.setPhaseDefinition(randomValueOtherThan(toMutate.phaseDefinition(), () -> randomAlphaOfLengthBetween(5, 20)));
                 break;
             case 4:
-                newState.setFailedStep(randomValueOtherThan(toMutate.getFailedStep(), () -> randomAlphaOfLengthBetween(5, 20)));
+                newState.setFailedStep(randomValueOtherThan(toMutate.failedStep(), () -> randomAlphaOfLengthBetween(5, 20)));
                 break;
             case 5:
-                newState.setStepInfo(randomValueOtherThan(toMutate.getStepInfo(), () -> randomAlphaOfLengthBetween(5, 20)));
+                newState.setStepInfo(randomValueOtherThan(toMutate.stepInfo(), () -> randomAlphaOfLengthBetween(5, 20)));
                 break;
             case 6:
-                newState.setPhaseTime(randomValueOtherThan(toMutate.getPhaseTime(), ESTestCase::randomLong));
+                newState.setPhaseTime(randomValueOtherThan(toMutate.phaseTime(), ESTestCase::randomLong));
                 break;
             case 7:
-                newState.setActionTime(randomValueOtherThan(toMutate.getActionTime(), ESTestCase::randomLong));
+                newState.setActionTime(randomValueOtherThan(toMutate.actionTime(), ESTestCase::randomLong));
                 break;
             case 8:
-                newState.setStepTime(randomValueOtherThan(toMutate.getStepTime(), ESTestCase::randomLong));
+                newState.setStepTime(randomValueOtherThan(toMutate.stepTime(), ESTestCase::randomLong));
                 break;
             case 9:
-                newState.setIndexCreationDate(randomValueOtherThan(toMutate.getLifecycleDate(), ESTestCase::randomLong));
+                newState.setIndexCreationDate(randomValueOtherThan(toMutate.lifecycleDate(), ESTestCase::randomLong));
                 break;
             case 10:
-                newState.setShrinkIndexName(randomValueOtherThan(toMutate.getShrinkIndexName(), () -> randomAlphaOfLengthBetween(5, 20)));
+                newState.setShrinkIndexName(randomValueOtherThan(toMutate.shrinkIndexName(), () -> randomAlphaOfLengthBetween(5, 20)));
                 break;
             case 11:
                 newState.setSnapshotRepository(
-                    randomValueOtherThan(toMutate.getSnapshotRepository(), () -> randomAlphaOfLengthBetween(5, 20))
+                    randomValueOtherThan(toMutate.snapshotRepository(), () -> randomAlphaOfLengthBetween(5, 20))
                 );
                 break;
             case 12:
-                newState.setSnapshotIndexName(
-                    randomValueOtherThan(toMutate.getSnapshotIndexName(), () -> randomAlphaOfLengthBetween(5, 20))
-                );
+                newState.setSnapshotIndexName(randomValueOtherThan(toMutate.snapshotIndexName(), () -> randomAlphaOfLengthBetween(5, 20)));
                 break;
             case 13:
-                newState.setSnapshotName(randomValueOtherThan(toMutate.getSnapshotName(), () -> randomAlphaOfLengthBetween(5, 20)));
+                newState.setSnapshotName(randomValueOtherThan(toMutate.snapshotName(), () -> randomAlphaOfLengthBetween(5, 20)));
                 break;
             case 14:
-                newState.setRollupIndexName(randomValueOtherThan(toMutate.getRollupIndexName(), () -> randomAlphaOfLengthBetween(5, 20)));
+                newState.setRollupIndexName(randomValueOtherThan(toMutate.rollupIndexName(), () -> randomAlphaOfLengthBetween(5, 20)));
                 break;
             case 15:
                 newState.setIsAutoRetryableError(randomValueOtherThan(toMutate.isAutoRetryableError(), ESTestCase::randomBoolean));
                 break;
             case 16:
-                newState.setFailedStepRetryCount(randomValueOtherThan(toMutate.getFailedStepRetryCount(), ESTestCase::randomInt));
+                newState.setFailedStepRetryCount(randomValueOtherThan(toMutate.failedStepRetryCount(), ESTestCase::randomInt));
                 break;
             case 17:
                 return LifecycleExecutionState.builder().build();

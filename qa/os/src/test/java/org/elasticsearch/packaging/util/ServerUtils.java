@@ -77,7 +77,9 @@ public class ServerUtils {
             String configFile = Files.readString(configFilePath, StandardCharsets.UTF_8);
             securityEnabled = configFile.contains(SECURITY_DISABLED) == false;
         } else {
-            final Optional<String> commandLine = dockerShell.run("bash -c 'COLUMNS=2000 ps ax'").stdout.lines()
+            final Optional<String> commandLine = dockerShell.run("bash -c 'COLUMNS=2000 ps ax'")
+                .stdout()
+                .lines()
                 .filter(line -> line.contains("org.elasticsearch.bootstrap.Elasticsearch"))
                 .findFirst();
             if (commandLine.isPresent() == false) {

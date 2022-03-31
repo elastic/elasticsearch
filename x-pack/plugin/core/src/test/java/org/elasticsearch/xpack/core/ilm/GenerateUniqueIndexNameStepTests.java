@@ -91,11 +91,11 @@ public class GenerateUniqueIndexNameStepTests extends AbstractStepTestCase<Gener
         LifecycleExecutionState executionState = newClusterState.metadata().index(indexName).getLifecycleExecutionState();
         assertThat(
             "the " + GenerateUniqueIndexNameStep.NAME + " step must generate an index name",
-            executionState.getShrinkIndexName(),
+            executionState.shrinkIndexName(),
             notNullValue()
         );
-        assertThat(executionState.getShrinkIndexName(), containsString(indexName));
-        assertThat(executionState.getShrinkIndexName(), startsWith(generateUniqueIndexNameStep.prefix()));
+        assertThat(executionState.shrinkIndexName(), containsString(indexName));
+        assertThat(executionState.shrinkIndexName(), startsWith(generateUniqueIndexNameStep.prefix()));
     }
 
     public void testGenerateValidIndexName() {

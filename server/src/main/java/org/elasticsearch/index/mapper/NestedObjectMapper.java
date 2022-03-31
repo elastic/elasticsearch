@@ -15,7 +15,6 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
@@ -134,7 +133,17 @@ public class NestedObjectMapper extends ObjectMapper {
     }
 
     public Map<String, Mapper> getChildren() {
-        return Collections.unmodifiableMap(this.mappers);
+        return this.mappers;
+    }
+
+    @Override
+    public ObjectMapper.Builder newBuilder(Version indexVersionCreated) {
+        NestedObjectMapper.Builder builder = new NestedObjectMapper.Builder(simpleName(), indexVersionCreated);
+        builder.enabled = enabled;
+        builder.dynamic = dynamic;
+        builder.includeInRoot = includeInRoot;
+        builder.includeInParent = includeInParent;
+        return builder;
     }
 
     @Override
@@ -164,7 +173,6 @@ public class NestedObjectMapper extends ObjectMapper {
         }
         NestedObjectMapper mergeWithObject = (NestedObjectMapper) mergeWith;
         NestedObjectMapper toMerge = (NestedObjectMapper) clone();
-
         if (reason == MapperService.MergeReason.INDEX_TEMPLATE) {
             if (mergeWithObject.includeInParent.explicit()) {
                 toMerge.includeInParent = mergeWithObject.includeInParent;

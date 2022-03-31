@@ -89,6 +89,6 @@ public class InitializePolicyContextStepTests extends AbstractStepTestCase<Initi
     }
 
     private long getIndexLifecycleDate(Index index, ClusterState clusterState) {
-        return clusterState.getMetadata().index(index).getLifecycleExecutionState().getLifecycleDate();
+        return clusterState.getMetadata().index(index).getLifecycleExecutionState().lifecycleDate();
     }
 }

@@ -82,7 +82,9 @@ dependencies {
   api "io.projectreactor:reactor-core:${versions.reactorCore}"
   api "org.reactivestreams:reactive-streams:${versions.reactiveStreams}"
 
-  api "org.slf4j:slf4j-api:${versions.slf4j}"
+  runtimeOnly("org.slf4j:slf4j-api:${versions.slf4j}")
+  runtimeOnly("org.apache.logging.log4j:log4j-slf4j-impl:${versions.log4j}")
+
 
   testImplementation project(':test:fixtures:azure-fixture')
 }
@@ -236,6 +238,7 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.internal.tcnative.SSLContext',
     'io.netty.internal.tcnative.SSLPrivateKeyMethod',
     'io.netty.internal.tcnative.CertificateCallback',
+    'io.netty.internal.tcnative.CertificateCompressionAlgo',
     'io.netty.internal.tcnative.CertificateVerifier',
     'io.netty.internal.tcnative.ResultCallback',
     'io.netty.internal.tcnative.SessionTicketKey',
@@ -268,10 +271,8 @@ tasks.named("thirdPartyAudit").configure {
     // from com.ctc.wstx.shaded.msv_core.driver.textui.Driver (woodstox-core)
     'com.sun.org.apache.xml.internal.resolver.Catalog',
     'com.sun.org.apache.xml.internal.resolver.tools.CatalogResolver',
-
-    'org.slf4j.impl.StaticLoggerBinder',
-    'org.slf4j.impl.StaticMDCBinder',
-    'org.slf4j.impl.StaticMarkerBinder',
+    // [missing classes] SLF4j includes an optional class that depends on an extension class. see Log4jLogger#createConverter
+    'org.slf4j.ext.EventData'
   )
 
   ignoreViolations(
@@ -358,7 +359,7 @@ testClusters.matching { it.name == "yamlRestTest" }.configureEach {
       setting 'azure.client.integration_test.endpoint_suffix', azureAddress
       String firstPartOfSeed = BuildParams.testSeed.tokenize(':').get(0)
 
-      def ignoreTestSeed = providers.systemProperty('ignore.tests.seed').forUseAtConfigurationTime().isPresent() ? PropertyNormalization.IGNORE_VALUE : PropertyNormalization.DEFAULT
+      def ignoreTestSeed = providers.systemProperty('ignore.tests.seed').isPresent() ? PropertyNormalization.IGNORE_VALUE : PropertyNormalization.DEFAULT
       setting 'thread_pool.repository_azure.max', (Math.abs(Long.parseUnsignedLong(firstPartOfSeed, 16) % 10) + 1).toString(), ignoreTestSeed
     }
 }

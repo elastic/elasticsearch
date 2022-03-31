@@ -90,6 +90,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
         );
         this.persistentTasksService = persistentTasksService;
         this.client = client;
+
     }
 
     @Override
@@ -102,7 +103,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
         checkForDeprecatedTZ(request);
 
-        FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest().indices(request.getConfig().getIndexPattern())
+        FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest().indices(request.indices())
             .fields(request.getConfig().getAllFields().toArray(new String[0]));
         fieldCapsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
 
@@ -138,9 +139,12 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
         }
     }
 
-    private static RollupJob createRollupJob(RollupJobConfig config, ThreadPool threadPool) {
+    private RollupJob createRollupJob(RollupJobConfig config, ThreadPool threadPool) {
         // ensure we only filter for the allowed headers
-        Map<String, String> filteredHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
+        Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(
+            threadPool.getThreadContext(),
+            clusterService.state()
+        );
         return new RollupJob(config, filteredHeaders);
     }
 

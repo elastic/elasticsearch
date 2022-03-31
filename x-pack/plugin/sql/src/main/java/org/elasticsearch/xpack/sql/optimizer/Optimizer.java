@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.ql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.ql.rule.Rule;
 import org.elasticsearch.xpack.ql.rule.RuleExecutor;
 import org.elasticsearch.xpack.ql.tree.Source;
+import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.Holder;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
@@ -107,6 +108,7 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.ql.expression.Expressions.equalsAsAttribute;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.BinaryComparisonSimplification;
 import static org.elasticsearch.xpack.ql.optimizer.OptimizerRules.PushDownAndCombineFilters;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
 
 public class Optimizer extends RuleExecutor<LogicalPlan> {
@@ -1149,12 +1151,15 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             Map<Expression, TopHits> maxs = new HashMap<>();
             return plan.transformExpressionsDown(NumericAggregate.class, e -> {
                 if (e instanceof Min min) {
-                    if (DataTypes.isString(min.field().dataType())) {
+                    DataType minType = min.field().dataType();
+                    // upper range unsigned longs can't be represented exactly on doubles (returned by stats agg)
+                    if (DataTypes.isString(minType) || minType == UNSIGNED_LONG) {
                         return mins.computeIfAbsent(min.field(), k -> new First(min.source(), k, null));
                     }
                 }
                 if (e instanceof Max max) {
-                    if (DataTypes.isString(max.field().dataType())) {
+                    DataType maxType = max.field().dataType();
+                    if (DataTypes.isString(maxType) || maxType == UNSIGNED_LONG) {
                         return maxs.computeIfAbsent(max.field(), k -> new Last(max.source(), k, null));
                     }
                 }

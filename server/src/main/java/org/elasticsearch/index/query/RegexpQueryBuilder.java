@@ -313,4 +313,9 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
             && Objects.equals(maxDeterminizedStates, other.maxDeterminizedStates)
             && Objects.equals(rewrite, other.rewrite);
     }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
+    }
 }

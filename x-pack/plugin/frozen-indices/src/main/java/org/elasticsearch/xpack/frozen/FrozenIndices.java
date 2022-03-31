@@ -36,13 +36,11 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isSearchableSnapshotStore;
-
 public class FrozenIndices extends Plugin implements ActionPlugin, EnginePlugin {
 
     @Override
     public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
-        if (indexSettings.getValue(FrozenEngine.INDEX_FROZEN) && isSearchableSnapshotStore(indexSettings.getSettings()) == false) {
+        if (indexSettings.getValue(FrozenEngine.INDEX_FROZEN) && indexSettings.getIndexMetadata().isSearchableSnapshot() == false) {
             return Optional.of(config -> new FrozenEngine(config, true, false));
         } else {
             return Optional.empty();

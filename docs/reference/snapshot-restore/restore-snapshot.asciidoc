@@ -337,7 +337,7 @@ PUT _cluster/settings
   }
 }
 ----
-// TEST[warning:[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version.]
+// TEST[warning:[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in a future release.]
 
 * Watcher
 +
@@ -462,7 +462,7 @@ PUT _cluster/settings
   }
 }
 ----
-// TEST[warning:[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in a future release! See the breaking changes documentation for the next major version.]
+// TEST[warning:[xpack.monitoring.collection.enabled] setting was deprecated in Elasticsearch and will be removed in a future release.]
 // TEST[s/true/false/]
 
 * Watcher

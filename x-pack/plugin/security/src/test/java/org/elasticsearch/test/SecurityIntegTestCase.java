@@ -17,6 +17,7 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -53,7 +54,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.hasItem;
 
 /**
@@ -75,6 +76,7 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
      * to how {@link ESIntegTestCase#nodeSettings(int, Settings)} works.
      */
     private static CustomSecuritySettingsSource customSecuritySettingsSource = null;
+    private TestSecurityClient securityClient;
 
     @BeforeClass
     public static void generateBootstrapPassword() {
@@ -468,5 +470,16 @@ public abstract class SecurityIntegTestCase extends ESIntegTestCase {
         public TestRestHighLevelClient() {
             super(getRestClient(), client -> {}, List.of());
         }
+    }
+
+    protected TestSecurityClient getSecurityClient(RequestOptions requestOptions) {
+        return new TestSecurityClient(getRestClient(), requestOptions);
+    }
+
+    protected TestSecurityClient getSecurityClient() {
+        if (securityClient == null) {
+            securityClient = getSecurityClient(SecuritySettingsSource.SECURITY_REQUEST_OPTIONS);
+        }
+        return securityClient;
     }
 }

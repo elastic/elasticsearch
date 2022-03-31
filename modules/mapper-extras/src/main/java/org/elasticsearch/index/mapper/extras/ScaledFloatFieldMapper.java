@@ -38,12 +38,13 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.script.field.DocValuesField;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.script.field.ScaledFloatDocValuesField;
-import org.elasticsearch.script.field.ToScriptField;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
 
@@ -55,6 +56,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.function.Supplier;
 
 /** A {@link FieldMapper} for scaled floats. Values are internally multiplied
@@ -84,7 +86,9 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             false,
             () -> null,
             (n, c, o) -> XContentMapValues.nodeDoubleValue(o),
-            m -> toType(m).scalingFactor
+            m -> toType(m).scalingFactor,
+            XContentBuilder::field,
+            Objects::toString
         ).addValidator(v -> {
             if (v == null) {
                 throw new IllegalArgumentException("Field [scaling_factor] is required");
@@ -98,7 +102,9 @@ public class ScaledFloatFieldMapper extends FieldMapper {
             false,
             () -> null,
             (n, c, o) -> o == null ? null : XContentMapValues.nodeDoubleValue(o),
-            m -> toType(m).nullValue
+            m -> toType(m).nullValue,
+            XContentBuilder::field,
+            Objects::toString
         ).acceptsNull();
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
@@ -212,6 +218,11 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public boolean mayExistInIndex(SearchExecutionContext context) {
+            return context.fieldExistsInIndex(name());
         }
 
         @Override
@@ -477,16 +488,16 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         private final IndexNumericFieldData scaledFieldData;
         private final double scalingFactor;
-        private final ToScriptField<SortedNumericDoubleValues> toScriptField;
+        private final ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory;
 
         ScaledFloatIndexFieldData(
             IndexNumericFieldData scaledFieldData,
             double scalingFactor,
-            ToScriptField<SortedNumericDoubleValues> toScriptField
+            ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory
         ) {
             this.scaledFieldData = scaledFieldData;
             this.scalingFactor = scalingFactor;
-            this.toScriptField = toScriptField;
+            this.toScriptFieldFactory = toScriptFieldFactory;
         }
 
         @Override
@@ -501,12 +512,12 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         @Override
         public LeafNumericFieldData load(LeafReaderContext context) {
-            return new ScaledFloatLeafFieldData(scaledFieldData.load(context), scalingFactor, toScriptField);
+            return new ScaledFloatLeafFieldData(scaledFieldData.load(context), scalingFactor, toScriptFieldFactory);
         }
 
         @Override
         public LeafNumericFieldData loadDirect(LeafReaderContext context) throws Exception {
-            return new ScaledFloatLeafFieldData(scaledFieldData.loadDirect(context), scalingFactor, toScriptField);
+            return new ScaledFloatLeafFieldData(scaledFieldData.loadDirect(context), scalingFactor, toScriptFieldFactory);
         }
 
         @Override
@@ -535,21 +546,21 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
         private final LeafNumericFieldData scaledFieldData;
         private final double scalingFactorInverse;
-        private final ToScriptField<SortedNumericDoubleValues> toScriptField;
+        private final ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory;
 
         ScaledFloatLeafFieldData(
             LeafNumericFieldData scaledFieldData,
             double scalingFactor,
-            ToScriptField<SortedNumericDoubleValues> toScriptField
+            ToScriptFieldFactory<SortedNumericDoubleValues> toScriptFieldFactory
         ) {
             this.scaledFieldData = scaledFieldData;
             this.scalingFactorInverse = 1d / scalingFactor;
-            this.toScriptField = toScriptField;
+            this.toScriptFieldFactory = toScriptFieldFactory;
         }
 
         @Override
-        public DocValuesField<?> getScriptField(String name) {
-            return toScriptField.getScriptField(getDoubleValues(), name);
+        public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
+            return toScriptFieldFactory.getScriptFieldFactory(getDoubleValues(), name);
         }
 
         @Override

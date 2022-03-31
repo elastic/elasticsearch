@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.sql.jdbc;
 
+import java.math.BigInteger;
 import java.sql.JDBCType;
 import java.sql.SQLException;
 import java.sql.SQLFeatureNotSupportedException;
@@ -25,6 +26,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 
+import static java.sql.Types.BIGINT;
 import static java.util.Collections.unmodifiableMap;
 
 final class TypeUtils {
@@ -48,18 +50,21 @@ final class TypeUtils {
         EsType.DATETIME
     );
 
+    public static final int LONG_MAX_LENGTH = String.valueOf(Long.MAX_VALUE).length(); // type length value as defined in ES
+
     static {
+        // Note: keep in sync with org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils#CLASS_TO_ES_TYPE
         Map<Class<?>, EsType> aMap = new LinkedHashMap<>();
         aMap.put(Boolean.class, EsType.BOOLEAN);
         aMap.put(Byte.class, EsType.BYTE);
         aMap.put(Short.class, EsType.SHORT);
         aMap.put(Integer.class, EsType.INTEGER);
         aMap.put(Long.class, EsType.LONG);
+        aMap.put(BigInteger.class, EsType.UNSIGNED_LONG);
         aMap.put(Float.class, EsType.FLOAT);
         aMap.put(Double.class, EsType.DOUBLE);
         aMap.put(String.class, EsType.KEYWORD);
         aMap.put(byte[].class, EsType.BINARY);
-        aMap.put(String.class, EsType.KEYWORD);
         aMap.put(Timestamp.class, EsType.DATETIME);
 
         // apart from the mappings in {@code DataType} three more Java classes can be mapped to a {@code JDBCType.TIMESTAMP}
@@ -78,6 +83,7 @@ final class TypeUtils {
         types.put(EsType.SHORT, Short.class);
         types.put(EsType.INTEGER, Integer.class);
         types.put(EsType.LONG, Long.class);
+        types.put(EsType.UNSIGNED_LONG, BigInteger.class);
         types.put(EsType.DOUBLE, Double.class);
         types.put(EsType.FLOAT, Float.class);
         types.put(EsType.HALF_FLOAT, Double.class);
@@ -155,6 +161,16 @@ final class TypeUtils {
         return dataType;
     }
 
+    static EsType of(SQLType sqlType, int scaleOrLength) throws SQLException {
+        EsType esType;
+        if (sqlType.getVendorTypeNumber() == BIGINT) {
+            esType = scaleOrLength > LONG_MAX_LENGTH ? EsType.UNSIGNED_LONG : EsType.LONG;
+        } else {
+            esType = TypeUtils.of(sqlType);
+        }
+        return esType;
+    }
+
     static EsType of(String name) throws SQLException {
         EsType dataType = ENUM_NAME_TO_TYPE.get(name);
         if (dataType == null) {
@@ -181,5 +197,9 @@ final class TypeUtils {
             throw new SQLFeatureNotSupportedException("Objects of type [" + clazz.getName() + "] are not supported");
         }
         return dataType;
+    }
+
+    static int scaleOrLength(Object val) {
+        return val instanceof BigInteger ? LONG_MAX_LENGTH + 1 : 0;
     }
 }

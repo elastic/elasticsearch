@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -23,6 +24,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -69,18 +71,18 @@ public class TransportRetryAction extends TransportMasterNodeAction<Request, Ack
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 for (String index : request.indices()) {
                     IndexMetadata idxMeta = newState.metadata().index(index);
                     LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
-                    StepKey retryStep = new StepKey(lifecycleState.getPhase(), lifecycleState.getAction(), lifecycleState.getStep());
+                    StepKey retryStep = new StepKey(lifecycleState.phase(), lifecycleState.action(), lifecycleState.step());
                     if (idxMeta == null) {
                         // The index has somehow been deleted - there shouldn't be any opportunity for this to happen, but just in case.
                         logger.debug(
                             "index ["
                                 + index
                                 + "] has been deleted after moving to step ["
-                                + lifecycleState.getStep()
+                                + lifecycleState.step()
                                 + "], skipping async action check"
                         );
                         return;
@@ -88,7 +90,12 @@ public class TransportRetryAction extends TransportMasterNodeAction<Request, Ack
                     indexLifecycleService.maybeRunAsyncAction(newState, idxMeta, retryStep);
                 }
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        }, newExecutor());
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 
     @Override

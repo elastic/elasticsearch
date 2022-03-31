@@ -103,7 +103,12 @@ public abstract class BaseRestHandler implements RestHandler {
         action.accept(channel);
     }
 
-    protected final String unrecognized(
+    @Override
+    public boolean mediaTypesValid(RestRequest request) {
+        return request.getXContentType() != null;
+    }
+
+    protected static String unrecognized(
         final RestRequest request,
         final Set<String> invalids,
         final Set<String> candidates,
@@ -132,7 +137,7 @@ public abstract class BaseRestHandler implements RestHandler {
                 message.append(", ");
             }
             message.append("[").append(invalid).append("]");
-            final List<String> keys = scoredParams.stream().map(Tuple::v2).collect(Collectors.toList());
+            final List<String> keys = scoredParams.stream().map(Tuple::v2).toList();
             if (keys.isEmpty() == false) {
                 message.append(" -> did you mean ");
                 if (keys.size() == 1) {
@@ -240,6 +245,11 @@ public abstract class BaseRestHandler implements RestHandler {
         @Override
         public boolean allowsUnsafeBuffers() {
             return delegate.allowsUnsafeBuffers();
+        }
+
+        @Override
+        public boolean mediaTypesValid(RestRequest request) {
+            return delegate.mediaTypesValid(request);
         }
     }
 }

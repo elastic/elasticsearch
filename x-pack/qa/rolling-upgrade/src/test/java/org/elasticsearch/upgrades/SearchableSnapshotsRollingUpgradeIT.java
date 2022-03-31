@@ -14,10 +14,10 @@ import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.searchable_snapshots.MountSnapshotRequest.Storage;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -25,7 +25,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -36,6 +35,22 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase {
+
+    public enum Storage {
+
+        FULL_COPY("full_copy"),
+        SHARED_CACHE("shared_cache");
+
+        private final String storageName;
+
+        public String storageName() {
+            return storageName;
+        }
+
+        Storage(final String storageName) {
+            this.storageName = storageName;
+        }
+    }
 
     public void testMountFullCopyAndRecoversCorrectly() throws Exception {
         final Storage storage = Storage.FULL_COPY;
@@ -367,7 +382,7 @@ public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase
         assertThat(response.getStatusLine().getStatusCode(), equalTo(RestStatus.OK.getStatus()));
         final Map<String, Object> nodes = (Map<String, Object>) extractValue(responseAsMap(response), "nodes");
         assertNotNull("Nodes info is null", nodes);
-        final Map<String, Version> nodesVersions = new HashMap<>(nodes.size());
+        final Map<String, Version> nodesVersions = Maps.newMapWithExpectedSize(nodes.size());
         for (Map.Entry<String, Object> node : nodes.entrySet()) {
             nodesVersions.put(node.getKey(), Version.fromString((String) extractValue((Map<?, ?>) node.getValue(), "version")));
         }

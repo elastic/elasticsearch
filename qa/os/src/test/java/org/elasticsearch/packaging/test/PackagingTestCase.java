@@ -63,11 +63,9 @@ import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.FileAttribute;
 import java.nio.file.attribute.PosixFilePermissions;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -128,10 +126,10 @@ public abstract class PackagingTestCase extends Assert {
     static {
         Shell initShell = new Shell();
         if (Platforms.WINDOWS) {
-            systemJavaHome = initShell.run("$Env:SYSTEM_JAVA_HOME").stdout.trim();
+            systemJavaHome = initShell.run("$Env:SYSTEM_JAVA_HOME").stdout().trim();
         } else {
             assert Platforms.LINUX || Platforms.DARWIN;
-            systemJavaHome = initShell.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
+            systemJavaHome = initShell.run("echo $SYSTEM_JAVA_HOME").stdout().trim();
         }
     }
 
@@ -313,7 +311,7 @@ public abstract class PackagingTestCase extends Assert {
             case TAR:
             case ZIP:
                 if (useTty) {
-                    return Archives.startElasticsearchWithTty(installation, sh, password, List.of(), daemonize);
+                    return Archives.startElasticsearchWithTty(installation, sh, password, List.of(), null, daemonize);
                 } else {
                     return Archives.runElasticsearchStartCommand(installation, sh, password, List.of(), daemonize);
                 }
@@ -355,7 +353,7 @@ public abstract class PackagingTestCase extends Assert {
     }
 
     public void awaitElasticsearchStartup(Shell.Result result) throws Exception {
-        assertThat("Startup command should succeed. Stderr: [" + result + "]", result.exitCode, equalTo(0));
+        assertThat("Startup command should succeed. Stderr: [" + result + "]", result.exitCode(), equalTo(0));
         switch (distribution.packaging) {
             case TAR, ZIP -> Archives.assertElasticsearchStarted(installation);
             case DEB, RPM -> Packages.assertElasticsearchStarted(sh, installation);
@@ -385,7 +383,7 @@ public abstract class PackagingTestCase extends Assert {
             if (Files.exists(installation.home.resolve("elasticsearch.pid"))) {
                 String pid = FileUtils.slurp(installation.home.resolve("elasticsearch.pid")).trim();
                 logger.info("elasticsearch process ({}) failed to start", pid);
-                if (sh.run("jps").stdout.contains(pid)) {
+                if (sh.run("jps").stdout().contains(pid)) {
                     logger.info("Dumping jstack of elasticsearch process ({}) ", pid);
                     sh.runIgnoreExitCode("jstack " + pid);
                 }
@@ -413,15 +411,15 @@ public abstract class PackagingTestCase extends Assert {
         } else if (distribution().isPackage() && Platforms.isSystemd()) {
 
             // For systemd, retrieve the error from journalctl
-            assertThat(result.stderr, containsString("Job for elasticsearch.service failed"));
+            assertThat(result.stderr(), containsString("Job for elasticsearch.service failed"));
             Shell.Result error = journaldWrapper.getLogs();
-            assertThat(error.stdout, anyOf(stringMatchers));
+            assertThat(error.stdout(), anyOf(stringMatchers));
 
         } else if (Platforms.WINDOWS && Files.exists(Archives.getPowershellErrorPath(installation))) {
 
             // In Windows, we have written our stdout and stderr to files in order to run
             // in the background
-            String wrapperPid = result.stdout.trim();
+            String wrapperPid = result.stdout().trim();
             sh.runIgnoreExitCode("Wait-Process -Timeout " + Archives.ES_STARTUP_SLEEP_TIME_SECONDS + " -Id " + wrapperPid);
             sh.runIgnoreExitCode(
                 "Get-EventSubscriber | "
@@ -433,7 +431,7 @@ public abstract class PackagingTestCase extends Assert {
         } else {
 
             // Otherwise, error should be on shell stderr
-            assertThat(result.stderr, anyOf(stringMatchers));
+            assertThat(result.stderr(), anyOf(stringMatchers));
         }
     }
 
@@ -629,22 +627,21 @@ public abstract class PackagingTestCase extends Assert {
      * @param es the {@link Installation} to check
      */
     public void verifySecurityAutoConfigured(Installation es) throws Exception {
-        Optional<String> autoConfigDirName = getAutoConfigDirName(es);
-        assertThat(autoConfigDirName.isPresent(), Matchers.is(true));
+        final String autoConfigDirName = "certs";
         final Settings settings;
         if (es.distribution.isArchive()) {
             // We chown the installation on Windows to Administrators so that we can auto-configure it.
             String owner = Platforms.WINDOWS ? "BUILTIN\\Administrators" : "elasticsearch";
-            assertThat(es.config(autoConfigDirName.get()), FileMatcher.file(Directory, owner, owner, p750));
+            assertThat(es.config(autoConfigDirName), FileMatcher.file(Directory, owner, owner, p750));
             Stream.of("http.p12", "http_ca.crt", "transport.p12")
-                .forEach(file -> assertThat(es.config(autoConfigDirName.get()).resolve(file), FileMatcher.file(File, owner, owner, p660)));
+                .forEach(file -> assertThat(es.config(autoConfigDirName).resolve(file), FileMatcher.file(File, owner, owner, p660)));
             settings = Settings.builder().loadFromPath(es.config("elasticsearch.yml")).build();
         } else if (es.distribution.isDocker()) {
-            assertThat(es.config(autoConfigDirName.get()), DockerFileMatcher.file(Directory, "elasticsearch", "root", p750));
+            assertThat(es.config(autoConfigDirName), DockerFileMatcher.file(Directory, "elasticsearch", "root", p750));
             Stream.of("http.p12", "http_ca.crt", "transport.p12")
                 .forEach(
                     file -> assertThat(
-                        es.config(autoConfigDirName.get()).resolve(file),
+                        es.config(autoConfigDirName).resolve(file),
                         DockerFileMatcher.file(File, "elasticsearch", "root", p660)
                     )
                 );
@@ -655,15 +652,15 @@ public abstract class PackagingTestCase extends Assert {
             rm(localTempDir);
         } else {
             assert es.distribution.isPackage();
-            assertThat(es.config(autoConfigDirName.get()), FileMatcher.file(Directory, "root", "elasticsearch", p750));
+            assertThat(es.config(autoConfigDirName), FileMatcher.file(Directory, "root", "elasticsearch", p750));
             Stream.of("http.p12", "http_ca.crt", "transport.p12")
                 .forEach(
-                    file -> assertThat(
-                        es.config(autoConfigDirName.get()).resolve(file),
-                        FileMatcher.file(File, "root", "elasticsearch", p660)
-                    )
+                    file -> assertThat(es.config(autoConfigDirName).resolve(file), FileMatcher.file(File, "root", "elasticsearch", p660))
                 );
-            assertThat(sh.run(es.executables().keystoreTool + " list").stdout, Matchers.containsString("autoconfiguration.password_hash"));
+            assertThat(
+                sh.run(es.executables().keystoreTool + " list").stdout(),
+                Matchers.containsString("autoconfiguration.password_hash")
+            );
             settings = Settings.builder().loadFromPath(es.config("elasticsearch.yml")).build();
         }
         assertThat(settings.get("xpack.security.enabled"), equalTo("true"));
@@ -674,7 +671,7 @@ public abstract class PackagingTestCase extends Assert {
         assertThat(settings.get("xpack.security.enabled"), equalTo("true"));
 
         if (es.distribution.isDocker() == false) {
-            assertThat(settings.get("http.host"), equalTo("[_local_, _site_]"));
+            assertThat(settings.get("http.host"), equalTo("0.0.0.0"));
         }
     }
 
@@ -684,11 +681,11 @@ public abstract class PackagingTestCase extends Assert {
      * @param es the {@link Installation} to check
      */
     public static void verifySecurityNotAutoConfigured(Installation es) throws Exception {
-        assertThat(getAutoConfigDirName(es).isPresent(), Matchers.is(false));
+        assertThat(Files.exists(es.config("certs")), Matchers.is(false));
         if (es.distribution.isPackage()) {
             if (Files.exists(es.config("elasticsearch.keystore"))) {
                 assertThat(
-                    sh.run(es.executables().keystoreTool + " list").stdout,
+                    sh.run(es.executables().keystoreTool + " list").stdout(),
                     not(Matchers.containsString("autoconfiguration.password_hash"))
                 );
             }
@@ -702,17 +699,6 @@ public abstract class PackagingTestCase extends Assert {
         if (caCert != null) {
             assertThat(caCert.toString(), Matchers.not(Matchers.containsString("certs")));
         }
-    }
-
-    public static Optional<String> getAutoConfigDirName(Installation es) {
-        final Shell.Result lsResult;
-        if (es.distribution.platform.equals(Distribution.Platform.WINDOWS)) {
-            lsResult = sh.run("Get-ChildItem -Path " + es.config + " -Name");
-        } else {
-            lsResult = sh.run("find \"" + es.config + "\" -type d -maxdepth 1");
-        }
-        assertNotNull(lsResult.stdout);
-        return Arrays.stream(lsResult.stdout.split("\n")).filter(f -> f.contains("certs")).findFirst();
     }
 
 }

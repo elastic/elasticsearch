@@ -379,7 +379,7 @@ public abstract class Rounding implements Writeable {
         }
     }
 
-    private abstract class PreparedRounding implements Prepared {
+    private abstract static class PreparedRounding implements Prepared {
         /**
          * Attempt to build a {@link Prepared} implementation that relies on pre-calcuated
          * "round down" points. If there would be more than {@code max} points then return
@@ -392,6 +392,13 @@ public abstract class Rounding implements Writeable {
             values[i++] = rounded;
             while ((rounded = nextRoundingValue(rounded)) <= maxUtcMillis) {
                 if (i >= max) {
+                    logger.trace(
+                        "can't realize [{}] to fixed rounding points, more than [{}] rounding points between [{}] and [{}]",
+                        this,
+                        max,
+                        minUtcMillis,
+                        maxUtcMillis
+                    );
                     return this;
                 }
                 /*
@@ -1031,7 +1038,7 @@ public abstract class Rounding implements Writeable {
             return "Rounding[" + interval + " in " + timeZone + "]";
         }
 
-        private long roundKey(long value, long interval) {
+        private static long roundKey(long value, long interval) {
             if (value < 0) {
                 return (value - interval + 1) / interval;
             } else {

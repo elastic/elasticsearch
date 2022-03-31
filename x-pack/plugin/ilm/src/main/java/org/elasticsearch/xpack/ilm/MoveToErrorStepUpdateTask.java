@@ -17,12 +17,9 @@ import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Step;
 
-import java.io.IOException;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
@@ -58,16 +55,14 @@ public class MoveToErrorStepUpdateTask extends ClusterStateUpdateTask {
     }
 
     @Override
-    public ClusterState execute(ClusterState currentState) throws IOException {
+    public ClusterState execute(ClusterState currentState) {
         IndexMetadata idxMeta = currentState.getMetadata().index(index);
         if (idxMeta == null) {
             // Index must have been since deleted, ignore it
             return currentState;
         }
-        Settings indexSettings = idxMeta.getSettings();
-        LifecycleExecutionState indexILMData = idxMeta.getLifecycleExecutionState();
-        if (policy.equals(LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexSettings))
-            && currentStepKey.equals(Step.getCurrentStepKey(indexILMData))) {
+        LifecycleExecutionState lifecycleState = idxMeta.getLifecycleExecutionState();
+        if (policy.equals(idxMeta.getLifecyclePolicyName()) && currentStepKey.equals(Step.getCurrentStepKey(lifecycleState))) {
             return IndexLifecycleTransition.moveClusterStateToErrorStep(index, currentState, cause, nowSupplier, stepLookupFunction);
         } else {
             // either the policy has changed or the step is now
@@ -78,7 +73,7 @@ public class MoveToErrorStepUpdateTask extends ClusterStateUpdateTask {
     }
 
     @Override
-    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
         if (newState.equals(oldState) == false) {
             stateChangeConsumer.accept(newState);
         }

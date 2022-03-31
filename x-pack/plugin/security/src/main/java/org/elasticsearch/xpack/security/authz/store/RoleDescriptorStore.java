@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.security.authz.store;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.cache.Cache;
@@ -82,10 +81,8 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
     ) {
         final Set<String> roleNames = Set.copyOf(new HashSet<>(List.of(namedRoleReference.getRoleNames())));
         if (roleNames.isEmpty()) {
-            assert false : "empty role names should have short circuited earlier";
             listener.onResponse(RolesRetrievalResult.EMPTY);
         } else if (roleNames.equals(Set.of(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName()))) {
-            assert false : "superuser role should have short circuited earlier";
             listener.onResponse(RolesRetrievalResult.SUPERUSER);
         } else {
             resolveRoleNames(roleNames, listener);
@@ -169,16 +166,6 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
                 finalResult.setFailure();
             }
             listener.onResponse(finalResult);
-        }, listener::onFailure));
-    }
-
-    public void getRoleDescriptors(Set<String> roleNames, ActionListener<Set<RoleDescriptor>> listener) {
-        roleDescriptors(roleNames, ActionListener.wrap(rolesRetrievalResult -> {
-            if (rolesRetrievalResult.isSuccess()) {
-                listener.onResponse(rolesRetrievalResult.getRoleDescriptors());
-            } else {
-                listener.onFailure(new ElasticsearchException("role retrieval had one or more failures"));
-            }
         }, listener::onFailure));
     }
 

@@ -37,7 +37,8 @@ The following `JodaCompatibleZonedDateTime` methods must be replaced using
 * `getMonthOfYear()` -> `getMonthValue()`
 * `getSecondOfDay()` -> `get(ChronoField.SECOND_OF_DAY)`
 * `getSecondOfMinute()` -> `getSecond()`
-* `getWeekOfWeekyear()` -> `get(DateFormatters.WEEK_FIELDS_ROOT.weekBasedYear())`
+* `getWeekOfWeekyear()` -> `get(IsoFields.WEEK_OF_WEEK_BASED_YEAR)`
+* `getWeekyear()` -> `get(IsoFields.WEEK_BASED_YEAR)`
 * `getYearOfCentury()` -> `get(ChronoField.YEAR_OF_ERA) % 100`
 * `getYearOfEra()` -> `get(ChronoField.YEAR_OF_ERA)`
 * `toString(String)` -> a DateTimeFormatter

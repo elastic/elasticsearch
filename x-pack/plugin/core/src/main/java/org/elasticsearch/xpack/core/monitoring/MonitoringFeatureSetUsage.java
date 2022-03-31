@@ -49,7 +49,7 @@ public class MonitoringFeatureSetUsage extends XPackFeatureSet.Usage {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeMap(exporters);
+        out.writeGenericMap(exporters);
         out.writeOptionalBoolean(collectionEnabled);
     }
 

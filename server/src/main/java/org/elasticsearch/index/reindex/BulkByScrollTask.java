@@ -94,7 +94,7 @@ public class BulkByScrollTask extends CancellableTask {
             new BulkByScrollTask.StatusOrException[leaderState.getSlices()]
         );
         for (TaskInfo t : sliceInfo) {
-            BulkByScrollTask.Status status = (BulkByScrollTask.Status) t.getStatus();
+            BulkByScrollTask.Status status = (BulkByScrollTask.Status) t.status();
             sliceStatuses.set(status.getSliceId(), new BulkByScrollTask.StatusOrException(status));
         }
         Status status = leaderState.getStatus(sliceStatuses);
@@ -851,14 +851,14 @@ public class BulkByScrollTask extends CancellableTask {
             }
         }
 
-        private int checkPositive(int value, String name) {
+        private static int checkPositive(int value, String name) {
             if (value < 0) {
                 throw new IllegalArgumentException(name + " must be greater than 0 but was [" + value + "]");
             }
             return value;
         }
 
-        private long checkPositive(long value, String name) {
+        private static long checkPositive(long value, String name) {
             if (value < 0) {
                 throw new IllegalArgumentException(name + " must be greater than 0 but was [" + value + "]");
             }

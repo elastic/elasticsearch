@@ -49,6 +49,6 @@ final class ProtoShim {
         if (toProto == null) {
             return null;
         }
-        return new ContentLocation(toProto.lineNumber, toProto.columnNumber);
+        return new ContentLocation(toProto.lineNumber(), toProto.columnNumber());
     }
 }

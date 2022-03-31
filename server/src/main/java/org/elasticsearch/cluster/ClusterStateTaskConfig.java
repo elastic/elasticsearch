@@ -56,23 +56,5 @@ public interface ClusterStateTaskConfig {
         return new Basic(priority, timeout);
     }
 
-    class Basic implements ClusterStateTaskConfig {
-        final TimeValue timeout;
-        final Priority priority;
-
-        public Basic(Priority priority, TimeValue timeout) {
-            this.timeout = timeout;
-            this.priority = priority;
-        }
-
-        @Override
-        public TimeValue timeout() {
-            return timeout;
-        }
-
-        @Override
-        public Priority priority() {
-            return priority;
-        }
-    }
+    record Basic(Priority priority, TimeValue timeout) implements ClusterStateTaskConfig {}
 }

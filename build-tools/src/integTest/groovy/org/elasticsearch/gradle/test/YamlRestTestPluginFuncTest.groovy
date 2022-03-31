@@ -31,7 +31,7 @@ restTestSpecs
 /--- org.elasticsearch:rest-api-spec:${VersionProperties.elasticsearch} FAILED""")
         output.contains(normalized("""
 yamlRestTestImplementation - Implementation only dependencies for source set 'yaml rest test'. (n)
-/--- org.elasticsearch.test:framework:${VersionProperties.elasticsearch} (n)"""))
+/--- org.elasticsearch.test:yaml-rest-runner:${VersionProperties.elasticsearch} (n)"""))
     }
 
     def "yamlRestTest does nothing when there are no tests"() {
@@ -40,11 +40,11 @@ yamlRestTestImplementation - Implementation only dependencies for source set 'ya
         plugins {
           id 'elasticsearch.yaml-rest-test'
         }
-        
+
         repositories {
             mavenCentral()
         }
-   
+
         dependencies {
             yamlRestTestImplementation "org.elasticsearch.test:framework:7.14.0"
             restTestSpecs "org.elasticsearch:rest-api-spec:7.14.0"

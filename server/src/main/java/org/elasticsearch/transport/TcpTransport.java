@@ -79,7 +79,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Supplier;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.transport.NetworkExceptionHelper.isConnectException;
@@ -336,7 +335,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
 
     // This allows transport implementations to potentially override specific connection profiles. This
     // primarily exists for the test implementations.
-    protected ConnectionProfile maybeOverrideConnectionProfile(ConnectionProfile connectionProfile) {
+    protected static ConnectionProfile maybeOverrideConnectionProfile(ConnectionProfile connectionProfile) {
         return connectionProfile;
     }
 
@@ -424,7 +423,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
         return local.stream()
             .flatMap(address -> Arrays.stream(defaultPortRange()).limit(LIMIT_LOCAL_PORTS_COUNT).mapToObj(port -> address + ":" + port))
-            .collect(Collectors.toList());
+            .toList();
     }
 
     protected void bindServer(ProfileSettings profileSettings) {
@@ -746,7 +745,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
     }
 
-    protected void onServerException(TcpServerChannel channel, Exception e) {
+    protected static void onServerException(TcpServerChannel channel, Exception e) {
         if (e instanceof BindException) {
             logger.debug(() -> new ParameterizedMessage("bind exception from server channel caught on transport layer [{}]", channel), e);
         } else {

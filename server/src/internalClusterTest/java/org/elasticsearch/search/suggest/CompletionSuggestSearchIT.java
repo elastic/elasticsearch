@@ -11,7 +11,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
 import org.apache.lucene.analysis.TokenStreamToAutomaton;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
-import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
+import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
@@ -1339,7 +1339,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         assertSuggestions("b");
         assertThat(2L, equalTo(client().prepareSearch(INDEX).setSize(0).get().getHits().getTotalHits().value));
         for (IndexShardSegments seg : client().admin().indices().prepareSegments().get().getIndices().get(INDEX)) {
-            ShardSegments[] shards = seg.getShards();
+            ShardSegments[] shards = seg.shards();
             for (ShardSegments shardSegments : shards) {
                 assertThat(shardSegments.getSegments().size(), equalTo(1));
             }

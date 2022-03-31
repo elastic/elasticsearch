@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ml.job.config;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.AbstractDiffable;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -58,7 +58,7 @@ import static org.elasticsearch.xpack.core.ml.utils.ToXContentParams.EXCLUDE_GEN
  * data time fields are {@code null} until the job has seen some data or it is
  * finished respectively.
  */
-public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentObject {
+public class Job implements SimpleDiffable<Job>, Writeable, ToXContentObject {
 
     public static final String TYPE = "job";
 
@@ -573,7 +573,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
         out.writeOptionalLong(modelSnapshotRetentionDays);
         out.writeOptionalLong(dailyModelSnapshotRetentionAfterDays);
         out.writeOptionalLong(resultsRetentionDays);
-        out.writeMap(customSettings);
+        out.writeGenericMap(customSettings);
         out.writeOptionalString(modelSnapshotId);
         if (modelSnapshotMinVersion != null) {
             out.writeBoolean(true);
@@ -1070,7 +1070,7 @@ public class Job extends AbstractDiffable<Job> implements Writeable, ToXContentO
             out.writeOptionalLong(modelSnapshotRetentionDays);
             out.writeOptionalLong(dailyModelSnapshotRetentionAfterDays);
             out.writeOptionalLong(resultsRetentionDays);
-            out.writeMap(customSettings);
+            out.writeGenericMap(customSettings);
             out.writeOptionalString(modelSnapshotId);
             if (modelSnapshotMinVersion != null) {
                 out.writeBoolean(true);

@@ -170,7 +170,7 @@ public abstract class SessionFactory implements Closeable {
             if (sslConfiguration == null) {
                 throw new IllegalStateException("cannot find SSL configuration for " + sslKey);
             }
-            if (sslConfiguration.getVerificationMode().isHostnameVerificationEnabled()) {
+            if (sslConfiguration.verificationMode().isHostnameVerificationEnabled()) {
                 options.setSSLSocketVerifier(new HostNameSSLSocketVerifier(true));
             }
         } else if (hostnameVerificationExists) {
@@ -214,7 +214,7 @@ public abstract class SessionFactory implements Closeable {
             final String sslKey = RealmSettings.realmSslPrefix(config.identifier());
             final SslConfiguration ssl = clientSSLService.getSSLConfiguration(sslKey);
             socketFactory = clientSSLService.sslSocketFactory(ssl);
-            if (ssl.getVerificationMode().isHostnameVerificationEnabled()) {
+            if (ssl.verificationMode().isHostnameVerificationEnabled()) {
                 logger.debug("using encryption for LDAP connections with hostname verification");
             } else {
                 logger.debug("using encryption for LDAP connections without hostname verification");

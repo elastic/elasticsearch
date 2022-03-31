@@ -40,6 +40,7 @@ public final class TransformField {
     public static final ParseField DATES_AS_EPOCH_MILLIS = new ParseField("dates_as_epoch_millis");
     public static final ParseField ALIGN_CHECKPOINTS = new ParseField("align_checkpoints");
     public static final ParseField USE_PIT = new ParseField("use_point_in_time");
+    public static final ParseField DEDUCE_MAPPINGS = new ParseField("deduce_mappings");
     public static final ParseField FIELD = new ParseField("field");
     public static final ParseField SYNC = new ParseField("sync");
     public static final ParseField TIME = new ParseField("time");

@@ -8,13 +8,13 @@
 
 package org.elasticsearch.search.query;
 
-import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.analysis.pattern.PatternReplaceCharFilter;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.join.ScoreMode;
+import org.apache.lucene.tests.analysis.MockTokenizer;
+import org.apache.lucene.tests.util.English;
 import org.apache.lucene.util.AttributeSource;
-import org.apache.lucene.util.English;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -44,7 +44,6 @@ import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.TermsLookup;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -1764,7 +1763,6 @@ public class SearchQueryIT extends ESIntegTestCase {
      * on "Configuring IDEs And Running Tests".
      */
     public void testRangeQueryWithLocaleMapping() throws Exception {
-        assumeTrue("need java 9 for testing ", JavaVersion.current().compareTo(JavaVersion.parse("9")) >= 0);
         assert ("SPI,COMPAT".equals(System.getProperty("java.locale.providers"))) : "`-Djava.locale.providers=SPI,COMPAT` needs to be set";
 
         assertAcked(

@@ -17,6 +17,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.Proxy;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.security.KeyPair;
@@ -34,6 +37,9 @@ import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSetting
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.CREDENTIALS_FILE_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.ENDPOINT_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.PROJECT_ID_SETTING;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.PROXY_HOST_SETTING;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.PROXY_PORT_SETTING;
+import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.PROXY_TYPE_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.READ_TIMEOUT_SETTING;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.getClientSettings;
 import static org.elasticsearch.repositories.gcs.GoogleCloudStorageClientSettings.loadCredential;
@@ -94,9 +100,33 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             CONNECT_TIMEOUT_SETTING.getDefault(Settings.EMPTY),
             READ_TIMEOUT_SETTING.getDefault(Settings.EMPTY),
             APPLICATION_NAME_SETTING.getDefault(Settings.EMPTY),
-            new URI("")
+            new URI(""),
+            PROXY_TYPE_SETTING.getDefault(Settings.EMPTY),
+            PROXY_HOST_SETTING.getDefault(Settings.EMPTY),
+            PROXY_PORT_SETTING.getDefault(Settings.EMPTY)
         );
         assertEquals(credential.getProjectId(), googleCloudStorageClientSettings.getProjectId());
+    }
+
+    public void testLoadsProxySettings() throws Exception {
+        final String clientName = randomAlphaOfLength(5);
+        final ServiceAccountCredentials credential = randomCredential(clientName).v1();
+        final GoogleCloudStorageClientSettings googleCloudStorageClientSettings = new GoogleCloudStorageClientSettings(
+            credential,
+            ENDPOINT_SETTING.getDefault(Settings.EMPTY),
+            PROJECT_ID_SETTING.getDefault(Settings.EMPTY),
+            CONNECT_TIMEOUT_SETTING.getDefault(Settings.EMPTY),
+            READ_TIMEOUT_SETTING.getDefault(Settings.EMPTY),
+            APPLICATION_NAME_SETTING.getDefault(Settings.EMPTY),
+            new URI(""),
+            Proxy.Type.HTTP,
+            "192.168.15.1",
+            8080
+        );
+        assertEquals(
+            new Proxy(Proxy.Type.HTTP, new InetSocketAddress(InetAddress.getByName("192.168.15.1"), 8080)),
+            googleCloudStorageClientSettings.getProxy()
+        );
     }
 
     /** Generates a given number of GoogleCloudStorageClientSettings along with the Settings to build them from **/
@@ -192,7 +222,10 @@ public class GoogleCloudStorageClientSettingsTests extends ESTestCase {
             connectTimeout,
             readTimeout,
             applicationName,
-            new URI("")
+            new URI(""),
+            PROXY_TYPE_SETTING.getDefault(Settings.EMPTY),
+            PROXY_HOST_SETTING.getDefault(Settings.EMPTY),
+            PROXY_PORT_SETTING.getDefault(Settings.EMPTY)
         );
     }
 

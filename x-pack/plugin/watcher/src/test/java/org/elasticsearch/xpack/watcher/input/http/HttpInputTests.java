@@ -11,6 +11,7 @@ import io.netty.handler.codec.http.HttpHeaders;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -279,7 +280,7 @@ public class HttpInputTests extends ESTestCase {
         HttpInput httpInput = new HttpInput(template, HttpContentType.TEXT, null);
         ExecutableHttpInput input = new ExecutableHttpInput(httpInput, httpClient, templateEngine);
 
-        Map<String, String[]> headers = new HashMap<>(1);
+        Map<String, String[]> headers = Maps.newMapWithExpectedSize(1);
         String contentType = randomFrom(
             "application/json",
             "application/json;charset=utf-8",

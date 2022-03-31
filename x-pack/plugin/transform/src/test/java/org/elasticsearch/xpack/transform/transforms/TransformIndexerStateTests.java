@@ -506,7 +506,7 @@ public class TransformIndexerStateTests extends ESTestCase {
             randomPivotConfig(),
             null,
             randomBoolean() ? null : randomAlphaOfLengthBetween(1, 1000),
-            new SettingsConfig(null, Float.valueOf(1.0f), (Boolean) null, (Boolean) null, null),
+            new SettingsConfig(null, Float.valueOf(1.0f), (Boolean) null, (Boolean) null, null, null),
             null,
             null,
             null,
@@ -620,7 +620,7 @@ public class TransformIndexerStateTests extends ESTestCase {
         TransformContext context
     ) {
         CheckpointProvider checkpointProvider = new MockTimebasedCheckpointProvider(config);
-        transformConfigManager.putTransformConfiguration(config, ActionListener.wrap(r -> {}, e -> {}));
+        transformConfigManager.putTransformConfiguration(config, ActionListener.noop());
         TransformServices transformServices = new TransformServices(
             transformConfigManager,
             mock(TransformCheckpointService.class),

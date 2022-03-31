@@ -21,38 +21,41 @@ my_remote_cluster |remote
 showTables
 SHOW TABLES CATALOG 'my_remote_cluster';
 
-     catalog     |     name      |     type      |     kind
------------------+---------------+---------------+---------------
-my_remote_cluster|empty_mapping  |TABLE          |INDEX
-my_remote_cluster|logs           |TABLE          |INDEX
-my_remote_cluster|logs_nanos     |TABLE          |INDEX
-my_remote_cluster|test_emp       |TABLE          |INDEX
-my_remote_cluster|test_emp_copy  |TABLE          |INDEX
+     catalog     |     name          |     type      |     kind
+-----------------+-------------------+---------------+---------------
+my_remote_cluster|empty_mapping      |TABLE          |INDEX
+my_remote_cluster|logs               |TABLE          |INDEX
+my_remote_cluster|logs_nanos         |TABLE          |INDEX
+my_remote_cluster|logs_unsigned_long |TABLE          |INDEX
+my_remote_cluster|test_emp           |TABLE          |INDEX
+my_remote_cluster|test_emp_copy      |TABLE          |INDEX
 ;
 
 showTablesWithLike
 SHOW TABLES CATALOG LIKE 'my_remote_%';
 
-     catalog     |     name      |     type      |     kind
------------------+---------------+---------------+---------------
-my_remote_cluster|empty_mapping  |TABLE          |INDEX
-my_remote_cluster|logs           |TABLE          |INDEX
-my_remote_cluster|logs_nanos     |TABLE          |INDEX
-my_remote_cluster|test_emp       |TABLE          |INDEX
-my_remote_cluster|test_emp_copy  |TABLE          |INDEX
+     catalog     |     name          |     type      |     kind
+-----------------+-------------------+---------------+---------------
+my_remote_cluster|empty_mapping      |TABLE          |INDEX
+my_remote_cluster|logs               |TABLE          |INDEX
+my_remote_cluster|logs_nanos         |TABLE          |INDEX
+my_remote_cluster|logs_unsigned_long |TABLE          |INDEX
+my_remote_cluster|test_emp           |TABLE          |INDEX
+my_remote_cluster|test_emp_copy      |TABLE          |INDEX
 ;
 
 showTablesWithFrozen
 SHOW TABLES CATALOG 'my_remote_cluster' INCLUDE FROZEN;
 
-     catalog     |     name      |     type      |     kind
------------------+---------------+---------------+---------------
-my_remote_cluster|empty_mapping  |TABLE          |INDEX
-my_remote_cluster|frozen_emp     |TABLE          |INDEX
-my_remote_cluster|logs           |TABLE          |INDEX
-my_remote_cluster|logs_nanos     |TABLE          |INDEX
-my_remote_cluster|test_emp       |TABLE          |INDEX
-my_remote_cluster|test_emp_copy  |TABLE          |INDEX
+     catalog     |     name          |     type      |     kind
+-----------------+-------------------+---------------+---------------
+my_remote_cluster|empty_mapping      |TABLE          |INDEX
+my_remote_cluster|frozen_emp         |TABLE          |INDEX
+my_remote_cluster|logs               |TABLE          |INDEX
+my_remote_cluster|logs_nanos         |TABLE          |INDEX
+my_remote_cluster|logs_unsigned_long |TABLE          |INDEX
+my_remote_cluster|test_emp           |TABLE          |INDEX
+my_remote_cluster|test_emp_copy      |TABLE          |INDEX
 ;
 
 showTablesSimpleLike
@@ -114,13 +117,14 @@ test_alias_emp |VIEW    |ALIAS
 showTablesAllCatalogs
 SHOW TABLES CATALOG '*';
 
-     catalog     |     name      |     type      |     kind
------------------+---------------+---------------+---------------
-my_remote_cluster|empty_mapping  |TABLE          |INDEX
-my_remote_cluster|logs           |TABLE          |INDEX
-my_remote_cluster|logs_nanos     |TABLE          |INDEX
-my_remote_cluster|test_emp       |TABLE          |INDEX
-my_remote_cluster|test_emp_copy  |TABLE          |INDEX
+     catalog     |     name          |     type      |     kind
+-----------------+-------------------+---------------+---------------
+my_remote_cluster|empty_mapping      |TABLE          |INDEX
+my_remote_cluster|logs               |TABLE          |INDEX
+my_remote_cluster|logs_nanos         |TABLE          |INDEX
+my_remote_cluster|logs_unsigned_long |TABLE          |INDEX
+my_remote_cluster|test_emp           |TABLE          |INDEX
+my_remote_cluster|test_emp_copy      |TABLE          |INDEX
 ;
 
 // DESCRIBE
@@ -153,6 +157,7 @@ last_name.keyword   |VARCHAR        |keyword
 name                |VARCHAR        |keyword
 null_constant       |VARCHAR        |keyword
 salary              |INTEGER        |integer
+salary_ul           |NUMERIC        |unsigned_long
 wildcard_name       |VARCHAR        |keyword
 ;
 
@@ -184,6 +189,7 @@ last_name.keyword   |VARCHAR        |keyword
 name                |VARCHAR        |keyword
 null_constant       |VARCHAR        |keyword
 salary              |INTEGER        |integer
+salary_ul           |NUMERIC        |unsigned_long
 wildcard_name       |VARCHAR        |keyword
 ;
 
@@ -303,6 +309,7 @@ last_name.keyword   |VARCHAR        |keyword
 name                |VARCHAR        |keyword
 null_constant       |VARCHAR        |keyword
 salary              |INTEGER        |integer
+salary_ul           |NUMERIC        |unsigned_long
 wildcard_name       |VARCHAR        |keyword
 ;
 
@@ -334,6 +341,7 @@ last_name.keyword   |VARCHAR        |keyword
 name                |VARCHAR        |keyword
 null_constant       |VARCHAR        |keyword
 salary              |INTEGER        |integer
+salary_ul           |NUMERIC        |unsigned_long
 wildcard_name       |VARCHAR        |keyword
 ;
 

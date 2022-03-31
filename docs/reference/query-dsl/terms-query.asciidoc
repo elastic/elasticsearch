@@ -87,10 +87,16 @@ By default, {es} limits the `terms` query to a maximum of 65,536
 terms. This includes terms fetched using terms lookup. You can change
 this limit using the <<index-max-terms-count, `index.max_terms_count`>> setting.
 
+To reduce network traffic, a terms lookup will fetch the document's values from
+a shard on a local data node if possible. If the your terms data is not large,
+consider using an index with a single primary shard that's fully replicated
+across all applicable data nodes to minimize network traffic.
+
 To perform a terms lookup, use the following parameters.
 
 [[query-dsl-terms-lookup-params]]
 ====== Terms lookup parameters
+
 `index`::
 (Required, string) Name of the index from which to fetch field values.
 

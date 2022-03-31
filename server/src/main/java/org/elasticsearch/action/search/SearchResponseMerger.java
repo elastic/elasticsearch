@@ -135,7 +135,7 @@ final class SearchResponseMerger {
 
             profileResults.putAll(searchResponse.getProfileResults());
 
-            if (searchResponse.getAggregations() != null) {
+            if (searchResponse.hasAggregations()) {
                 InternalAggregations internalAggs = (InternalAggregations) searchResponse.getAggregations();
                 aggs.add(internalAggs);
             }
@@ -195,7 +195,9 @@ final class SearchResponseMerger {
         SearchHits mergedSearchHits = topDocsToSearchHits(topDocs, topDocsStats);
         setSuggestShardIndex(shards, groupedSuggestions);
         Suggest suggest = groupedSuggestions.isEmpty() ? null : new Suggest(Suggest.reduce(groupedSuggestions));
-        InternalAggregations reducedAggs = InternalAggregations.topLevelReduce(aggs, aggReduceContextBuilder.forFinalReduction());
+        InternalAggregations reducedAggs = aggs.isEmpty()
+            ? InternalAggregations.EMPTY
+            : InternalAggregations.topLevelReduce(aggs, aggReduceContextBuilder.forFinalReduction());
         ShardSearchFailure[] shardFailures = failures.toArray(ShardSearchFailure.EMPTY_ARRAY);
         SearchProfileResults profileShardResults = profileResults.isEmpty() ? null : new SearchProfileResults(profileResults);
         // make failures ordering consistent between ordinary search and CCS by looking at the shard they come from
@@ -258,7 +260,7 @@ final class SearchResponseMerger {
             return clusterAlias1.compareTo(clusterAlias2);
         }
 
-        private ShardId extractShardId(ShardSearchFailure failure) {
+        private static ShardId extractShardId(ShardSearchFailure failure) {
             SearchShardTarget shard = failure.shard();
             if (shard != null) {
                 return shard.getShardId();
@@ -398,31 +400,9 @@ final class SearchResponseMerger {
      * make their ShardIds different, which is not the case if the index is really the same one from the same cluster, in which case we
      * need to look at the cluster alias and make sure to assign a different shardIndex based on that.
      */
-    private static final class ShardIdAndClusterAlias implements Comparable<ShardIdAndClusterAlias> {
-        private final ShardId shardId;
-        private final String clusterAlias;
-
-        ShardIdAndClusterAlias(ShardId shardId, String clusterAlias) {
-            this.shardId = shardId;
+    private record ShardIdAndClusterAlias(ShardId shardId, String clusterAlias) implements Comparable<ShardIdAndClusterAlias> {
+        private ShardIdAndClusterAlias {
             assert clusterAlias != null : "clusterAlias is null";
-            this.clusterAlias = clusterAlias;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) {
-                return true;
-            }
-            if (o == null || getClass() != o.getClass()) {
-                return false;
-            }
-            ShardIdAndClusterAlias that = (ShardIdAndClusterAlias) o;
-            return shardId.equals(that.shardId) && clusterAlias.equals(that.clusterAlias);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(shardId, clusterAlias);
         }
 
         @Override

@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.node.NodeClosedException;
@@ -112,7 +113,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         if (request.local()) {
             new LocalMasterServiceTask(request.waitForEvents()) {
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                protected void onPublicationComplete() {
                     final long timeoutInMillis = Math.max(0, endTimeRelativeMillis - threadPool.relativeTimeInMillis());
                     final TimeValue newTimeout = TimeValue.timeValueMillis(timeoutInMillis);
                     request.timeout(newTimeout);
@@ -140,7 +141,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     final long timeoutInMillis = Math.max(0, endTimeRelativeMillis - threadPool.relativeTimeInMillis());
                     final TimeValue newTimeout = TimeValue.timeValueMillis(timeoutInMillis);
                     request.timeout(newTimeout);
@@ -174,8 +175,13 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                         listener.onFailure(e);
                     }
                 }
-            }, ClusterStateTaskExecutor.unbatched());
+            }, newExecutor());
         }
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 
     private void executeHealth(

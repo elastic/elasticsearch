@@ -98,7 +98,6 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
         assertThat(toStr(client().performRequest(getRequest)), containsString(doc));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/81411")
     public void testSecurityNativeRealm() throws Exception {
         if (isRunningAgainstOldCluster()) {
             createUser(true);
@@ -353,10 +352,29 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                         )
                     )
             );
-            createApiKeyRequest.setJsonEntity("""
-                {
-                   "name": "super_legacy_key"
-                }""");
+            if (getOldClusterVersion().onOrAfter(Version.V_7_3_0)) {
+                createApiKeyRequest.setJsonEntity("""
+                    {
+                       "name": "super_legacy_key"
+                    }""");
+            } else {
+                createApiKeyRequest.setJsonEntity("""
+                    {
+                       "name": "super_legacy_key",
+                       "role_descriptors": {
+                         "super": {
+                           "cluster": [ "all" ],
+                           "indices": [
+                             {
+                               "names": [ "*" ],
+                               "privileges": [ "all" ],
+                               "allow_restricted_indices": true
+                             }
+                           ]
+                         }
+                       }
+                    }""");
+            }
             final Map<String, Object> createApiKeyResponse = entityAsMap(client().performRequest(createApiKeyRequest));
             final byte[] keyBytes = (createApiKeyResponse.get("id") + ":" + createApiKeyResponse.get("api_key")).getBytes(
                 StandardCharsets.UTF_8
@@ -373,12 +391,16 @@ public class FullClusterRestartIT extends AbstractFullClusterRestartTestCase {
                     {
                       "doc_type": "foo"
                     }""");
-                indexRequest.setOptions(
-                    expectWarnings(
-                        "this request accesses system indices: [.security-7], but in a future major "
-                            + "version, direct access to system indices will be prevented by default"
-                    ).toBuilder().addHeader("Authorization", apiKeyAuthHeader)
-                );
+                if (getOldClusterVersion().onOrAfter(Version.V_7_10_0)) {
+                    indexRequest.setOptions(
+                        expectWarnings(
+                            "this request accesses system indices: [.security-7], but in a future major "
+                                + "version, direct access to system indices will be prevented by default"
+                        ).toBuilder().addHeader("Authorization", apiKeyAuthHeader)
+                    );
+                } else {
+                    indexRequest.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", apiKeyAuthHeader));
+                }
                 assertOK(client().performRequest(indexRequest));
             }
         } else {

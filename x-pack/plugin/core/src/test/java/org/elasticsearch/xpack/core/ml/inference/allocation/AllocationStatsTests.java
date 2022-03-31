@@ -52,15 +52,33 @@ public class AllocationStatsTests extends AbstractWireSerializingTestCase<Alloca
     }
 
     public static AllocationStats.NodeStats randomNodeStats(DiscoveryNode node) {
+        var lastAccess = Instant.now();
+        var inferenceCount = randomNonNegativeLong();
+        Double avgInferenceTime = randomDoubleBetween(0.0, 100.0, true);
+        Double avgInferenceTimeLastPeriod = randomDoubleBetween(0.0, 100.0, true);
+
+        var noInferenceCallsOnNodeYet = randomBoolean();
+        if (noInferenceCallsOnNodeYet) {
+            lastAccess = null;
+            inferenceCount = 0;
+            avgInferenceTime = null;
+            avgInferenceTimeLastPeriod = null;
+        }
         return AllocationStats.NodeStats.forStartedState(
             node,
-            randomNonNegativeLong(),
-            randomBoolean() ? randomDoubleBetween(0.0, 100.0, true) : null,
+            inferenceCount,
+            avgInferenceTime,
             randomIntBetween(0, 100),
-            Instant.now(),
+            randomIntBetween(0, 100),
+            randomIntBetween(0, 100),
+            randomIntBetween(0, 100),
+            lastAccess,
             Instant.now(),
             randomIntBetween(1, 16),
-            randomIntBetween(1, 16)
+            randomIntBetween(1, 16),
+            randomIntBetween(0, 100),
+            randomIntBetween(0, 100),
+            avgInferenceTimeLastPeriod
         );
     }
 

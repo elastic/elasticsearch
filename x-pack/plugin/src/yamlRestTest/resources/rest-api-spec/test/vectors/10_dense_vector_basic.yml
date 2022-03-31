@@ -21,7 +21,7 @@ setup:
   - do:
       index:
         index: test-index
-        id: 1
+        id: "1"
         body:
           vector: [230.0, 300.33, -34.8988, 15.555, -200.0]
           indexed_vector: [230.0, 300.33, -34.8988, 15.555, -200.0]
@@ -29,7 +29,7 @@ setup:
   - do:
       index:
         index: test-index
-        id: 2
+        id: "2"
         body:
           vector: [-0.5, 100.0, -13, 14.8, -156.0]
           indexed_vector: [-0.5, 100.0, -13, 14.8, -156.0]
@@ -37,7 +37,7 @@ setup:
   - do:
       index:
         index: test-index
-        id: 3
+        id: "3"
         body:
           vector: [0.5, 111.3, -13.0, 14.8, -156.0]
           indexed_vector: [0.5, 111.3, -13.0, 14.8, -156.0]

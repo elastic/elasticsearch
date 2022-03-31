@@ -40,11 +40,10 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.test.NotEqualMessageBuilder;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.CoreMatchers;
 import org.hamcrest.Matcher;
@@ -65,8 +64,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
-import static org.apache.lucene.util.LuceneTestCase.expectThrows;
-import static org.apache.lucene.util.LuceneTestCase.expectThrowsAnyOf;
+import static org.apache.lucene.tests.util.LuceneTestCase.expectThrows;
+import static org.apache.lucene.tests.util.LuceneTestCase.expectThrowsAnyOf;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
@@ -683,14 +682,11 @@ public class ElasticsearchAssertions {
         // Note that byte[] holding binary values need special treatment as they need to be properly compared item per item.
         Map<String, Object> actualMap = null;
         Map<String, Object> expectedMap = null;
-        try (
-            XContentParser actualParser = xContentType.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, actual.streamInput())
-        ) {
+        try (XContentParser actualParser = xContentType.xContent().createParser(XContentParserConfiguration.EMPTY, actual.streamInput())) {
             actualMap = actualParser.map();
             try (
                 XContentParser expectedParser = xContentType.xContent()
-                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, expected.streamInput())
+                    .createParser(XContentParserConfiguration.EMPTY, expected.streamInput())
             ) {
                 expectedMap = expectedParser.map();
                 try {

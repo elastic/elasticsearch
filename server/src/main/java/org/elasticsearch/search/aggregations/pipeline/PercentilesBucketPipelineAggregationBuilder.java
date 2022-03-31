@@ -10,6 +10,7 @@ package org.elasticsearch.search.aggregations.pipeline;
 
 import com.carrotsearch.hppc.DoubleArrayList;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.ParseField;
@@ -116,6 +117,11 @@ public class PercentilesBucketPipelineAggregationBuilder extends BucketMetricsPi
         return builder;
     }
 
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
+    }
+
     public static final PipelineAggregator.Parser PARSER = new BucketMetricsParser() {
 
         @Override
@@ -179,4 +185,5 @@ public class PercentilesBucketPipelineAggregationBuilder extends BucketMetricsPi
     public String getWriteableName() {
         return NAME;
     }
+
 }

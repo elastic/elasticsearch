@@ -9,6 +9,7 @@
 package org.elasticsearch.plugin.analysis.ukrainian;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.uk.UkrainianMorfologikAnalyzer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
@@ -24,6 +25,6 @@ public class UkrainianAnalysisTests extends ESTestCase {
         final TestAnalysis analysis = createTestAnalysis(new Index("test", "_na_"), Settings.EMPTY, new AnalysisUkrainianPlugin());
 
         Analyzer analyzer = analysis.indexAnalyzers.get("ukrainian").analyzer();
-        MatcherAssert.assertThat(analyzer, instanceOf(XUkrainianMorfologikAnalyzer.class));
+        MatcherAssert.assertThat(analyzer, instanceOf(UkrainianMorfologikAnalyzer.class));
     }
 }

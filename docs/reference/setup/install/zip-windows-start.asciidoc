@@ -39,11 +39,6 @@ To stop {es}, press `Ctrl-C`.
 [discrete]
 ==== Enroll nodes in an existing cluster
 
-To enroll new nodes in your cluster, create an enrollment token with the
-`elasticsearch-create-enrollment-token` tool on any existing node in your
-cluster. You can then start a new node with the `--enrollment-token` parameter
-so that it joins an existing cluster.
-
 // The following include pulls in steps for enrolling nodes in a cluster from
 // a security page in the x-pack folder
 

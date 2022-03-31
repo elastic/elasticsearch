@@ -14,6 +14,7 @@ import org.apache.lucene.search.suggest.document.ContextSuggestField;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappingParser;
@@ -24,7 +25,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -53,7 +53,7 @@ public class ContextMappings implements ToXContent, Iterable<ContextMapping<?>> 
             throw new UnsupportedOperationException("Maximum of 10 context types are supported was: " + contextMappings.size());
         }
         this.contextMappings = contextMappings;
-        contextNameMap = new HashMap<>(contextMappings.size());
+        contextNameMap = Maps.newMapWithExpectedSize(contextMappings.size());
         for (ContextMapping<?> mapping : contextMappings) {
             contextNameMap.put(mapping.name(), mapping);
         }
@@ -188,7 +188,7 @@ public class ContextMappings implements ToXContent, Iterable<ContextMapping<?>> 
      *
      */
     public Map<String, Set<String>> getNamedContexts(List<CharSequence> contexts) {
-        Map<String, Set<String>> contextMap = new HashMap<>(contexts.size());
+        Map<String, Set<String>> contextMap = Maps.newMapWithExpectedSize(contexts.size());
         for (CharSequence typedContext : contexts) {
             int typeId = typedContext.charAt(0);
             assert typeId < contextMappings.size() : "Returned context has invalid type";

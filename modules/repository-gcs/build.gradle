@@ -30,7 +30,7 @@ dependencies {
   api 'com.google.cloud:google-cloud-core:1.95.4'
   api 'com.google.cloud:google-cloud-core-http:1.95.4'
   runtimeOnly 'com.google.guava:guava:30.1.1-jre'
-  api 'com.google.guava:failureaccess:1.0.1'
+  runtimeOnly 'com.google.guava:failureaccess:1.0.1'
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
@@ -50,6 +50,7 @@ dependencies {
   api 'com.google.http-client:google-http-client-gson:1.39.2'
   api 'com.google.http-client:google-http-client-appengine:1.39.2'
   api 'com.google.http-client:google-http-client-jackson2:1.39.2'
+  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   api 'com.google.api:gax-httpjson:0.83.0'
   api 'io.grpc:grpc-context:1.39.0'
   api 'io.opencensus:opencensus-api:0.28.0'
@@ -81,6 +82,7 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /opencensus.*/, to: 'opencensus'
   mapping from: /protobuf.*/, to: 'protobuf'
   mapping from: /proto-google.*/, to: 'proto-google'
+  mapping from: /jackson.*/, to: 'jackson'
 }
 
 tasks.named("thirdPartyAudit").configure {
@@ -267,7 +269,6 @@ tasks.named("yamlRestTest").configure {
  * an additional test that forces the large blob threshold to be small to exercise the resumable upload path.
  */
 def largeBlobYamlRestTest = tasks.register("largeBlobYamlRestTest", RestIntegTestTask) {
-  dependsOn "bundlePlugin"
   if (useFixture) {
     dependsOn "createServiceAccountFile"
   }
@@ -279,7 +280,7 @@ def largeBlobYamlRestTest = tasks.register("largeBlobYamlRestTest", RestIntegTes
   // We have to wait for configure the cluster here as it might not have been created otherwise yet.
   testClusters {
     largeBlobYamlRestTest {
-      module bundlePlugin.archiveFile
+      module tasks.named("explodedBundlePlugin")
 
       // force large blob uploads by setting the threshold small, forcing this code path to be tested
       systemProperty 'es.repository_gcs.large_blob_threshold_byte_size', '256'
@@ -323,7 +324,6 @@ testClusters.matching {
 // Application Default Credentials
 if (useFixture) {
   tasks.register("yamlRestTestApplicationDefaultCredentials", RestIntegTestTask.class) {
-    dependsOn('bundlePlugin')
     SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
     SourceSet yamlRestTestSourceSet = sourceSets.getByName(InternalYamlRestTestPlugin.SOURCE_SET_NAME)
     setTestClassesDirs(yamlRestTestSourceSet.getOutput().getClassesDirs())
@@ -333,7 +333,7 @@ if (useFixture) {
 
   testClusters.matching { it.name == "yamlRestTestApplicationDefaultCredentials" }.configureEach {
     setting 'gcs.client.integration_test.endpoint', { "${-> fixtureAddress('gcs-fixture-with-application-default-credentials')}" }, IGNORE_VALUE
-    module tasks.bundlePlugin.archiveFile
+    module tasks.named("explodedBundlePlugin")
     environment 'GCE_METADATA_HOST', { "${-> fixtureAddress('gcs-fixture-with-application-default-credentials')}".replace("http://", "") }, IGNORE_VALUE
   }
 }

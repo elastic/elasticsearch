@@ -29,7 +29,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -59,14 +58,14 @@ public class RestPluginsActionTests extends ESTestCase {
         );
 
         // verify the table headers are correct
-        final List<Object> headers = table.getHeaders().stream().map(h -> h.value).collect(Collectors.toList());
+        final List<Object> headers = table.getHeaders().stream().map(h -> h.value).toList();
         assertThat(headers, contains("id", "name", "component", "version", "description", "type"));
 
         // verify the table rows are correct
         final List<List<String>> rows = table.getRows()
             .stream()
-            .map(row -> row.stream().map(c -> String.valueOf(c.value)).collect(Collectors.toList()))
-            .collect(Collectors.toList());
+            .map(row -> row.stream().map(c -> String.valueOf(c.value)).toList())
+            .toList();
         assertThat(rows, hasSize(3));
 
         final List<Matcher<? super List<String>>> matchers = new ArrayList<>();
@@ -90,8 +89,8 @@ public class RestPluginsActionTests extends ESTestCase {
         // verify the table rows are correct
         final List<List<String>> rows = table.getRows()
             .stream()
-            .map(row -> row.stream().map(c -> String.valueOf(c.value)).collect(Collectors.toList()))
-            .collect(Collectors.toList());
+            .map(row -> row.stream().map(c -> String.valueOf(c.value)).toList())
+            .toList();
         assertThat(rows, hasSize(6));
 
         final List<Matcher<? super List<String>>> matchers = new ArrayList<>();

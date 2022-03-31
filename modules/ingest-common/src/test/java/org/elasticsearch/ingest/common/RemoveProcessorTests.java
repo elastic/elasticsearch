@@ -12,10 +12,13 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.TestTemplateService;
+import org.elasticsearch.script.TemplateScript;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -30,6 +33,7 @@ public class RemoveProcessorTests extends ESTestCase {
             randomAlphaOfLength(10),
             null,
             Collections.singletonList(new TestTemplateService.MockTemplateScript.Factory(field)),
+            Collections.emptyList(),
             false
         );
         processor.execute(ingestDocument);
@@ -61,4 +65,119 @@ public class RemoveProcessorTests extends ESTestCase {
         Processor processor = new RemoveProcessor.Factory(TestTemplateService.instance()).create(null, processorTag, null, config);
         processor.execute(ingestDocument);
     }
+
+    public void testKeepFields() throws Exception {
+        Map<String, Object> address = new HashMap<>();
+        address.put("street", "Ipiranga Street");
+        address.put("number", 123);
+
+        Map<String, Object> source = new HashMap<>();
+        source.put("name", "eric clapton");
+        source.put("age", 55);
+        source.put("address", address);
+
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), source);
+
+        List<TemplateScript.Factory> fieldsToKeep = List.of(
+            new TestTemplateService.MockTemplateScript.Factory("name"),
+            new TestTemplateService.MockTemplateScript.Factory("address.street")
+        );
+
+        Processor processor = new RemoveProcessor(randomAlphaOfLength(10), null, new ArrayList<>(), fieldsToKeep, false);
+        processor.execute(ingestDocument);
+        assertTrue(ingestDocument.hasField("name"));
+        assertTrue(ingestDocument.hasField("address"));
+        assertTrue(ingestDocument.hasField("address.street"));
+        assertFalse(ingestDocument.hasField("age"));
+        assertFalse(ingestDocument.hasField("address.number"));
+        assertTrue(ingestDocument.hasField("_index"));
+        assertTrue(ingestDocument.hasField("_version"));
+        assertTrue(ingestDocument.hasField("_id"));
+        assertTrue(ingestDocument.hasField("_version_type"));
+    }
+
+    public void testShouldKeep(String a, String b) {
+        Map<String, Object> address = new HashMap<>();
+        address.put("street", "Ipiranga Street");
+        address.put("number", 123);
+
+        Map<String, Object> source = new HashMap<>();
+        source.put("name", "eric clapton");
+        source.put("address", address);
+
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), source);
+
+        assertTrue(
+            RemoveProcessor.shouldKeep(
+                "name",
+                Collections.singletonList(new TestTemplateService.MockTemplateScript.Factory("name")),
+                ingestDocument
+            )
+        );
+
+        assertTrue(
+            RemoveProcessor.shouldKeep(
+                "age",
+                Collections.singletonList(new TestTemplateService.MockTemplateScript.Factory("age")),
+                ingestDocument
+            )
+        );
+
+        assertFalse(
+            RemoveProcessor.shouldKeep(
+                "name",
+                Collections.singletonList(new TestTemplateService.MockTemplateScript.Factory("age")),
+                ingestDocument
+            )
+        );
+
+        assertTrue(
+            RemoveProcessor.shouldKeep(
+                "address",
+                Collections.singletonList(new TestTemplateService.MockTemplateScript.Factory("address.street")),
+                ingestDocument
+            )
+        );
+
+        assertTrue(
+            RemoveProcessor.shouldKeep(
+                "address",
+                Collections.singletonList(new TestTemplateService.MockTemplateScript.Factory("address.number")),
+                ingestDocument
+            )
+        );
+
+        assertTrue(
+            RemoveProcessor.shouldKeep(
+                "address.street",
+                Collections.singletonList(new TestTemplateService.MockTemplateScript.Factory("address")),
+                ingestDocument
+            )
+        );
+
+        assertTrue(
+            RemoveProcessor.shouldKeep(
+                "address.number",
+                Collections.singletonList(new TestTemplateService.MockTemplateScript.Factory("address")),
+                ingestDocument
+            )
+        );
+
+        assertTrue(
+            RemoveProcessor.shouldKeep(
+                "address",
+                Collections.singletonList(new TestTemplateService.MockTemplateScript.Factory("address")),
+                ingestDocument
+            )
+        );
+
+        assertFalse(
+            RemoveProcessor.shouldKeep(
+                "address.street",
+                Collections.singletonList(new TestTemplateService.MockTemplateScript.Factory("address.number")),
+                ingestDocument
+            )
+        );
+    }
+
 }

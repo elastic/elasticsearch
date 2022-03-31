@@ -90,7 +90,7 @@ public class TransportEnrichStatsAction extends TransportMasterNodeAction<Enrich
                 .stream()
                 .filter(t -> t.getAction().equals(EnrichPolicyExecutor.TASK_ACTION))
                 .map(t -> t.taskInfo(clusterService.localNode().getId(), true))
-                .map(t -> new ExecutingPolicy(t.getDescription(), t))
+                .map(t -> new ExecutingPolicy(t.description(), t))
                 .sorted(Comparator.comparing(ExecutingPolicy::getName))
                 .collect(Collectors.toList());
             List<EnrichStatsAction.Response.CacheStats> cacheStats = response.getNodes()

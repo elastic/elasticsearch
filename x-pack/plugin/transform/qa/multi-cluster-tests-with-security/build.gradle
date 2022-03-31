@@ -15,7 +15,6 @@ restResources {
   }
 }
 
-
 def remoteCluster = testClusters.register('remote-cluster') {
     testDistribution = 'DEFAULT'
     numberOfNodes = 2

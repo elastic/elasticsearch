@@ -1151,7 +1151,7 @@ public abstract class EngineTestCase extends ESTestCase {
                 // Replicas don't really care to about found status of documents
                 // this allows to ignore the case where a document was found in the live version maps in
                 // a delete state and return true for the found flag in favor of code simplicity
-                // his check is just signal regression so a decision can be made if it's
+                // their check is just signal regression so a decision can be made if it's
                 // intentional
                 assertThat(result.isFound(), equalTo(firstOp == false));
                 assertThat(result.getVersion(), equalTo(op.version()));

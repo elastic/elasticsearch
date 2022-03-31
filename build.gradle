@@ -229,12 +229,6 @@ allprojects {
     }
   }
 
-  project.ext.disableTasks = { String... tasknames ->
-    for (String taskname : tasknames) {
-      project.tasks.named(taskname).configure { enabled = false }
-    }
-  }
-
   /*
    * Remove assemble/dependenciesInfo on all qa projects because we don't
    * need to publish artifacts for them.

@@ -55,7 +55,7 @@ restResources {
 }
 
 tasks.named("compileJava").configure {
-  options.compilerArgs.add("-Xlint:-requires-automatic")
+  options.compilerArgs.add("-Xlint:-requires-automatic,-exports,-missing-explicit-ctor")
 }
 
 tasks.named("test").configure {
@@ -102,27 +102,6 @@ tasks.named("yamlRestTestV7CompatTest").configure {
             'painless/40_fields_api/filter script fields api',
             'painless/40_fields_api/script score fields api'
     ].join(',')
-}
-
-/* Build Javadoc for the Java classes in Painless's public API that are in the
- * Painless plugin */
-tasks.register("apiJavadoc", Javadoc) {
-    source = sourceSets.main.allJava
-    classpath = sourceSets.main.compileClasspath + sourceSets.main.output
-    include '**/org/elasticsearch/painless/api/'
-    destinationDir = new File(docsDir, 'apiJavadoc')
-}
-
-tasks.register("apiJavadocJar", Jar) {
-    archiveClassifier = 'apiJavadoc'
-    from apiJavadoc
-}
-
-tasks.named("assemble").configure {
-    dependsOn "apiJavadocJar"
-}
-tasks.named("check").configure {
-    dependsOn "apiJavadocJar"
 }
 
 esplugin.bundleSpec.into("spi") {

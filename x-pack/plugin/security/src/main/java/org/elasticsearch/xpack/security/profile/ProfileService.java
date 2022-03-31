@@ -342,7 +342,11 @@ public class ProfileService {
                             final ParameterizedMessage errorMessage = new ParameterizedMessage(
                                 "multiple [{}] profiles [{}] found for user [{}] from realm [{}]{}",
                                 hits.length,
-                                Arrays.stream(hits).map(SearchHit::getId).map(this::docIdToUid).sorted().collect(Collectors.joining(",")),
+                                Arrays.stream(hits)
+                                    .map(SearchHit::getId)
+                                    .map(ProfileService::docIdToUid)
+                                    .sorted()
+                                    .collect(Collectors.joining(",")),
                                 subject.getUser().principal(),
                                 subject.getRealm().getName(),
                                 subject.getRealm().getDomain() == null
@@ -539,18 +543,18 @@ public class ProfileService {
         );
     }
 
-    private String uidToDocId(String uid) {
+    private static String uidToDocId(String uid) {
         return DOC_ID_PREFIX + uid;
     }
 
-    private String docIdToUid(String docId) {
+    private static String docIdToUid(String docId) {
         if (docId == null || false == docId.startsWith(DOC_ID_PREFIX)) {
             throw new IllegalStateException("profile document ID [" + docId + "] has unexpected value");
         }
         return docId.substring(DOC_ID_PREFIX.length());
     }
 
-    ProfileDocument buildProfileDocument(BytesReference source) throws IOException {
+    static ProfileDocument buildProfileDocument(BytesReference source) throws IOException {
         if (source == null) {
             throw new IllegalStateException("profile document did not have source but source should have been fetched");
         }
@@ -559,7 +563,7 @@ public class ProfileService {
         }
     }
 
-    private XContentBuilder wrapProfileDocument(ProfileDocument profileDocument) throws IOException {
+    private static XContentBuilder wrapProfileDocument(ProfileDocument profileDocument) throws IOException {
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         builder.field("user_profile", profileDocument);
@@ -567,7 +571,7 @@ public class ProfileService {
         return builder;
     }
 
-    private XContentBuilder wrapProfileDocumentWithoutApplicationData(ProfileDocument profileDocument) throws IOException {
+    private static XContentBuilder wrapProfileDocumentWithoutApplicationData(ProfileDocument profileDocument) throws IOException {
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         builder.field(
@@ -597,7 +601,7 @@ public class ProfileService {
         return Optional.of(frozenProfileIndex);
     }
 
-    private ProfileDocument updateWithSubject(ProfileDocument doc, Subject subject) {
+    private static ProfileDocument updateWithSubject(ProfileDocument doc, Subject subject) {
         final User subjectUser = subject.getUser();
         return new ProfileDocument(
             doc.uid(),

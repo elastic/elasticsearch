@@ -109,7 +109,7 @@ public final class FetchSourcePhase implements FetchSubPhase {
     }
 
     @SuppressWarnings("unchecked")
-    private Map<String, Object> getNestedSource(Map<String, Object> sourceAsMap, HitContext hitContext) {
+    private static Map<String, Object> getNestedSource(Map<String, Object> sourceAsMap, HitContext hitContext) {
         for (SearchHit.NestedIdentity o = hitContext.hit().getNestedIdentity(); o != null; o = o.getChild()) {
             sourceAsMap = (Map<String, Object>) sourceAsMap.get(o.getField().string());
             if (sourceAsMap == null) {

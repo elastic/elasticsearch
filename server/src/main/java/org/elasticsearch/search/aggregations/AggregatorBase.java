@@ -74,7 +74,7 @@ public abstract class AggregatorBase extends Aggregator {
         context.addReleasable(this);
         // Register a safeguard to highlight any invalid construction logic (call to this constructor without subsequent preCollection call)
         collectableSubAggregators = new BucketCollector() {
-            void badState() {
+            static void badState() {
                 throw new IllegalStateException("preCollection not called on new Aggregator before use");
             }
 

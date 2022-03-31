@@ -112,7 +112,7 @@ final class PatternRule implements IpFilterRule {
         return pattern;
     }
 
-    private boolean isLocalhost(InetAddress address) {
+    private static boolean isLocalhost(InetAddress address) {
         try {
             return address.isAnyLocalAddress() || address.isLoopbackAddress() || NetworkInterface.getByInetAddress(address) != null;
         } catch (SocketException e) {

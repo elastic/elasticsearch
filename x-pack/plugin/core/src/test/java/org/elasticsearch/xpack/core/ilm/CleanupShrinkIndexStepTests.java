@@ -102,13 +102,7 @@ public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShr
 
         try (NoOpClient client = getDeleteIndexRequestAssertingClient(shrinkIndexName)) {
             CleanupShrinkIndexStep step = new CleanupShrinkIndexStep(randomStepKey(), randomStepKey(), client);
-            step.performAction(indexMetadata, clusterState, null, new ActionListener<>() {
-                @Override
-                public void onResponse(Void complete) {}
-
-                @Override
-                public void onFailure(Exception e) {}
-            });
+            step.performAction(indexMetadata, clusterState, null, ActionListener.noop());
         }
     }
 
@@ -134,15 +128,7 @@ public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShr
 
         try (NoOpClient client = getFailingIfCalledClient()) {
             CleanupShrinkIndexStep step = new CleanupShrinkIndexStep(randomStepKey(), randomStepKey(), client);
-            step.performAction(shrunkIndexMetadata, clusterState, null, new ActionListener<>() {
-                @Override
-                public void onResponse(Void complete) {}
-
-                @Override
-                public void onFailure(Exception e) {
-
-                }
-            });
+            step.performAction(shrunkIndexMetadata, clusterState, null, ActionListener.noop());
         }
     }
 

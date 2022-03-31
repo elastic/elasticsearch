@@ -1,0 +1,5 @@
+pr: 85244
+summary: Return empty version instead of blowing up if we cannot find it
+area: Infra/Core
+type: bug
+issues: []

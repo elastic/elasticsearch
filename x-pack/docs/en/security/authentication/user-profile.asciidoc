@@ -28,7 +28,7 @@ The term "users" refer to the entities that authenticate requests to the {stack}
 Each user has a username and a set of privileges (represented by <<roles,roles>>) that
 determine which types of requests may be performed by that user.
 This _user_ may be ephemeral - it could exist only for the duration of a request to
-an {es} API or for the lifetime of a session in {kib}. These ephemeral users 
+an {es} API or for the lifetime of a session in {kib}. These ephemeral users
 cannot be retrieved once the session is complete, and do not support storage
 of preferences.
 
@@ -75,7 +75,7 @@ In addition to the user's basic information, you can add data to a profile docum
 with the <<security-api-update-user-profile-data,update user profile API>>. For
 example, you can add user-specific preferences as part of the profile data.
 
-The <<security-api-search-user-profile,search user profile API>> can be used to search profiles
+The <<security-api-suggest-user-profile,search user profile API>> can be used to search profiles
 that match given criteria. This search API is designed to support user-suggestions,
 in collaboration features such as those found in {kib}.
 It is not intended to provide a general-purpose search API.
@@ -89,7 +89,7 @@ This means that a user must authenticate at least one time to create a
 profile document. Users who have never authenticated to {kib}
 (or another profile aware application) will not have a user profile
 and will not be returned by the
-<<security-api-search-user-profile,search user profile API>>
+<<security-api-suggest-user-profile,search user profile API>>
 
 * User profiles are meant for interactive users, such as a human user who
 interacts with {kib}. Therefore, user profiles don't support API keys or

@@ -322,9 +322,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testSuperuserIsEffectiveWhenOtherRolesUnavailable() {
+        final boolean criticalFailure = randomBoolean();
         final Consumer<ActionListener<RoleRetrievalResult>> rolesHandler = callback -> {
             final RuntimeException exception = new RuntimeException("Test(" + getTestName() + ") - native roles unavailable");
-            if (randomBoolean()) {
+            if (criticalFailure) {
                 callback.onFailure(exception);
             } else {
                 callback.onResponse(RoleRetrievalResult.failure(exception));
@@ -336,7 +337,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
         final CompositeRolesStore compositeRolesStore = setupRolesStore(rolesHandler, privilegesHandler);
         trySuccessfullyLoadSuperuserRole(compositeRolesStore);
-        tryFailOnNonSuperuserRole(compositeRolesStore, throwableWithMessage(containsString("native roles unavailable")));
+        if (criticalFailure) {
+            // A failure RoleRetrievalResult doesn't block role building, only a throw exception does
+            tryFailOnNonSuperuserRole(compositeRolesStore, throwableWithMessage(containsString("native roles unavailable")));
+        }
     }
 
     public void testSuperuserIsEffectiveWhenApplicationPrivilegesAreUnavailable() {

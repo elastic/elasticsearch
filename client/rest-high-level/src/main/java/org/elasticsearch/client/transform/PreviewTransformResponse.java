@@ -9,7 +9,6 @@
 package org.elasticsearch.client.transform;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
-import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -160,15 +159,6 @@ public class PreviewTransformResponse {
 
     public Set<Alias> getAliases() {
         return generatedDestIndexSettings.getAliases();
-    }
-
-    public CreateIndexRequest getCreateIndexRequest(String index) {
-        CreateIndexRequest createIndexRequest = new CreateIndexRequest(index);
-        createIndexRequest.aliases(generatedDestIndexSettings.getAliases());
-        createIndexRequest.settings(generatedDestIndexSettings.getSettings());
-        createIndexRequest.mapping(generatedDestIndexSettings.getMappings());
-
-        return createIndexRequest;
     }
 
     @Override

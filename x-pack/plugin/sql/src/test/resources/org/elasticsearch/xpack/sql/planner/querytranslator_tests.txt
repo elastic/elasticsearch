@@ -265,6 +265,11 @@ SELECT MAX(int) FROM test GROUP BY HISTOGRAM(date, INTERVAL 2 YEARS);
 "date_histogram":{"field":"date","missing_bucket":true,"order":"asc","fixed_interval":"62208000000ms","time_zone":"Z"}}}]}
 ;
 
+GroupByHistogramNullsLast
+SELECT MAX(int) FROM test GROUP BY HISTOGRAM(date, INTERVAL 2 YEARS) ORDER BY HISTOGRAM(date, INTERVAL 2 YEARS) NULLS LAST;
+"date_histogram":{"field":"date","missing_bucket":true,"missing_order":"last","order":"asc","fixed_interval":"62208000000ms","time_zone":"Z"}}}]}
+;
+
 GroupByHistogramWithScalars
 SELECT MAX(int), HISTOGRAM(date, INTERVAL 5 YEARS - INTERVAL 6 MONTHS) AS h
 FROM test
@@ -363,7 +368,7 @@ GROUP BY CAST(ABS(EXTRACT(YEAR FROM date)) AS BIGINT)
 ORDER BY CAST(ABS(EXTRACT(YEAR FROM date)) AS BIGINT) NULLS FIRST;
 InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeExtract(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)
 "params":{"v0":"date","v1":"Z","v2":"YEAR","v3":"LONG"
-"missing_bucket":true
+"missing_bucket":true,"missing_order":"first"
 "value_type":"long","order":"asc"
 ;
 
@@ -374,7 +379,7 @@ GROUP BY "cast"
 ORDER BY "cast" NULLS FIRST;
 "InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeExtract(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)
 "params":{"v0":"date","v1":"Z","v2":"YEAR","v3":"LONG"}
-"missing_bucket":true
+"missing_bucket":true,"missing_order":"first"
 "value_type":"long","order":"asc"
 ;
 
@@ -385,7 +390,7 @@ GROUP BY 1
 ORDER BY 1 NULLS FIRST;
 InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeExtract(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)
 "params":{"v0":"date","v1":"Z","v2":"YEAR","v3":"LONG"}
-"missing_bucket":true
+"missing_bucket":true,"missing_order":"first"
 "value_type":"long","order":"asc"
 ;
 
@@ -407,7 +412,7 @@ GROUP BY CONVERT(ABS(EXTRACT(YEAR FROM date)), SQL_BIGINT)
 ORDER BY CONVERT(ABS(EXTRACT(YEAR FROM date)), SQL_BIGINT) NULLS FIRST;
 InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeExtract(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)
 "params":{"v0":"date","v1":"Z","v2":"YEAR","v3":"LONG"}
-"missing_bucket":true
+"missing_bucket":true,"missing_order":"first"
 "value_type":"long","order":"asc"
 ;
 
@@ -428,7 +433,7 @@ GROUP BY "convert"
 ORDER BY "convert" NULLS FIRST;
 InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeExtract(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)
 "params":{"v0":"date","v1":"Z","v2":"YEAR","v3":"LONG"}
-"missing_bucket":true
+"missing_bucket":true,"missing_order":"first"
 "value_type":"long","order":"asc"
 ;
 
@@ -449,7 +454,7 @@ GROUP BY 1
 ORDER BY 1 NULLS FIRST;
 InternalSqlScriptUtils.cast(InternalSqlScriptUtils.abs(InternalSqlScriptUtils.dateTimeExtract(InternalQlScriptUtils.docValue(doc,params.v0),params.v1,params.v2)),params.v3)
 "params":{"v0":"date","v1":"Z","v2":"YEAR","v3":"LONG"}
-"missing_bucket":true
+"missing_bucket":true,"missing_order":"first"
 "value_type":"long","order":"asc"
 ;
 

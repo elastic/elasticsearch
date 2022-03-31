@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.eql.parser;
 
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.tree.Source;
 
@@ -46,11 +46,15 @@ public class GrammarTests extends ESTestCase {
             ParsingException pe = expectThrows(
                 ParsingException.class,
                 "Query not identified as unsupported: " + q,
-                () -> parser.createStatement(q));
+                () -> parser.createStatement(q)
+            );
 
             if (pe.getErrorMessage().contains("supported") == false) {
-                throw new ParsingException(new Source(pe.getLineNumber() + line.v2() - 1, pe.getColumnNumber(), q),
-                    pe.getErrorMessage() + " inside statement <{}>", q);
+                throw new ParsingException(
+                    new Source(pe.getLineNumber() + line.v2() - 1, pe.getColumnNumber(), q),
+                    pe.getErrorMessage() + " inside statement <{}>",
+                    q
+                );
             }
         }
     }

@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.async;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import static org.elasticsearch.xpack.core.async.AsyncExecutionIdTests.randomAsyncId;

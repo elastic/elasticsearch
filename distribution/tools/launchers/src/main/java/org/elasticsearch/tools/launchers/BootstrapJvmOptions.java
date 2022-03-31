@@ -25,6 +25,9 @@ import java.util.stream.Collectors;
  * additional JVM options, in order to configure the bootstrap plugins.
  */
 public class BootstrapJvmOptions {
+
+    private BootstrapJvmOptions() {}
+
     public static List<String> bootstrapJvmOptions(Path plugins) throws IOException {
         if (Files.isDirectory(plugins) == false) {
             throw new IllegalArgumentException("Plugins path " + plugins + " must be a directory");
@@ -99,13 +102,5 @@ public class BootstrapJvmOptions {
     }
 
     // package-private for testing
-    static class PluginInfo {
-        public final List<String> jarFiles;
-        public final Properties properties;
-
-        PluginInfo(List<String> jarFiles, Properties properties) {
-            this.jarFiles = jarFiles;
-            this.properties = properties;
-        }
-    }
+    record PluginInfo(List<String> jarFiles, Properties properties) {}
 }

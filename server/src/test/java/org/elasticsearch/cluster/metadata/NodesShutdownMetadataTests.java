@@ -10,8 +10,9 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.test.SimpleDiffableSerializationTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -27,7 +28,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public class NodesShutdownMetadataTests extends AbstractDiffableSerializationTestCase<Metadata.Custom> {
+public class NodesShutdownMetadataTests extends SimpleDiffableSerializationTestCase<Metadata.Custom> {
 
     public void testInsertNewNodeShutdownMetadata() {
         NodesShutdownMetadata nodesShutdownMetadata = new NodesShutdownMetadata(new HashMap<>());
@@ -78,11 +79,18 @@ public class NodesShutdownMetadataTests extends AbstractDiffableSerializationTes
     }
 
     private SingleNodeShutdownMetadata randomNodeShutdownInfo() {
-        return SingleNodeShutdownMetadata.builder().setNodeId(randomAlphaOfLength(5))
-            .setType(randomBoolean() ? SingleNodeShutdownMetadata.Type.REMOVE : SingleNodeShutdownMetadata.Type.RESTART)
+        final SingleNodeShutdownMetadata.Type type = randomFrom(SingleNodeShutdownMetadata.Type.values());
+        final SingleNodeShutdownMetadata.Builder builder = SingleNodeShutdownMetadata.builder()
+            .setNodeId(randomAlphaOfLength(5))
+            .setType(type)
             .setReason(randomAlphaOfLength(5))
-            .setStartedAtMillis(randomNonNegativeLong())
-            .build();
+            .setStartedAtMillis(randomNonNegativeLong());
+        if (type.equals(SingleNodeShutdownMetadata.Type.RESTART) && randomBoolean()) {
+            builder.setAllocationDelay(TimeValue.parseTimeValue(randomTimeValue(), this.getTestName()));
+        } else if (type.equals(SingleNodeShutdownMetadata.Type.REPLACE)) {
+            builder.setTargetNodeName(randomAlphaOfLengthBetween(5, 10));
+        }
+        return builder.setNodeSeen(randomBoolean()).build();
     }
 
     @Override

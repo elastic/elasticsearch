@@ -44,8 +44,11 @@ public class ShardValidateQueryRequestTests extends ESTestCase {
             validateQueryRequest.query(QueryBuilders.termQuery("field", "value"));
             validateQueryRequest.rewrite(true);
             validateQueryRequest.explain(false);
-            ShardValidateQueryRequest request = new ShardValidateQueryRequest(new ShardId("index", "foobar", 1),
-                new AliasFilter(QueryBuilders.termQuery("filter_field", "value"), "alias0", "alias1"), validateQueryRequest);
+            ShardValidateQueryRequest request = new ShardValidateQueryRequest(
+                new ShardId("index", "foobar", 1),
+                new AliasFilter(QueryBuilders.termQuery("filter_field", "value"), "alias0", "alias1"),
+                validateQueryRequest
+            );
             request.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
                 ShardValidateQueryRequest readRequest = new ShardValidateQueryRequest(in);

@@ -20,10 +20,9 @@ import static org.elasticsearch.xpack.core.ilm.UnfollowAction.CCR_METADATA_KEY;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
-public class CloseFollowerIndexStepTests extends AbstractStepMasterTimeoutTestCase<CloseFollowerIndexStep> {
+public class CloseFollowerIndexStepTests extends AbstractStepTestCase<CloseFollowerIndexStep> {
 
-    @Override
-    protected IndexMetadata getIndexMetadata() {
+    private static IndexMetadata getIndexMetadata() {
         return IndexMetadata.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
@@ -32,7 +31,7 @@ public class CloseFollowerIndexStepTests extends AbstractStepMasterTimeoutTestCa
             .build();
     }
 
-    public void testCloseFollowingIndex() {
+    public void testCloseFollowingIndex() throws Exception {
         IndexMetadata indexMetadata = getIndexMetadata();
 
         Mockito.doAnswer(invocation -> {
@@ -45,7 +44,7 @@ public class CloseFollowerIndexStepTests extends AbstractStepMasterTimeoutTestCa
         }).when(indicesClient).close(Mockito.any(), Mockito.any());
 
         CloseFollowerIndexStep step = new CloseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f)));
+        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f));
     }
 
     public void testRequestNotAcknowledged() {
@@ -61,8 +60,10 @@ public class CloseFollowerIndexStepTests extends AbstractStepMasterTimeoutTestCa
         }).when(indicesClient).close(Mockito.any(), Mockito.any());
 
         CloseFollowerIndexStep step = new CloseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        Exception e = expectThrows(Exception.class,
-            () -> PlainActionFuture.<Boolean, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f)));
+        Exception e = expectThrows(
+            Exception.class,
+            () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f))
+        );
         assertThat(e.getMessage(), is("close index request failed to be acknowledged"));
     }
 
@@ -74,19 +75,24 @@ public class CloseFollowerIndexStepTests extends AbstractStepMasterTimeoutTestCa
         Mockito.doAnswer(invocation -> {
             CloseIndexRequest closeIndexRequest = (CloseIndexRequest) invocation.getArguments()[0];
             assertThat(closeIndexRequest.indices()[0], equalTo("follower-index"));
-            ActionListener<?>listener = (ActionListener<?>) invocation.getArguments()[1];
+            ActionListener<?> listener = (ActionListener<?>) invocation.getArguments()[1];
             listener.onFailure(error);
             return null;
         }).when(indicesClient).close(Mockito.any(), Mockito.any());
 
         CloseFollowerIndexStep step = new CloseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        assertSame(error, expectThrows(Exception.class,
-            () -> PlainActionFuture.<Boolean, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f))));
+        assertSame(
+            error,
+            expectThrows(
+                Exception.class,
+                () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f))
+            )
+        );
         Mockito.verify(indicesClient).close(Mockito.any(), Mockito.any());
         Mockito.verifyNoMoreInteractions(indicesClient);
     }
 
-    public void testCloseFollowerIndexIsNoopForAlreadyClosedIndex() {
+    public void testCloseFollowerIndexIsNoopForAlreadyClosedIndex() throws Exception {
         IndexMetadata indexMetadata = IndexMetadata.builder("follower-index")
             .settings(settings(Version.CURRENT).put(LifecycleSettings.LIFECYCLE_INDEXING_COMPLETE, "true"))
             .putCustom(CCR_METADATA_KEY, Collections.emptyMap())
@@ -95,8 +101,8 @@ public class CloseFollowerIndexStepTests extends AbstractStepMasterTimeoutTestCa
             .numberOfReplicas(0)
             .build();
         CloseFollowerIndexStep step = new CloseFollowerIndexStep(randomStepKey(), randomStepKey(), client);
-        assertTrue(PlainActionFuture.get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f)));
-        Mockito.verifyZeroInteractions(client);
+        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f));
+        Mockito.verifyNoMoreInteractions(client);
     }
 
     @Override

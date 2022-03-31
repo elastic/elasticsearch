@@ -29,8 +29,13 @@ public final class ScriptedSimilarity extends Similarity {
     final boolean discountOverlaps;
 
     /** Sole constructor. */
-    public ScriptedSimilarity(String weightScriptString, SimilarityWeightScript.Factory weightScriptFactory,
-            String scriptString, SimilarityScript.Factory scriptFactory, boolean discountOverlaps) {
+    public ScriptedSimilarity(
+        String weightScriptString,
+        SimilarityWeightScript.Factory weightScriptFactory,
+        String scriptString,
+        SimilarityScript.Factory scriptFactory,
+        boolean discountOverlaps
+    ) {
         this.weightScriptSource = weightScriptString;
         this.weightScriptFactory = weightScriptFactory;
         this.scriptSource = scriptString;
@@ -59,8 +64,7 @@ public final class ScriptedSimilarity extends Similarity {
     }
 
     @Override
-    public SimScorer scorer(float boost,
-            CollectionStatistics collectionStats, TermStatistics... termStats) {
+    public SimScorer scorer(float boost, CollectionStatistics collectionStats, TermStatistics... termStats) {
         Query query = new Query(boost);
         long docCount = collectionStats.docCount();
         if (docCount == -1) {
@@ -90,17 +94,19 @@ public final class ScriptedSimilarity extends Similarity {
                 @Override
                 public Explanation explain(Explanation freq, long norm) {
                     float score = score(freq.getValue().floatValue(), norm);
-                    return Explanation.match(score, "score from " + ScriptedSimilarity.this.toString() +
-                            " computed from:",
-                            Explanation.match((float) scoreWeight, "weight"),
-                            Explanation.match(query.boost, "query.boost"),
-                            Explanation.match(field.docCount, "field.docCount"),
-                            Explanation.match(field.sumDocFreq, "field.sumDocFreq"),
-                            Explanation.match(field.sumTotalTermFreq, "field.sumTotalTermFreq"),
-                            Explanation.match(term.docFreq, "term.docFreq"),
-                            Explanation.match(term.totalTermFreq, "term.totalTermFreq"),
-                            Explanation.match(freq.getValue(), "doc.freq", freq.getDetails()),
-                            Explanation.match(doc.getLength(), "doc.length"));
+                    return Explanation.match(
+                        score,
+                        "score from " + ScriptedSimilarity.this.toString() + " computed from:",
+                        Explanation.match((float) scoreWeight, "weight"),
+                        Explanation.match(query.boost, "query.boost"),
+                        Explanation.match(field.docCount, "field.docCount"),
+                        Explanation.match(field.sumDocFreq, "field.sumDocFreq"),
+                        Explanation.match(field.sumTotalTermFreq, "field.sumTotalTermFreq"),
+                        Explanation.match(term.docFreq, "term.docFreq"),
+                        Explanation.match(term.totalTermFreq, "term.totalTermFreq"),
+                        Explanation.match(freq.getValue(), "doc.freq", freq.getDetails()),
+                        Explanation.match(doc.getLength(), "doc.length")
+                    );
                 }
             };
         }

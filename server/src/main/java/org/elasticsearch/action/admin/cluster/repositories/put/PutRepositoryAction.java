@@ -24,4 +24,3 @@ public class PutRepositoryAction extends ActionType<AcknowledgedResponse> {
     }
 
 }
-

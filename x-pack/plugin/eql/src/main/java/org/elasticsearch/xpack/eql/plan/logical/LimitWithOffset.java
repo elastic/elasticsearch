@@ -34,7 +34,7 @@ public class LimitWithOffset extends org.elasticsearch.xpack.ql.plan.logical.Lim
     }
 
     @Override
-    protected LimitWithOffset replaceChild(LogicalPlan newChild) {
+    public LimitWithOffset replaceChild(LogicalPlan newChild) {
         return new LimitWithOffset(source(), limit(), offset, newChild);
     }
 

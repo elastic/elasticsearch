@@ -24,7 +24,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -58,8 +57,8 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
          * the array, so we are guaranteed at least one invalid method to test.
          */
         validHttpMethodArray = validHttpMethodArray.subList(0, randomIntBetween(1, validHttpMethodArray.size() - 1));
-        assert(validHttpMethodArray.size() > 0);
-        assert(validHttpMethodArray.size() < RestRequest.Method.values().length);
+        assert (validHttpMethodArray.size() > 0);
+        assert (validHttpMethodArray.size() < RestRequest.Method.values().length);
 
         /*
          * Generate an inverse list of one or more candidate invalid HTTP
@@ -69,17 +68,18 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
         invalidHttpMethodArray.removeAll(validHttpMethodArray);
         // Remove OPTIONS, or else we'll get a 200 instead of 405
         invalidHttpMethodArray.remove(RestRequest.Method.OPTIONS);
-        assert(invalidHttpMethodArray.size() > 0);
+        assert (invalidHttpMethodArray.size() > 0);
 
         // Initialize test candidate RestController
-        CircuitBreakerService circuitBreakerService = new HierarchyCircuitBreakerService(Settings.EMPTY,
-                Collections.emptyList(),
-                new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS));
+        CircuitBreakerService circuitBreakerService = new HierarchyCircuitBreakerService(
+            Settings.EMPTY,
+            Collections.emptyList(),
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+        );
 
         final Settings settings = Settings.EMPTY;
         UsageService usageService = new UsageService();
-        RestController restController = new RestController(Collections.emptySet(),
-                null, null, circuitBreakerService, usageService);
+        RestController restController = new RestController(Collections.emptySet(), null, null, circuitBreakerService, usageService);
 
         // A basic RestHandler handles requests to the endpoint
         RestHandler restHandler = (request, channel, client) -> channel.sendResponse(new TestResponse());
@@ -134,7 +134,7 @@ public class RestHttpResponseHeadersTests extends ESTestCase {
      * compared with the expected 'Allow' header String array.
      */
     private List<String> getMethodNameStringArray(List<RestRequest.Method> methodArray) {
-        return methodArray.stream().map(method -> method.toString()).collect(Collectors.toList());
+        return methodArray.stream().map(method -> method.toString()).toList();
     }
 
 }

@@ -89,3 +89,29 @@ no_get_index:
       privileges: [monitor]
     - names: bort
       privileges: [monitor]
+
+user1:
+  cluster:
+    - cluster:monitor/main
+  indices:
+    - names: ['index-user1', 'index' ]
+      privileges:
+        - read
+        - write
+        - create_index
+        - indices:admin/refresh
+
+user2:
+  cluster:
+    - cluster:monitor/main
+  indices:
+    - names: [ 'index-user2', 'index' ]
+      privileges:
+        - read
+        - write
+        - create_index
+        - indices:admin/refresh
+
+manage_user:
+  cluster:
+    - manage

@@ -11,12 +11,13 @@ package org.elasticsearch.common.ssl;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Assert;
 
-import javax.net.ssl.X509ExtendedTrustManager;
 import java.security.cert.X509Certificate;
 import java.util.Locale;
 import java.util.Optional;
 import java.util.function.BiFunction;
 import java.util.stream.Stream;
+
+import javax.net.ssl.X509ExtendedTrustManager;
 
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.emptyIterable;
@@ -55,12 +56,12 @@ public class DefaultJdkTrustConfigTests extends ESTestCase {
     private void assertHasTrustedIssuer(X509ExtendedTrustManager trustManager, String name) {
         final String lowerName = name.toLowerCase(Locale.ROOT);
         final Optional<X509Certificate> ca = Stream.of(trustManager.getAcceptedIssuers())
-            .filter(cert -> cert.getSubjectDN().getName().toLowerCase(Locale.ROOT).contains(lowerName))
+            .filter(cert -> cert.getSubjectX500Principal().getName().toLowerCase(Locale.ROOT).contains(lowerName))
             .findAny();
         if (ca.isPresent() == false) {
             logger.info("Failed to find issuer [{}] in trust manager, but did find ...", lowerName);
             for (X509Certificate cert : trustManager.getAcceptedIssuers()) {
-                logger.info(" - {}", cert.getSubjectDN().getName().replaceFirst("^\\w+=([^,]+),.*", "$1"));
+                logger.info(" - {}", cert.getSubjectX500Principal().getName().replaceFirst("^\\w+=([^,]+),.*", "$1"));
             }
             Assert.fail("Cannot find trusted issuer with name [" + name + "].");
         }

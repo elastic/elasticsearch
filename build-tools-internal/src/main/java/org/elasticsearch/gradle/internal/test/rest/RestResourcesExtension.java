@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.gradle.internal.test.rest;
 
-import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.gradle.api.Action;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
@@ -33,10 +32,6 @@ public class RestResourcesExtension {
     }
 
     void restTests(Action<? super XpackRestResourcesSpec> spec) {
-        if (BuildParams.isInternal() == false) {
-            // TODO: Separate this out into an "internal" plugin so we don't even expose this API to external folks
-            throw new UnsupportedOperationException("Including tests is not supported from external builds.");
-        }
         spec.execute(restTests);
     }
 

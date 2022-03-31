@@ -38,20 +38,11 @@ public abstract class SemanticScope {
      * variables. Each {@link SemanticScope} tracks its own set of defined
      * variables available for use.
      */
-    public static class Variable {
+    public record Variable(Class<?> type, String name, boolean isFinal) {
 
-        protected final Class<?> type;
-        protected final String name;
-        protected final boolean isFinal;
-
-        public Variable(Class<?> type, String name, boolean isFinal) {
-            this.type = Objects.requireNonNull(type);
-            this.name = Objects.requireNonNull(name);
-            this.isFinal = isFinal;
-        }
-
-        public Class<?> getType() {
-            return type;
+        public Variable {
+            Objects.requireNonNull(type);
+            Objects.requireNonNull(name);
         }
 
         /**
@@ -60,14 +51,6 @@ public abstract class SemanticScope {
          */
         public String getCanonicalTypeName() {
             return PainlessLookupUtility.typeToCanonicalTypeName(type);
-        }
-
-        public String getName() {
-            return name;
-        }
-
-        public boolean isFinal() {
-            return isFinal;
         }
     }
 
@@ -137,6 +120,7 @@ public abstract class SemanticScope {
         protected final SemanticScope parent;
         protected final Class<?> returnType;
         protected final Set<Variable> captures = new HashSet<>();
+        protected boolean usesInstanceMethod = false;
 
         protected LambdaScope(SemanticScope parent, Class<?> returnType) {
             super(parent.scriptScope, parent.usedVariables);
@@ -168,7 +152,7 @@ public abstract class SemanticScope {
 
             if (variable == null) {
                 variable = parent.getVariable(location, name);
-                variable = new Variable(variable.getType(), variable.getName(), true);
+                variable = new Variable(variable.type(), variable.name(), true);
                 captures.add(variable);
             } else {
                 usedVariables.add(name);
@@ -189,6 +173,22 @@ public abstract class SemanticScope {
 
         public Set<Variable> getCaptures() {
             return Collections.unmodifiableSet(captures);
+        }
+
+        @Override
+        public void setUsesInstanceMethod() {
+            if (usesInstanceMethod) {
+                return;
+            }
+            usesInstanceMethod = true;
+            if (parent != null) {
+                parent.setUsesInstanceMethod();
+            }
+        }
+
+        @Override
+        public boolean usesInstanceMethod() {
+            return usesInstanceMethod;
         }
     }
 
@@ -246,6 +246,12 @@ public abstract class SemanticScope {
         @Override
         public String getReturnCanonicalTypeName() {
             return parent.getReturnCanonicalTypeName();
+        }
+
+        @Override
+        // If the parent scope is a lambda, we want to track this usage, so forward call to parent.
+        public void setUsesInstanceMethod() {
+            parent.setUsesInstanceMethod();
         }
     }
 
@@ -324,6 +330,7 @@ public abstract class SemanticScope {
     }
 
     public abstract Class<?> getReturnType();
+
     public abstract String getReturnCanonicalTypeName();
 
     public Variable defineVariable(Location location, Class<?> type, String name, boolean isReadOnly) {
@@ -338,7 +345,16 @@ public abstract class SemanticScope {
     }
 
     public abstract boolean isVariableDefined(String name);
+
     public abstract Variable getVariable(Location location, String name);
+
+    // We only want to track instance method use inside of lambdas (and blocks inside lambdas) for "this" injection.
+    // It's a noop for other scopes.
+    public void setUsesInstanceMethod() {}
+
+    public boolean usesInstanceMethod() {
+        return false;
+    }
 
     public Variable defineInternalVariable(Location location, Class<?> type, String name, boolean isReadOnly) {
         return defineVariable(location, type, "#" + name, isReadOnly);

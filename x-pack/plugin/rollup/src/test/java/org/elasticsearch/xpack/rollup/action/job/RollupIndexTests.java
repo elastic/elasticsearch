@@ -59,7 +59,7 @@ public class RollupIndexTests extends ESTestCase {
     }
 
     private String getRandomType() {
-        int n = randomIntBetween(0,8);
+        int n = randomIntBetween(0, 8);
         if (n == 0) {
             return "keyword";
         } else if (n == 1) {

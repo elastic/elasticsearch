@@ -12,12 +12,11 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseListener;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
@@ -41,6 +40,7 @@ import java.util.concurrent.Semaphore;
 import java.util.function.Function;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.action.support.ActionTestUtils.wrapAsRestResponseListener;
 import static org.elasticsearch.test.TaskAssertions.assertAllCancellableTasksAreCancelled;
 import static org.elasticsearch.test.TaskAssertions.assertAllTasksHaveFinished;
 import static org.elasticsearch.test.TaskAssertions.awaitTaskWithPrefix;
@@ -55,8 +55,11 @@ import static org.hamcrest.Matchers.not;
  */
 public abstract class BlockedSearcherRestCancellationTestCase extends HttpSmokeTestCase {
 
-    private static final Setting<Boolean> BLOCK_SEARCHER_SETTING
-            = Setting.boolSetting("index.block_searcher", false, Setting.Property.IndexScope);
+    private static final Setting<Boolean> BLOCK_SEARCHER_SETTING = Setting.boolSetting(
+        "index.block_searcher",
+        false,
+        Setting.Property.IndexScope
+    );
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -78,8 +81,8 @@ public abstract class BlockedSearcherRestCancellationTestCase extends HttpSmokeT
             for (final IndexService indexService : indicesService) {
                 for (final IndexShard indexShard : indexService) {
                     final Engine engine = IndexShardTestCase.getEngine(indexShard);
-                    if (engine instanceof SearcherBlockingEngine) {
-                        searcherBlocks.add(((SearcherBlockingEngine) engine).searcherBlock);
+                    if (engine instanceof SearcherBlockingEngine searcherBlockingEngine) {
+                        searcherBlocks.add(searcherBlockingEngine.searcherBlock);
                     }
                 }
             }
@@ -92,19 +95,9 @@ public abstract class BlockedSearcherRestCancellationTestCase extends HttpSmokeT
                 releasables.add(searcherBlock::release);
             }
 
-            final PlainActionFuture<Void> future = new PlainActionFuture<>();
+            final PlainActionFuture<Response> future = new PlainActionFuture<>();
             logger.info("--> sending request");
-            final Cancellable cancellable = getRestClient().performRequestAsync(request, new ResponseListener() {
-                @Override
-                public void onSuccess(Response response) {
-                    future.onResponse(null);
-                }
-
-                @Override
-                public void onFailure(Exception exception) {
-                    future.onFailure(exception);
-                }
-            });
+            final Cancellable cancellable = getRestClient().performRequestAsync(request, wrapAsRestResponseListener(future));
 
             awaitTaskWithPrefix(actionPrefix);
 

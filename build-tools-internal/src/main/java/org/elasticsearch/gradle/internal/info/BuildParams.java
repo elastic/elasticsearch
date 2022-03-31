@@ -9,6 +9,7 @@ package org.elasticsearch.gradle.internal.info;
 
 import org.elasticsearch.gradle.internal.BwcVersions;
 import org.gradle.api.JavaVersion;
+import org.gradle.api.provider.Provider;
 
 import java.io.File;
 import java.lang.reflect.Modifier;
@@ -34,10 +35,9 @@ public class BuildParams {
     private static ZonedDateTime buildDate;
     private static String testSeed;
     private static Boolean isCi;
-    private static Boolean isInternal;
     private static Integer defaultParallel;
     private static Boolean isSnapshotBuild;
-    private static BwcVersions bwcVersions;
+    private static Provider<BwcVersions> bwcVersions;
 
     /**
      * Initialize global build parameters. This method accepts and a initialization function which in turn accepts a
@@ -100,7 +100,7 @@ public class BuildParams {
     }
 
     public static BwcVersions getBwcVersions() {
-        return value(bwcVersions);
+        return value(bwcVersions).get();
     }
 
     public static String getTestSeed() {
@@ -109,10 +109,6 @@ public class BuildParams {
 
     public static Boolean isCi() {
         return value(isCi);
-    }
-
-    public static Boolean isInternal() {
-        return value(isInternal);
     }
 
     public static Integer getDefaultParallel() {
@@ -141,36 +137,6 @@ public class BuildParams {
     private static String propertyName(String methodName) {
         String propertyName = methodName.startsWith("is") ? methodName.substring("is".length()) : methodName.substring("get".length());
         return propertyName.substring(0, 1).toLowerCase() + propertyName.substring(1);
-    }
-
-    public static InternalMarker withInternalBuild(Runnable configBlock) {
-        if (isInternal()) {
-            configBlock.run();
-            return InternalMarker.INTERNAL;
-        } else {
-            return InternalMarker.EXTERNAL;
-        }
-    }
-
-    public enum InternalMarker {
-        INTERNAL(true),
-        EXTERNAL(false);
-
-        private final boolean internal;
-
-        InternalMarker(boolean internal) {
-            this.internal = internal;
-        }
-
-        public void orElse(Runnable configBlock) {
-            if (internal == false) {
-                configBlock.run();
-            }
-        }
-
-        public boolean isInternal() {
-            return internal;
-        }
     }
 
     public static class MutableBuildParams {
@@ -250,10 +216,6 @@ public class BuildParams {
             BuildParams.isCi = isCi;
         }
 
-        public void setIsInternal(Boolean isInternal) {
-            BuildParams.isInternal = requireNonNull(isInternal);
-        }
-
         public void setDefaultParallel(int defaultParallel) {
             BuildParams.defaultParallel = defaultParallel;
         }
@@ -262,7 +224,7 @@ public class BuildParams {
             BuildParams.isSnapshotBuild = isSnapshotBuild;
         }
 
-        public void setBwcVersions(BwcVersions bwcVersions) {
+        public void setBwcVersions(Provider<BwcVersions> bwcVersions) {
             BuildParams.bwcVersions = requireNonNull(bwcVersions);
         }
     }

@@ -9,17 +9,18 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.DynamicTemplate.XContentFieldType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -31,7 +32,7 @@ public class DynamicTemplateTests extends ESTestCase {
         templateDef.put("match_mapping_type", "string");
         templateDef.put("mapping", Collections.emptyMap());
         DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
-        //when type is not set, the provided dynamic type is returned
+        // when type is not set, the provided dynamic type is returned
         assertEquals("input", template.mappingType("input"));
     }
 
@@ -40,7 +41,7 @@ public class DynamicTemplateTests extends ESTestCase {
         templateDef.put("match_mapping_type", "string");
         templateDef.put("runtime", Collections.emptyMap());
         DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
-        //when type is not set, the provided dynamic type is returned
+        // when type is not set, the provided dynamic type is returned
         assertEquals("input", template.mappingType("input"));
     }
 
@@ -49,7 +50,7 @@ public class DynamicTemplateTests extends ESTestCase {
         templateDef.put("match_mapping_type", "string");
         templateDef.put("mapping", Collections.singletonMap("type", "type_set"));
         DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
-        //when type is set, the set type is returned
+        // when type is set, the set type is returned
         assertEquals("type_set", template.mappingType("input"));
     }
 
@@ -58,7 +59,7 @@ public class DynamicTemplateTests extends ESTestCase {
         templateDef.put("match_mapping_type", "string");
         templateDef.put("runtime", Collections.singletonMap("type", "type_set"));
         DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
-        //when type is set, the set type is returned
+        // when type is set, the set type is returned
         assertEquals("type_set", template.mappingType("input"));
     }
 
@@ -67,7 +68,7 @@ public class DynamicTemplateTests extends ESTestCase {
         templateDef.put("match_mapping_type", "string");
         templateDef.put("mapping", Collections.singletonMap("type", "type_set_{dynamic_type}_{dynamicType}"));
         DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
-        //when type is set, the set type is returned
+        // when type is set, the set type is returned
         assertEquals("type_set_input_input", template.mappingType("input"));
     }
 
@@ -76,7 +77,7 @@ public class DynamicTemplateTests extends ESTestCase {
         templateDef.put("match_mapping_type", "string");
         templateDef.put("runtime", Collections.singletonMap("type", "type_set_{dynamic_type}_{dynamicType}"));
         DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
-        //when type is set, the set type is returned
+        // when type is set, the set type is returned
         assertEquals("type_set_input_input", template.mappingType("input"));
     }
 
@@ -86,8 +87,11 @@ public class DynamicTemplateTests extends ESTestCase {
         templateDef.put("mapping", Map.of("field1_{name}", "{dynamic_type}", "test", List.of("field2_{name}_{dynamicType}")));
         DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
         Map<String, Object> stringObjectMap = template.mappingForName("my_name", "my_type");
-        assertEquals("{\"field1_my_name\":\"my_type\",\"test\":[\"field2_my_name_my_type\"]}",
-            Strings.toString(JsonXContent.contentBuilder().map(stringObjectMap)));
+        assertEquals(
+            """
+                {"field1_my_name":"my_type","test":["field2_my_name_my_type"]}""",
+            Strings.toString(JsonXContent.contentBuilder().map(stringObjectMap))
+        );
     }
 
     public void testMappingForNameRuntime() throws IOException {
@@ -96,8 +100,11 @@ public class DynamicTemplateTests extends ESTestCase {
         templateDef.put("runtime", Map.of("field1_{name}", "{dynamic_type}", "test", List.of("field2_{name}_{dynamicType}")));
         DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
         Map<String, Object> stringObjectMap = template.mappingForName("my_name", "my_type");
-        assertEquals("{\"field1_my_name\":\"my_type\",\"test\":[\"field2_my_name_my_type\"]}",
-            Strings.toString(JsonXContent.contentBuilder().map(stringObjectMap)));
+        assertEquals(
+            """
+                {"field1_my_name":"my_type","test":["field2_my_name_my_type"]}""",
+            Strings.toString(JsonXContent.contentBuilder().map(stringObjectMap))
+        );
     }
 
     public void testParseUnknownParam() {
@@ -106,8 +113,7 @@ public class DynamicTemplateTests extends ESTestCase {
         templateDef.put("mapping", Collections.singletonMap("store", true));
         templateDef.put("random_param", "random_value");
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> DynamicTemplate.parse("my_template", templateDef));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> DynamicTemplate.parse("my_template", templateDef));
         assertEquals("Illegal dynamic template parameter: [random_param]", e.getMessage());
     }
 
@@ -116,10 +122,11 @@ public class DynamicTemplateTests extends ESTestCase {
         templateDef2.put("match_mapping_type", "text");
         templateDef2.put("mapping", Collections.singletonMap("store", true));
         // if a wrong match type is specified, we ignore the template
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> DynamicTemplate.parse("my_template", templateDef2));
-        assertEquals("No field type matched on [text], possible values are [object, string, long, double, boolean, date, binary]",
-                e.getMessage());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> DynamicTemplate.parse("my_template", templateDef2));
+        assertEquals(
+            "No field type matched on [text], possible values are [object, string, long, double, boolean, date, binary]",
+            e.getMessage()
+        );
     }
 
     public void testParseInvalidRegex() {
@@ -129,8 +136,10 @@ public class DynamicTemplateTests extends ESTestCase {
             templateDef.put(param, "*a");
             templateDef.put("match_pattern", "regex");
             templateDef.put("mapping", Collections.singletonMap("store", true));
-            IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                    () -> DynamicTemplate.parse("my_template", templateDef));
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> DynamicTemplate.parse("my_template", templateDef)
+            );
             assertEquals("Pattern [*a] of type [regex] is invalid. Cannot create dynamic template [my_template].", e.getMessage());
         }
     }
@@ -209,28 +218,58 @@ public class DynamicTemplateTests extends ESTestCase {
     }
 
     public void testMatchTypeTemplateRuntime() {
-        Map<String, Object> templateDef = new HashMap<>();
-        templateDef.put("match_mapping_type", "string");
-        templateDef.put("runtime", Collections.emptyMap());
-        DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
-        assertTrue(template.match(null, "a.b", "b", XContentFieldType.STRING));
-        assertFalse(template.match(null, "a.b", "b", XContentFieldType.BOOLEAN));
-        assertTrue(template.isRuntimeMapping());
+        List<XContentFieldType> runtimeFieldTypes = Arrays.stream(XContentFieldType.values())
+            .filter(XContentFieldType::supportsRuntimeField)
+            .toList();
+        for (XContentFieldType runtimeFieldType : runtimeFieldTypes) {
+            Map<String, Object> templateDef = new HashMap<>();
+            templateDef.put("match_mapping_type", runtimeFieldType.name().toLowerCase(Locale.ROOT));
+            templateDef.put("runtime", Collections.emptyMap());
+            DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
+            assertTrue(template.isRuntimeMapping());
+            for (XContentFieldType xContentFieldType : XContentFieldType.values()) {
+                if (xContentFieldType == runtimeFieldType) {
+                    assertTrue(template.match(null, "a.b", "b", xContentFieldType));
+                } else {
+                    assertFalse(template.match(null, "a.b", "b", xContentFieldType));
+                }
+            }
+        }
+    }
+
+    public void testMatchTypeTemplateRuntimeUnsupported() {
+        List<XContentFieldType> xContentFieldTypes = Arrays.stream(XContentFieldType.values())
+            .filter(xContentFieldType -> xContentFieldType.supportsRuntimeField() == false)
+            .toList();
+        for (XContentFieldType xContentFieldType : xContentFieldTypes) {
+            String fieldType = xContentFieldType.name().toLowerCase(Locale.ROOT);
+            Map<String, Object> templateDef = new HashMap<>();
+            templateDef.put("match_mapping_type", fieldType);
+            templateDef.put("runtime", Collections.emptyMap());
+            MapperParsingException e = expectThrows(MapperParsingException.class, () -> DynamicTemplate.parse("my_template", templateDef));
+            assertEquals(
+                "Dynamic template [my_template] defines a runtime field but type [" + fieldType + "] is not supported as runtime field",
+                e.getMessage()
+            );
+        }
     }
 
     public void testSupportedMatchMappingTypesRuntime() {
-        //binary and object are not supported as runtime fields
+        // binary and object are not supported as runtime fields
         List<String> nonSupported = Arrays.asList("binary", "object");
         for (String type : nonSupported) {
             Map<String, Object> templateDef = new HashMap<>();
             templateDef.put("match_mapping_type", type);
             templateDef.put("runtime", Collections.emptyMap());
             MapperParsingException e = expectThrows(MapperParsingException.class, () -> DynamicTemplate.parse("my_template", templateDef));
-            assertEquals("Dynamic template [my_template] defines a runtime field but type [" + type + "] is not supported as runtime field",
-                e.getMessage());
+            assertEquals(
+                "Dynamic template [my_template] defines a runtime field but type [" + type + "] is not supported as runtime field",
+                e.getMessage()
+            );
         }
         XContentFieldType[] supported = Arrays.stream(XContentFieldType.values())
-            .filter(XContentFieldType::supportsRuntimeField).toArray(XContentFieldType[]::new);
+            .filter(XContentFieldType::supportsRuntimeField)
+            .toArray(XContentFieldType[]::new);
         for (XContentFieldType type : supported) {
             Map<String, Object> templateDef = new HashMap<>();
             templateDef.put("match_mapping_type", type);
@@ -247,7 +286,8 @@ public class DynamicTemplateTests extends ESTestCase {
         DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
         XContentBuilder builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\"match_mapping_type\":\"string\",\"mapping\":{\"store\":true}}", Strings.toString(builder));
+        assertEquals("""
+            {"match_mapping_type":"string","mapping":{"store":true}}""", Strings.toString(builder));
 
         // name-based template
         templateDef = new HashMap<>();
@@ -260,7 +300,8 @@ public class DynamicTemplateTests extends ESTestCase {
         template = DynamicTemplate.parse("my_template", templateDef);
         builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\"match\":\"*name\",\"unmatch\":\"first_name\",\"mapping\":{\"store\":true}}", Strings.toString(builder));
+        assertEquals("""
+            {"match":"*name","unmatch":"first_name","mapping":{"store":true}}""", Strings.toString(builder));
 
         // path-based template
         templateDef = new HashMap<>();
@@ -273,8 +314,8 @@ public class DynamicTemplateTests extends ESTestCase {
         template = DynamicTemplate.parse("my_template", templateDef);
         builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\"path_match\":\"*name\",\"path_unmatch\":\"first_name\",\"mapping\":{\"store\":true}}",
-                Strings.toString(builder));
+        assertEquals("""
+            {"path_match":"*name","path_unmatch":"first_name","mapping":{"store":true}}""", Strings.toString(builder));
 
         // regex matching
         templateDef = new HashMap<>();
@@ -287,7 +328,8 @@ public class DynamicTemplateTests extends ESTestCase {
         template = DynamicTemplate.parse("my_template", templateDef);
         builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\"match\":\"^a$\",\"match_pattern\":\"regex\",\"mapping\":{\"store\":true}}", Strings.toString(builder));
+        assertEquals("""
+            {"match":"^a$","match_pattern":"regex","mapping":{"store":true}}""", Strings.toString(builder));
 
         // empty condition
         templateDef = new HashMap<>();
@@ -295,7 +337,8 @@ public class DynamicTemplateTests extends ESTestCase {
         template = DynamicTemplate.parse("my_template", templateDef);
         builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertThat(Strings.toString(builder), equalTo("{\"mapping\":{\"store\":true}}"));
+        assertThat(Strings.toString(builder), equalTo("""
+            {"mapping":{"store":true}}"""));
     }
 
     public void testSerializationRuntimeMappings() throws Exception {
@@ -306,7 +349,8 @@ public class DynamicTemplateTests extends ESTestCase {
         DynamicTemplate template = DynamicTemplate.parse("my_template", templateDef);
         XContentBuilder builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\"match_mapping_type\":\"string\",\"runtime\":{}}", Strings.toString(builder));
+        assertEquals("""
+            {"match_mapping_type":"string","runtime":{}}""", Strings.toString(builder));
 
         // name-based template
         templateDef = new HashMap<>();
@@ -319,7 +363,8 @@ public class DynamicTemplateTests extends ESTestCase {
         template = DynamicTemplate.parse("my_template", templateDef);
         builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\"match\":\"*name\",\"unmatch\":\"first_name\",\"runtime\":{\"type\":\"new_type\"}}", Strings.toString(builder));
+        assertEquals("""
+            {"match":"*name","unmatch":"first_name","runtime":{"type":"new_type"}}""", Strings.toString(builder));
 
         // path-based template
         templateDef = new HashMap<>();
@@ -332,8 +377,8 @@ public class DynamicTemplateTests extends ESTestCase {
         template = DynamicTemplate.parse("my_template", templateDef);
         builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\"path_match\":\"*name\",\"path_unmatch\":\"first_name\",\"runtime\":{}}",
-            Strings.toString(builder));
+        assertEquals("""
+            {"path_match":"*name","path_unmatch":"first_name","runtime":{}}""", Strings.toString(builder));
 
         // regex matching
         templateDef = new HashMap<>();
@@ -346,7 +391,8 @@ public class DynamicTemplateTests extends ESTestCase {
         template = DynamicTemplate.parse("my_template", templateDef);
         builder = JsonXContent.contentBuilder();
         template.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        assertEquals("{\"match\":\"^a$\",\"match_pattern\":\"regex\",\"runtime\":{}}", Strings.toString(builder));
+        assertEquals("""
+            {"match":"^a$","match_pattern":"regex","runtime":{}}""", Strings.toString(builder));
     }
 
     public void testMatchTemplateName() throws Exception {

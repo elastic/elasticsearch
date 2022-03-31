@@ -11,9 +11,9 @@ package org.elasticsearch.index.get;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -25,8 +25,7 @@ public class GetStats implements Writeable, ToXContentFragment {
     private long missingTimeInMillis;
     private long current;
 
-    public GetStats() {
-    }
+    public GetStats() {}
 
     public GetStats(StreamInput in) throws IOException {
         existsCount = in.readVLong();

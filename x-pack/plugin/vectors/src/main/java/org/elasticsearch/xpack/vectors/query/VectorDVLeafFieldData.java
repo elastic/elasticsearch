@@ -5,18 +5,17 @@
  * 2.0.
  */
 
-
 package org.elasticsearch.xpack.vectors.query;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
+import org.apache.lucene.index.VectorValues;
 import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.index.fielddata.LeafFieldData;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -28,12 +27,14 @@ final class VectorDVLeafFieldData implements LeafFieldData {
     private final String field;
     private final Version indexVersion;
     private final int dims;
+    private final boolean indexed;
 
-    VectorDVLeafFieldData(LeafReader reader, String field, Version indexVersion, int dims) {
+    VectorDVLeafFieldData(LeafReader reader, String field, Version indexVersion, int dims, boolean indexed) {
         this.reader = reader;
         this.field = field;
         this.indexVersion = indexVersion;
         this.dims = dims;
+        this.indexed = indexed;
     }
 
     @Override
@@ -52,10 +53,20 @@ final class VectorDVLeafFieldData implements LeafFieldData {
     }
 
     @Override
-    public ScriptDocValues<BytesRef> getScriptValues() {
+    public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
         try {
-            final BinaryDocValues values = DocValues.getBinary(reader, field);
-            return new DenseVectorScriptDocValues(values, indexVersion, dims);
+            if (indexed) {
+                VectorValues values = reader.getVectorValues(field);
+                if (values == VectorValues.EMPTY) {
+                    // There's no way for KnnDenseVectorDocValuesField to reliably differentiate between VectorValues.EMPTY and
+                    // values that can be iterated through. Since VectorValues.EMPTY throws on docID(), pass a null instead.
+                    values = null;
+                }
+                return new KnnDenseVectorDocValuesField(values, name, dims);
+            } else {
+                BinaryDocValues values = DocValues.getBinary(reader, field);
+                return new BinaryDenseVectorDocValuesField(values, name, dims, indexVersion);
+            }
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values for vector field!", e);
         }

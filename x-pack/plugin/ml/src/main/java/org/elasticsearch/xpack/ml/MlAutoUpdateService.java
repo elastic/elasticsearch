@@ -20,15 +20,17 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 public class MlAutoUpdateService implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(MlAutoUpdateService.class);
 
     public interface UpdateAction {
         boolean isMinNodeVersionSupported(Version minNodeVersion);
+
         boolean isAbleToRun(ClusterState latestState);
+
         String getName();
+
         void runUpdate();
     }
 
@@ -59,10 +61,8 @@ public class MlAutoUpdateService implements ClusterStateListener {
             .filter(action -> completedUpdates.contains(action.getName()) == false)
             .filter(action -> action.isAbleToRun(event.state()))
             .filter(action -> currentlyUpdating.add(action.getName()))
-            .collect(Collectors.toList());
-        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(
-            () -> toRun.forEach(this::runUpdate)
-        );
+            .toList();
+        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> toRun.forEach(this::runUpdate));
     }
 
     private void runUpdate(UpdateAction action) {

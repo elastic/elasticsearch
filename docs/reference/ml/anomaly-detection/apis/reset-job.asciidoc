@@ -1,0 +1,85 @@
+[role="xpack"]
+[[ml-reset-job]]
+= Reset {anomaly-jobs} API
+++++
+<titleabbrev>Reset jobs</titleabbrev>
+++++
+
+Resets an existing {anomaly-job}.
+
+[[ml-reset-job-request]]
+== {api-request-title}
+
+`POST _ml/anomaly_detectors/<job_id>/_reset`
+
+[[ml-reset-job-prereqs]]
+== {api-prereq-title}
+
+* Requires the `manage_ml` cluster privilege. This privilege is included in the 
+`machine_learning_admin` built-in role.
+* Before you can reset a job, you must close it. You can set `force` to `true`
+when closing the job to avoid waiting for the job to complete. See 
+<<ml-close-job>>.
+
+[[ml-reset-job-desc]]
+== {api-description-title}
+
+All model state and results are deleted.
+The job is ready to start over as if it had just been created.
+
+It is not currently possible to reset multiple jobs using wildcards or a comma
+separated list.
+
+[[ml-reset-job-path-parms]]
+== {api-path-parms-title}
+
+`<job_id>`::
+(Required, string)
+include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+
+[[ml-reset-job-query-parms]]
+== {api-query-parms-title}
+
+`wait_for_completion`::
+  (Optional, Boolean) Specifies whether the request should return immediately or
+  wait until the job reset completes. Defaults to `true`.
+
+[[ml-reset-job-example]]
+== {api-examples-title}
+
+[source,console]
+--------------------------------------------------
+POST _ml/anomaly_detectors/total-requests/_reset
+--------------------------------------------------
+// TEST[skip:setup:server_metrics_job]
+
+When the job is reset, you receive the following results:
+
+[source,console-result]
+----
+{
+  "acknowledged": true
+}
+----
+
+In the next example we reset the `total-requests` job asynchronously:
+
+[source,console]
+--------------------------------------------------
+POST _ml/anomaly_detectors/total-requests/_reset?wait_for_completion=false
+--------------------------------------------------
+// TEST[skip:setup:server_metrics_job]
+
+When `wait_for_completion` is set to `false`, the response contains the id
+of the job reset task:
+
+[source,console-result]
+----
+{
+  "task": "oTUltX4IQMOUUVeiohTt8A:39"
+}
+----
+// TESTRESPONSE[s/"task": "oTUltX4IQMOUUVeiohTt8A:39"/"task": $body.task/]
+
+If you want to check the status of the reset task, use the <<tasks>> by referencing 
+the task ID.

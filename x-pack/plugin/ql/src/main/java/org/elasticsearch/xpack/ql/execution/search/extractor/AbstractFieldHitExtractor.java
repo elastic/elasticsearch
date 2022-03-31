@@ -153,10 +153,9 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
         }
         if (values instanceof Map && hitName != null) {
             // extract the sub-field from a nested field (dep.dep_name -> dep_name)
-            return unwrapFieldsMultiValue(((Map<?,?>) values).get(fieldName.substring(hitName.length() + 1)));
+            return unwrapFieldsMultiValue(((Map<?, ?>) values).get(fieldName.substring(hitName.length() + 1)));
         }
-        if (values instanceof List) {
-            List<?> list = (List<?>) values;
+        if (values instanceof List<?> list) {
             if (list.isEmpty()) {
                 return null;
             } else {
@@ -214,9 +213,7 @@ public abstract class AbstractFieldHitExtractor implements HitExtractor {
             return false;
         }
         AbstractFieldHitExtractor other = (AbstractFieldHitExtractor) obj;
-        return fieldName.equals(other.fieldName)
-                && hitName.equals(other.hitName)
-                && arrayLeniency == other.arrayLeniency;
+        return fieldName.equals(other.fieldName) && hitName.equals(other.hitName) && arrayLeniency == other.arrayLeniency;
     }
 
     @Override

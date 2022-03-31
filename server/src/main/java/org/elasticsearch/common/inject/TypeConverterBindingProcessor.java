@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-
 package org.elasticsearch.common.inject;
 
 import org.elasticsearch.common.inject.internal.Errors;
@@ -25,15 +24,12 @@ import org.elasticsearch.common.inject.matcher.AbstractMatcher;
 import org.elasticsearch.common.inject.matcher.Matcher;
 import org.elasticsearch.common.inject.matcher.Matchers;
 import org.elasticsearch.common.inject.spi.TypeConverter;
-import org.elasticsearch.common.inject.spi.TypeConverterBinding;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
 
 /**
- * Handles {@link Binder#convertToTypes} commands.
- *
  * @author crazybob@google.com (Bob Lee)
  * @author jessewilson@google.com (Jesse Wilson)
  */
@@ -87,34 +83,31 @@ class TypeConverterBindingProcessor extends AbstractProcessor {
                 }
             });
 
-            internalConvertToTypes(
-                    new AbstractMatcher<TypeLiteral<?>>() {
-                        @Override
-                        public boolean matches(TypeLiteral<?> typeLiteral) {
-                            return typeLiteral.getRawType() == Class.class;
-                        }
+            internalConvertToTypes(new AbstractMatcher<>() {
+                @Override
+                public boolean matches(TypeLiteral<?> typeLiteral) {
+                    return typeLiteral.getRawType() == Class.class;
+                }
 
-                        @Override
-                        public String toString() {
-                            return "Class<?>";
-                        }
-                    },
-                    new TypeConverter() {
-                        @Override
-                        public Object convert(String value, TypeLiteral<?> toType) {
-                            try {
-                                return Class.forName(value);
-                            } catch (ClassNotFoundException e) {
-                                throw new RuntimeException(e);
-                            }
-                        }
-
-                        @Override
-                        public String toString() {
-                            return "TypeConverter<Class<?>>";
-                        }
+                @Override
+                public String toString() {
+                    return "Class<?>";
+                }
+            }, new TypeConverter() {
+                @Override
+                public Object convert(String value, TypeLiteral<?> toType) {
+                    try {
+                        return Class.forName(value);
+                    } catch (ClassNotFoundException e) {
+                        throw new RuntimeException(e);
                     }
-            );
+                }
+
+                @Override
+                public String toString() {
+                    return "TypeConverter<Class<?>>";
+                }
+            });
         } finally {
             this.injector = null;
         }
@@ -122,8 +115,7 @@ class TypeConverterBindingProcessor extends AbstractProcessor {
 
     private <T> void convertToPrimitiveType(Class<T> primitiveType, final Class<T> wrapperType) {
         try {
-            final Method parser = wrapperType.getMethod(
-                    "parse" + Strings.capitalize(primitiveType.getName()), String.class);
+            final Method parser = wrapperType.getMethod("parse" + Strings.capitalize(primitiveType.getName()), String.class);
 
             TypeConverter typeConverter = new TypeConverter() {
                 @Override
@@ -153,9 +145,8 @@ class TypeConverterBindingProcessor extends AbstractProcessor {
         convertToClasses(Matchers.identicalTo(type), converter);
     }
 
-    private void convertToClasses(final Matcher<? super Class<?>> typeMatcher,
-                                  TypeConverter converter) {
-        internalConvertToTypes(new AbstractMatcher<TypeLiteral<?>>() {
+    private void convertToClasses(final Matcher<? super Class<?>> typeMatcher, TypeConverter converter) {
+        internalConvertToTypes(new AbstractMatcher<>() {
             @Override
             public boolean matches(TypeLiteral<?> typeLiteral) {
                 Type type = typeLiteral.getType();
@@ -173,16 +164,8 @@ class TypeConverterBindingProcessor extends AbstractProcessor {
         }, converter);
     }
 
-    private void internalConvertToTypes(Matcher<? super TypeLiteral<?>> typeMatcher,
-                                        TypeConverter converter) {
-        injector.state.addConverter(
-                new MatcherAndConverter(typeMatcher, converter, SourceProvider.UNKNOWN_SOURCE));
+    private void internalConvertToTypes(Matcher<? super TypeLiteral<?>> typeMatcher, TypeConverter converter) {
+        injector.state.addConverter(new MatcherAndConverter(typeMatcher, converter, SourceProvider.UNKNOWN_SOURCE));
     }
 
-    @Override
-    public Boolean visit(TypeConverterBinding command) {
-        injector.state.addConverter(new MatcherAndConverter(
-                command.getTypeMatcher(), command.getTypeConverter(), command.getSource()));
-        return true;
-    }
 }

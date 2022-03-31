@@ -8,11 +8,11 @@ package org.elasticsearch.xpack.core.security.authz.privilege;
 
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -86,12 +86,16 @@ public class Privilege {
      */
     static <T extends Privilege> SortedMap<String, T> sortByAccessLevel(Map<String, T> privileges) {
         // How many other privileges is this privilege a subset of. Those with a higher count are considered to be a lower privilege
-        final Map<String, Long> subsetCount = new HashMap<>(privileges.size());
-        privileges.forEach((name, priv) -> subsetCount.put(name,
-            privileges.values().stream().filter(p2 -> p2 != priv && Operations.subsetOf(priv.automaton, p2.automaton)).count())
+        final Map<String, Long> subsetCount = Maps.newMapWithExpectedSize(privileges.size());
+        privileges.forEach(
+            (name, priv) -> subsetCount.put(
+                name,
+                privileges.values().stream().filter(p2 -> p2 != priv && Operations.subsetOf(priv.automaton, p2.automaton)).count()
+            )
         );
 
-        final Comparator<String> compare = Comparator.<String>comparingLong(key -> subsetCount.getOrDefault(key, 0L)).reversed()
+        final Comparator<String> compare = Comparator.<String>comparingLong(key -> subsetCount.getOrDefault(key, 0L))
+            .reversed()
             .thenComparing(Comparator.naturalOrder());
         final TreeMap<String, T> tree = new TreeMap<>(compare);
         tree.putAll(privileges);

@@ -27,6 +27,9 @@
     },
     "job_type": {
       "type": "keyword"
+    },
+    "cleared": {
+      "type": "boolean"
     }
   }
 }

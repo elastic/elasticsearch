@@ -8,7 +8,6 @@
 
 package org.elasticsearch.action.admin.indices.template.delete;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -38,11 +37,7 @@ public class DeleteComponentTemplateAction extends ActionType<AcknowledgedRespon
 
         public Request(StreamInput in) throws IOException {
             super(in);
-            if (in.getVersion().onOrAfter(Version.V_7_13_0)) {
-                names = in.readStringArray();
-            } else {
-                names = new String[] {in.readString()};
-            }
+            names = in.readStringArray();
         }
 
         /**
@@ -71,11 +66,7 @@ public class DeleteComponentTemplateAction extends ActionType<AcknowledgedRespon
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            if (out.getVersion().onOrAfter(Version.V_7_13_0)) {
-                out.writeStringArray(names);
-            } else {
-                out.writeString(names[0]);
-            }
+            out.writeStringArray(names);
         }
     }
 }

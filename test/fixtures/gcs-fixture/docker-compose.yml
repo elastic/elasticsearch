@@ -60,6 +60,18 @@ services:
       - ./testfixtures_shared/shared:/fixture/shared
     ports:
       - "80"
+  gcs-fixture-snapshots-based-recoveries:
+    build:
+      context: .
+      args:
+        port: 80
+        bucket: "bucket"
+        token: "o/oauth2/token"
+      dockerfile: Dockerfile
+    volumes:
+      - ./testfixtures_shared/shared:/fixture/shared
+    ports:
+      - "80"
   gcs-fixture-with-application-default-credentials:
     build:
       context: .

@@ -14,7 +14,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureSta
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -28,7 +28,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
@@ -71,35 +70,39 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
 
         // call the reset API
         ResetFeatureStateResponse apiResponse = client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest()).get();
-        assertThat(apiResponse.getFeatureStateResetStatuses(), containsInAnyOrder(
-            ResetFeatureStateResponse.ResetFeatureStateStatus.success("SystemIndexTestPlugin"),
-            ResetFeatureStateResponse.ResetFeatureStateStatus.success("SecondSystemIndexTestPlugin"),
-            ResetFeatureStateResponse.ResetFeatureStateStatus.success("EvilSystemIndexTestPlugin"),
-            ResetFeatureStateResponse.ResetFeatureStateStatus.success("tasks")
-        ));
+        assertThat(
+            apiResponse.getFeatureStateResetStatuses(),
+            containsInAnyOrder(
+                ResetFeatureStateResponse.ResetFeatureStateStatus.success("SystemIndexTestPlugin"),
+                ResetFeatureStateResponse.ResetFeatureStateStatus.success("SecondSystemIndexTestPlugin"),
+                ResetFeatureStateResponse.ResetFeatureStateStatus.success("EvilSystemIndexTestPlugin"),
+                ResetFeatureStateResponse.ResetFeatureStateStatus.success("tasks")
+            )
+        );
 
         // verify that both indices are gone
-        Exception e1 = expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareGetIndex()
-            .addIndices(systemIndex1)
-            .get());
+        Exception e1 = expectThrows(
+            IndexNotFoundException.class,
+            () -> client().admin().indices().prepareGetIndex().addIndices(systemIndex1).get()
+        );
 
         assertThat(e1.getMessage(), containsString("no such index"));
 
-        Exception e2 = expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareGetIndex()
-            .addIndices(associatedIndex)
-            .get());
+        Exception e2 = expectThrows(
+            IndexNotFoundException.class,
+            () -> client().admin().indices().prepareGetIndex().addIndices(associatedIndex).get()
+        );
 
         assertThat(e2.getMessage(), containsString("no such index"));
 
-        Exception e3 = expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareGetIndex()
-            .addIndices(systemIndex2)
-            .get());
+        Exception e3 = expectThrows(
+            IndexNotFoundException.class,
+            () -> client().admin().indices().prepareGetIndex().addIndices(systemIndex2).get()
+        );
 
         assertThat(e3.getMessage(), containsString("no such index"));
 
-        GetIndexResponse response = client().admin().indices().prepareGetIndex()
-            .addIndices("my_index")
-            .get();
+        GetIndexResponse response = client().admin().indices().prepareGetIndex().addIndices("my_index").get();
 
         assertThat(response.getIndices(), arrayContaining("my_index"));
     }
@@ -111,10 +114,13 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
     public void testFeatureResetFailure() throws Exception {
         try {
             EvilSystemIndexTestPlugin.setBeEvil(true);
-            ResetFeatureStateResponse resetFeatureStateResponse = client().execute(ResetFeatureStateAction.INSTANCE,
-                new ResetFeatureStateRequest()).get();
+            ResetFeatureStateResponse resetFeatureStateResponse = client().execute(
+                ResetFeatureStateAction.INSTANCE,
+                new ResetFeatureStateRequest()
+            ).get();
 
-            List<String> failedFeatures = resetFeatureStateResponse.getFeatureStateResetStatuses().stream()
+            List<String> failedFeatures = resetFeatureStateResponse.getFeatureStateResetStatuses()
+                .stream()
                 .filter(status -> status.getStatus() == ResetFeatureStateResponse.ResetFeatureStateStatus.Status.FAILURE)
                 .peek(status -> assertThat(status.getException(), notNullValue()))
                 .map(status -> {
@@ -122,7 +128,7 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
                     assertThat(status.getException(), notNullValue());
                     return status.getFeatureName();
                 })
-                .collect(Collectors.toList());
+                .toList();
             assertThat(failedFeatures, contains("EvilSystemIndexTestPlugin"));
         } finally {
             EvilSystemIndexTestPlugin.setBeEvil(false);
@@ -210,10 +216,12 @@ public class FeatureStateResetApiIT extends ESIntegTestCase {
         public void cleanUpFeature(
             ClusterService clusterService,
             Client client,
-            ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> listener) {
+            ActionListener<ResetFeatureStateResponse.ResetFeatureStateStatus> listener
+        ) {
             if (isEvil()) {
-                listener.onResponse(ResetFeatureStateResponse.ResetFeatureStateStatus.failure(getFeatureName(),
-                    new ElasticsearchException("problem!")));
+                listener.onResponse(
+                    ResetFeatureStateResponse.ResetFeatureStateStatus.failure(getFeatureName(), new ElasticsearchException("problem!"))
+                );
             } else {
                 listener.onResponse(ResetFeatureStateResponse.ResetFeatureStateStatus.success(getFeatureName()));
             }

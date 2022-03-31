@@ -4,6 +4,6 @@ vars:
   - job-name: elastic+elasticsearch+%BRANCH%+periodic+java-fips-matrix
   - job-display-name: "elastic / elasticsearch # %BRANCH% - java fips compatibility matrix"
   - job-description: "Testing of the Elasticsearch %BRANCH% branch java FIPS compatibility matrix.\n"
-  - matrix-yaml-file: ".ci/matrix-runtime-javas.yml"
+  - matrix-yaml-file: ".ci/matrix-runtime-javas-fips.yml"
   - matrix-variable: ES_RUNTIME_JAVA
   - gradle-args: "-Dbwc.checkout.align=true -Dtests.fips.enabled=true check"

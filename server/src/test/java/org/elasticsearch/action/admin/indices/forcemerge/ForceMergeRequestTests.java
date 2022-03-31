@@ -34,8 +34,13 @@ public class ForceMergeRequestTests extends ESTestCase {
         ActionRequestValidationException validation = request.validate();
         if (onlyExpungeDeletes && maxNumSegments != ForceMergeRequest.Defaults.MAX_NUM_SEGMENTS) {
             assertThat(validation, notNullValue());
-            assertThat(validation.validationErrors(), contains("cannot set only_expunge_deletes and max_num_segments at the "
-                + "same time, those two parameters are mutually exclusive"));
+            assertThat(
+                validation.validationErrors(),
+                contains(
+                    "cannot set only_expunge_deletes and max_num_segments at the "
+                        + "same time, those two parameters are mutually exclusive"
+                )
+            );
         } else {
             assertThat(validation, nullValue());
         }

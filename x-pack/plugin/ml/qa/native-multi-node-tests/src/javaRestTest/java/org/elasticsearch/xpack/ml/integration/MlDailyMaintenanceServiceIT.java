@@ -10,10 +10,12 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
+import org.elasticsearch.xpack.core.ml.job.config.Blocked;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
@@ -48,14 +50,14 @@ public class MlDailyMaintenanceServiceIT extends MlNativeAutodetectIntegTestCase
     }
 
     public void testTriggerDeleteJobsInStateDeletingWithoutDeletionTask() throws InterruptedException {
-        MlDailyMaintenanceService maintenanceService =
-            new MlDailyMaintenanceService(
-                settings(Version.CURRENT).build(),
-                ClusterName.DEFAULT,
-                threadPool,
-                client(),
-                mock(ClusterService.class),
-                mock(MlAssignmentNotifier.class));
+        MlDailyMaintenanceService maintenanceService = new MlDailyMaintenanceService(
+            settings(Version.CURRENT).build(),
+            ClusterName.DEFAULT,
+            threadPool,
+            client(),
+            mock(ClusterService.class),
+            mock(MlAssignmentNotifier.class)
+        );
 
         putJob("maintenance-test-1");
         putJob("maintenance-test-2");
@@ -65,8 +67,12 @@ public class MlDailyMaintenanceServiceIT extends MlNativeAutodetectIntegTestCase
         blockingCall(maintenanceService::triggerDeleteJobsInStateDeletingWithoutDeletionTask);
         assertThat(getJobIds(), containsInAnyOrder("maintenance-test-1", "maintenance-test-2", "maintenance-test-3"));
 
-        this.<Boolean>blockingCall(listener -> jobConfigProvider.markJobAsDeleting("maintenance-test-2", listener));
-        this.<Boolean>blockingCall(listener -> jobConfigProvider.markJobAsDeleting("maintenance-test-3", listener));
+        this.<PutJobAction.Response>blockingCall(
+            listener -> jobConfigProvider.updateJobBlockReason("maintenance-test-2", new Blocked(Blocked.Reason.DELETE, null), listener)
+        );
+        this.<PutJobAction.Response>blockingCall(
+            listener -> jobConfigProvider.updateJobBlockReason("maintenance-test-3", new Blocked(Blocked.Reason.DELETE, null), listener)
+        );
         assertThat(getJobIds(), containsInAnyOrder("maintenance-test-1", "maintenance-test-2", "maintenance-test-3"));
         assertThat(getJob("maintenance-test-1").get(0).isDeleting(), is(false));
         assertThat(getJob("maintenance-test-2").get(0).isDeleting(), is(true));
@@ -79,15 +85,10 @@ public class MlDailyMaintenanceServiceIT extends MlNativeAutodetectIntegTestCase
     private <T> void blockingCall(Consumer<ActionListener<T>> function) throws InterruptedException {
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<T> listener = ActionListener.wrap(
-            r -> {
-                latch.countDown();
-            },
-            e -> {
-                exceptionHolder.set(e);
-                latch.countDown();
-            }
-        );
+        ActionListener<T> listener = ActionListener.wrap(r -> { latch.countDown(); }, e -> {
+            exceptionHolder.set(e);
+            latch.countDown();
+        });
         function.accept(listener);
         latch.await();
         if (exceptionHolder.get() != null) {
@@ -96,19 +97,10 @@ public class MlDailyMaintenanceServiceIT extends MlNativeAutodetectIntegTestCase
     }
 
     private void putJob(String jobId) {
-        Job.Builder job =
-            new Job.Builder(jobId)
-                .setAnalysisConfig(
-                    new AnalysisConfig.Builder((List<Detector>) null)
-                        .setBucketSpan(TimeValue.timeValueHours(1))
-                        .setDetectors(
-                            Collections.singletonList(
-                                new Detector.Builder("count", null)
-                                    .setPartitionFieldName("user")
-                                    .build())))
-                .setDataDescription(
-                    new DataDescription.Builder()
-                        .setTimeFormat("epoch"));
+        Job.Builder job = new Job.Builder(jobId).setAnalysisConfig(
+            new AnalysisConfig.Builder((List<Detector>) null).setBucketSpan(TimeValue.timeValueHours(1))
+                .setDetectors(Collections.singletonList(new Detector.Builder("count", null).setPartitionFieldName("user").build()))
+        ).setDataDescription(new DataDescription.Builder().setTimeFormat("epoch"));
 
         putJob(job);
     }

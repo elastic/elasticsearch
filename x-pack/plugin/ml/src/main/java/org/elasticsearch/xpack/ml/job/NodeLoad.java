@@ -9,28 +9,13 @@ package org.elasticsearch.xpack.ml.job;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.ml.MlTasks;
-import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
-import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
-import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 
 import java.util.Objects;
 
 public class NodeLoad {
-
-    public static boolean taskStateFilter(JobState jobState) {
-        return jobState == null || jobState.isNoneOf(JobState.CLOSED, JobState.FAILED);
-    }
-
-    public static boolean taskStateFilter(DataFrameAnalyticsState dataFrameAnalyticsState) {
-        // Don't count stopped and failed df-analytics tasks as they don't consume native memory
-        return dataFrameAnalyticsState == null
-            || dataFrameAnalyticsState.isNoneOf(DataFrameAnalyticsState.STOPPED, DataFrameAnalyticsState.FAILED);
-    }
 
     private static final Logger logger = LogManager.getLogger(NodeLoadDetector.class);
 
@@ -40,24 +25,35 @@ public class NodeLoad {
     private final boolean useMemory;
     private final String error;
     private final long numAssignedJobs;
-    private final long assignedJobMemory;
+    private final long assignedNativeCodeOverheadMemory;
+    private final long assignedAnomalyDetectorMemory;
+    private final long assignedDataFrameAnalyticsMemory;
+    private final long assignedNativeInferenceMemory;
     private final long numAllocatingJobs;
 
-    NodeLoad(long maxMemory,
-             int maxJobs,
-             String nodeId,
-             boolean useMemory,
-             String error,
-             long numAssignedJobs,
-             long assignedJobMemory,
-             long numAllocatingJobs) {
+    NodeLoad(
+        long maxMemory,
+        int maxJobs,
+        String nodeId,
+        boolean useMemory,
+        String error,
+        long numAssignedJobs,
+        long assignedNativeCodeOverheadMemory,
+        long assignedAnomalyDetectorMemory,
+        long assignedDataFrameAnalyticsMemory,
+        long assignedNativeInferenceMemory,
+        long numAllocatingJobs
+    ) {
         this.maxMemory = maxMemory;
         this.maxJobs = maxJobs;
         this.nodeId = nodeId;
         this.useMemory = useMemory;
         this.error = error;
         this.numAssignedJobs = numAssignedJobs;
-        this.assignedJobMemory = assignedJobMemory;
+        this.assignedNativeCodeOverheadMemory = assignedNativeCodeOverheadMemory;
+        this.assignedAnomalyDetectorMemory = assignedAnomalyDetectorMemory;
+        this.assignedDataFrameAnalyticsMemory = assignedDataFrameAnalyticsMemory;
+        this.assignedNativeInferenceMemory = assignedNativeInferenceMemory;
         this.numAllocatingJobs = numAllocatingJobs;
     }
 
@@ -69,10 +65,39 @@ public class NodeLoad {
     }
 
     /**
-     * @return The total memory in bytes used by the assigned jobs.
+     * @return The total memory in bytes used by all assigned jobs.
      */
     public long getAssignedJobMemory() {
-        return assignedJobMemory;
+        return assignedNativeCodeOverheadMemory + assignedAnomalyDetectorMemory + assignedDataFrameAnalyticsMemory
+            + assignedNativeInferenceMemory;
+    }
+
+    /**
+     * @return The native code overhead, if any, for native processes on this node.
+     */
+    public long getAssignedNativeCodeOverheadMemory() {
+        return assignedNativeCodeOverheadMemory;
+    }
+
+    /**
+     * @return The total memory in bytes used by the assigned anomaly detectors.
+     */
+    public long getAssignedAnomalyDetectorMemory() {
+        return assignedAnomalyDetectorMemory;
+    }
+
+    /**
+     * @return The total memory in bytes used by the assigned data frame analytics jobs.
+     */
+    public long getAssignedDataFrameAnalyticsMemory() {
+        return assignedDataFrameAnalyticsMemory;
+    }
+
+    /**
+     * @return The total memory in bytes used by the assigned native inference processes.
+     */
+    public long getAssignedNativeInferenceMemory() {
+        return assignedNativeInferenceMemory;
     }
 
     /**
@@ -107,14 +132,14 @@ public class NodeLoad {
      * @return The available memory on the node
      */
     public long getFreeMemory() {
-        return Math.max(maxMemory - assignedJobMemory, 0L);
+        return Math.max(maxMemory - getAssignedJobMemory(), 0L);
     }
 
     /**
      * @return The number of jobs that can still be assigned to the node
      */
     public int remainingJobs() {
-        return Math.max(maxJobs - (int)numAssignedJobs, 0);
+        return Math.max(maxJobs - (int) numAssignedJobs, 0);
     }
 
     /**
@@ -137,19 +162,34 @@ public class NodeLoad {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         NodeLoad nodeLoad = (NodeLoad) o;
-        return maxMemory == nodeLoad.maxMemory &&
-            maxJobs == nodeLoad.maxJobs &&
-            useMemory == nodeLoad.useMemory &&
-            numAssignedJobs == nodeLoad.numAssignedJobs &&
-            assignedJobMemory == nodeLoad.assignedJobMemory &&
-            numAllocatingJobs == nodeLoad.numAllocatingJobs &&
-            Objects.equals(nodeId, nodeLoad.nodeId) &&
-            Objects.equals(error, nodeLoad.error);
+        return maxMemory == nodeLoad.maxMemory
+            && maxJobs == nodeLoad.maxJobs
+            && useMemory == nodeLoad.useMemory
+            && numAssignedJobs == nodeLoad.numAssignedJobs
+            && assignedNativeCodeOverheadMemory == nodeLoad.assignedNativeCodeOverheadMemory
+            && assignedAnomalyDetectorMemory == nodeLoad.assignedAnomalyDetectorMemory
+            && assignedDataFrameAnalyticsMemory == nodeLoad.assignedDataFrameAnalyticsMemory
+            && assignedNativeInferenceMemory == nodeLoad.assignedNativeInferenceMemory
+            && numAllocatingJobs == nodeLoad.numAllocatingJobs
+            && Objects.equals(nodeId, nodeLoad.nodeId)
+            && Objects.equals(error, nodeLoad.error);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(maxMemory, maxJobs, nodeId, useMemory, error, numAssignedJobs, assignedJobMemory, numAllocatingJobs);
+        return Objects.hash(
+            maxMemory,
+            maxJobs,
+            nodeId,
+            useMemory,
+            error,
+            numAssignedJobs,
+            assignedNativeCodeOverheadMemory,
+            assignedAnomalyDetectorMemory,
+            assignedDataFrameAnalyticsMemory,
+            assignedNativeInferenceMemory,
+            numAllocatingJobs
+        );
     }
 
     public static Builder builder(String nodeId) {
@@ -167,7 +207,10 @@ public class NodeLoad {
         private boolean useMemory;
         private String error;
         private long numAssignedJobs;
-        private long assignedJobMemory;
+        private long assignedNativeCodeOverheadMemory;
+        private long assignedAnomalyDetectorMemory;
+        private long assignedDataFrameAnalyticsMemory;
+        private long assignedNativeInferenceMemory;
         private long numAllocatingJobs;
 
         public Builder(NodeLoad nodeLoad) {
@@ -177,7 +220,10 @@ public class NodeLoad {
             this.useMemory = nodeLoad.useMemory;
             this.error = nodeLoad.error;
             this.numAssignedJobs = nodeLoad.numAssignedJobs;
-            this.assignedJobMemory = nodeLoad.assignedJobMemory;
+            this.assignedNativeCodeOverheadMemory = nodeLoad.assignedNativeCodeOverheadMemory;
+            this.assignedAnomalyDetectorMemory = nodeLoad.assignedAnomalyDetectorMemory;
+            this.assignedDataFrameAnalyticsMemory = nodeLoad.assignedDataFrameAnalyticsMemory;
+            this.assignedNativeInferenceMemory = nodeLoad.assignedNativeInferenceMemory;
             this.numAllocatingJobs = nodeLoad.numAllocatingJobs;
         }
 
@@ -186,11 +232,11 @@ public class NodeLoad {
         }
 
         public long getFreeMemory() {
-            return Math.max(maxMemory - assignedJobMemory, 0L);
+            return Math.max(maxMemory - assignedAnomalyDetectorMemory, 0L);
         }
 
         public int remainingJobs() {
-            return Math.max(maxJobs - (int)numAssignedJobs, 0);
+            return Math.max(maxJobs - (int) numAssignedJobs, 0);
         }
 
         public String getNodeId() {
@@ -204,6 +250,10 @@ public class NodeLoad {
         public Builder setMaxMemory(long maxMemory) {
             this.maxMemory = maxMemory;
             return this;
+        }
+
+        public long getMaxMemory() {
+            return maxMemory;
         }
 
         public Builder setMaxJobs(int maxJobs) {
@@ -226,8 +276,23 @@ public class NodeLoad {
             return this;
         }
 
-        public Builder incAssignedJobMemory(long assignedJobMemory) {
-            this.assignedJobMemory += assignedJobMemory;
+        public Builder incAssignedNativeCodeOverheadMemory(long assignedNativeCodeOverheadMemory) {
+            this.assignedNativeCodeOverheadMemory += assignedNativeCodeOverheadMemory;
+            return this;
+        }
+
+        public Builder incAssignedAnomalyDetectorMemory(long assignedAnomalyDetectorMemory) {
+            this.assignedAnomalyDetectorMemory += assignedAnomalyDetectorMemory;
+            return this;
+        }
+
+        public Builder incAssignedDataFrameAnalyticsMemory(long assignedDataFrameAnalyticsMemory) {
+            this.assignedDataFrameAnalyticsMemory += assignedDataFrameAnalyticsMemory;
+            return this;
+        }
+
+        public Builder incAssignedNativeInferenceMemory(long assignedNativeInferenceMemory) {
+            this.assignedNativeInferenceMemory += assignedNativeInferenceMemory;
             return this;
         }
 
@@ -236,60 +301,44 @@ public class NodeLoad {
             return this;
         }
 
-        void adjustForAnomalyJob(JobState jobState,
-                                 String jobId,
-                                 MlMemoryTracker mlMemoryTracker) {
-            if (taskStateFilter(jobState) && jobId != null) {
-                // Don't count CLOSED or FAILED jobs, as they don't consume native memory
-                ++numAssignedJobs;
-                if (jobState == JobState.OPENING) {
-                    ++numAllocatingJobs;
-                }
-                Long jobMemoryRequirement = mlMemoryTracker.getAnomalyDetectorJobMemoryRequirement(jobId);
-                if (jobMemoryRequirement == null) {
-                    useMemory = false;
-                    logger.debug(() -> new ParameterizedMessage(
-                        "[{}] memory requirement was not available. Calculating load by number of assigned jobs.",
-                        jobId
-                    ));
-                } else {
-                    assignedJobMemory += jobMemoryRequirement;
-                }
+        void addTask(String taskName, String taskId, boolean isAllocating, MlMemoryTracker memoryTracker) {
+            ++numAssignedJobs;
+            if (isAllocating) {
+                ++numAllocatingJobs;
             }
-        }
-
-        void adjustForAnalyticsJob(PersistentTasksCustomMetadata.PersistentTask<?> assignedTask,
-                                   MlMemoryTracker mlMemoryTracker) {
-            DataFrameAnalyticsState dataFrameAnalyticsState = MlTasks.getDataFrameAnalyticsState(assignedTask);
-
-            if (taskStateFilter(dataFrameAnalyticsState)) {
-                // The native process is only running in the ANALYZING and STOPPING states, but in the STARTED
-                // and REINDEXING states we're committed to using the memory soon, so account for it here
-                ++numAssignedJobs;
-                StartDataFrameAnalyticsAction.TaskParams params =
-                    (StartDataFrameAnalyticsAction.TaskParams) assignedTask.getParams();
-                Long jobMemoryRequirement = mlMemoryTracker.getDataFrameAnalyticsJobMemoryRequirement(params.getId());
-                if (jobMemoryRequirement == null) {
-                    useMemory = false;
-                    logger.debug(() -> new ParameterizedMessage(
-                        "[{}] memory requirement was not available. Calculating load by number of assigned jobs.",
-                        params.getId()
-                    ));
-                } else {
-                    assignedJobMemory += jobMemoryRequirement;
+            Long jobMemoryRequirement = memoryTracker.getJobMemoryRequirement(taskName, taskId);
+            if (jobMemoryRequirement == null) {
+                useMemory = false;
+                logger.debug("[{}] task memory requirement was not available.", taskId);
+            } else {
+                switch (taskName) {
+                    case MlTasks.JOB_TASK_NAME, MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME -> assignedAnomalyDetectorMemory +=
+                        jobMemoryRequirement;
+                    case MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME -> assignedDataFrameAnalyticsMemory += jobMemoryRequirement;
+                    default -> {
+                        assert false : "ML memory-requiring task name not handled: " + taskName;
+                        // If this ever happens in production then this is better than nothing, but
+                        // hopefully the assertion will mean we pick up any omission in testing
+                        assignedAnomalyDetectorMemory += jobMemoryRequirement;
+                    }
                 }
             }
         }
 
         public NodeLoad build() {
-            return new NodeLoad(maxMemory,
-            maxJobs,
-            nodeId,
-            useMemory,
-            error,
-            numAssignedJobs,
-            assignedJobMemory,
-            numAllocatingJobs);
+            return new NodeLoad(
+                maxMemory,
+                maxJobs,
+                nodeId,
+                useMemory,
+                error,
+                numAssignedJobs,
+                assignedNativeCodeOverheadMemory,
+                assignedAnomalyDetectorMemory,
+                assignedDataFrameAnalyticsMemory,
+                assignedNativeInferenceMemory,
+                numAllocatingJobs
+            );
         }
     }
 }

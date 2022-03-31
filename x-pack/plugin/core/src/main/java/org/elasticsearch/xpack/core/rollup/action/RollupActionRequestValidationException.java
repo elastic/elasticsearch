@@ -8,5 +8,4 @@ package org.elasticsearch.xpack.core.rollup.action;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 
-public class RollupActionRequestValidationException extends ActionRequestValidationException {
-}
+public class RollupActionRequestValidationException extends ActionRequestValidationException {}

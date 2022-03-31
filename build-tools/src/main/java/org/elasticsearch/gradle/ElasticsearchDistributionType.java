@@ -14,7 +14,7 @@ public interface ElasticsearchDistributionType {
 
     default boolean isDocker() {
         return false;
-    };
+    }
 
     default boolean shouldExtract() {
         return false;

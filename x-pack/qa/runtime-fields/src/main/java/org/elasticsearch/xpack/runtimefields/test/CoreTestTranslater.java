@@ -9,11 +9,9 @@ package org.elasticsearch.xpack.runtimefields.test;
 import org.elasticsearch.action.bulk.BulkRequestParser;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentLocation;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.IpFieldMapper;
@@ -29,6 +27,10 @@ import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSuite;
 import org.elasticsearch.test.rest.yaml.section.DoSection;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
 import org.elasticsearch.test.rest.yaml.section.SetupSection;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentLocation;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -291,6 +293,18 @@ public abstract class CoreTestTranslater {
                     // Our source reading script doesn't emulate ignore_malformed
                     continue;
                 }
+                if (propertyMap.containsKey("time_series_dimension")) {
+                    // time_series_dimension field can't emulate with scripts.
+                    continue;
+                }
+                if (propertyMap.containsKey("time_series_metric")) {
+                    // time_series_metric field can't emulate with scripts.
+                    continue;
+                }
+                if (name.equals(DataStreamTimestampFieldMapper.DEFAULT_PATH)) {
+                    // time_series and data stream indices need timestamp field
+                    continue;
+                }
                 if (RUNTIME_TYPES.contains(type) == false) {
                     continue;
                 }
@@ -329,7 +343,7 @@ public abstract class CoreTestTranslater {
                     bos.write(JsonXContent.jsonXContent.streamSeparator());
                 }
                 List<IndexRequest> indexRequests = new ArrayList<>();
-                new BulkRequestParser(false).parse(
+                new BulkRequestParser(false, RestApiVersion.current()).parse(
                     bos.bytes(),
                     defaultIndex,
                     defaultRouting,

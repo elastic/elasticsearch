@@ -10,10 +10,11 @@ package org.elasticsearch.rest;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Releasable;
 
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -28,7 +29,7 @@ public abstract class RestResponse {
     public abstract String contentType();
 
     /**
-     * The response content. Note, if the content is {@link org.elasticsearch.common.lease.Releasable} it
+     * The response content. Note, if the content is {@link Releasable} it
      * should automatically be released when done by the channel sending it.
      */
     public abstract BytesReference content();
@@ -41,7 +42,7 @@ public abstract class RestResponse {
     public void copyHeaders(ElasticsearchException ex) {
         Set<String> headerKeySet = ex.getHeaderKeys();
         if (customHeaders == null) {
-            customHeaders = new HashMap<>(headerKeySet.size());
+            customHeaders = Maps.newMapWithExpectedSize(headerKeySet.size());
         }
         for (String key : headerKeySet) {
             List<String> values = customHeaders.get(key);
@@ -58,7 +59,7 @@ public abstract class RestResponse {
      */
     public void addHeader(String name, String value) {
         if (customHeaders == null) {
-            customHeaders = new HashMap<>(2);
+            customHeaders = Maps.newMapWithExpectedSize(2);
         }
         List<String> header = customHeaders.get(name);
         if (header == null) {

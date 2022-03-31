@@ -1,0 +1,107 @@
+[[update-desired-nodes]]
+=== Create or update desired nodes API
+++++
+<titleabbrev>Create or update desired nodes</titleabbrev>
+++++
+
+NOTE: {cloud-only}
+
+Creates or updates the desired nodes.
+
+[[update-desired-nodes-request]]
+==== {api-request-title}
+
+[source,console]
+--------------------------------------------------
+PUT /_internal/desired_nodes/<history_id>/<version>
+{
+    "nodes" : [
+        {
+            "settings" : {
+                 "node.name" : "instance-000187",
+                 "node.external_id": "instance-000187",
+                 "node.roles" : ["data_hot", "master"],
+                 "node.attr.data" : "hot",
+                 "node.attr.logical_availability_zone" : "zone-0"
+            },
+            "processors" : 8,
+            "memory" : "58gb",
+            "storage" : "1700gb",
+            "node_version" : "{version}"
+        }
+    ]
+}
+--------------------------------------------------
+// TEST[s/<history_id>/test/]
+// TEST[s/<version>/1/]
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE /_internal/desired_nodes
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////
+
+[[update-desired-nodes-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+
+[[update-desired-nodes-desc]]
+==== {api-description-title}
+
+This API creates or update the desired nodes. External orchestrators can use
+this API to let Elasticsearch know about the cluster topology, including future
+changes such as adding or removing nodes. Using this information, the system is
+able to take better decisions.
+
+[[update-desired-nodes-examples]]
+==== {api-examples-title}
+
+In this example, a new version for the desired nodes with history `Ywkh3INLQcuPT49f6kcppA` is created.
+This API only accepts monotonically increasing versions.
+
+[source,console]
+--------------------------------------------------
+PUT /_internal/desired_nodes/Ywkh3INLQcuPT49f6kcppA/100
+{
+    "nodes" : [
+        {
+            "settings" : {
+                 "node.name" : "instance-000187",
+                 "node.external_id": "instance-000187",
+                 "node.roles" : ["data_hot", "master"],
+                 "node.attr.data" : "hot",
+                 "node.attr.logical_availability_zone" : "zone-0"
+            },
+            "processors" : 8,
+            "memory" : "58gb",
+            "storage" : "1700gb",
+            "node_version" : "{version}"
+        }
+    ]
+}
+--------------------------------------------------
+// TEST
+
+The API returns the following result:
+
+[source,console-result]
+--------------------------------------------------
+{
+  "replaced_existing_history_id": false
+}
+--------------------------------------------------
+
+//////////////////////////
+
+[source,console]
+--------------------------------------------------
+DELETE /_internal/desired_nodes
+--------------------------------------------------
+// TEST[continued]
+
+//////////////////////////

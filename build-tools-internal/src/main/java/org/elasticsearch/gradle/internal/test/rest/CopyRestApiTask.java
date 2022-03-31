@@ -7,10 +7,7 @@
  */
 package org.elasticsearch.gradle.internal.test.rest;
 
-import org.elasticsearch.gradle.VersionProperties;
-import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.gradle.api.DefaultTask;
-import org.gradle.api.file.ArchiveOperations;
 import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileSystemOperations;
@@ -18,6 +15,7 @@ import org.gradle.api.file.FileTree;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.provider.ListProperty;
+import org.gradle.api.tasks.IgnoreEmptyDirectories;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
@@ -28,12 +26,13 @@ import org.gradle.api.tasks.util.PatternFilterable;
 import org.gradle.api.tasks.util.PatternSet;
 import org.gradle.internal.Factory;
 
-import javax.inject.Inject;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+
+import javax.inject.Inject;
 
 import static org.elasticsearch.gradle.util.GradleUtils.getProjectPathFromTask;
 
@@ -61,14 +60,12 @@ public class CopyRestApiTask extends DefaultTask {
     private final PatternFilterable patternSet;
     private final ProjectLayout projectLayout;
     private final FileSystemOperations fileSystemOperations;
-    private final ArchiveOperations archiveOperations;
 
     @Inject
     public CopyRestApiTask(
         ProjectLayout projectLayout,
         Factory<PatternSet> patternSetFactory,
         FileSystemOperations fileSystemOperations,
-        ArchiveOperations archiveOperations,
         ObjectFactory objectFactory
     ) {
         this.include = objectFactory.listProperty(String.class);
@@ -77,7 +74,6 @@ public class CopyRestApiTask extends DefaultTask {
         this.patternSet = patternSetFactory.create();
         this.projectLayout = projectLayout;
         this.fileSystemOperations = fileSystemOperations;
-        this.archiveOperations = archiveOperations;
     }
 
     @Input
@@ -91,17 +87,14 @@ public class CopyRestApiTask extends DefaultTask {
     }
 
     @SkipWhenEmpty
+    @IgnoreEmptyDirectories
     @InputFiles
     public FileTree getInputDir() {
         FileTree coreFileTree = null;
         boolean projectHasYamlRestTests = skipHasRestTestCheck || projectHasYamlRestTests();
         if (include.get().isEmpty() == false || projectHasYamlRestTests) {
-            if (BuildParams.isInternal()) {
-                patternSet.setIncludes(include.get().stream().map(prefix -> prefix + "*/**").collect(Collectors.toList()));
-                coreFileTree = configToFileTree.apply(config).matching(patternSet); // directory on disk
-            } else {
-                coreFileTree = config.getAsFileTree(); // jar file
-            }
+            patternSet.setIncludes(include.get().stream().map(prefix -> prefix + "*/**").collect(Collectors.toList()));
+            coreFileTree = configToFileTree.apply(config).matching(patternSet); // directory on disk
         }
 
         FileCollection fileCollection = additionalConfig == null
@@ -131,30 +124,12 @@ public class CopyRestApiTask extends DefaultTask {
         String projectPath = getProjectPathFromTask(getPath());
         File restSpecOutputDir = new File(outputResourceDir.get().getAsFile(), REST_API_PREFIX);
 
-        if (BuildParams.isInternal()) {
-            getLogger().debug("Rest specs for project [{}] will be copied to the test resources.", projectPath);
-            fileSystemOperations.copy(c -> {
-                c.from(configToFileTree.apply(config));
-                c.into(restSpecOutputDir);
-                c.include(patternSet.getIncludes());
-            });
-        } else {
-            getLogger().debug(
-                "Rest specs for project [{}] will be copied to the test resources from the published jar (version: [{}]).",
-                projectPath,
-                VersionProperties.getElasticsearch()
-            );
-            fileSystemOperations.copy(c -> {
-                c.from(archiveOperations.zipTree(config.getSingleFile())); // jar file
-                c.into(outputResourceDir);
-                if (include.get().isEmpty()) {
-                    c.include(REST_API_PREFIX + "/**");
-                } else {
-                    c.include(include.get().stream().map(prefix -> REST_API_PREFIX + "/" + prefix + "*/**").collect(Collectors.toList()));
-                }
-            });
-        }
-
+        getLogger().debug("Rest specs for project [{}] will be copied to the test resources.", projectPath);
+        fileSystemOperations.copy(c -> {
+            c.from(configToFileTree.apply(config));
+            c.into(restSpecOutputDir);
+            c.include(patternSet.getIncludes());
+        });
         // copy any additional config
         if (additionalConfig != null) {
             fileSystemOperations.copy(c -> {
@@ -209,8 +184,4 @@ public class CopyRestApiTask extends DefaultTask {
         this.additionalConfigToFileTree = additionalConfigToFileTree;
     }
 
-    @Internal
-    public FileCollection getConfig() {
-        return config;
-    }
 }

@@ -14,13 +14,12 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
@@ -44,6 +43,7 @@ import java.util.concurrent.Semaphore;
 import java.util.function.Function;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.action.support.ActionTestUtils.wrapAsRestResponseListener;
 import static org.elasticsearch.test.TaskAssertions.assertAllCancellableTasksAreCancelled;
 import static org.elasticsearch.test.TaskAssertions.assertAllTasksHaveFinished;
 import static org.elasticsearch.test.TaskAssertions.awaitTaskWithPrefix;
@@ -67,10 +67,10 @@ public class ClusterStatsRestCancellationIT extends HttpSmokeTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal, otherSettings))
-                // disable internal cluster info service to avoid internal cluster stats calls
-                .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
-                .build();
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            // disable internal cluster info service to avoid internal cluster stats calls
+            .put(DiskThresholdSettings.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false)
+            .build();
     }
 
     public void testClusterStateRestCancellation() throws Exception {
@@ -83,8 +83,8 @@ public class ClusterStatsRestCancellationIT extends HttpSmokeTestCase {
             for (final IndexService indexService : indicesService) {
                 for (final IndexShard indexShard : indexService) {
                     final Engine engine = IndexShardTestCase.getEngine(indexShard);
-                    if (engine instanceof StatsBlockingEngine) {
-                        statsBlocks.add(((StatsBlockingEngine) engine).statsBlock);
+                    if (engine instanceof StatsBlockingEngine statsBlockingEngine) {
+                        statsBlocks.add(statsBlockingEngine.statsBlock);
                     }
                 }
             }
@@ -100,19 +100,9 @@ public class ClusterStatsRestCancellationIT extends HttpSmokeTestCase {
 
             final Request clusterStatsRequest = new Request(HttpGet.METHOD_NAME, "/_cluster/stats");
 
-            final PlainActionFuture<Void> future = new PlainActionFuture<>();
+            final PlainActionFuture<Response> future = new PlainActionFuture<>();
             logger.info("--> sending cluster state request");
-            final Cancellable cancellable = getRestClient().performRequestAsync(clusterStatsRequest, new ResponseListener() {
-                @Override
-                public void onSuccess(Response response) {
-                    future.onResponse(null);
-                }
-
-                @Override
-                public void onFailure(Exception exception) {
-                    future.onFailure(exception);
-                }
-            });
+            final Cancellable cancellable = getRestClient().performRequestAsync(clusterStatsRequest, wrapAsRestResponseListener(future));
 
             awaitTaskWithPrefix(ClusterStatsAction.NAME);
 

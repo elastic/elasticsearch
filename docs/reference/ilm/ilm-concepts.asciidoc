@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[ilm-concepts]]
 == {ilm-init} concepts
 

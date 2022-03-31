@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.LeafCollector;
@@ -89,16 +88,17 @@ public class MultiBucketCollector extends BucketCollector {
                 }
 
                 @Override
-                public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
+                public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException {
                     try {
-                        LeafBucketCollector leafCollector = collector.getLeafCollector(ctx);
+                        LeafBucketCollector leafCollector = collector.getLeafCollector(aggCtx);
                         if (false == leafCollector.isNoop()) {
                             return leafCollector;
                         }
                     } catch (CollectionTerminatedException e) {
                         throw new IllegalStateException(
                             "getLeafCollector should return a noop collector instead of throw "
-                                + CollectionTerminatedException.class.getSimpleName(), e
+                                + CollectionTerminatedException.class.getSimpleName(),
+                            e
                         );
                     }
                     if (terminateIfNoop) {
@@ -168,11 +168,11 @@ public class MultiBucketCollector extends BucketCollector {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext context) throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException {
         final List<LeafBucketCollector> leafCollectors = new ArrayList<>(collectors.length);
         for (BucketCollector collector : collectors) {
             try {
-                LeafBucketCollector leafCollector = collector.getLeafCollector(context);
+                LeafBucketCollector leafCollector = collector.getLeafCollector(aggCtx);
                 if (false == leafCollector.isNoop()) {
                     leafCollectors.add(leafCollector);
                 }
@@ -212,7 +212,7 @@ public class MultiBucketCollector extends BucketCollector {
         @Override
         public void setScorer(Scorable scorer) throws IOException {
             if (cacheScores) {
-                scorer = new ScoreCachingWrappingScorer(scorer);
+                scorer = ScoreCachingWrappingScorer.wrap(scorer);
             }
             for (int i = 0; i < numCollectors; ++i) {
                 final LeafCollector c = collectors[i];
@@ -230,7 +230,7 @@ public class MultiBucketCollector extends BucketCollector {
         public void collect(int doc, long bucket) throws IOException {
             final LeafBucketCollector[] collectors = this.collectors;
             int numCollectors = this.numCollectors;
-            for (int i = 0; i < numCollectors; ) {
+            for (int i = 0; i < numCollectors;) {
                 final LeafBucketCollector collector = collectors[i];
                 try {
                     collector.collect(doc, bucket);

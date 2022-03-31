@@ -79,8 +79,10 @@ public class SqlParserTests extends ESTestCase {
     }
 
     public void testSelectCast() {
-        UnresolvedAlias f = singleProjection(project(parseStatement("SELECT CAST(POWER(languages, 2) AS DOUBLE) FROM foo")),
-                UnresolvedAlias.class);
+        UnresolvedAlias f = singleProjection(
+            project(parseStatement("SELECT CAST(POWER(languages, 2) AS DOUBLE) FROM foo")),
+            UnresolvedAlias.class
+        );
         assertEquals("CAST(POWER(languages, 2) AS DOUBLE)", f.sourceText());
     }
 
@@ -90,8 +92,10 @@ public class SqlParserTests extends ESTestCase {
     }
 
     public void testSelectCastWithSQLOperator() {
-        UnresolvedAlias f = singleProjection(project(parseStatement("SELECT CONVERT(POWER(languages, 2), SQL_DOUBLE) FROM foo")),
-                UnresolvedAlias.class);
+        UnresolvedAlias f = singleProjection(
+            project(parseStatement("SELECT CONVERT(POWER(languages, 2), SQL_DOUBLE) FROM foo")),
+            UnresolvedAlias.class
+        );
         assertEquals("CONVERT(POWER(languages, 2), SQL_DOUBLE)", f.sourceText());
     }
 
@@ -142,17 +146,57 @@ public class SqlParserTests extends ESTestCase {
     public void testUseBothTopAndLimitInvalid() {
         ParsingException e = expectThrows(ParsingException.class, () -> parseStatement("SELECT TOP 10 * FROM test LIMIT 20"));
         assertEquals("line 1:28: TOP and LIMIT are not allowed in the same query - use one or the other", e.getMessage());
-        e = expectThrows(ParsingException.class,
-            () -> parseStatement("SELECT TOP 30 a, count(*) cnt FROM test WHERE b = 20 GROUP BY a HAVING cnt > 10 LIMIT 40"));
+
+        e = expectThrows(
+            ParsingException.class,
+            () -> parseStatement("SELECT TOP 30 a, count(*) cnt FROM test WHERE b = 20 GROUP BY a HAVING cnt > 10 LIMIT 40")
+        );
         assertEquals("line 1:82: TOP and LIMIT are not allowed in the same query - use one or the other", e.getMessage());
+
+        e = expectThrows(ParsingException.class, () -> parseStatement("SELECT TOP 30 * FROM test ORDER BY a LIMIT 40"));
+        assertEquals("line 1:39: TOP and LIMIT are not allowed in the same query - use one or the other", e.getMessage());
     }
 
     public void testsSelectNonReservedKeywords() {
         String[] reserved = new String[] {
-            "ANALYZE", "ANALYZED", "CATALOGS", "COLUMNS", "CURRENT", "DAY", "DEBUG", "EXECUTABLE", "EXPLAIN",
-            "FIRST", "FORMAT", "FULL", "FUNCTIONS", "GRAPHVIZ", "HOUR", "INTERVAL", "LAST", "LIMIT",
-            "MAPPED", "MINUTE", "MONTH", "OPTIMIZED", "PARSED", "PHYSICAL", "PLAN", "QUERY", "RLIKE",
-            "SCHEMAS", "SECOND", "SHOW", "SYS", "TABLES", "TEXT", "TOP", "TYPE", "TYPES", "VERIFY", "YEAR"};
+            "ANALYZE",
+            "ANALYZED",
+            "CATALOGS",
+            "COLUMNS",
+            "CURRENT",
+            "DAY",
+            "DEBUG",
+            "EXECUTABLE",
+            "EXPLAIN",
+            "FIRST",
+            "FORMAT",
+            "FULL",
+            "FUNCTIONS",
+            "GRAPHVIZ",
+            "HOUR",
+            "INTERVAL",
+            "LAST",
+            "LIMIT",
+            "MAPPED",
+            "MINUTE",
+            "MONTH",
+            "OPTIMIZED",
+            "PARSED",
+            "PHYSICAL",
+            "PLAN",
+            "QUERY",
+            "RLIKE",
+            "SCHEMAS",
+            "SECOND",
+            "SHOW",
+            "SYS",
+            "TABLES",
+            "TEXT",
+            "TOP",
+            "TYPE",
+            "TYPES",
+            "VERIFY",
+            "YEAR" };
         StringJoiner sj = new StringJoiner(",");
         for (String s : reserved) {
             sj.add(s);
@@ -193,10 +237,11 @@ public class SqlParserTests extends ESTestCase {
     public void testOrderByTwo() {
         Order.OrderDirection dir0 = randomFrom(Order.OrderDirection.values());
         Order.OrderDirection dir1 = randomFrom(Order.OrderDirection.values());
-        OrderBy ob = orderBy(parseStatement(
-            "     SELECT *"
-            + "     FROM foo"
-            + " ORDER BY bar" + stringForDirection(dir0) + ", baz" + stringForDirection(dir1)));
+        OrderBy ob = orderBy(
+            parseStatement(
+                "     SELECT *" + "     FROM foo" + " ORDER BY bar" + stringForDirection(dir0) + ", baz" + stringForDirection(dir1)
+            )
+        );
         assertThat(ob.order(), hasSize(2));
         Order o = ob.order().get(0);
         assertEquals(dir0, o.direction());
@@ -211,9 +256,9 @@ public class SqlParserTests extends ESTestCase {
     }
 
     public void testStringQuery() {
-        LogicalPlan plan =
-            parseStatement("SELECT * FROM FOO WHERE " +
-                "QUERY('foo', 'default_field=last_name;lenient=true', 'fuzzy_rewrite=scoring_boolean')");
+        LogicalPlan plan = parseStatement(
+            "SELECT * FROM FOO WHERE " + "QUERY('foo', 'default_field=last_name;lenient=true', 'fuzzy_rewrite=scoring_boolean')"
+        );
 
         StringQueryPredicate sqp = (StringQueryPredicate) ((Filter) plan.children().get(0).children().get(0)).condition();
         assertEquals("foo", sqp.query());
@@ -224,8 +269,9 @@ public class SqlParserTests extends ESTestCase {
     }
 
     public void testMatchQuery() {
-        LogicalPlan plan = parseStatement("SELECT * FROM FOO WHERE " +
-                    "MATCH(first_name, 'foo', 'operator=AND;lenient=true', 'fuzzy_rewrite=scoring_boolean')");
+        LogicalPlan plan = parseStatement(
+            "SELECT * FROM FOO WHERE " + "MATCH(first_name, 'foo', 'operator=AND;lenient=true', 'fuzzy_rewrite=scoring_boolean')"
+        );
 
         MatchQueryPredicate mqp = (MatchQueryPredicate) ((Filter) plan.children().get(0).children().get(0)).condition();
         assertEquals("foo", mqp.query());
@@ -237,8 +283,10 @@ public class SqlParserTests extends ESTestCase {
     }
 
     public void testMultiMatchQuery() {
-        LogicalPlan plan = parseStatement("SELECT * FROM FOO WHERE " +
-                "MATCH('first_name,last_name', 'foo', 'operator=AND;type=best_fields', 'fuzzy_rewrite=scoring_boolean')");
+        LogicalPlan plan = parseStatement(
+            "SELECT * FROM FOO WHERE "
+                + "MATCH('first_name,last_name', 'foo', 'operator=AND;type=best_fields', 'fuzzy_rewrite=scoring_boolean')"
+        );
 
         MultiMatchQueryPredicate mmqp = (MultiMatchQueryPredicate) ((Filter) plan.children().get(0).children().get(0)).condition();
         assertEquals("foo", mmqp.query());
@@ -256,24 +304,31 @@ public class SqlParserTests extends ESTestCase {
         new SqlParser().createExpression(join(" OR ", nCopies(1000, "a = b")));
 
         // 10000 elements cause stack overflow
-        ParsingException e = expectThrows(ParsingException.class, () ->
-            new SqlParser().createExpression(join(" OR ", nCopies(10000, "a = b"))));
-        assertThat(e.getMessage(),
-            startsWith("line -1:0: SQL statement is too large, causing stack overflow when generating the parsing tree: ["));
+        ParsingException e = expectThrows(
+            ParsingException.class,
+            () -> new SqlParser().createExpression(join(" OR ", nCopies(10000, "a = b")))
+        );
+        assertThat(
+            e.getMessage(),
+            startsWith("line -1:0: SQL statement is too large, causing stack overflow when generating the parsing tree: [")
+        );
     }
 
     public void testLimitToPreventStackOverflowFromLargeUnaryArithmeticExpression() {
         // Create expression in the form of abs(abs(abs ... (i) ...)
 
         // 200 elements is ok
-        new SqlParser().createExpression(
-            join("", nCopies(200, "abs(")).concat("i").concat(join("", nCopies(200, ")"))));
+        new SqlParser().createExpression(join("", nCopies(200, "abs(")).concat("i").concat(join("", nCopies(200, ")"))));
 
         // 5000 elements cause stack overflow
-        ParsingException e = expectThrows(ParsingException.class, () -> new SqlParser().createExpression(
-            join("", nCopies(5000, "abs(")).concat("i").concat(join("", nCopies(5000, ")")))));
-        assertThat(e.getMessage(),
-            startsWith("line -1:0: SQL statement is too large, causing stack overflow when generating the parsing tree: ["));
+        ParsingException e = expectThrows(
+            ParsingException.class,
+            () -> new SqlParser().createExpression(join("", nCopies(5000, "abs(")).concat("i").concat(join("", nCopies(5000, ")"))))
+        );
+        assertThat(
+            e.getMessage(),
+            startsWith("line -1:0: SQL statement is too large, causing stack overflow when generating the parsing tree: [")
+        );
     }
 
     public void testLimitToPreventStackOverflowFromLargeBinaryArithmeticExpression() {
@@ -283,28 +338,30 @@ public class SqlParserTests extends ESTestCase {
         new SqlParser().createExpression(join(" + ", nCopies(1000, "a")));
 
         // 10000 elements cause stack overflow
-        ParsingException e = expectThrows(ParsingException.class, () ->
-            new SqlParser().createExpression(join(" + ", nCopies(10000, "a"))));
-        assertThat(e.getMessage(),
-            startsWith("line -1:0: SQL statement is too large, causing stack overflow when generating the parsing tree: ["));
+        ParsingException e = expectThrows(ParsingException.class, () -> new SqlParser().createExpression(join(" + ", nCopies(10000, "a"))));
+        assertThat(
+            e.getMessage(),
+            startsWith("line -1:0: SQL statement is too large, causing stack overflow when generating the parsing tree: [")
+        );
     }
 
     public void testLimitToPreventStackOverflowFromLargeSubselectTree() {
         // Test with queries in the form of `SELECT * FROM (SELECT * FROM (... t) ...)
 
         // 200 elements is ok
-        new SqlParser().createStatement(
-            join(" (", nCopies(200, "SELECT * FROM"))
-                .concat("t")
-                .concat(join("", nCopies(199, ")"))));
+        new SqlParser().createStatement(join(" (", nCopies(200, "SELECT * FROM")).concat("t").concat(join("", nCopies(199, ")"))));
 
         // 1000 elements cause stack overflow
-        ParsingException e = expectThrows(ParsingException.class, () -> new SqlParser().createStatement(
-            join(" (", nCopies(1000, "SELECT * FROM"))
-                .concat("t")
-                .concat(join("", nCopies(999, ")")))));
-        assertThat(e.getMessage(),
-            startsWith("line -1:0: SQL statement is too large, causing stack overflow when generating the parsing tree: ["));
+        ParsingException e = expectThrows(
+            ParsingException.class,
+            () -> new SqlParser().createStatement(
+                join(" (", nCopies(1000, "SELECT * FROM")).concat("t").concat(join("", nCopies(999, ")")))
+            )
+        );
+        assertThat(
+            e.getMessage(),
+            startsWith("line -1:0: SQL statement is too large, causing stack overflow when generating the parsing tree: [")
+        );
     }
 
     private LogicalPlan parseStatement(String sql) {
@@ -332,9 +389,7 @@ public class SqlParserTests extends ESTestCase {
      * Find the one and only {@code ORDER BY} in a plan.
      */
     private OrderBy orderBy(LogicalPlan plan) {
-        List<LogicalPlan> l = plan.children().stream()
-            .filter(c -> c instanceof OrderBy)
-            .collect(toList());
+        List<LogicalPlan> l = plan.children().stream().filter(c -> c instanceof OrderBy).collect(toList());
         assertThat("expected only one ORDER BY", l, hasSize(1));
         return (OrderBy) l.get(0);
     }

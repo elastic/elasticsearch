@@ -12,8 +12,10 @@ import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -29,8 +31,17 @@ public class InternalGeoBounds extends InternalAggregation implements GeoBounds 
     public final double negRight;
     public final boolean wrapLongitude;
 
-    public InternalGeoBounds(String name, double top, double bottom, double posLeft, double posRight,
-                             double negLeft, double negRight, boolean wrapLongitude, Map<String, Object> metadata) {
+    public InternalGeoBounds(
+        String name,
+        double top,
+        double bottom,
+        double posLeft,
+        double posRight,
+        double negLeft,
+        double negRight,
+        boolean wrapLongitude,
+        Map<String, Object> metadata
+    ) {
         super(name, metadata);
         this.top = top;
         this.bottom = bottom;
@@ -72,7 +83,7 @@ public class InternalGeoBounds extends InternalAggregation implements GeoBounds 
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         double top = Double.NEGATIVE_INFINITY;
         double bottom = Double.POSITIVE_INFINITY;
         double posLeft = Double.POSITIVE_INFINITY;
@@ -106,6 +117,11 @@ public class InternalGeoBounds extends InternalAggregation implements GeoBounds 
     }
 
     @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return this;
+    }
+
+    @Override
     protected boolean mustReduceOnSingleInternalAgg() {
         return false;
     }
@@ -117,41 +133,28 @@ public class InternalGeoBounds extends InternalAggregation implements GeoBounds 
         } else if (path.size() == 1) {
             GeoBoundingBox geoBoundingBox = resolveGeoBoundingBox();
             String bBoxSide = path.get(0);
-            switch (bBoxSide) {
-            case "top":
-                return geoBoundingBox.top();
-            case "left":
-                return geoBoundingBox.left();
-            case "bottom":
-                return geoBoundingBox.bottom();
-            case "right":
-                return geoBoundingBox.right();
-            default:
-                throw new IllegalArgumentException("Found unknown path element [" + bBoxSide + "] in [" + getName() + "]");
-            }
+            return switch (bBoxSide) {
+                case "top" -> geoBoundingBox.top();
+                case "left" -> geoBoundingBox.left();
+                case "bottom" -> geoBoundingBox.bottom();
+                case "right" -> geoBoundingBox.right();
+                default -> throw new IllegalArgumentException("Found unknown path element [" + bBoxSide + "] in [" + getName() + "]");
+            };
         } else if (path.size() == 2) {
             GeoBoundingBox geoBoundingBox = resolveGeoBoundingBox();
             GeoPoint cornerPoint = null;
             String cornerString = path.get(0);
-            switch (cornerString) {
-            case "top_left":
-                cornerPoint = geoBoundingBox.topLeft();
-                break;
-            case "bottom_right":
-                cornerPoint = geoBoundingBox.bottomRight();
-                break;
-            default:
-                throw new IllegalArgumentException("Found unknown path element [" + cornerString + "] in [" + getName() + "]");
-            }
+            cornerPoint = switch (cornerString) {
+                case "top_left" -> geoBoundingBox.topLeft();
+                case "bottom_right" -> geoBoundingBox.bottomRight();
+                default -> throw new IllegalArgumentException("Found unknown path element [" + cornerString + "] in [" + getName() + "]");
+            };
             String latLonString = path.get(1);
-            switch (latLonString) {
-            case "lat":
-                return cornerPoint.lat();
-            case "lon":
-                return cornerPoint.lon();
-            default:
-                throw new IllegalArgumentException("Found unknown path element [" + latLonString + "] in [" + getName() + "]");
-            }
+            return switch (latLonString) {
+                case "lat" -> cornerPoint.lat();
+                case "lon" -> cornerPoint.lon();
+                default -> throw new IllegalArgumentException("Found unknown path element [" + latLonString + "] in [" + getName() + "]");
+            };
         } else {
             throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
         }
@@ -215,13 +218,13 @@ public class InternalGeoBounds extends InternalAggregation implements GeoBounds 
         if (super.equals(obj) == false) return false;
 
         InternalGeoBounds other = (InternalGeoBounds) obj;
-        return top == other.top &&
-            bottom == other.bottom &&
-            posLeft == other.posLeft &&
-            posRight == other.posRight &&
-            negLeft == other.negLeft &&
-            negRight == other.negRight &&
-            wrapLongitude == other.wrapLongitude;
+        return top == other.top
+            && bottom == other.bottom
+            && posLeft == other.posLeft
+            && posRight == other.posRight
+            && negLeft == other.negLeft
+            && negRight == other.negRight
+            && wrapLongitude == other.wrapLongitude;
     }
 
     @Override

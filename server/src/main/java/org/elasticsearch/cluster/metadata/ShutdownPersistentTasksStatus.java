@@ -12,8 +12,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
@@ -22,11 +22,11 @@ public class ShutdownPersistentTasksStatus implements Writeable, ToXContentObjec
     private final SingleNodeShutdownMetadata.Status status;
 
     public ShutdownPersistentTasksStatus() {
-        this.status = SingleNodeShutdownMetadata.Status.IN_PROGRESS;
+        this.status = SingleNodeShutdownMetadata.Status.COMPLETE;
     }
 
     public ShutdownPersistentTasksStatus(StreamInput in) throws IOException {
-        this.status = SingleNodeShutdownMetadata.Status.IN_PROGRESS;
+        this.status = SingleNodeShutdownMetadata.Status.COMPLETE;
     }
 
     @Override
@@ -40,6 +40,10 @@ public class ShutdownPersistentTasksStatus implements Writeable, ToXContentObjec
     @Override
     public void writeTo(StreamOutput out) throws IOException {
 
+    }
+
+    public SingleNodeShutdownMetadata.Status getStatus() {
+        return status;
     }
 
     @Override

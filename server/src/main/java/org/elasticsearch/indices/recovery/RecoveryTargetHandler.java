@@ -11,9 +11,11 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeases;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.repositories.IndexId;
 
 import java.util.List;
 
@@ -64,23 +66,26 @@ public interface RecoveryTargetHandler {
      *                                            after these operations are successfully indexed on the target.
      */
     void indexTranslogOperations(
-            List<Translog.Operation> operations,
-            int totalTranslogOps,
-            long maxSeenAutoIdTimestampOnPrimary,
-            long maxSeqNoOfUpdatesOrDeletesOnPrimary,
-            RetentionLeases retentionLeases,
-            long mappingVersionOnPrimary,
-            ActionListener<Long> listener);
+        List<Translog.Operation> operations,
+        int totalTranslogOps,
+        long maxSeenAutoIdTimestampOnPrimary,
+        long maxSeqNoOfUpdatesOrDeletesOnPrimary,
+        RetentionLeases retentionLeases,
+        long mappingVersionOnPrimary,
+        ActionListener<Long> listener
+    );
 
     /**
      * Notifies the target of the files it is going to receive
      */
-    void receiveFileInfo(List<String> phase1FileNames,
-                         List<Long> phase1FileSizes,
-                         List<String> phase1ExistingFileNames,
-                         List<Long> phase1ExistingFileSizes,
-                         int totalTranslogOps,
-                         ActionListener<Void> listener);
+    void receiveFileInfo(
+        List<String> phase1FileNames,
+        List<Long> phase1FileSizes,
+        List<String> phase1ExistingFileNames,
+        List<Long> phase1ExistingFileSizes,
+        int totalTranslogOps,
+        ActionListener<Void> listener
+    );
 
     /**
      * After all source files has been sent over, this command is sent to the target so it can clean any local
@@ -92,9 +97,28 @@ public interface RecoveryTargetHandler {
      */
     void cleanFiles(int totalTranslogOps, long globalCheckpoint, Store.MetadataSnapshot sourceMetadata, ActionListener<Void> listener);
 
+    /**
+     * Restores a snapshot file in the target store
+     * @param repository the repository to fetch the snapshot file
+     * @param indexId the repository index id that identifies the shard index
+     * @param snapshotFile the actual snapshot file to download
+     */
+    void restoreFileFromSnapshot(
+        String repository,
+        IndexId indexId,
+        BlobStoreIndexShardSnapshot.FileInfo snapshotFile,
+        ActionListener<Void> listener
+    );
+
     /** writes a partial file chunk to the target store */
-    void writeFileChunk(StoreFileMetadata fileMetadata, long position, ReleasableBytesReference content,
-                        boolean lastChunk, int totalTranslogOps, ActionListener<Void> listener);
+    void writeFileChunk(
+        StoreFileMetadata fileMetadata,
+        long position,
+        ReleasableBytesReference content,
+        boolean lastChunk,
+        int totalTranslogOps,
+        ActionListener<Void> listener
+    );
 
     default void cancel() {}
 }

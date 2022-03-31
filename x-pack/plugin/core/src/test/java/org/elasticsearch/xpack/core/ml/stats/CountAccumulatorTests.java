@@ -73,7 +73,7 @@ public class CountAccumulatorTests extends AbstractWireSerializingTestCase<Count
         when(bucket2.getKeyAsString()).thenReturn("b");
         when(bucket2.getDocCount()).thenReturn(33L);
 
-        List<Bucket> buckets =  Arrays.asList(bucket1, bucket2);
+        List<Bucket> buckets = Arrays.asList(bucket1, bucket2);
         when(termsAggregation.getBuckets()).thenReturn(buckets);
 
         CountAccumulator accumulator = CountAccumulator.fromTermsAggregation(termsAggregation);

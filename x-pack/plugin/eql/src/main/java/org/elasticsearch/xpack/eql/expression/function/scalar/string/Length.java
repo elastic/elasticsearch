@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
@@ -26,6 +25,7 @@ import java.util.Locale;
 
 import static java.lang.String.format;
 import static org.elasticsearch.xpack.eql.expression.function.scalar.string.LengthFunctionProcessor.doProcess;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
@@ -48,7 +48,7 @@ public class Length extends ScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
-        return isStringAndExact(input, sourceText(), ParamOrdinal.DEFAULT);
+        return isStringAndExact(input, sourceText(), DEFAULT);
     }
 
     @Override
@@ -75,19 +75,20 @@ public class Length extends ScalarFunction {
     public ScriptTemplate asScript() {
         ScriptTemplate inputScript = asScript(input);
 
-        return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{eql}.%s(%s)"),
-                "length",
-                inputScript.template()),
-                paramsBuilder()
-                    .script(inputScript.params())
-                    .build(), dataType());
+        return new ScriptTemplate(
+            format(Locale.ROOT, formatTemplate("{eql}.%s(%s)"), "length", inputScript.template()),
+            paramsBuilder().script(inputScript.params()).build(),
+            dataType()
+        );
     }
 
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
-        return new ScriptTemplate(processScript(Scripts.DOC_VALUE),
-                paramsBuilder().variable(field.exactAttribute().name()).build(),
-                dataType());
+        return new ScriptTemplate(
+            processScript(Scripts.DOC_VALUE),
+            paramsBuilder().variable(field.exactAttribute().name()).build(),
+            dataType()
+        );
     }
 
     @Override

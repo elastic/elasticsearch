@@ -80,8 +80,8 @@ public class ScriptTemplate {
 
         ScriptTemplate other = (ScriptTemplate) obj;
         return Objects.equals(template, other.template)
-                && Objects.equals(params, other.params)
-                && Objects.equals(outputType, other.outputType);
+            && Objects.equals(params, other.params)
+            && Objects.equals(outputType, other.outputType);
     }
 
     @Override

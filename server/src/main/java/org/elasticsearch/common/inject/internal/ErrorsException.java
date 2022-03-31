@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-
 package org.elasticsearch.common.inject.internal;
 
 /**

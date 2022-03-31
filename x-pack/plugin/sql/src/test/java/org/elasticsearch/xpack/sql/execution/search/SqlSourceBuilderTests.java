@@ -46,8 +46,8 @@ public class SqlSourceBuilderTests extends ESTestCase {
         assertThat(fetchFields.get(1).format, equalTo("test"));
 
         Map<String, Script> scriptFields = source.scriptFields()
-                .stream()
-                .collect(Collectors.toMap(SearchSourceBuilder.ScriptField::fieldName, SearchSourceBuilder.ScriptField::script));
+            .stream()
+            .collect(Collectors.toMap(SearchSourceBuilder.ScriptField::fieldName, SearchSourceBuilder.ScriptField::script));
         assertThat(scriptFields.get("baz").getIdOrCode(), equalTo("eggplant"));
         assertThat(scriptFields.get("baz2").getIdOrCode(), equalTo("potato"));
     }

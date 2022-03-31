@@ -16,6 +16,7 @@
             - "windows-2012-r2"
             - "windows-2016"
             - "windows-2019"
+            - "windows-2022"
     builders:
       - inject:
           properties-file: '.ci/java-versions.properties'
@@ -27,5 +28,5 @@
           mkdir %USERPROFILE%\.gradle\init.d
           copy .ci\init.gradle %USERPROFILE%\.gradle\init.d\
           (
-             echo powershell.exe .\.ci\os.ps1   ^|^| exit /b 1
+             echo powershell.exe .\.ci\scripts\packaging-test.ps1   ^|^| exit /b 1
           ) | java -jar "C:\Program Files\infra\bin\runbld" --redirect-stderr -

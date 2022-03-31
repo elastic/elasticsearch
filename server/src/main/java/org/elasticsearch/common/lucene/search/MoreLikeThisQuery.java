@@ -19,6 +19,7 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.similarities.ClassicSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarities.TFIDFSimilarity;
@@ -59,13 +60,12 @@ public class MoreLikeThisQuery extends Query {
     private boolean boostTerms = XMoreLikeThis.DEFAULT_BOOST;
     private float boostTermsFactor = 1;
 
-
     public MoreLikeThisQuery() {
 
     }
 
     public MoreLikeThisQuery(String likeText, String[] moreLikeFields, NamedAnalyzer analyzer) {
-        this.likeText = new String[]{likeText};
+        this.likeText = new String[] { likeText };
         this.moreLikeFields = moreLikeFields;
         this.analyzer = analyzer;
         this.analyzerName = analyzer.name();
@@ -73,9 +73,21 @@ public class MoreLikeThisQuery extends Query {
 
     @Override
     public int hashCode() {
-        return Objects.hash(classHash(), boostTerms, boostTermsFactor, Arrays.hashCode(likeText),
-                maxDocFreq, maxQueryTerms, maxWordLen, minDocFreq, minTermFrequency, minWordLen,
-                Arrays.hashCode(moreLikeFields), minimumShouldMatch, stopWords);
+        return Objects.hash(
+            classHash(),
+            boostTerms,
+            boostTermsFactor,
+            Arrays.hashCode(likeText),
+            maxDocFreq,
+            maxQueryTerms,
+            maxWordLen,
+            minDocFreq,
+            minTermFrequency,
+            minWordLen,
+            Arrays.hashCode(moreLikeFields),
+            minimumShouldMatch,
+            stopWords
+        );
     }
 
     @Override
@@ -84,40 +96,24 @@ public class MoreLikeThisQuery extends Query {
             return false;
         }
         MoreLikeThisQuery other = (MoreLikeThisQuery) obj;
-        if (Objects.equals(analyzerName, other.analyzerName) == false)
-            return false;
-        if (boostTerms != other.boostTerms)
-            return false;
-        if (boostTermsFactor != other.boostTermsFactor)
-            return false;
-        if ((Arrays.equals(likeText, other.likeText)) == false)
-            return false;
-        if (maxDocFreq != other.maxDocFreq)
-            return false;
-        if (maxQueryTerms != other.maxQueryTerms)
-            return false;
-        if (maxWordLen != other.maxWordLen)
-            return false;
-        if (minDocFreq != other.minDocFreq)
-            return false;
-        if (minTermFrequency != other.minTermFrequency)
-            return false;
-        if (minWordLen != other.minWordLen)
-            return false;
-        if (Arrays.equals(moreLikeFields, other.moreLikeFields) == false)
-            return false;
-        if (minimumShouldMatch.equals(other.minimumShouldMatch) == false)
-            return false;
+        if (Objects.equals(analyzerName, other.analyzerName) == false) return false;
+        if (boostTerms != other.boostTerms) return false;
+        if (boostTermsFactor != other.boostTermsFactor) return false;
+        if ((Arrays.equals(likeText, other.likeText)) == false) return false;
+        if (maxDocFreq != other.maxDocFreq) return false;
+        if (maxQueryTerms != other.maxQueryTerms) return false;
+        if (maxWordLen != other.maxWordLen) return false;
+        if (minDocFreq != other.minDocFreq) return false;
+        if (minTermFrequency != other.minTermFrequency) return false;
+        if (minWordLen != other.minWordLen) return false;
+        if (Arrays.equals(moreLikeFields, other.moreLikeFields) == false) return false;
+        if (minimumShouldMatch.equals(other.minimumShouldMatch) == false) return false;
         if (similarity == null) {
-            if (other.similarity != null)
-                return false;
-        } else if (similarity.equals(other.similarity) == false)
-            return false;
+            if (other.similarity != null) return false;
+        } else if (similarity.equals(other.similarity) == false) return false;
         if (stopWords == null) {
-            if (other.stopWords != null)
-                return false;
-        } else if (stopWords.equals(other.stopWords) == false)
-            return false;
+            if (other.stopWords != null) return false;
+        } else if (stopWords.equals(other.stopWords) == false) return false;
         return true;
     }
 
@@ -148,6 +144,11 @@ public class MoreLikeThisQuery extends Query {
         return createQuery(mlt);
     }
 
+    @Override
+    public void visit(QueryVisitor visitor) {
+        visitor.visitLeaf(this);
+    }
+
     private Query createQuery(XMoreLikeThis mlt) throws IOException {
         BooleanQuery.Builder bqBuilder = new BooleanQuery.Builder();
         if (this.likeFields != null) {
@@ -160,7 +161,7 @@ public class MoreLikeThisQuery extends Query {
             for (int i = 0; i < readers.length; i++) {
                 readers[i] = new StringReader(likeText[i]);
             }
-            //LUCENE 4 UPGRADE this mapps the 3.6 behavior (only use the first field)
+            // LUCENE 4 UPGRADE this mapps the 3.6 behavior (only use the first field)
             Query mltQuery = mlt.like(moreLikeFields[0], readers);
             mltQuery = Queries.applyMinimumShouldMatch((BooleanQuery) mltQuery, minimumShouldMatch);
             bqBuilder.add(mltQuery, BooleanClause.Occur.SHOULD);
@@ -254,7 +255,7 @@ public class MoreLikeThisQuery extends Query {
 
     public void setSimilarity(Similarity similarity) {
         if (similarity == null || similarity instanceof TFIDFSimilarity) {
-            //LUCENE 4 UPGRADE we need TFIDF similarity here so I only set it if it is an instance of it
+            // LUCENE 4 UPGRADE we need TFIDF similarity here so I only set it if it is an instance of it
             this.similarity = (TFIDFSimilarity) similarity;
         }
     }

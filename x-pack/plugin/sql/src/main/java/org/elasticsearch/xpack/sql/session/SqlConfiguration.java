@@ -7,18 +7,23 @@
 package org.elasticsearch.xpack.sql.session;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.xpack.sql.action.SqlQueryTask;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
 
 import java.time.ZoneId;
+import java.util.Collections;
 import java.util.Map;
 
 // Typed object holding properties for a given query
 public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configuration {
 
+    @Nullable
+    private final String catalog;
     private final int pageSize;
     private final TimeValue requestTimeout;
     private final TimeValue pageTimeout;
@@ -29,20 +34,37 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
     private final boolean includeFrozenIndices;
 
     @Nullable
-    private QueryBuilder filter;
+    private final TaskId taskId;
+    @Nullable
+    private final SqlQueryTask task;
 
     @Nullable
-    private Map<String, Object> runtimeMappings;
+    private final QueryBuilder filter;
 
-    public SqlConfiguration(ZoneId zi, int pageSize, TimeValue requestTimeout, TimeValue pageTimeout, QueryBuilder filter,
-                         Map<String, Object> runtimeMappings,
-                         Mode mode, String clientId, SqlVersion version,
-                         String username, String clusterName,
-                         boolean multiValueFieldLeniency,
-                         boolean includeFrozen) {
+    @Nullable
+    private final Map<String, Object> runtimeMappings;
 
-        super(zi, username, clusterName);
+    public SqlConfiguration(
+        ZoneId zi,
+        @Nullable String catalog,
+        int pageSize,
+        TimeValue requestTimeout,
+        TimeValue pageTimeout,
+        QueryBuilder filter,
+        Map<String, Object> runtimeMappings,
+        Mode mode,
+        String clientId,
+        SqlVersion version,
+        String username,
+        String clusterName,
+        boolean multiValueFieldLeniency,
+        boolean includeFrozen,
+        @Nullable TaskId taskId,
+        @Nullable SqlQueryTask task
+    ) {
+        super(zi, username, clusterName, x -> Collections.emptySet());
 
+        this.catalog = catalog;
         this.pageSize = pageSize;
         this.requestTimeout = requestTimeout;
         this.pageTimeout = pageTimeout;
@@ -53,6 +75,12 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
         this.version = version != null ? version : SqlVersion.fromId(Version.CURRENT.id);
         this.multiValueFieldLeniency = multiValueFieldLeniency;
         this.includeFrozenIndices = includeFrozen;
+        this.taskId = taskId;
+        this.task = task;
+    }
+
+    public String catalog() {
+        return catalog;
     }
 
     public int pageSize() {
@@ -93,5 +121,13 @@ public class SqlConfiguration extends org.elasticsearch.xpack.ql.session.Configu
 
     public SqlVersion version() {
         return version;
+    }
+
+    public TaskId taskId() {
+        return taskId;
+    }
+
+    public SqlQueryTask task() {
+        return task;
     }
 }

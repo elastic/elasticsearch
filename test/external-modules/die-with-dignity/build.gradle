@@ -1,0 +1,36 @@
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.util.GradleUtils
+
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.internal-es-plugin'
+
+esplugin {
+  description 'Die with dignity plugin'
+  classname 'org.elasticsearch.test.diewithdignity.DieWithDignityPlugin'
+}
+
+// let the javaRestTest see the classpath of main
+GradleUtils.extendSourceSet(project, "main", "javaRestTest", tasks.named("javaRestTest"))
+
+tasks.named("javaRestTest").configure {
+  it.onlyIf { BuildParams.isSnapshotBuild() }
+  systemProperty 'tests.security.manager', 'false'
+  systemProperty 'tests.system_call_filter', 'false'
+  nonInputProperties.systemProperty 'log', testClusters.named("javaRestTest").map(c -> c.singleNode().getServerLog())
+  systemProperty 'runtime.java.home', BuildParams.runtimeJavaHome
+}
+
+testClusters.matching { it.name == "javaRestTest" }.configureEach {
+  systemProperty "die.with.dignity.test", "true"
+  // disable exit on out of memory error to let DieWithDignityIT verify that OOM handling without that works (including OOMs that are not caused by
+  // memory like native threads. We leave it to the JVM to test that exit on OOM works via the flag.
+  jvmArgs '-XX:-ExitOnOutOfMemoryError'
+}
+
+tasks.named("test").configure {
+  enabled = false
+}
+
+tasks.named("yamlRestTest").configure {
+  enabled = false
+}

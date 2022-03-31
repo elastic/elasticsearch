@@ -7,16 +7,24 @@
 package org.elasticsearch.xpack.ml.action;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesAction;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
+import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ml.action.PreviewDatafeedAction;
 import org.elasticsearch.xpack.core.ml.datafeed.ChunkingConfig;
@@ -35,81 +43,106 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.xpack.core.ClientHelper.filterSecurityHeaders;
+import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.executeWithHeadersAsync;
 import static org.elasticsearch.xpack.ml.utils.SecondaryAuthorizationUtils.useSecondaryAuthIfAvailable;
 
 public class TransportPreviewDatafeedAction extends HandledTransportAction<PreviewDatafeedAction.Request, PreviewDatafeedAction.Response> {
 
     private final ThreadPool threadPool;
     private final Client client;
+    private final ClusterService clusterService;
     private final JobConfigProvider jobConfigProvider;
     private final DatafeedConfigProvider datafeedConfigProvider;
     private final NamedXContentRegistry xContentRegistry;
     private final SecurityContext securityContext;
 
     @Inject
-    public TransportPreviewDatafeedAction(Settings settings, ThreadPool threadPool, TransportService transportService,
-                                          ActionFilters actionFilters, Client client, JobConfigProvider jobConfigProvider,
-                                          DatafeedConfigProvider datafeedConfigProvider,
-                                          NamedXContentRegistry xContentRegistry) {
+    public TransportPreviewDatafeedAction(
+        Settings settings,
+        ThreadPool threadPool,
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Client client,
+        ClusterService clusterService,
+        JobConfigProvider jobConfigProvider,
+        DatafeedConfigProvider datafeedConfigProvider,
+        NamedXContentRegistry xContentRegistry
+    ) {
         super(PreviewDatafeedAction.NAME, transportService, actionFilters, PreviewDatafeedAction.Request::new);
         this.threadPool = threadPool;
         this.client = client;
+        this.clusterService = clusterService;
         this.jobConfigProvider = jobConfigProvider;
         this.datafeedConfigProvider = datafeedConfigProvider;
         this.xContentRegistry = xContentRegistry;
-        this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings) ?
-            new SecurityContext(settings, threadPool.getThreadContext()) : null;
+        this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
+            ? new SecurityContext(settings, threadPool.getThreadContext())
+            : null;
     }
 
     @Override
     protected void doExecute(Task task, PreviewDatafeedAction.Request request, ActionListener<PreviewDatafeedAction.Response> listener) {
-        ActionListener<DatafeedConfig> datafeedConfigActionListener = ActionListener.wrap(
-            datafeedConfig -> {
-                if (request.getJobConfig() != null) {
-                    previewDatafeed(datafeedConfig, request.getJobConfig().build(new Date()), listener);
-                    return;
-                }
-                jobConfigProvider.getJob(datafeedConfig.getJobId(), ActionListener.wrap(
-                    jobBuilder -> previewDatafeed(datafeedConfig, jobBuilder.build(), listener),
-                    listener::onFailure));
-            },
-            listener::onFailure
-        );
+        ActionListener<DatafeedConfig> datafeedConfigActionListener = ActionListener.wrap(datafeedConfig -> {
+            if (request.getJobConfig() != null) {
+                previewDatafeed(task, datafeedConfig, request.getJobConfig().build(new Date()), listener);
+                return;
+            }
+            jobConfigProvider.getJob(
+                datafeedConfig.getJobId(),
+                ActionListener.wrap(jobBuilder -> previewDatafeed(task, datafeedConfig, jobBuilder.build(), listener), listener::onFailure)
+            );
+        }, listener::onFailure);
         if (request.getDatafeedConfig() != null) {
             datafeedConfigActionListener.onResponse(request.getDatafeedConfig());
         } else {
             datafeedConfigProvider.getDatafeedConfig(
                 request.getDatafeedId(),
-                ActionListener.wrap(builder -> datafeedConfigActionListener.onResponse(builder.build()), listener::onFailure));
+                ActionListener.wrap(builder -> datafeedConfigActionListener.onResponse(builder.build()), listener::onFailure)
+            );
         }
     }
 
     private void previewDatafeed(
+        Task task,
         DatafeedConfig datafeedConfig,
         Job job,
         ActionListener<PreviewDatafeedAction.Response> listener
     ) {
-        DatafeedConfig.Builder previewDatafeed = buildPreviewDatafeed(datafeedConfig);
+        DatafeedConfig.Builder previewDatafeedBuilder = buildPreviewDatafeed(datafeedConfig);
         useSecondaryAuthIfAvailable(securityContext, () -> {
-            previewDatafeed.setHeaders(filterSecurityHeaders(threadPool.getThreadContext().getHeaders()));
+            previewDatafeedBuilder.setHeaders(
+                ClientHelper.getPersistableSafeSecurityHeaders(threadPool.getThreadContext(), clusterService.state())
+            );
             // NB: this is using the client from the transport layer, NOT the internal client.
             // This is important because it means the datafeed search will fail if the user
             // requesting the preview doesn't have permission to search the relevant indices.
+            DatafeedConfig previewDatafeedConfig = previewDatafeedBuilder.build();
             DataExtractorFactory.create(
-                client,
-                previewDatafeed.build(),
+                new ParentTaskAssigningClient(client, clusterService.localNode(), task),
+                previewDatafeedConfig,
                 job,
                 xContentRegistry,
                 // Fake DatafeedTimingStatsReporter that does not have access to results index
                 new DatafeedTimingStatsReporter(new DatafeedTimingStats(datafeedConfig.getJobId()), (ts, refreshPolicy) -> {}),
                 listener.delegateFailure((l, dataExtractorFactory) -> {
-                    DataExtractor dataExtractor = dataExtractorFactory.newExtractor(0, Long.MAX_VALUE);
-                    threadPool.generic().execute(() -> previewDatafeed(dataExtractor, l));
-                }));
+                    isDateNanos(
+                        previewDatafeedConfig,
+                        job.getDataDescription().getTimeField(),
+                        listener.delegateFailure((l2, isDateNanos) -> {
+                            DataExtractor dataExtractor = dataExtractorFactory.newExtractor(
+                                0,
+                                isDateNanos ? DateUtils.MAX_NANOSECOND_INSTANT.toEpochMilli() : Long.MAX_VALUE
+                            );
+                            threadPool.generic().execute(() -> previewDatafeed(dataExtractor, l));
+                        })
+                    );
+                })
+            );
         });
     }
 
@@ -130,10 +163,27 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
         return previewDatafeed;
     }
 
+    private void isDateNanos(DatafeedConfig datafeed, String timeField, ActionListener<Boolean> listener) {
+        FieldCapabilitiesRequest fieldCapabilitiesRequest = new FieldCapabilitiesRequest();
+        fieldCapabilitiesRequest.indices(datafeed.getIndices().toArray(new String[0])).indicesOptions(datafeed.getIndicesOptions());
+        fieldCapabilitiesRequest.fields(timeField);
+        executeWithHeadersAsync(
+            datafeed.getHeaders(),
+            ML_ORIGIN,
+            client,
+            FieldCapabilitiesAction.INSTANCE,
+            fieldCapabilitiesRequest,
+            ActionListener.wrap(fieldCapsResponse -> {
+                Map<String, FieldCapabilities> timeFieldCaps = fieldCapsResponse.getField(timeField);
+                listener.onResponse(timeFieldCaps.keySet().contains(DateFieldMapper.DATE_NANOS_CONTENT_TYPE));
+            }, listener::onFailure)
+        );
+    }
+
     /** Visible for testing */
     static void previewDatafeed(DataExtractor dataExtractor, ActionListener<PreviewDatafeedAction.Response> listener) {
         try {
-            Optional<InputStream> inputStream = dataExtractor.next();
+            Optional<InputStream> inputStream = dataExtractor.next().data();
             // DataExtractor returns single-line JSON but without newline characters between objects.
             // Instead, it has a space between objects due to how JSON XContentBuilder works.
             // In order to return a proper JSON array from preview, we surround with square brackets and
@@ -147,8 +197,9 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
                 }
             }
             responseBuilder.append("]");
-            listener.onResponse(new PreviewDatafeedAction.Response(
-                new BytesArray(responseBuilder.toString().getBytes(StandardCharsets.UTF_8))));
+            listener.onResponse(
+                new PreviewDatafeedAction.Response(new BytesArray(responseBuilder.toString().getBytes(StandardCharsets.UTF_8)))
+            );
         } catch (Exception e) {
             listener.onFailure(e);
         } finally {

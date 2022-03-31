@@ -80,73 +80,138 @@ import org.elasticsearch.painless.ir.WhileLoopNode;
 public interface IRTreeVisitor<Scope> {
 
     void visitClass(ClassNode irClassNode, Scope scope);
+
     void visitFunction(FunctionNode irFunctionNode, Scope scope);
+
     void visitField(FieldNode irFieldNode, Scope scope);
 
     void visitBlock(BlockNode irBlockNode, Scope scope);
+
     void visitIf(IfNode irIfNode, Scope scope);
+
     void visitIfElse(IfElseNode irIfElseNode, Scope scope);
+
     void visitWhileLoop(WhileLoopNode irWhileLoopNode, Scope scope);
+
     void visitDoWhileLoop(DoWhileLoopNode irDoWhileLoopNode, Scope scope);
+
     void visitForLoop(ForLoopNode irForLoopNode, Scope scope);
+
     void visitForEachLoop(ForEachLoopNode irForEachLoopNode, Scope scope);
+
     void visitForEachSubArrayLoop(ForEachSubArrayNode irForEachSubArrayNode, Scope scope);
+
     void visitForEachSubIterableLoop(ForEachSubIterableNode irForEachSubIterableNode, Scope scope);
+
     void visitDeclarationBlock(DeclarationBlockNode irDeclarationBlockNode, Scope scope);
+
     void visitDeclaration(DeclarationNode irDeclarationNode, Scope scope);
+
     void visitReturn(ReturnNode irReturnNode, Scope scope);
+
     void visitStatementExpression(StatementExpressionNode irStatementExpressionNode, Scope scope);
+
     void visitTry(TryNode irTryNode, Scope scope);
+
     void visitCatch(CatchNode irCatchNode, Scope scope);
+
     void visitThrow(ThrowNode irThrowNode, Scope scope);
+
     void visitContinue(ContinueNode irContinueNode, Scope scope);
+
     void visitBreak(BreakNode irBreakNode, Scope scope);
 
     void visitBinaryImpl(BinaryImplNode irBinaryImplNode, Scope scope);
+
     void visitUnaryMath(UnaryMathNode irUnaryMathNode, Scope scope);
+
     void visitBinaryMath(BinaryMathNode irBinaryMathNode, Scope scope);
+
     void visitStringConcatenation(StringConcatenationNode irStringConcatenationNode, Scope scope);
+
     void visitBoolean(BooleanNode irBooleanNode, Scope scope);
+
     void visitComparison(ComparisonNode irComparisonNode, Scope scope);
+
     void visitCast(CastNode irCastNode, Scope scope);
+
     void visitInstanceof(InstanceofNode irInstanceofNode, Scope scope);
+
     void visitConditional(ConditionalNode irConditionalNode, Scope scope);
+
     void visitElvis(ElvisNode irElvisNode, Scope scope);
+
     void visitListInitialization(ListInitializationNode irListInitializationNode, Scope scope);
+
     void visitMapInitialization(MapInitializationNode irMapInitializationNode, Scope scope);
+
     void visitNewArray(NewArrayNode irNewArrayNode, Scope scope);
+
     void visitNewObject(NewObjectNode irNewObjectNode, Scope scope);
+
     void visitConstant(ConstantNode irConstantNode, Scope scope);
+
     void visitNull(NullNode irNullNode, Scope scope);
+
     void visitDefInterfaceReference(DefInterfaceReferenceNode irDefInterfaceReferenceNode, Scope scope);
+
     void visitTypedInterfaceReference(TypedInterfaceReferenceNode irTypedInterfaceReferenceNode, Scope scope);
+
     void visitTypedCaptureReference(TypedCaptureReferenceNode irTypedCaptureReferenceNode, Scope scope);
+
     void visitStatic(StaticNode irStaticNode, Scope scope);
+
     void visitLoadVariable(LoadVariableNode irLoadVariableNode, Scope scope);
+
     void visitNullSafeSub(NullSafeSubNode irNullSafeSubNode, Scope scope);
+
     void visitLoadDotArrayLengthNode(LoadDotArrayLengthNode irLoadDotArrayLengthNode, Scope scope);
+
     void visitLoadDotDef(LoadDotDefNode irLoadDotDefNode, Scope scope);
+
     void visitLoadDot(LoadDotNode irLoadDotNode, Scope scope);
+
     void visitLoadDotShortcut(LoadDotShortcutNode irDotSubShortcutNode, Scope scope);
+
     void visitLoadListShortcut(LoadListShortcutNode irLoadListShortcutNode, Scope scope);
+
     void visitLoadMapShortcut(LoadMapShortcutNode irLoadMapShortcutNode, Scope scope);
+
     void visitLoadFieldMember(LoadFieldMemberNode irLoadFieldMemberNode, Scope scope);
+
     void visitLoadBraceDef(LoadBraceDefNode irLoadBraceDefNode, Scope scope);
+
     void visitLoadBrace(LoadBraceNode irLoadBraceNode, Scope scope);
+
     void visitStoreVariable(StoreVariableNode irStoreVariableNode, Scope scope);
+
     void visitStoreDotDef(StoreDotDefNode irStoreDotDefNode, Scope scope);
+
     void visitStoreDot(StoreDotNode irStoreDotNode, Scope scope);
+
     void visitStoreDotShortcut(StoreDotShortcutNode irDotSubShortcutNode, Scope scope);
+
     void visitStoreListShortcut(StoreListShortcutNode irStoreListShortcutNode, Scope scope);
+
     void visitStoreMapShortcut(StoreMapShortcutNode irStoreMapShortcutNode, Scope scope);
+
     void visitStoreFieldMember(StoreFieldMemberNode irStoreFieldMemberNode, Scope scope);
+
     void visitStoreBraceDef(StoreBraceDefNode irStoreBraceDefNode, Scope scope);
+
     void visitStoreBrace(StoreBraceNode irStoreBraceNode, Scope scope);
+
     void visitInvokeCallDef(InvokeCallDefNode irInvokeCallDefNode, Scope scope);
+
     void visitInvokeCall(InvokeCallNode irInvokeCallNode, Scope scope);
+
     void visitInvokeCallMember(InvokeCallMemberNode irInvokeCallMemberNode, Scope scope);
+
     void visitFlipArrayIndex(FlipArrayIndexNode irFlipArrayIndexNode, Scope scope);
+
     void visitFlipCollectionIndex(FlipCollectionIndexNode irFlipCollectionIndexNode, Scope scope);
+
     void visitFlipDefIndex(FlipDefIndexNode irFlipDefIndexNode, Scope scope);
+
     void visitDup(DupNode irDupNode, Scope scope);
 }

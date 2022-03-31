@@ -6,23 +6,27 @@
  */
 package org.elasticsearch.xpack.sql.action;
 
+import com.fasterxml.jackson.core.JsonGenerator;
+
+import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.ql.async.QlStatusResponse;
+import org.elasticsearch.xpack.sql.proto.ColumnInfo;
+import org.elasticsearch.xpack.sql.proto.Mode;
+import org.elasticsearch.xpack.sql.proto.SqlVersion;
+import org.elasticsearch.xpack.sql.proto.StringUtils;
+
 import java.io.IOException;
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.sql.proto.ColumnInfo;
-import org.elasticsearch.xpack.sql.proto.Mode;
-import org.elasticsearch.xpack.sql.proto.SqlVersion;
-import org.elasticsearch.xpack.sql.proto.StringUtils;
 
 import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.Version.CURRENT;
@@ -35,7 +39,7 @@ import static org.elasticsearch.xpack.sql.proto.SqlVersion.isClientCompatible;
 /**
  * Response to perform an sql query
  */
-public class SqlQueryResponse extends ActionResponse implements ToXContentObject {
+public class SqlQueryResponse extends ActionResponse implements ToXContentObject, QlStatusResponse.AsyncStatus {
 
     // TODO: Simplify cursor handling
     private String cursor;
@@ -46,6 +50,10 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
     // TODO investigate reusing Page here - it probably is much more efficient
     private List<List<Object>> rows;
     private static final String INTERVAL_CLASS_NAME = "Interval";
+    // async
+    private final @Nullable String asyncExecutionId;
+    private final boolean isPartial;
+    private final boolean isRunning;
 
     public SqlQueryResponse(StreamInput in) throws IOException {
         super(in);
@@ -75,6 +83,38 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
             }
         }
         this.rows = unmodifiableList(rows);
+        if (in.getVersion().onOrAfter(Version.V_7_14_0)) {
+            columnar = in.readBoolean();
+            asyncExecutionId = in.readOptionalString();
+            isPartial = in.readBoolean();
+            isRunning = in.readBoolean();
+        } else {
+            asyncExecutionId = null;
+            isPartial = false;
+            isRunning = false;
+        }
+    }
+
+    public SqlQueryResponse(
+        String cursor,
+        Mode mode,
+        SqlVersion sqlVersion,
+        boolean columnar,
+        @Nullable List<ColumnInfo> columns,
+        List<List<Object>> rows,
+        @Nullable String asyncExecutionId,
+        boolean isPartial,
+        boolean isRunning
+    ) {
+        this.cursor = cursor;
+        this.mode = mode;
+        this.sqlVersion = sqlVersion != null ? sqlVersion : fromId(CURRENT.id);
+        this.columnar = columnar;
+        this.columns = columns;
+        this.rows = rows;
+        this.asyncExecutionId = asyncExecutionId;
+        this.isPartial = isPartial;
+        this.isRunning = isRunning;
     }
 
     public SqlQueryResponse(
@@ -85,12 +125,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
         @Nullable List<ColumnInfo> columns,
         List<List<Object>> rows
     ) {
-        this.cursor = cursor;
-        this.mode = mode;
-        this.sqlVersion = sqlVersion != null ? sqlVersion : fromId(CURRENT.id);
-        this.columnar = columnar;
-        this.columns = columns;
-        this.rows = rows;
+        this(cursor, mode, sqlVersion, columnar, columns, rows, null, false, false);
     }
 
     /**
@@ -157,18 +192,27 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
                 }
             }
         }
+        out.writeBoolean(columnar);
+        out.writeOptionalString(asyncExecutionId);
+        out.writeBoolean(isPartial);
+        out.writeBoolean(isRunning);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         {
+            if (hasId()) {
+                builder.field(Protocol.ID_NAME, asyncExecutionId);
+                builder.field(Protocol.IS_PARTIAL_NAME, isPartial);
+                builder.field(Protocol.IS_RUNNING_NAME, isRunning);
+            }
+
             if (columns != null) {
                 builder.startArray("columns");
-                {
-                    for (ColumnInfo column : columns) {
-                        column.toXContent(builder, params);
-                    }
+
+                for (ColumnInfo column : columns) {
+                    toXContent(column, builder, params);
                 }
                 builder.endArray();
             }
@@ -210,11 +254,27 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
     }
 
     /**
+     * See sql-proto {@link org.elasticsearch.xpack.sql.proto.Payloads#generate(JsonGenerator, ColumnInfo)}
+     */
+    private static XContentBuilder toXContent(ColumnInfo info, XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        String table = info.table();
+        if (table != null && table.isEmpty() == false) {
+            builder.field("table", table);
+        }
+        builder.field("name", info.name());
+        builder.field("type", info.esType());
+        if (info.displaySize() != null) {
+            builder.field("display_size", info.displaySize());
+        }
+        return builder.endObject();
+    }
+
+    /**
      * Serializes the provided value in SQL-compatible way based on the client mode
      */
     public static XContentBuilder value(XContentBuilder builder, Mode mode, SqlVersion sqlVersion, Object value) throws IOException {
-        if (value instanceof ZonedDateTime) {
-            ZonedDateTime zdt = (ZonedDateTime) value;
+        if (value instanceof ZonedDateTime zdt) {
             // use the ISO format
             if (mode == JDBC && isClientCompatible(SqlVersion.fromId(CURRENT.id), sqlVersion)) {
                 builder.value(StringUtils.toString(zdt, sqlVersion));
@@ -225,8 +285,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
             // use the SQL format for intervals when sending back the response for CLI
             // all other clients will receive ISO 8601 formatted intervals
             builder.value(value.toString());
-        }
-        else {
+        } else {
             builder.value(value);
         }
         return builder;
@@ -248,6 +307,25 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
         out.writeOptionalVInt(columnInfo.displaySize());
     }
 
+    public boolean hasId() {
+        return Strings.hasText(asyncExecutionId);
+    }
+
+    @Override
+    public String id() {
+        return asyncExecutionId;
+    }
+
+    @Override
+    public boolean isRunning() {
+        return isRunning;
+    }
+
+    @Override
+    public boolean isPartial() {
+        return isPartial;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -257,9 +335,7 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
             return false;
         }
         SqlQueryResponse that = (SqlQueryResponse) o;
-        return Objects.equals(cursor, that.cursor) &&
-                Objects.equals(columns, that.columns) &&
-                Objects.equals(rows, that.rows);
+        return Objects.equals(cursor, that.cursor) && Objects.equals(columns, that.columns) && Objects.equals(rows, that.rows);
     }
 
     @Override

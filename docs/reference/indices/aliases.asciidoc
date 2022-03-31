@@ -4,7 +4,7 @@
 <titleabbrev>Aliases</titleabbrev>
 ++++
 
-Performs one or more <<alias,alias>> actions in a single atomic operation.
+Performs one or more <<aliases,alias>> actions in a single atomic operation.
 
 [source,console]
 ----
@@ -80,32 +80,36 @@ The object body contains options for the alias. Supports an empty object.
 `alias`::
 (Required*, string) Alias for the action. Index alias names support
 <<date-math-index-names,date math>>. If `aliases` is not specified, the `add`
-and `remove` actions require this parameter. The `remove_index` action doesn't
-support this parameter.
+and `remove` actions require this parameter. For the `remove` action, this
+parameter supports wildcards (`*`). The `remove_index` action doesn't support
+this parameter.
 
 `aliases`::
 (Required*, array of strings) Aliases for the action. Index alias names support
 <<date-math-index-names,date math>>. If `alias` is not specified, the `add` and
-`remove` actions require this parameter. The `remove_index` action doesn't
-support this parameter.
+`remove` actions require this parameter. For the `remove` action, this parameter
+supports wildcards (`*`). The `remove_index` action doesn't support this
+parameter.
 
 // tag::alias-options[]
 `filter`::
 (Optional, <<query-dsl,Query DSL object>> Query used to limit documents the
-alias can access. Data stream aliases don't support this parameter.
+alias can access.
 // end::alias-options[]
 +
 Only the `add` action supports this parameter.
 
 `index`::
 (Required*, string) Data stream or index for the action. Supports wildcards
-(`*`). Wildcard patterns that match both data streams and indices return an
-error. If `indices` is not specified, this parameter is required.
+(`*`). If `indices` is not specified, this parameter is required. For the `add`
+and `remove_index` actions, wildcard patterns that match both data streams and
+indices return an error.
 
 `indices`::
 (Required*, array of strings) Data streams or indices for the action. Supports
-wildcards (`*`). Wildcard patterns that match both data streams and indices
-return an error. If `index` is not specified, this parameter is required.
+wildcards (`*`). If `index` is not specified, this parameter is required. For
+the `add` and `remove_index` actions, wildcard patterns that match both data
+streams and indices return an error.
 
 // tag::alias-options[]
 `index_routing`::
@@ -127,8 +131,16 @@ Only the `add` action supports this parameter.
 
 // tag::alias-options[]
 `is_write_index`::
-(Optional, Boolean) If `true`, sets the <<write-index,write index or data
-stream>> for the alias. Defaults to `false`.
+(Optional, Boolean) If `true`, sets the write index or data stream for the
+alias.
++
+// tag::write-index-defaults[]
+If an alias points to multiple indices or data streams and `is_write_index`
+isn't set, the alias rejects write requests. If an index alias points to one
+index and `is_write_index` isn't set, the index automatically acts as the write
+index. Data stream aliases don't automatically set a write data stream, even if
+the alias points to one data stream.
+// end::write-index-defaults[]
 // end::alias-options[]
 +
 Only the `add` action supports this parameter.
@@ -136,7 +148,7 @@ Only the `add` action supports this parameter.
 `must_exist`::
 (Optional, Boolean)
 If `true`, the alias must exist to perform the action. Defaults to `false`. Only
-the `remove` action supports this parameter. 
+the `remove` action supports this parameter.
 
 // tag::alias-options[]
 `routing`::

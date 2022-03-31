@@ -1,0 +1,16 @@
+{
+  "tags" : [
+    "elasticsearch",
+    "java"
+  ],
+  "authors" : [
+    {
+      "lastname" : "John",
+      "firstname" : "Doe"
+    },
+    {
+      "lastname" : "William",
+      "firstname" : "Smith"
+    }
+  ]
+}

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.common.util.set;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -26,8 +27,7 @@ import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 public final class Sets {
-    private Sets() {
-    }
+    private Sets() {}
 
     public static <T> HashSet<T> newHashSet(Iterator<T> iterator) {
         Objects.requireNonNull(iterator);
@@ -47,9 +47,7 @@ public final class Sets {
     @SuppressWarnings("varargs")
     public static <T> HashSet<T> newHashSet(T... elements) {
         Objects.requireNonNull(elements);
-        HashSet<T> set = new HashSet<>(elements.length);
-        Collections.addAll(set, elements);
-        return set;
+        return new HashSet<>(Arrays.asList(elements));
     }
 
     public static <T> Set<T> newConcurrentHashSet() {
@@ -169,8 +167,7 @@ public final class Sets {
             return Function.identity();
         }
 
-        static final Set<Characteristics> CHARACTERISTICS =
-            Collections.unmodifiableSet(EnumSet.of(Characteristics.IDENTITY_FINISH));
+        static final Set<Characteristics> CHARACTERISTICS = Collections.unmodifiableSet(EnumSet.of(Characteristics.IDENTITY_FINISH));
 
         @Override
         public Set<Characteristics> characteristics() {

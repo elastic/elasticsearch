@@ -16,7 +16,7 @@ import org.apache.logging.log4j.core.appender.AbstractAppender;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -71,10 +71,10 @@ public class DeprecationIndexingAppender extends AbstractAppender {
     /**
      * Sets whether this appender is enabled or disabled. When disabled, the appender will
      * not perform indexing operations.
-     * @param isEnabled the enabled status of the appender.
+     * @param enabled the enabled status of the appender.
      */
-    public void setEnabled(boolean isEnabled) {
-        this.isEnabled = isEnabled;
+    public void setEnabled(boolean enabled) {
+        this.isEnabled = enabled;
     }
 
     /**

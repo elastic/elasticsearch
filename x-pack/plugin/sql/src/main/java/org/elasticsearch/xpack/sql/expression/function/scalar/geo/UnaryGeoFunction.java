@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.sql.expression.function.scalar.geo;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
@@ -20,6 +19,7 @@ import java.util.Locale;
 import java.util.Objects;
 
 import static java.lang.String.format;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
 import static org.elasticsearch.xpack.sql.expression.SqlTypeResolutions.isGeo;
 
@@ -42,7 +42,7 @@ public abstract class UnaryGeoFunction extends UnaryScalarFunction {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
         }
-        return isGeo(field(), operation().toString(), Expressions.ParamOrdinal.DEFAULT);
+        return isGeo(field(), operation().toString(), DEFAULT);
     }
 
     @Override
@@ -54,19 +54,20 @@ public abstract class UnaryGeoFunction extends UnaryScalarFunction {
 
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
-        //TODO change this to use _source instead of the exact form (aka field.keyword for geo shape fields)
-        return new ScriptTemplate(processScript("{sql}.geoDocValue(doc,{})"),
+        // TODO change this to use _source instead of the exact form (aka field.keyword for geo shape fields)
+        return new ScriptTemplate(
+            processScript("{sql}.geoDocValue(doc,{})"),
             paramsBuilder().variable(field.exactAttribute().name()).build(),
-            dataType());
+            dataType()
+        );
     }
 
     @Override
     public String processScript(String template) {
         // basically, transform the script to InternalSqlScriptUtils.[function_name](other_function_or_field_name)
         return super.processScript(
-            format(Locale.ROOT, "{sql}.%s(%s)",
-                StringUtils.underscoreToLowerCamelCase("ST_" + operation().name()),
-                template));
+            format(Locale.ROOT, "{sql}.%s(%s)", StringUtils.underscoreToLowerCamelCase("ST_" + operation().name()), template)
+        );
     }
 
     @Override

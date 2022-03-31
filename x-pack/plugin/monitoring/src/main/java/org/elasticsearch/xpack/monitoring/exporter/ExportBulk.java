@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.monitoring.exporter;
 
-import java.util.concurrent.atomic.AtomicBoolean;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -16,6 +15,7 @@ import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiConsumer;
 
 /**
@@ -118,14 +118,19 @@ public abstract class ExportBulk {
                     iteratingListener.onResponse(null);
                 }));
             };
-            IteratingActionListener<Void, ExportBulk> iteratingActionListener =
-                    new IteratingActionListener<>(newExceptionHandlingListener(exceptionRef, listener), bulkBiConsumer, bulks,
-                            threadContext);
+            IteratingActionListener<Void, ExportBulk> iteratingActionListener = new IteratingActionListener<>(
+                newExceptionHandlingListener(exceptionRef, listener),
+                bulkBiConsumer,
+                bulks,
+                threadContext
+            );
             iteratingActionListener.run();
         }
 
-        private static ActionListener<Void> newExceptionHandlingListener(SetOnce<ExportException> exceptionRef,
-                                                                         ActionListener<Void> listener) {
+        private static ActionListener<Void> newExceptionHandlingListener(
+            SetOnce<ExportException> exceptionRef,
+            ActionListener<Void> listener
+        ) {
             return ActionListener.wrap(r -> {
                 if (exceptionRef.get() == null) {
                     listener.onResponse(null);

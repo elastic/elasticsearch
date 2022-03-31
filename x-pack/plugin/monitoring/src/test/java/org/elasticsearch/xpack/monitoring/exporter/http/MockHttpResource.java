@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.monitoring.exporter.http;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.Collections;
 import java.util.Map;
@@ -76,8 +76,13 @@ public class MockHttpResource extends PublishableHttpResource {
      * @param masterTimeout Master timeout to use with any request.
      * @param parameters The base parameters to specify for the request.
      */
-    public MockHttpResource(final String resourceOwnerName, @Nullable final TimeValue masterTimeout, final Map<String, String> parameters,
-                            final Boolean check, final Boolean publish) {
+    public MockHttpResource(
+        final String resourceOwnerName,
+        @Nullable final TimeValue masterTimeout,
+        final Map<String, String> parameters,
+        final Boolean check,
+        final Boolean publish
+    ) {
         this(resourceOwnerName, masterTimeout, parameters, true, check, publish);
     }
 
@@ -91,8 +96,14 @@ public class MockHttpResource extends PublishableHttpResource {
      * @param masterTimeout Master timeout to use with any request.
      * @param parameters The base parameters to specify for the request.
      */
-    public MockHttpResource(final String resourceOwnerName, @Nullable final TimeValue masterTimeout, final Map<String, String> parameters,
-                            final boolean dirty, final Boolean check, final Boolean publish) {
+    public MockHttpResource(
+        final String resourceOwnerName,
+        @Nullable final TimeValue masterTimeout,
+        final Map<String, String> parameters,
+        final boolean dirty,
+        final Boolean check,
+        final Boolean publish
+    ) {
         super(resourceOwnerName, masterTimeout, parameters, dirty);
 
         this.check = check;
@@ -117,7 +128,6 @@ public class MockHttpResource extends PublishableHttpResource {
         assert client != null;
 
         ++published;
-
 
         if (publish == null) {
             listener.onFailure(new RuntimeException("TEST - expected"));

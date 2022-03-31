@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TimeRetentionPolicyConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.junit.After;
 import org.junit.Before;
@@ -45,19 +47,16 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
     private static final String TRANSFORM_ID = "some-id";
     private static final String SOURCE_INDEX_NAME = "some-source-index";
     private static final String DEST_INDEX_NAME = "some-dest-index";
-    private static final TransformConfig TRANSFORM_CONFIG =
-        new TransformConfig.Builder()
-            .setId(TRANSFORM_ID)
-            .setSource(new SourceConfig(SOURCE_INDEX_NAME))
-            .setDest(new DestConfig(DEST_INDEX_NAME, null))
-            .build();
+    private static final TransformConfig TRANSFORM_CONFIG = new TransformConfig.Builder().setId(TRANSFORM_ID)
+        .setSource(new SourceConfig(SOURCE_INDEX_NAME))
+        .setDest(new DestConfig(DEST_INDEX_NAME, null))
+        .build();
 
-    private final SecurityContext securityContext =
-        new SecurityContext(Settings.EMPTY, null) {
-            public User getUser() {
-                return new User(USER_NAME);
-            }
-        };
+    private final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, null) {
+        public User getUser() {
+            return new User(USER_NAME);
+        }
+    };
     private final IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
     private MyMockClient client;
 
@@ -83,19 +82,17 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
             client,
             TRANSFORM_CONFIG,
             false,
-            ActionListener.wrap(
-                aVoid -> {
-                    HasPrivilegesRequest request = client.lastHasPrivilegesRequest;
-                    assertThat(request.username(), is(equalTo(USER_NAME)));
-                    assertThat(request.applicationPrivileges(), is(emptyArray()));
-                    assertThat(request.clusterPrivileges(), is(emptyArray()));
-                    assertThat(request.indexPrivileges(), is(arrayWithSize(1)));
-                    RoleDescriptor.IndicesPrivileges sourceIndicesPrivileges = request.indexPrivileges()[0];
-                    assertThat(sourceIndicesPrivileges.getIndices(), is(arrayContaining(SOURCE_INDEX_NAME)));
-                    assertThat(sourceIndicesPrivileges.getPrivileges(), is(arrayContaining("read", "view_index_metadata")));
-                },
-                e -> fail(e.getMessage())
-            ));
+            ActionListener.wrap(aVoid -> {
+                HasPrivilegesRequest request = client.lastHasPrivilegesRequest;
+                assertThat(request.username(), is(equalTo(USER_NAME)));
+                assertThat(request.applicationPrivileges(), is(emptyArray()));
+                assertThat(request.clusterPrivileges(), is(emptyArray()));
+                assertThat(request.indexPrivileges(), is(arrayWithSize(1)));
+                RoleDescriptor.IndicesPrivileges sourceIndicesPrivileges = request.indexPrivileges()[0];
+                assertThat(sourceIndicesPrivileges.getIndices(), is(arrayContaining(SOURCE_INDEX_NAME)));
+                assertThat(sourceIndicesPrivileges.getPrivileges(), is(arrayContaining("read", "view_index_metadata")));
+            }, e -> fail(e.getMessage()))
+        );
     }
 
     public void testCheckPrivileges_CheckDestIndexPrivileges_DestIndexDoesNotExist() {
@@ -107,33 +104,29 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
             client,
             TRANSFORM_CONFIG,
             true,
-            ActionListener.wrap(
-                aVoid -> {
-                    HasPrivilegesRequest request = client.lastHasPrivilegesRequest;
-                    assertThat(request.username(), is(equalTo(USER_NAME)));
-                    assertThat(request.applicationPrivileges(), is(emptyArray()));
-                    assertThat(request.clusterPrivileges(), is(emptyArray()));
-                    assertThat(request.indexPrivileges(), is(arrayWithSize(2)));
-                    RoleDescriptor.IndicesPrivileges sourceIndicesPrivileges = request.indexPrivileges()[0];
-                    assertThat(sourceIndicesPrivileges.getIndices(), is(arrayContaining(SOURCE_INDEX_NAME)));
-                    assertThat(sourceIndicesPrivileges.getPrivileges(), is(arrayContaining("read", "view_index_metadata")));
-                    RoleDescriptor.IndicesPrivileges destIndicesPrivileges = request.indexPrivileges()[1];
-                    assertThat(destIndicesPrivileges.getIndices(), is(arrayContaining(DEST_INDEX_NAME)));
-                    assertThat(destIndicesPrivileges.getPrivileges(), is(arrayContaining("read", "index", "create_index")));
-                },
-                e -> fail(e.getMessage())
-            ));
+            ActionListener.wrap(aVoid -> {
+                HasPrivilegesRequest request = client.lastHasPrivilegesRequest;
+                assertThat(request.username(), is(equalTo(USER_NAME)));
+                assertThat(request.applicationPrivileges(), is(emptyArray()));
+                assertThat(request.clusterPrivileges(), is(emptyArray()));
+                assertThat(request.indexPrivileges(), is(arrayWithSize(2)));
+                RoleDescriptor.IndicesPrivileges sourceIndicesPrivileges = request.indexPrivileges()[0];
+                assertThat(sourceIndicesPrivileges.getIndices(), is(arrayContaining(SOURCE_INDEX_NAME)));
+                assertThat(sourceIndicesPrivileges.getPrivileges(), is(arrayContaining("read", "view_index_metadata")));
+                RoleDescriptor.IndicesPrivileges destIndicesPrivileges = request.indexPrivileges()[1];
+                assertThat(destIndicesPrivileges.getIndices(), is(arrayContaining(DEST_INDEX_NAME)));
+                assertThat(destIndicesPrivileges.getPrivileges(), is(arrayContaining("read", "index", "create_index")));
+            }, e -> fail(e.getMessage()))
+        );
     }
 
     public void testCheckPrivileges_CheckDestIndexPrivileges_DestIndexExists() {
-        ClusterState clusterState =
-            ClusterState.builder(ClusterName.DEFAULT)
-                .metadata(Metadata.builder()
-                    .put(IndexMetadata.builder(DEST_INDEX_NAME)
-                        .settings(settings(Version.CURRENT))
-                        .numberOfShards(1)
-                        .numberOfReplicas(0)))
-                .build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(
+                Metadata.builder()
+                    .put(IndexMetadata.builder(DEST_INDEX_NAME).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+            )
+            .build();
         TransformPrivilegeChecker.checkPrivileges(
             OPERATION_NAME,
             securityContext,
@@ -142,22 +135,54 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
             client,
             TRANSFORM_CONFIG,
             true,
-            ActionListener.wrap(
-                aVoid -> {
-                    HasPrivilegesRequest request = client.lastHasPrivilegesRequest;
-                    assertThat(request.username(), is(equalTo(USER_NAME)));
-                    assertThat(request.applicationPrivileges(), is(emptyArray()));
-                    assertThat(request.clusterPrivileges(), is(emptyArray()));
-                    assertThat(request.indexPrivileges(), is(arrayWithSize(2)));
-                    RoleDescriptor.IndicesPrivileges sourceIndicesPrivileges = request.indexPrivileges()[0];
-                    assertThat(sourceIndicesPrivileges.getIndices(), is(arrayContaining(SOURCE_INDEX_NAME)));
-                    assertThat(sourceIndicesPrivileges.getPrivileges(), is(arrayContaining("read", "view_index_metadata")));
-                    RoleDescriptor.IndicesPrivileges destIndicesPrivileges = request.indexPrivileges()[1];
-                    assertThat(destIndicesPrivileges.getIndices(), is(arrayContaining(DEST_INDEX_NAME)));
-                    assertThat(destIndicesPrivileges.getPrivileges(), is(arrayContaining("read", "index")));
-                },
-                e -> fail(e.getMessage())
-            ));
+            ActionListener.wrap(aVoid -> {
+                HasPrivilegesRequest request = client.lastHasPrivilegesRequest;
+                assertThat(request.username(), is(equalTo(USER_NAME)));
+                assertThat(request.applicationPrivileges(), is(emptyArray()));
+                assertThat(request.clusterPrivileges(), is(emptyArray()));
+                assertThat(request.indexPrivileges(), is(arrayWithSize(2)));
+                RoleDescriptor.IndicesPrivileges sourceIndicesPrivileges = request.indexPrivileges()[0];
+                assertThat(sourceIndicesPrivileges.getIndices(), is(arrayContaining(SOURCE_INDEX_NAME)));
+                assertThat(sourceIndicesPrivileges.getPrivileges(), is(arrayContaining("read", "view_index_metadata")));
+                RoleDescriptor.IndicesPrivileges destIndicesPrivileges = request.indexPrivileges()[1];
+                assertThat(destIndicesPrivileges.getIndices(), is(arrayContaining(DEST_INDEX_NAME)));
+                assertThat(destIndicesPrivileges.getPrivileges(), is(arrayContaining("read", "index")));
+            }, e -> fail(e.getMessage()))
+        );
+    }
+
+    public void testCheckPrivileges_CheckDestIndexPrivileges_DestIndexExistsWithRetentionPolicy() {
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(
+                Metadata.builder()
+                    .put(IndexMetadata.builder(DEST_INDEX_NAME).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+            )
+            .build();
+        TransformConfig config = new TransformConfig.Builder(TRANSFORM_CONFIG).setRetentionPolicyConfig(
+            new TimeRetentionPolicyConfig("foo", TimeValue.timeValueDays(1))
+        ).build();
+        TransformPrivilegeChecker.checkPrivileges(
+            OPERATION_NAME,
+            securityContext,
+            indexNameExpressionResolver,
+            clusterState,
+            client,
+            config,
+            true,
+            ActionListener.wrap(aVoid -> {
+                HasPrivilegesRequest request = client.lastHasPrivilegesRequest;
+                assertThat(request.username(), is(equalTo(USER_NAME)));
+                assertThat(request.applicationPrivileges(), is(emptyArray()));
+                assertThat(request.clusterPrivileges(), is(emptyArray()));
+                assertThat(request.indexPrivileges(), is(arrayWithSize(2)));
+                RoleDescriptor.IndicesPrivileges sourceIndicesPrivileges = request.indexPrivileges()[0];
+                assertThat(sourceIndicesPrivileges.getIndices(), is(arrayContaining(SOURCE_INDEX_NAME)));
+                assertThat(sourceIndicesPrivileges.getPrivileges(), is(arrayContaining("read", "view_index_metadata")));
+                RoleDescriptor.IndicesPrivileges destIndicesPrivileges = request.indexPrivileges()[1];
+                assertThat(destIndicesPrivileges.getIndices(), is(arrayContaining(DEST_INDEX_NAME)));
+                assertThat(destIndicesPrivileges.getPrivileges(), is(arrayContaining("read", "index", "delete")));
+            }, e -> fail(e.getMessage()))
+        );
     }
 
     private static class MyMockClient extends NoOpClient {

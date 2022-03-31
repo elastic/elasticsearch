@@ -18,8 +18,7 @@ import static java.util.Collections.emptyMap;
 
 public final class TransformBuilders {
 
-    private TransformBuilders() {
-    }
+    private TransformBuilders() {}
 
     public static SearchTransform.Builder searchTransform(WatcherSearchTemplateRequest request) {
         return SearchTransform.builder(request);

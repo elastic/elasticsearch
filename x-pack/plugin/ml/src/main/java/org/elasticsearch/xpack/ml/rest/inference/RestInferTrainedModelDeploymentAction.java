@@ -7,7 +7,8 @@
 
 package org.elasticsearch.xpack.ml.rest.inference;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -32,9 +33,7 @@ public class RestInferTrainedModelDeploymentAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
         return Collections.singletonList(
-            new Route(
-                POST,
-                BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}/deployment/_infer")
+            new Route(POST, BASE_PATH + "trained_models/{" + TrainedModelConfig.MODEL_ID.getPreferredName() + "}/deployment/_infer")
         );
     }
 
@@ -44,9 +43,23 @@ public class RestInferTrainedModelDeploymentAction extends BaseRestHandler {
         if (restRequest.hasContent() == false) {
             throw ExceptionsHelper.badRequestException("requires body");
         }
-        InferTrainedModelDeploymentAction.Request request =
-            InferTrainedModelDeploymentAction.Request.parseRequest(deploymentId, restRequest.contentParser());
+        InferTrainedModelDeploymentAction.Request.Builder request = InferTrainedModelDeploymentAction.Request.parseRequest(
+            deploymentId,
+            restRequest.contentParser()
+        );
 
-        return channel -> client.execute(InferTrainedModelDeploymentAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        if (restRequest.hasParam(InferTrainedModelDeploymentAction.Request.TIMEOUT.getPreferredName())) {
+            TimeValue inferTimeout = restRequest.paramAsTime(
+                InferTrainedModelDeploymentAction.Request.TIMEOUT.getPreferredName(),
+                InferTrainedModelDeploymentAction.Request.DEFAULT_TIMEOUT
+            );
+            request.setInferenceTimeout(inferTimeout);
+        }
+
+        return channel -> client.execute(
+            InferTrainedModelDeploymentAction.INSTANCE,
+            request.build(),
+            new RestToXContentListener<>(channel)
+        );
     }
 }

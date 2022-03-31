@@ -13,7 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.ReportingService;
 
 public class JvmService implements ReportingService<JvmInfo> {
@@ -26,9 +26,12 @@ public class JvmService implements ReportingService<JvmInfo> {
 
     private JvmStats jvmStats;
 
-    public static final Setting<TimeValue> REFRESH_INTERVAL_SETTING =
-        Setting.timeSetting("monitor.jvm.refresh_interval", TimeValue.timeValueSeconds(1), TimeValue.timeValueSeconds(1),
-            Property.NodeScope);
+    public static final Setting<TimeValue> REFRESH_INTERVAL_SETTING = Setting.timeSetting(
+        "monitor.jvm.refresh_interval",
+        TimeValue.timeValueSeconds(1),
+        TimeValue.timeValueSeconds(1),
+        Property.NodeScope
+    );
 
     public JvmService(Settings settings) {
         this.jvmInfo = JvmInfo.jvmInfo();

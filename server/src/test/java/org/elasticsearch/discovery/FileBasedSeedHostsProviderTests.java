@@ -20,8 +20,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TcpTransport;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.nio.MockNioTransport;
+import org.elasticsearch.transport.netty4.Netty4Transport;
+import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.junit.After;
 import org.junit.Before;
 
@@ -66,21 +68,31 @@ public class FileBasedSeedHostsProviderTests extends ESTestCase {
     }
 
     private void createTransportSvc() {
-        final MockNioTransport transport = new MockNioTransport(Settings.EMPTY, Version.CURRENT, threadPool,
+        final TcpTransport transport = new Netty4Transport(
+            Settings.EMPTY,
+            Version.CURRENT,
+            threadPool,
             new NetworkService(Collections.emptyList()),
             PageCacheRecycler.NON_RECYCLING_INSTANCE,
             new NamedWriteableRegistry(Collections.emptyList()),
-            new NoneCircuitBreakerService()) {
+            new NoneCircuitBreakerService(),
+            new SharedGroupFactory(Settings.EMPTY)
+        ) {
             @Override
             public BoundTransportAddress boundAddress() {
                 return new BoundTransportAddress(
-                    new TransportAddress[]{new TransportAddress(InetAddress.getLoopbackAddress(), 9300)},
+                    new TransportAddress[] { new TransportAddress(InetAddress.getLoopbackAddress(), 9300) },
                     new TransportAddress(InetAddress.getLoopbackAddress(), 9300)
                 );
             }
         };
-        transportService = new MockTransportService(Settings.EMPTY, transport, threadPool, TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            null);
+        transportService = new MockTransportService(
+            Settings.EMPTY,
+            transport,
+            threadPool,
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            null
+        );
     }
 
     public void testBuildDynamicNodes() throws Exception {

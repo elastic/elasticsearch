@@ -17,8 +17,8 @@ import org.apache.kerby.kerberos.kerb.server.SimpleKdcServer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -142,8 +142,17 @@ public class SimpleKdcLdapServer {
 
     private void createLdapBackendConf() throws IOException {
         String backendConf = KdcConfigKey.KDC_IDENTITY_BACKEND.getPropertyKey()
-                + " = org.apache.kerby.kerberos.kdc.identitybackend.LdapIdentityBackend\n" + "host=127.0.0.1\n" + "port=" + ldapPort + "\n"
-                + "admin_dn=uid=admin,ou=system," + baseDn + "\n" + "admin_pw=secret\n" + "base_dn=" + baseDn;
+            + " = org.apache.kerby.kerberos.kdc.identitybackend.LdapIdentityBackend\n"
+            + "host=127.0.0.1\n"
+            + "port="
+            + ldapPort
+            + "\n"
+            + "admin_dn=uid=admin,ou=system,"
+            + baseDn
+            + "\n"
+            + "admin_pw=secret\n"
+            + "base_dn="
+            + baseDn;
         Files.write(this.workDir.resolve("backend.conf"), backendConf.getBytes(StandardCharsets.UTF_8));
         assert Files.exists(this.workDir.resolve("backend.conf"));
     }
@@ -250,8 +259,9 @@ public class SimpleKdcLdapServer {
 
     private static int getServerPort(String transport) {
         if (transport != null && transport.trim().equalsIgnoreCase("TCP")) {
-            try (ServerSocket serverSocket = ServerSocketFactory.getDefault().createServerSocket(0, 1,
-                    InetAddress.getByName("127.0.0.1"))) {
+            try (
+                ServerSocket serverSocket = ServerSocketFactory.getDefault().createServerSocket(0, 1, InetAddress.getByName("127.0.0.1"))
+            ) {
                 serverSocket.setReuseAddress(true);
                 return serverSocket.getLocalPort();
             } catch (Exception ex) {

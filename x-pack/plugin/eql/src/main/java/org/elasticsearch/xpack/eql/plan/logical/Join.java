@@ -31,12 +31,14 @@ public class Join extends LogicalPlan {
     private final Attribute tiebreaker;
     private final OrderDirection direction;
 
-    public Join(Source source,
-                List<KeyedFilter> queries,
-                KeyedFilter until,
-                Attribute timestamp,
-                Attribute tiebreaker,
-                OrderDirection direction) {
+    public Join(
+        Source source,
+        List<KeyedFilter> queries,
+        KeyedFilter until,
+        Attribute timestamp,
+        Attribute tiebreaker,
+        OrderDirection direction
+    ) {
         super(source, CollectionUtils.combine(queries, until));
         this.queries = queries;
         this.until = until;
@@ -45,12 +47,14 @@ public class Join extends LogicalPlan {
         this.direction = direction;
     }
 
-    private Join(Source source,
-                 List<LogicalPlan> queries,
-                 LogicalPlan until,
-                 Attribute timestamp,
-                 Attribute tiebreaker,
-                 OrderDirection direction) {
+    private Join(
+        Source source,
+        List<LogicalPlan> queries,
+        LogicalPlan until,
+        Attribute timestamp,
+        Attribute tiebreaker,
+        OrderDirection direction
+    ) {
         this(source, asKeyed(queries), asKeyed(until), timestamp, tiebreaker, direction);
     }
 
@@ -141,10 +145,11 @@ public class Join extends LogicalPlan {
 
         Join other = (Join) obj;
 
-        return Objects.equals(direction, other.direction) && Objects.equals(queries, other.queries)
-                && Objects.equals(until, other.until)
-                && Objects.equals(timestamp, other.timestamp)
-                && Objects.equals(tiebreaker, other.tiebreaker);
+        return Objects.equals(direction, other.direction)
+            && Objects.equals(queries, other.queries)
+            && Objects.equals(until, other.until)
+            && Objects.equals(timestamp, other.timestamp)
+            && Objects.equals(tiebreaker, other.tiebreaker);
     }
 
     @Override

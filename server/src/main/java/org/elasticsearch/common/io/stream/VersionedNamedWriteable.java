@@ -8,7 +8,6 @@
 
 package org.elasticsearch.common.io.stream;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 
@@ -51,18 +50,18 @@ public interface VersionedNamedWriteable extends NamedWriteable {
      * @param <T>     type of customs in map
      */
     static <T extends VersionedNamedWriteable> void writeVersionedWritables(StreamOutput out, ImmutableOpenMap<String, T> customs)
-            throws IOException {
+        throws IOException {
         // filter out custom states not supported by the other node
         int numberOfCustoms = 0;
-        for (final ObjectCursor<T> cursor : customs.values()) {
-            if (shouldSerialize(out, cursor.value)) {
+        for (final T value : customs.values()) {
+            if (shouldSerialize(out, value)) {
                 numberOfCustoms++;
             }
         }
         out.writeVInt(numberOfCustoms);
-        for (final ObjectCursor<T> cursor : customs.values()) {
-            if (shouldSerialize(out, cursor.value)) {
-                out.writeNamedWriteable(cursor.value);
+        for (final T value : customs.values()) {
+            if (shouldSerialize(out, value)) {
+                out.writeNamedWriteable(value);
             }
         }
     }

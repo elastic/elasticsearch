@@ -24,7 +24,8 @@ public class InsensitiveBinaryComparisonProcessorTests extends AbstractWireSeria
         return new InsensitiveBinaryComparisonProcessor(
             new ConstantProcessor(randomLong()),
             new ConstantProcessor(randomLong()),
-            randomFrom(InsensitiveBinaryComparisonProcessor.InsensitiveBinaryComparisonOperation.values()));
+            randomFrom(InsensitiveBinaryComparisonProcessor.InsensitiveBinaryComparisonOperation.values())
+        );
     }
 
     @Override
@@ -79,9 +80,9 @@ public class InsensitiveBinaryComparisonProcessorTests extends AbstractWireSeria
     }
 
     public void testRegularNotEquals() {
-        expectThrows(EqlIllegalArgumentException.class, () ->  p(sneq(l(12), l(12))));
-        expectThrows(EqlIllegalArgumentException.class, () ->  p(sneq(l(12), l("12"))));
-        expectThrows(EqlIllegalArgumentException.class, () ->  p(sneq(l("12"), l(12))));
+        expectThrows(EqlIllegalArgumentException.class, () -> p(sneq(l(12), l(12))));
+        expectThrows(EqlIllegalArgumentException.class, () -> p(sneq(l(12), l("12"))));
+        expectThrows(EqlIllegalArgumentException.class, () -> p(sneq(l("12"), l(12))));
     }
 
     private static Literal l(Object value) {

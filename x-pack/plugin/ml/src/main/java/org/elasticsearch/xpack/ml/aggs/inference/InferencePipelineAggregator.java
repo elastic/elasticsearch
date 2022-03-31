@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.aggs.inference;
 
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
@@ -28,28 +29,28 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-
 public class InferencePipelineAggregator extends PipelineAggregator {
 
     private final Map<String, String> bucketPathMap;
     private final InferenceConfigUpdate configUpdate;
     private final LocalModel model;
 
-    public InferencePipelineAggregator(String name, Map<String,
-                                       String> bucketPathMap,
-                                       Map<String, Object> metaData,
-                                       InferenceConfigUpdate configUpdate,
-                                       LocalModel model) {
+    public InferencePipelineAggregator(
+        String name,
+        Map<String, String> bucketPathMap,
+        Map<String, Object> metaData,
+        InferenceConfigUpdate configUpdate,
+        LocalModel model
+    ) {
         super(name, bucketPathMap.values().toArray(new String[] {}), metaData);
         this.bucketPathMap = bucketPathMap;
         this.configUpdate = configUpdate;
         this.model = model;
     }
 
-    @SuppressWarnings({"rawtypes", "unchecked"})
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     @Override
-    public InternalAggregation reduce(InternalAggregation aggregation, InternalAggregation.ReduceContext reduceContext) {
-
+    public InternalAggregation reduce(InternalAggregation aggregation, AggregationReduceContext reduceContext) {
         try (model) {
             InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket> originalAgg =
                 (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
@@ -72,21 +73,20 @@ public class InferencePipelineAggregator extends PipelineAggregator {
                     String bucketPath = entry.getValue();
                     Object propertyValue = resolveBucketValue(originalAgg, bucket, bucketPath);
 
-                    if (propertyValue instanceof Number) {
-                        double doubleVal = ((Number) propertyValue).doubleValue();
+                    if (propertyValue instanceof Number numberValue) {
+                        double doubleVal = numberValue.doubleValue();
                         // NaN or infinite values indicate a missing value or a
                         // valid result of an invalid calculation. Either way only
                         // a valid number will do
                         if (Double.isFinite(doubleVal)) {
                             inputFields.put(aggName, doubleVal);
                         }
-                    } else if (propertyValue instanceof InternalNumericMetricsAggregation.SingleValue) {
-                        double doubleVal = ((InternalNumericMetricsAggregation.SingleValue) propertyValue).value();
+                    } else if (propertyValue instanceof InternalNumericMetricsAggregation.SingleValue singleValue) {
+                        double doubleVal = singleValue.value();
                         if (Double.isFinite(doubleVal)) {
                             inputFields.put(aggName, doubleVal);
                         }
-                    } else if (propertyValue instanceof StringTerms.Bucket) {
-                        StringTerms.Bucket b = (StringTerms.Bucket) propertyValue;
+                    } else if (propertyValue instanceof StringTerms.Bucket b) {
                         inputFields.put(aggName, b.getKeyAsString());
                     } else if (propertyValue instanceof String) {
                         inputFields.put(aggName, propertyValue);
@@ -96,7 +96,6 @@ public class InferencePipelineAggregator extends PipelineAggregator {
                     }
                 }
 
-
                 InferenceResults inference;
                 try {
                     inference = model.infer(inputFields, configUpdate);
@@ -104,8 +103,11 @@ public class InferencePipelineAggregator extends PipelineAggregator {
                     inference = new WarningInferenceResults(e.getMessage());
                 }
 
-                final List<InternalAggregation> aggs = bucket.getAggregations().asList().stream().map(
-                    (p) -> (InternalAggregation) p).collect(Collectors.toList());
+                final List<InternalAggregation> aggs = bucket.getAggregations()
+                    .asList()
+                    .stream()
+                    .map((p) -> (InternalAggregation) p)
+                    .collect(Collectors.toList());
 
                 InternalInferenceAggregation aggResult = new InternalInferenceAggregation(name(), metadata(), inference);
                 aggs.add(aggResult);
@@ -120,9 +122,11 @@ public class InferencePipelineAggregator extends PipelineAggregator {
         }
     }
 
-    public static Object resolveBucketValue(MultiBucketsAggregation agg,
-                                            InternalMultiBucketAggregation.InternalBucket bucket,
-                                            String aggPath) {
+    public static Object resolveBucketValue(
+        MultiBucketsAggregation agg,
+        InternalMultiBucketAggregation.InternalBucket bucket,
+        String aggPath
+    ) {
 
         List<String> aggPathsList = AggregationPath.parse(aggPath).getPathElementsAsStringList();
         return bucket.getProperty(agg.getName(), aggPathsList);
@@ -130,10 +134,15 @@ public class InferencePipelineAggregator extends PipelineAggregator {
 
     private static AggregationExecutionException invalidAggTypeError(String aggPath, Object propertyValue) {
 
-        String msg = AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName() +
-            " must reference either a number value, a single value numeric metric aggregation or a string: got [" +
-            propertyValue + "] of type [" + propertyValue.getClass().getSimpleName() + "] " +
-            "] at aggregation [" + aggPath + "]";
+        String msg = AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
+            + " must reference either a number value, a single value numeric metric aggregation or a string: got ["
+            + propertyValue
+            + "] of type ["
+            + propertyValue.getClass().getSimpleName()
+            + "] "
+            + "] at aggregation ["
+            + aggPath
+            + "]";
         return new AggregationExecutionException(msg);
     }
 }

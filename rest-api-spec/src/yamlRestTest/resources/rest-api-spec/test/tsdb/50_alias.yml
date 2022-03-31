@@ -1,0 +1,137 @@
+setup:
+  - skip:
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
+
+  - do:
+      indices.create:
+          index: test
+          body:
+            settings:
+              index:
+                mode: time_series
+                routing_path: [metricset, k8s.pod.uid]
+                time_series:
+                  start_time: 2021-04-28T00:00:00Z
+                  end_time: 2021-04-29T00:00:00Z
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                metricset:
+                  type: keyword
+                  time_series_dimension: true
+                k8s:
+                  properties:
+                    pod:
+                      properties:
+                        uid:
+                          type: keyword
+                          time_series_dimension: true
+                        name:
+                          type: keyword
+                        ip:
+                          type: ip
+                        network:
+                          properties:
+                            tx:
+                              type: long
+                            rx:
+                              type: long
+  - do:
+      bulk:
+        refresh: true
+        index: test
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:24.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2005177954, "rx": 801479970}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:44.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2006223737, "rx": 802337279}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:51:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.2", "network": {"tx": 2012916202, "rx": 803685721}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434521831, "rx": 530575198}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:23.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434577921, "rx": 530600088}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:53.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434587694, "rx": 530604797}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}}'
+
+---
+search an alias:
+  - skip:
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
+
+  - do:
+      indices.put_alias:
+        index: test
+        name:  test_alias
+
+  - do:
+      search:
+        index: test_alias
+        body:
+          size: 0
+          aggs:
+            tsids:
+              terms:
+                field: _tsid
+                order:
+                  _key: asc
+
+  - match: {hits.total.value: 8}
+  - match: {aggregations.tsids.buckets.0.key: {k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507, metricset: pod}}
+  - match: {aggregations.tsids.buckets.0.doc_count: 4}
+  - match: {aggregations.tsids.buckets.1.key: {k8s.pod.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9, metricset: pod}}
+  - match: {aggregations.tsids.buckets.1.doc_count: 4}
+
+---
+index into alias:
+  - skip:
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
+
+  - do:
+      indices.put_alias:
+        index: test
+        name:  test_alias
+
+  - do:
+      bulk:
+        refresh: true
+        index: test_alias
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "cow", "uid":"1c4fc7b8-93b7-4ba8-b609-2a48af2f8e39", "ip": "10.10.55.4", "network": {"tx": 1434521831, "rx": 530575198}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:23.142Z", "metricset": "pod", "k8s": {"pod": {"name": "cow", "uid":"1c4fc7b8-93b7-4ba8-b609-2a48af2f8e39", "ip": "10.10.55.4", "network": {"tx": 1434577921, "rx": 530600088}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:53.142Z", "metricset": "pod", "k8s": {"pod": {"name": "cow", "uid":"1c4fc7b8-93b7-4ba8-b609-2a48af2f8e39", "ip": "10.10.55.4", "network": {"tx": 1434587694, "rx": 530604797}}}}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "cow", "uid":"1c4fc7b8-93b7-4ba8-b609-2a48af2f8e39", "ip": "10.10.55.4", "network": {"tx": 1434595272, "rx": 530605511}}}}'
+  - match: {errors: false}
+
+  - do:
+      search:
+        index: test
+        body:
+          size: 0
+          aggs:
+            tsids:
+              terms:
+                field: _tsid
+                order:
+                  _key: asc
+
+  - match: {hits.total.value: 12}
+  - match: {aggregations.tsids.buckets.0.key: {k8s.pod.uid: 1c4fc7b8-93b7-4ba8-b609-2a48af2f8e39, metricset: pod}}
+  - match: {aggregations.tsids.buckets.0.doc_count: 4}
+  - match: {aggregations.tsids.buckets.1.key: {k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507, metricset: pod}}
+  - match: {aggregations.tsids.buckets.1.doc_count: 4}
+  - match: {aggregations.tsids.buckets.2.key: {k8s.pod.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9, metricset: pod}}
+  - match: {aggregations.tsids.buckets.2.doc_count: 4}
+

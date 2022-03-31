@@ -16,7 +16,7 @@ public class ScriptEngineTests extends ScriptTestCase {
 
     public void testSimpleEquation() {
         final Object value = exec("return 1 + 2;");
-        assertEquals(3, ((Number)value).intValue());
+        assertEquals(3, ((Number) value).intValue());
     }
 
     @SuppressWarnings("unchecked") // We know its Map<String, Object> because we put them there in the test
@@ -31,7 +31,7 @@ public class ScriptEngineTests extends ScriptTestCase {
         vars.put("obj1", obj1);
 
         Object value = exec("return params['obj1'];", vars, true);
-        obj1 = (Map<String, Object>)value;
+        obj1 = (Map<String, Object>) value;
         assertEquals("value1", obj1.get("prop1"));
         assertEquals("value2", ((Map<String, Object>) obj1.get("obj2")).get("prop2"));
 
@@ -53,9 +53,9 @@ public class ScriptEngineTests extends ScriptTestCase {
         assertEquals("1", exec("return params.l.0;", vars, true));
 
         Object value = exec("return params.l.3;", vars, true);
-        obj1 = (Map<String, Object>)value;
+        obj1 = (Map<String, Object>) value;
         assertEquals("value1", obj1.get("prop1"));
-        assertEquals("value2", ((Map<String, Object>)obj1.get("obj2")).get("prop2"));
+        assertEquals("value2", ((Map<String, Object>) obj1.get("obj2")).get("prop2"));
 
         assertEquals("value1", exec("return params.l.3.prop1;", vars, true));
     }

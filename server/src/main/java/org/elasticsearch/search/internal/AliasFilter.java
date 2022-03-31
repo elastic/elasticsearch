@@ -78,8 +78,7 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         AliasFilter that = (AliasFilter) o;
-        return Arrays.equals(aliases, that.aliases) &&
-            Objects.equals(filter, that.filter);
+        return Arrays.equals(aliases, that.aliases) && Objects.equals(filter, that.filter);
     }
 
     @Override
@@ -89,9 +88,6 @@ public final class AliasFilter implements Writeable, Rewriteable<AliasFilter> {
 
     @Override
     public String toString() {
-        return "AliasFilter{" +
-            "aliases=" + Arrays.toString(aliases) +
-            ", filter=" + filter +
-            '}';
+        return "AliasFilter{" + "aliases=" + Arrays.toString(aliases) + ", filter=" + filter + '}';
     }
 }

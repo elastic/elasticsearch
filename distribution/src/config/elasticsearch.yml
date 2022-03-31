@@ -30,11 +30,11 @@
 #
 # Path to directory where to store the data (separate multiple locations by comma):
 #
-${path.data}
+@path.data@
 #
 # Path to log files:
 #
-${path.logs}
+@path.logs@
 #
 # ----------------------------------- Memory -----------------------------------
 #
@@ -74,6 +74,12 @@ ${path.logs}
 #cluster.initial_master_nodes: ["node-1", "node-2"]
 #
 # For more information, consult the discovery and cluster formation module documentation.
+#
+# --------------------------------- Readiness ----------------------------------
+#
+# Enable an unauthenticated TCP readiness endpoint on localhost
+#
+#readiness.port: 9399
 #
 # ---------------------------------- Various -----------------------------------
 #

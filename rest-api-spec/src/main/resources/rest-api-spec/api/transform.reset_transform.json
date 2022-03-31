@@ -1,0 +1,41 @@
+{
+  "transform.reset_transform":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/reset-transform.html",
+      "description":"Resets an existing transform."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_transform/{transform_id}/_reset",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "transform_id":{
+              "type":"string",
+              "description":"The id of the transform to reset"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "force":{
+        "type":"boolean",
+        "required":false,
+        "description":"When `true`, the transform is reset regardless of its current state. The default value is `false`, meaning that the transform must be `stopped` before it can be reset."
+      },
+      "timeout":{
+        "type":"time",
+        "required":false,
+        "description":"Controls the time to wait for the transform to reset"
+      }
+    }
+  }
+}

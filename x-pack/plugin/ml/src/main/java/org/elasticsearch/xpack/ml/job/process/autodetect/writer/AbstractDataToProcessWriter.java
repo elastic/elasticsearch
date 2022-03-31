@@ -7,17 +7,13 @@
 package org.elasticsearch.xpack.ml.job.process.autodetect.writer;
 
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
+import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 import org.elasticsearch.xpack.ml.job.process.DataCountsReporter;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcess;
 import org.elasticsearch.xpack.ml.process.writer.LengthEncodedWriter;
-import org.supercsv.encoder.CsvEncoder;
-import org.supercsv.encoder.DefaultCsvEncoder;
-import org.supercsv.prefs.CsvPreference;
-import org.supercsv.util.CsvContext;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -60,9 +56,15 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
     private long latestEpochMs;
     private long latestEpochMsThisUpload;
 
-    protected AbstractDataToProcessWriter(boolean includeControlField, boolean includeTokensField, AutodetectProcess autodetectProcess,
-                                          DataDescription dataDescription, AnalysisConfig analysisConfig,
-                                          DataCountsReporter dataCountsReporter, Logger logger) {
+    protected AbstractDataToProcessWriter(
+        boolean includeControlField,
+        boolean includeTokensField,
+        AutodetectProcess autodetectProcess,
+        DataDescription dataDescription,
+        AnalysisConfig analysisConfig,
+        DataCountsReporter dataCountsReporter,
+        Logger logger
+    ) {
         this.includeControlField = includeControlField;
         this.includeTokensField = includeTokensField;
         this.autodetectProcess = Objects.requireNonNull(autodetectProcess);
@@ -132,33 +134,61 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
      * @param categorizationFieldValue The value of the categorization field to be tokenized
      * @param record                   The record to be sent to the process
      */
-    protected void tokenizeForCategorization(CategorizationAnalyzer categorizationAnalyzer, String categorizationFieldValue,
-                                             String[] record) {
+    protected void tokenizeForCategorization(
+        CategorizationAnalyzer categorizationAnalyzer,
+        String categorizationFieldValue,
+        String[] record
+    ) {
         assert includeTokensField;
         // -2 because last field is the control field, and last but one is the pre-tokenized tokens field
-        record[record.length - 2] = tokenizeForCategorization(categorizationAnalyzer, analysisConfig.getCategorizationFieldName(),
-                categorizationFieldValue);
+        record[record.length - 2] = tokenizeForCategorization(
+            categorizationAnalyzer,
+            analysisConfig.getCategorizationFieldName(),
+            categorizationFieldValue
+        );
     }
 
     /**
      * Accessible for testing only.
      */
-    static String tokenizeForCategorization(CategorizationAnalyzer categorizationAnalyzer, String categorizationFieldName,
-                                            String categorizationFieldValue) {
+    static String tokenizeForCategorization(
+        CategorizationAnalyzer categorizationAnalyzer,
+        String categorizationFieldName,
+        String categorizationFieldValue
+    ) {
         StringBuilder builder = new StringBuilder();
-        CsvContext context = new CsvContext(0, 0, 0);
-        // Using the CsvEncoder directly is faster than using a CsvLineWriter with end-of-line set to the empty string
-        CsvEncoder encoder = new DefaultCsvEncoder();
         boolean first = true;
         for (String token : categorizationAnalyzer.tokenizeField(categorizationFieldName, categorizationFieldValue)) {
             if (first) {
                 first = false;
             } else {
-                builder.appendCodePoint(CsvPreference.STANDARD_PREFERENCE.getDelimiterChar());
+                builder.append(',');
             }
-            builder.append(encoder.encode(token, context, CsvPreference.STANDARD_PREFERENCE));
+            if (needsEscaping(token)) {
+                builder.append('"');
+                for (int i = 0; i < token.length(); ++i) {
+                    char c = token.charAt(i);
+                    if (c == '"') {
+                        builder.append('"');
+                    }
+                    builder.append(c);
+                }
+                builder.append('"');
+            } else {
+                builder.append(token);
+            }
         }
         return builder.toString();
+    }
+
+    private static boolean needsEscaping(String value) {
+        for (int i = 0; i < value.length(); ++i) {
+            char c = value.charAt(i);
+            if (c == '"' || c == ',' || c == '\n' || c == '\r') {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -214,7 +244,7 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
 
     /**
      * Get all the expected input fields i.e. all the fields we
-     * must see in the csv header
+     * must see in the input
      */
     final Collection<String> inputFields() {
         Set<String> requiredFields = analysisConfig.analysisFields();
@@ -296,8 +326,7 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
         int outIndex = TIME_FIELD_OUT_INDEX;
         Integer inIndex = inFieldIndexes.get(dataDescription.getTimeField());
         if (inIndex == null) {
-            throw new IllegalStateException(
-                    String.format(Locale.ROOT, "Input time field '%s' not found", dataDescription.getTimeField()));
+            throw new IllegalStateException(String.format(Locale.ROOT, "Input time field '%s' not found", dataDescription.getTimeField()));
         }
         inputOutputMap.add(new InputOutputMap(inIndex, outIndex));
 
@@ -325,8 +354,11 @@ public abstract class AbstractDataToProcessWriter implements DataToProcessWriter
      * Every input field should have an entry in <code>inputFieldIndexes</code>
      * otherwise the field cannot be found.
      */
-    protected abstract boolean checkForMissingFields(Collection<String> inputFields, Map<String, Integer> inputFieldIndexes,
-            String[] header);
+    protected abstract boolean checkForMissingFields(
+        Collection<String> inputFields,
+        Map<String, Integer> inputFieldIndexes,
+        String[] header
+    );
 
     /**
      * Input and output array indexes map

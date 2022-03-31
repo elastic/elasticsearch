@@ -11,14 +11,14 @@ package org.elasticsearch.gradle.internal.precommit;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.InternalPlugin;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
-import org.elasticsearch.gradle.internal.conventions.util.Util;
 import org.gradle.api.Action;
-import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.plugins.quality.Checkstyle;
 import org.gradle.api.plugins.quality.CheckstyleExtension;
+import org.gradle.api.provider.Provider;
+import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
 
 import java.io.File;
@@ -26,8 +26,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.net.JarURLConnection;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.StandardCopyOption;
@@ -88,22 +86,26 @@ public class CheckstylePrecommitPlugin extends PrecommitPlugin implements Intern
 
         DependencyHandler dependencies = project.getDependencies();
         String checkstyleVersion = VersionProperties.getVersions().get("checkstyle");
+        Provider<String> dependencyProvider = project.provider(() -> "org.elasticsearch:build-conventions:" + project.getVersion());
         dependencies.add("checkstyle", "com.puppycrawl.tools:checkstyle:" + checkstyleVersion);
-        dependencies.add("checkstyle", project.files(getBuildSrcCodeSource()));
+        dependencies.addProvider("checkstyle", dependencyProvider, dep -> dep.setTransitive(false));
 
         project.getTasks().withType(Checkstyle.class).configureEach(t -> {
             t.dependsOn(copyCheckstyleConf);
-            t.reports(r -> r.getHtml().setEnabled(false));
+            t.reports(r -> r.getHtml().getRequired().set(false));
         });
 
-        return checkstyleTask;
-    }
+        // Configure checkstyle tasks with an empty classpath to improve build avoidance.
+        // It's optional since our rules only rely on source files anyway.
+        project.getExtensions()
+            .getByType(SourceSetContainer.class)
+            .all(
+                sourceSet -> project.getTasks()
+                    .withType(Checkstyle.class)
+                    .named(sourceSet.getTaskName("checkstyle", null))
+                    .configure(t -> t.setClasspath(project.getObjects().fileCollection()))
+            );
 
-    private static URI getBuildSrcCodeSource() {
-        try {
-            return CheckstylePrecommitPlugin.class.getProtectionDomain().getCodeSource().getLocation().toURI();
-        } catch (URISyntaxException e) {
-            throw new GradleException("Error determining build tools JAR location", e);
-        }
+        return checkstyleTask;
     }
 }

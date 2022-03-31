@@ -1,0 +1,186 @@
+[role="xpack"]
+[[ilm-migrate-to-data-tiers]]
+=== Migrate to data tiers routing API
+++++
+<titleabbrev>Migrate indices, ILM policies, and legacy, composable and component templates to data tiers routing</titleabbrev>
+++++
+
+Switches the indices, ILM policies, and legacy, composable and component templates from using custom node attributes and
+<<shard-allocation-filtering, attribute-based allocation filters>> to using <<data-tiers, data tiers>>, and
+optionally deletes one legacy index template.
+Using node roles enables {ilm-init} to <<data-tier-migration, automatically move the indices>> between
+data tiers.
+
+Migrating away from custom node attributes routing can be manually performed
+as indicated in the <<migrate-index-allocation-filters, Migrate index allocation
+filters to node roles>> page.
+
+This API provides an automated way of executing three out of the four manual steps listed
+in the <<migrate-index-allocation-filters, migration guide>>:
+
+. <<stop-setting-custom-hot-attribute, Stop setting the custom hot attribute on new indices>>
+. <<remove-custom-allocation-settings, Remove custom allocation settings from existing {ilm-init} policies>>
+. <<set-tier-preference, Replace custom allocation settings from existing indices>> with the corresponding <<tier-preference-allocation-filter,tier preference>>
+
+[[ilm-migrate-to-data-tiers-request]]
+==== {api-request-title}
+
+`POST /_ilm/migrate_to_data_tiers`
+
+The API accepts an optional body that allows you to specify:
+
+- The legacy index template name to delete. Defaults to none.
+- The name of the custom node attribute used for the indices and ILM policies allocation filtering.
+Defaults to `data`.
+
+[[ilm-migrate-to-data-tiers-prereqs]]
+==== {api-prereq-title}
+
+* {ilm-init} must be stopped before performing the migration. Use the <<ilm-stop-request, stop ILM API>>
+to stop {ilm-init} and <<ilm-get-status-request, get status API>> to wait until the
+reported operation mode is `STOPPED`.
+
+[[ilm-migrate-to-data-tiers-query-params]]
+==== {api-query-parms-title}
+
+`dry_run`::
+(Optional, Boolean)
+If `true`, simulates the migration from node attributes based allocation filters to data tiers, but does
+not perform the migration. This provides a way to retrieve the indices and ILM policies that need to be
+migrated.
+Defaults to `false`.
+
+NOTE: When simulating a migration (ie. `dry_run` is `true`) {ilm-init} doesn't need to be stopped.
+
+[[ilm-migrate-to-data-tiers-example]]
+==== {api-examples-title}
+
+The following example migrates the indices, ILM policies, legacy templates,
+composable, and component templates away from defining custom allocation filtering
+using the `custom_attribute_name` node attribute, and deletes the legacy template
+with name `global-template` if it exists in the system.
+
+////
+[source,console]
+----
+POST _ilm/stop
+
+PUT _template/global-template
+{
+  "index_patterns": ["migrate-to-tiers-*"],
+  "settings": {
+     "index.routing.allocation.require.custom_attribute_name": "hot"
+  }
+}
+
+PUT _template/a-legacy-template
+{
+  "index_patterns": ["legacy-template-migrate-to-tiers-*"],
+  "settings": {
+     "index.routing.allocation.require.custom_attribute_name": "hot"
+  }
+}
+
+PUT _index_template/a-composable-template
+{
+	"index_patterns": [ "composable-template-migrate-to-tiers-*" ],
+	"data_stream": {},
+	"template" : {
+		"settings": {
+			 "index.routing.allocation.require.custom_attribute_name": "hot"
+		}
+	}
+}
+
+PUT _component_template/a-component-template
+{
+	"template" : {
+		"settings": {
+			 "index.routing.allocation.require.custom_attribute_name": "hot"
+		}
+	}
+}
+
+PUT warm-index-to-migrate-000001
+{
+  "settings": {
+    "index.routing.allocation.require.custom_attribute_name": "warm"
+  }
+}
+
+PUT _ilm/policy/policy_with_allocate_action
+{
+  "policy": {
+    "phases": {
+      "warm": {
+        "actions": {
+          "allocate": {
+            "require": {
+              "custom_attribute_name": "warm"
+            }
+          }
+        }
+      },
+      "delete": {
+        "min_age": "30d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+----
+// TESTSETUP
+
+[source,console]
+----
+DELETE warm-index-to-migrate-000001
+
+DELETE _ilm/policy/policy_with_allocate_action
+
+DELETE _template/a-legacy-template
+
+DELETE _index_template/a-composable-template
+
+DELETE _component_template/a-component-template
+
+POST _ilm/start
+----
+// TEARDOWN
+////
+
+[source,console]
+----------------------------------------------------------------
+POST /_ilm/migrate_to_data_tiers
+{
+  "legacy_template_to_delete": "global-template",
+  "node_attribute": "custom_attribute_name"
+}
+----------------------------------------------------------------
+
+If the request succeeds, a response like the following will be received:
+
+[source,console-result]
+------------------------------------------------------------------------------
+{
+  "dry_run": false,
+  "removed_legacy_template":"global-template", <1>
+  "migrated_ilm_policies":["policy_with_allocate_action"], <2>
+  "migrated_indices":["warm-index-to-migrate-000001"], <3>
+  "migrated_legacy_templates":["a-legacy-template"], <4>
+  "migrated_composable_templates":["a-composable-template"], <5>
+  "migrated_component_templates":["a-component-template"] <6>
+}
+------------------------------------------------------------------------------
+
+<1> Shows the name of the legacy index template that was deleted. This will be missing
+if no legacy index template was deleted.
+<2> The ILM policies that were updated.
+<3> The indices that were migrated to <<tier-preference-allocation-filter,tier preference>> routing.
+<4> The legacy index templates that were updated to not contain custom routing settings for the
+provided data attribute.
+<5> The composable index templates that were updated to not contain custom routing settings for the
+provided data attribute.
+<6> The component templates that were updated to not contain custom routing settings for the
+provided data attribute.

@@ -29,8 +29,7 @@ public class LikeEscapingParsingTests extends ESTestCase {
     }
 
     private String error(String pattern) {
-        ParsingException ex = expectThrows(ParsingException.class,
-                () -> parser.createExpression(format(null, "exp LIKE {}", pattern)));
+        ParsingException ex = expectThrows(ParsingException.class, () -> parser.createExpression(format(null, "exp LIKE {}", pattern)));
 
         return ex.getMessage();
     }
@@ -58,26 +57,38 @@ public class LikeEscapingParsingTests extends ESTestCase {
     }
 
     public void testEscapingLastChar() {
-        assertThat(error("'string|' ESCAPE '|'"),
-                is("line 1:11: Pattern [string|] is invalid as escape char [|] at position 6 does not escape anything"));
+        assertThat(
+            error("'string|' ESCAPE '|'"),
+            is("line 1:11: Pattern [string|] is invalid as escape char [|] at position 6 does not escape anything")
+        );
     }
 
     public void testEscapingWrongChar() {
-        assertThat(error("'|string' ESCAPE '|'"),
-                is("line 1:11: Pattern [|string] is invalid as escape char [|] at position 0 can only escape "
-                   + "wildcard chars [%_]; found [s]"));
+        assertThat(
+            error("'|string' ESCAPE '|'"),
+            is(
+                "line 1:11: Pattern [|string] is invalid as escape char [|] at position 0 can only escape "
+                    + "wildcard chars [%_]; found [s]"
+            )
+        );
     }
 
     public void testEscapingTheEscapeCharacter() {
-        assertThat(error("'||string' ESCAPE '|'"),
-            is("line 1:11: Pattern [||string] is invalid as escape char [|] at position 0 can only escape wildcard chars [%_]; found [|]"));
+        assertThat(
+            error("'||string' ESCAPE '|'"),
+            is("line 1:11: Pattern [||string] is invalid as escape char [|] at position 0 can only escape wildcard chars [%_]; found [|]")
+        );
     }
 
     public void testEscapingWildcards() {
-        assertThat(error("'string' ESCAPE '%'"),
-                is("line 1:27: Char [%] cannot be used for escaping as it's one of the wildcard chars [%_]"));
-        assertThat(error("'string' ESCAPE '_'"),
-            is("line 1:27: Char [_] cannot be used for escaping as it's one of the wildcard chars [%_]"));
+        assertThat(
+            error("'string' ESCAPE '%'"),
+            is("line 1:27: Char [%] cannot be used for escaping as it's one of the wildcard chars [%_]")
+        );
+        assertThat(
+            error("'string' ESCAPE '_'"),
+            is("line 1:27: Char [_] cannot be used for escaping as it's one of the wildcard chars [%_]")
+        );
     }
 
     public void testCanUseStarWithoutEscaping() {

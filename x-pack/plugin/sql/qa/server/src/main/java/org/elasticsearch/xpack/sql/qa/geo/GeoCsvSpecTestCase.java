@@ -8,10 +8,11 @@
 package org.elasticsearch.xpack.sql.qa.geo;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.client.Request;
+import org.elasticsearch.xpack.sql.jdbc.JdbcConfiguration;
 import org.elasticsearch.xpack.sql.qa.jdbc.CsvTestUtils.CsvTestCase;
 import org.elasticsearch.xpack.sql.qa.jdbc.SpecBaseIntegrationTestCase;
-import org.elasticsearch.xpack.sql.jdbc.JdbcConfiguration;
 import org.junit.Before;
 
 import java.sql.Connection;

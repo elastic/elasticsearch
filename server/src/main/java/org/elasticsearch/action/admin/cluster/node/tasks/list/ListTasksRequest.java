@@ -18,8 +18,8 @@ import org.elasticsearch.tasks.Task;
 
 import java.io.IOException;
 
-import static org.elasticsearch.common.regex.Regex.simpleMatch;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.common.regex.Regex.simpleMatch;
 import static org.elasticsearch.common.util.CollectionUtils.isEmpty;
 
 /**
@@ -34,8 +34,7 @@ public class ListTasksRequest extends BaseTasksRequest<ListTasksRequest> {
 
     private String[] descriptions = ANY_DESCRIPTION;
 
-    public ListTasksRequest() {
-    }
+    public ListTasksRequest() {}
 
     public ListTasksRequest(StreamInput in) throws IOException {
         super(in);
@@ -60,16 +59,17 @@ public class ListTasksRequest extends BaseTasksRequest<ListTasksRequest> {
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
         if (descriptions.length > 0 && detailed == false) {
-            validationException = addValidationError("matching on descriptions is not available when [detailed] is false",
-                validationException);
+            validationException = addValidationError(
+                "matching on descriptions is not available when [detailed] is false",
+                validationException
+            );
         }
         return validationException;
     }
 
     @Override
     public boolean match(Task task) {
-        return super.match(task)
-            && (isEmpty(getDescriptions()) || simpleMatch(getDescriptions(), task.getDescription()));
+        return super.match(task) && (isEmpty(getDescriptions()) || simpleMatch(getDescriptions(), task.getDescription()));
     }
 
     /**

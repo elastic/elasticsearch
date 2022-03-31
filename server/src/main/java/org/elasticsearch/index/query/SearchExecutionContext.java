@@ -10,7 +10,10 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
+import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.FieldInfos;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
@@ -18,15 +21,13 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
@@ -34,14 +35,15 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
-import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.mapper.MappingParserContext;
+import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.RuntimeField;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -56,6 +58,8 @@ import org.elasticsearch.search.NestedDocuments;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -94,6 +98,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private final IndexSearcher searcher;
     private boolean cacheable = true;
     private final SetOnce<Boolean> frozen = new SetOnce<>();
+    private Set<String> fieldsInIndex = null;
 
     private final Index fullyQualifiedIndex;
     private final Predicate<String> indexNameMatcher;
@@ -105,6 +110,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     private NestedScope nestedScope;
     private final ValuesSourceRegistry valuesSourceRegistry;
     private final Map<String, MappedFieldType> runtimeMappings;
+    private Predicate<String> allowedFields;
 
     /**
      * Build a {@linkplain SearchExecutionContext}.
@@ -119,7 +125,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         MappingLookup mappingLookup,
         SimilarityService similarityService,
         ScriptService scriptService,
-        NamedXContentRegistry xContentRegistry,
+        XContentParserConfiguration parserConfiguration,
         NamedWriteableRegistry namedWriteableRegistry,
         Client client,
         IndexSearcher searcher,
@@ -140,7 +146,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
             mappingLookup,
             similarityService,
             scriptService,
-            xContentRegistry,
+            parserConfiguration,
             namedWriteableRegistry,
             client,
             searcher,
@@ -152,7 +158,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
             ),
             allowExpensiveQueries,
             valuesSourceRegistry,
-            parseRuntimeMappings(runtimeMappings, mapperService)
+            parseRuntimeMappings(runtimeMappings, mapperService, indexSettings, mappingLookup),
+            null
         );
     }
 
@@ -167,38 +174,43 @@ public class SearchExecutionContext extends QueryRewriteContext {
             source.mappingLookup,
             source.similarityService,
             source.scriptService,
-            source.getXContentRegistry(),
+            source.getParserConfig(),
             source.getWriteableRegistry(),
-            source.client, source.searcher,
+            source.client,
+            source.searcher,
             source.nowInMillis,
             source.indexNameMatcher,
             source.fullyQualifiedIndex,
             source.allowExpensiveQueries,
             source.valuesSourceRegistry,
-            source.runtimeMappings
+            source.runtimeMappings,
+            source.allowedFields
         );
     }
 
-    private SearchExecutionContext(int shardId,
-                                   int shardRequestIndex,
-                                   IndexSettings indexSettings,
-                                   BitsetFilterCache bitsetFilterCache,
-                                   TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup,
-                                   MapperService mapperService,
-                                   MappingLookup mappingLookup,
-                                   SimilarityService similarityService,
-                                   ScriptService scriptService,
-                                   NamedXContentRegistry xContentRegistry,
-                                   NamedWriteableRegistry namedWriteableRegistry,
-                                   Client client,
-                                   IndexSearcher searcher,
-                                   LongSupplier nowInMillis,
-                                   Predicate<String> indexNameMatcher,
-                                   Index fullyQualifiedIndex,
-                                   BooleanSupplier allowExpensiveQueries,
-                                   ValuesSourceRegistry valuesSourceRegistry,
-                                   Map<String, MappedFieldType> runtimeMappings) {
-        super(xContentRegistry, namedWriteableRegistry, client, nowInMillis);
+    private SearchExecutionContext(
+        int shardId,
+        int shardRequestIndex,
+        IndexSettings indexSettings,
+        BitsetFilterCache bitsetFilterCache,
+        TriFunction<MappedFieldType, String, Supplier<SearchLookup>, IndexFieldData<?>> indexFieldDataLookup,
+        MapperService mapperService,
+        MappingLookup mappingLookup,
+        SimilarityService similarityService,
+        ScriptService scriptService,
+        XContentParserConfiguration parserConfig,
+        NamedWriteableRegistry namedWriteableRegistry,
+        Client client,
+        IndexSearcher searcher,
+        LongSupplier nowInMillis,
+        Predicate<String> indexNameMatcher,
+        Index fullyQualifiedIndex,
+        BooleanSupplier allowExpensiveQueries,
+        ValuesSourceRegistry valuesSourceRegistry,
+        Map<String, MappedFieldType> runtimeMappings,
+        Predicate<String> allowedFields
+    ) {
+        super(parserConfig, namedWriteableRegistry, client, nowInMillis);
         this.shardId = shardId;
         this.shardRequestIndex = shardRequestIndex;
         this.similarityService = similarityService;
@@ -216,6 +228,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.allowExpensiveQueries = allowExpensiveQueries;
         this.valuesSourceRegistry = valuesSourceRegistry;
         this.runtimeMappings = runtimeMappings;
+        this.allowedFields = allowedFields;
     }
 
     private void reset() {
@@ -265,8 +278,11 @@ public class SearchExecutionContext extends QueryRewriteContext {
 
     @SuppressWarnings("unchecked")
     public <IFD extends IndexFieldData<?>> IFD getForField(MappedFieldType fieldType) {
-        return (IFD) indexFieldDataService.apply(fieldType, fullyQualifiedIndex.getName(),
-            () -> this.lookup().forkAndTrackFieldReferences(fieldType.name()));
+        return (IFD) indexFieldDataService.apply(
+            fieldType,
+            fullyQualifiedIndex.getName(),
+            () -> this.lookup().forkAndTrackFieldReferences(fieldType.name())
+        );
     }
 
     public void addNamedQuery(String name, Query query) {
@@ -287,16 +303,12 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return mapperService.documentParser().parseDocument(source, mappingLookup);
     }
 
-    public boolean hasNested() {
-        return mappingLookup.hasNested();
+    public NestedLookup nestedLookup() {
+        return mappingLookup.nestedLookup();
     }
 
     public boolean hasMappings() {
         return mappingLookup.hasMappings();
-    }
-
-    public List<ObjectMapper> nestedMappings() {
-        return mappingLookup.getNestedMappers();
     }
 
     /**
@@ -350,16 +362,23 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     private MappedFieldType fieldType(String name) {
+        // If the field is not allowed, behave as if it is not mapped
+        if (allowedFields != null && false == allowedFields.test(name)) {
+            return null;
+        }
         MappedFieldType fieldType = runtimeMappings.get(name);
         return fieldType == null ? mappingLookup.getFieldType(name) : fieldType;
     }
 
-    public ObjectMapper getObjectMapper(String name) {
-        return mappingLookup.objectMappers().get(name);
-    }
-
     public boolean isMetadataField(String field) {
         return mapperService.isMetadataField(field);
+    }
+
+    public boolean isMultiField(String field) {
+        if (runtimeMappings.containsKey(field)) {
+            return false;
+        }
+        return mapperService.isMultiField(field);
     }
 
     public Set<String> sourcePath(String fullName) {
@@ -375,15 +394,15 @@ public class SearchExecutionContext extends QueryRewriteContext {
      * Generally used to handle unmapped fields in the context of sorting.
      */
     public MappedFieldType buildAnonymousFieldType(String type) {
-        Mapper.TypeParser.ParserContext parserContext = mapperService.parserContext();
+        MappingParserContext parserContext = mapperService.parserContext();
         Mapper.TypeParser typeParser = parserContext.typeParser(type);
         if (typeParser == null) {
             throw new IllegalArgumentException("No mapper found for type [" + type + "]");
         }
         Mapper.Builder builder = typeParser.parse("__anonymous_", Collections.emptyMap(), parserContext);
-        Mapper mapper = builder.build(new ContentPath(0));
+        Mapper mapper = builder.build(MapperBuilderContext.ROOT);
         if (mapper instanceof FieldMapper) {
-            return ((FieldMapper)mapper).fieldType();
+            return ((FieldMapper) mapper).fieldType();
         }
         throw new IllegalArgumentException("Mapper for type [" + type + "] must be a leaf field");
     }
@@ -417,12 +436,16 @@ public class SearchExecutionContext extends QueryRewriteContext {
         this.mapUnmappedFieldAsString = mapUnmappedFieldAsString;
     }
 
+    public void setAllowedFields(Predicate<String> allowedFields) {
+        this.allowedFields = allowedFields;
+    }
+
     MappedFieldType failIfFieldMappingNotFound(String name, MappedFieldType fieldMapping) {
         if (fieldMapping != null || allowUnmappedFields) {
             return fieldMapping;
         } else if (mapUnmappedFieldAsString) {
             TextFieldMapper.Builder builder = new TextFieldMapper.Builder(name, getIndexAnalyzers());
-            return builder.build(new ContentPath(1)).fieldType();
+            return builder.build(MapperBuilderContext.ROOT).fieldType();
         } else {
             throw new QueryShardException(this, "No field mapping can be found for the field with name [{}]", name);
         }
@@ -486,9 +509,9 @@ public class SearchExecutionContext extends QueryRewriteContext {
         try {
             QueryBuilder rewriteQuery = Rewriteable.rewrite(queryBuilder, this, true);
             return new ParsedQuery(filterOrQuery.apply(rewriteQuery), copyNamedQueries());
-        } catch(QueryShardException | ParsingException e) {
+        } catch (QueryShardException | ParsingException e) {
             throw e;
-        } catch(Exception e) {
+        } catch (Exception e) {
             throw new QueryShardException(this, "failed to create query: {}", e, e.getMessage());
         } finally {
             reset();
@@ -514,6 +537,14 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public final void freezeContext() {
         this.frozen.set(Boolean.TRUE);
+    }
+
+    /**
+     * Marks this context as not cacheable.
+     * This method fails if {@link #freezeContext()} is called before on this context.
+     */
+    public void disableCache() {
+        failIfFrozen();
     }
 
     /**
@@ -580,7 +611,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return client;
     }
 
-    public QueryBuilder parseInnerQueryBuilder(XContentParser parser) throws IOException {
+    public static QueryBuilder parseInnerQueryBuilder(XContentParser parser) throws IOException {
         return AbstractQueryBuilder.parseInnerQueryBuilder(parser);
     }
 
@@ -610,24 +641,53 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
+     * Is this field present in the underlying lucene index for the current shard?
+     */
+    public boolean fieldExistsInIndex(String fieldname) {
+        if (searcher == null) {
+            return false;
+        }
+        if (fieldsInIndex == null) {
+            fieldsInIndex = new HashSet<>();
+            for (LeafReaderContext ctx : searcher.getIndexReader().leaves()) {
+                FieldInfos fis = ctx.reader().getFieldInfos();
+                for (FieldInfo fi : fis) {
+                    fieldsInIndex.add(fi.name);
+                }
+            }
+        }
+        return fieldsInIndex.contains(fieldname);
+    }
+
+    /**
      * Returns the fully qualified index including a remote cluster alias if applicable, and the index uuid
      */
     public Index getFullyQualifiedIndex() {
         return fullyQualifiedIndex;
     }
 
-    private static Map<String, MappedFieldType> parseRuntimeMappings(Map<String, Object> runtimeMappings, MapperService mapperService) {
+    private static Map<String, MappedFieldType> parseRuntimeMappings(
+        Map<String, Object> runtimeMappings,
+        MapperService mapperService,
+        IndexSettings indexSettings,
+        MappingLookup lookup
+    ) {
         if (runtimeMappings.isEmpty()) {
             return Collections.emptyMap();
         }
-        Map<String, RuntimeField> runtimeFields = RuntimeField.parseRuntimeFields(new HashMap<>(runtimeMappings),
-            mapperService.parserContext(), false);
-        Map<String, MappedFieldType> runtimeFieldTypes = new HashMap<>();
-        for (RuntimeField runtimeField : runtimeFields.values()) {
-            MappedFieldType fieldType = runtimeField.asMappedFieldType();
-            runtimeFieldTypes.put(fieldType.name(), fieldType);
+        // TODO add specific tests to SearchExecutionTests similar to the ones in FieldTypeLookupTests
+        MappingParserContext parserContext = mapperService.parserContext();
+        Map<String, RuntimeField> runtimeFields = RuntimeField.parseRuntimeFields(new HashMap<>(runtimeMappings), parserContext, false);
+        Map<String, MappedFieldType> runtimeFieldTypes = RuntimeField.collectFieldTypes(runtimeFields.values());
+        if (false == indexSettings.getIndexMetadata().getRoutingPaths().isEmpty()) {
+            for (String r : runtimeMappings.keySet()) {
+                if (Regex.simpleMatch(indexSettings.getIndexMetadata().getRoutingPaths(), r)) {
+                    throw new IllegalArgumentException("runtime fields may not match [routing_path] but [" + r + "] matched");
+                }
+            }
         }
-        return Collections.unmodifiableMap(runtimeFieldTypes);
+        runtimeFieldTypes.keySet().forEach(lookup::validateDoesNotShadow);
+        return runtimeFieldTypes;
     }
 
     /**
@@ -635,17 +695,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
      */
     public MappingLookup.CacheKey mappingCacheKey() {
         return mappingLookup.cacheKey();
-    }
-
-    /**
-     * Given a nested object path, returns the path to its nested parent
-     *
-     * In particular, if a nested field `foo` contains an object field
-     * `bar.baz`, then calling this method with `foo.bar.baz` will return
-     * the path `foo`, skipping over the object-but-not-nested `foo.bar`
-     */
-    public String getNestedParent(String nestedPath) {
-        return mappingLookup.getNestedParent(nestedPath);
     }
 
     public NestedDocuments getNestedDocuments() {

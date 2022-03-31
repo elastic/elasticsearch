@@ -6,8 +6,7 @@
 ++++
 [[security-api-has-privilege]]
 
-The `has_privileges` API allows you to determine whether the logged in user has
-a specified list of privileges.
+Determines whether the logged in user has a specified list of privileges.
 
 [[security-api-has-privileges-request]]
 ==== {api-request-title}

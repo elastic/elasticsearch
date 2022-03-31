@@ -13,20 +13,20 @@ import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.WriteResponse;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.RestApiVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -79,22 +79,16 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
             return lowercase;
         }
 
-        public static Result readFrom(StreamInput in) throws IOException{
+        public static Result readFrom(StreamInput in) throws IOException {
             Byte opcode = in.readByte();
-            switch(opcode){
-                case 0:
-                    return CREATED;
-                case 1:
-                    return UPDATED;
-                case 2:
-                    return DELETED;
-                case 3:
-                    return NOT_FOUND;
-                case 4:
-                    return NOOP;
-                default:
-                    throw new IllegalArgumentException("Unknown result code: " + opcode);
-            }
+            return switch (opcode) {
+                case 0 -> CREATED;
+                case 1 -> UPDATED;
+                case 2 -> DELETED;
+                case 3 -> NOT_FOUND;
+                case 4 -> NOOP;
+                default -> throw new IllegalArgumentException("Unknown result code: " + opcode);
+            };
         }
 
         @Override
@@ -294,9 +288,6 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (builder.getRestApiVersion() == RestApiVersion.V_7) {
-            builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
-        }
         innerToXContent(builder, params);
         builder.endObject();
         return builder;
@@ -305,9 +296,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
         ReplicationResponse.ShardInfo shardInfo = getShardInfo();
         builder.field(_INDEX, shardId.getIndexName());
-        builder.field(_ID, id)
-                .field(_VERSION, version)
-                .field(RESULT, getResult().getLowercase());
+        builder.field(_ID, id).field(_VERSION, version).field(RESULT, getResult().getLowercase());
         if (forcedRefresh) {
             builder.field(FORCED_REFRESH, true);
         }
@@ -315,6 +304,9 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         if (getSeqNo() >= 0) {
             builder.field(_SEQ_NO, getSeqNo());
             builder.field(_PRIMARY_TERM, getPrimaryTerm());
+        }
+        if (builder.getRestApiVersion() == RestApiVersion.V_7) {
+            builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
         }
         return builder;
     }
@@ -343,7 +335,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
                 context.setVersion(parser.longValue());
             } else if (RESULT.equals(currentFieldName)) {
                 String result = parser.text();
-                for (Result r :  Result.values()) {
+                for (Result r : Result.values()) {
                     if (r.getLowercase().equals(result)) {
                         context.setResult(r);
                         break;

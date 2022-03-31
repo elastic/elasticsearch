@@ -8,10 +8,10 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.metrics.ParsedSingleValueNumericMetricsAggregation;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -22,8 +22,11 @@ public class ParsedSimpleValue extends ParsedSingleValueNumericMetricsAggregatio
         return InternalSimpleValue.NAME;
     }
 
-    private static final ObjectParser<ParsedSimpleValue, Void> PARSER = new ObjectParser<>(ParsedSimpleValue.class.getSimpleName(), true,
-            ParsedSimpleValue::new);
+    private static final ObjectParser<ParsedSimpleValue, Void> PARSER = new ObjectParser<>(
+        ParsedSimpleValue.class.getSimpleName(),
+        true,
+        ParsedSimpleValue::new
+    );
 
     static {
         declareSingleValueFields(PARSER, Double.NaN);

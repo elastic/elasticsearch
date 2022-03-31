@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.ml.inference.modelsize;
 
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.inference.preprocessing.FrequencyEncoding;
 
 import java.io.IOException;
@@ -21,7 +21,7 @@ import java.util.stream.Stream;
 
 import static org.apache.lucene.util.RamUsageEstimator.alignObjectSize;
 import static org.apache.lucene.util.RamUsageEstimator.shallowSizeOfInstance;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xpack.ml.inference.modelsize.SizeEstimatorHelper.sizeOfHashMap;
 import static org.elasticsearch.xpack.ml.inference.modelsize.SizeEstimatorHelper.sizeOfString;
 
@@ -31,7 +31,7 @@ public class FrequencyEncodingSize implements PreprocessorSize {
     private static final ConstructingObjectParser<FrequencyEncodingSize, Void> PARSER = new ConstructingObjectParser<>(
         "frequency_encoding_size",
         false,
-        a -> new FrequencyEncodingSize((Integer)a[0], (Integer)a[1], (List<Integer>)a[2])
+        a -> new FrequencyEncodingSize((Integer) a[0], (Integer) a[1], (List<Integer>) a[2])
     );
     static {
         PARSER.declareInt(constructorArg(), FIELD_LENGTH);
@@ -61,7 +61,8 @@ public class FrequencyEncodingSize implements PreprocessorSize {
         size += sizeOfString(featureNameLength);
         size += sizeOfHashMap(
             Arrays.stream(fieldValueLengths).mapToLong(SizeEstimatorHelper::sizeOfString).boxed().collect(Collectors.toList()),
-            Stream.generate(() -> sizeOfDoubleObject).limit(fieldValueLengths.length).collect(Collectors.toList()));
+            Stream.generate(() -> sizeOfDoubleObject).limit(fieldValueLengths.length).collect(Collectors.toList())
+        );
         return alignObjectSize(size);
     }
 
@@ -85,9 +86,9 @@ public class FrequencyEncodingSize implements PreprocessorSize {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         FrequencyEncodingSize that = (FrequencyEncodingSize) o;
-        return fieldLength == that.fieldLength &&
-            featureNameLength == that.featureNameLength &&
-            Arrays.equals(fieldValueLengths, that.fieldValueLengths);
+        return fieldLength == that.fieldLength
+            && featureNameLength == that.featureNameLength
+            && Arrays.equals(fieldValueLengths, that.fieldValueLengths);
     }
 
     @Override

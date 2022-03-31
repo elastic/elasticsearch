@@ -22,8 +22,14 @@ public class ExtendedStatsBucketPipelineAggregator extends BucketMetricsPipeline
     private double max = Double.NEGATIVE_INFINITY;
     private double sumOfSqrs = 1;
 
-    ExtendedStatsBucketPipelineAggregator(String name, String[] bucketsPaths, double sigma, GapPolicy gapPolicy,
-                                                    DocValueFormat formatter, Map<String, Object> metadata) {
+    ExtendedStatsBucketPipelineAggregator(
+        String name,
+        String[] bucketsPaths,
+        double sigma,
+        GapPolicy gapPolicy,
+        DocValueFormat formatter,
+        Map<String, Object> metadata
+    ) {
         super(name, bucketsPaths, gapPolicy, formatter, metadata);
         this.sigma = sigma;
     }

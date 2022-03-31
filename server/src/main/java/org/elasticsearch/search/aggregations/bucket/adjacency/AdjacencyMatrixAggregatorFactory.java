@@ -29,9 +29,15 @@ public class AdjacencyMatrixAggregatorFactory extends AggregatorFactory {
     private final Weight[] weights;
     private final String separator;
 
-    public AdjacencyMatrixAggregatorFactory(String name, List<KeyedFilter> filters, String separator,
-                                            AggregationContext context, AggregatorFactory parent,
-                                            AggregatorFactories.Builder subFactories, Map<String, Object> metadata) throws IOException {
+    public AdjacencyMatrixAggregatorFactory(
+        String name,
+        List<KeyedFilter> filters,
+        String separator,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactories,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, context, parent, subFactories, metadata);
         IndexSearcher contextSearcher = context.searcher();
         this.separator = separator;

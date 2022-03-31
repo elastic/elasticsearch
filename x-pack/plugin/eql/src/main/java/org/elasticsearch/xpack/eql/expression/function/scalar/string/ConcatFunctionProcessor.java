@@ -26,7 +26,7 @@ public class ConcatFunctionProcessor implements Processor {
 
     @Override
     public final void writeTo(StreamOutput out) throws IOException {
-        for (Processor v: values) {
+        for (Processor v : values) {
             out.writeNamedWriteable(v);
         }
     }
@@ -34,7 +34,7 @@ public class ConcatFunctionProcessor implements Processor {
     @Override
     public Object process(Object input) {
         List<Object> processed = new ArrayList<>(values.size());
-        for (Processor v: values) {
+        for (Processor v : values) {
             processed.add(v.process(input));
         }
         return doProcess(processed);
@@ -47,7 +47,7 @@ public class ConcatFunctionProcessor implements Processor {
 
         StringBuilder str = new StringBuilder();
 
-        for (Object input: inputs) {
+        for (Object input : inputs) {
             if (input == null) {
                 return null;
             }
@@ -75,7 +75,6 @@ public class ConcatFunctionProcessor implements Processor {
     public int hashCode() {
         return Objects.hash(values);
     }
-
 
     @Override
     public String getWriteableName() {

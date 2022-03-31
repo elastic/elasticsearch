@@ -19,8 +19,12 @@ import java.util.Map;
 
 public class InternalNestedTests extends InternalSingleBucketAggregationTestCase<InternalNested> {
     @Override
-    protected InternalNested createTestInstance(String name, long docCount, InternalAggregations aggregations,
-            Map<String, Object> metadata) {
+    protected InternalNested createTestInstance(
+        String name,
+        long docCount,
+        InternalAggregations aggregations,
+        Map<String, Object> metadata
+    ) {
         return new InternalNested(name, docCount, aggregations, metadata);
     }
 

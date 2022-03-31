@@ -19,11 +19,11 @@ public final class NodeEnrollmentRequest implements Validatable {
 
     public static final NodeEnrollmentRequest INSTANCE = new NodeEnrollmentRequest();
 
-    private NodeEnrollmentRequest(){
+    private NodeEnrollmentRequest() {
 
     }
 
     public Request getRequest() {
-        return new Request(HttpGet.METHOD_NAME, "/_security/enroll_node");
+        return new Request(HttpGet.METHOD_NAME, "/_security/enroll/node");
     }
 }

@@ -9,8 +9,8 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.client.internal.ElasticsearchClient;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.Scroll;
 
 /**

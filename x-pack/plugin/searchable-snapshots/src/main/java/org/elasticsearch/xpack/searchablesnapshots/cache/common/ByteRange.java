@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.cache.common;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 
 public final class ByteRange implements Comparable<ByteRange> {
 
@@ -65,8 +65,8 @@ public final class ByteRange implements Comparable<ByteRange> {
         return start >= range.start() && end <= range.end();
     }
 
-    public boolean contains(long start, long end) {
-        return start() <= start && end <= end();
+    public boolean contains(long rangeStart, long rangeEnd) {
+        return start() <= rangeStart && rangeEnd <= end();
     }
 
     public ByteRange shift(long delta) {

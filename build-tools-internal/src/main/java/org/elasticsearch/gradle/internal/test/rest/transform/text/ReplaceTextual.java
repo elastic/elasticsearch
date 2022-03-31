@@ -11,6 +11,7 @@ package org.elasticsearch.gradle.internal.test.rest.transform.text;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
+
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestContext;
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransformByParentObject;
 import org.gradle.api.tasks.Input;
@@ -18,22 +19,22 @@ import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Optional;
 
 /**
- * A transformation to replace the flat textual fields.
+ * A transformation to replace a key/value combination.
  */
-class ReplaceTextual implements RestTestTransformByParentObject {
+public class ReplaceTextual implements RestTestTransformByParentObject {
     private final String keyToReplaceName;
     private final String valueToBeReplaced;
     private final TextNode replacementNode;
     private final String testName;
 
-    ReplaceTextual(String keyToReplaceName, String valueToBeReplaced, TextNode replacementNode) {
+    public ReplaceTextual(String keyToReplaceName, String valueToBeReplaced, TextNode replacementNode) {
         this.keyToReplaceName = keyToReplaceName;
         this.valueToBeReplaced = valueToBeReplaced;
         this.replacementNode = replacementNode;
         this.testName = null;
     }
 
-    ReplaceTextual(String keyToReplaceName, String valueToBeReplaced, TextNode replacementNode, String testName) {
+    public ReplaceTextual(String keyToReplaceName, String valueToBeReplaced, TextNode replacementNode, String testName) {
         this.keyToReplaceName = keyToReplaceName;
         this.valueToBeReplaced = valueToBeReplaced;
         this.replacementNode = replacementNode;
@@ -53,7 +54,7 @@ class ReplaceTextual implements RestTestTransformByParentObject {
 
     @Override
     public boolean shouldApply(RestTestContext testContext) {
-        return testName == null || testContext.getTestName().equals(testName);
+        return testName == null || testContext.testName().equals(testName);
     }
 
     @Override

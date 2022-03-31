@@ -10,7 +10,7 @@ package org.elasticsearch.persistent;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 import org.elasticsearch.tasks.TaskId;
@@ -57,9 +57,11 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
      * Finds the least loaded node from amongs the candidate node collection
      * that satisfies the selector criteria
      */
-    protected DiscoveryNode selectLeastLoadedNode(ClusterState clusterState,
-                                                  Collection<DiscoveryNode> candidateNodes,
-                                                  Predicate<DiscoveryNode> selector) {
+    protected DiscoveryNode selectLeastLoadedNode(
+        ClusterState clusterState,
+        Collection<DiscoveryNode> candidateNodes,
+        Predicate<DiscoveryNode> selector
+    ) {
         long minLoad = Long.MAX_VALUE;
         DiscoveryNode minLoadedNode = null;
         PersistentTasksCustomMetadata persistentTasks = clusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
@@ -89,8 +91,14 @@ public abstract class PersistentTasksExecutor<Params extends PersistentTaskParam
     /**
      * Creates a AllocatedPersistentTask for communicating with task manager
      */
-    protected AllocatedPersistentTask createTask(long id, String type, String action, TaskId parentTaskId,
-                                                 PersistentTask<Params> taskInProgress, Map<String, String> headers) {
+    protected AllocatedPersistentTask createTask(
+        long id,
+        String type,
+        String action,
+        TaskId parentTaskId,
+        PersistentTask<Params> taskInProgress,
+        Map<String, String> headers
+    ) {
         return new AllocatedPersistentTask(id, type, action, getDescription(taskInProgress), parentTaskId, headers);
     }
 

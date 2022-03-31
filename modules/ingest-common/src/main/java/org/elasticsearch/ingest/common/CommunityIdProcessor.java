@@ -25,6 +25,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 import static org.elasticsearch.ingest.ConfigurationUtils.readBooleanProperty;
@@ -32,6 +33,15 @@ import static org.elasticsearch.ingest.ConfigurationUtils.readBooleanProperty;
 public final class CommunityIdProcessor extends AbstractProcessor {
 
     public static final String TYPE = "community_id";
+
+    private static final ThreadLocal<MessageDigest> MESSAGE_DIGEST = ThreadLocal.withInitial(() -> {
+        try {
+            return MessageDigest.getInstance("SHA-1");
+        } catch (NoSuchAlgorithmException e) {
+            // should never happen, SHA-1 must be available in all JDKs
+            throw new IllegalStateException(e);
+        }
+    });
 
     private final String sourceIpField;
     private final String sourcePortField;
@@ -42,7 +52,6 @@ public final class CommunityIdProcessor extends AbstractProcessor {
     private final String icmpTypeField;
     private final String icmpCodeField;
     private final String targetField;
-    private final ThreadLocal<MessageDigest> messageDigest;
     private final byte[] seed;
     private final boolean ignoreMissing;
 
@@ -58,7 +67,6 @@ public final class CommunityIdProcessor extends AbstractProcessor {
         String icmpTypeField,
         String icmpCodeField,
         String targetField,
-        ThreadLocal<MessageDigest> messageDigest,
         byte[] seed,
         boolean ignoreMissing
     ) {
@@ -72,7 +80,6 @@ public final class CommunityIdProcessor extends AbstractProcessor {
         this.icmpTypeField = icmpTypeField;
         this.icmpCodeField = icmpCodeField;
         this.targetField = targetField;
-        this.messageDigest = messageDigest;
         this.seed = seed;
         this.ignoreMissing = ignoreMissing;
     }
@@ -113,10 +120,6 @@ public final class CommunityIdProcessor extends AbstractProcessor {
         return targetField;
     }
 
-    public MessageDigest getMessageDigest() {
-        return messageDigest.get();
-    }
-
     public byte[] getSeed() {
         return seed;
     }
@@ -127,7 +130,15 @@ public final class CommunityIdProcessor extends AbstractProcessor {
 
     @Override
     public IngestDocument execute(IngestDocument ingestDocument) throws Exception {
-        Flow flow = buildFlow(ingestDocument);
+        String sourceIp = ingestDocument.getFieldValue(sourceIpField, String.class, ignoreMissing);
+        String destinationIp = ingestDocument.getFieldValue(destinationIpField, String.class, ignoreMissing);
+        Object ianaNumber = ingestDocument.getFieldValue(ianaNumberField, Object.class, true);
+        Supplier<Object> transport = () -> ingestDocument.getFieldValue(transportField, Object.class, ignoreMissing);
+        Supplier<Object> sourcePort = () -> ingestDocument.getFieldValue(sourcePortField, Object.class, ignoreMissing);
+        Supplier<Object> destinationPort = () -> ingestDocument.getFieldValue(destinationPortField, Object.class, ignoreMissing);
+        Object icmpType = ingestDocument.getFieldValue(icmpTypeField, Object.class, true);
+        Object icmpCode = ingestDocument.getFieldValue(icmpCodeField, Object.class, true);
+        Flow flow = buildFlow(sourceIp, destinationIp, ianaNumber, transport, sourcePort, destinationPort, icmpType, icmpCode);
         if (flow == null) {
             if (ignoreMissing) {
                 return ingestDocument;
@@ -136,19 +147,67 @@ public final class CommunityIdProcessor extends AbstractProcessor {
             }
         }
 
-        MessageDigest md = messageDigest.get();
-        md.reset();
-        ingestDocument.setFieldValue(targetField, flow.toCommunityId(md, seed));
+        ingestDocument.setFieldValue(targetField, flow.toCommunityId(seed));
         return ingestDocument;
     }
 
-    private Flow buildFlow(IngestDocument d) {
-        String sourceIpAddrString = d.getFieldValue(sourceIpField, String.class, ignoreMissing);
+    public static String apply(
+        String sourceIpAddrString,
+        String destIpAddrString,
+        Object ianaNumber,
+        Object transport,
+        Object sourcePort,
+        Object destinationPort,
+        Object icmpType,
+        Object icmpCode,
+        int seed
+    ) {
+
+        Flow flow = buildFlow(
+            sourceIpAddrString,
+            destIpAddrString,
+            ianaNumber,
+            () -> transport,
+            () -> sourcePort,
+            () -> destinationPort,
+            icmpType,
+            icmpCode
+        );
+
+        if (flow == null) {
+            throw new IllegalArgumentException("unable to construct flow from document");
+        } else {
+            return flow.toCommunityId(toUint16(seed));
+        }
+    }
+
+    public static String apply(
+        String sourceIpAddrString,
+        String destIpAddrString,
+        Object ianaNumber,
+        Object transport,
+        Object sourcePort,
+        Object destinationPort,
+        Object icmpType,
+        Object icmpCode
+    ) {
+        return apply(sourceIpAddrString, destIpAddrString, ianaNumber, transport, sourcePort, destinationPort, icmpType, icmpCode, 0);
+    }
+
+    private static Flow buildFlow(
+        String sourceIpAddrString,
+        String destIpAddrString,
+        Object ianaNumber,
+        Supplier<Object> transport,
+        Supplier<Object> sourcePort,
+        Supplier<Object> destinationPort,
+        Object icmpType,
+        Object icmpCode
+    ) {
         if (sourceIpAddrString == null) {
             return null;
         }
 
-        String destIpAddrString = d.getFieldValue(destinationIpField, String.class, ignoreMissing);
         if (destIpAddrString == null) {
             return null;
         }
@@ -157,9 +216,9 @@ public final class CommunityIdProcessor extends AbstractProcessor {
         flow.source = InetAddresses.forString(sourceIpAddrString);
         flow.destination = InetAddresses.forString(destIpAddrString);
 
-        Object protocol = d.getFieldValue(ianaNumberField, Object.class, true);
+        Object protocol = ianaNumber;
         if (protocol == null) {
-            protocol = d.getFieldValue(transportField, Object.class, ignoreMissing);
+            protocol = transport.get();
             if (protocol == null) {
                 return null;
             }
@@ -167,27 +226,21 @@ public final class CommunityIdProcessor extends AbstractProcessor {
         flow.protocol = Transport.fromObject(protocol);
 
         switch (flow.protocol) {
-            case Tcp:
-            case Udp:
-            case Sctp:
-                Object sourcePortValue = d.getFieldValue(sourcePortField, Object.class, ignoreMissing);
-                flow.sourcePort = parseIntFromObjectOrString(sourcePortValue, "source port");
+            case Tcp, Udp, Sctp -> {
+                flow.sourcePort = parseIntFromObjectOrString(sourcePort.get(), "source port");
                 if (flow.sourcePort < 1 || flow.sourcePort > 65535) {
-                    throw new IllegalArgumentException("invalid source port [" + sourcePortValue + "]");
+                    throw new IllegalArgumentException("invalid source port [" + sourcePort.get() + "]");
                 }
-
-                Object destinationPortValue = d.getFieldValue(destinationPortField, Object.class, ignoreMissing);
-                flow.destinationPort = parseIntFromObjectOrString(destinationPortValue, "destination port");
+                flow.destinationPort = parseIntFromObjectOrString(destinationPort.get(), "destination port");
                 if (flow.destinationPort < 1 || flow.destinationPort > 65535) {
-                    throw new IllegalArgumentException("invalid destination port [" + destinationPortValue + "]");
+                    throw new IllegalArgumentException("invalid destination port [" + destinationPort.get() + "]");
                 }
-                break;
-            case Icmp:
-            case IcmpIpV6:
+            }
+            case Icmp, IcmpIpV6 -> {
                 // tolerate missing or invalid ICMP types and codes
-                flow.icmpType = parseIntFromObjectOrString(d.getFieldValue(icmpTypeField, Object.class, true), "icmp type");
-                flow.icmpCode = parseIntFromObjectOrString(d.getFieldValue(icmpCodeField, Object.class, true), "icmp code");
-                break;
+                flow.icmpType = parseIntFromObjectOrString(icmpType, "icmp type");
+                flow.icmpCode = parseIntFromObjectOrString(icmpCode, "icmp code");
+            }
         }
 
         return flow;
@@ -214,11 +267,11 @@ public final class CommunityIdProcessor extends AbstractProcessor {
     static int parseIntFromObjectOrString(Object o, String fieldName) {
         if (o == null) {
             return 0;
-        } else if (o instanceof Number) {
-            return ((Number) o).intValue();
-        } else if (o instanceof String) {
+        } else if (o instanceof Number number) {
+            return number.intValue();
+        } else if (o instanceof String string) {
             try {
-                return Integer.parseInt((String) o);
+                return Integer.parseInt(string);
             } catch (NumberFormatException e) {
                 // fall through to IllegalArgumentException below
             }
@@ -258,13 +311,6 @@ public final class CommunityIdProcessor extends AbstractProcessor {
             if (seedInt < 0 || seedInt > 65535) {
                 throw newConfigurationException(TYPE, processorTag, "seed", "must be a value between 0 and 65535");
             }
-            ThreadLocal<MessageDigest> messageDigest = ThreadLocal.withInitial(() -> {
-                try {
-                    return MessageDigest.getInstance("SHA-1");
-                } catch (NoSuchAlgorithmException e) {
-                    throw new IllegalStateException("unable to obtain SHA-1 hasher", e);
-                }
-            });
 
             boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", true);
             return new CommunityIdProcessor(
@@ -279,7 +325,6 @@ public final class CommunityIdProcessor extends AbstractProcessor {
                 icmpTypeField,
                 icmpCodeField,
                 targetField,
-                messageDigest,
                 toUint16(seedInt),
                 ignoreMissing
             );
@@ -343,7 +388,9 @@ public final class CommunityIdProcessor extends AbstractProcessor {
             return bb.array();
         }
 
-        String toCommunityId(MessageDigest md, byte[] seed) {
+        String toCommunityId(byte[] seed) {
+            MessageDigest md = MESSAGE_DIGEST.get();
+            md.reset();
             md.update(seed);
             byte[] encodedBytes = Base64.getEncoder().encode(md.digest(toBytes()));
             return "1:" + new String(encodedBytes, StandardCharsets.UTF_8);
@@ -390,38 +437,25 @@ public final class CommunityIdProcessor extends AbstractProcessor {
         }
 
         public static Transport fromNumber(int transportNumber) {
-            switch (transportNumber) {
-                case 1:
-                    return Icmp;
-                case 2:
-                    return Igmp;
-                case 6:
-                    return Tcp;
-                case 17:
-                    return Udp;
-                case 47:
-                    return Gre;
-                case 58:
-                    return IcmpIpV6;
-                case 88:
-                    return Eigrp;
-                case 89:
-                    return Ospf;
-                case 103:
-                    return Pim;
-                case 132:
-                    return Sctp;
-                default:
-                    throw new IllegalArgumentException("unknown transport protocol number [" + transportNumber + "]");
-            }
+            return switch (transportNumber) {
+                case 1 -> Icmp;
+                case 2 -> Igmp;
+                case 6 -> Tcp;
+                case 17 -> Udp;
+                case 47 -> Gre;
+                case 58 -> IcmpIpV6;
+                case 88 -> Eigrp;
+                case 89 -> Ospf;
+                case 103 -> Pim;
+                case 132 -> Sctp;
+                default -> throw new IllegalArgumentException("unknown transport protocol number [" + transportNumber + "]");
+            };
         }
 
         public static Transport fromObject(Object o) {
-            if (o instanceof Number) {
-                return fromNumber(((Number) o).intValue());
-            } else if (o instanceof String) {
-                String protocolStr = (String) o;
-
+            if (o instanceof Number number) {
+                return fromNumber(number.intValue());
+            } else if (o instanceof String protocolStr) {
                 // check if matches protocol name
                 if (TRANSPORT_NAMES.containsKey(protocolStr.toLowerCase(Locale.ROOT))) {
                     return TRANSPORT_NAMES.get(protocolStr.toLowerCase(Locale.ROOT));
@@ -508,55 +542,33 @@ public final class CommunityIdProcessor extends AbstractProcessor {
         }
 
         public static IcmpType fromNumber(int type) {
-            switch (type) {
-                case 0:
-                    return EchoReply;
-                case 8:
-                    return EchoRequest;
-                case 9:
-                    return RouterAdvertisement;
-                case 10:
-                    return RouterSolicitation;
-                case 13:
-                    return TimestampRequest;
-                case 14:
-                    return TimestampReply;
-                case 15:
-                    return InfoRequest;
-                case 16:
-                    return InfoReply;
-                case 17:
-                    return AddressMaskRequest;
-                case 18:
-                    return AddressMaskReply;
-                case 128:
-                    return V6EchoRequest;
-                case 129:
-                    return V6EchoReply;
-                case 133:
-                    return V6RouterSolicitation;
-                case 134:
-                    return V6RouterAdvertisement;
-                case 135:
-                    return V6NeighborSolicitation;
-                case 136:
-                    return V6NeighborAdvertisement;
-                case 130:
-                    return V6MLDv1MulticastListenerQueryMessage;
-                case 131:
-                    return V6MLDv1MulticastListenerReportMessage;
-                case 139:
-                    return V6WhoAreYouRequest;
-                case 140:
-                    return V6WhoAreYouReply;
-                case 144:
-                    return V6HomeAddressDiscoveryRequest;
-                case 145:
-                    return V6HomeAddressDiscoveryResponse;
-                default:
+            return switch (type) {
+                case 0 -> EchoReply;
+                case 8 -> EchoRequest;
+                case 9 -> RouterAdvertisement;
+                case 10 -> RouterSolicitation;
+                case 13 -> TimestampRequest;
+                case 14 -> TimestampReply;
+                case 15 -> InfoRequest;
+                case 16 -> InfoReply;
+                case 17 -> AddressMaskRequest;
+                case 18 -> AddressMaskReply;
+                case 128 -> V6EchoRequest;
+                case 129 -> V6EchoReply;
+                case 133 -> V6RouterSolicitation;
+                case 134 -> V6RouterAdvertisement;
+                case 135 -> V6NeighborSolicitation;
+                case 136 -> V6NeighborAdvertisement;
+                case 130 -> V6MLDv1MulticastListenerQueryMessage;
+                case 131 -> V6MLDv1MulticastListenerReportMessage;
+                case 139 -> V6WhoAreYouRequest;
+                case 140 -> V6WhoAreYouReply;
+                case 144 -> V6HomeAddressDiscoveryRequest;
+                case 145 -> V6HomeAddressDiscoveryResponse;
+                default ->
                     // don't fail if the type is unknown
-                    return EchoReply;
-            }
+                    EchoReply;
+            };
         }
 
         public static Integer codeEquivalent(int icmpType, boolean isIpV6) {

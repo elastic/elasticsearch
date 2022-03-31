@@ -48,15 +48,17 @@ public class BoxedQueryRequest implements QueryRequest {
 
     private final List<String> keys;
     private List<QueryBuilder> keyFilters;
+    private final Set<String> optionalKeyNames;
 
     private Ordinal from, to;
     private Ordinal after;
 
-    public BoxedQueryRequest(QueryRequest original, String timestamp, List<String> keyNames) {
+    public BoxedQueryRequest(QueryRequest original, String timestamp, List<String> keyNames, Set<String> optionalKeyNames) {
         searchSource = original.searchSource();
         // setup range queries and preserve their reference to simplify the update
         timestampRange = rangeQuery(timestamp).timeZone("UTC").format("epoch_millis");
         keys = keyNames;
+        this.optionalKeyNames = optionalKeyNames;
         RuntimeUtils.addFilter(timestampRange, searchSource);
     }
 
@@ -78,7 +80,8 @@ public class BoxedQueryRequest implements QueryRequest {
      */
     public BoxedQueryRequest from(Ordinal begin) {
         from = begin;
-        timestampRange.gte(begin != null ? begin.timestamp() : null);
+        // the range limits need to be serializable: convert to string for StreamOutput to be able to handle the value
+        timestampRange.gte(begin != null ? begin.timestamp().toString() : null);
         return this;
     }
 
@@ -88,7 +91,7 @@ public class BoxedQueryRequest implements QueryRequest {
      */
     public BoxedQueryRequest to(Ordinal end) {
         to = end;
-        timestampRange.lte(end != null ? end.timestamp() : null);
+        timestampRange.lte(end != null ? end.timestamp().toString() : null);
         return this;
     }
 
@@ -111,6 +114,11 @@ public class BoxedQueryRequest implements QueryRequest {
             // iterate on all possible values for a given key
             newFilters = new ArrayList<>(values.size());
             for (int keyIndex = 0; keyIndex < keys.size(); keyIndex++) {
+                String key = keys.get(keyIndex);
+                // missing optional key
+                if (key == null) {
+                    continue;
+                }
 
                 boolean hasNullValue = false;
                 Set<Object> keyValues = new HashSet<>(BoxedQueryRequest.MAX_TERMS);
@@ -133,8 +141,6 @@ public class BoxedQueryRequest implements QueryRequest {
 
                 QueryBuilder query = null;
 
-                String key = keys.get(keyIndex);
-
                 if (keyValues.size() == 1) {
                     query = termQuery(key, keyValues.iterator().next());
                 } else if (keyValues.size() > 1) {
@@ -142,8 +148,8 @@ public class BoxedQueryRequest implements QueryRequest {
                 }
 
                 // if null values are present
-                // make an OR call - either terms or null/missing values
-                if (hasNullValue) {
+                // make an OR call - either terms or null/missing values only for optional keys
+                if (hasNullValue && optionalKeyNames.contains(key)) {
                     BoolQueryBuilder isMissing = boolQuery().mustNot(existsQuery(key));
                     if (query != null) {
                         query = boolQuery()
@@ -155,7 +161,9 @@ public class BoxedQueryRequest implements QueryRequest {
                         query = isMissing;
                     }
                 }
-                newFilters.add(query);
+                if (query != null) {
+                    newFilters.add(query);
+                }
             }
         }
 

@@ -42,19 +42,6 @@ DELETE /_snapshot/my_repository/my_snapshot
 * If the {es} {security-features} are enabled, you must have the `manage`
 <<privileges-list-cluster,cluster privilege>> to use this API.
 
-[[delete-snapshot-api-desc]]
-==== {api-description-title}
-
-Use the delete snapshot API to delete a <<snapshot-restore,snapshot>>, which is a backup taken from a running {es} cluster.
-
-When deleting a snapshot from a repository, {es} deletes all files that are associated with the snapshot and not used by any other snapshots. All files that are shared with at least one other existing snapshot are left intact.
-
-If you attempt to delete a snapshot while it is being created, the snapshot process aborts and all associated will be deleted.
-
-To delete multiple snapshots in a single request, separate the snapshot names with a comma or use a wildcard (`*`).
-
-TIP: Use the delete snapshot API to cancel long-running snapshot operations that were started by mistake.
-
 [[delete-snapshot-api-path-params]]
 ==== {api-path-parms-title}
 

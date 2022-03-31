@@ -8,14 +8,14 @@ package org.elasticsearch.xpack.watcher.input.transform;
 
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.core.watcher.input.Input;
@@ -34,7 +34,7 @@ import org.junit.Before;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 
@@ -52,8 +52,8 @@ public class TransformInputTests extends ESTestCase {
         ScriptTransform scriptTransform = ScriptTransform.builder(script).build();
         TransformInput transformInput = new TransformInput(scriptTransform);
 
-        ExecutableTransform executableTransform = new ExecutableScriptTransform(scriptTransform, logger, scriptService);
-        ExecutableInput input = new ExecutableTransformInput(transformInput, executableTransform);
+        ExecutableTransform<?, ?> executableTransform = new ExecutableScriptTransform(scriptTransform, logger, scriptService);
+        ExecutableInput<?, ?> input = new ExecutableTransformInput(transformInput, executableTransform);
 
         WatchExecutionContext ctx = WatcherTestUtils.mockExecutionContext("_id", Payload.EMPTY);
         Input.Result result = input.execute(ctx, new Payload.Simple());
@@ -62,17 +62,20 @@ public class TransformInputTests extends ESTestCase {
     }
 
     public void testParserValid() throws Exception {
-        Map<String,
+        Map<
+            String,
             TransformFactory<? extends Transform, ? extends Transform.Result, ? extends ExecutableTransform<?, ?>>> transformFactories =
-            Collections.singletonMap("script", new ScriptTransformFactory(scriptService));
+                Collections.singletonMap("script", new ScriptTransformFactory(scriptService));
         TransformRegistry registry = new TransformRegistry(transformFactories);
         TransformInputFactory factory = new TransformInputFactory(registry);
 
         // { "script" : { "lang" : "mockscript", "source" : "1" } }
-        XContentBuilder builder = jsonBuilder().startObject().startObject("script")
-                .field("lang", MockScriptEngine.NAME)
-                .field("source", "1")
-                .endObject().endObject();
+        XContentBuilder builder = jsonBuilder().startObject()
+            .startObject("script")
+            .field("lang", MockScriptEngine.NAME)
+            .field("source", "1")
+            .endObject()
+            .endObject();
 
         XContentParser parser = createParser(builder);
         parser.nextToken();
@@ -87,9 +90,10 @@ public class TransformInputTests extends ESTestCase {
     public void testParserInvalid() throws Exception {
         XContentBuilder jsonBuilder = jsonBuilder().value("just a string");
 
-        Map<String,
+        Map<
+            String,
             TransformFactory<? extends Transform, ? extends Transform.Result, ? extends ExecutableTransform<?, ?>>> transformFactories =
-            Collections.singletonMap("script", new ScriptTransformFactory(scriptService));
+                Collections.singletonMap("script", new ScriptTransformFactory(scriptService));
         TransformRegistry registry = new TransformRegistry(transformFactories);
         TransformInputFactory factory = new TransformInputFactory(registry);
         XContentParser parser = createParser(jsonBuilder);
@@ -107,16 +111,19 @@ public class TransformInputTests extends ESTestCase {
     }
 
     public void testTransformInputToXContentIsSameAsParsing() throws Exception {
-        Map<String,
+        Map<
+            String,
             TransformFactory<? extends Transform, ? extends Transform.Result, ? extends ExecutableTransform<?, ?>>> transformFactories =
-            Collections.singletonMap("script", new ScriptTransformFactory(scriptService));
+                Collections.singletonMap("script", new ScriptTransformFactory(scriptService));
         TransformRegistry registry = new TransformRegistry(transformFactories);
         TransformInputFactory factory = new TransformInputFactory(registry);
 
-        XContentBuilder jsonBuilder = jsonBuilder().startObject().startObject("script")
-                .field("source", "1")
-                .field("lang", "mockscript")
-                .endObject().endObject();
+        XContentBuilder jsonBuilder = jsonBuilder().startObject()
+            .startObject("script")
+            .field("source", "1")
+            .field("lang", "mockscript")
+            .endObject()
+            .endObject();
         XContentParser parser = createParser(jsonBuilder);
 
         parser.nextToken();

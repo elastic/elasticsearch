@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.core.watcher.watch;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -34,7 +34,6 @@ public class ClockMock extends Clock {
     private ClockMock(Clock wrappedClock) {
         this.wrappedClock = wrappedClock;
     }
-
 
     @Override
     public ZoneId getZone() {

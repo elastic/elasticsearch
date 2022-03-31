@@ -1,0 +1,29 @@
+{
+  "nodes.get_repositories_metering_info":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-repositories-metering-api.html",
+      "description":"Returns cluster repositories metering information."
+    },
+    "stability":"experimental",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_nodes/{node_id}/_repositories_metering",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "node_id":{
+              "type":"list",
+              "description":"A comma-separated list of node IDs or names to limit the returned information."
+            }
+          }
+        }
+      ]
+    }
+  }
+}

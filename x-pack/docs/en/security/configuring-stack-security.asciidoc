@@ -1,80 +1,106 @@
 [[configuring-stack-security]]
-== Configure security for the Elastic Stack
-++++
-<titleabbrev>Configuring security</titleabbrev>
-++++
+== Start the Elastic Stack with security enabled
 
-Security needs vary depending on whether you're developing locally on your
-laptop or securing all communications in a production environment. Because
-security needs vary, the following scenarios provide options for configuring
-the Elastic Stack.
+When you start {es} for the first time, the following security configuration
+occurs automatically:
 
-TIP: Each subsequent scenario builds on the previous one so that you can add
-additional security by building on the existing layer.
+* <<stack-security-certificates,Certificates and keys>> for TLS are
+generated for the transport and HTTP layers.
+* The TLS configuration settings are written to `elasticsearch.yml`.
+* A password is generated for the `elastic` user.
+* An enrollment token is generated for {kib}.
 
-These scenarios don't cover every situation, but provide a framework for
-securing {es} and the Elastic Stack based on typical use cases.
-
-image::images/elastic-security-overview.png[Elastic Security layers]
+You can then start {kib} and enter the enrollment token, which is valid for 30
+minutes. This token automatically applies the security settings from your {es}
+cluster, authenticates to {es} with the built-in `kibana` service account, and writes the
+security configuration to `kibana.yml`.
 
 [discrete]
-[[security-minimal-overview]]
-=== Minimal security ({es} Development)
+=== Prerequisites
 
-If you want to set up {es} on your laptop and start developing, this scenario
-is for you. This configuration prevents unauthorized access to your local
-cluster by setting up passwords for the built-in users. You also configure
-password authentication for {kib}.
-
-// tag::minimal-security-note[]
-IMPORTANT: The minimal security scenario is not sufficient for
-<<dev-vs-prod-mode,production mode>> clusters. If your cluster has multiple
-nodes, you must enable minimal security and then
-<<security-basic-setup,configure Transport Layer Security (TLS)>> between
-nodes.
-
-// end::minimal-security-note[]
-
-<<security-minimal-setup,Set up minimal security>>
+* https://www.elastic.co/downloads/elasticsearch[Download] and
+unpack the `elasticsearch` package distribution for your
+environment.
+* https://www.elastic.co/downloads/kibana[Download] and unpack
+the `kibana` package distribution for your environment.
 
 [discrete]
-[[security-basic-overview]]
-=== Basic security ({es} Production)
+[[stack-start-with-security]]
+=== Start {es} and enroll {kib} with security enabled
 
-This scenario builds on the minimal security requirements by adding transport
-Layer Security (TLS) for communication between nodes. This additional layer
-requires that nodes verify security certificates, which prevents unauthorized
-nodes from joining your {es} cluster.
+. From the installation directory, start {es}. A password is generated for the
+`elastic` user and output to the terminal, plus an enrollment token for
+enrolling {kib}.
++
+[source,shell]
+----
+bin/elasticsearch
+----
++
+TIP: You might need to scroll back a bit in the terminal to view the password
+and enrollment token.
 
-Your external HTTP traffic between {es} and {kib} won't be encrypted, but
-internode communication will be secured.
+. Copy the generated password and enrollment token and save them in a secure
+location. These values are shown only when you start {es} for the first time.
++
+[NOTE]
+====
+If you need to reset the password for the `elastic` user or other
+built-in users, run the <<reset-password,`elasticsearch-reset-password`>> tool.
+To generate new enrollment tokens for {kib} or {es} nodes, run the
+<<create-enrollment-token,`elasticsearch-create-enrollment-token`>> tool.
+These tools are available in the {es} `bin` directory.
+====
 
-<<security-basic-setup,Set up basic security>>
+. (Optional) Open a new terminal and verify that you can connect to your {es}
+cluster by making an authenticated call. Enter the password for the `elastic`
+user when prompted:
++
+[source,shell]
+----
+curl --cacert config/certs/http_ca.crt -u elastic https://localhost:9200
+----
+// NOTCONSOLE
+
+. From the directory where you installed {kib}, start {kib}.
++
+[source,shell]
+----
+bin/kibana
+----
++
+This command generates a unique link to enroll your {kib} instance with {es}.
+
+  .. In your terminal, click the generated link to open {kib} in your browser.
+
+  .. In your browser, paste the enrollment token that you copied and click the
+button to connect your {kib} instance with {es}.
+
+  .. Log in to {kib} as the `elastic` user with the password that was generated
+when you started {es}.
 
 [discrete]
-[[security-basic-https-overview]]
-=== Basic security plus secured HTTPS traffic (Elastic Stack)
+[[stack-enroll-nodes]]
+=== Enroll additional nodes in your cluster
 
-This scenario builds on the one for basic security and secures all HTTP
-traffic with TLS. In addition to configuring TLS on the transport interface of
-your {es} cluster, you configure TLS on the HTTP interface for both
-{es} and {kib}.
+:slash:     /
 
-NOTE: If you need mutual (bidirectional) TLS on the HTTP layer, then you'll
-need to configure mutual authenticated encryption.
+include::enroll-nodes.asciidoc[]
 
-You then configure {kib} and Beats to communicate with
-{es} using TLS so that all communications are encrypted. This level
-of security is strong, and ensures that any communications in and out of your
-cluster are secure.
+[discrete]
+include::{es-ref-dir}/setup/install/connect-clients.asciidoc[leveloffset=-1]
 
-<<security-basic-setup-https,Set up basic security plus HTTPS traffic>>
+[discrete]
+=== What's next?
+Congratulations! You've successfully started the {stack} with security enabled.
+{es} and {kib} are secured with TLS on the HTTP layer, and internode
+communication is encrypted. If you want to enable HTTPS for web traffic, you
+can <<encrypt-kibana-browser,encrypt traffic between your browser and {kib}>>.
 
-include::securing-communications/security-minimal-setup.asciidoc[]
-include::securing-communications/security-basic-setup.asciidoc[]
-include::securing-communications/security-basic-setup-https.asciidoc[]
-include::securing-communications/configuring-tls-docker.asciidoc[]
-include::securing-communications/enabling-cipher-suites.asciidoc[]
-include::securing-communications/tls-versions-jdk.asciidoc[]
-include::reference/files.asciidoc[]
-include::fips-140-compliance.asciidoc[]
+[discrete]
+[[stack-security-certificates]]
+include::{es-ref-dir}/setup/install/security-files-reference.asciidoc[leveloffset=-2]
+
+Additionally, when you use the enrollment token to connect {kib} to a secured {es} cluster, the HTTP layer CA certificate is retrieved from {es} and stored in the
+{kib} `/data` directory. This file establishes trust between {kib} and the {es}
+Certificate Authority (CA) for the HTTP layer.

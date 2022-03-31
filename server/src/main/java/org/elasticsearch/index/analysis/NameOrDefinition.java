@@ -12,10 +12,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map;
@@ -67,8 +67,10 @@ public class NameOrDefinition implements Writeable, ToXContentFragment {
         if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
             return new NameOrDefinition(parser.map());
         }
-        throw new XContentParseException(parser.getTokenLocation(),
-            "Expected [VALUE_STRING] or [START_OBJECT], got " + parser.currentToken());
+        throw new XContentParseException(
+            parser.getTokenLocation(),
+            "Expected [VALUE_STRING] or [START_OBJECT], got " + parser.currentToken()
+        );
     }
 
     @Override
@@ -88,8 +90,7 @@ public class NameOrDefinition implements Writeable, ToXContentFragment {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         NameOrDefinition that = (NameOrDefinition) o;
-        return Objects.equals(name, that.name) &&
-            Objects.equals(definition, that.definition);
+        return Objects.equals(name, that.name) && Objects.equals(definition, that.definition);
     }
 
     @Override

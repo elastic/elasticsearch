@@ -16,28 +16,23 @@ import java.util.Locale;
 public class LocaleUtilsTests extends ESTestCase {
 
     public void testIllegalLang() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> LocaleUtils.parse("yz"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> LocaleUtils.parse("yz"));
         assertThat(e.getMessage(), Matchers.containsString("Unknown language: yz"));
 
-        e = expectThrows(IllegalArgumentException.class,
-                () -> LocaleUtils.parse("yz-CA"));
+        e = expectThrows(IllegalArgumentException.class, () -> LocaleUtils.parse("yz-CA"));
         assertThat(e.getMessage(), Matchers.containsString("Unknown language: yz"));
     }
 
     public void testIllegalCountry() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> LocaleUtils.parse("en-YZ"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> LocaleUtils.parse("en-YZ"));
         assertThat(e.getMessage(), Matchers.containsString("Unknown country: YZ"));
 
-        e = expectThrows(IllegalArgumentException.class,
-                () -> LocaleUtils.parse("en-YZ-foobar"));
+        e = expectThrows(IllegalArgumentException.class, () -> LocaleUtils.parse("en-YZ-foobar"));
         assertThat(e.getMessage(), Matchers.containsString("Unknown country: YZ"));
     }
 
     public void testIllegalNumberOfParts() {
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> LocaleUtils.parse("en-US-foo-bar"));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> LocaleUtils.parse("en-US-foo-bar"));
         assertThat(e.getMessage(), Matchers.containsString("Locales can have at most 3 parts but got 4"));
     }
 

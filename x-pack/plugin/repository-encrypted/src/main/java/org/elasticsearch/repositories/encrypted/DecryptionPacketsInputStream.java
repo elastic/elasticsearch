@@ -9,13 +9,6 @@ package org.elasticsearch.repositories.encrypted;
 import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.core.internal.io.IOUtils;
 
-import javax.crypto.BadPaddingException;
-import javax.crypto.Cipher;
-import javax.crypto.IllegalBlockSizeException;
-import javax.crypto.NoSuchPaddingException;
-import javax.crypto.SecretKey;
-import javax.crypto.ShortBufferException;
-import javax.crypto.spec.GCMParameterSpec;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -23,6 +16,14 @@ import java.security.InvalidAlgorithmParameterException;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.util.Objects;
+
+import javax.crypto.BadPaddingException;
+import javax.crypto.Cipher;
+import javax.crypto.IllegalBlockSizeException;
+import javax.crypto.NoSuchPaddingException;
+import javax.crypto.SecretKey;
+import javax.crypto.ShortBufferException;
+import javax.crypto.spec.GCMParameterSpec;
 
 import static org.elasticsearch.repositories.encrypted.EncryptedRepository.GCM_IV_LENGTH_IN_BYTES;
 import static org.elasticsearch.repositories.encrypted.EncryptedRepository.GCM_TAG_LENGTH_IN_BYTES;
@@ -152,13 +153,13 @@ public final class DecryptionPacketsInputStream extends ChainingInputStream {
         // cipher used to decrypt only the current packetInputStream
         Cipher packetCipher = getPacketDecryptionCipher(packetBuffer);
         // read the rest of the packet, reusing the packetBuffer
-        int packetLength = packetInputStream.readNBytes(packetBuffer, 0, packetBuffer.length);
-        if (packetLength < GCM_TAG_LENGTH_IN_BYTES) {
+        int packetLen = packetInputStream.readNBytes(packetBuffer, 0, packetBuffer.length);
+        if (packetLen < GCM_TAG_LENGTH_IN_BYTES) {
             throw new IOException("Encrypted packet is too short");
         }
         try {
             // in-place decryption of the whole packet and return decrypted length
-            return packetCipher.doFinal(packetBuffer, 0, packetLength, packetBuffer);
+            return packetCipher.doFinal(packetBuffer, 0, packetLen, packetBuffer);
         } catch (ShortBufferException | IllegalBlockSizeException | BadPaddingException e) {
             throw new IOException("Exception during packet decryption", e);
         }

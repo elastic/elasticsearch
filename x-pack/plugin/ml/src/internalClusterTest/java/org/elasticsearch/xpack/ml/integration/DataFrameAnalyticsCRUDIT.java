@@ -6,20 +6,12 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import static java.util.Collections.emptyMap;
-import static org.hamcrest.CoreMatchers.nullValue;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.core.IsInstanceOf.instanceOf;
-
-import java.util.concurrent.atomic.AtomicReference;
-
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.action.DeleteDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
@@ -30,14 +22,27 @@ import org.elasticsearch.xpack.ml.dataframe.persistence.DataFrameAnalyticsConfig
 import org.elasticsearch.xpack.ml.notifications.DataFrameAnalyticsAuditor;
 import org.junit.Before;
 
+import java.util.concurrent.atomic.AtomicReference;
+
+import static java.util.Collections.emptyMap;
+import static org.hamcrest.CoreMatchers.nullValue;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.core.IsInstanceOf.instanceOf;
+
 public class DataFrameAnalyticsCRUDIT extends MlSingleNodeTestCase {
 
     private DataFrameAnalyticsConfigProvider configProvider;
 
     @Before
     public void createComponents() throws Exception {
-        configProvider = new DataFrameAnalyticsConfigProvider(client(), xContentRegistry(),
-            new DataFrameAnalyticsAuditor(client(), getInstanceFromNode(ClusterService.class)));
+        configProvider = new DataFrameAnalyticsConfigProvider(
+            client(),
+            xContentRegistry(),
+            new DataFrameAnalyticsAuditor(client(), getInstanceFromNode(ClusterService.class)),
+            getInstanceFromNode(ClusterService.class)
+        );
         waitForMlTemplates();
     }
 
@@ -62,7 +67,10 @@ public class DataFrameAnalyticsCRUDIT extends MlSingleNodeTestCase {
         AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
         blockingCall(
-            actionListener -> configProvider.put(config, emptyMap(), actionListener), configHolder, exceptionHolder);
+            actionListener -> configProvider.put(config, emptyMap(), TimeValue.timeValueSeconds(5), actionListener),
+            configHolder,
+            exceptionHolder
+        );
         assertThat(configHolder.get(), is(notNullValue()));
         assertThat(configHolder.get(), is(equalTo(config)));
 
@@ -88,25 +96,31 @@ public class DataFrameAnalyticsCRUDIT extends MlSingleNodeTestCase {
 
         client().execute(DeleteDataFrameAnalyticsAction.INSTANCE, new DeleteDataFrameAnalyticsAction.Request(configId)).actionGet();
 
-        assertThat(originSettingClient.prepareSearch(".ml-state-*")
-            .setQuery(QueryBuilders.idsQuery()
-                .addIds("delete-config-with-state-and-stats_regression_state#1",
-                    "data_frame_analytics-delete-config-with-state-and-stats-progress"))
-            .setTrackTotalHits(true)
-            .get()
-            .getHits()
-            .getTotalHits()
-            .value, equalTo(0L));
+        assertThat(
+            originSettingClient.prepareSearch(".ml-state-*")
+                .setQuery(
+                    QueryBuilders.idsQuery()
+                        .addIds(
+                            "delete-config-with-state-and-stats_regression_state#1",
+                            "data_frame_analytics-delete-config-with-state-and-stats-progress"
+                        )
+                )
+                .setTrackTotalHits(true)
+                .get()
+                .getHits()
+                .getTotalHits().value,
+            equalTo(0L)
+        );
 
-        assertThat(originSettingClient.prepareSearch(".ml-stats-*")
-            .setQuery(QueryBuilders.idsQuery()
-                .addIds("delete-config-with-state-and-stats_1",
-                    "delete-config-with-state-and-stats_2"))
-            .setTrackTotalHits(true)
-            .get()
-            .getHits()
-            .getTotalHits()
-            .value, equalTo(0L));
+        assertThat(
+            originSettingClient.prepareSearch(".ml-stats-*")
+                .setQuery(QueryBuilders.idsQuery().addIds("delete-config-with-state-and-stats_1", "delete-config-with-state-and-stats_2"))
+                .setTrackTotalHits(true)
+                .get()
+                .getHits()
+                .getTotalHits().value,
+            equalTo(0L)
+        );
     }
 
 }

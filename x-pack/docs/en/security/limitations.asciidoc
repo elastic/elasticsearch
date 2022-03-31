@@ -50,7 +50,10 @@ When a user's role enables document or <<field-level-security,field level securi
 * The user cannot perform write operations:
 ** The update API isn't supported.
 ** Update requests included in bulk requests aren't supported.
-* The request cache is disabled for search requests.
+* The request cache is disabled for search requests if either of the following are true:
+** The role query that defines document level security is <<templating-role-query,templated>>
+using a <<script-stored-scripts,stored script>>.
+** The target indices are a mix of local and remote indices.
 
 When a user's role enables <<document-level-security,document level security>> for a data stream or index:
 

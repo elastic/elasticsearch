@@ -29,7 +29,7 @@ document content, as it treats all values as keywords and does not provide full
 search functionality. The default approach, where each subfield has its own
 entry in the mappings, works well in the majority of cases.
 
-An flattened object field can be created as follows:
+A flattened object field can be created as follows:
 
 [source,console]
 --------------------------------
@@ -112,7 +112,7 @@ When querying, it is not possible to refer to field keys using wildcards, as in
 `range`, treat the values as string keywords. Highlighting is not supported on
 `flattened` fields.
 
-It is possible to sort on an flattened object field, as well as perform simple
+It is possible to sort on a flattened object field, as well as perform simple
 keyword-style aggregations such as `terms`. As with queries, there is no
 special support for numerics -- all values in the JSON object are treated as
 keywords. When sorting, this implies that values are compared

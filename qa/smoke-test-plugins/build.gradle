@@ -6,8 +6,7 @@
  * Side Public License, v 1.
  */
 
-import org.elasticsearch.gradle.OS
-import org.elasticsearch.gradle.internal.MavenFilteringHack
+import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.internal-testclusters'
@@ -38,10 +37,5 @@ ext.expansions = [
 tasks.named("processTestResources").configure {
   assert pluginPaths.size() > 0
   inputs.properties(expansions)
-  MavenFilteringHack.filter(it, expansions)
-}
-
-// AwaitsFix https://github.com/elastic/elasticsearch/issues/73539
-tasks.named("integTest").configure {
-  onlyIf { OS.current() != OS.WINDOWS }
+  filter("tokens" : expansions.collectEntries {k, v -> [k, v.toString()]} /* must be a map of strings */, ReplaceTokens.class)
 }

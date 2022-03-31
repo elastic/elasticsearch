@@ -14,12 +14,11 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 public class FixedAutoscalingDeciderService implements AutoscalingDeciderService {
 
@@ -72,7 +71,7 @@ public class FixedAutoscalingDeciderService implements AutoscalingDeciderService
 
     @Override
     public List<DiscoveryNodeRole> roles() {
-        return DiscoveryNodeRole.roles().stream().collect(Collectors.toUnmodifiableList());
+        return DiscoveryNodeRole.roles().stream().toList();
     }
 
     @Override

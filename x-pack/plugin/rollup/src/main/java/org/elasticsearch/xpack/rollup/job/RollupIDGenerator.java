@@ -97,8 +97,7 @@ public class RollupIDGenerator {
 
     public String getID() {
         setFlag();
-        MurmurHash3.Hash128 hasher
-            = MurmurHash3.hash128(id.bytes(), 0, id.length(), SEED, new MurmurHash3.Hash128());
+        MurmurHash3.Hash128 hasher = MurmurHash3.hash128(id.bytes(), 0, id.length(), SEED, new MurmurHash3.Hash128());
         byte[] hashedBytes = new byte[16];
         System.arraycopy(Numbers.longToBytes(hasher.h1), 0, hashedBytes, 0, 8);
         System.arraycopy(Numbers.longToBytes(hasher.h2), 0, hashedBytes, 8, 8);

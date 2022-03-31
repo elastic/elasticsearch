@@ -51,13 +51,13 @@ public class DateRangeIncludingNowQuery extends Query {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (sameClassAs(o) == false) return false;
         DateRangeIncludingNowQuery that = (DateRangeIncludingNowQuery) o;
         return Objects.equals(in, that.in);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(in);
+        return Objects.hash(classHash(), in);
     }
 }

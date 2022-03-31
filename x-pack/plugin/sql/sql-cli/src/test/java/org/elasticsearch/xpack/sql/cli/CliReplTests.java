@@ -18,11 +18,7 @@ import static org.mockito.Mockito.when;
 public class CliReplTests extends SqlCliTestCase {
 
     public void testBasicCliFunctionality() throws Exception {
-        CliTerminal cliTerminal = new TestTerminal(
-                "test;",
-                "notest;",
-                "exit;"
-        );
+        CliTerminal cliTerminal = new TestTerminal("test;", "notest;", "exit;");
         CliSession mockSession = mock(CliSession.class);
         CliCommand mockCommand = mock(CliCommand.class);
         when(mockCommand.handle(cliTerminal, mockSession, "logo")).thenReturn(true);
@@ -43,13 +39,7 @@ public class CliReplTests extends SqlCliTestCase {
      * just new lines.
      */
     public void testEmptyNotSent() {
-        CliTerminal cliTerminal = new TestTerminal(
-                ";",
-                "",
-                "",
-                ";",
-                "exit;"
-        );
+        CliTerminal cliTerminal = new TestTerminal(";", "", "", ";", "exit;");
 
         CliSession mockSession = mock(CliSession.class);
         CliCommand mockCommand = mock(CliCommand.class);
@@ -62,10 +52,7 @@ public class CliReplTests extends SqlCliTestCase {
     }
 
     public void testFatalCliExceptionHandling() throws Exception {
-        CliTerminal cliTerminal = new TestTerminal(
-                "test;",
-                "fail;"
-        );
+        CliTerminal cliTerminal = new TestTerminal("test;", "fail;");
 
         CliSession mockSession = mock(CliSession.class);
         CliCommand mockCommand = mock(CliCommand.class);

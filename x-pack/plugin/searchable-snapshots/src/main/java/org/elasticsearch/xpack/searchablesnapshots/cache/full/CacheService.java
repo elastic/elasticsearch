@@ -21,10 +21,10 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
@@ -481,7 +481,7 @@ public class CacheService extends AbstractLifecycleComponent {
      *
      * @param cacheFile the evicted instance
      */
-    private void onCacheFileEviction(CacheFile cacheFile) {
+    private static void onCacheFileEviction(CacheFile cacheFile) {
         IOUtils.closeWhileHandlingException(cacheFile::startEviction);
     }
 
@@ -551,13 +551,12 @@ public class CacheService extends AbstractLifecycleComponent {
                 final CacheFile cacheFile = event.value;
                 try {
                     switch (event.type) {
-                        case DELETE:
+                        case DELETE -> {
                             logger.trace("deleting cache file [{}] from persistent cache", cacheFile.getFile().getFileName());
                             persistentCache.removeCacheFile(cacheFile);
                             deletes += 1L;
-                            break;
-
-                        case NEEDS_FSYNC:
+                        }
+                        case NEEDS_FSYNC -> {
                             final SortedSet<ByteRange> ranges = cacheFile.fsync();
                             logger.trace(
                                 "cache file [{}] synchronized with [{}] completed range(s)",
@@ -587,10 +586,8 @@ public class CacheService extends AbstractLifecycleComponent {
                                     updates += 1L;
                                 }
                             }
-                            break;
-
-                        default:
-                            throw new IllegalArgumentException("Unknown cache file event [" + event + ']');
+                        }
+                        default -> throw new IllegalArgumentException("Unknown cache file event [" + event + ']');
                     }
                 } catch (Exception e) {
                     logger.warn(

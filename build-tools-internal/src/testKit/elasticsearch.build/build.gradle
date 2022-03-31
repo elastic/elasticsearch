@@ -2,13 +2,11 @@ plugins {
   id 'java'
   id 'elasticsearch.global-build-info'
 }
-import org.elasticsearch.gradle.internal.info.BuildParams
-BuildParams.init { it.setIsInternal(true) }
 
 apply plugin:'elasticsearch.build'
 
-ext.licenseFile = file("LICENSE")
-ext.noticeFile = file("NOTICE")
+licenseFile.set(file("LICENSE"))
+noticeFile.set(file("NOTICE"))
 
 dependencies {
   api "junit:junit:${versions.junit}"
@@ -66,3 +64,5 @@ tasks.register("hello") {
     println "build plugin can be applied"
   }
 }
+// requires further classpath
+tasks.named("checkstyleMain").configure {enabled = false }

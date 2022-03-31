@@ -7,10 +7,10 @@
 package org.elasticsearch.xpack.watcher.support;
 
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.common.xcontent.ObjectPath;
+import org.elasticsearch.xcontent.ObjectPath;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -21,7 +21,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -120,10 +120,22 @@ public class FilterXContentTests extends ESTestCase {
 
     // issue #852
     public void testArraysAreNotCutOff() throws Exception {
-        XContentBuilder builder = jsonBuilder().startObject().startArray("buckets")
-                .startObject().startObject("foo").startObject("values").endObject().endObject().endObject()
-                .startObject().startObject("foo").startObject("values").endObject().endObject().endObject()
-                .endArray().endObject();
+        XContentBuilder builder = jsonBuilder().startObject()
+            .startArray("buckets")
+            .startObject()
+            .startObject("foo")
+            .startObject("values")
+            .endObject()
+            .endObject()
+            .endObject()
+            .startObject()
+            .startObject("foo")
+            .startObject("values")
+            .endObject()
+            .endObject()
+            .endObject()
+            .endArray()
+            .endObject();
 
         XContentParser parser = createParser(builder);
 
@@ -134,6 +146,7 @@ public class FilterXContentTests extends ESTestCase {
         assertThat(filteredData.get("buckets"), instanceOf(List.class));
 
         // both buckets have to include the following keys
+        @SuppressWarnings("unchecked")
         List<Map<String, Object>> buckets = (List<Map<String, Object>>) filteredData.get("buckets");
         assertThat(buckets, hasSize(2));
         assertThat(buckets.get(0).keySet(), containsInAnyOrder("foo"));
@@ -142,18 +155,32 @@ public class FilterXContentTests extends ESTestCase {
 
     // issue #4614
     public void testNestedArraysWork() throws Exception {
-        XContentBuilder builder = jsonBuilder().startObject().startArray("buckets")
-                .startObject().startObject("foo").field("spam", "eggs").endObject().endObject()
-                .startObject().startObject("foo").field("spam", "eggs2").endObject().endObject()
-                .startObject().startObject("foo").field("spam", "eggs3").endObject().endObject()
-                .endArray().endObject();
+        XContentBuilder builder = jsonBuilder().startObject()
+            .startArray("buckets")
+            .startObject()
+            .startObject("foo")
+            .field("spam", "eggs")
+            .endObject()
+            .endObject()
+            .startObject()
+            .startObject("foo")
+            .field("spam", "eggs2")
+            .endObject()
+            .endObject()
+            .startObject()
+            .startObject("foo")
+            .field("spam", "eggs3")
+            .endObject()
+            .endObject()
+            .endArray()
+            .endObject();
 
         XContentParser parser = createParser(builder);
 
         assertArrayValues(parser, "buckets.foo.spam", "eggs", "eggs2", "eggs3");
     }
 
-    private void assertArrayValues(XContentParser parser, String key, Object ... expectedValues) throws IOException {
+    private void assertArrayValues(XContentParser parser, String key, Object... expectedValues) throws IOException {
         Set<String> keys = new HashSet<>();
         keys.add(key);
         Map<String, Object> filteredData = XContentFilterKeysUtils.filterMapOrdered(keys, parser);
@@ -172,11 +199,25 @@ public class FilterXContentTests extends ESTestCase {
     }
 
     public void testNestedArraysWorkWithNumbers() throws Exception {
-        XContentBuilder builder = jsonBuilder().startObject().startArray("buckets")
-                .startObject().startObject("foo").field("spam", 0).endObject().endObject()
-                .startObject().startObject("foo").field("spam", 1).endObject().endObject()
-                .startObject().startObject("foo").field("spam", 2).endObject().endObject()
-                .endArray().endObject();
+        XContentBuilder builder = jsonBuilder().startObject()
+            .startArray("buckets")
+            .startObject()
+            .startObject("foo")
+            .field("spam", 0)
+            .endObject()
+            .endObject()
+            .startObject()
+            .startObject("foo")
+            .field("spam", 1)
+            .endObject()
+            .endObject()
+            .startObject()
+            .startObject("foo")
+            .field("spam", 2)
+            .endObject()
+            .endObject()
+            .endArray()
+            .endObject();
 
         XContentParser parser = createParser(builder);
 
@@ -186,11 +227,25 @@ public class FilterXContentTests extends ESTestCase {
     public void testNestedArraysWorkWithBooleans() throws Exception {
         boolean[] bools = new boolean[] { randomBoolean(), randomBoolean(), randomBoolean() };
 
-        XContentBuilder builder = jsonBuilder().startObject().startArray("buckets")
-                .startObject().startObject("foo").field("spam", bools[0]).endObject().endObject()
-                .startObject().startObject("foo").field("spam", bools[1]).endObject().endObject()
-                .startObject().startObject("foo").field("spam", bools[2]).endObject().endObject()
-                .endArray().endObject();
+        XContentBuilder builder = jsonBuilder().startObject()
+            .startArray("buckets")
+            .startObject()
+            .startObject("foo")
+            .field("spam", bools[0])
+            .endObject()
+            .endObject()
+            .startObject()
+            .startObject("foo")
+            .field("spam", bools[1])
+            .endObject()
+            .endObject()
+            .startObject()
+            .startObject("foo")
+            .field("spam", bools[2])
+            .endObject()
+            .endObject()
+            .endArray()
+            .endObject();
 
         XContentParser parser = createParser(builder);
 

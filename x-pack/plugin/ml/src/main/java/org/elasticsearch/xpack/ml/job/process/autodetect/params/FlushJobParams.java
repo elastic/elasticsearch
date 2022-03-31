@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.ml.job.process.autodetect.params;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.xpack.core.common.time.TimeUtils;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.common.time.TimeUtils;
 
 import java.util.Objects;
 
@@ -41,11 +41,13 @@ public class FlushJobParams {
      */
     private final boolean waitForNormalization;
 
-    private FlushJobParams(boolean calcInterim,
-                           TimeRange timeRange,
-                           Long advanceTimeSeconds,
-                           Long skipTimeSeconds,
-                           boolean waitForNormalization) {
+    private FlushJobParams(
+        boolean calcInterim,
+        TimeRange timeRange,
+        Long advanceTimeSeconds,
+        Long skipTimeSeconds,
+        boolean waitForNormalization
+    ) {
         this.calcInterim = calcInterim;
         this.timeRange = Objects.requireNonNull(timeRange);
         this.advanceTimeSeconds = advanceTimeSeconds;
@@ -100,10 +102,10 @@ public class FlushJobParams {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         FlushJobParams that = (FlushJobParams) o;
-        return calcInterim == that.calcInterim &&
-                Objects.equals(timeRange, that.timeRange) &&
-                Objects.equals(advanceTimeSeconds, that.advanceTimeSeconds) &&
-                Objects.equals(skipTimeSeconds, that.skipTimeSeconds);
+        return calcInterim == that.calcInterim
+            && Objects.equals(timeRange, that.timeRange)
+            && Objects.equals(advanceTimeSeconds, that.advanceTimeSeconds)
+            && Objects.equals(skipTimeSeconds, that.skipTimeSeconds);
     }
 
     @Override
@@ -148,8 +150,9 @@ public class FlushJobParams {
             Long advanceTimeSeconds = parseTimeParam("advance_time", advanceTime);
             Long skipTimeSeconds = parseTimeParam("skip_time", skipTime);
             if (skipTimeSeconds != null && advanceTimeSeconds != null && advanceTimeSeconds <= skipTimeSeconds) {
-                throw ExceptionsHelper.badRequestException("advance_time [" + advanceTime + "] must be later than skip_time ["
-                        + skipTime + "]");
+                throw ExceptionsHelper.badRequestException(
+                    "advance_time [" + advanceTime + "] must be later than skip_time [" + skipTime + "]"
+                );
             }
             return new FlushJobParams(calcInterim, timeRange, advanceTimeSeconds, skipTimeSeconds, waitForNormalization);
         }

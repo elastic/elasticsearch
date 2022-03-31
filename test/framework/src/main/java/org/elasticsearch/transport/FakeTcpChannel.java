@@ -9,7 +9,7 @@ package org.elasticsearch.transport;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.concurrent.CompletableContext;
+import org.elasticsearch.core.CompletableContext;
 
 import java.net.InetSocketAddress;
 import java.util.concurrent.atomic.AtomicReference;
@@ -41,13 +41,17 @@ public class FakeTcpChannel implements TcpChannel {
         this(isServer, "profile", messageCaptor);
     }
 
-
     public FakeTcpChannel(boolean isServer, String profile, AtomicReference<BytesReference> messageCaptor) {
         this(isServer, null, null, profile, messageCaptor);
     }
 
-    public FakeTcpChannel(boolean isServer, InetSocketAddress localAddress, InetSocketAddress remoteAddress, String profile,
-                          AtomicReference<BytesReference> messageCaptor) {
+    public FakeTcpChannel(
+        boolean isServer,
+        InetSocketAddress localAddress,
+        InetSocketAddress remoteAddress,
+        String profile,
+        AtomicReference<BytesReference> messageCaptor
+    ) {
         this.isServer = isServer;
         this.localAddress = localAddress;
         this.remoteAddress = remoteAddress;

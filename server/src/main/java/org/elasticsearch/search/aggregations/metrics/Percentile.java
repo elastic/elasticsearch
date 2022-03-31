@@ -37,8 +37,7 @@ public class Percentile {
             return false;
         }
         Percentile that = (Percentile) o;
-        return Double.compare(that.percent, percent) == 0
-                && Double.compare(that.value, value) == 0;
+        return Double.compare(that.percent, percent) == 0 && Double.compare(that.value, value) == 0;
     }
 
     @Override

@@ -11,10 +11,11 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.NotEqualMessageBuilder;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase;
 
 import java.io.IOException;
 import java.nio.charset.UnsupportedCharsetException;
@@ -26,7 +27,6 @@ import java.util.Map;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase.query;
 import static org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase.randomMode;
-import static org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase.toMap;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.SQL_QUERY_REST_ENDPOINT;
 import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.columnInfo;
 
@@ -93,8 +93,10 @@ public class RestSqlMultinodeIT extends ESRestTestCase {
             int a = 3 * i;
             int b = a + 1;
             int c = b + 1;
-            bulk.append("{\"index\":{\"_id\":\"" + i + "\"}\n");
-            bulk.append("{\"a\": " + a + ", \"b\": " + b + ", \"c\": " + c + "}\n");
+            bulk.append("""
+                {"index":{"_id":"%s"}}
+                {"a": %s, "b": %s, "c": %s}
+                """.formatted(i, a, b, c));
         }
         request.setJsonEntity(bulk.toString());
 
@@ -102,7 +104,7 @@ public class RestSqlMultinodeIT extends ESRestTestCase {
     }
 
     private Map<String, Object> responseToMap(Response response) throws IOException {
-        return toMap(response, "plain");
+        return BaseRestSqlTestCase.toMap(response, "plain");
     }
 
     private void assertCount(RestClient client, int count) throws IOException {
@@ -113,7 +115,7 @@ public class RestSqlMultinodeIT extends ESRestTestCase {
 
         Request request = new Request("POST", SQL_QUERY_REST_ENDPOINT);
         request.setJsonEntity(query("SELECT COUNT(*) FROM test").mode(mode).toString());
-        Map<String, Object> actual = toMap(client.performRequest(request), mode);
+        Map<String, Object> actual = BaseRestSqlTestCase.toMap(client.performRequest(request), mode);
 
         if (false == expected.equals(actual)) {
             NotEqualMessageBuilder message = new NotEqualMessageBuilder();

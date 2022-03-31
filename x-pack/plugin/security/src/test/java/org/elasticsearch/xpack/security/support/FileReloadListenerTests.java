@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.security.support;
 
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.nio.file.Path;
@@ -22,8 +22,11 @@ public class FileReloadListenerTests extends ESTestCase {
         final CountDownLatch latch = new CountDownLatch(2);
         final FileReloadListener fileReloadListener = new FileReloadListener(PathUtils.get("foo", "bar"), latch::countDown);
 
-        Consumer<Path> consumer =
-            randomFrom(fileReloadListener::onFileCreated, fileReloadListener::onFileChanged, fileReloadListener::onFileDeleted);
+        Consumer<Path> consumer = randomFrom(
+            fileReloadListener::onFileCreated,
+            fileReloadListener::onFileChanged,
+            fileReloadListener::onFileDeleted
+        );
 
         consumer.accept(PathUtils.get("foo", "bar"));
         assertThat(latch.getCount(), equalTo(1L));

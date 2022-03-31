@@ -15,11 +15,8 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants;
 
 import static org.elasticsearch.cluster.node.DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE;
-import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING;
 
 public class DedicatedFrozenNodeAllocationDecider extends AllocationDecider {
 
@@ -65,7 +62,7 @@ public class DedicatedFrozenNodeAllocationDecider extends AllocationDecider {
         return canAllocateToNode(indexMetadata, node);
     }
 
-    private Decision canAllocateToNode(IndexMetadata indexMetadata, DiscoveryNode discoveryNode) {
+    private static Decision canAllocateToNode(IndexMetadata indexMetadata, DiscoveryNode discoveryNode) {
 
         boolean hasDataFrozenRole = false;
         boolean hasOtherDataRole = false;
@@ -82,8 +79,7 @@ public class DedicatedFrozenNodeAllocationDecider extends AllocationDecider {
             return YES_NOT_DEDICATED_FROZEN_NODE;
         }
 
-        final Settings indexSettings = indexMetadata.getSettings();
-        if (SearchableSnapshotsConstants.isSearchableSnapshotStore(indexSettings) && SNAPSHOT_PARTIAL_SETTING.get(indexSettings)) {
+        if (indexMetadata.isPartialSearchableSnapshot()) {
             return YES_IS_PARTIAL_SEARCHABLE_SNAPSHOT;
         }
 

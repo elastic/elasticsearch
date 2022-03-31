@@ -10,8 +10,8 @@ package org.elasticsearch.client.security;
 
 import org.elasticsearch.client.Validatable;
 import org.elasticsearch.client.ValidationException;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.security.cert.CertificateEncodingException;
@@ -39,12 +39,12 @@ public final class DelegatePkiAuthenticationRequest implements Validatable, ToXC
         builder.startObject().startArray("x509_certificate_chain");
         try {
             for (X509Certificate cert : x509CertificateChain) {
-                 builder.value(Base64.getEncoder().encodeToString(cert.getEncoded()));
-             }
-         } catch (CertificateEncodingException e) {
-             throw new IOException(e);
-         }
-         return builder.endArray().endObject();
+                builder.value(Base64.getEncoder().encodeToString(cert.getEncoded()));
+            }
+        } catch (CertificateEncodingException e) {
+            throw new IOException(e);
+        }
+        return builder.endArray().endObject();
     }
 
     public List<X509Certificate> getCertificateChain() {

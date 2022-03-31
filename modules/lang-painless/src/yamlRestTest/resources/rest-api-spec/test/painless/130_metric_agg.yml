@@ -1,0 +1,63 @@
+setup:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              double:
+                type: double
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          double: 1.0
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          double: 1.0
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body:
+          double: 2.0
+
+  - do:
+      indices.refresh: {}
+
+---
+"Scripted Metric Agg Total":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: {
+          "size": 0,
+          "aggs": {
+            "total": {
+              "scripted_metric": {
+                "init_script": "state.transactions = []",
+                "map_script": "state.transactions.add(doc['double'].value)",
+                "combine_script": "double total = 0.0; for (t in state.transactions) { total += t } return total",
+                "reduce_script": "double total = 0; for (a in states) { total += a } return total"
+              }
+            }
+          }
+        }
+
+  - match: { hits.total: 3 }
+  - match: { aggregations.total.value: 4.0 }
+

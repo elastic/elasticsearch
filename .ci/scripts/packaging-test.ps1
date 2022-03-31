@@ -10,6 +10,7 @@ If (-NOT ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdent
 $AppProps = ConvertFrom-StringData (Get-Content .ci/java-versions.properties -raw)
 $env:ES_BUILD_JAVA=$AppProps.ES_BUILD_JAVA
 $env:ES_RUNTIME_JAVA=$AppProps.ES_RUNTIME_JAVA
+$env:JAVA_TOOL_OPTIONS=''
 
 $ErrorActionPreference="Stop"
 $gradleInit = "C:\Users\$env:username\.gradle\init.d\"

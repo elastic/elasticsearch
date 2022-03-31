@@ -8,7 +8,7 @@
 
 package org.elasticsearch.test;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 
 import java.util.List;
 import java.util.Locale;
@@ -146,8 +146,7 @@ public class NotEqualMessageBuilder {
             return;
         }
         if (Objects.equals(expected, actual)) {
-            if (expected instanceof String) {
-                String expectedString = (String) expected;
+            if (expected instanceof String expectedString) {
                 if (expectedString.length() > 50) {
                     expectedString = expectedString.substring(0, 50) + "...";
                 }
@@ -157,8 +156,18 @@ public class NotEqualMessageBuilder {
             field(field, "same [" + expected + "]");
             return;
         }
-        field(field, "expected " + expected.getClass().getSimpleName() + " [" + expected + "] but was "
-                + actual.getClass().getSimpleName() + " [" + actual + "]");
+        field(
+            field,
+            "expected "
+                + expected.getClass().getSimpleName()
+                + " ["
+                + expected
+                + "] but was "
+                + actual.getClass().getSimpleName()
+                + " ["
+                + actual
+                + "]"
+        );
     }
 
     private void indent() {

@@ -4,7 +4,7 @@
 <titleabbrev>Delete alias</titleabbrev>
 ++++
 
-Removes a data stream or index from an <<alias,alias>>.
+Removes a data stream or index from an <<aliases,alias>>.
 
 [source,console]
 ----
@@ -37,8 +37,7 @@ indices.
 
 `<target>`::
 (Required, string) Comma-separated list of data streams or indices used to limit
-the request. Supports wildcards (`*`). Wildcard patterns that match both data
-streams and indices return an error.
+the request. Supports wildcards (`*`).
 
 [[delete-alias-api-query-params]]
 ==== {api-query-parms-title}

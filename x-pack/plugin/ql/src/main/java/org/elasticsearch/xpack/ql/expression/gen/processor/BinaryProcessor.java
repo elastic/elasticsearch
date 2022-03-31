@@ -55,7 +55,7 @@ public abstract class BinaryProcessor implements Processor {
      * Checks the parameter (typically for its type) if the value is not null.
      */
     protected void checkParameter(Object param) {
-        //no-op
+        // no-op
     }
 
     protected Processor left() {

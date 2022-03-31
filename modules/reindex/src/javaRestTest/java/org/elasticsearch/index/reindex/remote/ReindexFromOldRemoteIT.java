@@ -14,7 +14,7 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.common.Booleans;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
@@ -48,35 +48,35 @@ public class ReindexFromOldRemoteIT extends ESRestTestCase {
                 Request reindex = new Request("POST", "/_reindex");
                 if (randomBoolean()) {
                     // Reindex using the external version_type
-                    reindex.setJsonEntity(
-                        "{\n"
-                            + "  \"source\":{\n"
-                            + "    \"index\": \"test\",\n"
-                            + "    \"size\": 1,\n"
-                            + "    \"remote\": {\n"
-                            + "      \"host\": \"http://127.0.0.1:" + oldEsPort + "\"\n"
-                            + "    }\n"
-                            + "  },\n"
-                            + "  \"dest\": {\n"
-                            + "    \"index\": \"test\",\n"
-                            + "    \"version_type\": \"external\"\n"
-                            + "  }\n"
-                            + "}");
+                    reindex.setJsonEntity("""
+                        {
+                          "source":{
+                            "index": "test",
+                            "size": 1,
+                            "remote": {
+                              "host": "http://127.0.0.1:%s"
+                            }
+                          },
+                          "dest": {
+                            "index": "test",
+                            "version_type": "external"
+                          }
+                        }""".formatted(oldEsPort));
                 } else {
                     // Reindex using the default internal version_type
-                    reindex.setJsonEntity(
-                        "{\n"
-                            + "  \"source\":{\n"
-                            + "    \"index\": \"test\",\n"
-                            + "    \"size\": 1,\n"
-                            + "    \"remote\": {\n"
-                            + "      \"host\": \"http://127.0.0.1:" + oldEsPort + "\"\n"
-                            + "    }\n"
-                            + "  },\n"
-                            + "  \"dest\": {\n"
-                            + "    \"index\": \"test\"\n"
-                            + "  }\n"
-                            + "}");
+                    reindex.setJsonEntity("""
+                        {
+                          "source":{
+                            "index": "test",
+                            "size": 1,
+                            "remote": {
+                              "host": "http://127.0.0.1:%s"
+                            }
+                          },
+                          "dest": {
+                            "index": "test"
+                          }
+                        }""".formatted(oldEsPort));
                 }
                 reindex.addParameter("refresh", "true");
                 reindex.addParameter("pretty", "true");

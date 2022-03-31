@@ -39,8 +39,7 @@ public class TomlFoldTests extends ESTestCase {
 
     private static final EqlParser PARSER = new EqlParser();
     private static final EqlFunctionRegistry FUNCTION_REGISTRY = new EqlFunctionRegistry();
-    private static final Verifier VERIFIER = new Verifier(new Metrics());
-    private static final Analyzer ANALYZER = new Analyzer(TEST_CFG, FUNCTION_REGISTRY, VERIFIER);
+    private static final Analyzer ANALYZER = new Analyzer(TEST_CFG, FUNCTION_REGISTRY, new Verifier(new Metrics()));
 
     private final int num;
     private final EqlFoldSpec spec;
@@ -63,15 +62,16 @@ public class TomlFoldTests extends ESTestCase {
 
     private static List<Object[]> asArray(Collection<EqlFoldSpec> specs) {
         AtomicInteger counter = new AtomicInteger();
-        return specs.stream().map(spec -> new Object[] {
-            counter.incrementAndGet(), spec
-        }).collect(toList());
+        return specs.stream().map(spec -> new Object[] { counter.incrementAndGet(), spec }).collect(toList());
     }
 
     public void test() {
         Expression expr = PARSER.createExpression(spec.expression());
-        LogicalPlan logicalPlan = new Project(EMPTY, new LocalRelation(EMPTY, emptyList()),
-            singletonList(new Alias(Source.EMPTY, "test", expr)));
+        LogicalPlan logicalPlan = new Project(
+            EMPTY,
+            new LocalRelation(EMPTY, emptyList()),
+            singletonList(new Alias(Source.EMPTY, "test", expr))
+        );
         LogicalPlan analyzed = ANALYZER.analyze(logicalPlan);
 
         assertTrue(analyzed instanceof Project);
@@ -85,7 +85,7 @@ public class TomlFoldTests extends ESTestCase {
 
         // upgrade to a long, because the parser typically downgrades Long -> Integer when possible
         if (folded instanceof Integer) {
-            folded  = ((Integer) folded).longValue();
+            folded = ((Integer) folded).longValue();
         }
 
         assertEquals(spec.expected(), folded);

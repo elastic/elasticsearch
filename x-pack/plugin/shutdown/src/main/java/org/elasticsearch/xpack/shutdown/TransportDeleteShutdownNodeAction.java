@@ -10,11 +10,13 @@ package org.elasticsearch.xpack.shutdown;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -24,6 +26,7 @@ import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -60,8 +63,8 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
     ) throws Exception {
         { // This block solely to ensure this NodesShutdownMetadata isn't accidentally used in the cluster state update task below
             NodesShutdownMetadata nodesShutdownMetadata = state.metadata().custom(NodesShutdownMetadata.TYPE);
-            if (nodesShutdownMetadata.getAllNodeMetadataMap().get(request.getNodeId()) == null) {
-                throw new IllegalArgumentException("node [" + request.getNodeId() + "] is not currently shutting down");
+            if (nodesShutdownMetadata == null || nodesShutdownMetadata.getAllNodeMetadataMap().get(request.getNodeId()) == null) {
+                throw new ResourceNotFoundException("node [" + request.getNodeId() + "] is not currently shutting down");
             }
         }
 
@@ -69,6 +72,8 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 NodesShutdownMetadata currentShutdownMetadata = currentState.metadata().custom(NodesShutdownMetadata.TYPE);
+
+                logger.info("removing shutdown record for node [{}]", request.getNodeId());
 
                 return ClusterState.builder(currentState)
                     .metadata(
@@ -80,13 +85,13 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 logger.error(new ParameterizedMessage("failed to delete shutdown for node [{}]", request.getNodeId()), e);
                 listener.onFailure(e);
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 clusterService.getRerouteService()
                     .reroute("node registered for removal from cluster", Priority.NORMAL, new ActionListener<ClusterState>() {
                         @Override
@@ -105,11 +110,16 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
                         }
                     });
             }
-        });
+        }, newExecutor());
     }
 
     @Override
     protected ClusterBlockException checkBlock(DeleteShutdownNodeAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 }

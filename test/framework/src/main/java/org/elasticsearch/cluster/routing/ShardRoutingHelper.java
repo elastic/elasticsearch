@@ -36,9 +36,17 @@ public class ShardRoutingHelper {
     }
 
     public static ShardRouting initWithSameId(ShardRouting copy, RecoverySource recoverySource) {
-        return new ShardRouting(copy.shardId(), copy.currentNodeId(), copy.relocatingNodeId(),
-            copy.primary(), ShardRoutingState.INITIALIZING, recoverySource, new UnassignedInfo(UnassignedInfo.Reason.REINITIALIZED, null),
-            copy.allocationId(), copy.getExpectedShardSize());
+        return new ShardRouting(
+            copy.shardId(),
+            copy.currentNodeId(),
+            copy.relocatingNodeId(),
+            copy.primary(),
+            ShardRoutingState.INITIALIZING,
+            recoverySource,
+            new UnassignedInfo(UnassignedInfo.Reason.REINITIALIZED, null),
+            copy.allocationId(),
+            copy.getExpectedShardSize()
+        );
     }
 
     public static ShardRouting moveToUnassigned(ShardRouting routing, UnassignedInfo info) {
@@ -46,7 +54,16 @@ public class ShardRoutingHelper {
     }
 
     public static ShardRouting newWithRestoreSource(ShardRouting routing, SnapshotRecoverySource recoverySource) {
-        return new ShardRouting(routing.shardId(), routing.currentNodeId(), routing.relocatingNodeId(), routing.primary(), routing.state(),
-            recoverySource, routing.unassignedInfo(), routing.allocationId(), routing.getExpectedShardSize());
+        return new ShardRouting(
+            routing.shardId(),
+            routing.currentNodeId(),
+            routing.relocatingNodeId(),
+            routing.primary(),
+            routing.state(),
+            recoverySource,
+            routing.unassignedInfo(),
+            routing.allocationId(),
+            routing.getExpectedShardSize()
+        );
     }
 }

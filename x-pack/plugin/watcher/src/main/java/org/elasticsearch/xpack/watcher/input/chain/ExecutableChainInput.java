@@ -6,9 +6,10 @@
  */
 package org.elasticsearch.xpack.watcher.input.chain;
 
-import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.LogManager;
-import org.elasticsearch.common.collect.Tuple;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.input.ExecutableInput;
 import org.elasticsearch.xpack.core.watcher.input.Input;
@@ -21,12 +22,12 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.watcher.input.chain.ChainInput.TYPE;
 
-public class ExecutableChainInput extends ExecutableInput<ChainInput,ChainInput.Result> {
+public class ExecutableChainInput extends ExecutableInput<ChainInput, ChainInput.Result> {
     private static final Logger logger = LogManager.getLogger(ExecutableChainInput.class);
 
-    private List<Tuple<String, ExecutableInput>> inputs;
+    private final List<Tuple<String, ExecutableInput<?, ?>>> inputs;
 
-    public ExecutableChainInput(ChainInput input, List<Tuple<String, ExecutableInput>> inputs) {
+    public ExecutableChainInput(ChainInput input, List<Tuple<String, ExecutableInput<?, ?>>> inputs) {
         super(input);
         this.inputs = inputs;
     }
@@ -37,7 +38,7 @@ public class ExecutableChainInput extends ExecutableInput<ChainInput,ChainInput.
         Map<String, Object> payloads = new HashMap<>();
 
         try {
-            for (Tuple<String, ExecutableInput> tuple : inputs) {
+            for (Tuple<String, ExecutableInput<?, ?>> tuple : inputs) {
                 Input.Result result = tuple.v2().execute(ctx, new Payload.Simple(payloads));
                 results.add(new Tuple<>(tuple.v1(), result));
                 payloads.put(tuple.v1(), result.payload().data());
@@ -45,7 +46,7 @@ public class ExecutableChainInput extends ExecutableInput<ChainInput,ChainInput.
 
             return new ChainInput.Result(results, new Payload.Simple(payloads));
         } catch (Exception e) {
-            logger.error("failed to execute [{}] input for watch [{}], reason [{}]", TYPE, ctx.watch().id(), e.getMessage());
+            logger.error(new ParameterizedMessage("failed to execute [{}] input for watch [{}]", TYPE, ctx.watch().id()), e);
             return new ChainInput.Result(e);
         }
     }

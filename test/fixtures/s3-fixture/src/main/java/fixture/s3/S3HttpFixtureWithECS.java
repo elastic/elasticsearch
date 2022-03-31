@@ -8,6 +8,7 @@
 package fixture.s3;
 
 import com.sun.net.httpserver.HttpHandler;
+
 import org.elasticsearch.rest.RestStatus;
 
 import java.nio.charset.StandardCharsets;
@@ -41,8 +42,9 @@ public class S3HttpFixtureWithECS extends S3HttpFixtureWithEC2 {
 
     public static void main(final String[] args) throws Exception {
         if (args == null || args.length < 6) {
-            throw new IllegalArgumentException("S3HttpFixtureWithECS expects 6 arguments " +
-                "[address, port, bucket, base path, ecs access id, ecs session token]");
+            throw new IllegalArgumentException(
+                "S3HttpFixtureWithECS expects 6 arguments [address, port, bucket, base path, ecs access id, ecs session token]"
+            );
         }
         final S3HttpFixtureWithECS fixture = new S3HttpFixtureWithECS(args);
         fixture.start();

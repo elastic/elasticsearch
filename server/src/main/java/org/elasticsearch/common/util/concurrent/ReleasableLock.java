@@ -9,8 +9,8 @@
 package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.Assertions;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.EngineException;
 
 import java.util.concurrent.locks.Lock;
@@ -20,7 +20,6 @@ import java.util.concurrent.locks.Lock;
  */
 public class ReleasableLock implements Releasable {
     private final Lock lock;
-
 
     // a per-thread count indicating how many times the thread has entered the lock; only works if assertions are enabled
     private final ThreadLocal<Integer> holdingThreads;
@@ -39,7 +38,6 @@ public class ReleasableLock implements Releasable {
         lock.unlock();
         assert removeCurrentThread();
     }
-
 
     public ReleasableLock acquire() throws EngineException {
         lock.lock();

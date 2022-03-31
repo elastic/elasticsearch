@@ -7,9 +7,9 @@
  */
 package org.elasticsearch.client;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
+import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 
 /**
  * A base request for any requests that supply timeouts.

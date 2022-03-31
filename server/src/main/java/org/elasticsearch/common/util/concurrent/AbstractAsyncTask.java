@@ -9,7 +9,7 @@ package org.elasticsearch.common.util.concurrent;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -137,8 +137,10 @@ public abstract class AbstractAsyncTask implements Runnable, Closeable {
                 logger.warn(
                     () -> new ParameterizedMessage(
                         "failed to run task {} - suppressing re-occurring exceptions unless the exception changes",
-                        toString()),
-                    ex);
+                        toString()
+                    ),
+                    ex
+                );
                 lastThrownException = ex;
             }
         } finally {

@@ -10,7 +10,8 @@ package org.elasticsearch.common.xcontent;
 
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xcontent.ErrorOnUnknown;
 
 import java.util.ArrayList;
 import java.util.List;

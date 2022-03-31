@@ -71,7 +71,8 @@ final class Spawner implements Closeable {
                 final String message = String.format(
                     Locale.ROOT,
                     "module [%s] does not have permission to fork native controller",
-                    modules.getFileName());
+                    modules.getFileName()
+                );
                 throw new IllegalArgumentException(message);
             }
             final Process process = spawnNativeController(spawnPath, environment.tmpFile(), inheritIo);
@@ -83,7 +84,7 @@ final class Spawner implements Closeable {
      * Attempt to spawn the controller daemon for a given module. The spawned process will remain connected to this JVM via its stdin,
      * stdout, and stderr streams, but the references to these streams are not available to code outside this package.
      */
-    private Process spawnNativeController(final Path spawnPath, final Path tmpPath, final boolean inheritIo) throws IOException {
+    private static Process spawnNativeController(final Path spawnPath, final Path tmpPath, final boolean inheritIo) throws IOException {
         final String command;
         if (Constants.WINDOWS) {
             /*

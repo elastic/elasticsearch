@@ -937,4 +937,4 @@ setup:
             histo:
               date_histogram:
                 field: date
-                interval: second
+                fixed_interval: 1s

@@ -7,11 +7,13 @@
  */
 package org.elasticsearch.gradle.internal.test;
 
+import junit.framework.AssertionFailedError;
+
 import com.carrotsearch.randomizedtesting.JUnit4MethodProvider;
 import com.carrotsearch.randomizedtesting.RandomizedRunner;
 import com.carrotsearch.randomizedtesting.annotations.TestMethodProviders;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakLingering;
-import junit.framework.AssertionFailedError;
+
 import org.junit.Assert;
 import org.junit.runner.RunWith;
 

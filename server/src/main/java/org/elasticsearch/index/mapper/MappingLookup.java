@@ -8,6 +8,9 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.codecs.KnnVectorsFormat;
+import org.apache.lucene.codecs.PostingsFormat;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -16,6 +19,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -45,12 +49,13 @@ public final class MappingLookup {
     /** Full field name to mapper */
     private final Map<String, Mapper> fieldMappers;
     private final Map<String, ObjectMapper> objectMappers;
-    private final boolean hasNested;
+    private final NestedLookup nestedLookup;
     private final FieldTypeLookup fieldTypeLookup;
     private final FieldTypeLookup indexTimeLookup;  // for index-time scripts, a lookup that does not include runtime fields
     private final Map<String, NamedAnalyzer> indexAnalyzersMap = new HashMap<>();
     private final List<FieldMapper> indexTimeScriptMappers = new ArrayList<>();
     private final Mapping mapping;
+    private final Set<String> completionFields = new HashSet<>();
 
     /**
      * Creates a new {@link MappingLookup} instance by parsing the provided mapping and extracting its field definitions.
@@ -70,20 +75,19 @@ public final class MappingLookup {
         for (Mapper child : mapping.getRoot()) {
             collect(child, newObjectMappers, newFieldMappers, newFieldAliasMappers);
         }
-        return new MappingLookup(
-            mapping,
-            newFieldMappers,
-            newObjectMappers,
-            newFieldAliasMappers);
+        return new MappingLookup(mapping, newFieldMappers, newObjectMappers, newFieldAliasMappers);
     }
 
-    private static void collect(Mapper mapper, Collection<ObjectMapper> objectMappers,
-                               Collection<FieldMapper> fieldMappers,
-                               Collection<FieldAliasMapper> fieldAliasMappers) {
+    private static void collect(
+        Mapper mapper,
+        Collection<ObjectMapper> objectMappers,
+        Collection<FieldMapper> fieldMappers,
+        Collection<FieldAliasMapper> fieldAliasMappers
+    ) {
         if (mapper instanceof ObjectMapper) {
-            objectMappers.add((ObjectMapper)mapper);
+            objectMappers.add((ObjectMapper) mapper);
         } else if (mapper instanceof FieldMapper) {
-            fieldMappers.add((FieldMapper)mapper);
+            fieldMappers.add((FieldMapper) mapper);
         } else if (mapper instanceof FieldAliasMapper) {
             fieldAliasMappers.add((FieldAliasMapper) mapper);
         } else {
@@ -109,31 +113,35 @@ public final class MappingLookup {
      * @param aliasMappers the field alias mappers
      * @return the newly created lookup instance
      */
-    public static MappingLookup fromMappers(Mapping mapping,
-                                            Collection<FieldMapper> mappers,
-                                            Collection<ObjectMapper> objectMappers,
-                                            Collection<FieldAliasMapper> aliasMappers) {
+    public static MappingLookup fromMappers(
+        Mapping mapping,
+        Collection<FieldMapper> mappers,
+        Collection<ObjectMapper> objectMappers,
+        Collection<FieldAliasMapper> aliasMappers
+    ) {
         return new MappingLookup(mapping, mappers, objectMappers, aliasMappers);
     }
 
-    private MappingLookup(Mapping mapping,
-                         Collection<FieldMapper> mappers,
-                         Collection<ObjectMapper> objectMappers,
-                         Collection<FieldAliasMapper> aliasMappers) {
+    private MappingLookup(
+        Mapping mapping,
+        Collection<FieldMapper> mappers,
+        Collection<ObjectMapper> objectMappers,
+        Collection<FieldAliasMapper> aliasMappers
+    ) {
         this.mapping = mapping;
         Map<String, Mapper> fieldMappers = new HashMap<>();
         Map<String, ObjectMapper> objects = new HashMap<>();
 
-        boolean hasNested = false;
+        List<NestedObjectMapper> nestedMappers = new ArrayList<>();
         for (ObjectMapper mapper : objectMappers) {
             if (objects.put(mapper.fullPath(), mapper) != null) {
                 throw new MapperParsingException("Object mapper [" + mapper.fullPath() + "] is defined more than once");
             }
-            if (mapper.nested().isNested()) {
-                hasNested = true;
+            if (mapper.isNested()) {
+                nestedMappers.add((NestedObjectMapper) mapper);
             }
         }
-        this.hasNested = hasNested;
+        this.nestedLookup = NestedLookup.build(nestedMappers);
 
         for (FieldMapper mapper : mappers) {
             if (objects.containsKey(mapper.name())) {
@@ -145,6 +153,9 @@ public final class MappingLookup {
             indexAnalyzersMap.putAll(mapper.indexAnalyzers());
             if (mapper.hasScript()) {
                 indexTimeScriptMappers.add(mapper);
+            }
+            if (mapper instanceof CompletionFieldMapper) {
+                completionFields.add(mapper.name());
             }
         }
 
@@ -161,6 +172,13 @@ public final class MappingLookup {
         this.indexTimeLookup = new FieldTypeLookup(mappers, aliasMappers, Collections.emptyList());
         this.fieldMappers = Collections.unmodifiableMap(fieldMappers);
         this.objectMappers = Collections.unmodifiableMap(objects);
+
+        mapping.getRoot()
+            .runtimeFields()
+            .stream()
+            .flatMap(RuntimeField::asMappedFieldTypes)
+            .map(MappedFieldType::name)
+            .forEach(this::validateDoesNotShadow);
     }
 
     /**
@@ -199,11 +217,35 @@ public final class MappingLookup {
         return fieldMappers.values();
     }
 
+    /**
+     * Gets the postings format for a particular field
+     * @param field the field to retrieve a postings format for
+     * @return the postings format for the field, or {@code null} if the default format should be used
+     */
+    public PostingsFormat getPostingsFormat(String field) {
+        return completionFields.contains(field) ? CompletionFieldMapper.postingsFormat() : null;
+    }
+
+    /**
+     * Returns the knn vectors format for a particular field
+     * @param field the field to retrieve a knn vectors format for
+     * @return the knn vectors format for the field, or {@code null} if the default format should be used
+     */
+    public KnnVectorsFormat getKnnVectorsFormatForField(String field) {
+        Mapper fieldMapper = fieldMappers.get(field);
+        if (fieldMapper instanceof PerFieldKnnVectorsFormatFieldMapper) {
+            return ((PerFieldKnnVectorsFormatFieldMapper) fieldMapper).getKnnVectorsFormatForField();
+        } else {
+            return null;
+        }
+    }
+
     void checkLimits(IndexSettings settings) {
         checkFieldLimit(settings.getMappingTotalFieldsLimit());
         checkObjectDepthLimit(settings.getMappingDepthLimit());
         checkFieldNameLengthLimit(settings.getMappingFieldNameLengthLimit());
         checkNestedLimit(settings.getMappingNestedFieldsLimit());
+        checkDimensionFieldLimit(settings.getMappingDimensionFieldsLimit());
     }
 
     private void checkFieldLimit(long limit) {
@@ -212,8 +254,22 @@ public final class MappingLookup {
 
     void checkFieldLimit(long limit, int additionalFieldsToAdd) {
         if (fieldMappers.size() + objectMappers.size() + additionalFieldsToAdd - mapping.getSortedMetadataMappers().length > limit) {
-            throw new IllegalArgumentException("Limit of total fields [" + limit + "] has been exceeded" +
-                (additionalFieldsToAdd > 0 ? " while adding new fields [" + additionalFieldsToAdd + "]" : ""));
+            throw new IllegalArgumentException(
+                "Limit of total fields ["
+                    + limit
+                    + "] has been exceeded"
+                    + (additionalFieldsToAdd > 0 ? " while adding new fields [" + additionalFieldsToAdd + "]" : "")
+            );
+        }
+    }
+
+    private void checkDimensionFieldLimit(long limit) {
+        long dimensionFieldCount = fieldMappers.values()
+            .stream()
+            .filter(m -> m instanceof FieldMapper && ((FieldMapper) m).fieldType().isDimension())
+            .count();
+        if (dimensionFieldCount > limit) {
+            throw new IllegalArgumentException("Limit of total dimension fields [" + limit + "] has been exceeded");
         }
     }
 
@@ -227,8 +283,9 @@ public final class MappingLookup {
             }
             final int depth = numDots + 2;
             if (depth > limit) {
-                throw new IllegalArgumentException("Limit of mapping depth [" + limit +
-                    "] has been exceeded due to object field [" + objectPath + "]");
+                throw new IllegalArgumentException(
+                    "Limit of mapping depth [" + limit + "] has been exceeded due to object field [" + objectPath + "]"
+                );
             }
         }
     }
@@ -248,7 +305,7 @@ public final class MappingLookup {
     private void checkNestedLimit(long limit) {
         long actualNestedFields = 0;
         for (ObjectMapper objectMapper : objectMappers.values()) {
-            if (objectMapper.nested().isNested()) {
+            if (objectMapper.isNested()) {
                 actualNestedFields++;
             }
         }
@@ -257,31 +314,28 @@ public final class MappingLookup {
         }
     }
 
-    public boolean hasNested() {
-        return hasNested;
-    }
-
     public Map<String, ObjectMapper> objectMappers() {
         return objectMappers;
     }
 
+    public NestedLookup nestedLookup() {
+        return nestedLookup;
+    }
+
     public boolean isMultiField(String field) {
+        if (fieldMappers.containsKey(field) == false) {
+            return false;
+        }
+        // Is it a runtime field?
+        if (indexTimeLookup.get(field) != fieldTypeLookup.get(field)) {
+            return false;
+        }
         String sourceParent = parentObject(field);
         return sourceParent != null && fieldMappers.containsKey(sourceParent);
     }
 
     public boolean isObjectField(String field) {
         return objectMappers.containsKey(field);
-    }
-
-    public String getNestedScope(String path) {
-        for (String parentPath = parentObject(path); parentPath != null; parentPath = parentObject(parentPath)) {
-            ObjectMapper objectMapper = objectMappers.get(parentPath);
-            if (objectMapper != null && objectMapper.nested().isNested()) {
-                return parentPath;
-            }
-        }
-        return null;
     }
 
     private static String parentObject(String field) {
@@ -341,6 +395,29 @@ public final class MappingLookup {
     }
 
     /**
+     * Returns if this mapping contains a data-stream's timestamp meta-field and this field is enabled.
+     * Only indices that are a part of a data-stream have this meta-field enabled.
+     * @return {@code true} if contains an enabled data-stream's timestamp meta-field, {@code false} otherwise.
+     */
+    public boolean isDataStreamTimestampFieldEnabled() {
+        DataStreamTimestampFieldMapper dtfm = mapping.getMetadataMapperByClass(DataStreamTimestampFieldMapper.class);
+        return dtfm != null && dtfm.isEnabled();
+    }
+
+    /**
+     * Returns if this mapping contains a timestamp field that is of type date, indexed and has doc values.
+     * @return {@code true} if contains a timestamp field of type date that is indexed and has doc values, {@code false} otherwise.
+     */
+    public boolean hasTimestampField() {
+        final MappedFieldType mappedFieldType = fieldTypesLookup().get(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
+        if (mappedFieldType instanceof DateFieldMapper.DateFieldType) {
+            return mappedFieldType.isIndexed() && mappedFieldType.hasDocValues();
+        } else {
+            return false;
+        }
+    }
+
+    /**
      * Key for the lookup to be used in caches.
      */
     public CacheKey cacheKey() {
@@ -356,87 +433,19 @@ public final class MappingLookup {
     }
 
     /**
-     * Given an object path, checks to see if any of its parents are non-nested objects
+     * Check if the provided {@link MappedFieldType} shadows a dimension
+     * or metric field.
      */
-    public boolean hasNonNestedParent(String path) {
-        ObjectMapper mapper = objectMappers().get(path);
-        if (mapper == null) {
-            return false;
+    public void validateDoesNotShadow(String name) {
+        MappedFieldType shadowed = indexTimeLookup.get(name);
+        if (shadowed == null) {
+            return;
         }
-        while (mapper != null) {
-            if (mapper.nested().isNested() == false) {
-                return true;
-            }
-            if (path.contains(".") == false) {
-                return false;
-            }
-            path = path.substring(0, path.lastIndexOf("."));
-            mapper = objectMappers().get(path);
+        if (shadowed.isDimension()) {
+            throw new MapperParsingException("Field [" + name + "] attempted to shadow a time_series_dimension");
         }
-        return false;
-    }
-
-    /**
-     * Returns all nested object mappers
-     */
-    public List<ObjectMapper> getNestedMappers() {
-        List<ObjectMapper> childMappers = new ArrayList<>();
-        for (ObjectMapper mapper : objectMappers().values()) {
-            if (mapper.nested().isNested() == false) {
-                continue;
-            }
-            childMappers.add(mapper);
+        if (shadowed.getMetricType() != null) {
+            throw new MapperParsingException("Field [" + name + "] attempted to shadow a time_series_metric");
         }
-        return childMappers;
-    }
-
-    /**
-     * Returns all nested object mappers which contain further nested object mappers
-     *
-     * Used by BitSetProducerWarmer
-     */
-    public List<ObjectMapper> getNestedParentMappers() {
-        List<ObjectMapper> parents = new ArrayList<>();
-        for (ObjectMapper mapper : objectMappers().values()) {
-            String nestedParentPath = getNestedParent(mapper.fullPath());
-            if (nestedParentPath == null) {
-                continue;
-            }
-            ObjectMapper parent = objectMappers().get(nestedParentPath);
-            if (parent.nested().isNested()) {
-                parents.add(parent);
-            }
-        }
-        return parents;
-    }
-
-    /**
-     * Given a nested object path, returns the path to its nested parent
-     *
-     * In particular, if a nested field `foo` contains an object field
-     * `bar.baz`, then calling this method with `foo.bar.baz` will return
-     * the path `foo`, skipping over the object-but-not-nested `foo.bar`
-     */
-    public String getNestedParent(String path) {
-        ObjectMapper mapper = objectMappers().get(path);
-        if (mapper == null) {
-            return null;
-        }
-        if (path.contains(".") == false) {
-            return null;
-        }
-        do {
-            path = path.substring(0, path.lastIndexOf("."));
-            mapper = objectMappers().get(path);
-            if (mapper == null) {
-                return null;
-            }
-            if (mapper.nested().isNested()) {
-                return path;
-            }
-            if (path.contains(".") == false) {
-                return null;
-            }
-        } while(true);
     }
 }

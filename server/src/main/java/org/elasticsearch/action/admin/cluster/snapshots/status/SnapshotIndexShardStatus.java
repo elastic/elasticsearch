@@ -11,24 +11,24 @@ package org.elasticsearch.action.admin.cluster.snapshots.status;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class SnapshotIndexShardStatus extends BroadcastShardResponse implements ToXContentFragment {
 
@@ -60,28 +60,24 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
 
     SnapshotIndexShardStatus(ShardId shardId, IndexShardSnapshotStatus.Copy indexShardStatus, String nodeId) {
         super(shardId);
-        switch (indexShardStatus.getStage()) {
-            case INIT:
-                stage = SnapshotIndexShardStage.INIT;
-                break;
-            case STARTED:
-                stage = SnapshotIndexShardStage.STARTED;
-                break;
-            case FINALIZE:
-                stage = SnapshotIndexShardStage.FINALIZE;
-                break;
-            case DONE:
-                stage = SnapshotIndexShardStage.DONE;
-                break;
-            case FAILURE:
-                stage = SnapshotIndexShardStage.FAILURE;
-                break;
-            default:
-                throw new IllegalArgumentException("Unknown stage type " + indexShardStatus.getStage());
-        }
-        this.stats = new SnapshotStats(indexShardStatus.getStartTime(), indexShardStatus.getTotalTime(),
-            indexShardStatus.getIncrementalFileCount(), indexShardStatus.getTotalFileCount(), indexShardStatus.getProcessedFileCount(),
-            indexShardStatus.getIncrementalSize(), indexShardStatus.getTotalSize(), indexShardStatus.getProcessedSize());
+        stage = switch (indexShardStatus.getStage()) {
+            case INIT -> SnapshotIndexShardStage.INIT;
+            case STARTED -> SnapshotIndexShardStage.STARTED;
+            case FINALIZE -> SnapshotIndexShardStage.FINALIZE;
+            case DONE -> SnapshotIndexShardStage.DONE;
+            case FAILURE -> SnapshotIndexShardStage.FAILURE;
+            default -> throw new IllegalArgumentException("Unknown stage type " + indexShardStatus.getStage());
+        };
+        this.stats = new SnapshotStats(
+            indexShardStatus.getStartTime(),
+            indexShardStatus.getTotalTime(),
+            indexShardStatus.getIncrementalFileCount(),
+            indexShardStatus.getTotalFileCount(),
+            indexShardStatus.getProcessedFileCount(),
+            indexShardStatus.getIncrementalSize(),
+            indexShardStatus.getTotalSize(),
+            indexShardStatus.getProcessedSize()
+        );
         this.failure = indexShardStatus.getFailure();
         this.nodeId = nodeId;
     }
@@ -155,7 +151,8 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
     static final ObjectParser.NamedObjectParser<SnapshotIndexShardStatus, String> PARSER;
     static {
         ConstructingObjectParser<SnapshotIndexShardStatus, ShardId> innerParser = new ConstructingObjectParser<>(
-            "snapshot_index_shard_status", true,
+            "snapshot_index_shard_status",
+            true,
             (Object[] parsedObjects, ShardId shard) -> {
                 int i = 0;
                 String rawStage = (String) parsedObjects[i++];
@@ -169,7 +166,10 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
                 } catch (IllegalArgumentException iae) {
                     throw new ElasticsearchParseException(
                         "failed to parse snapshot index shard status [{}][{}], unknown stage [{}]",
-                        shard.getIndex().getName(), shard.getId(), rawStage);
+                        shard.getIndex().getName(),
+                        shard.getId(),
+                        rawStage
+                    );
                 }
                 return new SnapshotIndexShardStatus(shard, stage, stats, nodeId, failure);
             }
@@ -186,7 +186,10 @@ public class SnapshotIndexShardStatus extends BroadcastShardResponse implements 
                 shard = Integer.parseInt(shardName);
             } catch (NumberFormatException nfe) {
                 throw new ElasticsearchParseException(
-                    "failed to parse snapshot index shard status [{}], expected numeric shard id but got [{}]", indexId, shardName);
+                    "failed to parse snapshot index shard status [{}], expected numeric shard id but got [{}]",
+                    indexId,
+                    shardName
+                );
             }
             ShardId shardId = new ShardId(new Index(indexId, IndexMetadata.INDEX_UUID_NA_VALUE), shard);
             return innerParser.parse(p, shardId);

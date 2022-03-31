@@ -7,12 +7,10 @@
 
 package org.elasticsearch.xpack.enrich.action;
 
-import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
-
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.AutoCreateIndex;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
@@ -20,12 +18,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.reindex.ReindexRequest;
-import org.elasticsearch.index.reindex.ReindexSslConfig;
-import org.elasticsearch.index.reindex.TransportReindexAction;
+import org.elasticsearch.reindex.ReindexSslConfig;
+import org.elasticsearch.reindex.TransportReindexAction;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.watcher.ResourceWatcherService;
+
+import static org.elasticsearch.xpack.core.ClientHelper.ENRICH_ORIGIN;
 
 /**
  * A specialized version of {@link TransportReindexAction} which performs the search part of the reindex in the security context of the

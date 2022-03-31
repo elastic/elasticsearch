@@ -18,8 +18,10 @@ public class TrainedModelTypeTests extends ESTestCase {
 
     public void testTypeFromTrainedModel() {
         {
-            TrainedModel tm = randomFrom(TreeTests.createRandom(TargetType.CLASSIFICATION),
-                EnsembleTests.createRandom(TargetType.CLASSIFICATION));
+            TrainedModel tm = randomFrom(
+                TreeTests.createRandom(TargetType.CLASSIFICATION),
+                EnsembleTests.createRandom(TargetType.CLASSIFICATION)
+            );
             assertEquals(TrainedModelType.TREE_ENSEMBLE, TrainedModelType.typeFromTrainedModel(tm));
         }
         {

@@ -15,25 +15,33 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.junit.BeforeClass;
 
 import java.util.List;
 
+import static org.elasticsearch.xpack.core.security.authc.RealmSettings.DOMAIN_TO_REALM_ASSOC_SETTING;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class RestAuthenticateActionTests extends SecurityIntegTestCase {
 
     private static boolean anonymousEnabled;
+    private static String domainName;
 
     @BeforeClass
     public static void maybeEnableAnonymous() {
         anonymousEnabled = randomBoolean();
+    }
+
+    @BeforeClass
+    public static void maybeSetDomain() {
+        domainName = randomFrom(randomAlphaOfLengthBetween(3, 5), null);
     }
 
     @Override
@@ -47,8 +55,11 @@ public class RestAuthenticateActionTests extends SecurityIntegTestCase {
 
         if (anonymousEnabled) {
             builder.put(AnonymousUser.USERNAME_SETTING.getKey(), "anon")
-                   .putList(AnonymousUser.ROLES_SETTING.getKey(), SecuritySettingsSource.TEST_ROLE, "foo")
-                   .put(AuthorizationService.ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.getKey(), false);
+                .putList(AnonymousUser.ROLES_SETTING.getKey(), SecuritySettingsSource.TEST_ROLE, "foo")
+                .put(AuthorizationService.ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.getKey(), false);
+        }
+        if (domainName != null) {
+            builder.put(DOMAIN_TO_REALM_ASSOC_SETTING.getConcreteSettingForNamespace(domainName).getKey(), "file");
         }
         return builder.build();
     }
@@ -56,16 +67,31 @@ public class RestAuthenticateActionTests extends SecurityIntegTestCase {
     public void testAuthenticateApi() throws Exception {
         Request request = new Request("GET", "/_security/_authenticate");
         RequestOptions.Builder options = request.getOptions().toBuilder();
-        options.addHeader("Authorization", basicAuthHeaderValue(SecuritySettingsSource.TEST_USER_NAME,
-                new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())));
+        options.addHeader(
+            "Authorization",
+            basicAuthHeaderValue(
+                SecuritySettingsSource.TEST_USER_NAME,
+                new SecureString(SecuritySettingsSourceField.TEST_PASSWORD.toCharArray())
+            )
+        );
         request.setOptions(options);
         Response a = getRestClient().performRequest(request);
         ObjectPath objectPath = ObjectPath.createFromResponse(a);
         assertThat(objectPath.evaluate("username").toString(), equalTo(SecuritySettingsSource.TEST_USER_NAME));
         assertThat(objectPath.evaluate("authentication_realm.name").toString(), equalTo("file"));
         assertThat(objectPath.evaluate("authentication_realm.type").toString(), equalTo("file"));
+        if (domainName != null) {
+            assertThat(objectPath.evaluate("authentication_realm.domain").toString(), equalTo(domainName));
+        } else {
+            assertThat(objectPath.evaluate("lookup_realm.domain"), nullValue());
+        }
         assertThat(objectPath.evaluate("lookup_realm.name").toString(), equalTo("file"));
         assertThat(objectPath.evaluate("lookup_realm.type").toString(), equalTo("file"));
+        if (domainName != null) {
+            assertThat(objectPath.evaluate("lookup_realm.domain").toString(), equalTo(domainName));
+        } else {
+            assertThat(objectPath.evaluate("lookup_realm.domain"), nullValue());
+        }
         assertThat(objectPath.evaluate("authentication_type").toString(), equalTo("realm"));
         List<String> roles = objectPath.evaluate("roles");
         if (anonymousEnabled) {
@@ -91,7 +117,7 @@ public class RestAuthenticateActionTests extends SecurityIntegTestCase {
             } else {
                 fail("request should have failed");
             }
-        } catch(ResponseException e) {
+        } catch (ResponseException e) {
             if (anonymousEnabled) {
                 fail("request should have succeeded");
             } else {

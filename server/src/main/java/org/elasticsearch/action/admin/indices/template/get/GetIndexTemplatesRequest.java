@@ -22,10 +22,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class GetIndexTemplatesRequest extends MasterNodeReadRequest<GetIndexTemplatesRequest> {
 
-    private String[] names;
-
-    public GetIndexTemplatesRequest() {
-    }
+    private final String[] names;
 
     public GetIndexTemplatesRequest(String... names) {
         this.names = names;
@@ -55,14 +52,6 @@ public class GetIndexTemplatesRequest extends MasterNodeReadRequest<GetIndexTemp
             }
         }
         return validationException;
-    }
-
-    /**
-     * Sets the names of the index templates.
-     */
-    public GetIndexTemplatesRequest names(String... names) {
-        this.names = names;
-        return this;
     }
 
     /**

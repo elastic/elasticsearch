@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.watcher.condition;
 
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.watcher.condition.Condition;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
@@ -21,7 +21,7 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.mockExecutionContext;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.notNullValue;
@@ -31,8 +31,7 @@ public class ArrayCompareConditionSearchTests extends AbstractWatcherIntegration
 
     public void testExecuteWithAggs() throws Exception {
         String index = "test-index";
-        client().admin().indices().prepareCreate(index)
-                .get();
+        client().admin().indices().prepareCreate(index).get();
 
         ArrayCompareCondition.Op op = randomFrom(ArrayCompareCondition.Op.values());
         ArrayCompareCondition.Quantifier quantifier = randomFrom(ArrayCompareCondition.Quantifier.values());
@@ -46,11 +45,17 @@ public class ArrayCompareConditionSearchTests extends AbstractWatcherIntegration
         refresh();
 
         SearchResponse response = client().prepareSearch(index)
-                .addAggregation(AggregationBuilders.terms("top_tweeters").field("user.screen_name.keyword").size(3)).get();
+            .addAggregation(AggregationBuilders.terms("top_tweeters").field("user.screen_name.keyword").size(3))
+            .get();
 
-
-        ArrayCompareCondition condition = new ArrayCompareCondition("ctx.payload.aggregations.top_tweeters.buckets" , "doc_count", op,
-                        numberOfDocumentsWatchingFor, quantifier, Clock.systemUTC());
+        ArrayCompareCondition condition = new ArrayCompareCondition(
+            "ctx.payload.aggregations.top_tweeters.buckets",
+            "doc_count",
+            op,
+            numberOfDocumentsWatchingFor,
+            quantifier,
+            Clock.systemUTC()
+        );
 
         WatchExecutionContext ctx = mockExecutionContext("_name", new Payload.XContent(response, ToXContent.EMPTY_PARAMS));
         Condition.Result result = condition.execute(ctx);
@@ -67,14 +72,17 @@ public class ArrayCompareConditionSearchTests extends AbstractWatcherIntegration
         Map<String, Object> fightsForTheUsers = new HashMap<>();
         fightsForTheUsers.put("doc_count", numberOfDocuments);
         fightsForTheUsers.put("key", "fights_for_the_users");
-        assertThat(resolvedValues, hasEntry("ctx.payload.aggregations.top_tweeters.buckets",
-                (Object) Arrays.asList(elastic, fightsForTheUsers)));
+        assertThat(
+            resolvedValues,
+            hasEntry("ctx.payload.aggregations.top_tweeters.buckets", (Object) Arrays.asList(elastic, fightsForTheUsers))
+        );
 
         client().prepareIndex(index).setSource(source("fights_for_the_users", "you know, for the users", numberOfDocuments)).get();
         refresh();
 
         response = client().prepareSearch(index)
-                .addAggregation(AggregationBuilders.terms("top_tweeters").field("user.screen_name.keyword").size(3)).get();
+            .addAggregation(AggregationBuilders.terms("top_tweeters").field("user.screen_name.keyword").size(3))
+            .get();
 
         ctx = mockExecutionContext("_name", new Payload.XContent(response, ToXContent.EMPTY_PARAMS));
         result = condition.execute(ctx);
@@ -86,16 +94,18 @@ public class ArrayCompareConditionSearchTests extends AbstractWatcherIntegration
         assertThat(resolvedValues, notNullValue());
         assertThat(resolvedValues.size(), is(1));
         fightsForTheUsers.put("doc_count", numberOfDocumentsWatchingFor);
-        assertThat(resolvedValues, hasEntry("ctx.payload.aggregations.top_tweeters.buckets",
-                (Object) Arrays.asList(fightsForTheUsers, elastic)));
+        assertThat(
+            resolvedValues,
+            hasEntry("ctx.payload.aggregations.top_tweeters.buckets", (Object) Arrays.asList(fightsForTheUsers, elastic))
+        );
     }
 
     private XContentBuilder source(String screenName, String tweet, int i) throws IOException {
         return jsonBuilder().startObject()
-                    .startObject("user")
-                        .field("screen_name", screenName)
-                    .endObject()
-                    .field("tweet", tweet + " " + i)
-                .endObject();
+            .startObject("user")
+            .field("screen_name", screenName)
+            .endObject()
+            .field("tweet", tweet + " " + i)
+            .endObject();
     }
 }

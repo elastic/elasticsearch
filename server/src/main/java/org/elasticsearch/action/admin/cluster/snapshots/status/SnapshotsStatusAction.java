@@ -22,4 +22,3 @@ public class SnapshotsStatusAction extends ActionType<SnapshotsStatusResponse> {
         super(NAME, SnapshotsStatusResponse::new);
     }
 }
-

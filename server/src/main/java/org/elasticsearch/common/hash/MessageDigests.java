@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.Objects;
@@ -23,6 +24,8 @@ import java.util.Objects;
  * SHA-512 message digests.
  */
 public final class MessageDigests {
+
+    static final int STREAM_DIGEST_BLOCK_SIZE = 1024;
 
     private static ThreadLocal<MessageDigest> createThreadLocalMessageDigest(String digest) {
         return ThreadLocal.withInitial(() -> {
@@ -138,6 +141,20 @@ public final class MessageDigests {
             }
         } catch (IOException e) {
             throw new AssertionError("no actual IO happens here", e);
+        }
+        return digest.digest();
+    }
+
+    /**
+     * Reads bytes from the stream and updates the given digest. Returns the result of the digest.
+     * @return digest result
+     */
+    public static byte[] digest(InputStream stream, MessageDigest digest) throws IOException {
+        byte[] block = new byte[STREAM_DIGEST_BLOCK_SIZE];
+        int len = stream.read(block);
+        while (len > 0) {
+            digest.update(block, 0, len);
+            len = stream.read(block);
         }
         return digest.digest();
     }

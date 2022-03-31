@@ -1,0 +1,21 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+
+apply plugin: 'elasticsearch.base-internal-es-plugin'
+
+esplugin {
+  name = 'freeze-plugin'
+  description = 'Provides freeze-index endpoint for testing purposes only'
+  classname = 'org.elasticsearch.plugin.freeze.FreezeIndexPlugin'
+  extendedPlugins = ['x-pack-core']
+}
+
+dependencies {
+  compileOnly project(":server")
+  compileOnly project(path: xpackModule('core'))
+}

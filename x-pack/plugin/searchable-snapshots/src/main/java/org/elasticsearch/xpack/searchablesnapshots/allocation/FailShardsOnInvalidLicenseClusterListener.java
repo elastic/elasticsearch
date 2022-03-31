@@ -14,9 +14,9 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.RerouteService;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -25,6 +25,8 @@ import org.elasticsearch.license.XPackLicenseState;
 
 import java.util.HashSet;
 import java.util.Set;
+
+import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOT_FEATURE;
 
 public class FailShardsOnInvalidLicenseClusterListener implements LicenseStateListener, IndexEventListener {
 
@@ -41,7 +43,7 @@ public class FailShardsOnInvalidLicenseClusterListener implements LicenseStateLi
     public FailShardsOnInvalidLicenseClusterListener(XPackLicenseState xPackLicenseState, RerouteService rerouteService) {
         this.xPackLicenseState = xPackLicenseState;
         this.rerouteService = rerouteService;
-        this.allowed = xPackLicenseState.isAllowed(XPackLicenseState.Feature.SEARCHABLE_SNAPSHOTS);
+        this.allowed = SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(xPackLicenseState);
         xPackLicenseState.addListener(this);
     }
 
@@ -60,8 +62,8 @@ public class FailShardsOnInvalidLicenseClusterListener implements LicenseStateLi
 
     @Override
     public synchronized void licenseStateChanged() {
-        final boolean allowed = xPackLicenseState.isAllowed(XPackLicenseState.Feature.SEARCHABLE_SNAPSHOTS);
-        if (allowed && this.allowed == false) {
+        final boolean isAllowed = SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(xPackLicenseState);
+        if (isAllowed && this.allowed == false) {
             rerouteService.reroute("reroute after license activation", Priority.NORMAL, new ActionListener<ClusterState>() {
                 @Override
                 public void onResponse(ClusterState clusterState) {
@@ -74,7 +76,7 @@ public class FailShardsOnInvalidLicenseClusterListener implements LicenseStateLi
                 }
             });
         }
-        this.allowed = allowed;
+        this.allowed = isAllowed;
         failActiveShardsIfNecessary();
     }
 

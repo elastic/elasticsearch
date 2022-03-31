@@ -1,0 +1,143 @@
+setup:
+  - do:
+      indices.create:
+        index: locations
+        body:
+          settings:
+            number_of_shards: 3
+          mappings:
+            properties:
+              location:
+                type: geo_point
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: locations
+              _id: 1
+          - '{"location": "POINT(4.912350 52.374081)", "city": "Amsterdam", "name": "NEMO Science Museum"}'
+          - index:
+              _index: locations
+              _id: 2
+          - '{"location": "POINT(4.901618 52.369219)", "city": "Amsterdam", "name": "Museum Het Rembrandthuis"}'
+          - index:
+              _index: locations
+              _id: 3
+          - '{"location": "POINT(4.914722 52.371667)", "city": "Amsterdam", "name": "Nederlands Scheepvaartmuseum"}'
+          - index:
+              _index: locations
+              _id: 4
+          - '{"location": "POINT(4.405200 51.222900)", "city": "Antwerp", "name": "Letterenhuis"}'
+          - index:
+              _index: locations
+              _id: 5
+          - '{"location": "POINT(2.336389 48.861111)", "city": "Paris", "name": "Musée du Louvre"}'
+          - index:
+              _index: locations
+              _id: 6
+          - '{"location": "POINT(2.327000 48.860000)", "city": "Paris", "name": "Musée dOrsay"}'
+  - do:
+      indices.refresh: {}
+
+---
+"Test geohex_grid with defaults":
+
+  - do:
+      search:
+        index: locations
+        size: 0
+        body:
+          aggs:
+            grid:
+              geohex_grid:
+                field: location
+  - match: {hits.total.value:      6    }
+  - length: { aggregations.grid.buckets: 3 }
+  - match: { aggregations.grid.buckets.0.key: "85196953fffffff" }
+  - match: { aggregations.grid.buckets.0.doc_count: 3 }
+  - match: { aggregations.grid.buckets.1.key: "851fb467fffffff" }
+  - match: { aggregations.grid.buckets.1.doc_count: 2 }
+  - match: { aggregations.grid.buckets.2.key: "851fa4c7fffffff" }
+  - match: { aggregations.grid.buckets.2.doc_count: 1 }
+
+---
+"Test geohex_grid with precision":
+
+  - do:
+      search:
+        index: locations
+        size: 0
+        body:
+          aggs:
+            grid:
+              geohex_grid:
+                field: location
+                precision: 0
+  - match: { hits.total.value:      6    }
+  - length: { aggregations.grid.buckets: 2 }
+  - match: { aggregations.grid.buckets.0.key: "801ffffffffffff" }
+  - match: { aggregations.grid.buckets.0.doc_count: 4 }
+  - match: { aggregations.grid.buckets.1.key: "8019fffffffffff" }
+  - match: { aggregations.grid.buckets.1.doc_count: 2 }
+
+---
+"Test geohex_grid with size":
+
+  - do:
+      search:
+        index: locations
+        size: 0
+        body:
+          aggs:
+            grid:
+              geohex_grid:
+                field: location
+                size: 1
+  - match: {hits.total.value:      6    }
+  - length: { aggregations.grid.buckets: 1 }
+  - match: { aggregations.grid.buckets.0.key: "85196953fffffff" }
+  - match: { aggregations.grid.buckets.0.doc_count: 3 }
+
+---
+"Test geohex_grid with shard size":
+
+  - do:
+      search:
+        index: locations
+        size: 0
+        body:
+          aggs:
+            grid:
+              geohex_grid:
+                field: location
+                shard_size: 10
+  - match: {hits.total.value:      6    }
+  - length: { aggregations.grid.buckets: 3 }
+  - match: { aggregations.grid.buckets.0.key: "85196953fffffff" }
+  - match: { aggregations.grid.buckets.0.doc_count: 3 }
+  - match: { aggregations.grid.buckets.1.key: "851fb467fffffff" }
+  - match: { aggregations.grid.buckets.1.doc_count: 2 }
+  - match: { aggregations.grid.buckets.2.key: "851fa4c7fffffff" }
+  - match: { aggregations.grid.buckets.2.doc_count: 1 }
+
+---
+"Test geohex_grid with bounds":
+
+  - do:
+      search:
+        index: locations
+        size: 0
+        body:
+          aggs:
+            grid:
+              geohex_grid:
+                field: location
+                bounds:
+                  top_left: "52.4, 4.9"
+                  bottom_right: "52.3, 5.0"
+  - match: {hits.total.value:      6    }
+  - length: { aggregations.grid.buckets: 1 }
+  - match: { aggregations.grid.buckets.0.key: "85196953fffffff" }
+  - match: { aggregations.grid.buckets.0.doc_count: 3 }

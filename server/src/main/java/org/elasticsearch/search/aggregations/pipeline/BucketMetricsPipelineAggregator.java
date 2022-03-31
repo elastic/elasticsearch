@@ -10,9 +10,9 @@ package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
@@ -29,15 +29,20 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
     protected final DocValueFormat format;
     protected final GapPolicy gapPolicy;
 
-    BucketMetricsPipelineAggregator(String name, String[] bucketsPaths, GapPolicy gapPolicy, DocValueFormat format,
-            Map<String, Object> metadata) {
+    BucketMetricsPipelineAggregator(
+        String name,
+        String[] bucketsPaths,
+        GapPolicy gapPolicy,
+        DocValueFormat format,
+        Map<String, Object> metadata
+    ) {
         super(name, bucketsPaths, metadata);
         this.gapPolicy = gapPolicy;
         this.format = format;
     }
 
     @Override
-    public final InternalAggregation doReduce(Aggregations aggregations, ReduceContext context) {
+    public final InternalAggregation doReduce(Aggregations aggregations, AggregationReduceContext context) {
         preCollection();
         List<String> bucketsPath = AggregationPath.parse(bucketsPaths()[0]).getPathElementsAsStringList();
         for (Aggregation aggregation : aggregations) {
@@ -60,8 +65,7 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
      * Called before initial collection and between successive collection runs.
      * A chance to initialize or re-initialize state
      */
-    protected void preCollection() {
-    }
+    protected void preCollection() {}
 
     /**
      * Called after a collection run is finished to build the aggregation for

@@ -18,7 +18,7 @@ public class AutoDateHistogramTests extends BaseAggregationTestCase<AutoDateHist
         AutoDateHistogramAggregationBuilder builder = new AutoDateHistogramAggregationBuilder(randomAlphaOfLengthBetween(1, 10));
         builder.field(INT_FIELD_NAME);
         builder.setNumBuckets(randomIntBetween(1, 100000));
-        //TODO[PCS]: add builder pattern here
+        // TODO[PCS]: add builder pattern here
         if (randomBoolean()) {
             builder.format("###.##");
         }

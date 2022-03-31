@@ -11,8 +11,8 @@ package org.elasticsearch.action.admin.indices.open;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -21,8 +21,11 @@ import java.io.IOException;
  */
 public class OpenIndexResponse extends ShardsAcknowledgedResponse {
 
-    private static final ConstructingObjectParser<OpenIndexResponse, Void> PARSER = new ConstructingObjectParser<>("open_index", true,
-            args -> new OpenIndexResponse((boolean) args[0], (boolean) args[1]));
+    private static final ConstructingObjectParser<OpenIndexResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "open_index",
+        true,
+        args -> new OpenIndexResponse((boolean) args[0], (boolean) args[1])
+    );
 
     static {
         declareAcknowledgedAndShardsAcknowledgedFields(PARSER);

@@ -95,8 +95,7 @@ public class EsRelation extends LeafPlan {
         }
 
         EsRelation other = (EsRelation) obj;
-        return Objects.equals(index, other.index)
-                && frozen == other.frozen;
+        return Objects.equals(index, other.index) && frozen == other.frozen;
     }
 
     @Override

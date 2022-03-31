@@ -12,16 +12,17 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.StatusToXContentObject;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.action.util.QueryPage;
 
 import java.io.IOException;
 import java.util.Objects;
 
 public abstract class AbstractGetResourcesResponse<T extends ToXContent & Writeable> extends ActionResponse
-    implements StatusToXContentObject {
+    implements
+        StatusToXContentObject {
 
     private QueryPage<T> resources;
 

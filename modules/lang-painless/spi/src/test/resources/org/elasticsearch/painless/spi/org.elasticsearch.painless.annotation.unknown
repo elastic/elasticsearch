@@ -1,0 +1,6 @@
+# whitelist for annotation tests with unknown annotation
+
+class org.elasticsearch.painless.AnnotationTestObject @no_import {
+  void unknownAnnotationMethod() @unknownAnnotation
+  void unknownAnnotationMethod() @unknownAnnotationWithMessage[message="use another method"]
+}

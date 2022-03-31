@@ -1,0 +1,163 @@
+---
+setup:
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            index.number_of_shards: 1
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+
+  - do:
+      index:
+        index:   test
+        id:      "1"
+        refresh: true
+        body:
+          keyword: [ "a", "b" ]
+
+---
+fetch fields:
+  - skip:
+      version: ' - 7.15.99'
+      reason:  fetch profiling implemented in 7.16.0
+
+  - do:
+      search:
+        index: test
+        body:
+          _source: false
+          profile: true
+          fields: [keyword]
+
+  - is_true: hits.hits.0._id
+  - match: { hits.hits.0.fields.keyword.0: a }
+  - match: { hits.hits.0.fields.keyword.1: b }
+  - gt: { profile.shards.0.fetch.time_in_nanos: 0 }
+  - gt: { profile.shards.0.fetch.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.breakdown.next_reader: 0 }
+  - gt: { profile.shards.0.fetch.breakdown.load_stored_fields_count: 0 }
+  - gt: { profile.shards.0.fetch.breakdown.load_stored_fields: 0 }
+  - match: { profile.shards.0.fetch.debug.stored_fields: [_id, _routing, _source] }
+  - length: { profile.shards.0.fetch.children: 1 }
+  - match: { profile.shards.0.fetch.children.0.type: FetchFieldsPhase }
+  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
+  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
+
+---
+fetch source:
+  - skip:
+      version: ' - 7.99.99'
+      reason:  fetch profiling implemented in 8.0.0 to be backported to 7.16.0
+
+  - do:
+      search:
+        index: test
+        body:
+          profile: true
+
+  - is_true: hits.hits.0._id
+  - match: { hits.hits.0._source.keyword.0: a }
+  - match: { hits.hits.0._source.keyword.1: b }
+  - gt: { profile.shards.0.fetch.time_in_nanos: 0 }
+  - gt: { profile.shards.0.fetch.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.breakdown.next_reader: 0 }
+  - gt: { profile.shards.0.fetch.breakdown.load_stored_fields_count: 0 }
+  - gt: { profile.shards.0.fetch.breakdown.load_stored_fields: 0 }
+  - match: { profile.shards.0.fetch.debug.stored_fields: [_id, _routing, _source] }
+  - length: { profile.shards.0.fetch.children: 1 }
+  - match: { profile.shards.0.fetch.children.0.type: FetchSourcePhase }
+  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
+  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
+  - match: { profile.shards.0.fetch.children.0.debug.fast_path: 1 }
+
+---
+fetch nested source:
+  - skip:
+      version: ' - 7.15.99'
+      reason:  fetch profiling implemented in 7.16.0
+
+  - do:
+      indices.create:
+        index:  test_nested
+        body:
+          settings:
+            index.number_of_shards: 1
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+              nested:
+                type: nested
+                properties:
+                  text:
+                    type: text
+
+  - do:
+      index:
+        index:   test_nested
+        id:      "1"
+        refresh: true
+        body:
+          keyword: [ "a", "b" ]
+          nested:
+            - text: the quick brown fox
+            - text: jumped over the
+            - text: lazy dog
+
+  - do:
+      search:
+        index: test_nested
+        body:
+          profile: true
+          query:
+            nested:
+              path: nested
+              query:
+                match_all: {}
+              inner_hits: {}
+
+  - is_true: hits.hits.0._id
+  - match: { hits.hits.0._source.keyword.0: a }
+  - match: { hits.hits.0._source.keyword.1: b }
+  - gt: { profile.shards.0.fetch.time_in_nanos: 0 }
+  - gt: { profile.shards.0.fetch.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.breakdown.next_reader: 0 }
+  - gt: { profile.shards.0.fetch.breakdown.load_stored_fields_count: 0 }
+  - gt: { profile.shards.0.fetch.breakdown.load_stored_fields: 0 }
+  - match: { profile.shards.0.fetch.debug.stored_fields: [_id, _routing, _source] }
+  - length: { profile.shards.0.fetch.children: 2 }
+  - match: { profile.shards.0.fetch.children.0.type: FetchSourcePhase }
+  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
+  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.children.0.breakdown.next_reader: 0 }
+  - match: { profile.shards.0.fetch.children.1.type: InnerHitsPhase }
+  - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader: 0 }
+  - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader_count: 0 }
+  - gt: { profile.shards.0.fetch.children.1.breakdown.next_reader: 0 }
+
+---
+disabling stored fields removes fetch sub phases:
+  - skip:
+      version: ' - 7.15.99'
+      reason:  fetch profiling implemented in 7.16.0
+
+  - do:
+      search:
+        index: test
+        body:
+          stored_fields: _none_
+          profile: true
+
+  - match: { hits.hits.0._index: test }
+  - match: { profile.shards.0.fetch.debug.stored_fields: [] }
+  - is_false: profile.shards.0.fetch.children

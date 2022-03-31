@@ -21,9 +21,9 @@ import java.util.function.BiFunction;
 public class BinaryStringStringProcessor extends FunctionalEnumBinaryProcessor<String, String, Number, BinaryStringStringOperation> {
 
     public enum BinaryStringStringOperation implements BiFunction<String, String, Number> {
-        POSITION((sub,str) -> {
+        POSITION((sub, str) -> {
             int pos = str.indexOf(sub);
-            return pos < 0 ? 0 : pos+1;
+            return pos < 0 ? 0 : pos + 1;
         });
 
         BinaryStringStringOperation(BiFunction<String, String, Number> op) {

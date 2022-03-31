@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.core.monitoring;
 
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import static org.elasticsearch.common.settings.Setting.timeSetting;
 
@@ -28,10 +28,14 @@ public final class MonitoringField {
      *
      * @see MonitoringField#HISTORY_DURATION_MINIMUM
      */
-    public static final Setting<TimeValue> HISTORY_DURATION = timeSetting("xpack.monitoring.history.duration",
-                                                      TimeValue.timeValueHours(7 * 24), // default value (7 days)
-                                                      HISTORY_DURATION_MINIMUM,         // minimum value
-                                                      Setting.Property.Dynamic, Setting.Property.NodeScope);
+    public static final Setting<TimeValue> HISTORY_DURATION = timeSetting(
+        "xpack.monitoring.history.duration",
+        TimeValue.timeValueHours(7 * 24), // default value (7 days)
+        HISTORY_DURATION_MINIMUM,         // minimum value
+        Setting.Property.Dynamic,
+        Setting.Property.NodeScope,
+        Setting.Property.DeprecatedWarning
+    );
 
     private MonitoringField() {}
 }

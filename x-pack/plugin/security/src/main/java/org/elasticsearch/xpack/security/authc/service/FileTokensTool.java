@@ -9,12 +9,13 @@ package org.elasticsearch.xpack.security.authc.service;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
-import org.elasticsearch.cli.EnvironmentAwareCommand;
+
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.cli.EnvironmentAwareCommand;
+import org.elasticsearch.common.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -130,14 +131,22 @@ public class FileTokensTool extends LoggingAwareMultiCommand {
                 throw new UserException(
                     ExitCodes.USAGE,
                     "Expected at most one argument, service-account-principal, found extra: ["
-                        + Strings.collectionToCommaDelimitedString(args) + "]");
+                        + Strings.collectionToCommaDelimitedString(args)
+                        + "]"
+                );
             }
             Predicate<String> filter = k -> true;
             if (args.size() == 1) {
                 final String principal = args.get(0);
                 if (false == ServiceAccountService.isServiceAccountPrincipal(principal)) {
-                    throw new UserException(ExitCodes.NO_USER, "Unknown service account principal: [" + principal + "]. Must be one of ["
-                        + Strings.collectionToDelimitedString(ServiceAccountService.getServiceAccountPrincipals(), ",") + "]");
+                    throw new UserException(
+                        ExitCodes.NO_USER,
+                        "Unknown service account principal: ["
+                            + principal
+                            + "]. Must be one of ["
+                            + Strings.collectionToDelimitedString(ServiceAccountService.getServiceAccountPrincipals(), ",")
+                            + "]"
+                    );
                 }
                 filter = filter.and(k -> k.startsWith(principal + "/"));
             }
@@ -160,13 +169,21 @@ public class FileTokensTool extends LoggingAwareMultiCommand {
             throw new UserException(
                 ExitCodes.USAGE,
                 "Expected two arguments, service-account-principal and token-name, found extra: ["
-                    + Strings.collectionToCommaDelimitedString(arguments) + "]");
+                    + Strings.collectionToCommaDelimitedString(arguments)
+                    + "]"
+            );
         }
         final String principal = arguments.get(0);
         final String tokenName = arguments.get(1);
         if (false == ServiceAccountService.isServiceAccountPrincipal(principal)) {
-            throw new UserException(ExitCodes.NO_USER, "Unknown service account principal: [" + principal + "]. Must be one of ["
-                + Strings.collectionToDelimitedString(ServiceAccountService.getServiceAccountPrincipals(), ",") + "]");
+            throw new UserException(
+                ExitCodes.NO_USER,
+                "Unknown service account principal: ["
+                    + principal
+                    + "]. Must be one of ["
+                    + Strings.collectionToDelimitedString(ServiceAccountService.getServiceAccountPrincipals(), ",")
+                    + "]"
+            );
         }
         if (false == Validation.isValidServiceAccountTokenName(tokenName)) {
             throw new UserException(ExitCodes.CODE_ERROR, Validation.formatInvalidServiceTokenNameErrorMessage(tokenName));

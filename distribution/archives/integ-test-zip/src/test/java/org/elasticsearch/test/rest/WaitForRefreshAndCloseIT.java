@@ -83,7 +83,7 @@ public class WaitForRefreshAndCloseIT extends ESRestTestCase {
             Map<?, ?> refresh = (Map<?, ?>) total.get("refresh");
             int listeners = (Integer) refresh.get("listeners");
             assertEquals(1, listeners);
-        });
+        }, 30L, TimeUnit.SECONDS);
 
         // Close the index. That should flush the listener.
         client().performRequest(new Request("POST", "/test/_close"));

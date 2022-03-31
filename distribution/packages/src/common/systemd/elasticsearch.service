@@ -9,10 +9,10 @@ Type=notify
 RuntimeDirectory=elasticsearch
 PrivateTmp=true
 Environment=ES_HOME=/usr/share/elasticsearch
-Environment=ES_PATH_CONF=${path.conf}
+Environment=ES_PATH_CONF=@path.conf@
 Environment=PID_DIR=/var/run/elasticsearch
 Environment=ES_SD_NOTIFY=true
-EnvironmentFile=-${path.env}
+EnvironmentFile=-@path.env@
 
 WorkingDirectory=/usr/share/elasticsearch
 
@@ -63,4 +63,4 @@ TimeoutStartSec=75
 [Install]
 WantedBy=multi-user.target
 
-# Built for ${project.name}-${project.version} (${project.name})
+# Built for @project.name@-@project.version@ (@project.name@)

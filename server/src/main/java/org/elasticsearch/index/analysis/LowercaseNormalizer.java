@@ -26,6 +26,6 @@ public final class LowercaseNormalizer extends Analyzer {
 
     @Override
     protected TokenStream normalize(String fieldName, TokenStream in) {
-      return new LowerCaseFilter(in);
+        return new LowerCaseFilter(in);
     }
 }

@@ -34,5 +34,4 @@ tasks.withType(Test).configureEach {
 }
 
 tasks.matching { it.name.equals("check") }.configureEach {dependsOn(bwcTestSnapshots) }
-
 tasks.matching { it.name.equals("test") }.configureEach {enabled = false}

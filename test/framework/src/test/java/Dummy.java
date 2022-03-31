@@ -6,5 +6,4 @@
  * Side Public License, v 1.
  */
 
-class Dummy {
-}
+class Dummy {}

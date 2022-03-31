@@ -89,6 +89,6 @@ public class GeometryCollection<G extends Geometry> implements Geometry, Iterabl
 
     @Override
     public String toString() {
-        return WellKnownText.INSTANCE.toWKT(this);
+        return WellKnownText.toWKT(this);
     }
 }

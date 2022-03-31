@@ -29,6 +29,6 @@ public abstract class IndicesClusterStateUpdateRequest<T extends IndicesClusterS
     @SuppressWarnings("unchecked")
     public T indices(Index[] indices) {
         this.indices = indices;
-        return (T)this;
+        return (T) this;
     }
 }

@@ -8,6 +8,8 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.plugins.loader.ExtendedPluginsClassLoader;
+
 import java.util.List;
 
 // TODO: remove this indirection now that transport client is gone

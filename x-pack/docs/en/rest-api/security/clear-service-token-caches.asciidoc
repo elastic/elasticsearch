@@ -2,8 +2,6 @@
 [[security-api-clear-service-token-caches]]
 === Clear service account token caches API
 
-beta::[]
-
 ++++
 <titleabbrev>Clear service account token caches</titleabbrev>
 ++++

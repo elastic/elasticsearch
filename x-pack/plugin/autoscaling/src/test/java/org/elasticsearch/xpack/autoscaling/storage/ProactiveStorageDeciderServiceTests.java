@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.autoscaling.storage;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
@@ -29,11 +28,11 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.xpack.autoscaling.AutoscalingTestCase;
@@ -64,7 +63,10 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         ClusterState originalState = DataStreamTestHelper.getClusterStateWithDataStreams(
             List.of(Tuple.tuple("test", between(1, 10))),
             List.of(),
-            0
+            System.currentTimeMillis(),
+            Settings.EMPTY,
+            0,
+            randomBoolean()
         );
         ClusterState.Builder stateBuilder = ClusterState.builder(originalState);
         IntStream.range(0, between(1, 10)).forEach(i -> ReactiveStorageDeciderServiceTests.addNode(stateBuilder));
@@ -123,6 +125,9 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             public SnapshotShardSizeInfo snapshotShardSizeInfo() {
                 return null;
             }
+
+            @Override
+            public void ensureNotCancelled() {}
         };
         AutoscalingDeciderResult deciderResult = service.scale(Settings.EMPTY, context);
 
@@ -157,14 +162,16 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         ClusterState originalState = DataStreamTestHelper.getClusterStateWithDataStreams(
             List.of(Tuple.tuple("test", between(1, 10))),
             List.of(),
-            between(0, 4)
+            System.currentTimeMillis(),
+            Settings.EMPTY,
+            between(0, 4),
+            randomBoolean()
         );
         ClusterState.Builder stateBuilder = ClusterState.builder(originalState);
         stateBuilder.routingTable(addRouting(originalState.metadata(), RoutingTable.builder()).build());
         ClusterState state = stateBuilder.build();
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             state,
-            null,
             null,
             null,
             null,
@@ -199,7 +206,6 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             state,
             null,
             null,
-            null,
             randomClusterInfo(state),
             null,
             Sets.newHashSet(state.nodes()),
@@ -216,7 +222,10 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         ClusterState originalState = DataStreamTestHelper.getClusterStateWithDataStreams(
             List.of(Tuple.tuple("test", indices)),
             List.of(),
-            shardCopies - 1
+            System.currentTimeMillis(),
+            Settings.EMPTY,
+            shardCopies - 1,
+            randomBoolean()
         );
         ClusterState.Builder stateBuilder = ClusterState.builder(originalState);
         stateBuilder.routingTable(addRouting(originalState.metadata(), RoutingTable.builder()).build());
@@ -239,7 +248,6 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
 
         ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
             state,
-            null,
             null,
             null,
             info,
@@ -292,7 +300,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     private ClusterState randomAllocate(ClusterState state) {
         RoutingAllocation allocation = new RoutingAllocation(
             new AllocationDeciders(List.of()),
-            new RoutingNodes(state, false),
+            state.mutableRoutingNodes(),
             state,
             null,
             null,
@@ -323,7 +331,7 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
     private ClusterState startAll(ClusterState state) {
         RoutingAllocation allocation = new RoutingAllocation(
             new AllocationDeciders(List.of()),
-            new RoutingNodes(state, false),
+            state.mutableRoutingNodes(),
             state,
             null,
             null,
@@ -360,15 +368,14 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
             .map(ClusterInfo::shardIdentifierFromRouting)
             .collect(Collectors.toMap(Function.identity(), id -> randomLongBetween(1, 1000), (v1, v2) -> v1));
         ImmutableOpenMap.Builder<String, DiskUsage> builder = ImmutableOpenMap.builder();
-        for (ObjectCursor<String> cursor : state.nodes().getDataNodes().keys()) {
-            String id = cursor.value;
+        for (var id : state.nodes().getDataNodes().keySet()) {
             builder.put(id, new DiskUsage(id, id, "/test", Long.MAX_VALUE, Long.MAX_VALUE));
         }
         ImmutableOpenMap<String, DiskUsage> diskUsage = builder.build();
         return new ClusterInfo(
             diskUsage,
             diskUsage,
-            ImmutableOpenMap.<String, Long>builder().putAll(shardSizes).build(),
+            ImmutableOpenMap.<String, Long>builder().putAllFromMap(shardSizes).build(),
             ImmutableOpenMap.of(),
             ImmutableOpenMap.of(),
             ImmutableOpenMap.of()
@@ -383,10 +390,11 @@ public class ProactiveStorageDeciderServiceTests extends AutoscalingTestCase {
         long decrement
     ) {
         Metadata.Builder metadataBuilder = Metadata.builder(state.metadata());
-        List<IndexMetadata> indices = ds.getIndices();
+        List<Index> indices = ds.getIndices();
         long start = last - (decrement * (indices.size() - 1));
         for (int i = 0; i < indices.size(); ++i) {
-            metadataBuilder.put(IndexMetadata.builder(indices.get(i)).creationDate(start + (i * decrement)).build(), false);
+            IndexMetadata previousInstance = state.metadata().index(indices.get(i));
+            metadataBuilder.put(IndexMetadata.builder(previousInstance).creationDate(start + (i * decrement)).build(), false);
         }
         return builder.metadata(metadataBuilder);
     }

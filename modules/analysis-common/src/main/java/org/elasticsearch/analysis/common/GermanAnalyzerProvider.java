@@ -26,7 +26,6 @@ public class GermanAnalyzerProvider extends AbstractIndexAnalyzerProvider<German
             Analysis.parseStopWords(env, settings, GermanAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
         );
-        analyzer.setVersion(version);
     }
 
     @Override

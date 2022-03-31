@@ -14,7 +14,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -46,25 +46,31 @@ public class TransportFollowStatsActionTests extends ESTestCase {
             .addTask("3", ShardFollowTask.NAME, createShardFollowTask(index3.getIndex()), null);
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("_cluster"))
-            .metadata(Metadata.builder()
-                .putCustom(PersistentTasksCustomMetadata.TYPE, persistentTasks.build())
-                // only add index1 and index2
-                .put(index1, false)
-                .put(index2, false)
-                .build())
+            .metadata(
+                Metadata.builder()
+                    .putCustom(PersistentTasksCustomMetadata.TYPE, persistentTasks.build())
+                    // only add index1 and index2
+                    .put(index1, false)
+                    .put(index2, false)
+                    .build()
+            )
             .build();
         Set<String> result = TransportFollowStatsAction.findFollowerIndicesFromShardFollowTasks(clusterState, null);
         assertThat(result.size(), equalTo(2));
         assertThat(result.contains(index1.getIndex().getName()), is(true));
         assertThat(result.contains(index2.getIndex().getName()), is(true));
 
-        result = TransportFollowStatsAction.findFollowerIndicesFromShardFollowTasks(clusterState,
-            new String[]{index2.getIndex().getName()});
+        result = TransportFollowStatsAction.findFollowerIndicesFromShardFollowTasks(
+            clusterState,
+            new String[] { index2.getIndex().getName() }
+        );
         assertThat(result.size(), equalTo(1));
         assertThat(result.contains(index2.getIndex().getName()), is(true));
 
-        result = TransportFollowStatsAction.findFollowerIndicesFromShardFollowTasks(clusterState,
-            new String[]{index3.getIndex().getName()});
+        result = TransportFollowStatsAction.findFollowerIndicesFromShardFollowTasks(
+            clusterState,
+            new String[] { index3.getIndex().getName() }
+        );
         assertThat(result.size(), equalTo(0));
     }
 

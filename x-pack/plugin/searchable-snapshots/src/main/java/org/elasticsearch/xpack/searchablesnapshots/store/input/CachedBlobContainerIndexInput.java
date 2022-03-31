@@ -13,12 +13,12 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
+import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
 import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheFile;
 import org.elasticsearch.xpack.searchablesnapshots.store.IndexInputStats;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
-import org.elasticsearch.xpack.searchablesnapshots.cache.common.ByteRange;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -102,8 +102,8 @@ public class CachedBlobContainerIndexInput extends MetadataCachingIndexInput {
 
     @Override
     protected long getDefaultRangeSize() {
-        return (context != CACHE_WARMING_CONTEXT)
-            ? (directory.isRecoveryFinalized() ? defaultRangeSize : recoveryRangeSize)
+        return (context != CACHE_WARMING_CONTEXT) ? (directory.isRecoveryFinalized() ? defaultRangeSize : recoveryRangeSize)
+            : fileInfo.numberOfParts() == 1 ? Long.MAX_VALUE
             : fileInfo.partSize().getBytes();
     }
 

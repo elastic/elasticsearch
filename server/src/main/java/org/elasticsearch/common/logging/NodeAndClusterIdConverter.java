@@ -23,7 +23,7 @@ import java.util.Locale;
  * @deprecated this class is kept in order to allow working log configuration from 7.x
  */
 @Plugin(category = PatternConverter.CATEGORY, name = "NodeAndClusterIdConverter")
-@ConverterKeys({"node_and_cluster_id"})
+@ConverterKeys({ "node_and_cluster_id" })
 @Deprecated
 public final class NodeAndClusterIdConverter extends LogEventPatternConverter {
 
@@ -53,7 +53,7 @@ public final class NodeAndClusterIdConverter extends LogEventPatternConverter {
         // nodeId/clusterUuid not received yet, not appending
     }
 
-    private String formatIds(String nodeId, String clusterUUID) {
+    private static String formatIds(String nodeId, String clusterUUID) {
         return String.format(Locale.ROOT, "\"cluster.uuid\": \"%s\", \"node.id\": \"%s\"", clusterUUID, nodeId);
     }
 }

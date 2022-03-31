@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
-import org.apache.lucene.store.ByteArrayDataInput;
-import org.apache.lucene.store.ByteBuffersDataOutput;
+import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.ShapeType;
 
@@ -29,11 +29,11 @@ public enum DimensionalShapeType {
         return values[Byte.toUnsignedInt(ordinal)];
     }
 
-    public void writeTo(ByteBuffersDataOutput out) {
+    public void writeTo(BytesStreamOutput out) {
         out.writeByte((byte) ordinal());
     }
 
-    public static DimensionalShapeType readFrom(ByteArrayDataInput in) {
+    public static DimensionalShapeType readFrom(ByteArrayStreamInput in) {
         return fromOrdinalByte(in.readByte());
     }
 }

@@ -367,12 +367,12 @@ public class Realms implements Iterable<Realm> {
         }
     }
 
-    private Settings ensureOrderSetting(Settings settings, RealmConfig.RealmIdentifier realmIdentifier, int order) {
+    private static Settings ensureOrderSetting(Settings settings, RealmConfig.RealmIdentifier realmIdentifier, int order) {
         String orderSettingKey = RealmSettings.realmSettingPrefix(realmIdentifier) + "order";
         return Settings.builder().put(settings).put(orderSettingKey, order).build();
     }
 
-    private void checkUniqueOrders(Map<Integer, Set<String>> orderToRealmName) {
+    private static void checkUniqueOrders(Map<Integer, Set<String>> orderToRealmName) {
         String duplicateOrders = orderToRealmName.entrySet()
             .stream()
             .filter(entry -> entry.getValue().size() > 1)
@@ -428,7 +428,7 @@ public class Realms implements Iterable<Realm> {
         return realmConfigs;
     }
 
-    private Set<String> findDisabledBasicRealmTypes(List<RealmConfig> realmConfigs) {
+    private static Set<String> findDisabledBasicRealmTypes(List<RealmConfig> realmConfigs) {
         return realmConfigs.stream()
             .filter(rc -> InternalRealms.isBuiltinRealm(rc.type()))
             .filter(rc -> false == rc.enabled())
@@ -436,7 +436,7 @@ public class Realms implements Iterable<Realm> {
             .collect(Collectors.toUnmodifiableSet());
     }
 
-    private void logDeprecationForReservedPrefixedRealmNames(List<RealmConfig.RealmIdentifier> realmIdentifiers) {
+    private static void logDeprecationForReservedPrefixedRealmNames(List<RealmConfig.RealmIdentifier> realmIdentifiers) {
         if (false == realmIdentifiers.isEmpty()) {
             deprecationLogger.warn(
                 DeprecationCategory.SECURITY,

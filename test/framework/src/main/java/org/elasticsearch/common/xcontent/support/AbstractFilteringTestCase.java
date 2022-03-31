@@ -26,6 +26,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.util.Collection;
 import java.util.Set;
 
 import static java.util.Collections.emptySet;
@@ -41,7 +42,8 @@ public abstract class AbstractFilteringTestCase extends ESTestCase {
     @FunctionalInterface
     protected interface Builder extends CheckedFunction<XContentBuilder, XContentBuilder, IOException> {}
 
-    protected abstract void testFilter(Builder expected, Builder actual, Set<String> includes, Set<String> excludes) throws IOException;
+    protected abstract void testFilter(Builder expected, Builder actual, Collection<String> includes, Collection<String> excludes)
+        throws IOException;
 
     /** Sample test case */
     protected static final Builder SAMPLE = builderFor("sample.json");

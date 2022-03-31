@@ -98,7 +98,7 @@ public class TimeSeriesIndexSearcher {
     }
 
     // Re-populate the queue with walkers on the same TSID.
-    private boolean populateQueue(List<LeafWalker> leafWalkers, PriorityQueue<LeafWalker> queue) throws IOException {
+    private static boolean populateQueue(List<LeafWalker> leafWalkers, PriorityQueue<LeafWalker> queue) throws IOException {
         BytesRef currentTsid = null;
         assert queue.size() == 0;
         Iterator<LeafWalker> it = leafWalkers.iterator();
@@ -133,7 +133,7 @@ public class TimeSeriesIndexSearcher {
         return queue.size() > 0;
     }
 
-    private boolean queueAllHaveTsid(PriorityQueue<LeafWalker> queue, BytesRef tsid) throws IOException {
+    private static boolean queueAllHaveTsid(PriorityQueue<LeafWalker> queue, BytesRef tsid) throws IOException {
         for (LeafWalker leafWalker : queue) {
             BytesRef walkerId = leafWalker.tsids.lookupOrd(leafWalker.tsids.ordValue());
             assert walkerId.equals(tsid) : tsid.utf8ToString() + " != " + walkerId.utf8ToString();

@@ -63,6 +63,7 @@ public class TransportCreateTrainedModelAssignmentAction extends TransportMaster
                 trainedModelAssignmentService,
                 clusterService,
                 deploymentManager,
+                indexNameExpressionResolver,
                 transportService.getTaskManager(),
                 threadPool,
                 licenseState

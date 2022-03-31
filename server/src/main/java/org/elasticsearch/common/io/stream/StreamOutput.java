@@ -18,13 +18,13 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.Writeable.Writer;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
@@ -194,7 +194,7 @@ public abstract class StreamOutput extends OutputStream {
 
     public final void writeShort(short v) throws IOException {
         final byte[] buffer = scratch.get();
-        Numbers.shortToBytes(buffer, 0, v);
+        ByteUtils.writeShortBE(v, buffer, 0);
         writeBytes(buffer, 0, 2);
     }
 
@@ -203,7 +203,7 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void writeInt(int i) throws IOException {
         final byte[] buffer = scratch.get();
-        Numbers.intToBytes(buffer, 0, i);
+        ByteUtils.writeIntBE(i, buffer, 0);
         writeBytes(buffer, 0, 4);
     }
 
@@ -243,7 +243,7 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void writeLong(long i) throws IOException {
         final byte[] buffer = scratch.get();
-        Numbers.longToBytes(buffer, 0, i);
+        ByteUtils.writeLongBE(i, buffer, 0);
         writeBytes(buffer, 0, 8);
     }
 

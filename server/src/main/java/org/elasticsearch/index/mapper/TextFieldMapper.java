@@ -834,7 +834,7 @@ public class TextFieldMapper extends FieldMapper {
             return createPhraseQuery(stream, field, slop, enablePositionIncrements);
         }
 
-        private int countTokens(TokenStream ts) throws IOException {
+        private static int countTokens(TokenStream ts) throws IOException {
             ts.reset();
             int count = 0;
             while (ts.incrementToken()) {

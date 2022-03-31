@@ -16,7 +16,6 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.SimpleVectorTileFormatter;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.geometry.Rectangle;
@@ -116,7 +115,7 @@ public class RestVectorTileAction extends BaseRestHandler {
                         request.getX(),
                         request.getY(),
                         request.getExtent(),
-                        SimpleVectorTileFormatter.DEFAULT_BUFFER_PIXELS
+                        request.getBuffer()
                     );
                     final InternalGeoGrid<?> grid = searchResponse.getAggregations() != null
                         ? searchResponse.getAggregations().get(GRID_FIELD)
@@ -177,12 +176,8 @@ public class RestVectorTileAction extends BaseRestHandler {
         searchRequestBuilder.setSize(request.getSize());
         searchRequestBuilder.setFetchSource(false);
         searchRequestBuilder.setTrackTotalHitsUpTo(request.getTrackTotalHitsUpTo());
-        searchRequestBuilder.addFetchField(
-            new FieldAndFormat(
-                request.getField(),
-                "mvt(" + request.getZ() + "/" + request.getX() + "/" + request.getY() + "@" + request.getExtent() + ")"
-            )
-        );
+        String args = request.getZ() + "/" + request.getX() + "/" + request.getY() + "@" + request.getExtent() + ":" + request.getBuffer();
+        searchRequestBuilder.addFetchField(new FieldAndFormat(request.getField(), "mvt(" + args + ")"));
         for (FieldAndFormat field : request.getFieldAndFormats()) {
             searchRequestBuilder.addFetchField(field);
         }

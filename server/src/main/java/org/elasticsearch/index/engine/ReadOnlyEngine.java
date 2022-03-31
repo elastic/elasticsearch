@@ -539,7 +539,7 @@ public class ReadOnlyEngine extends Engine {
         return false;
     }
 
-    private Translog.Snapshot newEmptySnapshot() {
+    private static Translog.Snapshot newEmptySnapshot() {
         return new Translog.Snapshot() {
             @Override
             public void close() {}

@@ -1,6 +1,6 @@
 pr: 85326
-summary: "Log error if LDAP/AD realm has bind DN set but is missing bind password"
+summary: Log error if LDAP/AD realm has bind DN set but is missing bind password
 area: Authentication
-type: bug
+type: enhancement
 issues:
  - 47191

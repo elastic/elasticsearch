@@ -19,15 +19,12 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.List;
 
 /**
  * A {@link Comparable}, {@link DocValueFormat} aware wrapper around a sort value.
  */
 public abstract class SortValue implements NamedWriteable, Comparable<SortValue> {
-    private static final Comparator<SortValue> TYPE_COMPARATOR = Comparator.comparing(SortValue::compareToDifferentType);
-    private static final Comparator<SortValue> VALUE_COMPARATOR = TYPE_COMPARATOR.thenComparing(SortValue::compareToSameType);
     private static final SortValue EMPTY_SORT_VALUE = new EmptySortValue();
 
     /**
@@ -80,7 +77,8 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
 
     @Override
     public final int compareTo(SortValue other) {
-        return VALUE_COMPARATOR.compare(this, other);
+        int typeComparison = typeComparisonKey() - other.typeComparisonKey();
+        return typeComparison == 0 ? compareToSameType(other) : typeComparison;
     }
 
     /**
@@ -126,7 +124,7 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
     public abstract String toString();
 
     // Force implementations to override compareToDifferentType and sort each subclass by type first
-    protected abstract int compareToDifferentType();
+    protected abstract int typeComparisonKey();
 
     /**
      * Return this {@linkplain SortValue} as a boxed {@linkplain Number}
@@ -200,7 +198,7 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
         }
 
         @Override
-        public int compareToDifferentType() {
+        public int typeComparisonKey() {
             return SORT_VALUE;
         }
 
@@ -275,7 +273,7 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
         }
 
         @Override
-        public int compareToDifferentType() {
+        public int typeComparisonKey() {
             return SORT_VALUE;
         }
 
@@ -357,7 +355,7 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
         }
 
         @Override
-        public int compareToDifferentType() {
+        public int typeComparisonKey() {
             return SORT_VALUE;
         }
 
@@ -421,7 +419,7 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
         }
 
         @Override
-        public int compareToDifferentType() {
+        public int typeComparisonKey() {
             return sortValue;
         }
 

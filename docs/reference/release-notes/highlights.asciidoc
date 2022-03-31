@@ -18,6 +18,30 @@ For detailed information about this release, see the <<es-release-notes>> and
 // === Heading
 //
 // Description.
+
+[discrete]
+=== Faster indexing and searches on indexed `dense_vector` fields
+
+We've done several optimizations for indexing and searches on high-dimensional
+vectors (e.g. making HNSW graph hierarchical, speeding up graph merges,
+reusing data structures, better encoding of doc Ids). Lucene-level benchmarks
+reported up to 30% improvement in index throughput and 10% faster nearest
+neighbor searches on these fields. {es} indices that use indexed `dense_vector`
+fields should see these improvements.
+
+[discrete]
+===  Faster "count" searches for Points
+
+Counting a number of documents that fall into a certain range could be faster now.
+In {es} we use counting in aggregations (e.g. date range aggregation) and
+for `_count` API.
+
+[discrete]
+=== Faster Terms Set query
+
+We've optimized a Terms Set query for the case when the minimum number of
+matching clauses is constant  across all documents. In this case, we enable
+WAND (Weak AND) optimization to skip over non-competitive documents. 
 // end::notable-highlights[]
 
 // Omit the notable highlights tag for entries that only need to appear in the ES ref:

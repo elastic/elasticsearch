@@ -159,10 +159,10 @@ If configured, a node can open a TCP port when the node is in a ready state. A n
 ready when it has successfully joined a cluster. In a single node configuration, the node is
 said to be ready, when it's able to accept requests.
 
-The readiness TCP port can be configured through the `readiness.port` setting and it is
-always bound to the loopback address. By default, the IPv4 loopback address of `127.0.0.1`
-is used. If you wish to bind the readiness port to the IPv6 loopback address of `::1`,
-you should add `-Djava.net.preferIPv6Addresses=true` to the <<set-jvm-options,JVM options>>.
+To enable the readiness TCP port, use the `readiness.port` setting. The port is
+always bound to the loopback address, which defaults to the IPv4 loopback address`127.0.0.1`.
+To bind the readiness port to the IPv6 loopback address `::1`,
+add `-Djava.net.preferIPv6Addresses=true` to the <<set-jvm-options,JVM options>>.
 
 If the node leaves the cluster, or the <<put-shutdown,Shutdown API>> is used to mark the node
 for shutdown, the readiness port is immediately closed.

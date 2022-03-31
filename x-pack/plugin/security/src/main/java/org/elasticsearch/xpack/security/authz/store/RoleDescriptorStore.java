@@ -167,17 +167,17 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
             return roleDescriptors;
         }
 
-        final Map<Boolean, Set<RoleDescriptor>> partitionedRoles = roleDescriptors.stream()
+        final Map<Boolean, Set<RoleDescriptor>> partitionedRoleDescriptors = roleDescriptors.stream()
             .collect(Collectors.partitioningBy(RoleDescriptor::isUsingDocumentOrFieldLevelSecurity, Collectors.toSet()));
 
-        final Set<RoleDescriptor> rolesToSkip = partitionedRoles.get(true);
+        final Set<RoleDescriptor> roleDescriptorsToSkip = partitionedRoleDescriptors.get(true);
         logger.warn(
             "User roles [{}] are disabled because they require field or document level security. "
-                + "The current license is non-compliant for field and document level security features.",
-            rolesToSkip.stream().map(RoleDescriptor::getName).collect(Collectors.joining(","))
+                + "The current license is non-compliant for [field and document level security].",
+            roleDescriptorsToSkip.stream().map(RoleDescriptor::getName).collect(Collectors.joining(","))
         );
 
-        return partitionedRoles.get(false);
+        return partitionedRoleDescriptors.get(false);
     }
 
     private boolean shouldSkipRolesUsingDocumentOrFieldLevelSecurity(Set<RoleDescriptor> roleDescriptors) {

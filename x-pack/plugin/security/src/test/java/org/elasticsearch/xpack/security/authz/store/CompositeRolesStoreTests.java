@@ -283,7 +283,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
                     RoleDescriptorStore.class.getName(),
                     Level.WARN,
                     "User roles [dls] are disabled because they require field or document level security. "
-                        + "The current license is non-compliant for field and document level security features."
+                        + "The current license is non-compliant for [field and document level security]."
                 )
             );
             PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();

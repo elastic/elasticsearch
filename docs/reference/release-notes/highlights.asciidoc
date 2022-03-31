@@ -12,16 +12,8 @@ Other versions:
 
 {ref-bare}/8.0/release-highlights.html[8.0]
 
-// The notable-highlights tag marks entries that
-// should be featured in the Stack Installation and Upgrade Guide:
 // tag::notable-highlights[]
-// [discrete]
-// === Heading
-//
-// Description.
-// end::notable-highlights[]
 
-// tag::notable-highlights[]
 [discrete]
 [[doc_values_only_search_on_numeric_date_keyword_ip_boolean_fields]]
 === Doc-values-only search on numeric, `date`, `keyword`, `ip`, and `boolean` fields
@@ -36,4 +28,7 @@ In exchange for slower queries, doc-value-only fields offer:
 
 For more information about doc values, refer to the
 {ref}/doc-values.html[`doc_values` mapping parameter documentation].
+
 // end::notable-highlights[]
+
+

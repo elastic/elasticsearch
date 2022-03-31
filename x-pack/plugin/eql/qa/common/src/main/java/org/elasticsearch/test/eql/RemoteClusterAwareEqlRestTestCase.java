@@ -113,7 +113,7 @@ public abstract class RemoteClusterAwareEqlRestTestCase extends ESRestTestCase {
         provisioningClient().performRequest(request);
     }
 
-    protected static void deleteIndex(String name) throws IOException {
+    protected static void deleteIndexWithProvisioningClient(String name) throws IOException {
         deleteIndex(provisioningClient(), name);
     }
 

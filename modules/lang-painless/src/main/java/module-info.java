@@ -19,6 +19,9 @@ module org.elasticsearch.painless {
     requires org.objectweb.asm.commons;
     requires org.objectweb.asm.util;
 
+    exports org.elasticsearch.painless;
+    exports org.elasticsearch.painless.api;
+
     opens org.elasticsearch.painless to org.elasticsearch.painless.spi;  // whitelist access
     opens org.elasticsearch.painless.action to org.elasticsearch.server; // guice
 }

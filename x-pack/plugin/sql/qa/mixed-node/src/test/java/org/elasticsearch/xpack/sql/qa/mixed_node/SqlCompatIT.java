@@ -159,6 +159,7 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
         return Strings.toString(json);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/85520")
     public void testCursorFromOldNodeFailsOnNewNode() throws IOException {
         assertCursorNotCompatibleAcrossVersions(bwcVersion, oldNodesClient, Version.CURRENT, newNodesClient);
     }

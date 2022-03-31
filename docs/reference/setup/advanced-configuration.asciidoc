@@ -167,7 +167,7 @@ you should add `-Djava.net.preferIPv6Addresses=true` to the <<set-jvm-options,JV
 If the node leaves the cluster, or the <<put-shutdown,Shutdown API>> is used to mark the node
 for shutdown, the readiness port is immediately closed.
 
-When clients connect to the readiness TCP port, no data is sent back to the client, the server
-simply terminates the socket connection. A successful connection on the configured TCP port
-signals that the Elasticsearch node is ready, while not being able to connect means that the node
-is not ready.
+A successful connection to the readiness TCP port signals that the {es} node is ready. When a client connects to the readiness port, the server simply terminates the socket connection. No data is sent back to the client. 
+If a client cannot connect to the readiness port, the node is not ready.
+
+

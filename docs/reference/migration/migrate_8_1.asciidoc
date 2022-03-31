@@ -9,8 +9,6 @@ your application to {es} 8.1.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
-coming::[8.1.2-SNAPSHOT]
-
 
 [discrete]
 [[breaking-changes-8.1]]
@@ -97,6 +95,10 @@ Ensure that bulk actions are well-formed JSON objects containing a single entry
 with the correct key.
 ====
 // end::notable-breaking-changes[]
+
+[discrete]
+[[deprecations_81_rest_api]]
+==== REST API deprecations
 
 [[deprecate_index_include_frozen_request_parameter_in_sql_api]]
 .Deprecate `index_include_frozen` request parameter in `_sql` API

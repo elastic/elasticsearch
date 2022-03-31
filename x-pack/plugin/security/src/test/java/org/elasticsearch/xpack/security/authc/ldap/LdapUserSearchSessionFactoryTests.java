@@ -221,7 +221,6 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         );
 
         MockLogAppender mockAppender = new MockLogAppender();
-        LdapUserSearchSessionFactory sessionFactory = null;
         Logger logger = LogManager.getLogger(LdapUserSearchSessionFactory.class);
         try {
             mockAppender.start();
@@ -240,14 +239,12 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                         )
                 )
             );
-            sessionFactory = getLdapUserSearchSessionFactory(config, sslService, threadPool);
-            mockAppender.assertAllExpectationsMatched();
+            try (LdapUserSearchSessionFactory ignored = getLdapUserSearchSessionFactory(config, sslService, threadPool)) {
+                mockAppender.assertAllExpectationsMatched();
+            }
         } finally {
             Loggers.removeAppender(logger, mockAppender);
             mockAppender.stop();
-            if (sessionFactory != null) {
-                sessionFactory.close();
-            }
         }
     }
 

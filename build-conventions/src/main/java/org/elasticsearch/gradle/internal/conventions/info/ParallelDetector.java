@@ -62,19 +62,28 @@ public class ParallelDetector {
             } else if (isMac(project.getProviders())) {
                 // Ask macOS to count physical CPUs for us
                 ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+
+                // On Apple silicon, we only want to use the performance cores
+                String query = project.getProviders().systemProperty("os.arch").getOrElse("").equals("aarch64")
+                    ? "hw.perflevel0.physicalcpu"
+                    : "hw.physicalcpu";
+
                 project.exec(spec -> {
                     spec.setExecutable("sysctl");
-                    spec.args("-n", "hw.physicalcpu");
+                    spec.args("-n", query);
                     spec.setStandardOutput(stdout);
                 });
 
                 _defaultParallel = Integer.parseInt(stdout.toString().trim());
             }
 
-            _defaultParallel = Runtime.getRuntime().availableProcessors() / 2;
+            if (_defaultParallel == null || _defaultParallel < 1) {
+                _defaultParallel = Runtime.getRuntime().availableProcessors() / 2;
+            }
+
         }
 
-        return _defaultParallel;
+        return Math.min(_defaultParallel, project.getGradle().getStartParameter().getMaxWorkerCount());
     }
 
     private static boolean isMac(ProviderFactory providers) {

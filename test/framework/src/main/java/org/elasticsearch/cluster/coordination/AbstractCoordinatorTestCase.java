@@ -1679,9 +1679,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
             if (clusterStateApplyResponse == ClusterStateApplyResponse.HANG) {
                 if (randomBoolean()) {
                     // apply cluster state, but don't notify listener
-                    super.onNewClusterState(source, clusterStateSupplier, ActionListener.wrap(() -> {
-                        // ignore result
-                    }));
+                    super.onNewClusterState(source, clusterStateSupplier, ActionListener.noop());
                 }
             } else {
                 super.onNewClusterState(source, clusterStateSupplier, listener);

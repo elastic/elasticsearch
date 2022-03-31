@@ -42,10 +42,7 @@ public class ReleaseNotesIndexGenerator {
         // For the purpose of generating the index, snapshot versions are the same as released versions. Prerelease versions are not.
         versionsSet.stream().map(v -> v.isSnapshot() ? v.withoutQualifier() : v).forEach(versions::add);
 
-        final List<String> includeVersions = versions.stream()
-            .map(v -> v.hasQualifier() ? v.toString() : v.major() + "." + v.minor())
-            .distinct()
-            .collect(Collectors.toList());
+        final List<String> includeVersions = versions.stream().map(QualifiedVersion::toString).collect(Collectors.toList());
 
         final Map<String, Object> bindings = new HashMap<>();
         bindings.put("versions", versions);

@@ -1261,7 +1261,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return builder;
         }
 
-        private void writeShardSnapshotStatus(XContentBuilder builder, ToXContent indexId, int shardId, ShardSnapshotStatus status)
+        private static void writeShardSnapshotStatus(XContentBuilder builder, ToXContent indexId, int shardId, ShardSnapshotStatus status)
             throws IOException {
             builder.startObject();
             builder.field("index", indexId);

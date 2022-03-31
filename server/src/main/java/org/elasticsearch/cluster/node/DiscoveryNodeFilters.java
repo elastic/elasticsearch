@@ -73,7 +73,7 @@ public class DiscoveryNodeFilters {
         this.withoutTierPreferences = doTrimTier(this);
     }
 
-    private boolean matchByIP(String[] values, @Nullable String hostIp, @Nullable String publishIp) {
+    private static boolean matchByIP(String[] values, @Nullable String hostIp, @Nullable String publishIp) {
         for (String ipOrHost : values) {
             String value = InetAddresses.isInetAddress(ipOrHost) ? NetworkAddress.format(InetAddresses.forString(ipOrHost)) : ipOrHost;
             boolean matchIp = Regex.simpleMatch(value, hostIp) || Regex.simpleMatch(value, publishIp);

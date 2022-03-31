@@ -208,7 +208,7 @@ public class CompoundProcessor implements Processor {
         });
     }
 
-    private void putFailureMetadata(IngestDocument ingestDocument, ElasticsearchException cause) {
+    private static void putFailureMetadata(IngestDocument ingestDocument, ElasticsearchException cause) {
         List<String> processorTypeHeader = cause.getHeader("processor_type");
         List<String> processorTagHeader = cause.getHeader("processor_tag");
         List<String> processorOriginHeader = cause.getHeader("pipeline_origin");
@@ -224,7 +224,7 @@ public class CompoundProcessor implements Processor {
         }
     }
 
-    private void removeFailureMetadata(IngestDocument ingestDocument) {
+    private static void removeFailureMetadata(IngestDocument ingestDocument) {
         Map<String, Object> ingestMetadata = ingestDocument.getIngestMetadata();
         ingestMetadata.remove(ON_FAILURE_MESSAGE_FIELD);
         ingestMetadata.remove(ON_FAILURE_PROCESSOR_TYPE_FIELD);

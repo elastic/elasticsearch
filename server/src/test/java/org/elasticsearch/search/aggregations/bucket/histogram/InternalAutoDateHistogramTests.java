@@ -458,7 +458,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         assertThat(copy.getInterval(), equalTo(orig.getInterval()));
     }
 
-    public void testSerializationPre820() throws IOException {
+    public void testSerializationPre830() throws IOException {
         // we need to test without sub-aggregations, otherwise we need to also update the interval within the inner aggs
         InternalAutoDateHistogram instance = createTestInstance(
             randomAlphaOfLengthBetween(3, 7),
@@ -485,7 +485,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
         assertEqualInstances(instance, modified);
     }
 
-    public void testReadFromPre820() throws IOException {
+    public void testReadFromPre830() throws IOException {
         byte[] bytes = Base64.getDecoder()
             .decode(
                 "BG5hbWUKAAYBCAFa6AcEAAAAAQAAAAUAAAAKAAAAHgFzBnNlY29uZAEHAVrg1AMEAAAAAQAAAAUAAAAKAAA"
@@ -494,7 +494,7 @@ public class InternalAutoDateHistogramTests extends InternalMultiBucketAggregati
                     + "AAyAAAAZAF5BHllYXIAAARib29sAQAAAAAAAAAKZAADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
             );
         try (StreamInput in = new NamedWriteableAwareStreamInput(new BytesArray(bytes).streamInput(), getNamedWriteableRegistry())) {
-            in.setVersion(Version.V_8_1_1);
+            in.setVersion(Version.V_8_2_0);
             InternalAutoDateHistogram deserialized = new InternalAutoDateHistogram(in);
             assertEquals("name", deserialized.getName());
             assertEquals(1, deserialized.getBucketInnerInterval());

@@ -173,8 +173,8 @@ setup:
 ---
 "Auto date histogram interval is saved":
   - skip:
-      version: " - 8.1.99"
-      reason: "interval is only serialized from 8.2 on"
+      version: " - 8.2.99"
+      reason: "interval is only serialized from 8.3 on"
   - do:
       async_search.submit:
         index: test-*

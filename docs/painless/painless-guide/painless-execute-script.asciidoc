@@ -863,7 +863,7 @@ POST /_scripts/painless/_execute
   },
   "context": "composite_field",
   "context_setup": {
-    "index": "index",
+    "index": "my-index-000001",
     "document": {
       "timestamp":"2020-04-30T14:31:27-05:00",
       "message":"252.0.0.0 - - [30/Apr/2020:14:31:27 -0500] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"

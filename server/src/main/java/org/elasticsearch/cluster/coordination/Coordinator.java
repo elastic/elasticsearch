@@ -772,7 +772,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
             if (applierState.nodes().getMasterNodeId() != null) {
                 applierState = clusterStateWithNoMasterBlock(applierState);
-                clusterApplier.onNewClusterState("becoming candidate: " + method, () -> applierState, ActionListener.wrap(() -> {}));
+                clusterApplier.onNewClusterState("becoming candidate: " + method, () -> applierState, ActionListener.noop());
             }
         }
 

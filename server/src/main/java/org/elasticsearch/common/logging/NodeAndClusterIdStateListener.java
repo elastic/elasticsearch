@@ -61,7 +61,7 @@ public class NodeAndClusterIdStateListener implements ClusterStateObserver.Liste
         setNodeIdAndClusterId(nodeId, clusterUUID);
     }
 
-    void setNodeIdAndClusterId(String nodeId, String clusterUUID) {
+    static void setNodeIdAndClusterId(String nodeId, String clusterUUID) {
         nodeAndClusterId.set(Tuple.tuple(nodeId, clusterUUID));
     }
 

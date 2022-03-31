@@ -30,6 +30,7 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.alias.RandomAliasActionsGenerator;
 import org.elasticsearch.index.mapper.MapperService;
@@ -2285,6 +2286,48 @@ public class MetadataTests extends ESTestCase {
         }
         assertThat(metadata.getMappingsByHash().size(), equalTo(randomMappingDefinitions.size()));
         assertThat(metadata.getMappingsByHash().get(newMapping.getSha256()), nullValue());
+    }
+
+    public void testWithLifecycleState() {
+        String indexName = "my-index";
+        String indexUUID = randomAlphaOfLength(10);
+        Metadata metadata1 = Metadata.builder(randomMetadata())
+            .put(
+                IndexMetadata.builder(indexName)
+                    .settings(settings(Version.CURRENT).put(IndexMetadata.SETTING_INDEX_UUID, indexUUID))
+                    .creationDate(randomNonNegativeLong())
+                    .numberOfShards(1)
+                    .numberOfReplicas(0)
+            )
+            .build();
+        IndexMetadata index1 = metadata1.index(indexName);
+        assertThat(metadata1.getIndicesLookup(), notNullValue());
+        assertThat(index1.getLifecycleExecutionState(), sameInstance(LifecycleExecutionState.EMPTY_STATE));
+
+        LifecycleExecutionState state = LifecycleExecutionState.builder().setPhase("phase").setAction("action").setStep("step").build();
+        Metadata metadata2 = metadata1.withLifecycleState(index1.getIndex(), state);
+        IndexMetadata index2 = metadata2.index(indexName);
+
+        // the indices lookups are the same object
+        assertThat(metadata2.getIndicesLookup(), sameInstance(metadata1.getIndicesLookup()));
+
+        // the lifecycle state and version were changed
+        assertThat(index2.getLifecycleExecutionState().asMap(), is(state.asMap()));
+        assertThat(index2.getVersion(), is(index1.getVersion() + 1));
+
+        // but those are the only differences between the two
+        IndexMetadata.Builder builder = IndexMetadata.builder(index2);
+        builder.version(builder.version() - 1);
+        builder.removeCustom(LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY);
+        assertThat(index1, equalTo(builder.build()));
+
+        // withLifecycleState returns the same reference if nothing changed
+        Metadata metadata3 = metadata2.withLifecycleState(index2.getIndex(), state);
+        assertThat(metadata3, sameInstance(metadata2));
+
+        // withLifecycleState rejects a nonsense Index
+        String randomUUID = randomValueOtherThan(indexUUID, () -> randomAlphaOfLength(10));
+        expectThrows(IndexNotFoundException.class, () -> metadata1.withLifecycleState(new Index(indexName, randomUUID), state));
     }
 
     public static Metadata randomMetadata() {

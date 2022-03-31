@@ -197,7 +197,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             serverBootstrap.childOption(ChannelOption.ALLOCATOR, NettyAllocator.getAllocator());
 
             serverBootstrap.childHandler(configureServerChannelHandler());
-            serverBootstrap.handler(new ServerChannelExceptionHandler(this));
+            serverBootstrap.handler(ServerChannelExceptionHandler.INSTANCE);
 
             serverBootstrap.childOption(ChannelOption.TCP_NODELAY, SETTING_HTTP_TCP_NO_DELAY.get(settings));
             serverBootstrap.childOption(ChannelOption.SO_KEEPALIVE, SETTING_HTTP_TCP_KEEP_ALIVE.get(settings));
@@ -339,20 +339,18 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     @ChannelHandler.Sharable
     private static class ServerChannelExceptionHandler extends ChannelInboundHandlerAdapter {
 
-        private final Netty4HttpServerTransport transport;
+        static final ServerChannelExceptionHandler INSTANCE = new ServerChannelExceptionHandler();
 
-        private ServerChannelExceptionHandler(Netty4HttpServerTransport transport) {
-            this.transport = transport;
-        }
+        private ServerChannelExceptionHandler() {}
 
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
             ExceptionsHelper.maybeDieOnAnotherThread(cause);
             Netty4HttpServerChannel httpServerChannel = ctx.channel().attr(HTTP_SERVER_CHANNEL_KEY).get();
             if (cause instanceof Error) {
-                transport.onServerException(httpServerChannel, new Exception(cause));
+                AbstractHttpServerTransport.onServerException(httpServerChannel, new Exception(cause));
             } else {
-                transport.onServerException(httpServerChannel, (Exception) cause);
+                AbstractHttpServerTransport.onServerException(httpServerChannel, (Exception) cause);
             }
         }
     }

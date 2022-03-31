@@ -1,0 +1,13 @@
+[[node-left]]
+
+[discrete]
+==== NODE_LEFT
+
+[discrete]
+===== Description
+No allocation decider has information about why the shard is not allocated, but the unassigned info reason is `NODE_LEFT` and the
+`last_allocation_status` is `no_valid_shard_copy`. Data has been lost.
+
+[discrete]
+===== Solution
+<<snapshots-restore-snapshot, Restore your data from a snapshot>>.

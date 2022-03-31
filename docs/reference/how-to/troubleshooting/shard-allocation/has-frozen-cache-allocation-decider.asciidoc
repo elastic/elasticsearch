@@ -1,0 +1,16 @@
+[[has-frozen-cache-allocation-decider]]
+
+[discrete]
+==== Has frozen cache allocation decider
+
+[discrete]
+===== Description
+For an index that is mounted as a <<searchable-snapshot-mount-storage-options, partially mounted index>>, this checks that a node is
+configured with a frozen cache.
+
+[discrete]
+===== Solution
+Make sure that there is a <<data-tiers, frozen tier>> with nodes. Make sure that the
+<<searchable-snapshot-mount-storage-options, `xpack.searchable.snapshot.shared_cache.size`>> setting is not set to `0`. If both of those
+things are OK, something might have gone wrong temporarily, and it might work on the next try. If allocaftion continues to fail, enable
+debug logging for `org.elasticsearch.xpack.searchablesnapshots.cache.shared` and check the {es} logs for additional information.

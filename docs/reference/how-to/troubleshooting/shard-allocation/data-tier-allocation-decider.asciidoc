@@ -1,0 +1,15 @@
+[[data-tier-allocation-decider]]
+
+[discrete]
+==== Data tier allocation decider
+
+[discrete]
+===== Description
+A shard cannot be allocated on any node based on the _tier_preference settings of the index and the data node roles configured for the
+target node.
+
+[discrete]
+===== Solution
+This often happens because of a mixture of using the _tier_preference setting based on node roles, and the index allocation settings
+based on custom node attributes (e.g. require.data: warm). The best option is to <<migrate-index-allocation-filters, switch to using only
+node roles>> instead.

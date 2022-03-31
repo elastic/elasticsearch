@@ -1,0 +1,16 @@
+[[enable-allocation-decider]]
+
+[discrete]
+==== Enable allocation decider
+
+[discrete]
+===== Description
+A shard targets a given tier (e.g. hot or cold), and all of the nodes that make up that tier respond that they
+cannot allocate the shard because allocation is disabled for that shard.
+
+[discrete]
+===== Solution
+Check the value of <<dynamic-index-settings, `index.routing.allocation.enable`>> and
+<<dynamic-index-settings, `index.routing.rebalance.enable`>> for the index that
+the shard belongs to, and update if needed. Check the value of <<cluster-shard-allocation-settings, `cluster.routing.allocation.enable`>>
+and <<cluster-shard-allocation-settings, `cluster.routing.rebalance.enable`>>, and update if needed.

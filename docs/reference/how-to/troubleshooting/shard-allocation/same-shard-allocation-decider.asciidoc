@@ -1,0 +1,18 @@
+[[same-shard-allocation-decider]]
+
+[discrete]
+==== Same shard allocation decider
+
+[discrete]
+===== Description
+Allocation of a shard failed because the shard already exists on all target nodes that could otherwise accept it. The
+<<dynamic-index-settings, `number_of_replicas`>> setting on the index is telling {es} to allocate more replica shards than the cluster can
+handle.
+
+[discrete]
+===== Solution
+There are a few solutions:
+
+. Reduce the number of replicas for the index.
+. <<add-elasticsearch-nodes, Add more nodes>>.
+. Configure <<dynamic-index-settings, `index.auto_expand_replicas`>> to `0-all`.

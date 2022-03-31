@@ -1,0 +1,12 @@
+[[searchable-snapshot-repository-exists-allocation-decider]]
+
+[discrete]
+==== Searchable snapshot repository exists allocation decider
+
+[discrete]
+===== Description
+A <<searchable-snapshots, mounted index>>'s backing snapshots repository does not exist, so no node can allocate the shard.
+
+[discrete]
+===== Solution
+Delete the index and <<searchable-snapshots-api-mount-snapshot, mount> it manually from another snapshot.

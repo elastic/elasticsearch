@@ -1,0 +1,14 @@
+[[searchable-snapshot-enable-allocation-decider]]
+
+[discrete]
+==== Searchable snapshot enable allocation decider
+
+[discrete]
+===== Description
+After a <<restart-cluster-rolling, rolling restart>> the <<cluster-shard-allocation-settings, `cluster.routing.allocation.enable`>> setting
+did not get changed from `primaries` back to `all`, and `cluster.routing.allocation.enable` is `false` (the default value). The cluster will
+ not allocate any replica shards.
+
+[discrete]
+===== Solution
+If the rolling restart is complete, set `cluster.routing.allocation.enable` to `all`.

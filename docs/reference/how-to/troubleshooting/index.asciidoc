@@ -1,0 +1,13 @@
+[[troubleshooting]]
+== Troubleshooting
+
+--
+
+The following are a list of troubleshooting articles.
+
+<<shard-allocation-troubleshooting, Shards allocation>>::
+  Troubleshooting shard allocation failures.
+
+--
+
+include::shard-allocation/index.asciidoc[]

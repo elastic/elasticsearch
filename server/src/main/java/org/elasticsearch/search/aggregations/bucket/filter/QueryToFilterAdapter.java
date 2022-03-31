@@ -130,7 +130,7 @@ public class QueryToFilterAdapter<Q extends Query> {
      * produce the same answer as collecting the results with a sequence like
      * {@code searcher.collect(counter); return counter.readAndReset();}?
      */
-    protected final boolean countCanUseMetadata(FiltersAggregator.Counter counter, Bits live) {
+    protected static boolean countCanUseMetadata(FiltersAggregator.Counter counter, Bits live) {
         if (live != null) {
             /*
              * We can only use metadata if all of the documents in the reader

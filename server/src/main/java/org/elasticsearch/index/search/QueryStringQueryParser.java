@@ -254,7 +254,7 @@ public class QueryStringQueryParser extends QueryParser {
         this.fuzzyTranspositions = fuzzyTranspositions;
     }
 
-    private Query applyBoost(Query q, Float boost) {
+    private static Query applyBoost(Query q, Float boost) {
         if (boost != null && boost != 1f) {
             return new BoostQuery(q, boost);
         }
@@ -779,7 +779,7 @@ public class QueryStringQueryParser extends QueryParser {
         return fixNegativeQueryIfNeeded(q);
     }
 
-    private Query applySlop(Query q, int slop) {
+    private static Query applySlop(Query q, int slop) {
         if (q instanceof PhraseQuery) {
             // make sure that the boost hasn't been set beforehand, otherwise we'd lose it
             assert q instanceof BoostQuery == false;
@@ -795,7 +795,7 @@ public class QueryStringQueryParser extends QueryParser {
         }
     }
 
-    private Query addSlopToSpan(SpanQuery query, int slop) {
+    private static Query addSlopToSpan(SpanQuery query, int slop) {
         if (query instanceof SpanNearQuery) {
             return new SpanNearQuery(((SpanNearQuery) query).getClauses(), slop, ((SpanNearQuery) query).isInOrder());
         } else if (query instanceof SpanOrQuery) {
@@ -813,7 +813,7 @@ public class QueryStringQueryParser extends QueryParser {
     /**
      * Rebuild a phrase query with a slop value
      */
-    private PhraseQuery addSlopToPhrase(PhraseQuery query, int slop) {
+    private static PhraseQuery addSlopToPhrase(PhraseQuery query, int slop) {
         PhraseQuery.Builder builder = new PhraseQuery.Builder();
         builder.setSlop(slop);
         final Term[] terms = query.getTerms();

@@ -426,8 +426,8 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
             byte[] bytes = BytesReference.toBytes(out.bytes());
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(bytes), namedWriteableRegistry)) {
                 assertEquals(in.available(), bytes.length);
-                IOException e = expectThrows(IOException.class, () -> in.readNamedWriteable(BaseNamedWriteable.class));
-                assertThat(e.getMessage(), endsWith("] returned null which is not allowed and probably means it screwed up the stream."));
+                AssertionError e = expectThrows(AssertionError.class, () -> in.readNamedWriteable(BaseNamedWriteable.class));
+                assertThat(e.getCause().getMessage(), endsWith("] returned null which is not allowed."));
             }
         }
     }
@@ -436,8 +436,8 @@ public class RecyclerBytesStreamOutputTests extends ESTestCase {
         try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(recycler)) {
             out.writeOptionalWriteable(new TestNamedWriteable(randomAlphaOfLengthBetween(1, 10), randomAlphaOfLengthBetween(1, 10)));
             StreamInput in = StreamInput.wrap(BytesReference.toBytes(out.bytes()));
-            IOException e = expectThrows(IOException.class, () -> in.readOptionalWriteable((StreamInput ignored) -> null));
-            assertThat(e.getMessage(), endsWith("] returned null which is not allowed and probably means it screwed up the stream."));
+            AssertionError e = expectThrows(AssertionError.class, () -> in.readOptionalWriteable((StreamInput ignored) -> null));
+            assertThat(e.getCause().getMessage(), endsWith("] returned null which is not allowed."));
         }
     }
 

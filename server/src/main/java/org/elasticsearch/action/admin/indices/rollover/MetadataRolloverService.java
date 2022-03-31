@@ -129,14 +129,14 @@ public class MetadataRolloverService {
         };
     }
 
-    public void validateIndexName(ClusterState state, String index) {
-        createIndexService.validateIndexName(index, state);
+    public static void validateIndexName(ClusterState state, String index) {
+        MetadataCreateIndexService.validateIndexName(index, state);
     }
 
     /**
      * Returns the names that rollover would use, but does not perform the actual rollover
      */
-    public NameResolution resolveRolloverNames(
+    public static NameResolution resolveRolloverNames(
         ClusterState currentState,
         String rolloverTarget,
         String newIndexName,
@@ -155,7 +155,7 @@ public class MetadataRolloverService {
 
     public record NameResolution(String sourceName, @Nullable String unresolvedName, String rolloverName) {}
 
-    private NameResolution resolveAliasRolloverNames(Metadata metadata, IndexAbstraction alias, String newIndexName) {
+    private static NameResolution resolveAliasRolloverNames(Metadata metadata, IndexAbstraction alias, String newIndexName) {
         final IndexMetadata writeIndex = metadata.index(alias.getWriteIndex());
         final String sourceProvidedName = writeIndex.getSettings()
             .get(IndexMetadata.SETTING_INDEX_PROVIDED_NAME, writeIndex.getIndex().getName());
@@ -165,7 +165,7 @@ public class MetadataRolloverService {
         return new NameResolution(sourceIndexName, unresolvedName, rolloverIndexName);
     }
 
-    private NameResolution resolveDataStreamRolloverNames(Metadata metadata, IndexAbstraction.DataStream dataStream) {
+    private static NameResolution resolveDataStreamRolloverNames(Metadata metadata, IndexAbstraction.DataStream dataStream) {
         final DataStream ds = dataStream.getDataStream();
         final IndexMetadata originalWriteIndex = metadata.index(dataStream.getWriteIndex());
         return new NameResolution(originalWriteIndex.getIndex().getName(), null, ds.nextWriteIndexAndGeneration(metadata).v1());
@@ -192,7 +192,7 @@ public class MetadataRolloverService {
         final Boolean isHidden = IndexMetadata.INDEX_HIDDEN_SETTING.exists(createIndexRequest.settings())
             ? IndexMetadata.INDEX_HIDDEN_SETTING.get(createIndexRequest.settings())
             : null;
-        createIndexService.validateIndexName(rolloverIndexName, currentState); // fails if the index already exists
+        MetadataCreateIndexService.validateIndexName(rolloverIndexName, currentState); // fails if the index already exists
         checkNoDuplicatedAliasInIndexTemplate(metadata, rolloverIndexName, aliasName, isHidden);
         if (onlyValidate) {
             return new RolloverResult(rolloverIndexName, sourceIndexName, currentState);
@@ -260,7 +260,7 @@ public class MetadataRolloverService {
         final Tuple<String, Long> nextIndexAndGeneration = ds.nextWriteIndexAndGeneration(currentState.metadata());
         final String newWriteIndexName = nextIndexAndGeneration.v1();
         final long newGeneration = nextIndexAndGeneration.v2();
-        createIndexService.validateIndexName(newWriteIndexName, currentState); // fails if the index already exists
+        MetadataCreateIndexService.validateIndexName(newWriteIndexName, currentState); // fails if the index already exists
         if (onlyValidate) {
             return new RolloverResult(newWriteIndexName, originalWriteIndex.getName(), currentState);
         }

@@ -46,8 +46,8 @@ public abstract class DeferringBucketCollector extends BucketCollector {
         return new WrappedAggregator(in);
     }
 
-    protected class WrappedAggregator extends Aggregator {
-        private Aggregator in;
+    protected static class WrappedAggregator extends Aggregator {
+        private final Aggregator in;
 
         WrappedAggregator(Aggregator in) {
             this.in = in;

@@ -14,10 +14,12 @@ import java.util.Date;
 import java.util.Objects;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Semaphore;
+import java.util.concurrent.Phaser;
 
 /**
- * Renormalizer that discards outdated quantiles if even newer ones are received while waiting for a prior renormalization to complete.
+ * Renormalizer for one job that discards outdated quantiles if even newer ones are received while waiting for a prior renormalization
+ * to complete. Only one normalization must run at any time for any particular job. Quantiles documents can be large so it's important
+ * that we don't retain them unnecessarily.
  */
 public class ShortCircuitingRenormalizer implements Renormalizer {
 
@@ -27,10 +29,21 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
     private final ScoresUpdater scoresUpdater;
     private final ExecutorService executorService;
     /**
-     * Each job may only have 1 normalization in progress at any time; the semaphore enforces this
+     * Each job may only have 1 normalization in progress at any time; the phaser enforces this.
+     * Registrations and arrivals must be synchronized.
      */
-    private final Semaphore semaphore = new Semaphore(1);
-    private AugmentedQuantiles latestQuantilesHolder; // Access to this must be synchronized
+    private final Phaser phaser = new Phaser() {
+        /**
+         * Don't terminate when registrations drops to zero.
+         */
+        protected boolean onAdvance(int phase, int parties) {
+            return false;
+        }
+    };
+    /**
+     * Access to this must be synchronized.
+     */
+    private AugmentedQuantiles latestQuantilesHolder;
 
     public ShortCircuitingRenormalizer(String jobId, ScoresUpdater scoresUpdater, ExecutorService executorService) {
         this.jobId = jobId;
@@ -54,22 +67,34 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
             latestQuantilesHolder = (latestQuantilesHolder == null)
                 ? new AugmentedQuantiles(quantiles, null, new CountDownLatch(1))
                 : new AugmentedQuantiles(quantiles, latestQuantilesHolder.getEvictedTimestamp(), latestQuantilesHolder.getLatch());
+            // Don't start a thread if another normalization thread is still working. The existing thread will
+            // do this normalization when it finishes its current one. This means we serialise normalizations
+            // without hogging threads or queuing up many large quantiles documents.
+            if (tryStartWork()) {
+                executorService.submit(this::doRenormalizations);
+            }
         }
-        executorService.submit(this::doRenormalizations);
     }
 
     @Override
     public void waitUntilIdle() throws InterruptedException {
         CountDownLatch latch;
         do {
+            // The first bit waits for any not-yet-started renormalization to complete.
             synchronized (this) {
                 latch = (latestQuantilesHolder != null) ? latestQuantilesHolder.getLatch() : null;
             }
             if (latch != null) {
                 latch.await();
             }
-            semaphore.acquire();
-            semaphore.release();
+            // This next bit waits for any thread that's been started to run doRenormalizations() to exit the loop in that method.
+            // If no doRenormalizations() thread is running then we'll wait for the previous phase, and a call to do that should
+            // return immediately.
+            int phaseToWaitFor;
+            synchronized (this) {
+                phaseToWaitFor = phaser.getPhase() - 1 + phaser.getUnarrivedParties();
+            }
+            phaser.awaitAdvanceInterruptibly(phaseToWaitFor);
         } while (latch != null);
     }
 
@@ -81,6 +106,7 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
         // scoresUpdater first means it won't do all pending work; it will stop as soon
         // as it can without causing further errors.
         waitUntilIdle();
+        phaser.forceTermination();
     }
 
     private synchronized AugmentedQuantiles getLatestAugmentedQuantilesAndClear() {
@@ -89,8 +115,11 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
         return latest;
     }
 
-    private boolean tryStartWork() {
-        return semaphore.tryAcquire();
+    private synchronized boolean tryStartWork() {
+        if (phaser.getUnarrivedParties() > 0) {
+            return false;
+        }
+        return phaser.register() >= 0;
     }
 
     private synchronized boolean tryFinishWork() {
@@ -98,44 +127,31 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
         if (latestQuantilesHolder != null) {
             return false;
         }
-        semaphore.release();
+        phaser.arriveAndDeregister();
         return true;
     }
 
     private void doRenormalizations() {
-        // Exit immediately if another normalization is in progress. This means we don't hog threads.
-        if (tryStartWork() == false) {
-            return;
-        }
-
-        CountDownLatch latch = null;
-        try {
-            do {
-                AugmentedQuantiles latestAugmentedQuantiles = getLatestAugmentedQuantilesAndClear();
-                // We could end up with latestAugmentedQuantiles being null if the thread running this method
-                // was preempted before the tryStartWork() call, another thread already running this method
-                // did the work and exited, and then this thread got true returned by tryStartWork().
-                if (latestAugmentedQuantiles != null) {
-                    Quantiles latestQuantiles = latestAugmentedQuantiles.getQuantiles();
-                    latch = latestAugmentedQuantiles.getLatch();
+        do {
+            AugmentedQuantiles latestAugmentedQuantiles = getLatestAugmentedQuantilesAndClear();
+            assert latestAugmentedQuantiles != null;
+            if (latestAugmentedQuantiles != null) {
+                Quantiles latestQuantiles = latestAugmentedQuantiles.getQuantiles();
+                CountDownLatch latch = latestAugmentedQuantiles.getLatch();
+                try {
                     scoresUpdater.update(
                         latestQuantiles.getQuantileState(),
                         latestQuantiles.getTimestamp().getTime(),
                         latestAugmentedQuantiles.getWindowExtensionMs()
                     );
-                    latch.countDown();
-                    latch = null;
+                } catch (Exception e) {
+                    logger.error("[" + jobId + "] Normalization failed", e);
                 }
-                // Loop if more work has become available while we were working, because the
-                // tasks originally submitted to do that work will have exited early.
-            } while (tryFinishWork() == false);
-        } catch (Exception e) {
-            semaphore.release();
-            if (latch != null) {
                 latch.countDown();
             }
-            logger.error("[" + jobId + "] Normalization failed", e);
-        }
+            // Loop if more work has become available while we were working, because the
+            // tasks originally submitted to do that work will have exited early.
+        } while (tryFinishWork() == false);
     }
 
     /**

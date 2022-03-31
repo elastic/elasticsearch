@@ -192,8 +192,9 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
                 // kicks off asynchronous cluster state update
                 handleLoadSuccess(deployedTask);
             } catch (Exception ex) {
+                logger.warn(new ParameterizedMessage("[{}] Start deployment failed", modelId), ex);
                 if (ExceptionsHelper.unwrapCause(ex) instanceof ResourceNotFoundException) {
-                    handleLoadFailure(loadingTask, ExceptionsHelper.missingTrainedModel(loadingTask.getModelId()));
+                    handleLoadFailure(loadingTask, ExceptionsHelper.missingTrainedModel(loadingTask.getModelId(), ex));
                 } else if (ExceptionsHelper.unwrapCause(ex) instanceof SearchPhaseExecutionException) {
                     // A search phase execution failure should be retried, push task back to the queue
                     loadingToRetry.add(loadingTask);

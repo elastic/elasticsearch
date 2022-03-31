@@ -273,7 +273,6 @@ public class RestHighLevelClient implements Closeable {
     /** Do not access directly but through getVersionValidationFuture() */
     private volatile ListenableFuture<Optional<String>> versionValidationFuture;
 
-    private final IndicesClient indicesClient = new IndicesClient(this);
     private final SnapshotClient snapshotClient = new SnapshotClient(this);
     private final SecurityClient securityClient = new SecurityClient(this);
     private final TransformClient transformClient = new TransformClient(this);
@@ -347,15 +346,6 @@ public class RestHighLevelClient implements Closeable {
     @Override
     public final void close() throws IOException {
         doClose.accept(client);
-    }
-
-    /**
-     * Provides an {@link IndicesClient} which can be used to access the Indices API.
-     *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices.html">Indices API on elastic.co</a>
-     */
-    public final IndicesClient indices() {
-        return indicesClient;
     }
 
     /**

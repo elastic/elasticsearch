@@ -269,7 +269,7 @@ public final class RemoteClusterLicenseChecker {
             .filter(RemoteClusterLicenseChecker::isRemoteIndex)
             .map(index -> index.substring(0, index.indexOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR)))
             .distinct()
-            .flatMap(clusterExpression -> clusterNameExpressionResolver.resolveClusterNames(remoteClusters, clusterExpression).stream())
+            .flatMap(clusterExpression -> ClusterNameExpressionResolver.resolveClusterNames(remoteClusters, clusterExpression).stream())
             .distinct()
             .collect(Collectors.toList());
     }

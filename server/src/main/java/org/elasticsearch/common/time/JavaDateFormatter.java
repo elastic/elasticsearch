@@ -205,7 +205,7 @@ class JavaDateFormatter implements DateFormatter {
         return this.parsers[0].parse(input);
     }
 
-    private boolean parsingSucceeded(Object object, String input, ParsePosition pos) {
+    private static boolean parsingSucceeded(Object object, String input, ParsePosition pos) {
         return object != null && pos.getIndex() == input.length();
     }
 

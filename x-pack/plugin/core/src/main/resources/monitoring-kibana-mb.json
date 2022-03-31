@@ -3,6 +3,7 @@
   "version": ${xpack.stack.monitoring.template.release.version},
   "template": {
     "mappings": {
+      "dynamic": false,
       "properties": {
         "process": {
           "properties": {

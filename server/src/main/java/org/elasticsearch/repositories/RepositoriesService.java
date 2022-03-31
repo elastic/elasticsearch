@@ -213,8 +213,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                             if (existing == null) {
                                 existing = RepositoriesService.this.internalRepositories.get(request.name());
                             }
-                            assert existing != null : "repository [" + newRepositoryMetadata.name() + "] must exist";
-                            assert existing.getMetadata() == repositoryMetadata;
+                            assert existing == null || existing.getMetadata() == repositoryMetadata;
                             final RepositoryMetadata updatedMetadata;
                             if (canUpdateInPlace(newRepositoryMetadata, existing)) {
                                 if (repositoryMetadata.settings().equals(newRepositoryMetadata.settings())) {
@@ -540,9 +539,10 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     }
 
     private static boolean canUpdateInPlace(RepositoryMetadata updatedMetadata, Repository repository) {
-        assert updatedMetadata.name().equals(repository.getMetadata().name());
-        return repository.getMetadata().type().equals(updatedMetadata.type())
-            && repository.canUpdateInPlace(updatedMetadata.settings(), Collections.emptySet());
+        assert repository == null || updatedMetadata.name().equals(repository.getMetadata().name());
+        return repository != null
+            || repository.getMetadata().type().equals(updatedMetadata.type())
+                && repository.canUpdateInPlace(updatedMetadata.settings(), Collections.emptySet());
     }
 
     /**

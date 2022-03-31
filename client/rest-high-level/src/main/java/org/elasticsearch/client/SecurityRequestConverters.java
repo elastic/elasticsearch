@@ -15,7 +15,6 @@ import org.elasticsearch.client.security.ClearRealmCacheRequest;
 import org.elasticsearch.client.security.DelegatePkiAuthenticationRequest;
 import org.elasticsearch.client.security.GetApiKeyRequest;
 import org.elasticsearch.client.security.InvalidateApiKeyRequest;
-import org.elasticsearch.client.security.InvalidateTokenRequest;
 import org.elasticsearch.common.Strings;
 
 import java.io.IOException;
@@ -47,12 +46,6 @@ final class SecurityRequestConverters {
     static Request delegatePkiAuthentication(DelegatePkiAuthenticationRequest delegatePkiAuthenticationRequest) throws IOException {
         Request request = new Request(HttpPost.METHOD_NAME, "/_security/delegate_pki");
         request.setEntity(createEntity(delegatePkiAuthenticationRequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
-
-    static Request invalidateToken(InvalidateTokenRequest invalidateTokenRequest) throws IOException {
-        Request request = new Request(HttpDelete.METHOD_NAME, "/_security/oauth2/token");
-        request.setEntity(createEntity(invalidateTokenRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 

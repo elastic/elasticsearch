@@ -14,8 +14,6 @@ import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.ValidationException;
 import org.elasticsearch.client.security.DelegatePkiAuthenticationRequest;
 import org.elasticsearch.client.security.DelegatePkiAuthenticationResponse;
-import org.elasticsearch.client.security.InvalidateTokenRequest;
-import org.elasticsearch.client.security.InvalidateTokenResponse;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
@@ -45,6 +43,7 @@ import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswo
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -244,15 +243,16 @@ public class PkiAuthDelegationIntegTests extends SecurityIntegTestCase {
             assertThat(authenticateResponse, hasEntry(Fields.AUTHENTICATION_TYPE.getPreferredName(), "token"));
 
             // invalidate
-            InvalidateTokenRequest invalidateRequest = InvalidateTokenRequest.accessToken(token);
             optionsBuilder = RequestOptions.DEFAULT.toBuilder();
             optionsBuilder.addHeader(
                 "Authorization",
                 basicAuthHeaderValue(delegateeUsername, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)
             );
-            InvalidateTokenResponse invalidateResponse = restClient.security().invalidateToken(invalidateRequest, optionsBuilder.build());
-            assertThat(invalidateResponse.getInvalidatedTokens(), is(1));
-            assertThat(invalidateResponse.getErrorsCount(), is(0));
+
+            var invalidateResponse = getSecurityClient(optionsBuilder.build()).invalidateAccessToken(token);
+            assertThat(invalidateResponse.invalidated(), is(1));
+            assertThat(invalidateResponse.errors(), hasSize(0));
+
             // failed authenticate
             ResponseException ex = expectThrows(
                 ResponseException.class,

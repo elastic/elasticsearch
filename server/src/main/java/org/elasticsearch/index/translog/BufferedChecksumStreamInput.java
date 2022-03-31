@@ -94,8 +94,8 @@ public final class BufferedChecksumStreamInput extends FilterStreamInput {
     }
 
     @Override
-    protected String readString(int charCount) throws IOException {
-        return readStringSlow(charCount);
+    protected void readString(int charCount, char[] charBuffer) throws IOException {
+        readStringSlow(0, charCount, charBuffer);
     }
 
     @Override

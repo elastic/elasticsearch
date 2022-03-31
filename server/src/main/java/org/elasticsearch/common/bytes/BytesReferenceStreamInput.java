@@ -10,7 +10,6 @@ package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
-import org.apache.lucene.util.CharsRef;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.io.stream.StreamInput;
 
@@ -176,50 +175,30 @@ class BytesReferenceStreamInput extends StreamInput {
     }
 
     @Override
-    protected String readString(int charCount) throws IOException {
+    protected final void readString(int charCount, char[] charBuffer) throws IOException {
         // use fast path when we have enough bytes to always safely read the requested number of chars or when we are on the last slice
         // anyway and will just be reading from this single array
         final int currentSliceLength = slice.length;
-        if (charCount * 3 <= currentSliceLength - sliceIndex || sliceStartOffset + currentSliceLength == bytesReference.length()) {
-            final CharsRef charsRef = getCharsRef(charCount);
-            final char[] charBuffer = charsRef.chars;
-            final byte[] byteBuffer = slice.bytes;
-            final int offset = slice.offset;
-            int offsetByteArray = sliceIndex + offset;
-            for (int charsOffset = 0; charsOffset < charCount; charsOffset++) {
-                final int c = byteBuffer[offsetByteArray++] & 0xff;
-                switch (c >> 4) {
-                    case 0:
-                    case 1:
-                    case 2:
-                    case 3:
-                    case 4:
-                    case 5:
-                    case 6:
-                    case 7:
-                        charBuffer[charsOffset] = (char) c;
-                        break;
-                    case 12:
-                    case 13:
-                        charBuffer[charsOffset] = (char) ((c & 0x1F) << 6 | byteBuffer[offsetByteArray++] & 0x3F);
-                        break;
-                    case 14:
-                        charBuffer[charsOffset] = (char) (
-                                (c & 0x0F) << 12 | (byteBuffer[offsetByteArray++] & 0x3F) << 6 | (byteBuffer[offsetByteArray++] & 0x3F));
-                        break;
-                    default:
-                        throwOnBrokenChar(c);
+        final int currentSliceIndex = sliceIndex;
+        if (charCount > currentSliceLength - currentSliceIndex) {
+            super.readStringSlow(0, charCount, charBuffer);
+            return;
+        }
+        final byte[] byteBuffer = slice.bytes;
+        final int offset = slice.offset;
+        int offsetByteArray = currentSliceIndex + offset;
+        for (int charsOffset = 0; charsOffset < charCount; charsOffset++) {
+            final int c = byteBuffer[offsetByteArray++] & 0xff;
+            switch (c >> 4) {
+                case 0, 1, 2, 3, 4, 5, 6, 7 -> charBuffer[charsOffset] = (char) c;
+                default -> {
+                    sliceIndex = offsetByteArray - offset - 1;
+                    super.readStringSlow(charsOffset, charCount, charBuffer);
+                    return;
                 }
             }
-            final int newSliceIndex = offsetByteArray - offset;
-            if (newSliceIndex > currentSliceLength) {
-                // guard against overflowing on corrupted data below and fail
-                throwEOF(newSliceIndex - sliceIndex, available());
-            }
-            sliceIndex = newSliceIndex;
-            return charsRef.toString();
         }
-        return super.readString(charCount);
+        sliceIndex = offsetByteArray - offset;
     }
 
     protected int offset() {

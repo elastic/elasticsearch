@@ -66,8 +66,8 @@ public abstract class FilterStreamInput extends StreamInput {
     }
 
     @Override
-    protected String readString(int charCount) throws IOException {
-        return delegate.readString(charCount);
+    protected void readString(int charCount, char[] charBuffer) throws IOException {
+        delegate.readString(charCount, charBuffer);
     }
 
     @Override

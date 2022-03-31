@@ -178,6 +178,9 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
 
     void loadQueuedModels() {
         TrainedModelDeploymentTask loadingTask;
+        if (loadingModels.isEmpty()) {
+            return;
+        }
         if (latestState != null) {
             List<String> unassignedIndices = AbstractJobPersistentTasksExecutor.verifyIndicesPrimaryShardsAreActive(
                 latestState,
@@ -185,7 +188,8 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
                 // we allow missing as that means the index doesn't exist at all and our loading will fail for the models and we need
                 // to notify as necessary
                 true,
-                InferenceIndexConstants.INDEX_PATTERN
+                InferenceIndexConstants.INDEX_PATTERN,
+                InferenceIndexConstants.nativeDefinitionStore()
             );
             if (unassignedIndices.size() > 0) {
                 logger.trace("not loading models as indices {} primary shards are unassigned", unassignedIndices);

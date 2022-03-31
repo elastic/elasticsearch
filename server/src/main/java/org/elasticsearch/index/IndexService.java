@@ -862,11 +862,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
-    public Function<String, String> dateMathExpressionResolverAt() {
+    public static Function<String, String> dateMathExpressionResolverAt() {
         return expression -> IndexNameExpressionResolver.resolveDateMathExpression(expression, System.currentTimeMillis());
     }
 
-    public Function<String, String> dateMathExpressionResolverAt(long instant) {
+    public static Function<String, String> dateMathExpressionResolverAt(long instant) {
         return expression -> IndexNameExpressionResolver.resolveDateMathExpression(expression, instant);
     }
 

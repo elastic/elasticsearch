@@ -253,7 +253,7 @@ public class SpanNearQueryBuilder extends AbstractQueryBuilder<SpanNearQueryBuil
         return builder.build();
     }
 
-    private String queryFieldName(SearchExecutionContext context, String fieldName) {
+    private static String queryFieldName(SearchExecutionContext context, String fieldName) {
         MappedFieldType fieldType = context.getFieldType(fieldName);
         return fieldType != null ? fieldType.name() : fieldName;
     }

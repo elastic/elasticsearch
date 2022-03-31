@@ -232,6 +232,7 @@ showTables
 SHOW TABLES;
 
 catalog    |       name        |  type |  kind
+integTest  |apps               |TABLE  |INDEX
 integTest  |empty_mapping      |TABLE  |INDEX
 integTest  |logs               |TABLE  |INDEX
 integTest  |logs_nanos         |TABLE  |INDEX
@@ -283,6 +284,7 @@ showTablesLocalCatalog
 SHOW TABLES CATALOG 'integTest';
 
 catalog    |       name        |  type |  kind
+integTest  |apps               |TABLE  |INDEX
 integTest  |empty_mapping      |TABLE  |INDEX
 integTest  |logs               |TABLE  |INDEX
 integTest  |logs_nanos         |TABLE  |INDEX

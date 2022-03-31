@@ -1,0 +1,17 @@
+invalid:
+  - skip:
+      version: " - 8.1.99"
+      reason: introduced in 8.2.0
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              synthetic: true
+            properties:
+              kwd:
+                type: keyword
+                doc_values: false

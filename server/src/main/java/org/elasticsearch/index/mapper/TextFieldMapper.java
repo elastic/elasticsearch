@@ -1135,4 +1135,23 @@ public class TextFieldMapper extends FieldMapper {
         b.indexPrefixes.toXContent(builder, includeDefaults);
         b.indexPhrases.toXContent(builder, includeDefaults);
     }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        for (Mapper sub : this) {
+            if (sub.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {
+                KeywordFieldMapper kwd = (KeywordFieldMapper) sub;
+                if (kwd.fieldType().hasDocValues()) {
+                    return kwd.syntheticFieldLoader(name());
+                }
+            }
+        }
+        throw new IllegalArgumentException(
+            "field ["
+                + name()
+                + "] of type ["
+                + typeName()
+                + "] doesn't support synthetic source unless it has a sub-field of type [keyword] with doc values enabled"
+        );
+    }
 }

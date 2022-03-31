@@ -902,7 +902,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         if (value.length() > ignoreAbove) {
             context.addIgnoredField(name());
-            // NOCOMMIT fail on synthetic source?
+            // NOCOMMIT fail on synthetic source? - but only if this field is needed for synthetic source
             return;
         }
 
@@ -996,6 +996,10 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        return syntheticFieldLoader(name());
+    }
+
+    protected SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String simpleName) {
         if (hasDocValues == false) {
             throw new IllegalArgumentException(
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
@@ -1023,10 +1027,10 @@ public final class KeywordFieldMapper extends FieldMapper {
                         long first = leaf.nextOrd();
                         long next = leaf.nextOrd();
                         if (next == SortedSetDocValues.NO_MORE_ORDS) {
-                            b.field(simpleName(), leaf.lookupOrd(first).utf8ToString());
+                            b.field(simpleName, leaf.lookupOrd(first).utf8ToString());
                             return;
                         }
-                        b.startArray(simpleName());
+                        b.startArray(simpleName);
                         b.value(leaf.lookupOrd(first).utf8ToString());
                         b.value(leaf.lookupOrd(next).utf8ToString());
                         while ((next = leaf.nextOrd()) != SortedSetDocValues.NO_MORE_ORDS) {

@@ -67,6 +67,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -1086,5 +1087,56 @@ public class TextFieldMapperTests extends MapperTestCase {
     @Override
     protected void randomFetchTestFieldConfig(XContentBuilder b) throws IOException {
         assumeFalse("We don't have a way to assert things here", true);
+    }
+
+    @Override
+    protected SyntheticSourceExample syntheticSourceExample() throws IOException {
+        if (randomBoolean()) {
+            String v = randomAlphaOfLength(5);
+            return new SyntheticSourceExample(v, v, this::syntheticSourceMapping);
+        }
+        List<String> in = randomList(1, 5, () -> randomAlphaOfLength(5));
+        Object out = in.size() == 1 ? in.get(0) : in.stream().sorted().toList();
+        return new SyntheticSourceExample(in, out, this::syntheticSourceMapping);
+    }
+
+    private void syntheticSourceMapping(XContentBuilder b) throws IOException {
+        b.field("type", "text");
+        b.startObject("fields");
+        {
+            b.startObject("kwd");
+            b.field("type", "keyword");
+            b.endObject();
+        }
+        b.endObject();
+    }
+
+    @Override
+    protected List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException {
+        return List.of(
+            new SyntheticSourceInvalidExample(
+                equalTo(
+                    "field [field] of type [text] doesn't support synthetic source "
+                        + "unless it has a sub-field of type [keyword] with doc values enabled"
+                ),
+                this::minimalMapping
+            ),
+            new SyntheticSourceInvalidExample(
+                equalTo(
+                    "field [field] of type [text] doesn't support synthetic source "
+                        + "unless it has a sub-field of type [keyword] with doc values enabled"
+                ),
+                b -> {
+                    b.field("type", "text");
+                    b.startObject("fields");
+                    {
+                        b.startObject("l");
+                        b.field("type", "long");
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+            )
+        );
     }
 }

@@ -79,7 +79,6 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractFullClusterRe
         return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/85438")
     public void testDeploymentSurvivesRestart() throws Exception {
         assumeTrue("NLP model deployments added in 8.0", getOldClusterVersion().onOrAfter(Version.V_8_0_0));
 
@@ -92,6 +91,10 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractFullClusterRe
             startDeployment(modelId);
             assertInfer(modelId);
         } else {
+            ensureHealth(".ml-inference-*,.ml-config*", (request -> {
+                request.addParameter("wait_for_status", "yellow");
+                request.addParameter("timeout", "70s");
+            }));
             waitForDeploymentStarted(modelId);
             assertInfer(modelId);
             stopDeployment(modelId);

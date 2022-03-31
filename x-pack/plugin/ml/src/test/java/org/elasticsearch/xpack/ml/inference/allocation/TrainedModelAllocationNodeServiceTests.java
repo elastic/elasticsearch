@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
@@ -512,6 +513,7 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
             trainedModelAllocationService,
             clusterService,
             deploymentManager,
+            TestIndexNameExpressionResolver.newInstance(),
             taskManager,
             threadPool,
             NODE_ID,

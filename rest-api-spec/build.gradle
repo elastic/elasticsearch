@@ -81,8 +81,6 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.skipTest("search.aggregation/20_terms/string profiler via global ordinals native implementation", "The profiler results aren't backwards compatible.")
   task.skipTest("search.aggregation/20_terms/string profiler via map", "The profiler results aren't backwards compatible.")
   task.skipTest("search.aggregation/20_terms/numeric profiler", "The profiler results aren't backwards compatible.")
-  task.skipTest("search.aggregation/360_date_histogram/Multi-value date histogram", "The aggregation results aren't backwards compatible.")
-  task.skipTest("search.aggregation/360_date_histogram/Multi-value date histogram docvalues only", "The aggregation results aren't backwards compatible.")
   task.skipTest("migration/10_get_feature_upgrade_status/Get feature upgrade status", "Awaits backport")
 
   task.replaceValueInMatch("_type", "_doc")

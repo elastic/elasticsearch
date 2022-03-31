@@ -328,7 +328,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         String restoredIndex = "restored_" + indexName;
         RestClient llClient = client.getLowLevelClient();
         var response = responseAsMap(llClient.performRequest(new Request("GET", "/" + restoredIndex + "/_mapping")));
-        Map<?, ?> mapping = ObjectPath.evaluate(response, restoredIndex + ".mapping");
+        Map<?, ?> mapping = ObjectPath.evaluate(response, restoredIndex + ".mappings");
         logger.info("mapping for {}: {}", restoredIndex, mapping);
         assertThat(mapping, hasKey("_meta"));
         assertThat(mapping.get("_meta"), instanceOf(Map.class));

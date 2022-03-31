@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.transform.transforms.schema;
+package org.elasticsearch.xpack.transform.schema;
 
 import org.elasticsearch.test.xcontent.AbstractSchemaValidationTestCase;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpointingInfo;

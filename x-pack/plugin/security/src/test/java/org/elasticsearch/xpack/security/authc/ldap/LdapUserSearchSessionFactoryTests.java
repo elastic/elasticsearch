@@ -231,7 +231,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
                     LdapUserSearchSessionFactory.class.getName(),
                     Level.ERROR,
                     ("[%s] is set but no bind password is specified. Without a corresponding bind password, "
-                        + "LDAP realm authentication will fail and your node will not be fully operational. "
+                        + "ldap realm authentication will fail and your node will not be fully operational. "
                         + "Specify a bind password via [%s] or [%s].").formatted(
                             RealmSettings.getFullSettingKey(config, BIND_DN),
                             RealmSettings.getFullSettingKey(config, SECURE_BIND_PASSWORD),

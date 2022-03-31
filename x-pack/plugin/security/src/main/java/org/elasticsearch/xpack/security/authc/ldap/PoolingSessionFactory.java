@@ -94,9 +94,10 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
             if (bindPassword == null) {
                 logger.error(
                     "[{}] is set but no bind password is specified. Without a corresponding bind password, "
-                        + "LDAP realm authentication will fail and your node will not be fully operational. "
+                        + "{} realm authentication will fail and your node will not be fully operational. "
                         + "Specify a bind password via [{}] or [{}].",
                     RealmSettings.getFullSettingKey(config, BIND_DN),
+                    config.type(),
                     RealmSettings.getFullSettingKey(config, SECURE_BIND_PASSWORD),
                     RealmSettings.getFullSettingKey(config, LEGACY_BIND_PASSWORD)
                 );

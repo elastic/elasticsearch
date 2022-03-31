@@ -429,6 +429,15 @@ public abstract class StreamInput extends InputStream {
         readStringSlow(0, charCount, charBuffer);
     }
 
+    /**
+     * Reads the end of a string into the given character array that may already contain valid characters between index {@code 0} and
+     * {@code charsOffset}.
+     *
+     * @param charsOffset position in {@code charBuffer} to put the first character read
+     * @param charCount   number of bytes to put into {@code charBuffer} overall, meaning this method will read
+     *                    {@code charCount - charsOffset} into {@code charBuffer}
+     * @param charBuffer  character array to put read characters into
+     */
     protected final void readStringSlow(int charsOffset, int charCount, char[] charBuffer) throws IOException {
         int offsetByteArray = 0;
         int sizeByteArray = 0;

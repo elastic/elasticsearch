@@ -92,14 +92,16 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
             bindCredentials = new SimpleBindRequest();
         } else {
             if (bindPassword == null) {
-                throw new IllegalArgumentException(
-                    "When ["
-                        + RealmSettings.getFullSettingKey(config, BIND_DN)
-                        + "] is set you must also specify ["
-                        + RealmSettings.getFullSettingKey(config, SECURE_BIND_PASSWORD)
-                        + "] or ["
-                        + RealmSettings.getFullSettingKey(config, LEGACY_BIND_PASSWORD)
-                        + "]"
+                logger.error(
+                    "[{}] is set but no bind password is specified. "
+                        + "When [{}] is set, LDAP realm authentication occurs by attempting to bind to the LDAP server "
+                        + "using the found DN and the provided password. "
+                        + "Without a bind password, authentication attempts will fail and your node will not be fully operational. "
+                        + "Specify a bind password via [{}] or [{}].",
+                    RealmSettings.getFullSettingKey(config, BIND_DN),
+                    RealmSettings.getFullSettingKey(config, BIND_DN),
+                    RealmSettings.getFullSettingKey(config, SECURE_BIND_PASSWORD),
+                    RealmSettings.getFullSettingKey(config, LEGACY_BIND_PASSWORD)
                 );
             }
             bindCredentials = new SimpleBindRequest(bindDn, bindPassword);

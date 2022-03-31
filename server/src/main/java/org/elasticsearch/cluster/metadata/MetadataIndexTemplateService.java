@@ -1471,7 +1471,7 @@ public class MetadataIndexTemplateService {
                 // shard id and the current timestamp
                 xContentRegistry,
                 tempIndexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
-                tempIndexService.dateMathExpressionResolverAt(System.currentTimeMillis()),
+                IndexService.dateMathExpressionResolverAt(System.currentTimeMillis()),
                 systemIndices::isSystemName
             );
 

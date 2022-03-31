@@ -62,7 +62,7 @@ public final class Profilers {
     /**
      * Build a profiler for the fetch phase.
      */
-    public FetchProfiler startProfilingFetchPhase() {
+    public static FetchProfiler startProfilingFetchPhase() {
         return new FetchProfiler();
     }
 

@@ -158,7 +158,7 @@ public class SystemIndexManager implements ClusterStateListener {
      * @param descriptor information about the system index to check
      * @return a value that indicates the index's state.
      */
-    UpgradeStatus getUpgradeStatus(ClusterState clusterState, SystemIndexDescriptor descriptor) {
+    static UpgradeStatus getUpgradeStatus(ClusterState clusterState, SystemIndexDescriptor descriptor) {
         final State indexState = calculateIndexState(clusterState, descriptor);
 
         final String indexDescription = "[" + descriptor.getPrimaryIndex() + "] (alias [" + descriptor.getAliasName() + "])";
@@ -235,7 +235,7 @@ public class SystemIndexManager implements ClusterStateListener {
      * @param descriptor the system index to check
      * @return a summary of the index state, or <code>null</code> if the index doesn't exist
      */
-    State calculateIndexState(ClusterState state, SystemIndexDescriptor descriptor) {
+    static State calculateIndexState(ClusterState state, SystemIndexDescriptor descriptor) {
         final IndexMetadata indexMetadata = state.metadata().index(descriptor.getPrimaryIndex());
 
         if (indexMetadata == null) {
@@ -269,7 +269,7 @@ public class SystemIndexManager implements ClusterStateListener {
      * Checks whether an index's mappings are up-to-date. If an index is encountered that has
      * a version higher than Version.CURRENT, it is still considered up-to-date.
      */
-    private boolean checkIndexMappingUpToDate(SystemIndexDescriptor descriptor, IndexMetadata indexMetadata) {
+    private static boolean checkIndexMappingUpToDate(SystemIndexDescriptor descriptor, IndexMetadata indexMetadata) {
         final MappingMetadata mappingMetadata = indexMetadata.mapping();
         if (mappingMetadata == null) {
             return false;
@@ -281,7 +281,7 @@ public class SystemIndexManager implements ClusterStateListener {
     /**
      * Fetches the mapping version from an index's mapping's `_meta` info.
      */
-    private Version readMappingVersion(SystemIndexDescriptor descriptor, MappingMetadata mappingMetadata) {
+    private static Version readMappingVersion(SystemIndexDescriptor descriptor, MappingMetadata mappingMetadata) {
         final String indexName = descriptor.getPrimaryIndex();
         try {
             @SuppressWarnings("unchecked")

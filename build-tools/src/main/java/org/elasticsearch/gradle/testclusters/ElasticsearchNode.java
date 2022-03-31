@@ -159,6 +159,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final Path confPathLogs;
     private final Path transportPortFile;
     private final Path httpPortsFile;
+    private final Path readinessPortsFile;
     private final Path esLogFile;
     private final Path esStdinFile;
     private final Path tmpDir;
@@ -209,6 +210,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         confPathLogs = workingDir.resolve("logs");
         transportPortFile = confPathLogs.resolve("transport.ports");
         httpPortsFile = confPathLogs.resolve("http.ports");
+        readinessPortsFile = confPathLogs.resolve("readiness.ports");
         esLogFile = confPathLogs.resolve(clusterName + ".log");
         esStdinFile = workingDir.resolve("es.stdin");
         tmpDir = workingDir.resolve("tmp");
@@ -957,6 +959,12 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     @Override
     @Internal
+    public String getReadinessPortURI() {
+        return getReadinessPortInternal().get(0);
+    }
+
+    @Override
+    @Internal
     public List<String> getAllHttpSocketURI() {
         waitForAllConditions();
         return getHttpPortInternal();
@@ -967,6 +975,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     public List<String> getAllTransportPortURI() {
         waitForAllConditions();
         return getTransportPortInternal();
+    }
+
+    @Override
+    @Internal
+    public List<String> getAllReadinessPortURI() {
+        waitForAllConditions();
+        return getReadinessPortInternal();
     }
 
     @Internal
@@ -989,6 +1004,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             if (Files.exists(transportPortFile)) {
                 Files.delete(transportPortFile);
             }
+            if (Files.exists(readinessPortsFile)) {
+                Files.delete(readinessPortsFile);
+            }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -1010,6 +1028,9 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             }
             if (Files.exists(transportPortFile)) {
                 Files.delete(transportPortFile);
+            }
+            if (Files.exists(readinessPortsFile)) {
+                Files.delete(readinessPortsFile);
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -1406,6 +1427,14 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             return readPortsFile(httpPortsFile);
         } catch (IOException e) {
             throw new UncheckedIOException("Failed to read http ports file: " + httpPortsFile + " for " + this, e);
+        }
+    }
+
+    private List<String> getReadinessPortInternal() {
+        try {
+            return readPortsFile(readinessPortsFile);
+        } catch (IOException e) {
+            return new ArrayList<>();
         }
     }
 

@@ -290,7 +290,7 @@ public class TestSecurityClient {
      * @see org.elasticsearch.xpack.security.rest.action.oauth2.RestInvalidateTokenAction
      */
     public TokenInvalidation invalidateAccessToken(String accessToken) throws IOException {
-        return invalidateToken("""
+        return invalidateTokens("""
             {
               "token":"%s"
             }
@@ -302,7 +302,7 @@ public class TestSecurityClient {
      * @see org.elasticsearch.xpack.security.rest.action.oauth2.RestInvalidateTokenAction
      */
     public TokenInvalidation invalidateRefreshToken(String refreshToken) throws IOException {
-        return invalidateToken("""
+        return invalidateTokens("""
             {
               "refresh_token":"%s"
             }
@@ -314,7 +314,7 @@ public class TestSecurityClient {
      * @see org.elasticsearch.xpack.security.rest.action.oauth2.RestInvalidateTokenAction
      */
     public TokenInvalidation invalidateTokensForUser(String username) throws IOException {
-        return invalidateToken("""
+        return invalidateTokens("""
             {
               "username":"%s"
             }
@@ -326,7 +326,7 @@ public class TestSecurityClient {
      * @see org.elasticsearch.xpack.security.rest.action.oauth2.RestInvalidateTokenAction
      */
     public TokenInvalidation invalidateTokensForRealm(String realmName) throws IOException {
-        return invalidateToken("""
+        return invalidateTokens("""
             {
               "realm_name":"%s"
             }
@@ -334,9 +334,12 @@ public class TestSecurityClient {
     }
 
     @SuppressWarnings("unchecked")
-    private TokenInvalidation invalidateToken(String requestBody) throws IOException {
+    private TokenInvalidation invalidateTokens(String requestBody) throws IOException {
         final String endpoint = "/_security/oauth2/token";
         final Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+        // This API returns 404 (with the same body as a 200 response) if there's nothing to delete.
+        // RestClient will throw an exception on 404, but we don't want that, we want to parse the body and return it
+        request.addParameter("ignore", "404");
         request.setJsonEntity(requestBody);
         final Map<String, Object> responseBody = entityAsMap(execute(request));
         final List<Map<String, ?>> errors = (List<Map<String, ?>>) responseBody.get("error_details");

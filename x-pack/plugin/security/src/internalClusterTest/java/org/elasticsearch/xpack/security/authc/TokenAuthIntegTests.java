@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.apache.directory.api.util.Strings;
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -317,11 +316,8 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
     public void testInvalidateNotValidAccessTokens() throws Exception {
         // Perform a request to invalidate a token, before the tokens index is created
-        ElasticsearchStatusException e = expectThrows(
-            ElasticsearchStatusException.class,
-            () -> invalidateAccessToken(generateAccessToken(Version.CURRENT))
-        );
-        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        ResponseException e = expectThrows(ResponseException.class, () -> invalidateAccessToken(generateAccessToken(Version.CURRENT)));
+        assertThat(e.getResponse(), hasStatusCode(RestStatus.BAD_REQUEST));
         // Create a token to trigger index creation
         createToken(TEST_USER_NAME, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
         TokenInvalidation invalidateResponse = invalidateAccessToken("!this_is_not_a_base64_string_and_we_should_fail_decoding_it");
@@ -349,11 +345,11 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
 
     public void testInvalidateNotValidRefreshTokens() throws Exception {
         // Perform a request to invalidate a refresh token, before the tokens index is created
-        ElasticsearchStatusException e = expectThrows(
-            ElasticsearchStatusException.class,
+        ResponseException e = expectThrows(
+            ResponseException.class,
             () -> invalidateRefreshToken(TokenService.prependVersionAndEncodeRefreshToken(Version.CURRENT, UUIDs.randomBase64UUID()))
         );
-        assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getResponse(), hasStatusCode(RestStatus.BAD_REQUEST));
         // Create a token to trigger index creation
         createToken(TEST_USER_NAME, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
         TokenInvalidation invalidateResponse = invalidateRefreshToken("!this_is_not_a_base64_string_and_we_should_fail_decoding_it");

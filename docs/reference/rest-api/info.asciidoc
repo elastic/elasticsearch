@@ -81,10 +81,6 @@ Example response:
           "available" : true,
           "enabled" : true
       },
-      "archive" : {
-          "available" : true,
-          "enabled" : true
-      },
       "enrich" : {
           "available" : true,
           "enabled" : true

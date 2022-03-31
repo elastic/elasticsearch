@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.core.action.XPackInfoAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.aggregatemetric.AggregateMetricFeatureSetUsage;
 import org.elasticsearch.xpack.core.analytics.AnalyticsFeatureSetUsage;
-import org.elasticsearch.xpack.core.archive.ArchiveFeatureSetUsage;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.ccr.AutoFollowMetadata;
 import org.elasticsearch.xpack.core.datastreams.DataStreamFeatureSetUsage;
@@ -559,9 +558,7 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 // Data Streams
                 new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.DATA_STREAMS, DataStreamFeatureSetUsage::new),
                 // Data Tiers
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.DATA_TIERS, DataTiersFeatureSetUsage::new),
-                // Archive
-                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.ARCHIVE, ArchiveFeatureSetUsage::new)
+                new NamedWriteableRegistry.Entry(XPackFeatureSet.Usage.class, XPackField.DATA_TIERS, DataTiersFeatureSetUsage::new)
             )
         );
 

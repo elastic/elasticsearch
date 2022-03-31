@@ -11,7 +11,6 @@ import org.elasticsearch.common.hash.MessageDigests;
 
 import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.Map;
@@ -36,7 +35,7 @@ class LicenseOverrides {
         LICENSE_OVERRIDES = Map.ofEntries(
             Map.entry(
                 TEST_LICENSE_ID_HASH,
-                ZonedDateTime.ofStrict(LocalDateTime.of(1970, 1, 1, 0, 0, 42, 0), ZoneOffset.UTC, ZoneId.of("UTC"))
+                ZonedDateTime.ofStrict(LocalDateTime.of(1970, 1, 1, 0, 0, 42, 0), ZoneOffset.UTC, ZoneOffset.UTC)
             )
         );
     }

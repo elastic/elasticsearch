@@ -65,14 +65,14 @@ class FieldValueFetcher {
     }
 
     Object format(Object value) {
-        if (value instanceof Long) {
-            return format.format((long) value);
-        } else if (value instanceof Double) {
-            return format.format((double) value);
-        } else if (value instanceof BytesRef) {
-            return format.format((BytesRef) value);
-        } else if (value instanceof String) {
-            return value.toString();
+        if (value instanceof Long l) {
+            return format.format(l);
+        } else if (value instanceof Double d) {
+            return format.format(d);
+        } else if (value instanceof BytesRef b) {
+            return format.format(b);
+        } else if (value instanceof String s) {
+            return s;
         } else {
             throw new IllegalArgumentException("Invalid type: [" + value.getClass() + "]");
         }
@@ -87,19 +87,6 @@ class FieldValueFetcher {
             }
             IndexFieldData<?> fieldData = context.getForField(fieldType);
             fetchers.add(new FieldValueFetcher(field, fieldType, fieldData, getValidator(field)));
-        }
-        return Collections.unmodifiableList(fetchers);
-    }
-
-    static List<FieldValueFetcher> buildHistograms(SearchExecutionContext context, String[] fields, double interval) {
-        List<FieldValueFetcher> fetchers = new ArrayList<>();
-        for (String field : fields) {
-            MappedFieldType fieldType = context.getFieldType(field);
-            if (fieldType == null) {
-                throw new IllegalArgumentException("Unknown field: [" + field + "]");
-            }
-            IndexFieldData<?> fieldData = context.getForField(fieldType);
-            fetchers.add(new FieldValueFetcher(field, fieldType, fieldData, getIntervalValueFunc(field, interval)));
         }
         return Collections.unmodifiableList(fetchers);
     }

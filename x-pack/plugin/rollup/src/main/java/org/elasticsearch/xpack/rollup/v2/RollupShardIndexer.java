@@ -110,18 +110,13 @@ class RollupShardIndexer {
             verifyTimestampField(timestampField);
             this.timestampFormat = timestampField.docValueFormat(null, null);
             this.rounding = createRounding(config.getGroupConfig().getDateHistogram()).prepareForUnknown();
-            this.dimensionFieldFetchers = new ArrayList<>();
 
-            if (config.getGroupConfig().getTerms() != null) {
-                TermsGroupConfig termsConfig = config.getGroupConfig().getTerms();
-                this.dimensionFieldFetchers.addAll(FieldValueFetcher.build(searchExecutionContext, termsConfig.getFields()));
-            }
-
-            if (config.getGroupConfig().getHistogram() != null) {
-                HistogramGroupConfig histoConfig = config.getGroupConfig().getHistogram();
-                this.dimensionFieldFetchers.addAll(
-                    FieldValueFetcher.buildHistograms(searchExecutionContext, histoConfig.getFields(), histoConfig.getInterval())
-                );
+            // TODO: Replace this config parsing with index mapping parsing
+            if (config.getGroupConfig().getTerms() != null && config.getGroupConfig().getTerms().getFields().length > 0) {
+                final String[] dimensionFields = config.getGroupConfig().getTerms().getFields();
+                this.dimensionFieldFetchers = FieldValueFetcher.build(searchExecutionContext, dimensionFields);
+            } else {
+                this.dimensionFieldFetchers = Collections.emptyList();
             }
 
             if (config.getMetricsConfig().size() > 0) {
@@ -162,7 +157,7 @@ class RollupShardIndexer {
             bucketCollector.postCollection();
         }
         // TODO: check that numIndexed == numSent, otherwise throw an exception
-        logger.info("Successfully sent [" + numIndexed.get() + "], indexed [" + numIndexed.get() + "]");
+        logger.info("Successfully sent [" + numSent.get() + "], indexed [" + numIndexed.get() + "]");
         return numIndexed.get();
     }
 
@@ -253,7 +248,6 @@ class RollupShardIndexer {
                         long bucketTimestamp = rounding.round(timestamp);
 
                         if (tsid.equals(rollupBucketBuilder.tsid()) == false || rollupBucketBuilder.timestamp() != bucketTimestamp) {
-
                             // Flush rollup doc if not empty
                             if (rollupBucketBuilder.tsid() != null) {
                                 Map<String, Object> doc = rollupBucketBuilder.buildRollupDocument();
@@ -309,7 +303,7 @@ class RollupShardIndexer {
         private LeafReaderContext ctx;
         private DocCountProvider docCountProvider;
 
-        Map<String, MetricFieldProducer> metricFields;
+        private Map<String, MetricFieldProducer> metricFields;
 
         RollupBucketBuilder() {
             docCountProvider = new DocCountProvider();
@@ -333,7 +327,7 @@ class RollupShardIndexer {
             /* Skip loading dimensions, we decode them from tsid directly
             // We extract dimension values only once per rollup bucket
             if (docCount == 0) {
-                addDimensions(docId);
+                collectDimensions(docId);
             }
             */
             collectMetrics(docId);
@@ -345,7 +339,7 @@ class RollupShardIndexer {
 
         // TODO: Remove this method, because we don't need to load the doc_values.
         // We can parse _tsid instead
-        private void addDimensions(int docId) throws IOException {
+        private void collectDimensions(int docId) throws IOException {
             for (FieldValueFetcher f : dimensionFieldFetchers) {
                 FormattedDocValues leafField = f.getLeaf(ctx);
                 if (leafField.advanceExact(docId)) {
@@ -359,14 +353,14 @@ class RollupShardIndexer {
         }
 
         private void collectMetrics(int docId) throws IOException {
-            for (FieldValueFetcher f : metricFieldFetchers) {
-                FormattedDocValues formattedDocValues = f.getLeaf(ctx);
+            for (FieldValueFetcher fetcher : metricFieldFetchers) {
+                FormattedDocValues formattedDocValues = fetcher.getLeaf(ctx);
 
                 if (formattedDocValues.advanceExact(docId)) {
                     for (int i = 0; i < formattedDocValues.docValueCount(); i++) {
                         Object obj = formattedDocValues.nextValue();
                         if (obj instanceof Number number) {
-                            MetricFieldProducer field = metricFields.get(f.name);
+                            MetricFieldProducer field = metricFields.get(fetcher.name);
                             double value = number.doubleValue();
                             for (MetricFieldProducer.Metric metric : field.metrics) {
                                 metric.collect(value);
@@ -376,7 +370,6 @@ class RollupShardIndexer {
                         }
                     }
                 }
-
             }
         }
 
@@ -395,8 +388,9 @@ class RollupShardIndexer {
 
             for (FieldValueFetcher fetcher : dimensionFieldFetchers) {
                 Object value = dimensions.get(fetcher.name);
-                assert value != null;
-                doc.put(fetcher.name, fetcher.format(value));
+                if (value != null) {
+                    doc.put(fetcher.name, fetcher.format(value));
+                }
             }
 
             for (MetricFieldProducer field : metricFields.values()) {

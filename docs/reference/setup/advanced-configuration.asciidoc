@@ -42,23 +42,23 @@ or a range of versions followed by a colon.
 +
 [source,text]
 -------------------------------------
-8:-Xmx2g
+17:-Xmx2g
 -------------------------------------
 
 * Apply a setting to a range of versions:
 +
 [source,text]
 -------------------------------------
-8-9:-Xmx2g
+17-18:-Xmx2g
 -------------------------------------
 +
 To apply a setting to a specific version and any later versions,
-omit the upper bound of the range. 
+omit the upper bound of the range.
 For example, this setting applies to Java 8 and later:
 +
 [source,text]
 -------------------------------------
-8-:-Xmx2g
+17-:-Xmx2g
 -------------------------------------
 
 Blank lines are ignored. Lines beginning with `#` are treated as comments
@@ -69,7 +69,7 @@ as valid JVM arguments are rejected and {es} will fail to start.
 ===== Use environment variables to set JVM options
 
 In production, use JVM options files to override the
-default settings. In testing and development environments, 
+default settings. In testing and development environments,
 you can also set JVM options through the `ES_JAVA_OPTS` environment variable.
 
 [source,sh]
@@ -90,8 +90,6 @@ By default, {es} automatically sets the JVM heap size based on a node's
 <<node-roles,roles>> and total memory.
 Using the default sizing is recommended for most production environments.
 
-NOTE: Automatic heap sizing requires the <<jvm-version,bundled JDK>> or, if using
-a custom JRE location, a Java 14 or later JRE.
 
 To override the default heap size, set the minimum and maximum heap size
 settings, `Xms` and `Xmx`. The minimum and maximum values must be the same.

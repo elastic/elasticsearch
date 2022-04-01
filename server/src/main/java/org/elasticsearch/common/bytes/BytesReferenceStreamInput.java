@@ -23,6 +23,8 @@ import java.nio.ByteBuffer;
  */
 class BytesReferenceStreamInput extends StreamInput {
 
+    private static final ByteBuffer EMPTY = ByteBuffer.wrap(new byte[0]);
+
     protected final BytesReference bytesReference;
     private BytesRefIterator iterator;
     private ByteBuffer slice;
@@ -38,7 +40,7 @@ class BytesReferenceStreamInput extends StreamInput {
 
     static ByteBuffer convertToByteBuffer(BytesRef bytesRef) {
         if (bytesRef == null) {
-            return null;
+            return EMPTY;
         }
         // slice here forces the buffer to have a sliced view, keeping track of the original offset
         return ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length).slice();

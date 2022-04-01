@@ -144,7 +144,7 @@ public class ProfileIT extends ESRestTestCase {
     public void testSearchProfile() throws IOException {
         final Map<String, Object> activateProfileMap = doActivateProfile();
         final String uid = (String) activateProfileMap.get("uid");
-        final Request searchProfilesRequest1 = new Request(randomFrom("GET", "POST"), "_security/profile/_search");
+        final Request searchProfilesRequest1 = new Request(randomFrom("GET", "POST"), "_security/profile/_suggest");
         searchProfilesRequest1.setJsonEntity("""
             {
               "name": "rac",

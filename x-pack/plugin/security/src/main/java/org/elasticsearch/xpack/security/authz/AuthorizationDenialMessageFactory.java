@@ -85,13 +85,13 @@ class AuthorizationDenialMessageFactory {
     }
 
     private static String runAsDenied(Authentication authentication) {
-        assert authentication.getUser().isRunAs() : "run as denial message must be for run as user";
+        assert authentication.getUser().isRunAs() : "run as denial message must be for run-as user";
 
         String userText = authenticatedUserText(authentication);
 
         String runAsUserText = authentication.getUser().principal();
 
-        return userText + " is not authorized to run as [" + runAsUserText + "]";
+        return userText + " is unauthorized to run as [" + runAsUserText + "]";
     }
 
     private static String authenticatedUserText(Authentication authentication) {

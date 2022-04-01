@@ -68,15 +68,7 @@ public class SecurityTestsUtils {
         assertThrowsAuthorizationException(
             "Expected authorization failure for user=[" + user + "], run-as=[" + runAs + "], action=[" + action + "]",
             throwingRunnable,
-            containsString(
-                "["
-                    + action
-                    + "] is unauthorized for user ["
-                    + user
-                    + "] run as ["
-                    + runAs
-                    + "] because user unauthorized to run as target user"
-            )
+            containsString("[" + user + "] is unauthorized to run as [" + runAs + "]")
         );
     }
 

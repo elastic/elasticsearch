@@ -13,6 +13,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 
 public record HealthIndicatorResult(
@@ -26,7 +27,7 @@ public record HealthIndicatorResult(
 ) implements ToXContentObject {
 
     public HealthIndicatorResult(String name, String component, HealthStatus status, String summary, HealthIndicatorDetails details) {
-        this(name, component, status, summary, details, null);
+        this(name, component, status, summary, details, Collections.emptyList(), null);
     }
 
     @Override

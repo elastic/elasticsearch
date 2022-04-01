@@ -43,6 +43,6 @@ public interface HealthIndicatorService {
             .sorted(Comparator.comparingInt(HealthIndicatorImpact::severity))
             .limit(3)
             .collect(Collectors.toList());
-        return new HealthIndicatorResult(name(), component(), status, summary, details, impactsList);
+        return new HealthIndicatorResult(name(), component(), status, summary, details, impactsList, null);
     }
 }

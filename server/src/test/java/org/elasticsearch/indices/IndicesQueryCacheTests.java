@@ -9,14 +9,9 @@
 package org.elasticsearch.indices;
 
 import org.apache.lucene.document.Document;
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
 import org.apache.lucene.search.DocIdSetIterator;
@@ -29,7 +24,6 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -40,8 +34,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-
-import static org.hamcrest.Matchers.equalTo;
 
 public class IndicesQueryCacheTests extends ESTestCase {
 
@@ -351,79 +343,6 @@ public class IndicesQueryCacheTests extends ESTestCase {
         cache.onClose(shard2);
 
         cache.close(); // this triggers some assertions
-    }
-
-    public void testSkipCachingFactorAtLeast10() throws Exception {
-        ShardId shard = new ShardId("index", "_na_", 0);
-        Directory dir = newDirectory();
-        IndexWriter w = new IndexWriter(dir, newIndexWriterConfig());
-        int numDocs = randomIntBetween(1, 10);
-        int selectedDocID = randomIntBetween(0, numDocs - 1);
-        for (int i = 0; i < numDocs; i++) {
-            Document d = new Document();
-            if (i == selectedDocID) {
-                d.add(new StringField("name", "thomas", Field.Store.YES));
-                d.add(new StringField("color", "blue", Field.Store.YES));
-            } else {
-                d.add(new StringField("name", randomFrom("thomas", "henry", "james"), Field.Store.YES));
-                d.add(new StringField("color", randomFrom("blue", "green", "red"), Field.Store.YES));
-            }
-            w.addDocument(d);
-        }
-        boolean cacheAllSegments = randomBoolean();
-        // We only cache segments with at least 10_000 documents
-        int emptyDocs = cacheAllSegments ? randomIntBetween(0, 100) : randomIntBetween(10_000, 11_000);
-        for (int i = 0; i < emptyDocs; i++) {
-            Document d = new Document();
-            w.addDocument(d);
-        }
-        w.forceMerge(1);
-        DirectoryReader reader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(w), shard);
-        w.close();
-        reader = ElasticsearchDirectoryReader.wrap(reader, shard);
-        IndexSearcher searcher = new IndexSearcher(reader);
-        searcher.setQueryCachingPolicy(new QueryCachingPolicy() {
-            @Override
-            public void onUse(Query query) {
-
-            }
-
-            @Override
-            public boolean shouldCache(Query query) throws IOException {
-                return (query instanceof BooleanQuery) == false;
-            }
-        });
-        Settings.Builder settings = Settings.builder()
-            .put(IndicesQueryCache.INDICES_CACHE_QUERY_COUNT_SETTING.getKey(), randomIntBetween(100, 100));
-        if (cacheAllSegments) {
-            settings.put(IndicesQueryCache.INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.getKey(), true);
-        }
-        IndicesQueryCache cache = new IndicesQueryCache(settings.build());
-        searcher.setQueryCache(cache);
-
-        TermQuery q1 = new TermQuery(new Term("name", "thomas"));
-        TermQuery q2 = new TermQuery(new Term("color", "blue"));
-        BooleanQuery query = new BooleanQuery.Builder().add(q1, BooleanClause.Occur.FILTER).add(q2, BooleanClause.Occur.FILTER).build();
-        searcher.search(query, between(1, 10));
-        QueryCacheStats stats = cache.getStats(shard);
-        assertThat(stats.getCacheCount(), equalTo(2L));
-        assertThat(stats.getCacheSize(), equalTo(2L));
-        long hits = 0L;
-        assertThat(stats.getHitCount(), equalTo(hits));
-        assertThat(stats.getMissCount(), equalTo(2L));
-        int iters = iterations(1, 10);
-        for (int i = 1; i < iters; ++i) {
-            searcher.search(query, between(1, 10));
-            hits += 2; // the inner clauses
-            stats = cache.getStats(shard);
-            assertThat(stats.getCacheCount(), equalTo(2L));
-            assertThat(stats.getCacheSize(), equalTo(2L));
-            assertThat(stats.getHitCount(), equalTo(hits));
-            assertThat(stats.getMissCount(), equalTo(2L));
-        }
-        IOUtils.close(reader, dir);
-        cache.onClose(shard);
-        cache.close();
     }
 
     private static class DummyWeight extends Weight {

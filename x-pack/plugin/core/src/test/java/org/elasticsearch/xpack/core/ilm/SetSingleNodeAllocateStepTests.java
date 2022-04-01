@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import com.carrotsearch.hppc.cursors.IntObjectCursor;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.FailedNodeException;
@@ -938,8 +936,16 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         List<NodeStats> nodeStatsList = new ArrayList<>();
 
         Map<String, List<ShardRouting>> nodeShardRoutings = new HashMap<>();
-        for (final IntObjectCursor<IndexShardRoutingTable> shardRoutingTable : indexRoutingTable.getShards()) {
-            for (ShardRouting shardRouting : shardRoutingTable.value.shards()) {
+        List<IndexShardRoutingTable> indexShardRoutingTables = new ArrayList<>(indexRoutingTable.size());
+        for (int copy = 0; copy < indexRoutingTable.size(); copy++) {
+            indexShardRoutingTables.add(indexRoutingTable.shard(copy));
+        }
+        for (final IndexShardRoutingTable shardRoutingTable : indexShardRoutingTables) {
+            List<ShardRouting> shardRoutings = new ArrayList<>(shardRoutingTable.size());
+            for (int copy = 0; copy < shardRoutingTable.size(); copy++) {
+                shardRoutings.add(shardRoutingTable.shard(copy));
+            }
+            for (ShardRouting shardRouting : shardRoutings) {
                 String nodeId = shardRouting.currentNodeId();
                 List<ShardRouting> shards;
                 if (nodeShardRoutings.containsKey(nodeId)) {

@@ -163,7 +163,7 @@ public class WatcherService {
                 || (watcherIndexMetadata.getState() == IndexMetadata.State.OPEN
                     && state.routingTable().index(watcherIndexMetadata.getIndex()).allPrimaryShardsActive());
         } catch (IllegalStateException e) {
-            logger.debug("error validating to start watcher", e);
+            logger.warn("Validation error: cannot start watcher", e);
             return false;
         }
     }

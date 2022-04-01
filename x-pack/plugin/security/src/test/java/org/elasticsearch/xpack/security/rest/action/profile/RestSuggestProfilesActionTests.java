@@ -14,8 +14,8 @@ import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.RestActionTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.security.action.profile.SearchProfilesRequest;
-import org.elasticsearch.xpack.core.security.action.profile.SearchProfilesResponse;
+import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesRequest;
+import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesResponse;
 import org.junit.Before;
 
 import java.util.HashMap;
@@ -26,21 +26,21 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.Mockito.mock;
 
-public class RestSearchProfilesActionTests extends RestActionTestCase {
+public class RestSuggestProfilesActionTests extends RestActionTestCase {
     private Settings settings;
     private XPackLicenseState licenseState;
-    private AtomicReference<SearchProfilesRequest> requestHolder;
+    private AtomicReference<SuggestProfilesRequest> requestHolder;
 
     @Before
     public void init() {
         settings = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build();
         licenseState = mock(XPackLicenseState.class);
         requestHolder = new AtomicReference<>();
-        controller().registerHandler(new RestSearchProfilesAction(settings, licenseState));
+        controller().registerHandler(new RestSuggestProfilesAction(settings, licenseState));
         verifyingClient.setExecuteVerifier(((actionType, actionRequest) -> {
-            assertThat(actionRequest, instanceOf(SearchProfilesRequest.class));
-            requestHolder.set((SearchProfilesRequest) actionRequest);
-            return mock(SearchProfilesResponse.class);
+            assertThat(actionRequest, instanceOf(SuggestProfilesRequest.class));
+            requestHolder.set((SuggestProfilesRequest) actionRequest);
+            return mock(SuggestProfilesResponse.class);
         }));
     }
 
@@ -51,11 +51,11 @@ public class RestSearchProfilesActionTests extends RestActionTestCase {
         );
         final FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(
             randomFrom(RestRequest.Method.GET, RestRequest.Method.POST)
-        ).withPath("/_security/profile/_search").withParams(params).build();
+        ).withPath("/_security/profile/_suggest").withParams(params).build();
 
         dispatchRequest(restRequest);
 
-        final SearchProfilesRequest searchProfilesRequest = requestHolder.get();
-        assertThat(searchProfilesRequest.getName(), equalTo(expectedName));
+        final SuggestProfilesRequest suggestProfilesRequest = requestHolder.get();
+        assertThat(suggestProfilesRequest.getName(), equalTo(expectedName));
     }
 }

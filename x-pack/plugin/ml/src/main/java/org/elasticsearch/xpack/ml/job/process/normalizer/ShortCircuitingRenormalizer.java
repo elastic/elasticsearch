@@ -12,9 +12,13 @@ import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
 
 import java.util.Date;
 import java.util.Objects;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Phaser;
+import java.util.concurrent.Future;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.Semaphore;
 
 /**
  * Renormalizer for one job that discards outdated quantiles if even newer ones are received while waiting for a prior renormalization
@@ -29,21 +33,13 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
     private final ScoresUpdater scoresUpdater;
     private final ExecutorService executorService;
     /**
-     * Each job may only have 1 normalization in progress at any time; the phaser enforces this.
-     * Registrations and arrivals must be synchronized.
+     * Each job may only have 1 normalization in progress at any time; the semaphore enforces this.
+     * Modifications must be synchronized.
      */
-    private final Phaser phaser = new Phaser() {
-        /**
-         * Don't terminate when registrations drops to zero.
-         */
-        protected boolean onAdvance(int phase, int parties) {
-            return false;
-        }
-    };
-    /**
-     * Access to this must be synchronized.
-     */
+    private final Semaphore semaphore = new Semaphore(1);
+    // Access to both of these must be synchronized.
     private AugmentedQuantiles latestQuantilesHolder;
+    private Future<?> latestTask;
 
     public ShortCircuitingRenormalizer(String jobId, ScoresUpdater scoresUpdater, ExecutorService executorService) {
         this.jobId = jobId;
@@ -67,18 +63,14 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
             latestQuantilesHolder = (latestQuantilesHolder == null)
                 ? new AugmentedQuantiles(quantiles, null, new CountDownLatch(1))
                 : new AugmentedQuantiles(quantiles, latestQuantilesHolder.getEvictedTimestamp(), latestQuantilesHolder.getLatch());
-            // Don't start a thread if another normalization thread is still working. The existing thread will
-            // do this normalization when it finishes its current one. This means we serialise normalizations
-            // without hogging threads or queuing up many large quantiles documents.
-            if (tryStartWork()) {
-                executorService.submit(this::doRenormalizations);
-            }
+            tryStartWork();
         }
     }
 
     @Override
     public void waitUntilIdle() throws InterruptedException {
         CountDownLatch latch;
+        Future<?> taskToWaitFor;
         do {
             // The first bit waits for any not-yet-started renormalization to complete.
             synchronized (this) {
@@ -90,12 +82,21 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
             // This next bit waits for any thread that's been started to run doRenormalizations() to exit the loop in that method.
             // If no doRenormalizations() thread is running then we'll wait for the previous phase, and a call to do that should
             // return immediately.
-            int phaseToWaitFor;
             synchronized (this) {
-                phaseToWaitFor = phaser.getPhase() - 1 + phaser.getUnarrivedParties();
+                taskToWaitFor = latestTask;
             }
-            phaser.awaitAdvanceInterruptibly(phaseToWaitFor);
-        } while (latch != null);
+            if (taskToWaitFor != null) {
+                try {
+                    taskToWaitFor.get();
+                } catch (ExecutionException e) {
+                    // This shouldn't happen, because we catch normalization errors inside the normalization loop
+                    logger.error("[" + jobId + "] Error propagated from normalization", e);
+                } catch (CancellationException e) {
+                    // Convert cancellations to interruptions to simplify the interface
+                    throw new InterruptedException("Normalization cancelled");
+                }
+            }
+        } while (latch != null || taskToWaitFor != null);
     }
 
     @Override
@@ -106,7 +107,6 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
         // scoresUpdater first means it won't do all pending work; it will stop as soon
         // as it can without causing further errors.
         waitUntilIdle();
-        phaser.forceTermination();
     }
 
     private synchronized AugmentedQuantiles getLatestAugmentedQuantilesAndClear() {
@@ -116,10 +116,26 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
     }
 
     private synchronized boolean tryStartWork() {
-        if (phaser.getUnarrivedParties() > 0) {
+        if (latestQuantilesHolder == null) {
             return false;
         }
-        return phaser.register() >= 0;
+        // Don't start a thread if another normalization thread is still working. The existing thread will
+        // do this normalization when it finishes its current one. This means we serialise normalizations
+        // without hogging threads or queuing up many large quantiles documents.
+        if (semaphore.tryAcquire()) {
+            try {
+                latestTask = executorService.submit(this::doRenormalizations);
+            } catch (RejectedExecutionException e) {
+                latestQuantilesHolder.getLatch().countDown();
+                latestQuantilesHolder = null;
+                latestTask = null;
+                semaphore.release();
+                logger.warn("[{}] Normalization discarded as threadpool is shutting down", jobId);
+                return false;
+            }
+            return true;
+        }
+        return false;
     }
 
     private synchronized boolean tryFinishWork() {
@@ -127,7 +143,8 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
         if (latestQuantilesHolder != null) {
             return false;
         }
-        phaser.arriveAndDeregister();
+        semaphore.release();
+        latestTask = null;
         return true;
     }
 
@@ -135,7 +152,7 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
         do {
             AugmentedQuantiles latestAugmentedQuantiles = getLatestAugmentedQuantilesAndClear();
             assert latestAugmentedQuantiles != null;
-            if (latestAugmentedQuantiles != null) {
+            if (latestAugmentedQuantiles != null) { // TODO: remove this if the assert doesn't trip in CI over the next year or so
                 Quantiles latestQuantiles = latestAugmentedQuantiles.getQuantiles();
                 CountDownLatch latch = latestAugmentedQuantiles.getLatch();
                 try {
@@ -146,8 +163,11 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
                     );
                 } catch (Exception e) {
                     logger.error("[" + jobId + "] Normalization failed", e);
+                } finally {
+                    latch.countDown();
                 }
-                latch.countDown();
+            } else {
+                logger.warn("[{}] request to normalize null quantiles", jobId);
             }
             // Loop if more work has become available while we were working, because the
             // tasks originally submitted to do that work will have exited early.
@@ -155,7 +175,9 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
     }
 
     /**
-     * Simple grouping of a {@linkplain Quantiles} object with its corresponding {@linkplain CountDownLatch} object.
+     * Grouping of a {@linkplain Quantiles} object with its corresponding {@linkplain CountDownLatch} object.
+     * Also stores the earliest timestamp that any set of discarded quantiles held, to allow the normalization
+     * window to be extended if multiple normalization requests are combined.
      */
     private class AugmentedQuantiles {
         private final Quantiles quantiles;

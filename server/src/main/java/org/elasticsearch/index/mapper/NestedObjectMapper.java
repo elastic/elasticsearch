@@ -191,4 +191,9 @@ public class NestedObjectMapper extends ObjectMapper {
         toMerge.doMerge(mergeWithObject, reason);
         return toMerge;
     }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        throw new IllegalArgumentException("field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source");
+    }
 }

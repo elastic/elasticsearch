@@ -652,7 +652,8 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
         double scalingFactorInverse = 1d / scalingFactor;
         return new NumberFieldMapper.NumericSyntheticFieldLoader(name(), simpleName()) {
-            @Override protected void loadNextValue(XContentBuilder b, long value) throws IOException {
+            @Override
+            protected void loadNextValue(XContentBuilder b, long value) throws IOException {
                 b.value(value * scalingFactorInverse);
             }
         };

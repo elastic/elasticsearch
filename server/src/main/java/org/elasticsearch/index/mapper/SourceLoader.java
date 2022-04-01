@@ -49,7 +49,7 @@ public interface SourceLoader {
             return new Leaf() {
                 @Override
                 public BytesReference source(FieldsVisitor fieldsVisitor, int docId) throws IOException {
-                    // NOCOMMIT pick the right xcontent type
+                    // TODO accept a requested xcontent type
                     try (XContentBuilder b = new XContentBuilder(JsonXContent.jsonXContent, new ByteArrayOutputStream())) {
                         leaf.advanceToDoc(docId);
                         if (leaf.hasValue()) {

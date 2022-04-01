@@ -101,7 +101,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             }
             return new SourceFieldMapper(
                 enabled.getValue(),
-                synthetic.getValue(),  // NOCOMMIT disable with parent/child and nested or test the hell out of it
+                synthetic.getValue(),
                 includes.getValue().toArray(String[]::new),
                 excludes.getValue().toArray(String[]::new)
             );

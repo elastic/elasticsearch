@@ -104,11 +104,13 @@ public class FetchProfiler implements FetchPhase.Profiler {
         current.getTimer(FetchPhaseTiming.LOAD_STORED_FIELDS).stop();
     }
 
-    @Override public void startLoadingSource() {
+    @Override
+    public void startLoadingSource() {
         current.getTimer(FetchPhaseTiming.LOAD_SOURCE).start();
     }
 
-    @Override public void stopLoadingSource() {
+    @Override
+    public void stopLoadingSource() {
         current.getTimer(FetchPhaseTiming.LOAD_SOURCE).stop();
     }
 

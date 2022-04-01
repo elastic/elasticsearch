@@ -26,7 +26,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.function.BooleanSupplier;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -50,7 +50,7 @@ public class DesiredBalanceService {
      * @return {@code true} if the desired balance changed, in which case reconciliation may be necessary so the the caller should schedule
      * another reroute.
      */
-    boolean updateDesiredBalanceAndReroute(DesiredBalanceInput desiredBalanceInput, BooleanSupplier isFreshSupplier) {
+    boolean updateDesiredBalanceAndReroute(DesiredBalanceInput desiredBalanceInput, Predicate<DesiredBalanceInput> isFresh) {
 
         logger.trace("starting to recompute desired balance");
 
@@ -228,7 +228,7 @@ public class DesiredBalanceService {
 
             // NB we run at least one iteration, but if another reroute happened meanwhile then publish the interim state and restart the
             // calculation
-        } while (hasChanges && isFreshSupplier.getAsBoolean());
+        } while (hasChanges && isFresh.test(desiredBalanceInput));
 
         final var desiredAssignments = new HashMap<ShardId, Set<String>>();
         for (var shardAndAssignments : routingNodes.getAssignedShards().entrySet()) {

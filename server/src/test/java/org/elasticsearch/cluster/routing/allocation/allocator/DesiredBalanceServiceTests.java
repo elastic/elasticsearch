@@ -417,7 +417,7 @@ public class DesiredBalanceServiceTests extends ESTestCase {
                 new RoutingAllocation(new AllocationDeciders(List.of()), clusterState, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, 0L),
                 ignoredShards
             ),
-            () -> isFresh
+            ignored -> isFresh
         );
     }
 

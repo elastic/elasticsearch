@@ -170,6 +170,7 @@ public final class Payloads {
         generator.writeStringField("mode", request.mode().toString());
         writeIfValid(generator, "client_id", request.clientId());
         writeIfValidAsString(generator, "version", request.version());
+        writeIfValid(generator, "binary_format", request.binaryCommunication());
 
         generator.writeEndObject();
     }
@@ -222,20 +223,15 @@ public final class Payloads {
         if (request.pageTimeout() != CoreProtocol.PAGE_TIMEOUT) {
             generator.writeStringField(PAGE_TIMEOUT_NAME, request.pageTimeout().getStringRep());
         }
-        if (request.columnar() != null) {
-            generator.writeBooleanField(COLUMNAR_NAME, request.columnar());
-        }
+        writeIfValid(generator, COLUMNAR_NAME, request.columnar());
         if (request.fieldMultiValueLeniency()) {
             generator.writeBooleanField(FIELD_MULTI_VALUE_LENIENCY_NAME, request.fieldMultiValueLeniency());
         }
         if (request.indexIncludeFrozen()) {
             generator.writeBooleanField(INDEX_INCLUDE_FROZEN_NAME, request.indexIncludeFrozen());
         }
-        if (request.binaryCommunication() != null) {
-            generator.writeBooleanField(BINARY_FORMAT_NAME, request.binaryCommunication());
-        }
+        writeIfValid(generator, BINARY_FORMAT_NAME, request.binaryCommunication());
         writeIfValid(generator, CURSOR_NAME, request.cursor());
-
         writeIfValidAsString(generator, WAIT_FOR_COMPLETION_TIMEOUT_NAME, request.waitForCompletionTimeout(), TimeValue::getStringRep);
 
         if (request.keepOnCompletion()) {
@@ -252,6 +248,12 @@ public final class Payloads {
     private static void writeIfValid(JsonGenerator generator, String name, String value) throws IOException {
         if (value != null) {
             generator.writeStringField(name, value);
+        }
+    }
+
+    private static void writeIfValid(JsonGenerator generator, String name, Boolean value) throws IOException {
+        if (value != null) {
+            generator.writeBooleanField(name, value);
         }
     }
 

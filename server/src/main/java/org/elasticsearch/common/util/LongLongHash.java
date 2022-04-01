@@ -8,8 +8,7 @@
 
 package org.elasticsearch.common.util;
 
-import com.carrotsearch.hppc.BitMixer;
-
+import org.apache.lucene.util.hppc.BitMixer;
 import org.elasticsearch.core.Releasables;
 
 /**

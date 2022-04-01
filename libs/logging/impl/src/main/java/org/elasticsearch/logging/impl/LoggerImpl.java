@@ -6,7 +6,10 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.logging.impl;import org.elasticsearch.logging.Level;
+package org.elasticsearch.logging.impl;
+
+import org.apache.logging.log4j.message.ObjectMessage;
+import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.Message;
 
 import java.util.function.Supplier;
@@ -39,7 +42,7 @@ public final class LoggerImpl implements org.elasticsearch.logging.Logger {
 
     @Override
     public void log(Level level, Message message, Throwable thrown) {
-        log4jLogger.log(log4jLevel(level), /*(org.apache.logging.log4j.message.Message) */message, thrown);
+        log4jLogger.log(log4jLevel(level), mapMessage(message), thrown);
     }
 
     @Override
@@ -82,15 +85,25 @@ public final class LoggerImpl implements org.elasticsearch.logging.Logger {
 
     @Override
     public void log(Level level, Message message) {
-        log4jLogger.log(log4jLevel(level), /*(org.apache.logging.log4j.message.Message) */message);
+        log4jLogger.log(log4jLevel(level), mapMessage(message));
+    }
+
+    private org.apache.logging.log4j.message.Message mapMessage(Message message) {
+        if(message instanceof MessageImpl messageImpl){
+            return messageImpl.log4jMessage;
+        } else if (message instanceof org.apache.logging.log4j.message.Message log4jMessage) {
+            return log4jMessage;
+        }
+        return new ObjectMessage(message);
+        //TODO PG what about custom user messages?? Maybe we coudl seal Message to only ESMapMessage and MessageImpl?
     }
 
     public void debug(Message message) {
-        log4jLogger.debug(/*(org.apache.logging.log4j.message.Message) */message);
+        log4jLogger.debug(mapMessage(message));
     }
 
     public void debug(Message message, Throwable thrown) {
-        log4jLogger.debug(/*(org.apache.logging.log4j.message.Message) */message, thrown);
+        log4jLogger.debug(mapMessage(message), thrown);
     }
 
     public void debug(Supplier<?> msgSupplier, Throwable thrown) {
@@ -142,7 +155,7 @@ public final class LoggerImpl implements org.elasticsearch.logging.Logger {
     }
 
     public void error(Message message) {
-        log4jLogger.error(/*(org.apache.logging.log4j.message.Message) */message);
+        log4jLogger.error(mapMessage(message));
     }
 
     @Override
@@ -151,7 +164,7 @@ public final class LoggerImpl implements org.elasticsearch.logging.Logger {
     }
 
     public void error(Message message, Throwable thrown) {
-        log4jLogger.error(/*(org.apache.logging.log4j.message.Message) */message, thrown);
+        log4jLogger.error(mapMessage(message), thrown);
     }
 
     public void error(Supplier<?> msgSupplier) {
@@ -200,11 +213,11 @@ public final class LoggerImpl implements org.elasticsearch.logging.Logger {
     }
 
     public void info(Message message) {
-        log4jLogger.info(/*(org.apache.logging.log4j.message.Message) */message);
+        log4jLogger.info(mapMessage(message));
     }
 
     public void info(Message message, Throwable thrown) {
-        log4jLogger.info(/*(org.apache.logging.log4j.message.Message) */message, thrown);
+        log4jLogger.info(mapMessage(message), thrown);
     }
 
     public void info(Supplier<?> msgSupplier) {
@@ -248,11 +261,11 @@ public final class LoggerImpl implements org.elasticsearch.logging.Logger {
     }
 
     public void trace(Message message) {
-        log4jLogger.trace(/*(org.apache.logging.log4j.message.Message) */message);
+        log4jLogger.trace(mapMessage(message));
     }
 
     public void trace(Message message, Throwable thrown) {
-        log4jLogger.trace(/*(org.apache.logging.log4j.message.Message) */message, thrown);
+        log4jLogger.trace(mapMessage(message), thrown);
     }
 
     public void trace(Supplier<?> msgSupplier) {
@@ -301,11 +314,11 @@ public final class LoggerImpl implements org.elasticsearch.logging.Logger {
     }
 
     public void warn(Message message) {
-        log4jLogger.warn(/*(org.apache.logging.log4j.message.Message) */message);
+        log4jLogger.warn(mapMessage(message));
     }
 
     public void warn(Message message, Throwable thrown) {
-        log4jLogger.warn(/*(org.apache.logging.log4j.message.Message) */message, thrown);
+        log4jLogger.warn(mapMessage(message), thrown);
     }
 
     public void warn(Supplier<?> msgSupplier) {

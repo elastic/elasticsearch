@@ -26,17 +26,13 @@ class BytesReferenceStreamInput extends StreamInput {
     protected final BytesReference bytesReference;
     private BytesRefIterator iterator;
     private ByteBuffer slice;
-    // for some inexplicable reason, HeapByteBuffer always sets arrayOffset to 0, so we keep track of it separately
-    private int sliceOffset;
     private int totalOffset; // the offset on the stream at which the current slice starts
     private int mark = 0;
 
     BytesReferenceStreamInput(BytesReference bytesReference) throws IOException {
         this.bytesReference = bytesReference;
         this.iterator = bytesReference.iterator();
-        BytesRef bytesRef = iterator.next();
-        this.slice = convertToByteBuffer(bytesRef);
-        this.sliceOffset = bytesRef.offset;
+        this.slice = convertToByteBuffer(iterator.next());
         this.totalOffset = 0;
     }
 
@@ -44,7 +40,8 @@ class BytesReferenceStreamInput extends StreamInput {
         if (bytesRef == null) {
             return null;
         }
-        return ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length);
+        // slice here forces the buffer to have a sliced view, keeping track of the original offset
+        return ByteBuffer.wrap(bytesRef.bytes, bytesRef.offset, bytesRef.length).slice();
     }
 
     @Override
@@ -87,35 +84,36 @@ class BytesReferenceStreamInput extends StreamInput {
     public int readVInt() throws IOException {
         if (slice.remaining() >= 5) {
             final byte[] buf = slice.array();
-            int offset = slice.position();
-            byte b = buf[offset++];
+            final int offset = slice.arrayOffset();
+            int position = slice.position();
+            byte b = buf[offset + position++];
             if (b >= 0) {
-                slice.position(offset);
+                slice.position(position);
                 return b;
             }
             int i = b & 0x7F;
-            b = buf[offset++];
+            b = buf[offset + position++];
             i |= (b & 0x7F) << 7;
             if (b >= 0) {
-                slice.position(offset);
+                slice.position(position);
                 return i;
             }
-            b = buf[offset++];
+            b = buf[offset + position++];
             i |= (b & 0x7F) << 14;
             if (b >= 0) {
-                slice.position(offset);
+                slice.position(position);
                 return i;
             }
-            b = buf[offset++];
+            b = buf[offset + position++];
             i |= (b & 0x7F) << 21;
             if (b >= 0) {
-                slice.position(offset);
+                slice.position(position);
                 return i;
             }
-            b = buf[offset++];
+            b = buf[offset + position++];
             i |= (b & 0x0F) << 28;
             if ((b & 0xF0) == 0) {
-                slice.position(offset);
+                slice.position(position);
                 return i;
             }
             throwOnBrokenVInt(b, i);
@@ -127,66 +125,67 @@ class BytesReferenceStreamInput extends StreamInput {
     public long readVLong() throws IOException {
         if (slice.remaining() >= 10) {
             final byte[] buf = slice.array();
-            int offset = slice.position();
-            byte b = buf[offset++];
+            final int offset = slice.arrayOffset();
+            int position = slice.position();
+            byte b = buf[offset + position++];
             long i = b & 0x7FL;
             if ((b & 0x80) == 0) {
-                slice.position(offset);
+                slice.position(position);
                 return i;
             }
-            b = buf[offset++];
+            b = buf[offset + position++];
             i |= (b & 0x7FL) << 7;
             if ((b & 0x80) == 0) {
-                slice.position(offset);
+                slice.position(position);
                 return i;
             }
-            b = buf[offset++];
+            b = buf[offset + position++];
             i |= (b & 0x7FL) << 14;
             if ((b & 0x80) == 0) {
-                slice.position(offset);
+                slice.position(position);
                 return i;
             }
-            b = buf[offset++];
+            b = buf[offset + position++];
             i |= (b & 0x7FL) << 21;
             if ((b & 0x80) == 0) {
-                slice.position(offset);
+                slice.position(position);
                 return i;
             }
-            b = buf[offset++];
+            b = buf[offset + position++];
             i |= (b & 0x7FL) << 28;
             if ((b & 0x80) == 0) {
-                slice.position(offset);
+                slice.position(position);
                 return i;
             }
-            b = buf[offset++];
+            b = buf[offset + position++];
             i |= (b & 0x7FL) << 35;
             if ((b & 0x80) == 0) {
-                slice.position(offset);
+                slice.position(position);
                 return i;
             }
-            b = buf[offset++];
+            b = buf[offset + position++];
             i |= (b & 0x7FL) << 42;
             if ((b & 0x80) == 0) {
-                slice.position(offset);
+                slice.position(position);
                 return i;
             }
-            b = buf[offset++];
+            b = buf[offset + position++];
             i |= (b & 0x7FL) << 49;
             if ((b & 0x80) == 0) {
-                slice.position(offset);
+                slice.position(position);
                 return i;
             }
-            b = buf[offset++];
+            b = buf[offset + position++];
             i |= ((b & 0x7FL) << 56);
             if ((b & 0x80) == 0) {
-                slice.position(offset);
+                slice.position(position);
                 return i;
             }
-            b = buf[offset++];
+            b = buf[offset + position++];
             if (b != 0 && b != 1) {
                 throwOnBrokenVLong(b, i);
             }
-            slice.position(offset);
+            slice.position(position);
             i |= ((long) b) << 63;
             return i;
         } else {
@@ -195,7 +194,7 @@ class BytesReferenceStreamInput extends StreamInput {
     }
 
     protected int offset() {
-        return totalOffset + slice.position() - sliceOffset;
+        return totalOffset + slice.position();
     }
 
     private void maybeNextSlice() throws IOException {
@@ -206,7 +205,7 @@ class BytesReferenceStreamInput extends StreamInput {
     }
 
     private void moveToNextSlice() throws IOException {
-        totalOffset += slice.limit() - sliceOffset;
+        totalOffset += slice.limit();
         BytesRef bytesRef = iterator.next();
         while (bytesRef != null && bytesRef.length == 0) {
             // rare corner case of a bytes reference that has a 0-length component
@@ -215,8 +214,8 @@ class BytesReferenceStreamInput extends StreamInput {
         if (bytesRef == null) {
             throw new EOFException();
         }
-        sliceOffset = bytesRef.offset;
         slice = convertToByteBuffer(bytesRef);
+        assert slice.position() == 0;
     }
 
     @Override
@@ -300,12 +299,10 @@ class BytesReferenceStreamInput extends StreamInput {
     @Override
     public void reset() throws IOException {
         if (totalOffset <= mark) {
-            slice.position(sliceOffset + (mark - totalOffset));
+            slice.position(mark - totalOffset);
         } else {
             iterator = bytesReference.iterator();
-            BytesRef bytesRef = iterator.next();
-            sliceOffset = bytesRef.offset;
-            slice = convertToByteBuffer(bytesRef);
+            slice = convertToByteBuffer(iterator.next());
             totalOffset = 0;
             final long skipped = skip(mark);
             assert skipped == mark : skipped + " vs " + mark;

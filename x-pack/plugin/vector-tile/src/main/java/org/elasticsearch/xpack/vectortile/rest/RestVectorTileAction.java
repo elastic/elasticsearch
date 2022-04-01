@@ -181,7 +181,7 @@ public class RestVectorTileAction extends BaseRestHandler {
         for (FieldAndFormat field : request.getFieldAndFormats()) {
             searchRequestBuilder.addFetchField(field);
         }
-        // added last so in case there is a wildcard, this one is picked
+        // added last in case there is a wildcard, the last one is picked
         searchRequestBuilder.addFetchField(new FieldAndFormat(request.getField(), "mvt(" + args + ")"));
         searchRequestBuilder.setRuntimeMappings(request.getRuntimeMappings());
         // For Hex aggregation we might need to buffer the bounding box

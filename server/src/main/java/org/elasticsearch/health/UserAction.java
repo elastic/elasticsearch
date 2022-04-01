@@ -30,7 +30,6 @@ public record UserAction(String id, String message, @Nullable Set<String> affect
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject()
-            .field("id", id)
             .field("message", message);
 
         if (affectedResources != null && affectedResources.size() > 0) {

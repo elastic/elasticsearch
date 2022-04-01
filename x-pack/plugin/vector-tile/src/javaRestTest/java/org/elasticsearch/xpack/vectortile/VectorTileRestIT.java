@@ -635,7 +635,7 @@ public class VectorTileRestIT extends ESRestTestCase {
 
     public void testWithFieldsWildCard() throws Exception {
         final Request mvtRequest = new Request(getHttpMethod(), INDEX_POLYGON + "/_mvt/location/" + z + "/" + x + "/" + y);
-        mvtRequest.setJsonEntity("{\"fieª(lds\": [\"*\"] }");
+        mvtRequest.setJsonEntity("{\"fields\": [\"*\"] }");
         final VectorTile.Tile tile = execute(mvtRequest);
         assertThat(tile.getLayersCount(), Matchers.equalTo(3));
         assertLayer(tile, HITS_LAYER, 4096, 1, 5);

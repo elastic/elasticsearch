@@ -25,7 +25,10 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksAction;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
+import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RequestOptions.Builder;
@@ -35,6 +38,8 @@ import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.PemUtils;
@@ -1141,6 +1146,16 @@ public abstract class ESRestTestCase extends ESTestCase {
         client().performRequest(refreshRequest);
     }
 
+    protected static RefreshResponse refresh(String index) throws IOException {
+        return refresh(client(), index);
+    }
+
+    protected static RefreshResponse refresh(RestClient client, String index) throws IOException {
+        Request refreshRequest = new Request("POST", "/" + index + "/_refresh");
+        Response response = client.performRequest(refreshRequest);
+        return RefreshResponse.fromXContent(responseAsParser(response));
+    }
+
     private void waitForPendingRollupTasks() throws Exception {
         waitForPendingTasks(adminClient(), taskName -> taskName.startsWith("xpack/rollup/job") == false);
     }
@@ -1511,38 +1526,66 @@ public abstract class ESRestTestCase extends ESTestCase {
         adminClient().performRequest(request);
     }
 
-    protected static void createIndex(String name, Settings settings) throws IOException {
-        createIndex(name, settings, null);
+    protected static CreateIndexResponse createIndex(String name) throws IOException {
+        return createIndex(name, null, null, null);
     }
 
-    protected static void createIndex(String name, Settings settings, String mapping) throws IOException {
-        createIndex(name, settings, mapping, null);
+    protected static CreateIndexResponse createIndex(String name, Settings settings) throws IOException {
+        return createIndex(name, settings, null, null);
     }
 
-    protected static void createIndex(String name, Settings settings, String mapping, String aliases) throws IOException {
+    protected static CreateIndexResponse createIndex(RestClient client, String name, Settings settings) throws IOException {
+        return createIndex(client, name, settings, null, null);
+    }
+
+    protected static CreateIndexResponse createIndex(String name, Settings settings, String mapping) throws IOException {
+        return createIndex(name, settings, mapping, null);
+    }
+
+    protected static CreateIndexResponse createIndex(String name, Settings settings, String mapping, String aliases) throws IOException {
+        return createIndex(client(), name, settings, mapping, aliases);
+    }
+
+    public static CreateIndexResponse createIndex(RestClient client, String name, Settings settings, String mapping, String aliases)
+        throws IOException {
         Request request = new Request("PUT", "/" + name);
-        String entity = "{\"settings\": " + Strings.toString(settings);
+        String entity = "{";
+        if (settings != null) {
+            entity += "\"settings\": " + Strings.toString(settings);
+            if (settings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true) == false) {
+                expectSoftDeletesWarning(request, name);
+            }
+        }
         if (mapping != null) {
-            entity += ",\"mappings\" : {" + mapping + "}";
+            if (settings != null) {
+                entity += ",";
+            }
+            if (mapping.trim().startsWith("{")) {
+                entity += "\"mappings\" : " + mapping + "";
+            } else {
+                entity += "\"mappings\" : {" + mapping + "}";
+            }
         }
         if (aliases != null) {
-            entity += ",\"aliases\": {" + aliases + "}";
+            if (settings != null || mapping != null) {
+                entity += ",";
+            }
+            entity += "\"aliases\": {" + aliases + "}";
         }
         entity += "}";
-        if (settings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true) == false) {
-            expectSoftDeletesWarning(request, name);
-        }
         request.setJsonEntity(entity);
-        client().performRequest(request);
+        Response response = client.performRequest(request);
+        return CreateIndexResponse.fromXContent(responseAsParser(response));
     }
 
-    protected static void deleteIndex(String name) throws IOException {
-        deleteIndex(client(), name);
+    protected static AcknowledgedResponse deleteIndex(String name) throws IOException {
+        return deleteIndex(client(), name);
     }
 
-    protected static void deleteIndex(RestClient restClient, String name) throws IOException {
+    protected static AcknowledgedResponse deleteIndex(RestClient restClient, String name) throws IOException {
         Request request = new Request("DELETE", "/" + name);
-        restClient.performRequest(request);
+        Response response = restClient.performRequest(request);
+        return AcknowledgedResponse.fromXContent(responseAsParser(response));
     }
 
     protected static void updateIndexSettings(String index, Settings.Builder settings) throws IOException {
@@ -1655,6 +1698,14 @@ public abstract class ESRestTestCase extends ESTestCase {
         );
         assertNotNull(responseEntity);
         return responseEntity;
+    }
+
+    protected static XContentParser responseAsParser(Response response) throws IOException {
+        return XContentHelper.createParser(XContentParserConfiguration.EMPTY, responseAsBytes(response), XContentType.JSON);
+    }
+
+    protected static BytesReference responseAsBytes(Response response) throws IOException {
+        return new BytesArray(EntityUtils.toByteArray(response.getEntity()));
     }
 
     protected static void registerRepository(String repository, String type, boolean verify, Settings settings) throws IOException {
@@ -1975,10 +2026,33 @@ public abstract class ESRestTestCase extends ESTestCase {
         return false;
     }
 
-    protected FieldCapabilitiesResponse fieldCaps(List<String> indices, List<String> fields, QueryBuilder indexFilter) throws IOException {
+    protected FieldCapabilitiesResponse fieldCaps(
+        List<String> indices,
+        List<String> fields,
+        QueryBuilder indexFilter,
+        String fieldTypes,
+        String fieldFilters
+    ) throws IOException {
+        return fieldCaps(client(), indices, fields, indexFilter, fieldTypes, fieldFilters);
+    }
+
+    protected FieldCapabilitiesResponse fieldCaps(
+        RestClient restClient,
+        List<String> indices,
+        List<String> fields,
+        QueryBuilder indexFilter,
+        String fieldTypes,
+        String fieldFilters
+    ) throws IOException {
         Request request = new Request("POST", "/_field_caps");
         request.addParameter("index", String.join(",", indices));
         request.addParameter("fields", String.join(",", fields));
+        if (fieldTypes != null) {
+            request.addParameter("types", fieldTypes);
+        }
+        if (fieldFilters != null) {
+            request.addParameter("filters", fieldFilters);
+        }
         if (indexFilter != null) {
             XContentBuilder body = JsonXContent.contentBuilder();
             body.startObject();
@@ -1986,10 +2060,11 @@ public abstract class ESRestTestCase extends ESTestCase {
             body.endObject();
             request.setJsonEntity(Strings.toString(body));
         }
-        Response response = client().performRequest(request);
+        Response response = restClient.performRequest(request);
         assertOK(response);
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, response.getEntity().getContent())) {
             return FieldCapabilitiesResponse.fromXContent(parser);
         }
     }
+
 }

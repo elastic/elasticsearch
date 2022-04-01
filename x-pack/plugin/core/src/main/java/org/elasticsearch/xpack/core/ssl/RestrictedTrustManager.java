@@ -134,7 +134,7 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
         return false;
     }
 
-    private Set<String> readCommonNames(X509Certificate certificate) throws CertificateParsingException {
+    private static Set<String> readCommonNames(X509Certificate certificate) throws CertificateParsingException {
         return getSubjectAlternativeNames(certificate).stream()
             .filter(pair -> ((Integer) pair.get(0)).intValue() == SAN_CODE_OTHERNAME)
             .map(pair -> pair.get(1))
@@ -150,7 +150,7 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
      * @param certificate The certificate
      * @return the CN or null if it could not be parsed
      */
-    private String decodeDerValue(byte[] value, X509Certificate certificate) {
+    private static String decodeDerValue(byte[] value, X509Certificate certificate) {
         try {
             DerParser parser = new DerParser(value);
             DerParser.Asn1Object seq = parser.readAsn1Object();
@@ -190,7 +190,7 @@ public final class RestrictedTrustManager extends X509ExtendedTrustManager {
         }
     }
 
-    private Collection<List<?>> getSubjectAlternativeNames(X509Certificate certificate) throws CertificateParsingException {
+    private static Collection<List<?>> getSubjectAlternativeNames(X509Certificate certificate) throws CertificateParsingException {
         final Collection<List<?>> sans = certificate.getSubjectAlternativeNames();
         logger.trace("Certificate [{}] has subject alternative names [{}]", certificate.getSubjectX500Principal(), sans);
         return sans == null ? Collections.emptyList() : sans;

@@ -130,7 +130,7 @@ public final class ThreadContext implements Writeable {
         };
     }
 
-    private Map<String, String> headers(ThreadContextStruct context) {
+    private static Map<String, String> headers(ThreadContextStruct context) {
         Map<String, String> map = Maps.newMapWithExpectedSize(org.elasticsearch.tasks.Task.HEADERS_TO_COPY.size());
         for (String header : org.elasticsearch.tasks.Task.HEADERS_TO_COPY) {
             final String value = context.requestHeaders.get(header);
@@ -445,7 +445,7 @@ public final class ThreadContext implements Writeable {
     /**
      * Unwraps a command that was previously wrapped by {@link #preserveContext(Runnable)}.
      */
-    public Runnable unwrap(Runnable command) {
+    public static Runnable unwrap(Runnable command) {
         if (command instanceof WrappedRunnable) {
             return ((WrappedRunnable) command).unwrap();
         }

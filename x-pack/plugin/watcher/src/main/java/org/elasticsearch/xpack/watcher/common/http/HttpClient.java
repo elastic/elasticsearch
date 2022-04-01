@@ -398,7 +398,7 @@ public class HttpClient implements Closeable {
     /**
      * Helper class to have all HTTP methods except HEAD allow for an body, including GET
      */
-    final class HttpMethodWithEntity extends HttpEntityEnclosingRequestBase {
+    static final class HttpMethodWithEntity extends HttpEntityEnclosingRequestBase {
 
         private final String methodName;
 

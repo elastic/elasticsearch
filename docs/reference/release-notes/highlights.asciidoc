@@ -7,21 +7,21 @@ For detailed information about this release, see the <<es-release-notes>> and
 <<breaking-changes>>.
 
 // Add previous release to the list
-// Other versions: 
-// {ref-bare}/7.last/release-highlights.html[7.last] 
+// Other versions:
+// {ref-bare}/7.last/release-highlights.html[7.last]
 // | {ref-bare}/8.0/release-highlights.html[8.0]
 
-// Use the notable-highlights tag to mark entries that 
+// Use the notable-highlights tag to mark entries that
 // should be featured in the Stack Installation and Upgrade Guide:
-// tag::notable-highlights[] 
+// tag::notable-highlights[]
 // [discrete]
 // === Heading
 //
-// Description. 
+// Description.
 // end::notable-highlights[]
 
 // Omit the notable highlights tag for entries that only need to appear in the ES ref:
-// [discrete] 
+// [discrete]
 // === Heading
 //
-// Description. 
+// Description.

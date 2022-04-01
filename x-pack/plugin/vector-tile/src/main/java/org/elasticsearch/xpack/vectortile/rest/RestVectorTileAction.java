@@ -266,7 +266,7 @@ public class RestVectorTileAction extends BaseRestHandler {
                 featureBuilder.mergeFrom((byte[]) feature);
                 VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, ID_TAG, searchHit.getId());
                 VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, INDEX_TAG, searchHit.getIndex());
-                final Map<String, DocumentField> fields = searchHit.getFields();
+                final Map<String, DocumentField> fields = searchHit.getDocumentFields();
                 for (String field : fields.keySet()) {
                     if (request.getField().equals(field) == false) {
                         VectorTileUtils.addPropertyToFeature(featureBuilder, layerProps, field, fields.get(field).getValue());

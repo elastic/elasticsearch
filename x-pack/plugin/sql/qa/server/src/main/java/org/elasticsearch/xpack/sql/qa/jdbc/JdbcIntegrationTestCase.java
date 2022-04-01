@@ -116,7 +116,7 @@ public abstract class JdbcIntegrationTestCase extends RemoteClusterAwareSqlRestT
         return connectionProperties;
     }
 
-    protected static void createIndex(String index) throws IOException {
+    protected static void createIndexWithSettingsAndMappings(String index) throws IOException {
         Request request = new Request("PUT", "/" + index);
         XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
         createIndex.startObject("settings");

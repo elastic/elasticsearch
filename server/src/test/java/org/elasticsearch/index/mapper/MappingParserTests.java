@@ -132,7 +132,7 @@ public class MappingParserTests extends MapperServiceTestCase {
             MapperParsingException.class,
             () -> createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)))
         );
-        assertEquals("Type [alias] cannot be used in multi field", e.getMessage());
+        assertEquals("Field [field.alias] cannot be used in multi field", e.getMessage());
     }
 
     public void testBadMetadataMapper() throws IOException {

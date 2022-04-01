@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -36,7 +37,7 @@ public final class LegacyMapperTypeParsers {
         return switch (fieldType) {
             case "boolean" -> BOOLEAN;
             case "date", "date_nanos" -> DATE;
-            case "half_float", "float", "double", "byte", "short", "int", "long" -> NUMBER;
+            case "half_float", "float", "double", "byte", "short", "integer", "long" -> NUMBER;
             case "geo_point" -> GEO_POINT;
             case "ip" -> IP;
             case "keyword" -> KEYWORD;
@@ -149,7 +150,7 @@ public final class LegacyMapperTypeParsers {
                 TypeParsers.parseMultiField(multiFieldsBuilder::add, name, parserContext, "fields", node.get("fields"));
                 node.remove("fields");
             }
-            Map<String, Object> nodeCopy = Map.copyOf(node);
+            Map<String, Object> nodeCopy = new LinkedHashMap<>(node);   // preserve order
             node.clear();   // we may ignore some params during parsing of legacy mappings, so we just clear everything here
             return new Mapper.Builder(name) {
                 @Override

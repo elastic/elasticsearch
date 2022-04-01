@@ -182,6 +182,11 @@ public final class NodeEnvironment implements Closeable {
      */
     private static final String SNAPSHOT_CACHE_FOLDER = "snapshot_cache";
 
+    /**
+     * Searchable snapshot's shared cache file
+     */
+    static final String SEARCHABLE_SHARED_CACHE_FILE = "shared_snapshot_cache";
+
     public static class NodeLock implements Releasable {
 
         private final Lock[] locks;
@@ -417,7 +422,13 @@ public final class NodeEnvironment implements Closeable {
                 );
 
                 final Set<String> ignoredFileNames = new HashSet<>(
-                    Arrays.asList(NODE_LOCK_FILENAME, TEMP_FILE_NAME, TEMP_FILE_NAME + ".tmp", TEMP_FILE_NAME + ".final")
+                    Arrays.asList(
+                        NODE_LOCK_FILENAME,
+                        TEMP_FILE_NAME,
+                        TEMP_FILE_NAME + ".tmp",
+                        TEMP_FILE_NAME + ".final",
+                        SEARCHABLE_SHARED_CACHE_FILE
+                    )
                 );
 
                 try (DirectoryStream<Path> stream = Files.newDirectoryStream(legacyNodePath.path)) {

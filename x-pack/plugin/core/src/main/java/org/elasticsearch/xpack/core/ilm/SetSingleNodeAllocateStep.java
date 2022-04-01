@@ -250,7 +250,7 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
         if (nodeId.isEmpty()) {
             List<String> list = new ArrayList<>(validNodeIds);
             Randomness.shuffle(list);
-            nodeId = list.stream().findAny();
+            nodeId = list.stream().findFirst();
         }
         return nodeId;
     }

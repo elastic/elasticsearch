@@ -61,7 +61,6 @@ import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.TimeoutException;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -139,7 +138,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         executor.shutdown();
     }
 
-    public void testProcess() throws TimeoutException {
+    public void testProcess() throws Exception {
         AutodetectResult autodetectResult = mock(AutodetectResult.class);
         when(process.readAutodetectResults()).thenReturn(Collections.singletonList(autodetectResult).iterator());
 
@@ -439,7 +438,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         verify(renormalizer).isEnabled();
     }
 
-    public void testAwaitCompletion() throws TimeoutException {
+    public void testAwaitCompletion() throws Exception {
         AutodetectResult autodetectResult = mock(AutodetectResult.class);
         when(process.readAutodetectResults()).thenReturn(Collections.singletonList(autodetectResult).iterator());
 
@@ -492,7 +491,7 @@ public class AutodetectResultProcessorTests extends ESTestCase {
         verify(persister).bulkPersisterBuilder(eq(JOB_ID));
     }
 
-    public void testKill() throws TimeoutException {
+    public void testKill() throws Exception {
         AutodetectResult autodetectResult = mock(AutodetectResult.class);
         when(process.readAutodetectResults()).thenReturn(Collections.singletonList(autodetectResult).iterator());
 

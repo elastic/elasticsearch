@@ -263,8 +263,7 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
 
     public static final FieldMapper.TypeParser PARSER = new TypeParser(
         (n, c) -> new Builder(n, IGNORE_MALFORMED_SETTING.get(c.getSettings()), c.indexVersionCreated()),
-        notInMultiFields(CONTENT_TYPE),
-        false
+        notInMultiFields(CONTENT_TYPE)
     );
 
     public static final class AggregateDoubleMetricFieldType extends SimpleMappedFieldType {

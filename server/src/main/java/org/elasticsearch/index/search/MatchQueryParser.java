@@ -37,8 +37,8 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.SpanBooleanQueryRewriteWithMaxClause;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.LegacyPlaceHolderFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.PlaceHolderFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -204,7 +204,7 @@ public class MatchQueryParser {
         // if it doesn't, we can bail out early without doing any further parsing.
         if (fieldType.getTextSearchInfo() == TextSearchInfo.NONE) {
             IllegalArgumentException iae;
-            if (fieldType instanceof PlaceHolderFieldMapper.PlaceHolderFieldType) {
+            if (fieldType instanceof LegacyPlaceHolderFieldType) {
                 iae = new IllegalArgumentException(
                     "Field [" + fieldType.name() + "] of type [" + fieldType.typeName() + "] in legacy index does not support match queries"
                 );

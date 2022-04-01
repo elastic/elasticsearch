@@ -71,7 +71,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n), notInMultiFields(CONTENT_TYPE), false);
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n), notInMultiFields(CONTENT_TYPE));
 
     public static final class RankFeaturesFieldType extends MappedFieldType {
 

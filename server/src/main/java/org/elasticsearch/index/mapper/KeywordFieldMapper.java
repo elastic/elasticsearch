@@ -8,9 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.document.Field;
@@ -81,8 +78,6 @@ import static org.apache.lucene.index.IndexWriter.MAX_TERM_LENGTH;
  */
 public final class KeywordFieldMapper extends FieldMapper {
 
-    private static final Logger logger = LogManager.getLogger(KeywordFieldMapper.class);
-
     public static final String CONTENT_TYPE = "keyword";
 
     public static class Defaults {
@@ -136,7 +131,8 @@ public final class KeywordFieldMapper extends FieldMapper {
         private final Parameter<Boolean> hasNorms = TextParams.norms(false, m -> toType(m).fieldType.omitNorms() == false);
         private final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> toType(m).similarity);
 
-        private final Parameter<String> normalizer;
+        private final Parameter<String> normalizer = Parameter.stringParam("normalizer", false, m -> toType(m).normalizerName, null)
+            .acceptsNull();
 
         private final Parameter<Boolean> splitQueriesOnWhitespace = Parameter.boolParam(
             "split_queries_on_whitespace",
@@ -160,12 +156,6 @@ public final class KeywordFieldMapper extends FieldMapper {
             this.indexAnalyzers = indexAnalyzers;
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
             this.indexCreatedVersion = Objects.requireNonNull(indexCreatedVersion);
-            this.normalizer = Parameter.stringParam(
-                "normalizer",
-                indexCreatedVersion.isLegacyIndexVersion(),
-                m -> toType(m).normalizerName,
-                null
-            ).acceptsNull();
             this.script.precludesParameters(nullValue);
             addScriptValidation(script, indexed, hasDocValues);
 
@@ -255,17 +245,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 assert indexAnalyzers != null;
                 normalizer = indexAnalyzers.getNormalizer(normalizerName);
                 if (normalizer == null) {
-                    if (indexCreatedVersion.isLegacyIndexVersion()) {
-                        logger.warn(
-                            new ParameterizedMessage(
-                                "Could not find normalizer [{}] of legacy index, falling back to default",
-                                normalizerName
-                            )
-                        );
-                        normalizer = Lucene.KEYWORD_ANALYZER;
-                    } else {
-                        throw new MapperParsingException("normalizer [" + normalizerName + "] not found for field [" + name + "]");
-                    }
+                    throw new MapperParsingException("normalizer [" + normalizerName + "] not found for field [" + name + "]");
                 }
                 searchAnalyzer = quoteAnalyzer = normalizer;
                 if (splitQueriesOnWhitespace.getValue()) {

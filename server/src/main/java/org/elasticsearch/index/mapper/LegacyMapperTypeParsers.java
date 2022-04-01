@@ -50,7 +50,7 @@ public final class LegacyMapperTypeParsers {
             return Collections.emptyMap();
         }
         Object meta = node.get("meta");
-        if (meta instanceof Map<?,?> == false) {
+        if (meta instanceof Map<?, ?> == false) {
             throw new MapperParsingException("meta parameter must be a map, but found" + meta);
         }
         return (Map<String, String>) meta;
@@ -65,10 +65,7 @@ public final class LegacyMapperTypeParsers {
                 analyzer = context.getIndexAnalyzers().getNormalizer(normalizer);
                 if (analyzer == null) {
                     logger.warn(
-                        new ParameterizedMessage(
-                            "Could not find normalizer [{}] of legacy index, falling back to default",
-                            normalizer
-                        )
+                        new ParameterizedMessage("Could not find normalizer [{}] of legacy index, falling back to default", normalizer)
                     );
                     analyzer = Lucene.KEYWORD_ANALYZER;
                 }
@@ -100,9 +97,9 @@ public final class LegacyMapperTypeParsers {
             }
             DateFormatter dateFormatter = context.getDateFormatter();
             if (dateFormatter == null) {
-                dateFormatter = resolution == DateFieldMapper.Resolution.NANOSECONDS ?
-                    DateFieldMapper.DEFAULT_DATE_TIME_NANOS_FORMATTER :
-                    DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
+                dateFormatter = resolution == DateFieldMapper.Resolution.NANOSECONDS
+                    ? DateFieldMapper.DEFAULT_DATE_TIME_NANOS_FORMATTER
+                    : DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
             }
             String format = XContentMapValues.nodeStringValue(node.get("format"));
             String locale = XContentMapValues.nodeStringValue(node.get("locale"));
@@ -112,10 +109,7 @@ public final class LegacyMapperTypeParsers {
                 try {
                     dateFormatter = DateFormatter.forPattern(format).withLocale(l);
                 } catch (IllegalArgumentException e) {
-                    logger.warn(
-                        new ParameterizedMessage("Error parsing format [{}] of legacy index, falling back to default", format),
-                        e
-                    );
+                    logger.warn(new ParameterizedMessage("Error parsing format [{}] of legacy index, falling back to default", format), e);
                 }
             }
             return new DateFieldMapper.DateFieldType(name, resolution, dateFormatter, meta(node));
@@ -141,18 +135,15 @@ public final class LegacyMapperTypeParsers {
     private static final LegacyTypeParser PLACEHOLDER = new LegacyTypeParser() {
         @Override
         protected MappedFieldType doBuildMappedFieldType(String name, Map<String, Object> node, MappingParserContext context) {
-            return new PlaceHolderFieldMapper.PlaceHolderFieldType(name, (String) node.get("type"), meta(node));
+            return new LegacyPlaceHolderFieldType(name, (String) node.get("type"), meta(node));
         }
     };
 
     abstract static class LegacyTypeParser implements Mapper.TypeParser {
 
         @Override
-        public final Mapper.Builder parse(
-            String name,
-            Map<String, Object> node,
-            MappingParserContext parserContext
-        ) throws MapperParsingException {
+        public final Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
+            throws MapperParsingException {
             FieldMapper.MultiFields.Builder multiFieldsBuilder = new FieldMapper.MultiFields.Builder();
             if (node.containsKey("fields")) {
                 TypeParsers.parseMultiField(multiFieldsBuilder::add, name, parserContext, "fields", node.get("fields"));
@@ -172,7 +163,7 @@ public final class LegacyMapperTypeParsers {
 
         protected final MappedFieldType buildMappedFieldType(String name, Map<String, Object> node, MappingParserContext context) {
             if (XContentMapValues.nodeBooleanValue(node.get("doc_values"), "doc_values", true) == false) {
-                return new PlaceHolderFieldMapper.PlaceHolderFieldType(name, (String) node.get("type"), meta(node));
+                return new LegacyPlaceHolderFieldType(name, (String) node.get("type"), meta(node));
             }
             return doBuildMappedFieldType(name, node, context);
         }

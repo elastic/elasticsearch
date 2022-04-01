@@ -219,7 +219,7 @@ public class MultiFieldTests extends MapperServiceTestCase {
             b.endObject();
             b.endObject();
         }));
-        assertThat(service.fieldType("name.subfield"), instanceOf(PlaceHolderFieldMapper.PlaceHolderFieldType.class));
+        assertThat(service.fieldType("name.subfield"), instanceOf(LegacyPlaceHolderFieldType.class));
     }
 
     public void testUnmappedLegacyFieldsUnderKnownRootField() throws Exception {
@@ -231,7 +231,7 @@ public class MultiFieldTests extends MapperServiceTestCase {
             b.endObject();
             b.endObject();
         }));
-        assertThat(service.fieldType("name.subfield"), instanceOf(PlaceHolderFieldMapper.PlaceHolderFieldType.class));
+        assertThat(service.fieldType("name.subfield"), instanceOf(LegacyPlaceHolderFieldType.class));
     }
 
     public void testFieldsUnderUnknownRootField() throws Exception {
@@ -243,7 +243,7 @@ public class MultiFieldTests extends MapperServiceTestCase {
             b.endObject();
             b.endObject();
         }));
-        assertThat(service.fieldType("name"), instanceOf(PlaceHolderFieldMapper.PlaceHolderFieldType.class));
+        assertThat(service.fieldType("name"), instanceOf(LegacyPlaceHolderFieldType.class));
         assertThat(service.fieldType("name.subfield"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
     }
 
@@ -256,7 +256,7 @@ public class MultiFieldTests extends MapperServiceTestCase {
             b.endObject();
             b.endObject();
         }));
-        assertThat(service.fieldType("name"), instanceOf(PlaceHolderFieldMapper.PlaceHolderFieldType.class));
+        assertThat(service.fieldType("name"), instanceOf(LegacyPlaceHolderFieldType.class));
         assertThat(service.fieldType("name.subfield"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
     }
 }

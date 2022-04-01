@@ -35,7 +35,6 @@ import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -62,7 +61,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     protected final CopyTo copyTo;
     protected final boolean hasScript;
     protected final String onScriptError;
-    protected final Map<String, Object> unknownParams = new LinkedHashMap<>();
 
     /**
      * Create a FieldMapper with no index analyzers

@@ -334,7 +334,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             b.field("unknown_setting", 5);
             b.endObject();
         }));
-        assertThat(service.fieldType("name"), instanceOf(PlaceHolderFieldMapper.PlaceHolderFieldType.class));
+        assertThat(service.fieldType("name"), instanceOf(LegacyPlaceHolderFieldType.class));
     }
 
     public void testUnmappedLegacyFields() throws Exception {
@@ -344,6 +344,6 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             b.field("unknown_setting", 5);
             b.endObject();
         }));
-        assertThat(service.fieldType("name"), instanceOf(PlaceHolderFieldMapper.PlaceHolderFieldType.class));
+        assertThat(service.fieldType("name"), instanceOf(LegacyPlaceHolderFieldType.class));
     }
 }

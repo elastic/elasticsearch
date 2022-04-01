@@ -35,6 +35,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ql.TestUtils.buildNodeAndVersions;
 import static org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder.INTRODUCING_MISSING_ORDER_IN_COMPOSITE_AGGS_VERSION;
+import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.INTRODUCING_UNSIGNED_LONG;
 
 public class SqlCompatIT extends BaseRestSqlTestCase {
 
@@ -182,6 +183,8 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
     }
 
     public void testCursorFromNewNodeWorksOnOldNode() throws IOException {
+        // TODO: remove assume after backport to 8.2.0
+        assumeQueryIsRedirectedToOldNodeOrBwcVersionSupportsCursorRedirect();
         assertCursorCompatibleAcrossVersions(Version.CURRENT, newNodesClient, oldNodesClient);
     }
 
@@ -197,6 +200,8 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
     }
 
     public void testCursorFromNewNodeCanCloseOnOldNode() throws IOException {
+        // TODO: remove assume after backport to 8.2.0
+        assumeQueryIsRedirectedToOldNodeOrBwcVersionSupportsCursorRedirect();
         assertCursorCloseWorksAcrossVersions(Version.CURRENT, newNodesClient, oldNodesClient);
     }
 
@@ -310,6 +315,14 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
         assumeTrue(
             "requires all nodes supporting cursor redirection in case of version mismatch",
             bwcVersion.onOrAfter(INTRODUCE_REDIRECTS_FOR_CURSORS_WITH_VERSION_MISMATCH_VERSION)
+        );
+    }
+
+    private void assumeQueryIsRedirectedToOldNodeOrBwcVersionSupportsCursorRedirect() {
+        assumeTrue(
+            "requires upgraded nodes redirecting queries to old node",
+            bwcVersion.before(INTRODUCING_UNSIGNED_LONG)
+                || bwcVersion.onOrAfter(INTRODUCE_REDIRECTS_FOR_CURSORS_WITH_VERSION_MISMATCH_VERSION)
         );
     }
 

@@ -41,29 +41,36 @@ import static org.hamcrest.Matchers.equalTo;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class GetHealthActionIT extends ESIntegTestCase {
 
+    private static final String DATA_COMPONENT_NAME = "test_data"; // prefixing with "test_" to avoid collisions with the real component
+    private static final String CLUSTER_COORDINATION_COMPONENT_NAME = "test_cluster_coordination";
+
+    private static final String ILM_INDICATOR_NAME = "ilm";
+    private static final String SLM_INDICATOR_NAME = "slm";
+    private static final String INSTANCE_HAS_MASTER_INDICATOR_NAME = "instance_has_master";
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return appendToCopy(super.nodePlugins(), TestHealthPlugin.class);
     }
 
-    public static final Setting<HealthStatus> TEST_HEALTH_STATUS_1 = new Setting<>(
-        "test.health.status.1",
+    public static final Setting<HealthStatus> ILM_HEALTH_STATUS_SETTING = new Setting<>(
+        "test.health.status.ilm",
         "GREEN",
         HealthStatus::valueOf,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
 
-    public static final Setting<HealthStatus> TEST_HEALTH_STATUS_2 = new Setting<>(
-        "test.health.status.2",
+    public static final Setting<HealthStatus> SLM_HEALTH_STATUS_SETTING = new Setting<>(
+        "test.health.status.slm",
         "GREEN",
         HealthStatus::valueOf,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
 
-    public static final Setting<HealthStatus> TEST_HEALTH_STATUS_3 = new Setting<>(
-        "test.health.status.3",
+    public static final Setting<HealthStatus> CLUSTER_COORDINATION_HEALTH_STATUS_SETTING = new Setting<>(
+        "test.health.status.cluster.coordination",
         "GREEN",
         HealthStatus::valueOf,
         Setting.Property.NodeScope,
@@ -76,7 +83,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
 
         @Override
         public List<Setting<?>> getSettings() {
-            return List.of(TEST_HEALTH_STATUS_1, TEST_HEALTH_STATUS_2, TEST_HEALTH_STATUS_3);
+            return List.of(ILM_HEALTH_STATUS_SETTING, SLM_HEALTH_STATUS_SETTING, CLUSTER_COORDINATION_HEALTH_STATUS_SETTING);
         }
 
         @Override
@@ -93,9 +100,9 @@ public class GetHealthActionIT extends ESIntegTestCase {
             IndexNameExpressionResolver indexNameExpressionResolver,
             Supplier<RepositoriesService> repositoriesServiceSupplier
         ) {
-            healthIndicatorServices.add(new FixedStatusHealthIndicatorService1(clusterService));
-            healthIndicatorServices.add(new FixedStatusHealthIndicatorService2(clusterService));
-            healthIndicatorServices.add(new FixedStatusHealthIndicatorService3(clusterService));
+            healthIndicatorServices.add(new IlmHealthIndicatorService(clusterService));
+            healthIndicatorServices.add(new SlmHealthIndicatorService(clusterService));
+            healthIndicatorServices.add(new ClusterCoordinationHealthIndicatorService(clusterService));
             return new ArrayList<>(healthIndicatorServices);
         }
 
@@ -106,30 +113,40 @@ public class GetHealthActionIT extends ESIntegTestCase {
     }
 
     /**
-     * This indicator could be used to pre-define health of the cluster with {@code TEST_HEALTH_STATUS} property
-     * and return it via health API.
+     * This indicator pulls its status from the statusSetting Setting.
      */
-    public static final class FixedStatusHealthIndicatorService1 implements HealthIndicatorService {
+    public static class TestHealthIndicatorService implements HealthIndicatorService {
 
         private final ClusterService clusterService;
+        private final String componentName;
+        private final String indicatorName;
+        private final Setting<HealthStatus> statusSetting;
 
-        public FixedStatusHealthIndicatorService1(ClusterService clusterService) {
+        public TestHealthIndicatorService(
+            ClusterService clusterService,
+            String componentName,
+            String indicatorName,
+            Setting<HealthStatus> statusSetting
+        ) {
             this.clusterService = clusterService;
+            this.componentName = componentName;
+            this.indicatorName = indicatorName;
+            this.statusSetting = statusSetting;
         }
 
         @Override
         public String name() {
-            return "test_indicator_1";
+            return indicatorName;
         }
 
         @Override
         public String component() {
-            return "test_component_1";
+            return componentName;
         }
 
         @Override
         public HealthIndicatorResult calculate(boolean includeDetails) {
-            var status = clusterService.getClusterSettings().get(TEST_HEALTH_STATUS_1);
+            var status = clusterService.getClusterSettings().get(statusSetting);
             return createIndicator(
                 status,
                 "Health is set to [" + status + "] by test plugin",
@@ -139,62 +156,25 @@ public class GetHealthActionIT extends ESIntegTestCase {
         }
     }
 
-    public static final class FixedStatusHealthIndicatorService2 implements HealthIndicatorService {
-
-        private final ClusterService clusterService;
-
-        public FixedStatusHealthIndicatorService2(ClusterService clusterService) {
-            this.clusterService = clusterService;
-        }
-
-        @Override
-        public String name() {
-            return "test_indicator_2";
-        }
-
-        @Override
-        public String component() {
-            return "test_component_1";
-        }
-
-        @Override
-        public HealthIndicatorResult calculate(boolean includeDetails) {
-            var status = clusterService.getClusterSettings().get(TEST_HEALTH_STATUS_2);
-            return createIndicator(
-                status,
-                "Health is set to [" + status + "] by test plugin",
-                new SimpleHealthIndicatorDetails(Map.of("include_details", includeDetails)),
-                Collections.emptyList()
-            );
+    public static final class IlmHealthIndicatorService extends TestHealthIndicatorService {
+        public IlmHealthIndicatorService(ClusterService clusterService) {
+            super(clusterService, DATA_COMPONENT_NAME, ILM_INDICATOR_NAME, ILM_HEALTH_STATUS_SETTING);
         }
     }
 
-    public static final class FixedStatusHealthIndicatorService3 implements HealthIndicatorService {
-
-        private final ClusterService clusterService;
-
-        public FixedStatusHealthIndicatorService3(ClusterService clusterService) {
-            this.clusterService = clusterService;
+    public static final class SlmHealthIndicatorService extends TestHealthIndicatorService {
+        public SlmHealthIndicatorService(ClusterService clusterService) {
+            super(clusterService, DATA_COMPONENT_NAME, SLM_INDICATOR_NAME, SLM_HEALTH_STATUS_SETTING);
         }
+    }
 
-        @Override
-        public String name() {
-            return "test_indicator_3";
-        }
-
-        @Override
-        public String component() {
-            return "test_component_2";
-        }
-
-        @Override
-        public HealthIndicatorResult calculate(boolean includeDetails) {
-            var status = clusterService.getClusterSettings().get(TEST_HEALTH_STATUS_3);
-            return createIndicator(
-                status,
-                "Health is set to [" + status + "] by test plugin",
-                new SimpleHealthIndicatorDetails(Map.of("include_details", includeDetails)),
-                Collections.emptyList()
+    public static final class ClusterCoordinationHealthIndicatorService extends TestHealthIndicatorService {
+        public ClusterCoordinationHealthIndicatorService(ClusterService clusterService) {
+            super(
+                clusterService,
+                CLUSTER_COORDINATION_COMPONENT_NAME,
+                INSTANCE_HAS_MASTER_INDICATOR_NAME,
+                CLUSTER_COORDINATION_HEALTH_STATUS_SETTING
             );
         }
     }
@@ -209,9 +189,9 @@ public class GetHealthActionIT extends ESIntegTestCase {
         try {
             updateClusterSettings(
                 Settings.builder()
-                    .put(TEST_HEALTH_STATUS_1.getKey(), indicator1Status)
-                    .put(TEST_HEALTH_STATUS_2.getKey(), indicator2Status)
-                    .put(TEST_HEALTH_STATUS_3.getKey(), indicator3Status)
+                    .put(ILM_HEALTH_STATUS_SETTING.getKey(), indicator1Status)
+                    .put(SLM_HEALTH_STATUS_SETTING.getKey(), indicator2Status)
+                    .put(CLUSTER_COORDINATION_HEALTH_STATUS_SETTING.getKey(), indicator3Status)
             );
 
             // First, test that we don't request any components or indicators, and get back everything (but no details):
@@ -224,23 +204,23 @@ public class GetHealthActionIT extends ESIntegTestCase {
                 );
                 assertThat(response.getClusterName(), equalTo(new ClusterName(cluster().getClusterName())));
                 assertThat(
-                    response.findComponent("test_component_1"),
+                    response.findComponent(DATA_COMPONENT_NAME),
                     equalTo(
                         new HealthComponentResult(
-                            "test_component_1",
+                            DATA_COMPONENT_NAME,
                             HealthStatus.merge(Stream.of(indicator1Status, indicator2Status)),
                             List.of(
                                 new HealthIndicatorResult(
-                                    "test_indicator_1",
-                                    "test_component_1",
+                                    ILM_INDICATOR_NAME,
+                                    DATA_COMPONENT_NAME,
                                     indicator1Status,
                                     "Health is set to [" + indicator1Status + "] by test plugin",
                                     new SimpleHealthIndicatorDetails(Map.of("include_details", false)),
                                     Collections.emptyList()
                                 ),
                                 new HealthIndicatorResult(
-                                    "test_indicator_2",
-                                    "test_component_1",
+                                    SLM_INDICATOR_NAME,
+                                    DATA_COMPONENT_NAME,
                                     indicator2Status,
                                     "Health is set to [" + indicator2Status + "] by test plugin",
                                     new SimpleHealthIndicatorDetails(Map.of("include_details", false)),
@@ -251,15 +231,15 @@ public class GetHealthActionIT extends ESIntegTestCase {
                     )
                 );
                 assertThat(
-                    response.findComponent("test_component_2"),
+                    response.findComponent(CLUSTER_COORDINATION_COMPONENT_NAME),
                     equalTo(
                         new HealthComponentResult(
-                            "test_component_2",
+                            CLUSTER_COORDINATION_COMPONENT_NAME,
                             indicator3Status,
                             List.of(
                                 new HealthIndicatorResult(
-                                    "test_indicator_3",
-                                    "test_component_2",
+                                    INSTANCE_HAS_MASTER_INDICATOR_NAME,
+                                    CLUSTER_COORDINATION_COMPONENT_NAME,
                                     indicator3Status,
                                     "Health is set to [" + indicator3Status + "] by test plugin",
                                     new SimpleHealthIndicatorDetails(Map.of("include_details", false)),
@@ -273,20 +253,22 @@ public class GetHealthActionIT extends ESIntegTestCase {
 
             // Next, test that if we ask for a specific component and indicator, we get only those back (with details):
             {
-                var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request("test_component_1", "test_indicator_1"))
-                    .get();
+                var response = client.execute(
+                    GetHealthAction.INSTANCE,
+                    new GetHealthAction.Request(DATA_COMPONENT_NAME, ILM_INDICATOR_NAME)
+                ).get();
                 assertNull(response.getStatus());
                 assertThat(response.getClusterName(), equalTo(new ClusterName(cluster().getClusterName())));
                 assertThat(
-                    response.findComponent("test_component_1"),
+                    response.findComponent(DATA_COMPONENT_NAME),
                     equalTo(
                         new HealthComponentResult(
-                            "test_component_1",
+                            DATA_COMPONENT_NAME,
                             null,
                             List.of(
                                 new HealthIndicatorResult(
-                                    "test_indicator_1",
-                                    "test_component_1",
+                                    ILM_INDICATOR_NAME,
+                                    DATA_COMPONENT_NAME,
                                     indicator1Status,
                                     "Health is set to [" + indicator1Status + "] by test plugin",
                                     new SimpleHealthIndicatorDetails(Map.of("include_details", true)),
@@ -296,32 +278,32 @@ public class GetHealthActionIT extends ESIntegTestCase {
                         )
                     )
                 );
-                expectThrows(NoSuchElementException.class, () -> response.findComponent("test_component_2"));
+                expectThrows(NoSuchElementException.class, () -> response.findComponent(CLUSTER_COORDINATION_COMPONENT_NAME));
             }
 
             // Test that if we specify a component name and no indicator name that we get all indicators for that component:
             {
-                var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request("test_component_1", null)).get();
+                var response = client.execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(DATA_COMPONENT_NAME, null)).get();
                 assertNull(response.getStatus());
                 assertThat(response.getClusterName(), equalTo(new ClusterName(cluster().getClusterName())));
                 assertThat(
-                    response.findComponent("test_component_1"),
+                    response.findComponent(DATA_COMPONENT_NAME),
                     equalTo(
                         new HealthComponentResult(
-                            "test_component_1",
+                            DATA_COMPONENT_NAME,
                             HealthStatus.merge(Stream.of(indicator1Status, indicator2Status)),
                             List.of(
                                 new HealthIndicatorResult(
-                                    "test_indicator_1",
-                                    "test_component_1",
+                                    ILM_INDICATOR_NAME,
+                                    DATA_COMPONENT_NAME,
                                     indicator1Status,
                                     "Health is set to [" + indicator1Status + "] by test plugin",
                                     new SimpleHealthIndicatorDetails(Map.of("include_details", true)),
                                     Collections.emptyList()
                                 ),
                                 new HealthIndicatorResult(
-                                    "test_indicator_2",
-                                    "test_component_1",
+                                    SLM_INDICATOR_NAME,
+                                    DATA_COMPONENT_NAME,
                                     indicator2Status,
                                     "Health is set to [" + indicator2Status + "] by test plugin",
                                     new SimpleHealthIndicatorDetails(Map.of("include_details", true)),
@@ -331,15 +313,15 @@ public class GetHealthActionIT extends ESIntegTestCase {
                         )
                     )
                 );
-                expectThrows(NoSuchElementException.class, () -> response.findComponent("test_component_2"));
+                expectThrows(NoSuchElementException.class, () -> response.findComponent(CLUSTER_COORDINATION_COMPONENT_NAME));
             }
 
         } finally {
             updateClusterSettings(
                 Settings.builder()
-                    .putNull(TEST_HEALTH_STATUS_1.getKey())
-                    .putNull(TEST_HEALTH_STATUS_2.getKey())
-                    .putNull(TEST_HEALTH_STATUS_3.getKey())
+                    .putNull(ILM_HEALTH_STATUS_SETTING.getKey())
+                    .putNull(SLM_HEALTH_STATUS_SETTING.getKey())
+                    .putNull(CLUSTER_COORDINATION_HEALTH_STATUS_SETTING.getKey())
             );
         }
     }

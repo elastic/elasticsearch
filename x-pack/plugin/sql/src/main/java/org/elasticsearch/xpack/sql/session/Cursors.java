@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.xpack.ql.QlVersionMismatchException;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
 import org.elasticsearch.xpack.sql.common.io.SqlStreamInput;
@@ -107,8 +108,22 @@ public final class Cursors {
         if (base64.isEmpty()) {
             return null;
         }
+        // assume cursor has matching version
         try (SqlStreamInput in = SqlStreamInput.fromString(base64, WRITEABLE_REGISTRY, VERSION)) {
             return in.readOptionalWriteable(BasicFormatter::new);
+        } catch (QlVersionMismatchException vme) {
+            // only propagate vme if cursor wraps a formatter. If formatter is `null`, we can return that and have the transport layer
+            // redirect the request to a matching node.
+            try (SqlStreamInput in = SqlStreamInput.fromString(base64, WRITEABLE_REGISTRY, vme.getInputVersion())) {
+                boolean hasFormatter = in.readBoolean();
+                if (hasFormatter) {
+                    throw vme;
+                } else {
+                    return null;
+                }
+            } catch (IOException ex) {
+                throw new SqlIllegalArgumentException("Unexpected failure reading cursor", ex);
+            }
         } catch (IOException ex) {
             throw new SqlIllegalArgumentException("Unexpected failure reading cursor", ex);
         }

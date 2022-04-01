@@ -38,7 +38,8 @@ import static org.elasticsearch.xpack.ql.execution.search.QlSourceBuilder.INTROD
 
 public class SqlCompatIT extends BaseRestSqlTestCase {
 
-    private static final Version INTRODUCE_REDIRECTS_FOR_CURSORS_WITH_VERSION_MISMATCH_VERSION = Version.V_8_2_0;
+    // TODO: decrease to 8.2.0 after backport
+    private static final Version INTRODUCE_REDIRECTS_FOR_CURSORS_WITH_VERSION_MISMATCH_VERSION = Version.V_8_3_0;
 
     private static RestClient newNodesClient;
     private static RestClient oldNodesClient;
@@ -102,10 +103,7 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
     }
 
     private void testNullsOrderWithMissingOrderSupport(RestClient client) throws IOException {
-        assumeTrue(
-            "expected all nodes with support for missing_order but got some without",
-            bwcVersion.onOrAfter(INTRODUCING_MISSING_ORDER_IN_COMPOSITE_AGGS_VERSION)
-        );
+        assumeBwcVersionSupportsCursorRedirect();
 
         List<Integer> result = runOrderByNullsLastQuery(client);
 
@@ -176,7 +174,6 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
         return Strings.toString(json);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/85520")
     public void testCursorFromOldNodeWorksOnNewNode() throws IOException {
         assertCursorCompatibleAcrossVersions(bwcVersion, oldNodesClient, newNodesClient);
     }
@@ -214,10 +211,7 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
     }
 
     public void testCursorForIndexAllocatedOnNewNodeWorkOnOldNode() throws IOException {
-        assumeTrue(
-            "requires all nodes supporting cursor redirection in case of version mismatch",
-            bwcVersion.onOrAfter(INTRODUCE_REDIRECTS_FOR_CURSORS_WITH_VERSION_MISMATCH_VERSION)
-        );
+        assumeBwcVersionSupportsCursorRedirect();
 
         indexDocs(Map.of("index.number_of_shards", 1, "index.number_of_replicas", 0, "index.routing.allocation.require.upgraded", "true"));
 
@@ -225,33 +219,12 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
         assertCursorCanFetchDocs(oldNodesClient, cursor);
     }
 
-    private static String fetch1RecordAndReturnCursor(Version version, RestClient client) throws IOException {
-        Request req = new Request("POST", "_sql");
-        req.setJsonEntity(sqlQueryEntityWithOptionalMode("SELECT int FROM test", version, 1));
-        Map<String, Object> json = performRequestAndReadBodyAsJson(client, req);
-        String cursor = (String) json.get("cursor");
-        assertThat(cursor, Matchers.not(Matchers.emptyString()));
-        return cursor;
-    }
-
-    private static void assertCursorCanFetchDocs(RestClient client, String cursor) throws IOException {
-        Request scrollReq = new Request("POST", "_sql");
-        scrollReq.addParameter("error_trace", "true");
-        scrollReq.setJsonEntity("{\"cursor\": \"%s\"}".formatted(cursor));
-        Map<String, Object> scrollJson = performRequestAndReadBodyAsJson(client, scrollReq);
-
-        assertNotNull(scrollJson.get("rows"));
-    }
-
     public void testTextCursorFromOldNodeWorksOnNewNode() throws IOException {
         assertTextCursorCompatibleAcrossVersions(bwcVersion, oldNodesClient, newNodesClient);
     }
 
+    @AwaitsFix(bugUrl = "tbd")
     public void testTextCursorFromNewNodeWorksOnOldNode() throws IOException {
-        assumeTrue(
-            "requires all nodes supporting cursor redirection in case of version mismatch",
-            bwcVersion.onOrAfter(INTRODUCE_REDIRECTS_FOR_CURSORS_WITH_VERSION_MISMATCH_VERSION)
-        );
         assertTextCursorCompatibleAcrossVersions(Version.CURRENT, newNodesClient, oldNodesClient);
     }
 
@@ -274,12 +247,31 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
         assertThat(content, Matchers.not(Matchers.emptyOrNullString()));
     }
 
-    private static Map<String, Object> performRequestAndReadBodyAsJson(RestClient client, Request request) throws IOException {
-        Response response = client.performRequest(request);
-        assertEquals(200, response.getStatusLine().getStatusCode());
-        try (InputStream content = response.getEntity().getContent()) {
-            return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
-        }
+    public void testTextCursorFromOldNodeCanCloseOnNewNode() throws IOException {
+        assertTextCursorCloseWorksAcrossVersions(bwcVersion, oldNodesClient, newNodesClient);
+    }
+
+    @AwaitsFix(bugUrl = "tbd")
+    public void testTextCursorFromNewNodeCanCloseOnOldNode() throws IOException {
+        assertTextCursorCloseWorksAcrossVersions(Version.CURRENT, newNodesClient, oldNodesClient);
+    }
+
+    private void assertTextCursorCloseWorksAcrossVersions(Version version1, RestClient client1, RestClient client2) throws IOException {
+        indexDocs();
+
+        Request req = new Request("POST", "_sql");
+        req.addParameter("format", "txt");
+        req.setJsonEntity(sqlQueryEntityWithOptionalMode("SELECT int FROM test", version1, 1));
+        Response response = client1.performRequest(req);
+        String cursor = response.getHeader("Cursor");
+        assertThat(cursor, Matchers.not(Matchers.emptyString()));
+
+        Request scrollReq = new Request("POST", "_sql/close");
+        scrollReq.addParameter("error_trace", "true");
+        scrollReq.setJsonEntity("{\"cursor\": \"%s\"}".formatted(cursor));
+        Map<String, Object> scrollJson = performRequestAndReadBodyAsJson(client2, scrollReq);
+
+        assertEquals(scrollJson.get("succeeded"), true);
     }
 
     public void testCreateCursorWithFormatTxtOnNewNode() throws IOException {
@@ -309,6 +301,39 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
         Response response = client.performRequest(query);
         assertOK(response);
         assertFalse(Strings.isNullOrEmpty(response.getHeader("Cursor")));
+    }
+
+    private void assumeBwcVersionSupportsCursorRedirect() {
+        assumeTrue(
+            "requires all nodes supporting cursor redirection in case of version mismatch",
+            bwcVersion.onOrAfter(INTRODUCE_REDIRECTS_FOR_CURSORS_WITH_VERSION_MISMATCH_VERSION)
+        );
+    }
+
+    private static String fetch1RecordAndReturnCursor(Version version, RestClient client) throws IOException {
+        Request req = new Request("POST", "_sql");
+        req.setJsonEntity(sqlQueryEntityWithOptionalMode("SELECT int FROM test", version, 1));
+        Map<String, Object> json = performRequestAndReadBodyAsJson(client, req);
+        String cursor = (String) json.get("cursor");
+        assertThat(cursor, Matchers.not(Matchers.emptyOrNullString()));
+        return cursor;
+    }
+
+    private static void assertCursorCanFetchDocs(RestClient client, String cursor) throws IOException {
+        Request scrollReq = new Request("POST", "_sql");
+        scrollReq.addParameter("error_trace", "true");
+        scrollReq.setJsonEntity("{\"cursor\": \"%s\"}".formatted(cursor));
+        Map<String, Object> scrollJson = performRequestAndReadBodyAsJson(client, scrollReq);
+
+        assertNotNull(scrollJson.get("rows"));
+    }
+
+    private static Map<String, Object> performRequestAndReadBodyAsJson(RestClient client, Request request) throws IOException {
+        Response response = client.performRequest(request);
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        try (InputStream content = response.getEntity().getContent()) {
+            return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
+        }
     }
 
 }

@@ -9,6 +9,7 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesResponse;
+import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -30,8 +31,10 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ThrowableAssertions.assertThatException;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.isA;
 
 @ESIntegTestCase.ClusterScope(supportsDedicatedMasters = false, numDataNodes = 3)
 public class RepositoriesDuplicatedCreationIT extends ESIntegTestCase {
@@ -99,6 +102,24 @@ public class RepositoriesDuplicatedCreationIT extends ESIntegTestCase {
             UnstableRepository.TYPE,
             Settings.builder().put("location", randomRepoPath()).put(UnstableRepository.UNSTABLE_NODES.getKey(), unstableNode)
         );
+        // verification should fail with some node has InvalidRepository
+        try {
+            client().admin().cluster().prepareVerifyRepository(repositoryName).get();
+            fail("verification should fail when some node failed to create repository");
+        } catch (Exception e) {
+            assertThat(e, isA(RepositoryVerificationException.class));
+            assertEquals(e.getSuppressed().length, 2);
+            assertThatException(
+                e.getSuppressed()[0].getCause(),
+                RepositoryException.class,
+                equalTo("[" + repositoryName + "] repository type [" + UnstableRepository.TYPE + "] failed to create on current node")
+            );
+            assertThatException(
+                e.getSuppressed()[1].getCause(),
+                RepositoryException.class,
+                equalTo("[" + repositoryName + "] repository type [" + UnstableRepository.TYPE + "] failed to create on current node")
+            );
+        }
 
         // restart master
         internalCluster().restartNode(internalCluster().getMasterName());
@@ -106,6 +127,10 @@ public class RepositoriesDuplicatedCreationIT extends ESIntegTestCase {
 
         // put repository again: let all node can create repository successfully
         createRepository(repositoryName, UnstableRepository.TYPE, Settings.builder().put("location", randomRepoPath()));
+        // verification should succeed with all node create repository successfully
+        VerifyRepositoryResponse verifyRepositoryResponse = client().admin().cluster().prepareVerifyRepository(repositoryName).get();
+        assertEquals(verifyRepositoryResponse.getNodes().size(), 3);
+
     }
 
     private void createRepository(String name, String type, Settings.Builder settings) {

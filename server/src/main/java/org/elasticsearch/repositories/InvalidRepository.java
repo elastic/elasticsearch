@@ -32,18 +32,21 @@ import java.util.function.Function;
  * This class represents a repository that failed during creation.
  * This could happen when repository plugin is not stable enough to guarantee repository creation success all the time
  */
-public class DummyRepository extends AbstractLifecycleComponent implements Repository {
+public class InvalidRepository extends AbstractLifecycleComponent implements Repository {
 
     private final RepositoryMetadata repositoryMetadata;
+    private final RepositoryException creationException;
 
-    public DummyRepository(RepositoryMetadata repositoryMetadata) {
+    public InvalidRepository(RepositoryMetadata repositoryMetadata, RepositoryException creationException) {
         this.repositoryMetadata = repositoryMetadata;
+        this.creationException = creationException;
     }
 
     private RepositoryException createCreationException() {
         return new RepositoryException(
             repositoryMetadata.name(),
-            "repository type [" + repositoryMetadata.type() + "] failed to create on current node"
+            "repository type [" + repositoryMetadata.type() + "] failed to create on current node",
+            creationException
         );
     }
 

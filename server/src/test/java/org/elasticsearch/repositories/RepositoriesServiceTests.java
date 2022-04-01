@@ -214,7 +214,7 @@ public class RepositoriesServiceTests extends ESTestCase {
         });
     }
 
-    // test DummyRepository is returned if repository failed to create
+    // test InvalidRepository is returned if repository failed to create
     public void testHandlesCreationFailureWhenApplyingClusterState() {
         var repoName = randomAlphaOfLengthBetween(10, 25);
 
@@ -222,18 +222,18 @@ public class RepositoriesServiceTests extends ESTestCase {
         repositoriesService.applyClusterState(new ClusterChangedEvent("put unstable repository", clusterState, emptyState()));
 
         var repo = repositoriesService.repository(repoName);
-        assertThat(repo, isA(DummyRepository.class));
+        assertThat(repo, isA(InvalidRepository.class));
     }
 
-    // test DummyRepository can be replaced if current repo is created successfully
-    public void testReplaceDummyRepositoryWhenCreationSuccess() {
+    // test InvalidRepository can be replaced if current repo is created successfully
+    public void testReplaceInvalidRepositoryWhenCreationSuccess() {
         var repoName = randomAlphaOfLengthBetween(10, 25);
 
         var clusterState = createClusterStateWithRepo(repoName, UnstableRepository.TYPE);
         repositoriesService.applyClusterState(new ClusterChangedEvent("put unstable repository", clusterState, emptyState()));
 
         var repo = repositoriesService.repository(repoName);
-        assertThat(repo, isA(DummyRepository.class));
+        assertThat(repo, isA(InvalidRepository.class));
 
         clusterState = createClusterStateWithRepo(repoName, TestRepository.TYPE);
         repositoriesService.applyClusterState(new ClusterChangedEvent("put test repository", clusterState, emptyState()));
@@ -241,8 +241,8 @@ public class RepositoriesServiceTests extends ESTestCase {
         assertThat(repo, isA(TestRepository.class));
     }
 
-    // test remove DummyRepository when current repo is removed in cluster state
-    public void testRemoveDummyRepositoryTypeWhenApplyingClusterState() {
+    // test remove InvalidRepository when current repo is removed in cluster state
+    public void testRemoveInvalidRepositoryTypeWhenApplyingClusterState() {
         var repoName = randomAlphaOfLengthBetween(10, 25);
 
         var clusterState = createClusterStateWithRepo(repoName, UnstableRepository.TYPE);
@@ -256,9 +256,9 @@ public class RepositoriesServiceTests extends ESTestCase {
         );
     }
 
-    // DummyRepository is created when current node is non-master node and failed to create repository by applying cluster state from master
-    // When current node become master node later and same repository is put again, current node can create repository successfully and
-    // replace previous DummyRepository
+    // InvalidRepository is created when current node is non-master node and failed to create repository by applying cluster state from
+    // master. When current node become master node later and same repository is put again, current node can create repository successfully
+    // and replace previous InvalidRepository
     public void testRegisterRepositorySuccessAfterCreationFailed() {
         // 1. repository creation failed when current node is non-master node and apply cluster state from master
         var repoName = randomAlphaOfLengthBetween(10, 25);
@@ -267,7 +267,7 @@ public class RepositoriesServiceTests extends ESTestCase {
         repositoriesService.applyClusterState(new ClusterChangedEvent("put unstable repository", clusterState, emptyState()));
 
         var repo = repositoriesService.repository(repoName);
-        assertThat(repo, isA(DummyRepository.class));
+        assertThat(repo, isA(InvalidRepository.class));
 
         // 2. repository creation successfully when current node become master node and repository is put again
         var request = new PutRepositoryRequest().name(repoName).type(TestRepository.TYPE);

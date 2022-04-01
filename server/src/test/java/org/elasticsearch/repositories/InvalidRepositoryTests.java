@@ -13,9 +13,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESTestCase;
 
-public class DummyRepositoryTests extends ESTestCase {
+public class InvalidRepositoryTests extends ESTestCase {
 
-    private DummyRepository repository = new DummyRepository(new RepositoryMetadata("name", "type", Settings.EMPTY));
+    private InvalidRepository repository = new InvalidRepository(
+        new RepositoryMetadata("name", "type", Settings.EMPTY),
+        new RepositoryException("name", "failed to create repository")
+    );
 
     public void testShouldThrowWhenGettingMetadata() {
         expectThrows(RepositoryException.class, () -> repository.getSnapshotGlobalMetadata(new SnapshotId("name", "uuid")));

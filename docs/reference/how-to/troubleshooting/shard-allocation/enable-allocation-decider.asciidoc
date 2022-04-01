@@ -1,16 +1,18 @@
 [[enable-allocation-decider]]
 
 [discrete]
-==== Enable allocation decider
+==== Primary or replica shards are unassigned.
 
 [discrete]
 ===== Description
-A shard targets a given tier (e.g. hot or cold), and all of the nodes that make up that tier respond that they
-cannot allocate the shard because allocation is disabled for that shard.
+Allocation of shards has been disabled by configuration. This can be configured at the index level or cluster-wide. Only primaries, only
+replicas, or both primaries and replicas can be disabled. Some indices have unassigned shards because allocation has been disabled.
 
 [discrete]
 ===== Solution
-Check the value of <<dynamic-index-settings, `index.routing.allocation.enable`>> and
-<<dynamic-index-settings, `index.routing.rebalance.enable`>> for the index that
-the shard belongs to, and update if needed. Check the value of <<cluster-shard-allocation-settings, `cluster.routing.allocation.enable`>>
-and <<cluster-shard-allocation-settings, `cluster.routing.rebalance.enable`>>, and update if needed.
+
+. Check the value of the <<dynamic-index-settings, `index.routing.allocation.enable`>> setting for the index that the shard belongs to. If
+the setting does not exist, move to the next step. If the setting exists and has some value other than `all`, remove the setting (the
+default is `all`).
+. Check the value of the <<cluster-shard-allocation-settings, `cluster.routing.allocation.enable`>> cluster setting. If the setting exists
+and has some value other than `all`, remove the setting (the default is `all`).

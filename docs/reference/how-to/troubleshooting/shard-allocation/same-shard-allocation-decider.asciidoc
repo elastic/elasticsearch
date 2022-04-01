@@ -1,18 +1,19 @@
 [[same-shard-allocation-decider]]
 
 [discrete]
-==== Same shard allocation decider
+==== Replica shards are unassigned. Fewer redundant copies of the data are available.
 
 [discrete]
 ===== Description
-Allocation of a shard failed because the shard already exists on all target nodes that could otherwise accept it. The
-<<dynamic-index-settings, `number_of_replicas`>> setting on the index is telling {es} to allocate more replica shards than the cluster can
-handle.
+To maintain high availability, an index's replica shard are not allowed to live on the same node as the primary shard or another replica
+shard. Some indices have unassigned replicas due to having more replica shards configured than the number of available nodes in the target
+tier. The index configuration that controls this is the <<dynamic-index-settings, `number_of_replicas`>> setting.
 
 [discrete]
 ===== Solution
-There are a few solutions:
+There are several possible solutions:
 
 . Reduce the number of replicas for the index.
-. <<add-elasticsearch-nodes, Add more nodes>>.
-. Configure <<dynamic-index-settings, `index.auto_expand_replicas`>> to `0-all`.
+. <<add-elasticsearch-nodes, Add more nodes>> or <<assign-data-tier, assign existing nodes to the appropriate data tier>>.
+. Switch to a flexible configuration for replicas that takes into account the available nodes in a tier. To do this, configure
+<<dynamic-index-settings, `index.auto_expand_replicas`>> to `0-all`.

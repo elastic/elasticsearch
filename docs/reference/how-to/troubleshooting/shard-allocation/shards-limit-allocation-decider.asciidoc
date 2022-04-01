@@ -1,19 +1,20 @@
 [[shards-limit-allocation-decider]]
 
 [discrete]
-==== Shards limit allocation decider
+==== Primary or replica shards are unassigned.
 
 [discrete]
 ===== Description
-A shard targets a given tier (e.g. hot or cold), and all of the nodes that make up that tier respond that they
-cannot allocate the shard because doing so would cause the node to hold more than
-<<allocation-total-shards, `index.routing.allocation.total_shards_per_node per index`>>
-or <<allocation-total-shards, `cluster.routing.allocation.total_shards_per_node`>>.
+In order to avoid overwhelming nodes, a configurable limit has been placed on how many shards can be assigned to any given node. Some
+indices have unassigned shards because all of the nodes that make up that tier respond that they cannot allocate the shard. Doing so would
+ cause the node to hold more shards than allowed. The index configuration that controls this is
+ <<allocation-total-shards, `index.routing.allocation.total_shards_per_node per index`>>, and the cluster configuration is
+ <<allocation-total-shards, `cluster.routing.allocation.total_shards_per_node`>>.
 
 [discrete]
 ===== Solution
 Check the values of `index.routing.allocation.total_shards_per_node` and `cluster.routing.allocation.total_shards_per_node`, and
 <<size-your-shards, decide whether either can be increased>>. If it is reasonable to
-increase the number of  shards allowed on your node, increase the values for `index.routing.allocation` for your index, or
+increase the number of shards allowed on your node, increase the values of `index.routing.allocation` for your index, or
 `cluster.routing.allocation.total_shards_per_node` globally. If it is not reasonable to change either of those, add more nodes to the
 cluster so that each node has fewer shards.

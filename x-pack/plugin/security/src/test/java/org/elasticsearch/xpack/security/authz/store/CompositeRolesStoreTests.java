@@ -88,6 +88,7 @@ import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -114,6 +115,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
+import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ID_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
@@ -320,6 +322,59 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testSuperuserIsEffectiveWhenOtherRolesUnavailable() {
+        final boolean criticalFailure = randomBoolean();
+        final Consumer<ActionListener<RoleRetrievalResult>> rolesHandler = callback -> {
+            final RuntimeException exception = new RuntimeException("Test(" + getTestName() + ") - native roles unavailable");
+            if (criticalFailure) {
+                callback.onFailure(exception);
+            } else {
+                callback.onResponse(RoleRetrievalResult.failure(exception));
+            }
+        };
+        final Consumer<ActionListener<Collection<ApplicationPrivilegeDescriptor>>> privilegesHandler = callback -> callback.onResponse(
+            Collections.emptyList()
+        );
+
+        final CompositeRolesStore compositeRolesStore = setupRolesStore(rolesHandler, privilegesHandler);
+        trySuccessfullyLoadSuperuserRole(compositeRolesStore);
+        if (criticalFailure) {
+            // A failure RoleRetrievalResult doesn't block role building, only a throw exception does
+            tryFailOnNonSuperuserRole(compositeRolesStore, throwableWithMessage(containsString("native roles unavailable")));
+        }
+    }
+
+    public void testSuperuserIsEffectiveWhenApplicationPrivilegesAreUnavailable() {
+        final RoleDescriptor role = new RoleDescriptor(
+            "_mock_role",
+            new String[0],
+            new IndicesPrivileges[0],
+            new RoleDescriptor.ApplicationResourcePrivileges[] {
+                RoleDescriptor.ApplicationResourcePrivileges.builder()
+                    .application(randomAlphaOfLengthBetween(5, 12))
+                    .privileges("all")
+                    .resources("*")
+                    .build() },
+            new ConfigurableClusterPrivilege[0],
+            new String[0],
+            Map.of(),
+            Map.of()
+        );
+        final Consumer<ActionListener<RoleRetrievalResult>> rolesHandler = callback -> callback.onResponse(
+            RoleRetrievalResult.success(Set.of(role))
+        );
+        final Consumer<ActionListener<Collection<ApplicationPrivilegeDescriptor>>> privilegesHandler = callback -> callback.onFailure(
+            new RuntimeException("No privileges for you!")
+        );
+
+        final CompositeRolesStore compositeRolesStore = setupRolesStore(rolesHandler, privilegesHandler);
+        trySuccessfullyLoadSuperuserRole(compositeRolesStore);
+        tryFailOnNonSuperuserRole(compositeRolesStore, throwableWithMessage(containsString("No privileges for you!")));
+    }
+
+    private CompositeRolesStore setupRolesStore(
+        Consumer<ActionListener<RoleRetrievalResult>> rolesHandler,
+        Consumer<ActionListener<Collection<ApplicationPrivilegeDescriptor>>> privilegesHandler
+    ) {
         final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
         doCallRealMethod().when(fileRolesStore).accept(anySet(), anyActionListener());
         when(fileRolesStore.roleDescriptors(anySet())).thenReturn(Collections.emptySet());
@@ -329,13 +384,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         doAnswer((invocationOnMock) -> {
             @SuppressWarnings("unchecked")
             ActionListener<RoleRetrievalResult> callback = (ActionListener<RoleRetrievalResult>) invocationOnMock.getArguments()[1];
-            final RuntimeException exception = new RuntimeException("Test(" + getTestName() + ") - native roles unavailable");
-            if (randomBoolean()) {
-                callback.onFailure(exception);
-            } else {
-                callback.onResponse(RoleRetrievalResult.failure(exception));
-
-            }
+            rolesHandler.accept(callback);
             return null;
         }).when(nativeRolesStore).getRoleDescriptors(isASet(), anyActionListener());
 
@@ -345,7 +394,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             @SuppressWarnings("unchecked")
             ActionListener<Collection<ApplicationPrivilegeDescriptor>> callback = (ActionListener<
                 Collection<ApplicationPrivilegeDescriptor>>) invocationOnMock.getArguments()[2];
-            callback.onResponse(Collections.emptyList());
+            privilegesHandler.accept(callback);
             return null;
         }).when(nativePrivilegeStore).getPrivileges(anySet(), anySet(), anyActionListener());
 
@@ -361,7 +410,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
             null,
             null
         );
+        return compositeRolesStore;
+    }
 
+    private void trySuccessfullyLoadSuperuserRole(CompositeRolesStore compositeRolesStore) {
         final Set<String> roles = Set.of(randomAlphaOfLengthBetween(1, 6), "superuser", randomAlphaOfLengthBetween(7, 12));
         PlainActionFuture<Role> future = new PlainActionFuture<>();
         getRoleForRoleNames(compositeRolesStore, roles, future);
@@ -382,6 +434,14 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final Predicate<String> securityActionPredicate = Automatons.predicate(role.indices().allowedActionsMatcher(".security"));
         assertThat(securityActionPredicate.test(SearchAction.NAME), is(true));
         assertThat(securityActionPredicate.test(IndexAction.NAME), is(false));
+    }
+
+    private void tryFailOnNonSuperuserRole(CompositeRolesStore compositeRolesStore, Matcher<? super Exception> exceptionMatcher) {
+        final Set<String> roles = Set.of(randomAlphaOfLengthBetween(1, 6), randomAlphaOfLengthBetween(7, 12));
+        PlainActionFuture<Role> future = new PlainActionFuture<>();
+        getRoleForRoleNames(compositeRolesStore, roles, future);
+        final Exception exception = expectThrows(Exception.class, future::actionGet);
+        assertThat(exception, exceptionMatcher);
     }
 
     public void testNegativeLookupsAreCached() {

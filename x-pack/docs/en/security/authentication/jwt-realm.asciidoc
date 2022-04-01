@@ -7,29 +7,32 @@
 The JWT realm is intended for uses cases where an external service generates
 JSON Web Tokens, and {es} should trust these JWTs as an authentication credential.
 
-A common scenario that leads to this use case is where a front-end application uses 
+A common scenario that leads to this use case is where a front-end application uses
 Open ID Connect (OIDC) as an authentication method, and then accesses {es} on
 behalf of the logged in user.
-
-TIP: If the external workflow does not exist, use `api` tokens instead.
 
 NOTE: {es} provides a <<oidc-realm,OpenID Connect realm>> as well as the JWT realm. The `oidc` realm
 provides stronger security guarantees and should be preferred for any use case where {es} is able to act
 as an OIDC _Relying Party_ (RP). In particular the `oidc` realm is the only supported way to enable OpenID
 Connect authentication in Kibana.
 
-A simple JWT realm configuration is as follows: 
+TIP: If the front-end application does not exist, use `access` tokens instead. See <<token-authentication-services>>.
+     Other bearer token options are available if accessing {es} directly, without a front-end application.
+     JWT realm is for when that front-end application already exists, and you want to integration that
+     front-end application with {es}.
+
+A simple JWT realm configuration is as follows:
 
 [source, yaml]
 ------------------------------------------------------------
 xpack.security.authc.realms.jwt.jwt1:
   order: 3 <1>
   allowed_issuer: "https://issuer.example.com/jwt/" <2>
-  allowed_audiences: [ "https://app.example.net/" ] 
+  allowed_audiences: [ "https://app.example.net/" ]
   allowed_signature_algorithms: [RS256] <3>
   pkc_jwkset_path: example.jwkset
   claims.principal: sub <4>
-  client_authentication.type: shared_secret <5>  
+  client_authentication.type: shared_secret <5>
 ------------------------------------------------------------
 <1> The realm `order` controls the order in which the configured realms are checked
     when authenticating a user.
@@ -72,7 +75,7 @@ JWT realms support two client authentication settings: `shared_secret` and `none
 
 IMPORTANT: Client authentication is enabled by default in JWT realms.
 
-If client authentication type is `shared_secret`, the client is authenticated 
+If client authentication type is `shared_secret`, the client is authenticated
 using a HTTP request header that must match a pre-configured secret value.
 The client must provide this shared secret with every request in the `ES-Client-Authentication` header.
 The value must be a case-insensitive match to the realm's <<secure-settings,secure setting>>.

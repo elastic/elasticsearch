@@ -25,10 +25,27 @@ public class SourceLoaderTests extends MapperServiceTestCase {
     public void testUnsupported() throws IOException {
         Exception e = expectThrows(
             IllegalArgumentException.class,
-            () -> createDocumentMapper(syntheticSourceMapping(b -> b.startObject("pt").field("type", "geo_point").endObject()))
+            () -> createDocumentMapper(syntheticSourceMapping(b -> b.startObject("txt").field("type", "text").endObject()))
         );
-        assertThat(e.getMessage(), equalTo("field [pt] of type [geo_point] doesn't support synthetic source"));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "field [txt] of type [text] doesn't support synthetic source unless"
+                    + " it has a sub-field of type [keyword] with doc values enabled"
+            )
+        );
     }
 
-    // NOCOMMIT assert sorted
+    public void testSorted() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+            b.startObject("foo").field("type", "keyword").endObject();
+            b.startObject("bar").field("type", "keyword").endObject();
+            b.startObject("baz").field("type", "keyword").endObject();
+        }));
+        assertThat(
+            syntheticSource(mapper, b -> b.field("foo", "over the lazy dog").field("bar", "the quick").field("baz", "brown fox jumped")),
+            equalTo("""
+                {"bar":"the quick","baz":"brown fox jumped","foo":"over the lazy dog"}""")
+        );
+    }
 }

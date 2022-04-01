@@ -499,12 +499,12 @@ public class ObjectMapper extends Mapper implements Cloneable {
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         List<SourceLoader.SyntheticFieldLoader> fields = new ArrayList<>();
-        for (Mapper sub : this) {
+        mappers.values().stream().sorted(Comparator.comparing(Mapper::name)).forEach(sub -> {
             SourceLoader.SyntheticFieldLoader subLoader = sub.syntheticFieldLoader();
             if (subLoader != null) {
                 fields.add(subLoader);
             }
-        }
+        });
         return new SourceLoader.SyntheticFieldLoader() {
             @Override
             public Leaf leaf(LeafReader reader) throws IOException {

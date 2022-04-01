@@ -26,14 +26,17 @@ class BytesReferenceStreamInput extends StreamInput {
     protected final BytesReference bytesReference;
     private BytesRefIterator iterator;
     private ByteBuffer slice;
-    private int sliceStartOffset; // the offset on the stream at which the current slice starts
+    private int sliceOffset;
+    private int totalOffset; // the offset on the stream at which the current slice starts
     private int mark = 0;
 
     BytesReferenceStreamInput(BytesReference bytesReference) throws IOException {
         this.bytesReference = bytesReference;
         this.iterator = bytesReference.iterator();
-        this.slice = convertToByteBuffer(iterator.next());
-        this.sliceStartOffset = 0;
+        BytesRef bytesRef = iterator.next();
+        this.slice = convertToByteBuffer(bytesRef);
+        this.sliceOffset = bytesRef.offset;
+        this.totalOffset = 0;
     }
 
     static ByteBuffer convertToByteBuffer(BytesRef bytesRef) {
@@ -191,7 +194,7 @@ class BytesReferenceStreamInput extends StreamInput {
     }
 
     protected int offset() {
-        return sliceStartOffset + slice.position();
+        return totalOffset + slice.position() - sliceOffset;
     }
 
     private void maybeNextSlice() throws IOException {
@@ -202,15 +205,17 @@ class BytesReferenceStreamInput extends StreamInput {
     }
 
     private void moveToNextSlice() throws IOException {
-        sliceStartOffset += slice.limit() - slice.arrayOffset();
-        slice = convertToByteBuffer(iterator.next());
-        while (slice != null && slice.hasRemaining() == false) {
+        totalOffset += slice.limit() - sliceOffset;
+        BytesRef bytesRef = iterator.next();
+        while (bytesRef != null && bytesRef.length == 0) {
             // rare corner case of a bytes reference that has a 0-length component
-            slice = convertToByteBuffer(iterator.next());
+            bytesRef = iterator.next();
         }
-        if (slice == null) {
+        if (bytesRef == null) {
             throw new EOFException();
         }
+        sliceOffset = bytesRef.offset;
+        slice = convertToByteBuffer(bytesRef);
     }
 
     @Override
@@ -285,6 +290,7 @@ class BytesReferenceStreamInput extends StreamInput {
             maybeNextSlice();
             int currentLen = Math.min(remaining, slice.remaining());
             remaining -= currentLen;
+            slice.position(slice.position() + currentLen);
             assert remaining >= 0 : "remaining: " + remaining;
         }
         return numBytesSkipped;
@@ -292,12 +298,14 @@ class BytesReferenceStreamInput extends StreamInput {
 
     @Override
     public void reset() throws IOException {
-        if (sliceStartOffset <= mark) {
-            slice.position(mark - sliceStartOffset);
+        if (totalOffset <= mark) {
+            slice.position(sliceOffset + (mark - totalOffset));
         } else {
             iterator = bytesReference.iterator();
-            slice = convertToByteBuffer(iterator.next());
-            sliceStartOffset = 0;
+            BytesRef bytesRef = iterator.next();
+            sliceOffset = bytesRef.offset;
+            slice = convertToByteBuffer(bytesRef);
+            totalOffset = 0;
             final long skipped = skip(mark);
             assert skipped == mark : skipped + " vs " + mark;
         }

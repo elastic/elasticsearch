@@ -8,6 +8,7 @@
 
 package org.elasticsearch.health;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -32,21 +33,25 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.concurrent.ExecutionException;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.util.CollectionUtils.appendToCopy;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class GetHealthActionIT extends ESIntegTestCase {
 
     private static final String DATA_COMPONENT_NAME = "test_data"; // prefixing with "test_" to avoid collisions with the real component
     private static final String CLUSTER_COORDINATION_COMPONENT_NAME = "test_cluster_coordination";
+    private static final String NONEXISTENT_COMPONENT_NAME = "test_nonexistent";
 
     private static final String ILM_INDICATOR_NAME = "ilm";
     private static final String SLM_INDICATOR_NAME = "slm";
     private static final String INSTANCE_HAS_MASTER_INDICATOR_NAME = "instance_has_master";
+    private static final String NONEXISTENT_INDICATOR_NAME = "test_nonexistent_indicator";
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -314,6 +319,18 @@ public class GetHealthActionIT extends ESIntegTestCase {
                     )
                 );
                 expectThrows(NoSuchElementException.class, () -> response.findComponent(CLUSTER_COORDINATION_COMPONENT_NAME));
+            }
+
+            // Next, test that if we ask for a nonexistent component and indicator, we get an exception
+            {
+                ExecutionException exception = expectThrows(
+                    ExecutionException.class,
+                    () -> client.execute(
+                        GetHealthAction.INSTANCE,
+                        new GetHealthAction.Request(NONEXISTENT_COMPONENT_NAME, NONEXISTENT_INDICATOR_NAME)
+                    ).get()
+                );
+                assertThat(exception.getCause(), instanceOf(ResourceNotFoundException.class));
             }
 
         } finally {

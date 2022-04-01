@@ -149,6 +149,6 @@ public class EsThreadPoolExecutor extends ThreadPoolExecutor {
     }
 
     protected Runnable unwrap(Runnable runnable) {
-        return contextHolder.unwrap(runnable);
+        return ThreadContext.unwrap(runnable);
     }
 }

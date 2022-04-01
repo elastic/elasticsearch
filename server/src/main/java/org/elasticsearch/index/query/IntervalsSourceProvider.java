@@ -127,7 +127,7 @@ public abstract class IntervalsSourceProvider implements NamedWriteable, ToXCont
             }
         }
 
-        private IntervalsSource intervals(
+        private static IntervalsSource intervals(
             MappedFieldType fieldType,
             String text,
             int maxGaps,

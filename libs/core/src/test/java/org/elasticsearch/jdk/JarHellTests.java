@@ -13,6 +13,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.lang.Runtime.Version;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -26,6 +27,9 @@ import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class JarHellTests extends ESTestCase {
 
@@ -132,25 +136,21 @@ public class JarHellTests extends ESTestCase {
 
     public void testRequiredJDKVersionTooOld() throws Exception {
         Path dir = createTempDir();
-        List<Integer> current = JavaVersion.current().getVersion();
+        List<Integer> current = Runtime.version().version();
         List<Integer> target = new ArrayList<>(current.size());
         for (int i = 0; i < current.size(); i++) {
             target.add(current.get(i) + 1);
         }
-        JavaVersion targetVersion = JavaVersion.parse(Strings.collectionToDelimitedString(target, "."));
+        Version targetVersion = Version.parse(Strings.collectionToDelimitedString(target, "."));
 
         Manifest manifest = new Manifest();
         Attributes attributes = manifest.getMainAttributes();
         attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0.0");
         attributes.put(new Attributes.Name("X-Compile-Target-JDK"), targetVersion.toString());
         Set<URL> jars = Collections.singleton(makeJar(dir, "foo.jar", manifest, "Foo.class"));
-        try {
-            JarHell.checkJarHell(jars, logger::debug);
-            fail("did not get expected exception");
-        } catch (IllegalStateException e) {
-            assertTrue(e.getMessage().contains("requires Java " + targetVersion.toString()));
-            assertTrue(e.getMessage().contains("your system: " + JavaVersion.current().toString()));
-        }
+        var e = expectThrows(IllegalStateException.class, () -> JarHell.checkJarHell(jars, logger::debug));
+        assertThat(e.getMessage(), containsString("requires Java " + targetVersion));
+        assertThat(e.getMessage(), containsString("your system: " + Runtime.version().toString()));
     }
 
     public void testBadJDKVersionInJar() throws Exception {
@@ -160,18 +160,8 @@ public class JarHellTests extends ESTestCase {
         attributes.put(Attributes.Name.MANIFEST_VERSION, "1.0.0");
         attributes.put(new Attributes.Name("X-Compile-Target-JDK"), "bogus");
         Set<URL> jars = Collections.singleton(makeJar(dir, "foo.jar", manifest, "Foo.class"));
-        try {
-            JarHell.checkJarHell(jars, logger::debug);
-            fail("did not get expected exception");
-        } catch (IllegalStateException e) {
-            assertTrue(
-                e.getMessage()
-                    .equals(
-                        "version string must be a sequence of nonnegative decimal integers separated "
-                            + "by \".\"'s and may have leading zeros but was bogus"
-                    )
-            );
-        }
+        var e = expectThrows(IllegalArgumentException.class, () -> JarHell.checkJarHell(jars, logger::debug));
+        assertThat(e.getMessage(), equalTo("Invalid version string: 'bogus'"));
     }
 
     public void testRequiredJDKVersionIsOK() throws Exception {
@@ -184,24 +174,10 @@ public class JarHellTests extends ESTestCase {
         JarHell.checkJarHell(jars, logger::debug);
     }
 
-    public void testValidVersions() {
-        String[] versions = new String[] { "1.7", "1.7.0", "0.1.7", "1.7.0.80" };
-        for (String version : versions) {
-            try {
-                JarHell.checkVersionFormat(version);
-            } catch (IllegalStateException e) {
-                fail(version + " should be accepted as a valid version format");
-            }
-        }
-    }
-
     public void testInvalidVersions() {
         String[] versions = new String[] { "", "1.7.0_80", "1.7." };
         for (String version : versions) {
-            try {
-                JarHell.checkVersionFormat(version);
-                fail("\"" + version + "\"" + " should be rejected as an invalid version format");
-            } catch (IllegalStateException e) {}
+            expectThrows(IllegalArgumentException.class, () -> JarHell.checkJavaVersion("foo", version));
         }
     }
 

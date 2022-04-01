@@ -441,7 +441,7 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
         Runnable stopTask = () -> stopDeploymentAsync(
             task,
             "model failed to load; reason [" + ex.getMessage() + "]",
-            ActionListener.wrap(r -> {}, e -> {})
+            ActionListener.noop()
         );
         updateStoredState(
             task.getModelId(),

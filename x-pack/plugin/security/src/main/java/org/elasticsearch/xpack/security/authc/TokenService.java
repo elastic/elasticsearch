@@ -1870,7 +1870,7 @@ public final class TokenService {
         };
     }
 
-    private Tuple<UserToken, String> filterAndParseHit(SearchHit hit, @Nullable Predicate<Map<String, Object>> filter)
+    private static Tuple<UserToken, String> filterAndParseHit(SearchHit hit, @Nullable Predicate<Map<String, Object>> filter)
         throws IllegalStateException, DateTimeException {
         final Map<String, Object> source = hit.getSourceAsMap();
         if (source == null) {
@@ -1887,8 +1887,10 @@ public final class TokenService {
      * @return A {@link Tuple} of access-token and refresh-token-id or null if a Predicate is defined and the userToken source doesn't
      * satisfy it
      */
-    private Tuple<UserToken, String> parseTokensFromDocument(Map<String, Object> source, @Nullable Predicate<Map<String, Object>> filter)
-        throws IllegalStateException, DateTimeException {
+    private static Tuple<UserToken, String> parseTokensFromDocument(
+        Map<String, Object> source,
+        @Nullable Predicate<Map<String, Object>> filter
+    ) throws IllegalStateException, DateTimeException {
         @SuppressWarnings("unchecked")
         final Map<String, Object> refreshTokenMap = (Map<String, Object>) source.get("refresh_token");
         final String hashedRefreshToken = refreshTokenMap != null ? (String) refreshTokenMap.get("token") : null;
@@ -2106,7 +2108,7 @@ public final class TokenService {
         }
     }
 
-    private void ensureEncryptionCiphersSupported() throws NoSuchPaddingException, NoSuchAlgorithmException {
+    private static void ensureEncryptionCiphersSupported() throws NoSuchPaddingException, NoSuchAlgorithmException {
         Cipher.getInstance(ENCRYPTION_CIPHER);
         SecretKeyFactory.getInstance(KDF_ALGORITHM);
     }
@@ -2225,7 +2227,7 @@ public final class TokenService {
     /**
      * Logs an exception concerning a specific Token at TRACE level (if enabled)
      */
-    private <E extends Throwable> E traceLog(String action, String identifier, E exception) {
+    private static <E extends Throwable> E traceLog(String action, String identifier, E exception) {
         if (logger.isTraceEnabled()) {
             if (exception instanceof final ElasticsearchException esEx) {
                 final Object detail = esEx.getHeader("error_description");
@@ -2244,7 +2246,7 @@ public final class TokenService {
     /**
      * Logs an exception at TRACE level (if enabled)
      */
-    private <E extends Throwable> E traceLog(String action, E exception) {
+    private static <E extends Throwable> E traceLog(String action, E exception) {
         if (logger.isTraceEnabled()) {
             if (exception instanceof final ElasticsearchException esEx) {
                 final Object detail = esEx.getHeader("error_description");
@@ -2260,7 +2262,7 @@ public final class TokenService {
         return exception;
     }
 
-    boolean isExpiredTokenException(ElasticsearchSecurityException e) {
+    static boolean isExpiredTokenException(ElasticsearchSecurityException e) {
         final List<String> headers = e.getHeader("WWW-Authenticate");
         return headers != null && headers.stream().anyMatch(EXPIRED_TOKEN_WWW_AUTH_VALUE::equals);
     }
@@ -2293,7 +2295,7 @@ public final class TokenService {
         }
     }
 
-    private class KeyComputingRunnable extends AbstractRunnable {
+    private static class KeyComputingRunnable extends AbstractRunnable {
 
         private final BytesKey decodedSalt;
         private final KeyAndCache keyAndCache;
@@ -2402,7 +2404,7 @@ public final class TokenService {
         return newTokenMetadata(keyCache.currentTokenKeyHash, keyCache.cache.values());
     }
 
-    private TokenMetadata newTokenMetadata(BytesKey activeTokenKey, Iterable<KeyAndCache> iterable) {
+    private static TokenMetadata newTokenMetadata(BytesKey activeTokenKey, Iterable<KeyAndCache> iterable) {
         List<KeyAndTimestamp> list = new ArrayList<>();
         for (KeyAndCache v : iterable) {
             list.add(v.keyAndTimestamp);

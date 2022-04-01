@@ -223,7 +223,7 @@ dependencies {
   api 'commons-codec:commons-codec:1.11'
   api 'org.apache.commons:commons-compress:1.19'
   api 'org.apache.ant:ant:1.10.8'
-  api 'com.netflix.nebula:gradle-info-plugin:11.1.0'
+  api 'com.netflix.nebula:gradle-info-plugin:11.3.3'
   api 'org.apache.rat:apache-rat:0.11'
   api "net.java.dev.jna:jna:${versions.getProperty('jna')}"
   api 'gradle.plugin.com.github.johnrengelman:shadow:7.1.2'
@@ -300,7 +300,14 @@ tasks.register("bootstrapPerformanceTests", Copy) {
   from('performance')
   into('build/performanceTests')
   def root = file('..')
-  filter(ReplaceTokens, tokens: [testGitCommit:GitInfo.gitInfo(root).revision])
+  filter(ReplaceTokens, tokens: [
+          testGitCommit:GitInfo.gitInfo(root).revision,
+          masterWrapper:"${ -> resolveMasterWrapperVersion()}".toString(),
+          branchWrapper:"${-> new File(root, "build-tools-internal/src/main/resources/minimumGradleVersion").text}".toString()])
+}
+
+def resolveMasterWrapperVersion() {
+  new URL("https://raw.githubusercontent.com/elastic/elasticsearch/master/build-tools-internal/src/main/resources/minimumGradleVersion").text.trim()
 }
 
 abstract class JacksonAlignmentRule implements ComponentMetadataRule {

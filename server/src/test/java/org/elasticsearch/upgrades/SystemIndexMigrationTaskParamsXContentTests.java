@@ -28,7 +28,7 @@ public class SystemIndexMigrationTaskParamsXContentTests extends AbstractXConten
 
     @Override
     protected boolean supportsUnknownFields() {
-        return false;
+        return true;
     }
 
     @Override

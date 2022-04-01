@@ -1871,7 +1871,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         }
         String token = tokenFuture.get().getAccessToken();
         when(client.prepareMultiGet()).thenReturn(new MultiGetRequestBuilder(client, MultiGetAction.INSTANCE));
-        mockGetTokenFromId(tokenService, userTokenId, expected, false, client);
+        mockGetTokenFromId(tokenService, userTokenId, expected, Map.of(), false, client);
         when(securityIndex.freeze()).thenReturn(securityIndex);
         when(securityIndex.isAvailable()).thenReturn(true);
         when(securityIndex.indexExists()).thenReturn(true);
@@ -1990,7 +1990,7 @@ public class AuthenticationServiceTests extends ESTestCase {
             tokenService.createOAuth2Tokens(userTokenId, refreshToken, expected, originatingAuth, Collections.emptyMap(), tokenFuture);
         }
         String token = tokenFuture.get().getAccessToken();
-        mockGetTokenFromId(tokenService, userTokenId, expected, true, client);
+        mockGetTokenFromId(tokenService, userTokenId, expected, Map.of(), true, client);
         doAnswer(invocationOnMock -> {
             ((Runnable) invocationOnMock.getArguments()[1]).run();
             return null;

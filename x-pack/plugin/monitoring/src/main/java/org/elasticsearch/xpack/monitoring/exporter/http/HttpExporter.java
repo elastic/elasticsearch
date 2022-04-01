@@ -35,7 +35,6 @@ import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
@@ -84,7 +83,7 @@ public class HttpExporter extends Exporter {
 
     public static final String TYPE = "http";
 
-    private static Setting.AffixSettingDependency HTTP_TYPE_DEPENDENCY = new Setting.AffixSettingDependency() {
+    private static final Setting.AffixSettingDependency HTTP_TYPE_DEPENDENCY = new Setting.AffixSettingDependency() {
         @Override
         public Setting.AffixSetting<String> getSetting() {
             return Exporter.TYPE_SETTING;
@@ -303,7 +302,7 @@ public class HttpExporter extends Exporter {
      * <p>
      * Headers are blacklisted if they have the opportunity to break things and we won't be guaranteed to overwrite them.
      */
-    public static final Set<String> BLACKLISTED_HEADERS = Collections.unmodifiableSet(Sets.newHashSet("Content-Length", "Content-Type"));
+    public static final Set<String> BLACKLISTED_HEADERS = Set.of("Content-Length", "Content-Type");
     /**
      * ES level timeout used when checking and writing templates (used to speed up tests)
      */

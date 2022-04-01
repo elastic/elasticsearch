@@ -166,7 +166,7 @@ public abstract class Step {
 
         @Override
         public String toString() {
-            return Strings.toString(this);
+            return "{\"phase\":\"" + phase + "\",\"action\":\"" + action + "\",\"name\":\"" + name + "\"}";
         }
 
         @Override

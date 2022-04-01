@@ -275,7 +275,7 @@ final class IndexDiskUsageAnalyzer {
         }
     }
 
-    private void readProximity(Terms terms, PostingsEnum postings) throws IOException {
+    private static void readProximity(Terms terms, PostingsEnum postings) throws IOException {
         if (terms.hasPositions()) {
             for (int pos = 0; pos < postings.freq(); pos++) {
                 postings.nextPosition();
@@ -286,7 +286,7 @@ final class IndexDiskUsageAnalyzer {
         }
     }
 
-    private BlockTermState getBlockTermState(TermsEnum termsEnum, BytesRef term) throws IOException {
+    private static BlockTermState getBlockTermState(TermsEnum termsEnum, BytesRef term) throws IOException {
         if (term != null && termsEnum.seekExact(term)) {
             final TermState termState = termsEnum.termState();
             if (termState instanceof final Lucene90PostingsFormat.IntBlockTermState blockTermState) {

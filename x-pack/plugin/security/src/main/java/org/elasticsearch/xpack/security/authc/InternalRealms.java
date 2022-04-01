@@ -15,7 +15,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.Realm;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
@@ -83,9 +82,7 @@ public final class InternalRealms {
         realms.put(SAML_TYPE, Security.SAML_REALM_FEATURE);
         realms.put(KERBEROS_TYPE, Security.KERBEROS_REALM_FEATURE);
         realms.put(OIDC_TYPE, Security.OIDC_REALM_FEATURE);
-        if (XPackSettings.JWT_REALM_FEATURE_FLAG_ENABLED) {
-            realms.put(JWT_TYPE, Security.JWT_REALM_FEATURE);
-        }
+        realms.put(JWT_TYPE, Security.JWT_REALM_FEATURE);
         LICENSED_REALMS = Map.copyOf(realms);
     }
 

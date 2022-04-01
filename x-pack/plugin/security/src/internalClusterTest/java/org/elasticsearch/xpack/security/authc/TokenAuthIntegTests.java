@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -19,6 +18,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestHighLevelClient;
@@ -218,7 +218,9 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                 assertThat(invalidateResponseTwo.getPreviouslyInvalidatedTokens(), equalTo(0));
                 assertThat(invalidateResponseTwo.getErrors(), empty());
             }
-            restClient.indices().refresh(new RefreshRequest(SecuritySystemIndices.SECURITY_TOKENS_ALIAS), SECURITY_REQUEST_OPTIONS);
+            Request refreshRequest = new Request("POST", "/" + SecuritySystemIndices.SECURITY_TOKENS_ALIAS + "/_refresh");
+            refreshRequest.setOptions(SECURITY_REQUEST_OPTIONS);
+            restClient.getLowLevelClient().performRequest(refreshRequest);
             SearchResponse searchResponse = restClient.search(
                 new SearchRequest(SecuritySystemIndices.SECURITY_TOKENS_ALIAS).source(
                     SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("doc_type", "token")).terminateAfter(1)
@@ -628,7 +630,6 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertThat(e.getCause().getMessage(), containsString("token has already been refreshed more than 30 seconds in the past"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55816")
     public void testRefreshingMultipleTimesWithinWindowSucceeds() throws Exception {
         final Clock clock = Clock.systemUTC();
         final List<String> tokens = Collections.synchronizedList(new ArrayList<>());
@@ -740,8 +741,10 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertThat(e.getCause().getMessage(), containsString("tokens must be refreshed by the creating client"));
     }
 
-    public void testCreateThenRefreshAsDifferentUser() throws IOException {
-        final RequestOptions superuserOptions = RequestOptions.DEFAULT.toBuilder()
+    public void testCreateThenRefreshAsRunAsUser() throws IOException {
+        final String nativeOtherUser = "other_user";
+        getSecurityClient().putUser(new User(nativeOtherUser, "superuser"), SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
+        final RequestOptions runAsOtherOptions = RequestOptions.DEFAULT.toBuilder()
             .addHeader(
                 "Authorization",
                 UsernamePasswordToken.basicAuthHeaderValue(
@@ -749,7 +752,15 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                     SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING
                 )
             )
+            .addHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, nativeOtherUser)
             .build();
+        final RequestOptions otherOptions = RequestOptions.DEFAULT.toBuilder()
+            .addHeader(
+                "Authorization",
+                UsernamePasswordToken.basicAuthHeaderValue(nativeOtherUser, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)
+            )
+            .build();
+
         final RestHighLevelClient restClient = new TestRestHighLevelClient();
         CreateTokenResponse createTokenResponse = restClient.security()
             .createToken(
@@ -757,19 +768,17 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                     SecuritySettingsSource.TEST_USER_NAME,
                     SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()
                 ),
-                superuserOptions
+                randomBoolean() ? runAsOtherOptions : otherOptions
             );
         assertNotNull(createTokenResponse.getRefreshToken());
 
         CreateTokenResponse refreshResponse = restClient.security()
-            .createToken(CreateTokenRequest.refreshTokenGrant(createTokenResponse.getRefreshToken()), superuserOptions);
+            .createToken(
+                CreateTokenRequest.refreshTokenGrant(createTokenResponse.getRefreshToken()),
+                randomBoolean() ? runAsOtherOptions : otherOptions
+            );
         assertNotEquals(refreshResponse.getAccessToken(), createTokenResponse.getAccessToken());
         assertNotEquals(refreshResponse.getRefreshToken(), createTokenResponse.getRefreshToken());
-
-        final Map<String, Object> authenticateResponse = getSecurityClient(superuserOptions).authenticate();
-
-        assertThat(authenticateResponse, hasEntry(User.Fields.USERNAME.getPreferredName(), SecuritySettingsSource.ES_TEST_ROOT_USER));
-        assertThat(authenticateResponse, hasEntry(User.Fields.AUTHENTICATION_TYPE.getPreferredName(), "realm"));
 
         assertAuthenticateWithToken(createTokenResponse.getAccessToken(), SecuritySettingsSource.TEST_USER_NAME);
         assertAuthenticateWithToken(refreshResponse.getAccessToken(), SecuritySettingsSource.TEST_USER_NAME);

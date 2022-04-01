@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.IncompatibleClusterStateVersionException;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfiguration;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.Compressor;
@@ -46,6 +47,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -64,12 +66,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
         final BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
         when(transportService.newNetworkBytesStream()).then(invocation -> new RecyclerBytesStreamOutput(recycler));
 
-        final PublicationTransportHandler handler = new PublicationTransportHandler(
-            transportService,
-            writableRegistry(),
-            pu -> null,
-            (pu, l) -> {}
-        );
+        final PublicationTransportHandler handler = new PublicationTransportHandler(transportService, writableRegistry(), pu -> null);
 
         final DiscoveryNode otherNode = new DiscoveryNode("otherNode", buildNewFakeTransportAddress(), Version.CURRENT);
         final ClusterState clusterState = CoordinationStateTests.clusterState(
@@ -134,7 +131,13 @@ public class PublicationTransportHandlerTests extends ESTestCase {
             threadPool.getThreadContext().markAsSystemContext();
 
             final boolean simulateFailures = randomBoolean();
-            final DiscoveryNode localNode = new DiscoveryNode("localNode", buildNewFakeTransportAddress(), Version.CURRENT);
+            final DiscoveryNode localNode = new DiscoveryNode(
+                "localNode",
+                buildNewFakeTransportAddress(),
+                Collections.emptyMap(),
+                Set.of(DiscoveryNodeRole.MASTER_ROLE),
+                Version.CURRENT
+            );
             final BytesRefRecycler recycler = new BytesRefRecycler(new MockPageCacheRecycler(Settings.EMPTY));
             final MockTransport mockTransport = new MockTransport() {
 
@@ -188,12 +191,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                 Collections.emptySet()
             );
-            final PublicationTransportHandler handler = new PublicationTransportHandler(
-                transportService,
-                writableRegistry(),
-                pu -> null,
-                (pu, l) -> {}
-            );
+            final PublicationTransportHandler handler = new PublicationTransportHandler(transportService, writableRegistry(), pu -> null);
             transportService.start();
             transportService.acceptIncomingRequests();
 
@@ -293,7 +291,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
                         discoveryNode,
                         new PublishRequest(nextClusterState),
                         ActionListener.runAfter(ActionListener.wrap(r -> {}, e -> {
-                            assert simulateFailures;
+                            assert simulateFailures : e;
                             final Throwable inner = ExceptionsHelper.unwrap(e, IOException.class);
                             assert inner instanceof IOException : e;
                             assertThat(inner.getMessage(), equalTo("simulated failure"));

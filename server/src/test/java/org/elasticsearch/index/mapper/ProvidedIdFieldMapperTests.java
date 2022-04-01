@@ -88,7 +88,7 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
         );
     }
 
-    public void testDescription() throws IOException {
+    public void testSourceDescription() throws IOException {
         String id = randomAlphaOfLength(4);
         assertThat(
             ProvidedIdFieldMapper.NO_FIELD_DATA.documentDescription(
@@ -104,4 +104,10 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
         );
     }
 
+    public void testParsedDescription() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {}));
+        String id = randomAlphaOfLength(4);
+        ParsedDocument document = mapper.parse(source(id, b -> {}, null));
+        assertThat(ProvidedIdFieldMapper.NO_FIELD_DATA.documentDescription(document), equalTo("[" + id + "]"));
+    }
 }

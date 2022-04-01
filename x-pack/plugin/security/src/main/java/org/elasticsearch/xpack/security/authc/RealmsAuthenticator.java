@@ -88,7 +88,7 @@ class RealmsAuthenticator implements Authenticator {
      * no exception was caught during the extraction process and may be called with a {@code null} token.
      */
     // pkg-private accessor testing token extraction with a consumer
-    AuthenticationToken extractToken(Context context) {
+    static AuthenticationToken extractToken(Context context) {
         try {
             for (Realm realm : context.getDefaultOrderedRealmList()) {
                 final AuthenticationToken token = realm.token(context.getThreadContext());
@@ -247,7 +247,7 @@ class RealmsAuthenticator implements Authenticator {
     // This method assumes the RealmsAuthenticator is the last one in the chain and the whole chain fails if
     // the request cannot be authenticated with the realms. If this is not true in the future, the method
     // needs to be updated as well.
-    private void consumeNullUser(
+    private static void consumeNullUser(
         Context context,
         Map<Realm, Tuple<String, Exception>> messages,
         ActionListener<AuthenticationResult<Authentication>> listener

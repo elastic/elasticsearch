@@ -53,6 +53,18 @@ setup:
           extent: 256
 
 ---
+"buffer param":
+  - do:
+      search_mvt:
+        index: locations
+        field: location
+        x: 0
+        y: 0
+        zoom: 0
+        body:
+          buffer: 10
+
+---
 "exact bounds":
   - do:
       search_mvt:

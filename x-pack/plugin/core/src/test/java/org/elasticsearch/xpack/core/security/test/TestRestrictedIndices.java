@@ -9,6 +9,7 @@
 package org.elasticsearch.xpack.core.security.test;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
@@ -171,12 +172,15 @@ public class TestRestrictedIndices {
         RESOLVER = TestIndexNameExpressionResolver.newInstance(systemIndices);
     }
 
-    private static SystemIndexDescriptor.Builder getInitializedDescriptorBuilder() {
-        return SystemIndexDescriptor.builder().setMappings(mockMappings()).setSettings(Settings.EMPTY).setVersionMetaKey("version");
+    private static SystemIndexDescriptor.Builder getInitializedDescriptorBuilder(int indexFormat) {
+        return SystemIndexDescriptor.builder()
+            .setMappings(mockMappings())
+            .setSettings(Settings.builder().put(IndexMetadata.INDEX_FORMAT_SETTING.getKey(), indexFormat).build())
+            .setVersionMetaKey("version");
     }
 
     private static SystemIndexDescriptor getMainSecurityDescriptor() {
-        return getInitializedDescriptorBuilder()
+        return getInitializedDescriptorBuilder(7)
             // This can't just be `.security-*` because that would overlap with the tokens index pattern
             .setIndexPattern(".security-[0-9]+*")
             .setPrimaryIndex(INTERNAL_SECURITY_MAIN_INDEX_7)
@@ -189,7 +193,7 @@ public class TestRestrictedIndices {
     }
 
     private static SystemIndexDescriptor getSecurityTokensDescriptor() {
-        return getInitializedDescriptorBuilder().setIndexPattern(".security-tokens-[0-9]+*")
+        return getInitializedDescriptorBuilder(7).setIndexPattern(".security-tokens-[0-9]+*")
             .setPrimaryIndex(INTERNAL_SECURITY_TOKENS_INDEX_7)
             .setDescription("Contains auth token data")
             .setAliasName(SECURITY_TOKENS_ALIAS)
@@ -200,9 +204,10 @@ public class TestRestrictedIndices {
     }
 
     private static SystemIndexDescriptor getAsyncSearchDescriptor() {
-        return getInitializedDescriptorBuilder().setIndexPattern(XPackPlugin.ASYNC_RESULTS_INDEX + "*")
+        return getInitializedDescriptorBuilder(0).setIndexPattern(XPackPlugin.ASYNC_RESULTS_INDEX + "*")
             .setDescription("Async search results")
             .setPrimaryIndex(XPackPlugin.ASYNC_RESULTS_INDEX)
+            .setIndexFormat(0)
             .setOrigin(ASYNC_SEARCH_ORIGIN)
             .build();
     }

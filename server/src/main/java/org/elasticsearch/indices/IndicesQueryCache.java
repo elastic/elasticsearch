@@ -242,7 +242,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         }
     }
 
-    private boolean empty(Stats stats) {
+    private static boolean empty(Stats stats) {
         if (stats == null) {
             return true;
         }

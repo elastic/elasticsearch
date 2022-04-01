@@ -35,6 +35,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.DirectoryStream;
+import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
@@ -81,7 +82,9 @@ public abstract class MetadataStateFormat<T> {
         } catch (FileNotFoundException | NoSuchFileException ignored) {
 
         }
-        logger.trace("cleaned up {}", stateLocation.resolve(fileName));
+        if (logger.isTraceEnabled()) {
+            logger.trace("cleaned up {}", stateLocation.resolve(fileName));
+        }
     }
 
     private static void deleteFileIgnoreExceptions(Path stateLocation, Directory directory, String fileName) {
@@ -95,25 +98,12 @@ public abstract class MetadataStateFormat<T> {
     private void writeStateToFirstLocation(final T state, Path stateLocation, Directory stateDir, String tmpFileName)
         throws WriteStateException {
         try {
-            deleteFileIfExists(stateLocation, stateDir, tmpFileName);
-            try (IndexOutput out = stateDir.createOutput(tmpFileName, IOContext.DEFAULT)) {
-                CodecUtil.writeHeader(out, STATE_FILE_CODEC, CURRENT_VERSION);
-                out.writeInt(FORMAT.index());
-                try (XContentBuilder builder = newXContentBuilder(FORMAT, new IndexOutputOutputStream(out) {
-                    @Override
-                    public void close() {
-                        // this is important since some of the XContentBuilders write bytes on close.
-                        // in order to write the footer we need to prevent closing the actual index input.
-                    }
-                })) {
-                    builder.startObject();
-                    toXContent(builder, state);
-                    builder.endObject();
-                }
-                CodecUtil.writeFooter(out);
+            try {
+                doWriteToFirstLocation(state, stateDir, tmpFileName);
+            } catch (FileAlreadyExistsException fae) {
+                deleteFileIfExists(stateLocation, stateDir, tmpFileName);
+                doWriteToFirstLocation(state, stateDir, tmpFileName);
             }
-
-            stateDir.sync(Collections.singleton(tmpFileName));
         } catch (Exception e) {
             throw new WriteStateException(
                 false,
@@ -121,6 +111,27 @@ public abstract class MetadataStateFormat<T> {
                 e
             );
         }
+    }
+
+    private void doWriteToFirstLocation(T state, Directory stateDir, String tmpFileName) throws IOException {
+        try (IndexOutput out = stateDir.createOutput(tmpFileName, IOContext.DEFAULT)) {
+            CodecUtil.writeHeader(out, STATE_FILE_CODEC, CURRENT_VERSION);
+            out.writeInt(FORMAT.index());
+            try (XContentBuilder builder = newXContentBuilder(FORMAT, new IndexOutputOutputStream(out) {
+                @Override
+                public void close() {
+                    // this is important since some of the XContentBuilders write bytes on close.
+                    // in order to write the footer we need to prevent closing the actual index input.
+                }
+            })) {
+                builder.startObject();
+                toXContent(builder, state);
+                builder.endObject();
+            }
+            CodecUtil.writeFooter(out);
+        }
+
+        stateDir.sync(Collections.singleton(tmpFileName));
     }
 
     private static void copyStateToExtraLocations(List<Tuple<Path, Directory>> stateDirs, String tmpFileName) throws WriteStateException {
@@ -230,6 +241,7 @@ public abstract class MetadataStateFormat<T> {
         final String tmpFileName = fileName + ".tmp";
         List<Tuple<Path, Directory>> directories = new ArrayList<>();
 
+        boolean renamesSuccessful = false;
         try {
             for (Path location : locations) {
                 Path stateLocation = location.resolve(STATE_DIR_NAME);
@@ -244,6 +256,7 @@ public abstract class MetadataStateFormat<T> {
             copyStateToExtraLocations(directories, tmpFileName);
             performRenames(tmpFileName, fileName, directories);
             performStateDirectoriesFsync(directories);
+            renamesSuccessful = true;
         } catch (WriteStateException e) {
             if (cleanup) {
                 cleanupOldFiles(oldGenerationId, locations);
@@ -251,7 +264,9 @@ public abstract class MetadataStateFormat<T> {
             throw e;
         } finally {
             for (Tuple<Path, Directory> pathAndDirectory : directories) {
-                deleteFileIgnoreExceptions(pathAndDirectory.v1(), pathAndDirectory.v2(), tmpFileName);
+                if (renamesSuccessful == false) {
+                    deleteFileIgnoreExceptions(pathAndDirectory.v1(), pathAndDirectory.v2(), tmpFileName);
+                }
                 IOUtils.closeWhileHandlingException(pathAndDirectory.v2());
             }
         }
@@ -411,7 +426,9 @@ public abstract class MetadataStateFormat<T> {
         for (Path stateFile : stateFiles) {
             try {
                 T state = read(namedXContentRegistry, stateFile);
-                logger.trace("generation id [{}] read from [{}]", generation, stateFile.getFileName());
+                if (logger.isTraceEnabled()) {
+                    logger.trace("generation id [{}] read from [{}]", generation, stateFile.getFileName());
+                }
                 return state;
             } catch (Exception e) {
                 exceptions.add(new IOException("failed to read " + stateFile, e));

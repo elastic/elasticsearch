@@ -156,7 +156,7 @@ teardown:
   - is_true: "$profile.enabled"
 
 ---
-"Test search user profile":
+"Test suggest user profile":
   - do:
       security.activate_user_profile:
         body: >
@@ -168,7 +168,7 @@ teardown:
   - set: { uid: profile_uid }
 
   - do:
-      security.search_user_profiles:
+      security.suggest_user_profiles:
         body: >
           {
             "name": "joe",

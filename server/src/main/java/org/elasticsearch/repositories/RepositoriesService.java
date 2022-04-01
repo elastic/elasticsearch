@@ -213,7 +213,8 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                             if (existing == null) {
                                 existing = RepositoriesService.this.internalRepositories.get(request.name());
                             }
-                            assert existing == null || existing.getMetadata() == repositoryMetadata;
+                            assert existing != null : "repository [" + newRepositoryMetadata.name() + "] must exist";
+                            assert existing.getMetadata() == repositoryMetadata;
                             final RepositoryMetadata updatedMetadata;
                             if (canUpdateInPlace(newRepositoryMetadata, existing)) {
                                 if (repositoryMetadata.settings().equals(newRepositoryMetadata.settings())) {
@@ -523,10 +524,11 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                         logger.warn(() -> new ParameterizedMessage("failed to create repository [{}]", repositoryMetadata.name()), ex);
                     }
                 }
-                if (repository != null) {
-                    logger.debug("registering repository [{}]", repositoryMetadata.name());
-                    builder.put(repositoryMetadata.name(), repository);
+                if (repository == null) {
+                    repository = new DummyRepository(repositoryMetadata);
                 }
+                logger.debug("registering repository [{}]", repositoryMetadata.name());
+                builder.put(repositoryMetadata.name(), repository);
             }
             for (Repository repo : builder.values()) {
                 repo.updateState(state);
@@ -539,10 +541,9 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     }
 
     private static boolean canUpdateInPlace(RepositoryMetadata updatedMetadata, Repository repository) {
-        assert repository == null || updatedMetadata.name().equals(repository.getMetadata().name());
-        return repository != null
-            || repository.getMetadata().type().equals(updatedMetadata.type())
-                && repository.canUpdateInPlace(updatedMetadata.settings(), Collections.emptySet());
+        assert updatedMetadata.name().equals(repository.getMetadata().name());
+        return repository.getMetadata().type().equals(updatedMetadata.type())
+            && repository.canUpdateInPlace(updatedMetadata.settings(), Collections.emptySet());
     }
 
     /**

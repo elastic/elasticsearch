@@ -85,6 +85,8 @@ public class RepositoriesServiceTests extends ESTestCase {
         Map<String, Repository.Factory> typesRegistry = Map.of(
             TestRepository.TYPE,
             TestRepository::new,
+            UnstableRepository.TYPE,
+            UnstableRepository::new,
             MeteredRepositoryTypeA.TYPE,
             metadata -> new MeteredRepositoryTypeA(metadata, clusterService),
             MeteredRepositoryTypeB.TYPE,
@@ -208,6 +210,78 @@ public class RepositoriesServiceTests extends ESTestCase {
             @Override
             public void onFailure(Exception e) {
                 assertThatException(e, RepositoryException.class, equalTo("[" + repoName + "] repository type [unknown] does not exist"));
+            }
+        });
+    }
+
+    // test DummyRepository is returned if repository failed to create
+    public void testHandlesCreationFailureWhenApplyingClusterState() {
+        var repoName = randomAlphaOfLengthBetween(10, 25);
+
+        var clusterState = createClusterStateWithRepo(repoName, UnstableRepository.TYPE);
+        repositoriesService.applyClusterState(new ClusterChangedEvent("put unstable repository", clusterState, emptyState()));
+
+        var repo = repositoriesService.repository(repoName);
+        assertThat(repo, isA(DummyRepository.class));
+    }
+
+    // test DummyRepository can be replaced if current repo is created successfully
+    public void testReplaceDummyRepositoryWhenCreationSuccess() {
+        var repoName = randomAlphaOfLengthBetween(10, 25);
+
+        var clusterState = createClusterStateWithRepo(repoName, UnstableRepository.TYPE);
+        repositoriesService.applyClusterState(new ClusterChangedEvent("put unstable repository", clusterState, emptyState()));
+
+        var repo = repositoriesService.repository(repoName);
+        assertThat(repo, isA(DummyRepository.class));
+
+        clusterState = createClusterStateWithRepo(repoName, TestRepository.TYPE);
+        repositoriesService.applyClusterState(new ClusterChangedEvent("put test repository", clusterState, emptyState()));
+        repo = repositoriesService.repository(repoName);
+        assertThat(repo, isA(TestRepository.class));
+    }
+
+    // test remove DummyRepository when current repo is removed in cluster state
+    public void testRemoveDummyRepositoryTypeWhenApplyingClusterState() {
+        var repoName = randomAlphaOfLengthBetween(10, 25);
+
+        var clusterState = createClusterStateWithRepo(repoName, UnstableRepository.TYPE);
+        repositoriesService.applyClusterState(new ClusterChangedEvent("put unstable repository", clusterState, emptyState()));
+        repositoriesService.applyClusterState(new ClusterChangedEvent("removing repo", emptyState(), clusterState));
+
+        assertThatThrows(
+            () -> repositoriesService.repository(repoName),
+            RepositoryMissingException.class,
+            equalTo("[" + repoName + "] missing")
+        );
+    }
+
+    // DummyRepository is created when current node is non-master node and failed to create repository by applying cluster state from master
+    // When current node become master node later and same repository is put again, current node can create repository successfully and
+    // replace previous DummyRepository
+    public void testRegisterRepositorySuccessAfterCreationFailed() {
+        // 1. repository creation failed when current node is non-master node and apply cluster state from master
+        var repoName = randomAlphaOfLengthBetween(10, 25);
+
+        var clusterState = createClusterStateWithRepo(repoName, UnstableRepository.TYPE);
+        repositoriesService.applyClusterState(new ClusterChangedEvent("put unstable repository", clusterState, emptyState()));
+
+        var repo = repositoriesService.repository(repoName);
+        assertThat(repo, isA(DummyRepository.class));
+
+        // 2. repository creation successfully when current node become master node and repository is put again
+        var request = new PutRepositoryRequest().name(repoName).type(TestRepository.TYPE);
+
+        repositoriesService.registerRepository(request, new ActionListener<>() {
+            @Override
+            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                assertTrue(acknowledgedResponse.isAcknowledged());
+                assertThat(repositoriesService.repository(repoName), isA(TestRepository.class));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                fail("[" + repoName + "] repository type [test] faield to create");
             }
         });
     }
@@ -388,6 +462,15 @@ public class RepositoriesServiceTests extends ESTestCase {
         @Override
         public void close() {
             isClosed = true;
+        }
+    }
+
+    private static class UnstableRepository extends TestRepository {
+        private static final String TYPE = "unstable";
+
+        private UnstableRepository(RepositoryMetadata metadata) {
+            super(metadata);
+            throw new RepositoryException(TYPE, "failed to create unstable repository");
         }
     }
 

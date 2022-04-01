@@ -745,7 +745,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
         }, newExecutor());
     }
 
-    public void deleteStoredScript(
+    public static void deleteStoredScript(
         ClusterService clusterService,
         DeleteStoredScriptRequest request,
         ActionListener<AcknowledgedResponse> listener
@@ -767,7 +767,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
         return ClusterStateTaskExecutor.unbatched();
     }
 
-    public StoredScriptSource getStoredScript(ClusterState state, GetStoredScriptRequest request) {
+    public static StoredScriptSource getStoredScript(ClusterState state, GetStoredScriptRequest request) {
         ScriptMetadata scriptMetadata = state.metadata().custom(ScriptMetadata.TYPE);
 
         if (scriptMetadata != null) {

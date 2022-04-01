@@ -11,7 +11,6 @@ package org.elasticsearch.xcontent.internal;
 import org.elasticsearch.core.internal.provider.ProviderLocator;
 import org.elasticsearch.xcontent.spi.XContentProvider;
 
-import java.io.IOException;
 import java.util.ServiceConfigurationError;
 import java.util.Set;
 
@@ -31,14 +30,11 @@ public final class XContentProviderLocator {
      */
     public static final XContentProvider INSTANCE = provider();
 
-    @SuppressWarnings("unchecked")
     private static XContentProvider provider() {
         Module m = XContentProviderLocator.class.getModule();
         if (m.isNamed() && m.getDescriptor().uses().stream().anyMatch(XContentProvider.class.getName()::equals) == false) {
             throw new ServiceConfigurationError("%s: module %s does not declare `uses`".formatted(XContentProvider.class, m));
         }
-        ProviderLocator providerLocator =  new ProviderLocator(PROVIDER_NAME, PROVIDER_MODULE_NAME, MISSING_MODULES);
-
-        return  providerLocator.get(XContentProvider.class);
+        return (new ProviderLocator<>(PROVIDER_NAME, XContentProvider.class, PROVIDER_MODULE_NAME, MISSING_MODULES)).get();
     }
 }

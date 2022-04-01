@@ -11,11 +11,13 @@ import org.elasticsearch.logging.impl.provider.Log4JBootstrapSupportImpl;
 import org.elasticsearch.logging.impl.provider.Log4JMessageFactoryImpl;
 import org.elasticsearch.logging.impl.provider.Log4jLogManagerFactory;
 import org.elasticsearch.logging.impl.provider.LogLevelSupportImpl;
+import org.elasticsearch.logging.impl.provider.LoggingSupportProviderImpl;
 import org.elasticsearch.logging.impl.provider.StringBuildersSupportImpl;
 import org.elasticsearch.logging.spi.AppenderSupport;
 import org.elasticsearch.logging.spi.LogManagerFactory;
 import org.elasticsearch.logging.spi.LoggingBootstrapSupport;
 import org.elasticsearch.logging.spi.LogLevelSupport;
+import org.elasticsearch.logging.spi.LoggingSupportProvider;
 import org.elasticsearch.logging.spi.MessageFactory;
 import org.elasticsearch.logging.spi.StringBuildersSupport;
 
@@ -29,10 +31,5 @@ module org.elasticsearch.logging.impl {
 
     opens org.elasticsearch.logging.impl /*to org.apache.logging.log4j.core*/;
 
-    provides MessageFactory with Log4JMessageFactoryImpl;
-    provides LoggingBootstrapSupport with Log4JBootstrapSupportImpl;
-    provides LogLevelSupport with LogLevelSupportImpl;
-    provides AppenderSupport with AppenderSupportImpl;
-    provides StringBuildersSupport with StringBuildersSupportImpl;
-    provides LogManagerFactory with Log4jLogManagerFactory;
+    provides LoggingSupportProvider with LoggingSupportProviderImpl;
 }

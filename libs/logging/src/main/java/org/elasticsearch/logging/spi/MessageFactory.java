@@ -18,7 +18,7 @@ public interface MessageFactory {
      * Returns the located provider instance.
      */
     static MessageFactory provider() {
-        return LoggingSupportLocator.MESSAGE_FACTORY_INSTANCE;
+        return LoggingSupportProvider.provider().messageFactory();
     }
 
     Message createParametrizedMessage(String format, Object[] params, Throwable throwable);

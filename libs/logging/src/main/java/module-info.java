@@ -10,6 +10,7 @@ import org.elasticsearch.logging.spi.AppenderSupport;
 import org.elasticsearch.logging.spi.LogLevelSupport;
 import org.elasticsearch.logging.spi.LogManagerFactory;
 import org.elasticsearch.logging.spi.LoggingBootstrapSupport;
+import org.elasticsearch.logging.spi.LoggingSupportProvider;
 import org.elasticsearch.logging.spi.MessageFactory;
 import org.elasticsearch.logging.spi.ServerSupport;
 import org.elasticsearch.logging.spi.StringBuildersSupport;
@@ -30,12 +31,6 @@ module org.elasticsearch.logging {
 //    opens org.elasticsearch.logging.impl.testing to org.apache.logging.log4j.core;
     exports org.elasticsearch.logging.spi;
 
-    uses ServerSupport;
-    uses MessageFactory;
-    uses LogLevelSupport;
-    uses LoggingBootstrapSupport;
-    uses AppenderSupport;
-    uses LogManagerFactory;
-    uses StringBuildersSupport;
+    uses LoggingSupportProvider;
 
 }

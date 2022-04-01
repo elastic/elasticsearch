@@ -9,12 +9,7 @@
 package org.elasticsearch.logging.locator;
 
 import org.elasticsearch.core.internal.provider.ProviderLocator;
-import org.elasticsearch.logging.spi.AppenderSupport;
-import org.elasticsearch.logging.spi.LogLevelSupport;
-import org.elasticsearch.logging.spi.LogManagerFactory;
-import org.elasticsearch.logging.spi.LoggingBootstrapSupport;
-import org.elasticsearch.logging.spi.MessageFactory;
-import org.elasticsearch.logging.spi.StringBuildersSupport;
+import org.elasticsearch.logging.spi.LoggingSupportProvider;
 
 import java.util.Collections;
 import java.util.ServiceConfigurationError;
@@ -28,26 +23,15 @@ public class LoggingSupportLocator {
 
     static final Set<String> MISSING_MODULES = Collections.emptySet();
 
-    static ProviderLocator providerLocator = new ProviderLocator(PROVIDER_NAME,  PROVIDER_MODULE_NAME);
+    public static final LoggingSupportProvider LOGGING_SUPPORT_INSTANCE = getSupportInstance();
 
-    public static final LoggingBootstrapSupport LOGGING_BOOTSTRAP_SUPPORT_INSTANCE = getSupportInstance(LoggingBootstrapSupport.class);
-
-    public static final LogLevelSupport LOG_LEVEL_SUPPORT_INSTANCE = getSupportInstance(LogLevelSupport.class);
-
-    public static final MessageFactory MESSAGE_FACTORY_INSTANCE = getSupportInstance(MessageFactory.class);
-
-    public static final AppenderSupport APPENDER_SUPPORT_INSTANCE = getSupportInstance(AppenderSupport.class);
-
-    public static final StringBuildersSupport STRING_BUILDERS_SUPPORT_INSTANCE = getSupportInstance(StringBuildersSupport.class);
-
-    public static final LogManagerFactory LOG_MANAGER_FACTORY_INSTANCE = getSupportInstance(LogManagerFactory.class);
-
-@SuppressWarnings("unchecked")
-    private static <T> T getSupportInstance(Class<T> supportClass) {
+    @SuppressWarnings("unchecked")
+    private static LoggingSupportProvider getSupportInstance() {
         Module m = LoggingSupportLocator.class.getModule();
-        if (m.isNamed() && m.getDescriptor().uses().stream().anyMatch(supportClass.getName()::equals) == false) {
-            throw new ServiceConfigurationError("%s: module %s does not declare `uses`".formatted(supportClass, m));
+        if (m.isNamed() && m.getDescriptor().uses().stream().anyMatch(LoggingSupportProvider.class.getName()::equals) == false) {
+            throw new ServiceConfigurationError("%s: module %s does not declare `uses`".formatted(LoggingSupportProvider.class, m));
         }
-        return providerLocator.get(supportClass);
+
+        return (new ProviderLocator<>(PROVIDER_NAME, LoggingSupportProvider.class, PROVIDER_MODULE_NAME, MISSING_MODULES)).get();
     }
 }

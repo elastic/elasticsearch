@@ -13,7 +13,7 @@ import org.elasticsearch.logging.locator.LoggingSupportLocator;
 public interface LogLevelSupport {
 
     static LogLevelSupport provider() {
-        return LoggingSupportLocator.LOG_LEVEL_SUPPORT_INSTANCE;
+        return LoggingSupportProvider.provider().logLevelSupport();
     }
 
     void setRootLoggerLevel(String level);

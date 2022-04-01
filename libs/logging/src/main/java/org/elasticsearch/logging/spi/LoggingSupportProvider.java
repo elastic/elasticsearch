@@ -8,20 +8,18 @@
 
 package org.elasticsearch.logging.spi;
 
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.locator.LoggingSupportLocator;
 
-public interface LogManagerFactory {
-    static LogManagerFactory provider() {
-        return LoggingSupportProvider.provider().logManagerFactory();
+public interface LoggingSupportProvider {
+
+    static LoggingSupportProvider provider() {
+        return LoggingSupportLocator.LOGGING_SUPPORT_INSTANCE;
     }
 
-    Logger getLogger(final String name);
-
-    Logger getLogger(final Class<?> clazz);
-
-    Logger getPrefixLogger(String loggerName, String prefix);
-
-    Logger getPrefixLogger(Class<?> clazz, String prefix);
+    AppenderSupport appenderSupport();
+    LoggingBootstrapSupport loggingBootstrapSupport();
+    LogLevelSupport logLevelSupport();
+    LogManagerFactory logManagerFactory();
+    MessageFactory messageFactory();
+    StringBuildersSupport stringBuildersSupport();
 }
-

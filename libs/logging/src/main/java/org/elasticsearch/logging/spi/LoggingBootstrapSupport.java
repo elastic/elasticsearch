@@ -19,7 +19,7 @@ import java.util.function.Consumer;
 
 public interface LoggingBootstrapSupport {
     static LoggingBootstrapSupport provider() {
-        return LoggingSupportLocator.LOGGING_BOOTSTRAP_SUPPORT_INSTANCE;
+        return LoggingSupportProvider.provider().loggingBootstrapSupport();
     }
 
     /**

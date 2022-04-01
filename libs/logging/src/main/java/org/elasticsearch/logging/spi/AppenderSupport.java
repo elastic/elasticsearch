@@ -19,7 +19,7 @@ import java.util.List;
 public interface AppenderSupport {
 
     static AppenderSupport provider() {
-        return LoggingSupportLocator.APPENDER_SUPPORT_INSTANCE;
+        return LoggingSupportProvider.provider().appenderSupport();
     }
 
     void addAppender(final org.elasticsearch.logging.Logger logger, final org.elasticsearch.logging.core.Appender appender);

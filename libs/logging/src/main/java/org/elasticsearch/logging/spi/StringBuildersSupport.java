@@ -8,14 +8,15 @@
 
 package org.elasticsearch.logging.spi;
 
-import org.elasticsearch.logging.locator.LoggingSupportLocator;
-
-
+//TODO PG remove..
 public interface StringBuildersSupport {
-    StringBuildersSupport STRING_BUILDERS_SUPPORT = LoggingSupportLocator.STRING_BUILDERS_SUPPORT_INSTANCE;
 
+    static StringBuildersSupport provider(){
+        return LoggingSupportProvider.provider().stringBuildersSupport();
+
+    }
     static void escapeJson(final StringBuilder toAppendTo, final int start) {
-        STRING_BUILDERS_SUPPORT.escapeJsonImpl(toAppendTo, start);
+        provider().escapeJsonImpl(toAppendTo, start);
     }
 
     void escapeJsonImpl(final StringBuilder toAppendTo, final int start);

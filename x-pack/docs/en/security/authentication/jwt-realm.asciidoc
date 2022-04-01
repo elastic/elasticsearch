@@ -2,7 +2,8 @@
 [[jwt-realm]]
 === JWT Authentication
 
-JWT realms allow reuse of certain `identification tokens` for {es} authentication and authorization.
+{es} can be configured to support user authentication using externally issued _JSON Web Tokens_ (JWTs).
+
 JWT realms are only intended to use with JWTs from existing, external workflows.
 The format of those JWTs must be similar to Open ID Connect (OIDC) ID Tokens.
 See <<external-workflow-requirements>>.

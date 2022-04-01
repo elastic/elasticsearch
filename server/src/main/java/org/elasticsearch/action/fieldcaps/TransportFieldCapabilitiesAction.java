@@ -169,7 +169,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         }
     }
 
-    private void checkIndexBlocks(ClusterState clusterState, String[] concreteIndices) {
+    private static void checkIndexBlocks(ClusterState clusterState, String[] concreteIndices) {
         clusterState.blocks().globalBlockedRaiseException(ClusterBlockLevel.READ);
         for (String index : concreteIndices) {
             clusterState.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, index);
@@ -221,7 +221,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         remoteRequest.indices(originalIndices.indices());
         remoteRequest.fields(request.fields());
         remoteRequest.filters(request.filters());
-        remoteRequest.allowedTypes(request.allowedTypes());
+        remoteRequest.types(request.types());
         remoteRequest.runtimeFields(request.runtimeFields());
         remoteRequest.indexFilter(request.indexFilter());
         remoteRequest.nowInMillis(nowInMillis);
@@ -258,7 +258,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
         return new FieldCapabilitiesResponse(indices, Collections.unmodifiableMap(responseMap), failures);
     }
 
-    private void addUnmappedFields(String[] indices, String field, Map<String, FieldCapabilities.Builder> typeMap) {
+    private static void addUnmappedFields(String[] indices, String field, Map<String, FieldCapabilities.Builder> typeMap) {
         final Set<String> mappedIndices = new HashSet<>();
         typeMap.values().forEach(t -> t.getIndices(mappedIndices));
         if (mappedIndices.size() != indices.length) {
@@ -281,7 +281,7 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             response.getOriginVersion(),
             response.get(),
             request.filters(),
-            request.allowedTypes(),
+            request.types(),
             metadataFieldPred
         );
         for (Map.Entry<String, IndexFieldCapabilities> entry : fields.entrySet()) {

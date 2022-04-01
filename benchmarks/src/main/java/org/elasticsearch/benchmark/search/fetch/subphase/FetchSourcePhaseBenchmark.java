@@ -59,7 +59,7 @@ public class FetchSourcePhaseBenchmark {
             case "one_4m_field" -> buildBigExample("huge".repeat(1024 * 1024));
             default -> throw new IllegalArgumentException("Unknown source [" + source + "]");
         };
-        fetchContext = new FetchSourceContext(
+        fetchContext = FetchSourceContext.of(
             true,
             Strings.splitStringByCommaToArray(includes),
             Strings.splitStringByCommaToArray(excludes)

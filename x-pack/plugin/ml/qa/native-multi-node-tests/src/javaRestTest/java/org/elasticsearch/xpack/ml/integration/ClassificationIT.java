@@ -573,6 +573,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/85536")
     public void testStopAndRestart() throws Exception {
         initialize("classification_stop_and_restart");
         String predictedClassField = KEYWORD_FIELD + "_prediction";
@@ -933,7 +934,7 @@ public class ClassificationIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         DataFrameAnalyticsConfig config = new DataFrameAnalyticsConfig.Builder().setId(jobId)
             .setSource(new DataFrameAnalyticsSource(new String[] { sourceIndex }, null, null, runtimeFields))
             .setDest(new DataFrameAnalyticsDest(destIndex, null))
-            .setAnalyzedFields(new FetchSourceContext(true, new String[] { numericRuntimeField, dependentVariableRuntimeField }, null))
+            .setAnalyzedFields(FetchSourceContext.of(true, new String[] { numericRuntimeField, dependentVariableRuntimeField }, null))
             .setAnalysis(
                 new Classification(
                     dependentVariableRuntimeField,

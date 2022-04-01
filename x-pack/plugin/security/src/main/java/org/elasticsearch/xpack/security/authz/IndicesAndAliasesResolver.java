@@ -30,7 +30,6 @@ import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteConnectionStrategy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
-import org.elasticsearch.xpack.core.security.support.Automatons;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -42,7 +41,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.concurrent.CopyOnWriteArraySet;
-import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.core.security.authz.IndicesAndAliasesResolverField.NO_INDEX_PLACEHOLDER;
@@ -61,10 +59,6 @@ class IndicesAndAliasesResolver {
         this.nameExpressionResolver = resolver;
         this.indexAbstractionResolver = new IndexAbstractionResolver(resolver);
         this.remoteClusterResolver = new RemoteClusterResolver(settings, clusterService.getClusterSettings());
-    }
-
-    public Predicate<String> getRestrictedIndicesPredicate() {
-        return Automatons.predicate(nameExpressionResolver.getSystemNameAutomaton());
     }
 
     /**
@@ -120,7 +114,7 @@ class IndicesAndAliasesResolver {
      * @return The {@link ResolvedIndices} or null if wildcard expansion must be performed.
      */
     @Nullable
-    ResolvedIndices tryResolveWithoutWildcards(String action, TransportRequest transportRequest) {
+    static ResolvedIndices tryResolveWithoutWildcards(String action, TransportRequest transportRequest) {
         // We only take care of IndicesRequest
         if (false == transportRequest instanceof IndicesRequest) {
             return null;
@@ -133,7 +127,7 @@ class IndicesAndAliasesResolver {
         return resolveIndicesAndAliasesWithoutWildcards(action, indicesRequest);
     }
 
-    private boolean requiresWildcardExpansion(IndicesRequest indicesRequest) {
+    private static boolean requiresWildcardExpansion(IndicesRequest indicesRequest) {
         // IndicesAliasesRequest requires special handling because it can have wildcards in request body
         if (indicesRequest instanceof IndicesAliasesRequest) {
             return true;
@@ -145,7 +139,7 @@ class IndicesAndAliasesResolver {
         return false;
     }
 
-    ResolvedIndices resolveIndicesAndAliasesWithoutWildcards(String action, IndicesRequest indicesRequest) {
+    static ResolvedIndices resolveIndicesAndAliasesWithoutWildcards(String action, IndicesRequest indicesRequest) {
         assert false == requiresWildcardExpansion(indicesRequest) : "request must not require wildcard expansion";
         final String[] indices = indicesRequest.indices();
         if (indices == null || indices.length == 0) {
@@ -365,7 +359,7 @@ class IndicesAndAliasesResolver {
         return resolvedAliasOrIndex;
     }
 
-    private List<String> loadAuthorizedAliases(Set<String> authorizedIndices, Metadata metadata) {
+    private static List<String> loadAuthorizedAliases(Set<String> authorizedIndices, Metadata metadata) {
         List<String> authorizedAliases = new ArrayList<>();
         SortedMap<String, IndexAbstraction> existingAliases = metadata.getIndicesLookup();
         for (String authorizedIndex : authorizedIndices) {
@@ -377,7 +371,7 @@ class IndicesAndAliasesResolver {
         return authorizedAliases;
     }
 
-    private List<String> replaceWildcardsWithAuthorizedAliases(String[] aliases, List<String> authorizedAliases) {
+    private static List<String> replaceWildcardsWithAuthorizedAliases(String[] aliases, List<String> authorizedAliases) {
         final List<String> finalAliases = new ArrayList<>();
 
         // IndicesAliasesRequest doesn't support empty aliases (validation fails) but

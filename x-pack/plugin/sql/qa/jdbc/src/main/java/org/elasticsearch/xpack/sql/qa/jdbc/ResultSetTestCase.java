@@ -246,7 +246,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     }
 
     public void testGettingInvalidByte() throws IOException, SQLException {
-        createIndex("test");
+        createIndexWithMapping("test");
         updateMappingForNumericValuesTests("test");
         updateMapping("test", builder -> {
             builder.startObject("test_keyword").field("type", "keyword").endObject();
@@ -316,7 +316,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     public void testGettingInvalidByteFromUnsignedLong() throws IOException, SQLException {
         assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support UNSIGNED_LONGs", isUnsignedLongSupported());
 
-        createIndex("test");
+        createIndexWithMapping("test");
         updateMappingForNumericValuesTests("test", singletonList(UNSIGNED_LONG_FIELD));
 
         BigInteger bigIntegerNotByte = BigInteger.valueOf(randomLongBetween(Byte.MAX_VALUE + 1, Long.MAX_VALUE));
@@ -388,7 +388,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     }
 
     public void testGettingInvalidShort() throws IOException, SQLException {
-        createIndex("test");
+        createIndexWithMapping("test");
         updateMappingForNumericValuesTests("test");
         updateMapping("test", builder -> { builder.startObject("test_date").field("type", "date").endObject(); });
 
@@ -449,7 +449,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     public void testGettingInvalidShortFromUnsignedLong() throws IOException, SQLException {
         assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support UNSIGNED_LONGs", isUnsignedLongSupported());
 
-        createIndex("test");
+        createIndexWithMapping("test");
         updateMappingForNumericValuesTests("test", singletonList(UNSIGNED_LONG_FIELD));
 
         BigInteger bigIntegerNotShort = BigInteger.valueOf(randomLongBetween(Short.MAX_VALUE + 1, Long.MAX_VALUE));
@@ -521,7 +521,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     }
 
     public void testGettingInvalidInteger() throws IOException, SQLException {
-        createIndex("test");
+        createIndexWithMapping("test");
         updateMappingForNumericValuesTests("test");
         updateMapping("test", builder -> { builder.startObject("test_date").field("type", "date").endObject(); });
 
@@ -576,7 +576,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     public void testGettingInvalidIntegerFromUnsignedLong() throws IOException, SQLException {
         assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support UNSIGNED_LONGs", isUnsignedLongSupported());
 
-        createIndex("test");
+        createIndexWithMapping("test");
         updateMappingForNumericValuesTests("test", singletonList(UNSIGNED_LONG_FIELD));
 
         BigInteger bigIntegerNotInt = BigInteger.valueOf(randomLongBetween(getMaxIntPlusOne(), Long.MAX_VALUE));
@@ -645,7 +645,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     }
 
     public void testGettingInvalidLong() throws IOException, SQLException {
-        createIndex("test");
+        createIndexWithMapping("test");
         updateMappingForNumericValuesTests("test");
         updateMapping("test", builder -> { builder.startObject("test_date").field("type", "date").endObject(); });
 
@@ -690,7 +690,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     public void testGettingInvalidLongFromUnsignedLong() throws IOException, SQLException {
         assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support UNSIGNED_LONGs", isUnsignedLongSupported());
 
-        createIndex("test");
+        createIndexWithMapping("test");
         updateMappingForNumericValuesTests("test", singletonList(UNSIGNED_LONG_FIELD));
 
         BigInteger bigIntegerNotLong = BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.valueOf(randomNonNegativeLong()));
@@ -774,7 +774,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     public void testGettingInvalidBigInteger() throws IOException, SQLException {
         assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support UNSIGNED_LONGs", isUnsignedLongSupported());
 
-        createIndex("test");
+        createIndexWithMapping("test");
         updateMappingForNumericValuesTests("test");
         updateMapping("test", builder -> {
             builder.startObject("test_keyword").field("type", "keyword").endObject();
@@ -809,7 +809,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     public void testGettingValidNumbersWithCastingFromUnsignedLong() throws IOException, SQLException {
         assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support UNSIGNED_LONGs", isUnsignedLongSupported());
 
-        createIndex("test");
+        createIndexWithMapping("test");
         updateMappingForNumericValuesTests("test", singletonList(UNSIGNED_LONG_FIELD));
 
         byte randomNonNegativeByte = randomNonNegativeByte();
@@ -896,7 +896,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     }
 
     public void testGettingInvalidDouble() throws IOException, SQLException {
-        createIndex("test");
+        createIndexWithMapping("test");
         updateMappingForNumericValuesTests("test");
         updateMapping("test", builder -> {
             builder.startObject("test_keyword").field("type", "keyword").endObject();
@@ -979,7 +979,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     }
 
     public void testGettingInvalidFloat() throws Exception {
-        createIndex("test");
+        createIndexWithMapping("test");
         updateMappingForNumericValuesTests("test");
         updateMapping("test", builder -> {
             builder.startObject("test_keyword").field("type", "keyword").endObject();
@@ -1187,7 +1187,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     }
 
     public void testGettingInvalidBigDecimal() throws IOException, SQLException {
-        createIndex("test");
+        createIndexWithMapping("test");
         updateMappingForNumericValuesTests("test");
         updateMapping("test", builder -> {
             builder.startObject("test_keyword").field("type", "keyword").endObject();
@@ -1224,7 +1224,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     }
 
     public void testGettingBooleanValues() throws Exception {
-        createIndex("test");
+        createIndexWithMapping("test");
         updateMappingForNumericValuesTests("test");
         updateMapping("test", builder -> {
             builder.startObject("test_boolean").field("type", "boolean").endObject();
@@ -1307,7 +1307,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     public void testGettingBooleanValuesFromUnsignedLong() throws IOException, SQLException {
         assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support UNSIGNED_LONGs", isUnsignedLongSupported());
 
-        createIndex("test");
+        createIndexWithMapping("test");
         updateMappingForNumericValuesTests("test", singletonList(UNSIGNED_LONG_FIELD));
 
         indexTestFieldsDoc("1", BigInteger.ONE);
@@ -1334,7 +1334,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     }
 
     private void setupDataForDateTimeTests(long randomLongDate, Long randomLongDateNanos) throws IOException {
-        createIndex("test");
+        createIndexWithMapping("test");
         updateMappingForNumericValuesTests("test");
         updateMapping("test", builder -> {
             builder.startObject("test_boolean").field("type", "boolean").endObject();
@@ -1687,7 +1687,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     public void testErrorsValidationForDateTimeTypesConvertingToUnsignedLong() throws IOException, SQLException {
         assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support UNSIGNED_LONGs", isUnsignedLongSupported());
 
-        createIndex("test");
+        createIndexWithMapping("test");
         updateMappingForNumericValuesTests("test", singletonList(UNSIGNED_LONG_FIELD));
 
         indexTestFieldsDoc("1", BigInteger.ONE);
@@ -1711,7 +1711,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     }
 
     public void testScalarOnDates() throws IOException, SQLException {
-        createIndex("test");
+        createIndexWithMapping("test");
         updateMapping("test", builder -> builder.startObject("test_date").field("type", "date").endObject());
 
         // 2018-03-12 17:00:00 UTC
@@ -1774,7 +1774,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
             "Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
             versionSupportsDateNanos()
         );
-        createIndex("test");
+        createIndexWithMapping("test");
         updateMapping("test", builder -> builder.startObject("test_date_nanos").field("type", "date_nanos").endObject());
 
         // 2018-03-12 17:00:00.123456789 UTC
@@ -1835,7 +1835,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     }
 
     public void testGetDateType() throws IOException, SQLException {
-        createIndex("test");
+        createIndexWithMapping("test");
         updateMapping("test", builder -> builder.startObject("test_date").field("type", "date").endObject());
 
         // 2018-03-12 17:00:00 UTC
@@ -1869,7 +1869,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     }
 
     public void testGetDateTypeFromAggregation() throws IOException, SQLException {
-        createIndex("test");
+        createIndexWithMapping("test");
         updateMapping("test", builder -> builder.startObject("test_date").field("type", "date").endObject());
 
         // 1984-05-02 14:59:12 UTC
@@ -1897,7 +1897,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     }
 
     public void testGetTimeType() throws IOException, SQLException {
-        createIndex("test");
+        createIndexWithMapping("test");
         updateMapping("test", builder -> builder.startObject("test_date").field("type", "date").endObject());
 
         // 2018-03-12 17:20:30.123 UTC
@@ -1925,7 +1925,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     }
 
     public void testValidGetObjectCalls() throws IOException, SQLException {
-        createIndex("test");
+        createIndexWithMapping("test");
         updateMappingForNumericValuesTests("test");
         updateMapping("test", builder -> {
             builder.startObject("test_boolean").field("type", "boolean").endObject();
@@ -2286,7 +2286,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         }
     }
 
-    protected static void createIndex(String index) throws IOException {
+    protected static void createIndexWithMapping(String index) throws IOException {
         Request request = new Request("PUT", "/" + index);
         XContentBuilder createIndex = JsonXContent.contentBuilder().startObject();
         createIndex.startObject("settings");
@@ -2319,7 +2319,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     }
 
     private void createTestDataForMultiValueTests() throws IOException {
-        createIndex("test");
+        createIndexWithMapping("test");
         updateMapping("test", builder -> {
             builder.startObject("int").field("type", "integer").endObject();
             builder.startObject("keyword").field("type", "keyword").endObject();
@@ -2341,7 +2341,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     }
 
     private void createTestDataForMultiValuesInObjectsTests() throws IOException {
-        createIndex("test");
+        createIndexWithMapping("test");
         updateMapping("test", builder -> {
             builder.startObject("object")
                 .startObject("properties")
@@ -2392,7 +2392,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
         assertNotNull(esType);
         String esTypeName = esType.getName().toLowerCase(Locale.ROOT);
 
-        createIndex("test");
+        createIndexWithMapping("test");
         updateMapping("test", builder -> {
             builder.startObject("test_" + esTypeName).field("type", esTypeName).endObject();
             builder.startObject("test_null_" + esTypeName).field("type", esTypeName).endObject();
@@ -2412,7 +2412,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
     }
 
     private void createTestDataForBooleanValueTests() throws IOException {
-        createIndex("test");
+        createIndexWithMapping("test");
         updateMapping("test", builder -> {
             builder.startObject("test_boolean").field("type", "boolean").endObject();
             builder.startObject("test_null_boolean").field("type", "boolean").endObject();
@@ -2476,7 +2476,7 @@ public abstract class ResultSetTestCase extends JdbcIntegrationTestCase {
      */
     private Map<String, Number> createTestDataForNumericValueTypes(Supplier<Number> randomGenerator) throws IOException {
         Map<String, Number> map = new HashMap<>();
-        createIndex("test");
+        createIndexWithMapping("test");
         updateMappingForNumericValuesTests("test");
 
         index("test", "1", builder -> {

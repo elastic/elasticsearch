@@ -133,25 +133,16 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
     private final String localClusterName;
     private final String remoteClusterAlias;
     private final Client client;
-    private final CcrLicenseChecker ccrLicenseChecker;
     private final ThreadPool threadPool;
 
     private final CounterMetric throttledTime = new CounterMetric();
 
-    public CcrRepository(
-        RepositoryMetadata metadata,
-        Client client,
-        CcrLicenseChecker ccrLicenseChecker,
-        Settings settings,
-        CcrSettings ccrSettings,
-        ThreadPool threadPool
-    ) {
+    public CcrRepository(RepositoryMetadata metadata, Client client, Settings settings, CcrSettings ccrSettings, ThreadPool threadPool) {
         this.metadata = metadata;
         this.ccrSettings = ccrSettings;
         this.localClusterName = ClusterName.CLUSTER_NAME_SETTING.get(settings).value();
         assert metadata.name().startsWith(NAME_PREFIX) : "CcrRepository metadata.name() must start with: " + NAME_PREFIX;
         this.remoteClusterAlias = Strings.split(metadata.name(), NAME_PREFIX)[1];
-        this.ccrLicenseChecker = ccrLicenseChecker;
         this.client = client;
         this.threadPool = threadPool;
     }
@@ -241,7 +232,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         // Validates whether the leader cluster has been configured properly:
         PlainActionFuture<String[]> future = PlainActionFuture.newFuture();
         IndexMetadata leaderIndexMetadata = clusterState.getState().metadata().index(leaderIndex);
-        ccrLicenseChecker.fetchLeaderHistoryUUIDs(remoteClient, leaderIndexMetadata, future::onFailure, future::onResponse);
+        CcrLicenseChecker.fetchLeaderHistoryUUIDs(remoteClient, leaderIndexMetadata, future::onFailure, future::onResponse);
         String[] leaderHistoryUUIDs = future.actionGet(ccrSettings.getRecoveryActionTimeout());
 
         IndexMetadata.Builder imdBuilder = IndexMetadata.builder(leaderIndex);
@@ -439,7 +430,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
         }
     }
 
-    private void createEmptyStore(Store store) {
+    private static void createEmptyStore(Store store) {
         store.incRef();
         try {
             store.createEmpty();

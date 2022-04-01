@@ -32,8 +32,9 @@ JWT format is similar to Open ID Connect (OIDC) ID Tokens, with some differences
 [[jwt-authentication-requirements]]
 ==== JWT Authentication Requirements
 
-Two credentials are required by JWT realms, a client credential and an end-user identity token.
-Both must be validated separately, because the external client and end-user are separate entities.
+When a JWT realm is used for authentication into {es}, a distinction is made between the
+_client_ that is connecting to {es}, and the _end-user_ on whose behalf the request should execute.
+The JWT identifies the user, but a separate credential must be used to authenticate the client itself.
 
 See <<client-authentication>> and <<jwt-validation>>.
 

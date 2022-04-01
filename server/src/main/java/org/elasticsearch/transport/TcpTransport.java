@@ -673,6 +673,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         }
     }
 
+    protected abstract int[] getNettyTransportWorkerPendingTaskCount();
+
     public void onException(TcpChannel channel, Exception e) {
         handleException(channel, e, lifecycle, outboundHandler);
     }
@@ -971,7 +973,8 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
             messagesSent,
             bytesWritten,
             networkService.getHandlingTimeTracker().getHistogram(),
-            outboundHandlingTimeTracker.getHistogram()
+            outboundHandlingTimeTracker.getHistogram(),
+            getNettyTransportWorkerPendingTaskCount()
         );
     }
 

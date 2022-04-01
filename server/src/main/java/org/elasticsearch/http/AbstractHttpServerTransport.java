@@ -149,7 +149,12 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
     @Override
     public HttpStats stats() {
-        return new HttpStats(httpClientStatsTracker.getClientStats(), httpChannels.size(), totalChannelsAccepted.get());
+        return new HttpStats(
+            httpClientStatsTracker.getClientStats(),
+            httpChannels.size(),
+            totalChannelsAccepted.get(),
+            getNettyHttpWorkerPendingTaskCount()
+        );
     }
 
     protected void bindServer() {
@@ -243,6 +248,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
      * Called to tear down internal resources
      */
     protected abstract void stopInternal();
+
+    protected abstract int[] getNettyHttpWorkerPendingTaskCount();
 
     // package private for tests
     static int resolvePublishPort(Settings settings, List<TransportAddress> boundAddresses, InetAddress publishInetAddress) {

@@ -183,6 +183,12 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 public HttpStats stats() {
                     return null;
                 }
+
+                @Override
+                protected int[] getNettyHttpWorkerPendingTaskCount() {
+                    return null;
+                }
+
             }
         ) {
 
@@ -292,6 +298,12 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
             public HttpStats stats() {
                 return null;
             }
+
+            @Override
+            protected int[] getNettyHttpWorkerPendingTaskCount() {
+                return null;
+            }
+
         };
     }
 
@@ -346,6 +358,12 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 public HttpStats stats() {
                     return null;
                 }
+
+                @Override
+                protected int[] getNettyHttpWorkerPendingTaskCount() {
+                    return null;
+                }
+
             }
         ) {
             clusterSettings.applySettings(
@@ -499,6 +517,12 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 public HttpStats stats() {
                     return null;
                 }
+
+                @Override
+                protected int[] getNettyHttpWorkerPendingTaskCount() {
+                    return null;
+                }
+
             }
         ) {
 
@@ -547,6 +571,11 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
                 @Override
                 protected void stopInternal() {}
+
+                @Override
+                protected int[] getNettyHttpWorkerPendingTaskCount() {
+                    return null;
+                }
             }
         ) {
 
@@ -622,6 +651,12 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
 
                 @Override
                 protected void stopInternal() {}
+
+                @Override
+                protected int[] getNettyHttpWorkerPendingTaskCount() {
+                    return null;
+                }
+
             }
         ) {
 

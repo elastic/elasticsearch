@@ -10,7 +10,9 @@ package org.elasticsearch.transport.netty4;
 
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.nio.NioEventLoopGroup;
+import io.netty.util.concurrent.EventExecutor;
 import io.netty.util.concurrent.Future;
+import io.netty.util.concurrent.SingleThreadEventExecutor;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -87,6 +89,36 @@ public final class SharedGroupFactory {
             genericGroup.incRef();
         }
         return new SharedGroup(genericGroup);
+    }
+
+    public int[] getNettyWorkerPendingTaskCount(EventLoopGroup eventLoopGroup, int workerCount) {
+        int[] pendingTaskCount = new int[workerCount];
+        int count = -1;
+        for (EventExecutor eventExecutor : eventLoopGroup) {
+            count++;
+            if (eventExecutor instanceof SingleThreadEventExecutor) {
+                pendingTaskCount[count] = ((SingleThreadEventExecutor) eventExecutor).pendingTasks();
+            }
+        }
+        return pendingTaskCount;
+    }
+
+    /**
+     * Get Netty Transport Worker pending tasks count
+     */
+    public int[] getNettyTransportWorkerPendingTaskCount() {
+        return getNettyWorkerPendingTaskCount(genericGroup.eventLoopGroup, workerCount);
+    }
+
+    /**
+     * Get Netty Http Worker pending tasks count
+     */
+    public int[] getNettyHttpWorkerPendingTaskCount() {
+        if (httpWorkerCount == 0) {
+            return getNettyTransportWorkerPendingTaskCount();
+        } else {
+            return getNettyWorkerPendingTaskCount(dedicatedHttpGroup.getLowLevelGroup(), httpWorkerCount);
+        }
     }
 
     private static class RefCountedGroup extends AbstractRefCounted {

@@ -30,6 +30,7 @@ public class TransportStats implements Writeable, ToXContentFragment {
     private final long txSize;
     private final long[] inboundHandlingTimeBucketFrequencies;
     private final long[] outboundHandlingTimeBucketFrequencies;
+    private final int[] nettyTransportWorkerPendingTaskCount;
 
     public TransportStats(
         long serverOpen,
@@ -39,7 +40,8 @@ public class TransportStats implements Writeable, ToXContentFragment {
         long txCount,
         long txSize,
         long[] inboundHandlingTimeBucketFrequencies,
-        long[] outboundHandlingTimeBucketFrequencies
+        long[] outboundHandlingTimeBucketFrequencies,
+        int[] nettyTransportWorkerPendingTaskCount
     ) {
         this.serverOpen = serverOpen;
         this.totalOutboundConnections = totalOutboundConnections;
@@ -50,6 +52,7 @@ public class TransportStats implements Writeable, ToXContentFragment {
         this.inboundHandlingTimeBucketFrequencies = inboundHandlingTimeBucketFrequencies;
         this.outboundHandlingTimeBucketFrequencies = outboundHandlingTimeBucketFrequencies;
         assert assertHistogramsConsistent();
+        this.nettyTransportWorkerPendingTaskCount = nettyTransportWorkerPendingTaskCount;
     }
 
     public TransportStats(StreamInput in) throws IOException {
@@ -73,6 +76,12 @@ public class TransportStats implements Writeable, ToXContentFragment {
             outboundHandlingTimeBucketFrequencies = new long[0];
         }
         assert assertHistogramsConsistent();
+        if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+            nettyTransportWorkerPendingTaskCount = in.readIntArray();
+        } else {
+            nettyTransportWorkerPendingTaskCount = new int[0];
+        }
+
     }
 
     @Override
@@ -92,6 +101,9 @@ public class TransportStats implements Writeable, ToXContentFragment {
             for (long handlingTimeBucketFrequency : outboundHandlingTimeBucketFrequencies) {
                 out.writeVLong(handlingTimeBucketFrequency);
             }
+        }
+        if (out.getVersion().onOrAfter(Version.V_8_3_0)) {
+            out.writeIntArray(nettyTransportWorkerPendingTaskCount);
         }
     }
 
@@ -143,6 +155,10 @@ public class TransportStats implements Writeable, ToXContentFragment {
         return Arrays.copyOf(outboundHandlingTimeBucketFrequencies, outboundHandlingTimeBucketFrequencies.length);
     }
 
+    public int[] getNettyTransportWorkerPendingTaskCount() {
+        return nettyTransportWorkerPendingTaskCount;
+    }
+
     private boolean assertHistogramsConsistent() {
         assert inboundHandlingTimeBucketFrequencies.length == outboundHandlingTimeBucketFrequencies.length;
         if (inboundHandlingTimeBucketFrequencies.length == 0) {
@@ -170,6 +186,7 @@ public class TransportStats implements Writeable, ToXContentFragment {
             // Stats came from before v8.1
             assert Version.CURRENT.major == Version.V_8_0_0.major;
         }
+        builder.field(Fields.NETTY_TRANSPORT_WORKER_PENDING_TASK_COUNT, nettyTransportWorkerPendingTaskCount);
         builder.endObject();
         return builder;
     }
@@ -204,5 +221,6 @@ public class TransportStats implements Writeable, ToXContentFragment {
         static final String TX_SIZE_IN_BYTES = "tx_size_in_bytes";
         static final String INBOUND_HANDLING_TIME_HISTOGRAM = "inbound_handling_time_histogram";
         static final String OUTBOUND_HANDLING_TIME_HISTOGRAM = "outbound_handling_time_histogram";
+        static final String NETTY_TRANSPORT_WORKER_PENDING_TASK_COUNT = "netty_transport_worker_pending_task_count";
     }
 }

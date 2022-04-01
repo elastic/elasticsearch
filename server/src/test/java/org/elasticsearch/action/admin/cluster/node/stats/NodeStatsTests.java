@@ -250,12 +250,20 @@ public class NodeStatsTests extends ESTestCase {
                         nodeStats.getTransport().getOutboundHandlingTimeBucketFrequencies(),
                         deserializedNodeStats.getTransport().getOutboundHandlingTimeBucketFrequencies()
                     );
+                    assertArrayEquals(
+                        nodeStats.getTransport().getNettyTransportWorkerPendingTaskCount(),
+                        deserializedNodeStats.getTransport().getNettyTransportWorkerPendingTaskCount()
+                    );
                 }
                 if (nodeStats.getHttp() == null) {
                     assertNull(deserializedNodeStats.getHttp());
                 } else {
                     assertEquals(nodeStats.getHttp().getServerOpen(), deserializedNodeStats.getHttp().getServerOpen());
                     assertEquals(nodeStats.getHttp().getTotalOpen(), deserializedNodeStats.getHttp().getTotalOpen());
+                    assertArrayEquals(
+                        nodeStats.getHttp().getNettyHttpWorkerPendingTaskCount(),
+                        deserializedNodeStats.getHttp().getNettyHttpWorkerPendingTaskCount()
+                    );
                 }
                 if (nodeStats.getBreaker() == null) {
                     assertNull(deserializedNodeStats.getBreaker());
@@ -701,7 +709,8 @@ public class NodeStatsTests extends ESTestCase {
                 randomNonNegativeLong(),
                 randomNonNegativeLong(),
                 IntStream.range(0, HandlingTimeTracker.BUCKET_COUNT).mapToLong(i -> randomNonNegativeLong()).toArray(),
-                IntStream.range(0, HandlingTimeTracker.BUCKET_COUNT).mapToLong(i -> randomNonNegativeLong()).toArray()
+                IntStream.range(0, HandlingTimeTracker.BUCKET_COUNT).mapToLong(i -> randomNonNegativeLong()).toArray(),
+                new int[] { randomInt(), randomInt() }
             )
             : null;
         HttpStats httpStats = null;
@@ -725,7 +734,12 @@ public class NodeStatsTests extends ESTestCase {
                 );
                 clientStats.add(cs);
             }
-            httpStats = new HttpStats(clientStats, randomNonNegativeLong(), randomNonNegativeLong());
+            httpStats = new HttpStats(
+                clientStats,
+                randomNonNegativeLong(),
+                randomNonNegativeLong(),
+                new int[] { randomInt(), randomInt() }
+            );
         }
         AllCircuitBreakerStats allCircuitBreakerStats = null;
         if (frequently()) {

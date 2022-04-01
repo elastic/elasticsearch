@@ -273,6 +273,11 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     }
 
     @Override
+    protected int[] getNettyHttpWorkerPendingTaskCount() {
+        return sharedGroupFactory.getNettyHttpWorkerPendingTaskCount();
+    }
+
+    @Override
     public void onException(HttpChannel channel, Exception cause) {
         if (cause instanceof ReadTimeoutException) {
             super.onException(channel, new HttpReadTimeoutException(readTimeoutMillis, cause));

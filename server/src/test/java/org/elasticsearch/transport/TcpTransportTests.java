@@ -253,6 +253,11 @@ public class TcpTransportTests extends ESTestCase {
                 protected void stopInternal() {
                     throw new UnsupportedOperationException();
                 }
+
+                @Override
+                protected int[] getNettyTransportWorkerPendingTaskCount() {
+                    throw new UnsupportedOperationException();
+                }
             };
 
             assertThat(tcpTransport.getDefaultSeedAddresses(), seedAddressesMatcher);

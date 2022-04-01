@@ -972,14 +972,18 @@ public abstract class StreamInput extends InputStream {
         if (readBoolean()) {
             T t = reader.read(this);
             if (t == null) {
-                throw new IOException(
-                    "Writeable.Reader [" + reader + "] returned null which is not allowed and probably means it screwed up the stream."
-                );
+                throwOnNullRead(reader);
             }
             return t;
         } else {
             return null;
         }
+    }
+
+    protected static void throwOnNullRead(Writeable.Reader<?> reader) throws IOException {
+        final IOException e = new IOException("Writeable.Reader [" + reader + "] returned null which is not allowed.");
+        assert false : e;
+        throw e;
     }
 
     @Nullable
@@ -1181,15 +1185,7 @@ public abstract class StreamInput extends InputStream {
      * If it is empty it might be immutable.
      */
     public <T extends NamedWriteable> List<T> readNamedWriteableList(Class<T> categoryClass) throws IOException {
-        int count = readArraySize();
-        if (count == 0) {
-            return Collections.emptyList();
-        }
-        List<T> builder = new ArrayList<>(count);
-        for (int i = 0; i < count; i++) {
-            builder.add(readNamedWriteable(categoryClass));
-        }
-        return builder;
+        throw new UnsupportedOperationException("can't read named writeable from StreamInput");
     }
 
     /**

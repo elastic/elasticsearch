@@ -38,7 +38,7 @@ The JWT identifies the user, but a separate credential must be used to authentic
 
 See <<client-authentication>> and <<jwt-validation>>.
 
-[[client-authentication]]
+[[jwt-client-authentication]]
 ==== Client authentication
 
 Client authentication is one of two credentials required by JWT realms.

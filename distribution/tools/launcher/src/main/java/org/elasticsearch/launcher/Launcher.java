@@ -9,22 +9,19 @@
 package org.elasticsearch.launcher;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.ServiceLoader;
 import java.util.function.Function;
 import java.util.function.Predicate;
-import java.util.spi.ToolProvider;
 import java.util.stream.Stream;
 
 public class Launcher {
 
-    private static Function<Path, URL> MAP_TO_URL = p -> {
+    private static Function<Path, URL> MAP_PATH_TO_URL = p -> {
         try {
             return p.toUri().toURL();
         } catch (MalformedURLException e) {
@@ -51,7 +48,7 @@ public class Launcher {
     private static ClassLoader loadJars(Path dir, ClassLoader parent) throws IOException {
         final URL[] urls;
         try (Stream<Path> jarFiles = Files.list(dir)) {
-            urls = jarFiles.filter(JAR_PREDICATE).map(MAP_TO_URL).toArray(URL[]::new);
+            urls = jarFiles.filter(JAR_PREDICATE).map(MAP_PATH_TO_URL).toArray(URL[]::new);
         }
         return URLClassLoader.newInstance(urls, parent);
     }

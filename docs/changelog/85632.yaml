@@ -1,0 +1,5 @@
+pr: 85632
+summary: Log at WARN level for Watcher cluster state validation errors
+area: Watcher
+type: bug
+issues: []

@@ -57,7 +57,7 @@ See <<ref-jwt-settings>>.
 
 If client authentication type is `none`, the request header `ES-Client-Authentication` is ignored.
 
-WARNING: Client authentication can be disabled, but it is not recommended.
+WARNING: Disabling client authentication is possible, but strongly discouraged.
 
 [[jwt-validation]]
 ==== JWT validation

@@ -39,7 +39,11 @@ public class HttpStats implements Writeable, ToXContentFragment {
         serverOpen = in.readVLong();
         totalOpen = in.readVLong();
         clientStats = in.readList(ClientStats::new);
-        nettyHttpWorkerPendingTaskCount = in.readIntArray();
+        if (in.getVersion().onOrAfter(Version.V_8_3_0)) {
+            nettyHttpWorkerPendingTaskCount = in.readIntArray();
+        } else {
+            nettyHttpWorkerPendingTaskCount = new int[0];
+        }
     }
 
     @Override
@@ -47,7 +51,9 @@ public class HttpStats implements Writeable, ToXContentFragment {
         out.writeVLong(serverOpen);
         out.writeVLong(totalOpen);
         out.writeList(clientStats);
-        out.writeIntArray(nettyHttpWorkerPendingTaskCount);
+        if (out.getVersion().onOrAfter(Version.V_8_3_0)) {
+            out.writeIntArray(nettyHttpWorkerPendingTaskCount);
+        }
     }
 
     public long getServerOpen() {

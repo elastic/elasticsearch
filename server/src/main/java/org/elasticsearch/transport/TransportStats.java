@@ -76,7 +76,7 @@ public class TransportStats implements Writeable, ToXContentFragment {
             outboundHandlingTimeBucketFrequencies = new long[0];
         }
         assert assertHistogramsConsistent();
-        if (in.getVersion().onOrAfter(Version.V_8_1_0)) {
+        if (in.getVersion().onOrAfter(Version.V_8_3_0)) {
             nettyTransportWorkerPendingTaskCount = in.readIntArray();
         } else {
             nettyTransportWorkerPendingTaskCount = new int[0];

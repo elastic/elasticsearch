@@ -10,6 +10,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
+import static org.hamcrest.Matchers.empty;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsAction;
@@ -223,19 +224,19 @@ public class CompositeRolesStoreTests extends ESTestCase {
         PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
         getRoleForRoleNames(compositeRolesStore, Collections.singleton("fls"), roleFuture);
         assertEquals(Role.EMPTY, roleFuture.actionGet());
-        assertThat(effectiveRoleDescriptors.get().isEmpty(), is(true));
+        assertThat(effectiveRoleDescriptors.get(), empty());
         effectiveRoleDescriptors.set(null);
 
         roleFuture = new PlainActionFuture<>();
         getRoleForRoleNames(compositeRolesStore, Collections.singleton("dls"), roleFuture);
         assertEquals(Role.EMPTY, roleFuture.actionGet());
-        assertThat(effectiveRoleDescriptors.get().isEmpty(), is(true));
+        assertThat(effectiveRoleDescriptors.get(), empty());
         effectiveRoleDescriptors.set(null);
 
         roleFuture = new PlainActionFuture<>();
         getRoleForRoleNames(compositeRolesStore, Collections.singleton("fls_dls"), roleFuture);
         assertEquals(Role.EMPTY, roleFuture.actionGet());
-        assertThat(effectiveRoleDescriptors.get().isEmpty(), is(true));
+        assertThat(effectiveRoleDescriptors.get(), empty());
         effectiveRoleDescriptors.set(null);
 
         roleFuture = new PlainActionFuture<>();
@@ -291,7 +292,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
             getRoleForRoleNames(compositeRolesStore, Collections.singleton("dls"), roleFuture);
             assertEquals(Role.EMPTY, roleFuture.actionGet());
-            assertThat(effectiveRoleDescriptors.get().isEmpty(), is(true));
+            assertThat(effectiveRoleDescriptors.get(), empty());
             mockAppender.assertAllExpectationsMatched();
         } finally {
             Loggers.removeAppender(logger, mockAppender);
@@ -545,7 +546,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         PlainActionFuture<Role> future = new PlainActionFuture<>();
         getRoleForRoleNames(compositeRolesStore, Collections.singleton(roleName), future);
         final Role role = future.actionGet();
-        assertThat(effectiveRoleDescriptors.get().isEmpty(), is(true));
+        assertThat(effectiveRoleDescriptors.get(), empty());
         effectiveRoleDescriptors.set(null);
         assertEquals(Role.EMPTY, role);
         verify(reservedRolesStore).accept(eq(Set.of(roleName)), anyActionListener());
@@ -618,7 +619,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         PlainActionFuture<Role> future = new PlainActionFuture<>();
         getRoleForRoleNames(compositeRolesStore, Collections.singleton(roleName), future);
         final Role role = future.actionGet();
-        assertThat(effectiveRoleDescriptors.get().isEmpty(), is(true));
+        assertThat(effectiveRoleDescriptors.get(), empty());
         effectiveRoleDescriptors.set(null);
         assertEquals(Role.EMPTY, role);
         verify(reservedRolesStore).accept(anySet(), anyActionListener());
@@ -660,7 +661,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             mock(ServiceAccountService.class),
             documentSubsetBitsetCache,
             TestRestrictedIndices.RESTRICTED_INDICES,
-            rds -> effectiveRoleDescriptors.set(rds)
+            effectiveRoleDescriptors::set
         );
         verify(fileRolesStore).addListener(anyConsumer()); // adds a listener in ctor
 
@@ -668,7 +669,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         PlainActionFuture<Role> future = new PlainActionFuture<>();
         getRoleForRoleNames(compositeRolesStore, Collections.singleton(roleName), future);
         final Role role = future.actionGet();
-        assertThat(effectiveRoleDescriptors.get().isEmpty(), is(true));
+        assertThat(effectiveRoleDescriptors.get(), empty());
         effectiveRoleDescriptors.set(null);
         assertEquals(Role.EMPTY, role);
         verify(reservedRolesStore).accept(anySet(), anyActionListener());
@@ -683,7 +684,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             future = new PlainActionFuture<>();
             getRoleForRoleNames(compositeRolesStore, names, future);
             future.actionGet();
-            assertThat(effectiveRoleDescriptors.get().isEmpty(), is(true));
+            assertThat(effectiveRoleDescriptors.get(), empty());
             effectiveRoleDescriptors.set(null);
         }
 
@@ -794,7 +795,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             getRoleForRoleNames(compositeRolesStore, Collections.singleton("unknown"), future);
             future.actionGet();
             if (i == 0) {
-                assertThat(effectiveRoleDescriptors.get().isEmpty(), is(true));
+                assertThat(effectiveRoleDescriptors.get(), empty());
             } else {
                 assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
             }

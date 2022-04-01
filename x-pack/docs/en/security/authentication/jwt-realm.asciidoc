@@ -13,7 +13,10 @@ behalf of the logged in user.
 
 TIP: If the external workflow does not exist, use `api` tokens instead.
 
-TIP: If the external workflow is Open ID Connect, and {es} is the OIDC RP, use `oidc` realm instead.
+NOTE: {es} provides a <<oidc-realm,OpenID Connect realm>> as well as the JWT realm. The `oidc` realm
+provides stronger security guarantees and should be preferred for any use case where {es} is able to act
+as an OIDC _Relying Party_ (RP). In particular the `oidc` realm is the only supported way to enable OpenID
+Connect authentication in Kibana.
 
 [[external-workflow-requirements]]
 ==== External Workflow Requirements

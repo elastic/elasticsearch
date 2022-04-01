@@ -4,7 +4,12 @@
 
 {es} can be configured to support user authentication using externally issued _JSON Web Tokens_ (JWTs).
 
-JWT realms are only intended to use with JWTs from existing, external workflows.
+The JWT realm is intended for uses cases where an external service generates
+JSON Web Tokens, and {es} should trust these JWTs as an authentication credential.
+
+A common scenario that leads to this use case is where a front-end application uses 
+Open ID Connect (OIDC) as an authentication method, and then accesses {es} on
+behalf of the logged in user.
 The format of those JWTs must be similar to Open ID Connect (OIDC) ID Tokens.
 See <<external-workflow-requirements>>.
 

@@ -46,7 +46,7 @@ public class KnnDenseVectorDocValuesField extends DenseVectorDocValuesField {
     }
 
     @Override
-    public DenseVectorScriptDocValues getScriptDocValues() {
+    public DenseVectorScriptDocValues toScriptDocValues() {
         return new DenseVectorScriptDocValues(this, dims);
     }
 

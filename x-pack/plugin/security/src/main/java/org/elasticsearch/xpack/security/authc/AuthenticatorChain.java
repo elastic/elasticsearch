@@ -136,7 +136,7 @@ class AuthenticatorChain {
         iterListener.run();
     }
 
-    private BiConsumer<Authenticator, ActionListener<AuthenticationResult<Authentication>>> getAuthenticatorConsumer(
+    private static BiConsumer<Authenticator, ActionListener<AuthenticationResult<Authentication>>> getAuthenticatorConsumer(
         Authenticator.Context context,
         boolean shouldExtractCredentials
     ) {
@@ -361,7 +361,7 @@ class AuthenticatorChain {
         listener.onResponse(authentication);
     }
 
-    private void addMetadata(Authenticator.Context context, ElasticsearchSecurityException ese) {
+    private static void addMetadata(Authenticator.Context context, ElasticsearchSecurityException ese) {
         if (false == context.getUnsuccessfulMessages().isEmpty()) {
             ese.addMetadata("es.additional_unsuccessful_credentials", context.getUnsuccessfulMessages());
         }

@@ -129,7 +129,10 @@ public class ClusterFormationFailureHelper {
             }
 
             final StringBuilder clusterStateNodes = new StringBuilder();
-            DiscoveryNodes.addCommaSeparatedNodesWithoutAttributes(clusterState.nodes().getMasterNodes().valuesIt(), clusterStateNodes);
+            DiscoveryNodes.addCommaSeparatedNodesWithoutAttributes(
+                clusterState.nodes().getMasterNodes().values().iterator(),
+                clusterStateNodes
+            );
 
             final String discoveryWillContinueDescription = String.format(
                 Locale.ROOT,
@@ -220,7 +223,7 @@ public class ClusterFormationFailureHelper {
             );
         }
 
-        private String describeQuorum(VotingConfiguration votingConfiguration) {
+        private static String describeQuorum(VotingConfiguration votingConfiguration) {
             final Set<String> nodeIds = votingConfiguration.getNodeIds();
             assert nodeIds.isEmpty() == false;
             final int requiredNodes = nodeIds.size() / 2 + 1;

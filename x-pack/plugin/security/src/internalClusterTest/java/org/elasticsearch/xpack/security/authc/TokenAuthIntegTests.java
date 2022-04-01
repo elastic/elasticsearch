@@ -7,10 +7,10 @@
 package org.elasticsearch.xpack.security.authc;
 
 import org.apache.directory.api.util.Strings;
+import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -18,9 +18,11 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.CreateTokenResponse;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
@@ -36,10 +38,18 @@ import org.elasticsearch.test.SecuritySettingsSource;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.TestSecurityClient;
 import org.elasticsearch.xpack.core.XPackSettings;
+import org.elasticsearch.xpack.core.security.action.token.CreateTokenAction;
+import org.elasticsearch.xpack.core.security.action.token.InvalidateTokenAction;
+import org.elasticsearch.xpack.core.security.action.token.RefreshTokenAction;
+import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
+import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
+import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
-import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import org.junit.After;
 import org.junit.Before;
 
@@ -56,12 +66,16 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.test.SecuritySettingsSource.ES_TEST_ROOT_USER;
 import static org.elasticsearch.test.SecuritySettingsSource.SECURITY_REQUEST_OPTIONS;
+import static org.elasticsearch.test.SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 @SuppressWarnings("removal")
 public class TokenAuthIntegTests extends SecurityIntegTestCase {
@@ -176,7 +190,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         AtomicReference<String> docId = new AtomicReference<>();
         assertBusy(() -> {
             SearchResponse searchResponse = restClient.search(
-                new SearchRequest(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS).source(
+                new SearchRequest(SecuritySystemIndices.SECURITY_TOKENS_ALIAS).source(
                     SearchSourceBuilder.searchSource().size(1).terminateAfter(1).query(QueryBuilders.termQuery("doc_type", "token"))
                 ),
                 SECURITY_REQUEST_OPTIONS
@@ -189,7 +203,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         Instant yesterday = created.minus(36L, ChronoUnit.HOURS);
         assertTrue(Instant.now().isAfter(yesterday));
         restClient.update(
-            new UpdateRequest(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS, docId.get()).doc("creation_time", yesterday.toEpochMilli())
+            new UpdateRequest(SecuritySystemIndices.SECURITY_TOKENS_ALIAS, docId.get()).doc("creation_time", yesterday.toEpochMilli())
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE),
             SECURITY_REQUEST_OPTIONS
         );
@@ -204,9 +218,11 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                 assertThat(invalidateResponseTwo.getPreviouslyInvalidatedTokens(), equalTo(0));
                 assertThat(invalidateResponseTwo.getErrors(), empty());
             }
-            restClient.indices().refresh(new RefreshRequest(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS), SECURITY_REQUEST_OPTIONS);
+            Request refreshRequest = new Request("POST", "/" + SecuritySystemIndices.SECURITY_TOKENS_ALIAS + "/_refresh");
+            refreshRequest.setOptions(SECURITY_REQUEST_OPTIONS);
+            restClient.getLowLevelClient().performRequest(refreshRequest);
             SearchResponse searchResponse = restClient.search(
-                new SearchRequest(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS).source(
+                new SearchRequest(SecuritySystemIndices.SECURITY_TOKENS_ALIAS).source(
                     SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("doc_type", "token")).terminateAfter(1)
                 ),
                 SECURITY_REQUEST_OPTIONS
@@ -573,7 +589,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         AtomicReference<String> docId = new AtomicReference<>();
         assertBusy(() -> {
             SearchResponse searchResponse = restClient.search(
-                new SearchRequest(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS).source(
+                new SearchRequest(SecuritySystemIndices.SECURITY_TOKENS_ALIAS).source(
                     SearchSourceBuilder.searchSource()
                         .query(
                             QueryBuilders.boolQuery()
@@ -594,7 +610,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         Instant aWhileAgo = refreshed.minus(50L, ChronoUnit.SECONDS);
         assertTrue(Instant.now().isAfter(aWhileAgo));
         UpdateResponse updateResponse = restClient.update(
-            new UpdateRequest(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS, docId.get()).doc(
+            new UpdateRequest(SecuritySystemIndices.SECURITY_TOKENS_ALIAS, docId.get()).doc(
                 "refresh_token",
                 Collections.singletonMap("refresh_time", aWhileAgo.toEpochMilli())
             ).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).fetchSource("refresh_token", Strings.EMPTY_STRING),
@@ -614,7 +630,6 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertThat(e.getCause().getMessage(), containsString("token has already been refreshed more than 30 seconds in the past"));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/55816")
     public void testRefreshingMultipleTimesWithinWindowSucceeds() throws Exception {
         final Clock clock = Clock.systemUTC();
         final List<String> tokens = Collections.synchronizedList(new ArrayList<>());
@@ -726,8 +741,10 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertThat(e.getCause().getMessage(), containsString("tokens must be refreshed by the creating client"));
     }
 
-    public void testCreateThenRefreshAsDifferentUser() throws IOException {
-        final RequestOptions superuserOptions = RequestOptions.DEFAULT.toBuilder()
+    public void testCreateThenRefreshAsRunAsUser() throws IOException {
+        final String nativeOtherUser = "other_user";
+        getSecurityClient().putUser(new User(nativeOtherUser, "superuser"), SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
+        final RequestOptions runAsOtherOptions = RequestOptions.DEFAULT.toBuilder()
             .addHeader(
                 "Authorization",
                 UsernamePasswordToken.basicAuthHeaderValue(
@@ -735,7 +752,15 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                     SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING
                 )
             )
+            .addHeader(AuthenticationServiceField.RUN_AS_USER_HEADER, nativeOtherUser)
             .build();
+        final RequestOptions otherOptions = RequestOptions.DEFAULT.toBuilder()
+            .addHeader(
+                "Authorization",
+                UsernamePasswordToken.basicAuthHeaderValue(nativeOtherUser, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING)
+            )
+            .build();
+
         final RestHighLevelClient restClient = new TestRestHighLevelClient();
         CreateTokenResponse createTokenResponse = restClient.security()
             .createToken(
@@ -743,19 +768,17 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                     SecuritySettingsSource.TEST_USER_NAME,
                     SecuritySettingsSourceField.TEST_PASSWORD.toCharArray()
                 ),
-                superuserOptions
+                randomBoolean() ? runAsOtherOptions : otherOptions
             );
         assertNotNull(createTokenResponse.getRefreshToken());
 
         CreateTokenResponse refreshResponse = restClient.security()
-            .createToken(CreateTokenRequest.refreshTokenGrant(createTokenResponse.getRefreshToken()), superuserOptions);
+            .createToken(
+                CreateTokenRequest.refreshTokenGrant(createTokenResponse.getRefreshToken()),
+                randomBoolean() ? runAsOtherOptions : otherOptions
+            );
         assertNotEquals(refreshResponse.getAccessToken(), createTokenResponse.getAccessToken());
         assertNotEquals(refreshResponse.getRefreshToken(), createTokenResponse.getRefreshToken());
-
-        final Map<String, Object> authenticateResponse = getSecurityClient(superuserOptions).authenticate();
-
-        assertThat(authenticateResponse, hasEntry(User.Fields.USERNAME.getPreferredName(), SecuritySettingsSource.ES_TEST_ROOT_USER));
-        assertThat(authenticateResponse, hasEntry(User.Fields.AUTHENTICATION_TYPE.getPreferredName(), "realm"));
 
         assertAuthenticateWithToken(createTokenResponse.getAccessToken(), SecuritySettingsSource.TEST_USER_NAME);
         assertAuthenticateWithToken(refreshResponse.getAccessToken(), SecuritySettingsSource.TEST_USER_NAME);
@@ -826,6 +849,72 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
     public void testMetadataIsNotSentToClient() {
         ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().setCustoms(true).get();
         assertFalse(clusterStateResponse.getState().customs().containsKey(TokenMetadata.TYPE));
+    }
+
+    public void testCreatorRealmCaptureWillWorkWithClientRunAs() throws IOException {
+        final String nativeTokenUsername = "native_token_user";
+        getSecurityClient().putUser(new User(nativeTokenUsername, "superuser"), SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
+        // File realm user run-as a native realm user
+        final Client runAsClient = client().filterWithHeader(
+            Map.of(
+                "Authorization",
+                UsernamePasswordToken.basicAuthHeaderValue(ES_TEST_ROOT_USER, TEST_PASSWORD_SECURE_STRING.clone()),
+                AuthenticationServiceField.RUN_AS_USER_HEADER,
+                nativeTokenUsername
+            )
+        );
+
+        // Create a token with client credentials and run-as, the token should be owned by the run-as user (native realm)
+        var createTokenRequest1 = new org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest();
+        createTokenRequest1.setGrantType("client_credentials");
+        final PlainActionFuture<org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse> future1 = new PlainActionFuture<>();
+        runAsClient.execute(CreateTokenAction.INSTANCE, createTokenRequest1, future1);
+        final String accessToken = future1.actionGet().getTokenString();
+        // Token is usable
+        final AuthenticateResponse authenticateResponse = client().filterWithHeader(Map.of("Authorization", "Bearer " + accessToken))
+            .execute(AuthenticateAction.INSTANCE, new AuthenticateRequest(nativeTokenUsername))
+            .actionGet();
+        assertThat(authenticateResponse.authentication().getUser().principal(), equalTo(nativeTokenUsername));
+        assertThat(authenticateResponse.authentication().getLookedUpBy().getName(), equalTo("index"));
+        assertThat(authenticateResponse.authentication().getAuthenticatedBy().getName(), equalTo("file"));
+        assertThat(authenticateResponse.authentication().getAuthenticationType(), is(Authentication.AuthenticationType.TOKEN));
+        // Invalidate tokens by realm and username respect the run-as user's username and realm
+        var invalidateTokenRequest = new org.elasticsearch.xpack.core.security.action.token.InvalidateTokenRequest(
+            null,
+            null,
+            "index",
+            nativeTokenUsername
+        );
+        final PlainActionFuture<org.elasticsearch.xpack.core.security.action.token.InvalidateTokenResponse> future2 =
+            new PlainActionFuture<>();
+        client().execute(InvalidateTokenAction.INSTANCE, invalidateTokenRequest, future2);
+        assertThat(future2.actionGet().getResult().getInvalidatedTokens().size(), equalTo(1));
+
+        // Create a token with password grant and run-as user (native realm)
+        var createTokenRequest2 = new org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest();
+        createTokenRequest2.setGrantType("password");
+        createTokenRequest2.setUsername(ES_TEST_ROOT_USER);
+        createTokenRequest2.setPassword(TEST_PASSWORD_SECURE_STRING.clone());
+        final PlainActionFuture<org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse> future3 = new PlainActionFuture<>();
+        runAsClient.execute(CreateTokenAction.INSTANCE, createTokenRequest2, future3);
+        final String refreshToken = future3.actionGet().getRefreshToken();
+
+        var createTokenRequest3 = new org.elasticsearch.xpack.core.security.action.token.CreateTokenRequest();
+        createTokenRequest3.setGrantType("refresh_token");
+        createTokenRequest3.setRefreshToken(refreshToken);
+        final PlainActionFuture<org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse> future4 = new PlainActionFuture<>();
+
+        // Refresh token is bound to the original user that creates it. In this case, it is the run-as user
+        // refresh without run-as should fail
+        client().filterWithHeader(
+            Map.of("Authorization", UsernamePasswordToken.basicAuthHeaderValue(ES_TEST_ROOT_USER, TEST_PASSWORD_SECURE_STRING.clone()))
+        ).execute(RefreshTokenAction.INSTANCE, createTokenRequest3, future4);
+        expectThrows(ElasticsearchSecurityException.class, future4::actionGet);
+
+        // refresh with run-as should work
+        final PlainActionFuture<org.elasticsearch.xpack.core.security.action.token.CreateTokenResponse> future5 = new PlainActionFuture<>();
+        runAsClient.execute(RefreshTokenAction.INSTANCE, createTokenRequest3, future5);
+        assertThat(future5.actionGet().getTokenString(), notNullValue());
     }
 
     private String generateAccessToken(Version version) throws Exception {

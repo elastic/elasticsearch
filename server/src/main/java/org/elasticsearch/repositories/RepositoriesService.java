@@ -41,6 +41,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
@@ -60,7 +61,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.unmodifiableMap;
@@ -148,7 +148,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
         // Trying to create the new repository on master to make sure it works
         try {
-            closeRepository(createRepository(newRepositoryMetadata, typesRegistry, this::throwRepositoryTypeDoesNotExists));
+            closeRepository(createRepository(newRepositoryMetadata, typesRegistry, RepositoriesService::throwRepositoryTypeDoesNotExists));
         } catch (Exception e) {
             listener.onFailure(e);
             return;
@@ -267,8 +267,13 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                     publicationStep.onResponse(oldState != newState);
                 }
             },
-            ClusterStateTaskExecutor.unbatched()
+            newExecutor()
         );
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 
     /**
@@ -329,7 +334,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                     listener.onResponse(null);
                 }
             },
-            ClusterStateTaskExecutor.unbatched()
+            newExecutor()
         );
     }
 
@@ -391,7 +396,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                     return discoveryNode.isMasterNode() || discoveryNode.canContainData();
                 }
             },
-            ClusterStateTaskExecutor.unbatched()
+            newExecutor()
         );
     }
 
@@ -501,7 +506,11 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                         archiveRepositoryStats(repository, state.version());
                         repository = null;
                         try {
-                            repository = createRepository(repositoryMetadata, typesRegistry, this::createUnknownTypeRepository);
+                            repository = createRepository(
+                                repositoryMetadata,
+                                typesRegistry,
+                                RepositoriesService::createUnknownTypeRepository
+                            );
                         } catch (RepositoryException ex) {
                             // TODO: this catch is bogus, it means the old repo is already closed,
                             // but we have nothing to replace it
@@ -510,7 +519,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                     }
                 } else {
                     try {
-                        repository = createRepository(repositoryMetadata, typesRegistry, this::createUnknownTypeRepository);
+                        repository = createRepository(repositoryMetadata, typesRegistry, RepositoriesService::createUnknownTypeRepository);
                     } catch (RepositoryException ex) {
                         logger.warn(() -> new ParameterizedMessage("failed to create repository [{}]", repositoryMetadata.name()), ex);
                     }
@@ -530,7 +539,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         }
     }
 
-    private boolean canUpdateInPlace(RepositoryMetadata updatedMetadata, Repository repository) {
+    private static boolean canUpdateInPlace(RepositoryMetadata updatedMetadata, Repository repository) {
         assert updatedMetadata.name().equals(repository.getMetadata().name());
         return repository.getMetadata().type().equals(updatedMetadata.type())
             && repository.canUpdateInPlace(updatedMetadata.settings(), Collections.emptySet());
@@ -592,7 +601,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
             .filter(r -> r instanceof MeteredBlobStoreRepository)
             .map(r -> (MeteredBlobStoreRepository) r)
             .map(MeteredBlobStoreRepository::statsSnapshot)
-            .collect(Collectors.toList());
+            .toList();
     }
 
     public List<RepositoryStatsSnapshot> clearRepositoriesStatsArchive(long maxVersionToClear) {
@@ -603,7 +612,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         RepositoryMetadata metadata = new RepositoryMetadata(name, type, Settings.EMPTY);
         Repository repository = internalRepositories.computeIfAbsent(name, (n) -> {
             logger.debug("put internal repository [{}][{}]", name, type);
-            return createRepository(metadata, internalTypesRegistry, this::throwRepositoryTypeDoesNotExists);
+            return createRepository(metadata, internalTypesRegistry, RepositoriesService::throwRepositoryTypeDoesNotExists);
         });
         if (type.equals(repository.getMetadata().type()) == false) {
             logger.warn(
@@ -641,7 +650,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     /**
      * Closes the given repository.
      */
-    private void closeRepository(Repository repository) {
+    private static void closeRepository(Repository repository) {
         logger.debug("closing repository [{}][{}]", repository.getMetadata().type(), repository.getMetadata().name());
         repository.close();
     }
@@ -658,7 +667,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     /**
      * Creates repository holder. This method starts the repository
      */
-    private Repository createRepository(
+    private static Repository createRepository(
         RepositoryMetadata repositoryMetadata,
         Map<String, Repository.Factory> factories,
         Function<RepositoryMetadata, Repository> defaultFactory
@@ -683,11 +692,11 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         }
     }
 
-    private Repository throwRepositoryTypeDoesNotExists(RepositoryMetadata repositoryMetadata) {
+    private static Repository throwRepositoryTypeDoesNotExists(RepositoryMetadata repositoryMetadata) {
         throw new RepositoryException(repositoryMetadata.name(), "repository type [" + repositoryMetadata.type() + "] does not exist");
     }
 
-    private Repository createUnknownTypeRepository(RepositoryMetadata repositoryMetadata) {
+    private static Repository createUnknownTypeRepository(RepositoryMetadata repositoryMetadata) {
         logger.warn(
             "[{}] repository type [{}] is unknown; ensure that all required plugins are installed on this node",
             repositoryMetadata.name(),

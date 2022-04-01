@@ -43,11 +43,11 @@ import org.elasticsearch.xpack.security.authc.support.mapper.NativeRoleMappingSt
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * Provides a single entry point into dealing with all standard XPack security {@link Realm realms}.
@@ -73,15 +73,18 @@ public final class InternalRealms {
     /**
      * The map of all <em>licensed</em> internal realm types to their licensed feature
      */
-    private static final Map<String, LicensedFeature.Persistent> LICENSED_REALMS = Map.ofEntries(
-        Map.entry(AD_TYPE, Security.AD_REALM_FEATURE),
-        Map.entry(LDAP_TYPE, Security.LDAP_REALM_FEATURE),
-        Map.entry(PKI_TYPE, Security.PKI_REALM_FEATURE),
-        Map.entry(SAML_TYPE, Security.SAML_REALM_FEATURE),
-        Map.entry(KERBEROS_TYPE, Security.KERBEROS_REALM_FEATURE),
-        Map.entry(OIDC_TYPE, Security.OIDC_REALM_FEATURE),
-        Map.entry(JWT_TYPE, Security.JWT_REALM_FEATURE)
-    );
+    private static final Map<String, LicensedFeature.Persistent> LICENSED_REALMS;
+    static {
+        Map<String, LicensedFeature.Persistent> realms = new HashMap<>();
+        realms.put(AD_TYPE, Security.AD_REALM_FEATURE);
+        realms.put(LDAP_TYPE, Security.LDAP_REALM_FEATURE);
+        realms.put(PKI_TYPE, Security.PKI_REALM_FEATURE);
+        realms.put(SAML_TYPE, Security.SAML_REALM_FEATURE);
+        realms.put(KERBEROS_TYPE, Security.KERBEROS_REALM_FEATURE);
+        realms.put(OIDC_TYPE, Security.OIDC_REALM_FEATURE);
+        realms.put(JWT_TYPE, Security.JWT_REALM_FEATURE);
+        LICENSED_REALMS = Map.copyOf(realms);
+    }
 
     /**
      * The set of all <em>internal</em> realm types, excluding {@link ReservedRealm#TYPE}
@@ -173,15 +176,14 @@ public final class InternalRealms {
 
     public static List<BootstrapCheck> getBootstrapChecks(final Settings globalSettings, final Environment env) {
         final Set<String> realmTypes = Sets.newHashSet(LdapRealmSettings.AD_TYPE, LdapRealmSettings.LDAP_TYPE, PkiRealmSettings.TYPE);
-        final List<BootstrapCheck> checks = RealmSettings.getRealmSettings(globalSettings)
+        return RealmSettings.getRealmSettings(globalSettings)
             .keySet()
             .stream()
             .filter(id -> realmTypes.contains(id.getType()))
             .map(id -> new RealmConfig(id, globalSettings, env, null))
             .map(RoleMappingFileBootstrapCheck::create)
             .filter(Objects::nonNull)
-            .collect(Collectors.toList());
-        return checks;
+            .toList();
     }
 
 }

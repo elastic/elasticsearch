@@ -38,7 +38,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 
@@ -172,12 +171,13 @@ public class UnifiedHighlighter implements Highlighter {
         FetchSubPhase.HitContext hitContext,
         boolean forceSource
     ) throws IOException {
-        List<Object> fieldValues = HighlightUtils.loadFieldValues(fieldType, searchContext, hitContext, forceSource);
-        fieldValues = fieldValues.stream().map((s) -> convertFieldValue(fieldType, s)).collect(Collectors.toList());
-        return fieldValues;
+        return HighlightUtils.loadFieldValues(fieldType, searchContext, hitContext, forceSource)
+            .stream()
+            .<Object>map((s) -> convertFieldValue(fieldType, s))
+            .toList();
     }
 
-    protected BreakIterator getBreakIterator(SearchHighlightContext.Field field) {
+    protected static BreakIterator getBreakIterator(SearchHighlightContext.Field field) {
         final SearchHighlightContext.FieldOptions fieldOptions = field.fieldOptions();
         final Locale locale = fieldOptions.boundaryScannerLocale() != null ? fieldOptions.boundaryScannerLocale() : Locale.ROOT;
         final HighlightBuilder.BoundaryScannerType type = fieldOptions.boundaryScannerType() != null
@@ -213,7 +213,7 @@ public class UnifiedHighlighter implements Highlighter {
         return rawValue.substring(0, Math.min(rawValue.length(), Integer.MAX_VALUE - 1));
     }
 
-    protected OffsetSource getOffsetSource(MappedFieldType fieldType) {
+    protected static OffsetSource getOffsetSource(MappedFieldType fieldType) {
         TextSearchInfo tsi = fieldType.getTextSearchInfo();
         if (tsi.hasOffsets()) {
             return tsi.termVectors() != TextSearchInfo.TermVector.NONE ? OffsetSource.POSTINGS_WITH_TERM_VECTORS : OffsetSource.POSTINGS;
@@ -224,7 +224,7 @@ public class UnifiedHighlighter implements Highlighter {
         return OffsetSource.ANALYSIS;
     }
 
-    private Predicate<String> fieldMatcher(FieldHighlightContext fieldContext) {
+    private static Predicate<String> fieldMatcher(FieldHighlightContext fieldContext) {
         if (fieldContext.field.fieldOptions().requireFieldMatch()) {
             String fieldName = fieldContext.fieldName;
             return fieldName::equals;

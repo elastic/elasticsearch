@@ -260,7 +260,7 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
                 TrainedModelConfig.builder()
                     .setModelType(TrainedModelType.PYTORCH)
                     .setInferenceConfig(
-                        new PassThroughConfig(null, new BertTokenization(null, false, null, Tokenization.Truncate.NONE), null)
+                        new PassThroughConfig(null, new BertTokenization(null, false, null, Tokenization.Truncate.NONE, -1), null)
                     )
                     .setModelId(modelId)
                     .build(),
@@ -281,7 +281,8 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
             PutTrainedModelVocabularyAction.INSTANCE,
             new PutTrainedModelVocabularyAction.Request(
                 modelId,
-                List.of("these", "are", "my", "words", BertTokenizer.UNKNOWN_TOKEN, BertTokenizer.PAD_TOKEN)
+                List.of("these", "are", "my", "words", BertTokenizer.UNKNOWN_TOKEN, BertTokenizer.PAD_TOKEN),
+                List.of()
             )
         ).actionGet();
         client().execute(

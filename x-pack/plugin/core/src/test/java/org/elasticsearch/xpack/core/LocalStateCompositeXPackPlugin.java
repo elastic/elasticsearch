@@ -694,7 +694,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
             .stream()
             .map(SearchPlugin::getRequestCacheKeyDifferentiator)
             .filter(Objects::nonNull)
-            .collect(Collectors.toUnmodifiableList());
+            .toList();
 
         if (differentiators.size() > 1) {
             throw new UnsupportedOperationException("Only the security SearchPlugin should provide the request cache key differentiator");

@@ -46,7 +46,7 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.nlp.NlpTask;
 import org.elasticsearch.xpack.ml.inference.nlp.Vocabulary;
 import org.elasticsearch.xpack.ml.inference.nlp.tokenizers.TokenizationResult;
-import org.elasticsearch.xpack.ml.inference.pytorch.process.NativePyTorchProcess;
+import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcess;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcessFactory;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchResultProcessor;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchStateStreamer;
@@ -115,7 +115,10 @@ public class DeploymentManager {
                 processContext.rejectedExecutionCount.intValue(),
                 processContext.timeoutCount.intValue(),
                 processContext.inferenceThreads,
-                processContext.modelThreads
+                processContext.modelThreads,
+                stats.peakThroughput(),
+                stats.recentStats().requestsProcessed(),
+                stats.recentStats().avgInferenceTime()
             );
         });
     }
@@ -378,7 +381,7 @@ public class DeploymentManager {
                 assert config instanceof NlpConfig;
                 NlpConfig nlpConfig = (NlpConfig) config;
                 NlpTask.Request request = processor.getRequestBuilder(nlpConfig)
-                    .buildRequest(text, requestIdStr, nlpConfig.getTokenization().getTruncate());
+                    .buildRequest(text, requestIdStr, nlpConfig.getTokenization().getTruncate(), nlpConfig.getTokenization().getSpan());
                 logger.debug(() -> "Inference Request " + request.processInput().utf8ToString());
                 if (request.tokenization().anyTruncated()) {
                     logger.debug("[{}] [{}] input truncated", modelId, requestId);
@@ -444,7 +447,7 @@ public class DeploymentManager {
     class ProcessContext {
 
         private final TrainedModelDeploymentTask task;
-        private final SetOnce<NativePyTorchProcess> process = new SetOnce<>();
+        private final SetOnce<PyTorchProcess> process = new SetOnce<>();
         private final SetOnce<NlpTask.Processor> nlpTaskProcessor = new SetOnce<>();
         private final SetOnce<TrainedModelInput> modelInput = new SetOnce<>();
         private final PyTorchResultProcessor resultProcessor;

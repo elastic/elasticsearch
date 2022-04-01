@@ -19,7 +19,6 @@ dependencies {
   }
 }
 
-
 tasks.named('forbiddenApisMain').configure {
   // nio does not depend on core, so only jdk signatures should be checked
   // es-all is not checked as we connect and accept sockets

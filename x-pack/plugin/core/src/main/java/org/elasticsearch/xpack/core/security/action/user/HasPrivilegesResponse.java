@@ -182,7 +182,7 @@ public class HasPrivilegesResponse extends ActionResponse implements ToXContentO
         return builder;
     }
 
-    private void appendResources(XContentBuilder builder, String field, Set<ResourcePrivileges> privileges) throws IOException {
+    private static void appendResources(XContentBuilder builder, String field, Set<ResourcePrivileges> privileges) throws IOException {
         builder.startObject(field);
         for (ResourcePrivileges privilege : privileges) {
             builder.field(privilege.getResource());

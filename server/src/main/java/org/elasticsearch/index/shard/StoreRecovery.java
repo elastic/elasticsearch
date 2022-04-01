@@ -154,7 +154,7 @@ public final class StoreRecovery {
         }
     }
 
-    void addIndices(
+    static void addIndices(
         final RecoveryState.Index indexRecoveryStats,
         final Directory target,
         final Sort indexSort,
@@ -475,7 +475,7 @@ public final class StoreRecovery {
         assert indexShard.loadRetentionLeases().leases().isEmpty();
     }
 
-    private void addRecoveredFileDetails(SegmentInfos si, Store store, RecoveryState.Index index) throws IOException {
+    private static void addRecoveredFileDetails(SegmentInfos si, Store store, RecoveryState.Index index) throws IOException {
         final Directory directory = store.directory();
         for (String name : Lucene.files(si)) {
             long length = directory.fileLength(name);

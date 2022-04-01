@@ -1,8 +1,9 @@
 keyword dimension:
   - skip:
       features: close_to
-      version: " - 8.0.99"
-      reason: _tsid support introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
+
 
   - do:
       indices.create:
@@ -74,8 +75,8 @@ keyword dimension:
 long dimension:
   - skip:
       features: close_to
-      version: " - 8.0.99"
-      reason: _tsid support introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       indices.create:
@@ -149,8 +150,8 @@ long dimension:
 ip dimension:
   - skip:
       features: close_to
-      version: " - 8.0.99"
-      reason: _tsid support introduced in 8.1.0
+      version: " - 8.1.99"
+      reason: tsdb indexing changed in 8.2.0
 
   - do:
       indices.create:

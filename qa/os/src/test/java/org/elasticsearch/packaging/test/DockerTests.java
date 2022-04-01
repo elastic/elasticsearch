@@ -61,6 +61,7 @@ import static org.elasticsearch.packaging.util.docker.Docker.getImageLabels;
 import static org.elasticsearch.packaging.util.docker.Docker.getJson;
 import static org.elasticsearch.packaging.util.docker.Docker.listContents;
 import static org.elasticsearch.packaging.util.docker.Docker.mkDirWithPrivilegeEscalation;
+import static org.elasticsearch.packaging.util.docker.Docker.readinessProbe;
 import static org.elasticsearch.packaging.util.docker.Docker.removeContainer;
 import static org.elasticsearch.packaging.util.docker.Docker.restartContainer;
 import static org.elasticsearch.packaging.util.docker.Docker.rmDirWithPrivilegeEscalation;
@@ -411,17 +412,6 @@ public class DockerTests extends PackagingTestCase {
         assertTrue(existsInContainer(installation.logs.resolve("gc.log")));
 
         runElasticsearchTestsAsElastic(PASSWORD);
-    }
-
-    /**
-     * Check that the JDK uses the Cloudflare zlib, instead of the default one.
-     */
-    public void test060JavaUsesCloudflareZlib() {
-        waitForElasticsearch(installation, "elastic", PASSWORD);
-
-        final String output = sh.run("bash -c 'pmap -p $(pidof java)'").stdout();
-
-        assertThat("Expected java to be using cloudflare-zlib", output, containsString("cloudflare-zlib"));
     }
 
     /**
@@ -1271,5 +1261,19 @@ public class DockerTests extends PackagingTestCase {
     private List<String> listPlugins() {
         final Installation.Executables bin = installation.executables();
         return sh.run(bin.pluginTool + " list").stdout().lines().collect(Collectors.toList());
+    }
+
+    /**
+     * Check that readiness listener works
+     */
+    public void testReadiness001() throws Exception {
+        assertFalse(readinessProbe(9399));
+        // Disabling security so we wait for green
+        installation = runContainer(
+            distribution(),
+            builder().envVar("readiness.port", "9399").envVar("xpack.security.enabled", "false").envVar("discovery.type", "single-node")
+        );
+        waitForElasticsearch(installation);
+        assertTrue(readinessProbe(9399));
     }
 }

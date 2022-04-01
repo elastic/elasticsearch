@@ -34,6 +34,7 @@ setup:
         wait_for_completion: true
         body:
           indices: "test_index"
+          feature_states: ["none"]
 
   - match: { snapshot.snapshot: test_snapshot_1 }
   - match: { snapshot.state : SUCCESS }

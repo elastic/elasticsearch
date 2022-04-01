@@ -88,13 +88,12 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
-import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
-import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON;
+import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES;
 import static org.elasticsearch.xpack.security.authz.AuthorizedIndicesTests.getRequestInfo;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -205,14 +204,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             .put(dataStreamIndex1, true)
             .put(dataStreamIndex2, true)
             .put(dataStreamIndex3, true)
-            .put(
-                newInstance(
-                    dataStreamName,
-                    createTimestampField("@timestamp"),
-                    List.of(dataStreamIndex1.getIndex(), dataStreamIndex2.getIndex())
-                )
-            )
-            .put(newInstance(otherDataStreamName, createTimestampField("@timestamp"), List.of(dataStreamIndex3.getIndex())))
+            .put(newInstance(dataStreamName, List.of(dataStreamIndex1.getIndex(), dataStreamIndex2.getIndex())))
+            .put(newInstance(otherDataStreamName, List.of(dataStreamIndex3.getIndex())))
             .put(indexBuilder(securityIndexName).settings(settings))
             .build();
 
@@ -349,7 +342,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                     roleDescriptors,
                     fieldPermissionsCache,
                     null,
-                    RESTRICTED_INDICES_AUTOMATON,
+                    RESTRICTED_INDICES,
                     ActionListener.wrap(r -> callback.onResponse(r), callback::onFailure)
                 );
             }
@@ -361,19 +354,17 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
             @SuppressWarnings("unchecked")
             ActionListener<Role> listener = (ActionListener<Role>) i.getArguments()[1];
             if (XPackUser.is(user)) {
-                listener.onResponse(Role.builder(XPackUser.ROLE_DESCRIPTOR, fieldPermissionsCache, RESTRICTED_INDICES_AUTOMATON).build());
+                listener.onResponse(Role.builder(XPackUser.ROLE_DESCRIPTOR, fieldPermissionsCache, RESTRICTED_INDICES).build());
                 return Void.TYPE;
             }
             if (XPackSecurityUser.is(user)) {
                 listener.onResponse(
-                    Role.builder(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR, fieldPermissionsCache, RESTRICTED_INDICES_AUTOMATON).build()
+                    Role.builder(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR, fieldPermissionsCache, RESTRICTED_INDICES).build()
                 );
                 return Void.TYPE;
             }
             if (AsyncSearchUser.is(user)) {
-                listener.onResponse(
-                    Role.builder(AsyncSearchUser.ROLE_DESCRIPTOR, fieldPermissionsCache, RESTRICTED_INDICES_AUTOMATON).build()
-                );
+                listener.onResponse(Role.builder(AsyncSearchUser.ROLE_DESCRIPTOR, fieldPermissionsCache, RESTRICTED_INDICES).build());
                 return Void.TYPE;
             }
 
@@ -391,7 +382,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         // aliases with names starting with '-' or '+' can be created up to version 5.x and can be around in 6.x
         ShardSearchRequest request = mock(ShardSearchRequest.class);
         when(request.indices()).thenReturn(new String[] { "-index10", "-index20", "+index30" });
-        List<String> indices = defaultIndicesResolver.resolveIndicesAndAliasesWithoutWildcards(SearchAction.NAME + "[s]", request)
+        List<String> indices = IndicesAndAliasesResolver.resolveIndicesAndAliasesWithoutWildcards(SearchAction.NAME + "[s]", request)
             .getLocal();
         String[] expectedIndices = new String[] { "-index10", "-index20", "+index30" };
         assertThat(indices, hasSize(expectedIndices.length));
@@ -403,7 +394,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         when(request.indices()).thenReturn(new String[] { "index*" });
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> defaultIndicesResolver.resolveIndicesAndAliasesWithoutWildcards(SearchAction.NAME + "[s]", request)
+            () -> IndicesAndAliasesResolver.resolveIndicesAndAliasesWithoutWildcards(SearchAction.NAME + "[s]", request)
         );
         assertThat(
             exception,
@@ -428,7 +419,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
         }
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> defaultIndicesResolver.resolveIndicesAndAliasesWithoutWildcards(SearchAction.NAME + "[s]", request)
+            () -> IndicesAndAliasesResolver.resolveIndicesAndAliasesWithoutWildcards(SearchAction.NAME + "[s]", request)
         );
 
         assertThat(

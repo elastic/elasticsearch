@@ -197,7 +197,7 @@ public class Constants {
         "cluster:admin/xpack/security/profile/activate",
         "cluster:admin/xpack/security/profile/get",
         "cluster:admin/xpack/security/profile/put/data",
-        "cluster:admin/xpack/security/profile/search",
+        "cluster:admin/xpack/security/profile/suggest",
         "cluster:admin/xpack/security/profile/set_enabled",
         "cluster:admin/xpack/security/realm/cache/clear",
         "cluster:admin/xpack/security/role/delete",

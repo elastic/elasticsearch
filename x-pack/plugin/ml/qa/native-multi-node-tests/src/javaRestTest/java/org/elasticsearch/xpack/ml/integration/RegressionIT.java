@@ -320,7 +320,6 @@ public class RegressionIT extends MlNativeDataFrameAnalyticsIntegTestCase {
         );
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/85536")
     public void testStopAndRestart() throws Exception {
         initialize("regression_stop_and_restart");
         String predictedClassField = DEPENDENT_VARIABLE_FIELD + "_prediction";

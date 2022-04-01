@@ -46,3 +46,11 @@ keyword:
       _source:
         kwd:  foo
         kwd2: bar
+
+  # Make sure there isn't any _source stored field
+  - do:
+      indices.disk_usage:
+        index: test
+        run_expensive_tasks: true
+  - is_false: test.fields._source
+  - is_true: test.fields._recovery_source

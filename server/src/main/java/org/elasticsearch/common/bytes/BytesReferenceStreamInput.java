@@ -10,7 +10,6 @@ package org.elasticsearch.common.bytes;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
-import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.EOFException;

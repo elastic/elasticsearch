@@ -59,8 +59,8 @@ public class DesiredBalanceReconciler {
             // TODO test that we do this even if desired balance is empty
         }
 
-        if (desiredBalance.desiredAssignments().isEmpty()) {
-            // no desired state yet but it is on its way and we'll reroute again when its ready
+        if (desiredBalance.desiredAssignments().isEmpty() && desiredBalance.unassigned().isEmpty()) {
+            // no desired state yet but it is on its way and we'll reroute again when it is ready
             logger.trace("desired balance is empty, nothing to reconcile");
             return;
         }

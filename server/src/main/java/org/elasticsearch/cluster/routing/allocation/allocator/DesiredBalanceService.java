@@ -38,7 +38,7 @@ public class DesiredBalanceService {
 
     private final ShardsAllocator delegateAllocator;
 
-    private volatile DesiredBalance currentDesiredBalance = new DesiredBalance(Map.of());
+    private volatile DesiredBalance currentDesiredBalance = new DesiredBalance(Map.of(), Map.of());
 
     public DesiredBalanceService(ShardsAllocator delegateAllocator) {
         this.delegateAllocator = delegateAllocator;
@@ -65,7 +65,7 @@ public class DesiredBalanceService {
         if (routingNodes.size() == 0) {
             final var clearDesiredBalance = currentDesiredBalance.desiredAssignments().size() != 0;
             if (clearDesiredBalance) {
-                currentDesiredBalance = new DesiredBalance(Map.of());
+                currentDesiredBalance = new DesiredBalance(Map.of(), Map.of());
             }
             return clearDesiredBalance;
             // TODO test for this case
@@ -238,13 +238,19 @@ public class DesiredBalanceService {
             );
         }
 
+        final var unassigned = new HashMap<ShardId, UnassignedInfo>();
+        for (var ignored : routingAllocation.routingNodes().unassigned().ignored()) {
+            assert ignored.unassignedInfo() != null;
+            unassigned.put(ignored.shardId(), ignored.unassignedInfo());
+        }
+
         logger.trace(
             hasChanges
                 ? "newer cluster state received, publishing incomplete desired balance and restarting computation"
                 : "desired balance computation converged"
         );
 
-        final DesiredBalance newDesiredBalance = new DesiredBalance(desiredAssignments);
+        final DesiredBalance newDesiredBalance = new DesiredBalance(desiredAssignments, unassigned);
         assert desiredBalance == currentDesiredBalance;
         if (newDesiredBalance.equals(desiredBalance) == false) {
             if (logger.isTraceEnabled()) {
@@ -253,7 +259,7 @@ public class DesiredBalanceService {
                     final var newNodes = desiredAssignment.getValue();
                     final var oldNodes = desiredBalance.desiredAssignments().get(shardId);
                     if (newNodes.equals(oldNodes)) {
-                        logger.trace("{} desired balance unchanged,   allocating to {}", shardId, newNodes);
+                        logger.trace("{} desired balance unchanged, allocating to {}", shardId, newNodes);
                     } else {
                         logger.trace("{} desired balance changed, now allocating to {} vs previous {}", shardId, newNodes, oldNodes);
                     }

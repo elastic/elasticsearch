@@ -37,13 +37,7 @@ public class ECSJsonLayout {
         return new ECSJsonLayout.Builder().asBuilder();
     }
 
-    public static void  init() {
-        PluginEntry pluginEntry = new PluginEntry();
-        pluginEntry.setName("ECSJsonLayout");
-        pluginEntry.setKey("ecsjsonlayout");
-        pluginEntry.setPrintable(true);
-        Log4JBootstrapSupportImpl.initPlugins(Node.CATEGORY, ECSJsonLayout.class, Layout.ELEMENT_TYPE, pluginEntry);
-    }
+
 
     public static class Builder extends AbstractStringLayout.Builder<Builder>
         implements

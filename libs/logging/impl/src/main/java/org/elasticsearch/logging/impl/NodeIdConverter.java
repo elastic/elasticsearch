@@ -40,9 +40,7 @@ public final class NodeIdConverter extends LogEventPatternConverter {
         super("node_id", "node_id");
     }
 
-    public static void  init() {
-        Log4JBootstrapSupportImpl.initPlugins(PatternConverter.CATEGORY, NodeIdConverter.class, "NodeIdConverter", new PluginEntry());
-    }
+
 
     /**
      * Formats the node.id into json fields.

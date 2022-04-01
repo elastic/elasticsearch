@@ -158,21 +158,20 @@ public class Log4JBootstrapSupportImpl implements LoggingBootstrapSupport {
     /**
      * Load logging plugins so we can have {@code node_name} in the pattern.
      */
-    public  void loadLog4jPlugins() { //TODO PG when startup problems look here..
-
+    public void loadLog4jPlugins() { //TODO PG when startup problems look here..
 
         Set<Class<?>> classes = Set.of(
-        ClusterIdConverter.class,
-        NodeNamePatternConverter.class,
-        CustomMapFieldsConverter.class,
-        ECSJsonLayout.class,
-        ESJsonLayout.class,
-        JsonThrowablePatternConverter.class,
-        Log4jRateLimitingFilter.class,
-        NodeAndClusterIdConverter.class,
-        NodeIdConverter.class,
-        TraceIdConverter.class,
-        HeaderWarningAppenderImpl.class
+            ClusterIdConverter.class,
+            NodeNamePatternConverter.class,
+            CustomMapFieldsConverter.class,
+            ECSJsonLayout.class,
+            ESJsonLayout.class,
+            JsonThrowablePatternConverter.class,
+            Log4jRateLimitingFilter.class,
+            NodeAndClusterIdConverter.class,
+            NodeIdConverter.class,
+            TraceIdConverter.class,
+            HeaderWarningAppenderImpl.class
         );
         final Map<String, List<PluginType<?>>> newPluginsByCategory = new HashMap<>();
         for (final Class<?> clazz : classes) {
@@ -214,24 +213,6 @@ public class Log4JBootstrapSupportImpl implements LoggingBootstrapSupport {
             .put(1L, newPluginsByCategory);
     }
 
-    public static  void initPlugins(String category, Class<?> pluginClass, String elementName, PluginEntry pluginEntry) {
-        if(pluginEntry.getKey() == null){
-            pluginEntry.setKey(elementName.toLowerCase(Locale.ROOT));
-        }
-        if(pluginEntry.getName() == null){
-            pluginEntry.setName(elementName);
-        }
-        pluginEntry.setClassName(pluginClass.getCanonicalName());
-        pluginEntry.setCategory(category.toLowerCase(Locale.ROOT));
-        PluginRegistry.getInstance().getPluginsByCategoryByBundleId()
-            .computeIfAbsent(1L,a-> new ConcurrentHashMap<>())
-            .computeIfAbsent(category.toLowerCase(Locale.ROOT), c-> new ArrayList<>())
-            .add(new PluginType<>(
-                pluginEntry,
-                pluginClass,
-                elementName
-            ));
-    }
 
     /**
      * Sets the node name. This is called before logging is configured if the

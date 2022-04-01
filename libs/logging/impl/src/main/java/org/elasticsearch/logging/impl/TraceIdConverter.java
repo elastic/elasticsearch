@@ -38,9 +38,6 @@ public final class TraceIdConverter extends LogEventPatternConverter {
         return ServerSupport.INSTANCE.getTraceIdHeader();
     }
 
-    public static void  init() {
-        Log4JBootstrapSupportImpl.initPlugins(PatternConverter.CATEGORY, TraceIdConverter.class, "org.elasticsearch.logging.impl.TraceIdConverter", new PluginEntry());
-    }
 
     /**
      * Formats the trace.id into json fields.

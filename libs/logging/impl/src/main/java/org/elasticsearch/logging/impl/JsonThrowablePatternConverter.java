@@ -80,9 +80,7 @@ public final class JsonThrowablePatternConverter extends ThrowablePatternConvert
         return new JsonThrowablePatternConverter(config, options);
     }
 
-    public static void  init() {
-        Log4JBootstrapSupportImpl.initPlugins(PatternConverter.CATEGORY, JsonThrowablePatternConverter.class, "org.elasticsearch.logging.impl.JsonThrowablePatternConverter", new PluginEntry());
-    }
+
 
     /**
      * {@inheritDoc}

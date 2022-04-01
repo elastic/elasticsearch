@@ -35,13 +35,7 @@ public class HeaderWarningAppenderImpl extends AbstractAppender {
         super(name, filter, null);
     }
 
-    public static void init() {
-        PluginEntry pluginEntry = new PluginEntry();
-        pluginEntry.setName("HeaderWarningAppender");
-        pluginEntry.setKey("HeaderWarningAppender");
-        Log4JBootstrapSupportImpl.initPlugins(Core.CATEGORY_NAME, HeaderWarningAppenderImpl.class, Appender.ELEMENT_TYPE, pluginEntry);
 
-    }
 
     @Override
     public void append(LogEvent event) {

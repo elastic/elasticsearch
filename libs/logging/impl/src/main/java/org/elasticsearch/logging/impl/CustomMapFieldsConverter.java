@@ -35,9 +35,7 @@ public final class CustomMapFieldsConverter extends LogEventPatternConverter {
         return new CustomMapFieldsConverter();
     }
 
-    public static void  init() {
-        Log4JBootstrapSupportImpl.initPlugins(PatternConverter.CATEGORY, ClusterIdConverter.class, "cluster_id", new PluginEntry());
-    }
+
 
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {

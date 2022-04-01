@@ -65,12 +65,7 @@ public class Log4jRateLimitingFilter extends AbstractFilter {
         return new Log4jRateLimitingFilter(match, mismatch);
     }
 
-    public static void  init() {
-        PluginEntry pluginEntry = new PluginEntry();
-        pluginEntry.setName("RateLimitingFilter");
-        pluginEntry.setKey("RateLimitingFilter");
-        Log4JBootstrapSupportImpl.initPlugins(Node.CATEGORY, Log4jRateLimitingFilter.class, org.apache.logging.log4j.core.Filter.ELEMENT_TYPE, pluginEntry);
-    }
+
 
 
     @Override

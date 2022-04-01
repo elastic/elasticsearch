@@ -81,12 +81,6 @@ public class ESJsonLayout extends AbstractStringLayout {
             .build();
     }
 
-    public static void  init() {
-        PluginEntry pluginEntry = new PluginEntry();
-        pluginEntry.setName(Layout.ELEMENT_TYPE);
-        pluginEntry.setKey("org.elasticsearch.logging.impl.ESJsonLayout");
-        pluginEntry.setPrintable(true);
-        Log4JBootstrapSupportImpl.initPlugins(Node.CATEGORY, ESJsonLayout.class, Layout.ELEMENT_TYPE, pluginEntry);    }
 
     private String pattern(String type, String[] esmessagefields) {
         if (Util.isEmpty(type)) {

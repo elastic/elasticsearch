@@ -41,11 +41,7 @@ public final class ClusterIdConverter extends LogEventPatternConverter {
     }
 
 
-    public static void  init() {
-        PluginEntry pluginEntry = new PluginEntry();
-//        pluginEntry.setCategory();
-        Log4JBootstrapSupportImpl.initPlugins(PatternConverter.CATEGORY, ClusterIdConverter.class, "org.elasticsearch.logging.impl.ClusterIdConverter", pluginEntry);
-    }
+
 
     /**
      * Formats the cluster.uuid into json fields.

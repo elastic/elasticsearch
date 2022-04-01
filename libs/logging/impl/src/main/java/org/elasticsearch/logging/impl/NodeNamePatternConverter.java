@@ -37,9 +37,7 @@ import java.util.Arrays;
 @ConverterKeys({ "ESnode_name", "node_name" })
 public final class NodeNamePatternConverter extends LogEventPatternConverter {
 
-    public static void  init() {
-        Log4JBootstrapSupportImpl.initPlugins(PatternConverter.CATEGORY, NodeNamePatternConverter.class, "org.elasticsearch.logging.impl.NodeNamePatternConverter", new PluginEntry());
-    }
+
 
     /**
      * The name of this node.

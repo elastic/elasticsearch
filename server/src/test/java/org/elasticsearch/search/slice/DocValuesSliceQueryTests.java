@@ -8,8 +8,6 @@
 
 package org.elasticsearch.search.slice;
 
-import com.carrotsearch.hppc.BitMixer;
-
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -25,6 +23,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.search.QueryUtils;
 import org.apache.lucene.util.NumericUtils;
+import org.apache.lucene.util.hppc.BitMixer;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.test.ESTestCase;
 

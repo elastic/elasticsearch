@@ -114,10 +114,7 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
             }
 
             if (dataNodeIds.size() == 0) {
-                logger.debug(
-                    "could not find any nodes to allocate each shard's copy of the index [{}] onto prior to shrink",
-                    indexName
-                );
+                logger.debug("could not find any nodes to allocate each shard's copy of the index [{}] onto prior to shrink", indexName);
                 listener.onFailure(
                     new NoNodeAvailableException(
                         "could not find any nodes to allocate each shard's copy of the index [" + indexName + "] onto prior to shrink"

@@ -32,78 +32,27 @@ import java.util.function.Supplier;
 public interface XContentParser extends Closeable {
 
     enum Token {
-        START_OBJECT {
-            @Override
-            public boolean isValue() {
-                return false;
-            }
-        },
-
-        END_OBJECT {
-            @Override
-            public boolean isValue() {
-                return false;
-            }
-        },
-
-        START_ARRAY {
-            @Override
-            public boolean isValue() {
-                return false;
-            }
-        },
-
-        END_ARRAY {
-            @Override
-            public boolean isValue() {
-                return false;
-            }
-        },
-
-        FIELD_NAME {
-            @Override
-            public boolean isValue() {
-                return false;
-            }
-        },
-
-        VALUE_STRING {
-            @Override
-            public boolean isValue() {
-                return true;
-            }
-        },
-
-        VALUE_NUMBER {
-            @Override
-            public boolean isValue() {
-                return true;
-            }
-        },
-
-        VALUE_BOOLEAN {
-            @Override
-            public boolean isValue() {
-                return true;
-            }
-        },
-
+        START_OBJECT(false),
+        END_OBJECT(false),
+        START_ARRAY(false),
+        END_ARRAY(false),
+        FIELD_NAME(false),
+        VALUE_STRING(true),
+        VALUE_NUMBER(true),
+        VALUE_BOOLEAN(true),
         // usually a binary value
-        VALUE_EMBEDDED_OBJECT {
-            @Override
-            public boolean isValue() {
-                return true;
-            }
-        },
+        VALUE_EMBEDDED_OBJECT(true),
+        VALUE_NULL(false);
 
-        VALUE_NULL {
-            @Override
-            public boolean isValue() {
-                return false;
-            }
-        };
+        private final boolean isValue;
 
-        public abstract boolean isValue();
+        Token(boolean isValue) {
+            this.isValue = isValue;
+        }
+
+        public boolean isValue() {
+            return isValue;
+        }
     }
 
     enum NumberType {

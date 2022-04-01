@@ -45,16 +45,28 @@ xpack.security.authc.realms.jwt.jwt1:
 [[external-workflow-requirements]]
 ==== External Workflow Requirements
 
-Consider workflows that are completely separate from {es}.
-They can be Open ID Connect, bespoke, or other, as long as they use JWS JWTs for an `identification token`.
-In those workflows, end-users interact with a third-party application, and authenticate via a third-party authentication application.
+JWT realm functionality is derived from OIDC ID Connect (OIDC) workflows. A high-level understanding of OIDC Tokens helps with JWT realm.
 
-Different tokens are created within those workflows for authentication, authorization, and identification.
-Reusing the authentication or authorization tokens outside of those workflows may not be desirable.
-However, reusing the `identification token` is possible.
+In OIDC workflows, end-users initiates contact with an OIDC Relying Party (RP), and are redirected to authenticate to an OIDC Provider (OP).
+Separate tokens are issued at different steps to represent authentication, authorization, and identification.
 
-JWT realm allows reusing the `identification token` for {es} authentication and authorization.
-JWT format is similar to Open ID Connect (OIDC) ID Tokens, with some differences. See <<jwt-validation>>.
+.OIDC Tokens
+* Grant Token: End-users authenticate to the OIDC OP, receive an OIDC Grant Token, and present it to the OIDC RP as proof of authentication.
+* ID Token: OIDC RPs ask the OIDC OP to verify the OIDC Grant Token, and exchange it for two tokens. One is an OIDC ID Token.
+* Access Token: OIDC RPs ask the OIDC OP to verify the OIDC Grant Token, and exchange it for two tokens. One is an OIDC Access Token.
+
+IMPORTANT: The OIDC ID Token is a JWT. The encoding is transparent to the OIDC RP, the Grant and Access tokens are opaque values.
+
+When the OIDC RP performs actions on behalf of the end-user, it can make calls into some back-end applications.
+
+.If the back-end application is:
+* part of OIDC OP workflow, the OIDC RP presents the OIDC Access token, and the back-end application asks the OIDC OP to verify authorization.
+* {es} (not part of OIDC OP work), the OIDC RP must present the OIDC ID Token.
+
+A JWT realm will validate the contents of the OIDC ID Token, and use it to authenticate, identify, and authorize the end-user.
+
+NOTE: Since JWTs are acquired external to {es}, a bespoke workflow can be used instead of OIDC workflow.
+      However, the JWT format must still be similar to OIDC ID Tokens. See <<jwt-validation>>.
 
 [[jwt-authentication-requirements]]
 ==== JWT Authentication Requirements

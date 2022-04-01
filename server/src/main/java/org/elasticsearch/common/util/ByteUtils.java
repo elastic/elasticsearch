@@ -143,17 +143,6 @@ public enum ByteUtils {
     }
 
     /**
-     * Converts a short to a byte array in big endian format.
-     *
-     * @param val The short to convert to a byte array
-     * @param arr The byte array to write the short value in big endian layout
-     * @param offset The offset where in the array to write to
-     */
-    public static void writeShortBE(short val, byte[] arr, int offset) {
-        BIG_ENDIAN_SHORT.set(arr, offset, val);
-    }
-
-    /**
      * Converts an int to a byte array in big endian format.
      *
      * @param val The int to convert to a byte array
@@ -172,6 +161,17 @@ public enum ByteUtils {
      */
     public static int readIntBE(byte[] arr, int offset) {
         return (int) BIG_ENDIAN_INT.get(arr, offset);
+    }
+
+    /**
+     * Converts a short to a byte array in big endian format.
+     *
+     * @param val The short to convert to a byte array
+     * @param arr The byte array to write the short value in big endian layout
+     * @param offset The offset where in the array to write to
+     */
+    public static void writeShortBE(short val, byte[] arr, int offset) {
+        BIG_ENDIAN_SHORT.set(arr, offset, val);
     }
 
     /**

@@ -22,7 +22,11 @@ import org.apache.logging.log4j.core.config.builder.api.ConfigurationBuilder;
 import org.apache.logging.log4j.core.config.builder.api.ConfigurationBuilderFactory;
 import org.apache.logging.log4j.core.config.builder.impl.BuiltConfiguration;
 import org.apache.logging.log4j.core.config.composite.CompositeConfiguration;
-import org.apache.logging.log4j.core.config.plugins.util.PluginManager;
+import org.apache.logging.log4j.core.config.plugins.Plugin;
+import org.apache.logging.log4j.core.config.plugins.PluginAliases;
+import org.apache.logging.log4j.core.config.plugins.processor.PluginEntry;
+import org.apache.logging.log4j.core.config.plugins.util.PluginRegistry;
+import org.apache.logging.log4j.core.config.plugins.util.PluginType;
 import org.apache.logging.log4j.core.config.properties.PropertiesConfiguration;
 import org.apache.logging.log4j.core.config.properties.PropertiesConfigurationBuilder;
 import org.apache.logging.log4j.core.config.properties.PropertiesConfigurationFactory;
@@ -31,10 +35,19 @@ import org.apache.logging.log4j.status.StatusData;
 import org.apache.logging.log4j.status.StatusListener;
 import org.apache.logging.log4j.status.StatusLogger;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.logging.impl.ClusterIdConverter;
+import org.elasticsearch.logging.impl.CustomMapFieldsConverter;
 import org.elasticsearch.logging.impl.ECSJsonLayout;
+import org.elasticsearch.logging.impl.ESJsonLayout;
+import org.elasticsearch.logging.impl.HeaderWarningAppenderImpl;
+import org.elasticsearch.logging.impl.JsonThrowablePatternConverter;
+import org.elasticsearch.logging.impl.Log4jRateLimitingFilter;
 import org.elasticsearch.logging.impl.Loggers;
 import org.elasticsearch.logging.impl.LoggingOutputStream;
+import org.elasticsearch.logging.impl.NodeAndClusterIdConverter;
+import org.elasticsearch.logging.impl.NodeIdConverter;
 import org.elasticsearch.logging.impl.NodeNamePatternConverter;
+import org.elasticsearch.logging.impl.TraceIdConverter;
 import org.elasticsearch.logging.impl.Util;
 import org.elasticsearch.logging.spi.LoggingBootstrapSupport;
 
@@ -51,13 +64,16 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.StreamSupport;
@@ -143,8 +159,78 @@ public class Log4JBootstrapSupportImpl implements LoggingBootstrapSupport {
      * Load logging plugins so we can have {@code node_name} in the pattern.
      */
     public  void loadLog4jPlugins() { //TODO PG when startup problems look here..
-        PluginManager.addPackage(LoggingBootstrapSupport.class.getPackage().getName());
-        PluginManager.addPackage(ECSJsonLayout.class.getPackage().getName());
+
+
+        Set<Class<?>> classes = Set.of(
+        ClusterIdConverter.class,
+        NodeNamePatternConverter.class,
+        CustomMapFieldsConverter.class,
+        ECSJsonLayout.class,
+        ESJsonLayout.class,
+        JsonThrowablePatternConverter.class,
+        Log4jRateLimitingFilter.class,
+        NodeAndClusterIdConverter.class,
+        NodeIdConverter.class,
+        TraceIdConverter.class,
+        HeaderWarningAppenderImpl.class
+        );
+        final Map<String, List<PluginType<?>>> newPluginsByCategory = new HashMap<>();
+        for (final Class<?> clazz : classes) {
+            final Plugin plugin = clazz.getAnnotation(Plugin.class);
+            final String categoryLowerCase = plugin.category().toLowerCase();
+            List<PluginType<?>> list = newPluginsByCategory.get(categoryLowerCase);
+            if (list == null) {
+                newPluginsByCategory.put(categoryLowerCase, list = new ArrayList<>());
+            }
+            final PluginEntry mainEntry = new PluginEntry();
+            final String mainElementName = plugin.elementType().equals(
+                Plugin.EMPTY) ? plugin.name() : plugin.elementType();
+            mainEntry.setKey(plugin.name().toLowerCase());
+            mainEntry.setName(plugin.name());
+            mainEntry.setCategory(plugin.category());
+            mainEntry.setClassName(clazz.getName());
+            mainEntry.setPrintable(plugin.printObject());
+            mainEntry.setDefer(plugin.deferChildren());
+            final PluginType<?> mainType = new PluginType<>(mainEntry, clazz, mainElementName);
+            list.add(mainType);
+            final PluginAliases pluginAliases = clazz.getAnnotation(PluginAliases.class);
+            if (pluginAliases != null) {
+                for (final String alias : pluginAliases.value()) {
+                    final PluginEntry aliasEntry = new PluginEntry();
+                    final String aliasElementName = plugin.elementType().equals(
+                        Plugin.EMPTY) ? alias.trim() : plugin.elementType();
+                    aliasEntry.setKey(alias.trim().toLowerCase());
+                    aliasEntry.setName(plugin.name());
+                    aliasEntry.setCategory(plugin.category());
+                    aliasEntry.setClassName(clazz.getName());
+                    aliasEntry.setPrintable(plugin.printObject());
+                    aliasEntry.setDefer(plugin.deferChildren());
+                    final PluginType<?> aliasType = new PluginType<>(aliasEntry, clazz, aliasElementName);
+                    list.add(aliasType);
+                }
+            }
+        }
+        PluginRegistry.getInstance().getPluginsByCategoryByBundleId()
+            .put(1L, newPluginsByCategory);
+    }
+
+    public static  void initPlugins(String category, Class<?> pluginClass, String elementName, PluginEntry pluginEntry) {
+        if(pluginEntry.getKey() == null){
+            pluginEntry.setKey(elementName.toLowerCase(Locale.ROOT));
+        }
+        if(pluginEntry.getName() == null){
+            pluginEntry.setName(elementName);
+        }
+        pluginEntry.setClassName(pluginClass.getCanonicalName());
+        pluginEntry.setCategory(category.toLowerCase(Locale.ROOT));
+        PluginRegistry.getInstance().getPluginsByCategoryByBundleId()
+            .computeIfAbsent(1L,a-> new ConcurrentHashMap<>())
+            .computeIfAbsent(category.toLowerCase(Locale.ROOT), c-> new ArrayList<>())
+            .add(new PluginType<>(
+                pluginEntry,
+                pluginClass,
+                elementName
+            ));
     }
 
     /**
@@ -312,7 +398,7 @@ public class Log4JBootstrapSupportImpl implements LoggingBootstrapSupport {
     }
 
     private static void configureStatusLogger() {
-        final ConfigurationBuilder<BuiltConfiguration> builder = ConfigurationBuilderFactory.newConfigurationBuilder();
+        final ConfigurationBuilder<BuiltConfiguration> builder = ConfigurationBuilderFactory.newConfigurationBuilder();// TODO PG plugin loading
         builder.setStatusLevel(Level.ERROR);
         Configurator.initialize(builder.build());
     }

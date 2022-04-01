@@ -16,9 +16,11 @@ package org.elasticsearch.logging.impl;/*
 
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
+import org.apache.logging.log4j.core.config.plugins.processor.PluginEntry;
 import org.apache.logging.log4j.core.pattern.ConverterKeys;
 import org.apache.logging.log4j.core.pattern.LogEventPatternConverter;
 import org.apache.logging.log4j.core.pattern.PatternConverter;
+import org.elasticsearch.logging.impl.provider.Log4JBootstrapSupportImpl;
 import org.elasticsearch.logging.spi.ServerSupport;
 
 import java.util.Locale;
@@ -43,6 +45,10 @@ public final class NodeAndClusterIdConverter extends LogEventPatternConverter {
      */
     public static NodeAndClusterIdConverter newInstance(@SuppressWarnings("unused") final String[] options) {
         return new NodeAndClusterIdConverter();
+    }
+
+    public static void  init() {
+        Log4JBootstrapSupportImpl.initPlugins(PatternConverter.CATEGORY, NodeAndClusterIdConverter.class, "org.elasticsearch.logging.impl.NodeAndClusterIdConverter", new PluginEntry());
     }
 
     /**

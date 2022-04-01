@@ -9,9 +9,11 @@
 package org.elasticsearch.logging.impl;import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
+import org.apache.logging.log4j.core.config.plugins.processor.PluginEntry;
 import org.apache.logging.log4j.core.pattern.ConverterKeys;
 import org.apache.logging.log4j.core.pattern.LogEventPatternConverter;
 import org.apache.logging.log4j.core.pattern.PatternConverter;
+import org.elasticsearch.logging.impl.provider.Log4JBootstrapSupportImpl;
 
 /**
  * Pattern converter to populate CustomMapFields in a pattern.
@@ -31,6 +33,10 @@ public final class CustomMapFieldsConverter extends LogEventPatternConverter {
      */
     public static CustomMapFieldsConverter newInstance(final Configuration config, final String[] options) {
         return new CustomMapFieldsConverter();
+    }
+
+    public static void  init() {
+        Log4JBootstrapSupportImpl.initPlugins(PatternConverter.CATEGORY, ClusterIdConverter.class, "cluster_id", new PluginEntry());
     }
 
     @Override

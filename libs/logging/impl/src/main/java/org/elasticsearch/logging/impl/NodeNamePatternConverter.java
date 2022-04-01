@@ -17,9 +17,11 @@ package org.elasticsearch.logging.impl;/*
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.LoggerContext;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
+import org.apache.logging.log4j.core.config.plugins.processor.PluginEntry;
 import org.apache.logging.log4j.core.pattern.ConverterKeys;
 import org.apache.logging.log4j.core.pattern.LogEventPatternConverter;
 import org.apache.logging.log4j.core.pattern.PatternConverter;
+import org.elasticsearch.logging.impl.provider.Log4JBootstrapSupportImpl;
 
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
@@ -31,9 +33,14 @@ import java.util.Arrays;
  * property is only set if the node name is explicitly defined in
  * elasticsearch.yml.
  */
-@Plugin(category = PatternConverter.CATEGORY, name = "org.elasticsearch.logging.impl.NodeNamePatternConverter")
+@Plugin(category = PatternConverter.CATEGORY, name = "NodeNamePatternConverter")
 @ConverterKeys({ "ESnode_name", "node_name" })
 public final class NodeNamePatternConverter extends LogEventPatternConverter {
+
+    public static void  init() {
+        Log4JBootstrapSupportImpl.initPlugins(PatternConverter.CATEGORY, NodeNamePatternConverter.class, "org.elasticsearch.logging.impl.NodeNamePatternConverter", new PluginEntry());
+    }
+
     /**
      * The name of this node.
      */
@@ -84,6 +91,7 @@ public final class NodeNamePatternConverter extends LogEventPatternConverter {
         super("NodeName", "node_name");
         this.nodeName = nodeName;
     }
+
 
     @Override
     public void format(LogEvent event, StringBuilder toAppendTo) {

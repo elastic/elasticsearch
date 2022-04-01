@@ -10,13 +10,17 @@ package org.elasticsearch.logging.impl;
 
 import co.elastic.logging.log4j2.EcsLayout;
 
+import org.apache.logging.log4j.core.Appender;
 import org.apache.logging.log4j.core.Layout;
 import org.apache.logging.log4j.core.config.Node;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.config.plugins.PluginAttribute;
 import org.apache.logging.log4j.core.config.plugins.PluginBuilderFactory;
+import org.apache.logging.log4j.core.config.plugins.processor.PluginEntry;
 import org.apache.logging.log4j.core.layout.AbstractStringLayout;
+import org.apache.logging.log4j.core.pattern.PatternConverter;
 import org.apache.logging.log4j.core.util.KeyValuePair;
+import org.elasticsearch.logging.impl.provider.Log4JBootstrapSupportImpl;
 
 import java.nio.charset.StandardCharsets;
 
@@ -31,6 +35,14 @@ public class ECSJsonLayout {
     @PluginBuilderFactory
     public static ECSJsonLayout.Builder newBuilder() {
         return new ECSJsonLayout.Builder().asBuilder();
+    }
+
+    public static void  init() {
+        PluginEntry pluginEntry = new PluginEntry();
+        pluginEntry.setName("ECSJsonLayout");
+        pluginEntry.setKey("ecsjsonlayout");
+        pluginEntry.setPrintable(true);
+        Log4JBootstrapSupportImpl.initPlugins(Node.CATEGORY, ECSJsonLayout.class, Layout.ELEMENT_TYPE, pluginEntry);
     }
 
     public static class Builder extends AbstractStringLayout.Builder<Builder>

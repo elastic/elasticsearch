@@ -7,8 +7,7 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.upgrade;
 
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -21,6 +20,8 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.indices.ShardLimitValidator;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.Executor;

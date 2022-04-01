@@ -680,6 +680,7 @@ public class Node implements Closeable {
 
             Collection<Object> pluginComponents = pluginsService.filterPlugins(Plugin.class)
                 .stream()
+                .filter(p->p.getClass().getSimpleName().equals("AzureRepositoryPlugin") == false)
                 .flatMap(
                     p -> p.createComponents(
                         client,

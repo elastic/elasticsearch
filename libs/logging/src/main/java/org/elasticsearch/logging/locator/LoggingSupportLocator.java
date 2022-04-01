@@ -28,6 +28,7 @@ public class LoggingSupportLocator {
 
     static final Set<String> MISSING_MODULES = Collections.emptySet();
 
+    static ProviderLocator providerLocator = new ProviderLocator(PROVIDER_NAME,  PROVIDER_MODULE_NAME);
 
     public static final LoggingBootstrapSupport LOGGING_BOOTSTRAP_SUPPORT_INSTANCE = getSupportInstance(LoggingBootstrapSupport.class);
 
@@ -41,12 +42,12 @@ public class LoggingSupportLocator {
 
     public static final LogManagerFactory LOG_MANAGER_FACTORY_INSTANCE = getSupportInstance(LogManagerFactory.class);
 
-
+@SuppressWarnings("unchecked")
     private static <T> T getSupportInstance(Class<T> supportClass) {
         Module m = LoggingSupportLocator.class.getModule();
         if (m.isNamed() && m.getDescriptor().uses().stream().anyMatch(supportClass.getName()::equals) == false) {
             throw new ServiceConfigurationError("%s: module %s does not declare `uses`".formatted(supportClass, m));
         }
-        return (new ProviderLocator<>(PROVIDER_NAME, supportClass, PROVIDER_MODULE_NAME, MISSING_MODULES)).get();
+        return providerLocator.get(supportClass);
     }
 }

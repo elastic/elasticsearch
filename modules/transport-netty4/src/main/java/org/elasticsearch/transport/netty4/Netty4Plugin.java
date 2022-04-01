@@ -8,6 +8,9 @@
 
 package org.elasticsearch.transport.netty4;
 
+import io.netty.util.internal.logging.InternalLoggerFactory;
+import io.netty.util.internal.logging.JdkLoggerFactory;
+
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -35,6 +38,10 @@ import java.util.function.Supplier;
 
 public class Netty4Plugin extends Plugin implements NetworkPlugin {
 
+    static {
+        InternalLoggerFactory.setDefaultFactory(JdkLoggerFactory.INSTANCE);
+
+    }
     public static final String NETTY_TRANSPORT_NAME = "netty4";
     public static final String NETTY_HTTP_TRANSPORT_NAME = "netty4";
 

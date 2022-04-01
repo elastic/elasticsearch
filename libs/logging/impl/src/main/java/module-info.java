@@ -27,6 +27,8 @@ module org.elasticsearch.logging.impl {
     requires org.elasticsearch.logging;
     requires org.elasticsearch.core;
 
+    opens org.elasticsearch.logging.impl /*to org.apache.logging.log4j.core*/;
+
     provides MessageFactory with Log4JMessageFactoryImpl;
     provides LoggingBootstrapSupport with Log4JBootstrapSupportImpl;
     provides LogLevelSupport with LogLevelSupportImpl;

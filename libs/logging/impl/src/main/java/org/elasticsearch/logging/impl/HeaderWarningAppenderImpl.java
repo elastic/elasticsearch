@@ -23,13 +23,24 @@ import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.config.plugins.PluginAttribute;
 import org.apache.logging.log4j.core.config.plugins.PluginElement;
 import org.apache.logging.log4j.core.config.plugins.PluginFactory;
+import org.apache.logging.log4j.core.config.plugins.processor.PluginEntry;
+import org.apache.logging.log4j.core.pattern.PatternConverter;
 import org.elasticsearch.logging.core.HeaderWarningAppender;
+import org.elasticsearch.logging.impl.provider.Log4JBootstrapSupportImpl;
 
-@Plugin(name = "org.elasticsearch.logging.impl.HeaderWarningAppender", category = Core.CATEGORY_NAME, elementType = Appender.ELEMENT_TYPE)
+@Plugin(name = "HeaderWarningAppender", category = Core.CATEGORY_NAME, elementType = Appender.ELEMENT_TYPE)
 public class HeaderWarningAppenderImpl extends AbstractAppender {
     HeaderWarningAppender headerWarningAppender = new HeaderWarningAppender();
     public HeaderWarningAppenderImpl(String name, Filter filter) {
         super(name, filter, null);
+    }
+
+    public static void init() {
+        PluginEntry pluginEntry = new PluginEntry();
+        pluginEntry.setName("HeaderWarningAppender");
+        pluginEntry.setKey("HeaderWarningAppender");
+        Log4JBootstrapSupportImpl.initPlugins(Core.CATEGORY_NAME, HeaderWarningAppenderImpl.class, Appender.ELEMENT_TYPE, pluginEntry);
+
     }
 
     @Override

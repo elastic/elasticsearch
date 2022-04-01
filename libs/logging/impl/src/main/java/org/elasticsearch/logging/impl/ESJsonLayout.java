@@ -21,9 +21,11 @@ import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.config.plugins.PluginAttribute;
 import org.apache.logging.log4j.core.config.plugins.PluginBuilderFactory;
 import org.apache.logging.log4j.core.config.plugins.PluginFactory;
+import org.apache.logging.log4j.core.config.plugins.processor.PluginEntry;
 import org.apache.logging.log4j.core.layout.AbstractStringLayout;
 import org.apache.logging.log4j.core.layout.ByteBufferDestination;
 import org.apache.logging.log4j.core.layout.PatternLayout;
+import org.elasticsearch.logging.impl.provider.Log4JBootstrapSupportImpl;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
@@ -78,6 +80,13 @@ public class ESJsonLayout extends AbstractStringLayout {
             .withAlwaysWriteExceptions(false)
             .build();
     }
+
+    public static void  init() {
+        PluginEntry pluginEntry = new PluginEntry();
+        pluginEntry.setName(Layout.ELEMENT_TYPE);
+        pluginEntry.setKey("org.elasticsearch.logging.impl.ESJsonLayout");
+        pluginEntry.setPrintable(true);
+        Log4JBootstrapSupportImpl.initPlugins(Node.CATEGORY, ESJsonLayout.class, Layout.ELEMENT_TYPE, pluginEntry);    }
 
     private String pattern(String type, String[] esmessagefields) {
         if (Util.isEmpty(type)) {

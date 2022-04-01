@@ -16,17 +16,20 @@ package org.elasticsearch.logging.impl;/*
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Marker;
+import org.apache.logging.log4j.core.Layout;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.Logger;
 import org.apache.logging.log4j.core.config.Node;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.config.plugins.PluginAttribute;
 import org.apache.logging.log4j.core.config.plugins.PluginFactory;
+import org.apache.logging.log4j.core.config.plugins.processor.PluginEntry;
 import org.apache.logging.log4j.core.filter.AbstractFilter;
 import org.apache.logging.log4j.message.Message;
 import org.elasticsearch.logging.core.Filter;
 import org.elasticsearch.logging.core.RateLimitingFilter;
 import org.elasticsearch.logging.impl.provider.AppenderSupportImpl;
+import org.elasticsearch.logging.impl.provider.Log4JBootstrapSupportImpl;
 
 
 /**
@@ -40,7 +43,7 @@ import org.elasticsearch.logging.impl.provider.AppenderSupportImpl;
  *
  * @see <a href="https://logging.apache.org/log4j/2.x/manual/filters.htmlf">Log4j2 Filters</a>
  */
-@Plugin(name = "org.elasticsearch.logging.impl.RateLimitingFilter", category = Node.CATEGORY, elementType = org.apache.logging.log4j.core.Filter.ELEMENT_TYPE)
+@Plugin(name = "RateLimitingFilter", category = Node.CATEGORY, elementType = org.apache.logging.log4j.core.Filter.ELEMENT_TYPE)
 public class Log4jRateLimitingFilter extends AbstractFilter {
 
     RateLimitingFilter rateLimitingFilter = new RateLimitingFilter();
@@ -60,6 +63,13 @@ public class Log4jRateLimitingFilter extends AbstractFilter {
         @PluginAttribute("onMismatch") final org.apache.logging.log4j.core.Filter.Result mismatch
     ) {
         return new Log4jRateLimitingFilter(match, mismatch);
+    }
+
+    public static void  init() {
+        PluginEntry pluginEntry = new PluginEntry();
+        pluginEntry.setName("RateLimitingFilter");
+        pluginEntry.setKey("RateLimitingFilter");
+        Log4JBootstrapSupportImpl.initPlugins(Node.CATEGORY, Log4jRateLimitingFilter.class, org.apache.logging.log4j.core.Filter.ELEMENT_TYPE, pluginEntry);
     }
 
 

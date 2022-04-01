@@ -15,27 +15,45 @@ import org.elasticsearch.logging.spi.LogManagerFactory;
 public class Log4jLogManagerFactory implements LogManagerFactory {
     @Override
     public Logger getLogger(String name) {
-        org.apache.logging.log4j.Logger logger = org.apache.logging.log4j.LogManager.getLogger(name);
+//        org.apache.logging.log4j.Logger logger = org.apache.logging.log4j.LogManager.getLogger(name);
+        org.apache.logging.log4j.Logger logger = getLogger1(name);
         return new LoggerImpl(logger);
+    }
+
+    private org.apache.logging.log4j.Logger getLogger1(String name) {
+        org.apache.logging.log4j.Logger logger =
+            org.apache.logging.log4j.LogManager
+                .getContext(Log4jLogManagerFactory.class.getClassLoader(), false)
+                .getLogger(name);
+        return logger;
     }
 
     @Override
     public Logger getLogger(Class<?> clazz) {
-        org.apache.logging.log4j.Logger logger = org.apache.logging.log4j.LogManager.getLogger(clazz);
+        org.apache.logging.log4j.Logger logger = getLogger1(clazz);
+
         return new LoggerImpl(logger);
+    }
+
+    private org.apache.logging.log4j.Logger getLogger1(Class<?> clazz) {
+        org.apache.logging.log4j.Logger logger =
+          org.apache.logging.log4j.LogManager
+            .getContext(Log4jLogManagerFactory.class.getClassLoader(), false)
+            .getLogger(clazz);
+        return logger;
     }
 
     @Override
     public Logger getPrefixLogger(String loggerName, String prefix) {
         return new LoggerImpl(
-            new org.elasticsearch.logging.impl.PrefixLogger(org.apache.logging.log4j.LogManager.getLogger(loggerName), prefix)
+            new org.elasticsearch.logging.impl.PrefixLogger(getLogger1(loggerName), prefix)
         );
     }
 
     @Override
     public Logger getPrefixLogger(Class<?> clazz, String prefix) {
         return new LoggerImpl(
-            new org.elasticsearch.logging.impl.PrefixLogger(org.apache.logging.log4j.LogManager.getLogger(clazz), prefix)
+            new org.elasticsearch.logging.impl.PrefixLogger(getLogger1(clazz), prefix)
         );
     }
 }

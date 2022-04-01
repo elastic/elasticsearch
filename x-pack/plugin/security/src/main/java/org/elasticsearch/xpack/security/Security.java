@@ -1460,6 +1460,7 @@ public class Security extends Plugin
         NamedWriteableRegistry namedWriteableRegistry,
         NetworkService networkService
     ) {
+
         if (enabled == false) { // don't register anything if we are not enabled
             return Collections.emptyMap();
         }

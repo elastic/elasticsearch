@@ -49,6 +49,7 @@ import static org.elasticsearch.xpack.core.security.SecurityField.setting;
  * Implementation of a transport that extends the {@link Netty4Transport} to add SSL and IP Filtering
  */
 public class SecurityNetty4Transport extends Netty4Transport {
+
     private static final Logger logger = LogManager.getLogger(SecurityNetty4Transport.class);
 
     private final SecurityTransportExceptionHandler exceptionHandler;
@@ -78,6 +79,7 @@ public class SecurityNetty4Transport extends Netty4Transport {
             circuitBreakerService,
             sharedGroupFactory
         );
+
         this.exceptionHandler = new SecurityTransportExceptionHandler(logger, lifecycle, (c, e) -> super.onException(c, e));
         this.sslService = sslService;
         this.sslEnabled = XPackSettings.TRANSPORT_SSL_ENABLED.get(settings);

@@ -22,6 +22,9 @@ import io.netty.channel.RecvByteBufAllocator;
 import io.netty.channel.socket.nio.NioChannelOption;
 import io.netty.util.AttributeKey;
 
+import io.netty.util.internal.logging.InternalLoggerFactory;
+import io.netty.util.internal.logging.JdkLoggerFactory;
+
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -63,6 +66,11 @@ import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.new
  * sending out ping requests to other nodes.
  */
 public class Netty4Transport extends TcpTransport {
+
+    static {
+        InternalLoggerFactory.setDefaultFactory(JdkLoggerFactory.INSTANCE);
+
+    }
     private static final Logger logger = LogManager.getLogger(Netty4Transport.class);
 
     public static final Setting<Integer> WORKER_COUNT = new Setting<>(

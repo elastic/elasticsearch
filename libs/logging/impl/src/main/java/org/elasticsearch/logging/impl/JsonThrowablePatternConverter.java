@@ -35,11 +35,13 @@ package org.elasticsearch.logging.impl;/*
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.config.Configuration;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
+import org.apache.logging.log4j.core.config.plugins.processor.PluginEntry;
 import org.apache.logging.log4j.core.pattern.ConverterKeys;
 import org.apache.logging.log4j.core.pattern.ExtendedThrowablePatternConverter;
 import org.apache.logging.log4j.core.pattern.PatternConverter;
 import org.apache.logging.log4j.core.pattern.ThrowablePatternConverter;
 import org.apache.logging.log4j.util.Strings;
+import org.elasticsearch.logging.impl.provider.Log4JBootstrapSupportImpl;
 import org.elasticsearch.logging.spi.ServerSupport;
 
 import java.nio.charset.Charset;
@@ -76,6 +78,10 @@ public final class JsonThrowablePatternConverter extends ThrowablePatternConvert
      */
     public static JsonThrowablePatternConverter newInstance(final Configuration config, final String[] options) {
         return new JsonThrowablePatternConverter(config, options);
+    }
+
+    public static void  init() {
+        Log4JBootstrapSupportImpl.initPlugins(PatternConverter.CATEGORY, JsonThrowablePatternConverter.class, "org.elasticsearch.logging.impl.JsonThrowablePatternConverter", new PluginEntry());
     }
 
     /**

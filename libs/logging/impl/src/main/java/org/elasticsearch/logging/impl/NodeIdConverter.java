@@ -16,15 +16,17 @@ package org.elasticsearch.logging.impl;/*
 
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
+import org.apache.logging.log4j.core.config.plugins.processor.PluginEntry;
 import org.apache.logging.log4j.core.pattern.ConverterKeys;
 import org.apache.logging.log4j.core.pattern.LogEventPatternConverter;
 import org.apache.logging.log4j.core.pattern.PatternConverter;
+import org.elasticsearch.logging.impl.provider.Log4JBootstrapSupportImpl;
 import org.elasticsearch.logging.spi.ServerSupport;
 
 /**
  * Pattern converter to format the node_id variable into JSON fields <code>node.id</code> .
  */
-@Plugin(category = PatternConverter.CATEGORY, name = "org.elasticsearch.logging.impl.NodeIdConverter")
+@Plugin(category = PatternConverter.CATEGORY, name = "NodeIdConverter")
 @ConverterKeys({ "node_id" })
 public final class NodeIdConverter extends LogEventPatternConverter {
     /**
@@ -36,6 +38,10 @@ public final class NodeIdConverter extends LogEventPatternConverter {
 
     public NodeIdConverter() {
         super("node_id", "node_id");
+    }
+
+    public static void  init() {
+        Log4JBootstrapSupportImpl.initPlugins(PatternConverter.CATEGORY, NodeIdConverter.class, "NodeIdConverter", new PluginEntry());
     }
 
     /**

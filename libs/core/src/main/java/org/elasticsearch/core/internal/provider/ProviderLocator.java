@@ -18,7 +18,7 @@ import java.security.PrivilegedExceptionAction;
 import java.util.Objects;
 import java.util.ServiceLoader;
 import java.util.Set;
-import java.util.function.Supplier;
+import java.util.function.Function;
 
 /**
  * A provider locator that finds the implementation of the specified provider.
@@ -29,62 +29,65 @@ import java.util.function.Supplier;
  * <p> When run as a module, the locator will load the provider implementation as a module, in its own module layer.
  * Otherwise, the provider implementation will be loaded as a non-module.
  *
- * @param <T> the provider type
  */
-public final class ProviderLocator<T> implements Supplier<T> {
+public final class ProviderLocator /*implements Function<Class<T>,T>*/ {
 
     private final String providerName;
-    private final Class<T> providerType;
     private final String providerModuleName;
     private final Set<String> missingModules;
-
-    public ProviderLocator(String providerName, Class<T> providerType, String providerModuleName) {
-        this(providerName, providerType, providerModuleName, Set.of());
+    private final EmbeddedImplClassLoader loader;
+    private  ModuleLayer layer;
+    public ProviderLocator(String providerName, String providerModuleName){
+        this(providerName, providerModuleName, Set.of());
     }
 
-    public ProviderLocator(String providerName, Class<T> providerType, String providerModuleName, Set<String> missingModules) {
+    public ProviderLocator(String providerName, String providerModuleName, Set<String> missingModules) {
         Objects.requireNonNull(providerName);
-        Objects.requireNonNull(providerType);
         Objects.requireNonNull(providerModuleName);
         Objects.requireNonNull(missingModules);
         this.providerName = providerName;
-        this.providerType = providerType;
         this.providerModuleName = providerModuleName;
         this.missingModules = missingModules;
+        this. loader = EmbeddedImplClassLoader.getInstance(ProviderLocator.class.getClassLoader(), providerName);
+
+
     }
 
-    @Override
-    public T get() {
+    public <T> T get(Class<T> providerType) {
         try {
-            PrivilegedExceptionAction<T> pa = this::load;
+            PrivilegedExceptionAction<T> pa = ()-> load(providerType);
             return AccessController.doPrivileged(pa);
         } catch (PrivilegedActionException e) {
             throw new UncheckedIOException((IOException) e.getCause());
         }
     }
 
-    private T load() throws IOException {
-        EmbeddedImplClassLoader loader = EmbeddedImplClassLoader.getInstance(ProviderLocator.class.getClassLoader(), providerName);
+    private <T> T load(Class<T> providerType) throws IOException {
         if (ProviderLocator.class.getModule().isNamed()) {
-            return loadAsModule(loader);
+            return loadAsModule(loader, providerType);
         } else {
-            return loadAsNonModule(loader);
+            return loadAsNonModule(loader, providerType);
         }
     }
 
-    private T loadAsNonModule(EmbeddedImplClassLoader loader) {
+    private <T>  T loadAsNonModule(EmbeddedImplClassLoader loader, Class<T> providerType) {
         ServiceLoader<T> sl = ServiceLoader.load(providerType, loader);
         return sl.findFirst().orElseThrow(() -> new IllegalStateException("cannot locate %s provider".formatted(providerName)));
     }
 
-    private T loadAsModule(EmbeddedImplClassLoader loader) throws IOException {
+    private <T>  T loadAsModule(EmbeddedImplClassLoader loader, Class<T> providerType) throws IOException {
         ProviderLocator.class.getModule().addUses(providerType);
-        InMemoryModuleFinder moduleFinder = loader.moduleFinder(missingModules);
-        assert moduleFinder.find(providerModuleName).isPresent();
-        ModuleLayer parentLayer = ModuleLayer.boot();
-        Configuration cf = parentLayer.configuration().resolve(ModuleFinder.of(), moduleFinder, Set.of(providerModuleName));
-        ModuleLayer layer = parentLayer.defineModules(cf, nm -> loader); // all modules in one loader
+        if(layer == null) {
+            InMemoryModuleFinder moduleFinder = loader.moduleFinder(missingModules);
+            assert moduleFinder.find(providerModuleName).isPresent();
+            ModuleLayer parentLayer = ModuleLayer.boot();
+            Configuration cf = parentLayer.configuration().resolve(ModuleFinder.of(), moduleFinder, Set.of(providerModuleName));
+            layer = parentLayer.defineModules(cf, nm -> loader); // all modules in one loader
+        }
+
         ServiceLoader<T> sl = ServiceLoader.load(layer, providerType);
         return sl.findFirst().orElseThrow(() -> new IllegalStateException("cannot locate %s provider".formatted(providerName)));
     }
+
+
 }

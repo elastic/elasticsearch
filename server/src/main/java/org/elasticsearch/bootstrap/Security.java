@@ -159,7 +159,7 @@ final class Security {
             // SecureSM matches class names as regular expressions so we escape the $ that arises from the nested class name
             ElasticsearchUncaughtExceptionHandler.PrivilegedHaltAction.class.getName().replace("$", "\\$"),
             Command.class.getName() };
-        setSecurityManager(new SecureSM(classesThatCanExit));
+//        setSecurityManager(new SecureSM(classesThatCanExit));
 
         // do some basic tests
         selfTest();

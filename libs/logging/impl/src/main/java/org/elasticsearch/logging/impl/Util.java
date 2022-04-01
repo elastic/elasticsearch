@@ -52,6 +52,7 @@ public final class Util {
         if (logger instanceof LoggerImpl) {
             return ((LoggerImpl) logger).log4jLogger();
         }
+        LoggerImpl x = (LoggerImpl) logger;
         throw new IllegalArgumentException("unknown logger: " + logger);
     }
 

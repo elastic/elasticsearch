@@ -15,8 +15,8 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
-import org.elasticsearch.xpack.core.security.action.profile.SearchProfilesAction;
-import org.elasticsearch.xpack.core.security.action.profile.SearchProfilesRequest;
+import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesAction;
+import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesRequest;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
@@ -27,10 +27,10 @@ import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
-public class RestSearchProfilesAction extends SecurityBaseRestHandler {
+public class RestSuggestProfilesAction extends SecurityBaseRestHandler {
 
     static final ConstructingObjectParser<Payload, Void> PARSER = new ConstructingObjectParser<>(
-        "search_profile_request_payload",
+        "suggest_profile_request_payload",
         a -> new Payload((String) a[0], (Integer) a[1])
     );
 
@@ -39,18 +39,18 @@ public class RestSearchProfilesAction extends SecurityBaseRestHandler {
         PARSER.declareInt(optionalConstructorArg(), new ParseField("size"));
     }
 
-    public RestSearchProfilesAction(Settings settings, XPackLicenseState licenseState) {
+    public RestSuggestProfilesAction(Settings settings, XPackLicenseState licenseState) {
         super(settings, licenseState);
     }
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(GET, "/_security/profile/_search"), new Route(POST, "/_security/profile/_search"));
+        return List.of(new Route(GET, "/_security/profile/_suggest"), new Route(POST, "/_security/profile/_suggest"));
     }
 
     @Override
     public String getName() {
-        return "xpack_security_search_profile";
+        return "xpack_security_suggest_profile";
     }
 
     @Override
@@ -60,8 +60,8 @@ public class RestSearchProfilesAction extends SecurityBaseRestHandler {
             ? PARSER.parse(request.contentOrSourceParamParser(), null)
             : new Payload(null, null);
 
-        final SearchProfilesRequest searchProfilesRequest = new SearchProfilesRequest(dataKeys, payload.name(), payload.size());
-        return channel -> client.execute(SearchProfilesAction.INSTANCE, searchProfilesRequest, new RestToXContentListener<>(channel));
+        final SuggestProfilesRequest suggestProfilesRequest = new SuggestProfilesRequest(dataKeys, payload.name(), payload.size());
+        return channel -> client.execute(SuggestProfilesAction.INSTANCE, suggestProfilesRequest, new RestToXContentListener<>(channel));
     }
 
     record Payload(String name, Integer size) {

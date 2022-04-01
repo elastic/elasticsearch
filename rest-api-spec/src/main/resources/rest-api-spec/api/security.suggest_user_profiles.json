@@ -1,8 +1,8 @@
 {
-  "security.search_user_profiles":{
+  "security.suggest_user_profiles":{
     "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/security-api-search-user-profile.html",
-      "description":"Searches for user profiles that match specified criteria."
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/security-api-suggest-user-profile.html",
+      "description":"Get suggestions for user profiles that match specified search criteria."
     },
     "stability":"experimental",
     "visibility":"feature_flag",
@@ -14,7 +14,7 @@
     "url":{
       "paths":[
         {
-          "path":"/_security/profile/_search",
+          "path":"/_security/profile/_suggest",
           "methods":[
             "GET",
             "POST"
@@ -29,7 +29,7 @@
       }
     },
     "body":{
-      "description":"The search definition for user profiles",
+      "description":"The suggestion definition for user profiles",
       "required":false
     }
   }

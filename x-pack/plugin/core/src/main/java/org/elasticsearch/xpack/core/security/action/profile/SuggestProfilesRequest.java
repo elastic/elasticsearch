@@ -18,7 +18,7 @@ import java.util.Set;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class SearchProfilesRequest extends ActionRequest {
+public class SuggestProfilesRequest extends ActionRequest {
 
     private final Set<String> dataKeys;
     /**
@@ -27,13 +27,13 @@ public class SearchProfilesRequest extends ActionRequest {
     private final String name;
     private final int size;
 
-    public SearchProfilesRequest(Set<String> dataKeys, String name, int size) {
+    public SuggestProfilesRequest(Set<String> dataKeys, String name, int size) {
         this.dataKeys = Objects.requireNonNull(dataKeys, "data parameter must not be null");
         this.name = Objects.requireNonNull(name, "name must not be null");
         this.size = size;
     }
 
-    public SearchProfilesRequest(StreamInput in) throws IOException {
+    public SuggestProfilesRequest(StreamInput in) throws IOException {
         super(in);
         this.dataKeys = in.readSet(StreamInput::readString);
         this.name = in.readOptionalString();

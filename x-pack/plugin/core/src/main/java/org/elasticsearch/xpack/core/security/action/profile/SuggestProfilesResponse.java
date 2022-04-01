@@ -18,19 +18,19 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-public class SearchProfilesResponse extends ActionResponse implements ToXContentObject {
+public class SuggestProfilesResponse extends ActionResponse implements ToXContentObject {
 
     private final ProfileHit[] profileHits;
     private final long tookInMillis;
     private final TotalHits totalHits;
 
-    public SearchProfilesResponse(ProfileHit[] profileHits, long tookInMillis, TotalHits totalHits) {
+    public SuggestProfilesResponse(ProfileHit[] profileHits, long tookInMillis, TotalHits totalHits) {
         this.profileHits = profileHits;
         this.tookInMillis = tookInMillis;
         this.totalHits = totalHits;
     }
 
-    public SearchProfilesResponse(StreamInput in) throws IOException {
+    public SuggestProfilesResponse(StreamInput in) throws IOException {
         super(in);
         this.profileHits = in.readArray(ProfileHit::new, ProfileHit[]::new);
         this.tookInMillis = in.readVLong();

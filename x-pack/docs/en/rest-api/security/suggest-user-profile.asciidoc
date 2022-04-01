@@ -1,27 +1,27 @@
 [role="xpack"]
-[[security-api-search-user-profile]]
-=== Search user profile API
+[[security-api-suggest-user-profile]]
+=== Suggest user profile API
 ++++
-<titleabbrev>Search user profile</titleabbrev>
+<titleabbrev>Suggest user profile</titleabbrev>
 ++++
 
 beta::[]
 
-Searches for user profiles that match specified criteria.
+Get suggestions for user profiles that match specified search criteria.
 
-[[security-api-search-user-profile-request]]
+[[security-api-suggest-user-profile-request]]
 ==== {api-request-title}
 
-`GET /_security/profile/_search`
+`GET /_security/profile/_suggest`
 
-`POST /_security/profile/_search`
+`POST /_security/profile/_suggest`
 
-[[security-api-search-user-profile-prereqs]]
+[[security-api-suggest-user-profile-prereqs]]
 ==== {api-prereq-title}
 
 To use this API, you must have the `manage_user_profile` cluster privilege.
 
-[[security-api-search-user-profile-query-params]]
+[[security-api-suggest-user-profile-query-params]]
 ==== {api-query-parms-title}
 
 `data`::
@@ -30,7 +30,7 @@ the profile document. To return all content, use `data=*`. To return a
 subset of content, use `data=<key>` to retrieve the content nested under the
 specified `<key>`. Defaults to returning no content.
 
-[[security-api-search-user-profile-request-body]]
+[[security-api-suggest-user-profile-request-body]]
 ==== {api-request-body-title}
 
 `name`::
@@ -41,7 +41,7 @@ Query string used to match name-related fields in <<security-api-activate-user-p
 (Optional, integer)
 Number of profiles to return. Defaults to `10`.
 
-[[security-api-search-user-profile-response-body]]
+[[security-api-suggest-user-profile-response-body]]
 ==== {api-response-body-title}
 
 
@@ -57,15 +57,15 @@ Milliseconds it took {es} to execute the request.
 (array of objects)
 List of profile documents, ordered by relevance, that match the search criteria.
 
-[[security-api-search-user-profile-example]]
+[[security-api-suggest-user-profile-example]]
 ==== {api-examples-title}
 
-The following request searches for profile documents with name-related fields
+The following request get suggestions for profile documents with name-related fields
 matching `jack`:
 
 [source,console]
 ----
-POST /_security/profile/_search
+POST /_security/profile/_suggest
 {
   "name": "jack"
 }

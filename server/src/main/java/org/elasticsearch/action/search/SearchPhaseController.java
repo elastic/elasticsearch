@@ -235,7 +235,7 @@ public final class SearchPhaseController {
      */
     public static List<Integer>[] fillDocIdsToLoad(int numShards, ScoreDoc[] shardDocs) {
         @SuppressWarnings("unchecked")
-        List<Integer>[] docIdsToLoad = (List<Integer>[]) new ArrayList[numShards];
+        List<Integer>[] docIdsToLoad = (List<Integer>[]) new ArrayList<?>[numShards];
         for (ScoreDoc shardDoc : shardDocs) {
             List<Integer> shardDocIdsToLoad = docIdsToLoad[shardDoc.shardIndex];
             if (shardDocIdsToLoad == null) {

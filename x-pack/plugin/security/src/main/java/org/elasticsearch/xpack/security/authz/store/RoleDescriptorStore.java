@@ -177,7 +177,6 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
             roleDescriptorsToSkip.stream().map(RoleDescriptor::getName).collect(Collectors.joining(","))
         );
 
-        // safe since `partitioningBy` guarantees that the returned Map always contains mappings for both false and true keys
         return partitionedRoleDescriptors.get(false);
     }
 

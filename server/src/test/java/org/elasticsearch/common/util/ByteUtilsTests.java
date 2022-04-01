@@ -172,25 +172,25 @@ public class ByteUtilsTests extends ESTestCase {
     }
 
     public void testShortToBytes() {
-        assertThat(readShortBEHelper((short)1234, 0), is(new byte[] { 4, -46 }));
-        assertThat(readShortBEHelper((short)-1234, 0), is(new byte[] { -5, 46 }));
-        assertThat(readShortBEHelper((short)0, 0), is(new byte[] { 0, 0 }));
-        assertThat(readShortBEHelper((short)(Short.MAX_VALUE + 1), 0), is(new byte[] { -128, 0 }));
-        assertThat(readShortBEHelper((short)(Short.MAX_VALUE + 127), 0), is(new byte[] { -128, 126 }));
-        assertThat(readShortBEHelper((short)(Short.MIN_VALUE - 1), 0), is(new byte[] { 127, -1 }));
-        assertThat(readShortBEHelper((short)(Short.MIN_VALUE - 127), 0), is(new byte[] { 127, -127 }));
+        assertThat(readShortBEHelper((short) 1234, 0), is(new byte[] { 4, -46 }));
+        assertThat(readShortBEHelper((short) -1234, 0), is(new byte[] { -5, 46 }));
+        assertThat(readShortBEHelper((short) 0, 0), is(new byte[] { 0, 0 }));
+        assertThat(readShortBEHelper((short) (Short.MAX_VALUE + 1), 0), is(new byte[] { -128, 0 }));
+        assertThat(readShortBEHelper((short) (Short.MAX_VALUE + 127), 0), is(new byte[] { -128, 126 }));
+        assertThat(readShortBEHelper((short) (Short.MIN_VALUE - 1), 0), is(new byte[] { 127, -1 }));
+        assertThat(readShortBEHelper((short) (Short.MIN_VALUE - 127), 0), is(new byte[] { 127, -127 }));
     }
 
     public void testBytesToShort() {
-        assertThat(ByteUtils.readShortBE(new byte[] { 4, -46 }, 0), is((short)1234));
-        assertThat(ByteUtils.readShortBE(new byte[] { -5, 46 }, 0), is((short)-1234));
-        assertThat(ByteUtils.readShortBE(new byte[] { 0, 0 }, 0), is((short)0));
+        assertThat(ByteUtils.readShortBE(new byte[] { 4, -46 }, 0), is((short) 1234));
+        assertThat(ByteUtils.readShortBE(new byte[] { -5, 46 }, 0), is((short) -1234));
+        assertThat(ByteUtils.readShortBE(new byte[] { 0, 0 }, 0), is((short) 0));
         assertThat(ByteUtils.readShortBE(new byte[] { -128, 0 }, 0), is(Short.MIN_VALUE));
-        assertThat(ByteUtils.readShortBE(new byte[] { -128, 126 }, 0), is((short)(Short.MIN_VALUE + 127 - 1)));
+        assertThat(ByteUtils.readShortBE(new byte[] { -128, 126 }, 0), is((short) (Short.MIN_VALUE + 127 - 1)));
         assertThat(ByteUtils.readShortBE(new byte[] { 127, -1 }, 0), is(Short.MAX_VALUE));
-        assertThat(ByteUtils.readShortBE(new byte[] { 127, -127, 0 }, 0), is((short)(Short.MAX_VALUE - 127 + 1)));
+        assertThat(ByteUtils.readShortBE(new byte[] { 127, -127, 0 }, 0), is((short) (Short.MAX_VALUE - 127 + 1)));
 
-        assertThat(ByteUtils.readShortBE(new byte[] { 100, 4, -46 }, 1), is((short)1234));
-        assertThat(ByteUtils.readShortBE(new byte[] { -100, -5, 46 }, 1), is((short)-1234));
+        assertThat(ByteUtils.readShortBE(new byte[] { 100, 4, -46 }, 1), is((short) 1234));
+        assertThat(ByteUtils.readShortBE(new byte[] { -100, -5, 46 }, 1), is((short) -1234));
     }
 }

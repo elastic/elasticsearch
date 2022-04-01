@@ -886,10 +886,10 @@ public class AuthorizationService {
         Exception cause
     ) {
         // Special case for anonymous user
-        if (isAnonymousEnabled && anonymousUser.equals(authentication.getUser().authenticatedUser())) {
-            if (anonymousAuthzExceptionEnabled == false) {
-                return authcFailureHandler.authenticationRequired(action, threadContext);
-            }
+        if (isAnonymousEnabled
+            && anonymousUser.equals(authentication.getUser().authenticatedUser())
+            && anonymousAuthzExceptionEnabled == false) {
+            return authcFailureHandler.authenticationRequired(action, threadContext);
         }
 
         final AuthorizationDenialInfo.Builder denialInfoBuilder = AuthorizationDenialInfo.builder(authentication, action)

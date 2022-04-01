@@ -17,6 +17,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ql.async.QlStatusResponse;
+import org.elasticsearch.xpack.ql.type.VersionFieldValue;
 import org.elasticsearch.xpack.sql.proto.ColumnInfo;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
@@ -274,7 +275,9 @@ public class SqlQueryResponse extends ActionResponse implements ToXContentObject
      * Serializes the provided value in SQL-compatible way based on the client mode
      */
     public static XContentBuilder value(XContentBuilder builder, Mode mode, SqlVersion sqlVersion, Object value) throws IOException {
-        if (value instanceof ZonedDateTime zdt) {
+        if (value instanceof VersionFieldValue) {
+            builder.value(value.toString());
+        } else if (value instanceof ZonedDateTime zdt) {
             // use the ISO format
             if (mode == JDBC && isClientCompatible(SqlVersion.fromId(CURRENT.id), sqlVersion)) {
                 builder.value(StringUtils.toString(zdt, sqlVersion));

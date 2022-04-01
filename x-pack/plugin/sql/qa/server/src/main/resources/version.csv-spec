@@ -7,14 +7,19 @@
 selectAll
 SELECT * FROM apps ORDER BY id;
 
-  id  |  name     |  version
+ id:i |  name:s   |  version:s
 ------+-----------+---------
-1     |aaaaa      |1.0.0
-2     |bbbbb      |2.1.14
+1     |aaaaa      |1
+2     |bbbbb      |2.1
 3     |ccccc      |2.3.4
 4     |ddddd      |2.12.0
 5     |eeeee      |1.11.0
 6     |fffff      |5.2.9
+7     |ggggg      |5.2.9-SNAPSHOT
+8     |hhhhh      |1.2.3.4
+9     |iiiii      |bad
+10    |jjjjj      |5.2.9
+
 ;
 
 filterByVersion
@@ -42,28 +47,141 @@ SELECT * FROM apps WHERE version > '2.2' ORDER BY id;
 3     |ccccc      |2.3.4
 4     |ddddd      |2.12.0
 6     |fffff      |5.2.9
+7     |ggggg      |5.2.9-SNAPSHOT
+9     |iiiii      |bad
+10    |jjjjj      |5.2.9
+
 ;
 
 versionRange2
 SELECT * FROM apps WHERE version >= '2.3.4' ORDER BY id;
 
   id  |  name     |  version
-------+-----------+---------
+------+-----------+---------------
 3     |ccccc      |2.3.4
 4     |ddddd      |2.12.0
 6     |fffff      |5.2.9
+7     |ggggg      |5.2.9-SNAPSHOT
+9     |iiiii      |bad
+10    |jjjjj      |5.2.9
+
 ;
 
 
 orderByVersion
-SELECT * FROM apps ORDER BY version;
+SELECT * FROM apps ORDER BY version, id;
 
-  id  |  name     |  version
-------+-----------+---------
-1     |aaaaa      |1.0.0
+ id:i |  name:s   | version:s
+------+-----------+---------------
+1     |aaaaa      |1
+8     |hhhhh      |1.2.3.4
 5     |eeeee      |1.11.0
-2     |bbbbb      |2.1.14
+2     |bbbbb      |2.1
 3     |ccccc      |2.3.4
 4     |ddddd      |2.12.0
+7     |ggggg      |5.2.9-SNAPSHOT
 6     |fffff      |5.2.9
+10    |jjjjj      |5.2.9
+9     |iiiii      |bad
+
+;
+
+groupByVersion
+SELECT max(id) as id, version FROM apps GROUP BY version ORDER BY version;
+
+ id:i | version:s
+------+-----------
+1     |1
+8     |1.2.3.4
+5     |1.11.0
+2     |2.1
+3     |2.3.4
+4     |2.12.0
+7     |5.2.9-SNAPSHOT
+10    |5.2.9
+9     |bad
+
+;
+
+groupByVersionScript
+SELECT max(id) as id FROM apps GROUP BY CONCAT('1.', CAST(version AS TEXT))::version ORDER BY id;
+
+ id:i
+------
+1
+2
+3
+4
+5
+7
+8
+9
+10
+;
+
+castToVersion
+SELECT id, name, CONCAT('1.', CAST(version AS TEXT))::version version FROM apps ORDER BY id;
+
+ id:i |  name:s   | version:s
+------+-----------+---------------
+1     |aaaaa      |1.1
+2     |bbbbb      |1.2.1
+3     |ccccc      |1.2.3.4
+4     |ddddd      |1.2.12.0
+5     |eeeee      |1.1.11.0
+6     |fffff      |1.5.2.9
+7     |ggggg      |1.5.2.9-SNAPSHOT
+8     |hhhhh      |1.1.2.3.4
+9     |iiiii      |1.bad
+10    |jjjjj      |1.5.2.9
+
+;
+
+
+castConstantToVersion
+SELECT '1.2.3'::version as v;
+
+ v
+------
+1.2.3
+
+;
+
+
+compareVersions
+SELECT '1.2.3'::version < '1.11.4'::version as v;
+
+ v
+------
+true
+
+;
+
+
+filterByVersionConstant
+SELECT * FROM apps WHERE '1.2.0'::version < '1.11.0'::version ORDER BY id LIMIT 1;
+
+ id:i |  name:s   |  version:s
+------+-----------+---------
+1     |aaaaa      |1
+
+;
+
+filterByVersionConstant2
+SELECT * FROM apps WHERE '1.2.0'::version < '1.11.0' ORDER BY id LIMIT 1;
+
+ id:i |  name:s   |  version:s
+------+-----------+---------
+1     |aaaaa      |1
+
+;
+
+
+filterByVersionConstant3
+SELECT * FROM apps WHERE '1.2.0' < '1.11.0'::version ORDER BY id LIMIT 1;
+
+ id:i |  name:s   |  version:s
+------+-----------+---------
+1     |aaaaa      |1
+
 ;

@@ -35,7 +35,7 @@ import java.util.regex.Pattern;
  *  lexically in ASCII sort order. Numeric identifiers always have lower precedence than non-numeric identifiers.
  * </ul>
  */
-class VersionEncoder {
+public class VersionEncoder {
 
     public static final byte NUMERIC_MARKER_BYTE = (byte) 0x01;
     public static final byte PRERELEASE_SEPARATOR_BYTE = (byte) 0x02;
@@ -175,7 +175,7 @@ class VersionEncoder {
         return legalMainVersion && legalPreRelease && legalBuildSuffix;
     }
 
-    static class EncodedVersion {
+    public static class EncodedVersion {
 
         public final boolean isLegal;
         public final boolean isPreRelease;

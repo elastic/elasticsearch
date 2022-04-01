@@ -549,10 +549,7 @@ public final class DataTypeConverter {
             }
             return o;
         }),
-        STRING_TO_VERSION(o -> {
-            // TODO validate...?
-            return o;
-        });
+        STRING_TO_VERSION(o -> new VersionFieldValue(o.toString()));
 
         public static final String NAME = "dtc-def";
 

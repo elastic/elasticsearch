@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.ql.expression.predicate.operator.comparison;
 
+import org.elasticsearch.xpack.ql.type.VersionFieldValue;
+
 import java.math.BigInteger;
 import java.util.Set;
 
@@ -73,6 +75,14 @@ public final class Comparisons {
         // typical number comparison
         if (l instanceof Number && r instanceof Number) {
             return compare((Number) l, (Number) r);
+        }
+
+        // automatic conversion for versions
+        if (l instanceof VersionFieldValue && r instanceof String) {
+            return ((VersionFieldValue) l).compareTo(new VersionFieldValue((String) r));
+        }
+        if (l instanceof String && r instanceof VersionFieldValue) {
+            return new VersionFieldValue((String) l).compareTo((VersionFieldValue) r);
         }
 
         if (l instanceof Comparable && r instanceof Comparable) {

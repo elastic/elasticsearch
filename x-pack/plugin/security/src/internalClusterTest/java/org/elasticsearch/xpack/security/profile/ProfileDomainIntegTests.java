@@ -285,6 +285,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
                 }
                 """.formatted("not-" + username), XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).request();
             client().update(updateRequest).actionGet();
+            logger.info("manually creating a collision document: [{}]", existingUid);
         } else {
             existingUid = null;
         }
@@ -305,7 +306,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
                     startLatch.await();
                     try {
                         final String uid = future.actionGet().uid();
-                        logger.info("create profile [{}] for authentication [{}]", uid, authentication);
+                        logger.info("created profile [{}] for authentication [{}]", uid, authentication);
                         allUids.add(uid);
                     } catch (VersionConflictEngineException e) {
                         // Updating existing profile can error with version conflict. This is the current way
@@ -327,7 +328,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
                 thread.join();
             }
             // Exactly one profile is created
-            assertThat(allUids, hasSize(1));
+            assertThat("All created profile uids: " + allUids, allUids, hasSize(1));
             final String uid = allUids.iterator().next();
             if (existingCollision) {
                 assertThat(uid, endsWith("_1"));

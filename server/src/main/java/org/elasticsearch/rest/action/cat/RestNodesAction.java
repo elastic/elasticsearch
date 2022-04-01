@@ -514,7 +514,7 @@ public class RestNodesAction extends AbstractCatAction {
      * @param max The maximum number.
      * @return 0 if {@code max} is &lt;= 0. Otherwise 100 * {@code used} / {@code max}.
      */
-    private short calculatePercentage(long used, long max) {
+    private static short calculatePercentage(long used, long max) {
         return max <= 0 ? 0 : (short) ((100d * used) / max);
     }
 }

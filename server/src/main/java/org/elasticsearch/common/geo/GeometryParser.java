@@ -95,7 +95,7 @@ public final class GeometryParser {
         }
     }
 
-    private boolean isPoint(Object value) {
+    private static boolean isPoint(Object value) {
         // can we do this better?
         if (value instanceof Map<?, ?> map) {
             return map.containsKey("lat") && map.containsKey("lon");

@@ -90,7 +90,7 @@ public abstract class AbstractRareTermsAggregator extends DeferableBucketAggrega
         return null;
     }
 
-    private String descendsFromNestedAggregator(Aggregator parent) {
+    private static String descendsFromNestedAggregator(Aggregator parent) {
         while (parent != null) {
             if (parent.getClass() == NestedAggregator.class) {
                 return parent.name();

@@ -12,6 +12,7 @@ import org.hamcrest.Matcher;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.isA;
+import static org.junit.Assert.fail;
 
 /**
  * Assertions for exceptions and their messages
@@ -25,6 +26,7 @@ public class ThrowableAssertions {
     ) {
         try {
             code.run();
+            fail("Exception with type " + exceptionType.getName() + "should be thrown");
         } catch (Throwable e) {
             assertThatException(e, exceptionType, messageMatcher);
         }

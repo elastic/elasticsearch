@@ -1,0 +1,5 @@
+pr: 85534
+summary: "Fix NPE in RepositoriesService"
+area: Snapshot/Restore
+type: bug
+issues: [85550]

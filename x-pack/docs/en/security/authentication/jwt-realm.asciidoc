@@ -48,8 +48,11 @@ JWT realms support two client authentication settings: `shared_secret` and `none
 
 IMPORTANT: Client authentication is enabled by default in JWT realms.
 
-If client authentication type is `shared_secret`, JWT realm requires a request header `ES-Client-Authentication`.
-The value must be a case-insensitive match to the realm's secure string setting `client_authentication.shared_secret`.
+If client authentication type is `shared_secret`, the client is authenticated 
+using a HTTP request header that must match a pre-configured secret value.
+The client must provide this shared secret with every request in the `ES-Client-Authentication` header.
+The value must be a case-insensitive match to the realm's <<secure-settings,secure setting>>.
+ `client_authentication.shared_secret`.
 See <<ref-jwt-settings>>.
 
 If client authentication type is `none`, the request header `ES-Client-Authentication` is ignored.

@@ -100,6 +100,7 @@ public final class SharedGroupFactory {
                 pendingTaskCount[count] = ((SingleThreadEventExecutor) eventExecutor).pendingTasks();
             }
         }
+        assert count+1 == workerCount;
         return pendingTaskCount;
     }
 

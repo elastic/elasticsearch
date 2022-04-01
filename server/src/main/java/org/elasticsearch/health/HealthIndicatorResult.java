@@ -20,7 +20,6 @@ public record HealthIndicatorResult(
     HealthStatus status,
     String summary,
     HealthIndicatorDetails details,
-    boolean showDetails,
     List<HealthIndicatorImpact> impacts
 ) implements ToXContentObject {
 
@@ -29,7 +28,7 @@ public record HealthIndicatorResult(
         builder.startObject();
         builder.field("status", status.xContentValue());
         builder.field("summary", summary);
-        if (showDetails) {
+        if (details != null && HealthIndicatorDetails.EMPTY.equals(details) == false) {
             builder.field("details", details, params);
         }
         if (impacts != null && impacts.isEmpty() == false) {

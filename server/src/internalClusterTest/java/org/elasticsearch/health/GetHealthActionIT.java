@@ -134,7 +134,6 @@ public class GetHealthActionIT extends ESIntegTestCase {
                 status,
                 "Health is set to [" + status + "] by test plugin",
                 new SimpleHealthIndicatorDetails(Map.of("include_details", includeDetails)),
-                includeDetails,
                 Collections.emptyList()
             );
         }
@@ -165,7 +164,6 @@ public class GetHealthActionIT extends ESIntegTestCase {
                 status,
                 "Health is set to [" + status + "] by test plugin",
                 new SimpleHealthIndicatorDetails(Map.of("include_details", includeDetails)),
-                includeDetails,
                 Collections.emptyList()
             );
         }
@@ -196,7 +194,6 @@ public class GetHealthActionIT extends ESIntegTestCase {
                 status,
                 "Health is set to [" + status + "] by test plugin",
                 new SimpleHealthIndicatorDetails(Map.of("include_details", includeDetails)),
-                includeDetails,
                 Collections.emptyList()
             );
         }
@@ -239,7 +236,6 @@ public class GetHealthActionIT extends ESIntegTestCase {
                                     indicator1Status,
                                     "Health is set to [" + indicator1Status + "] by test plugin",
                                     new SimpleHealthIndicatorDetails(Map.of("include_details", false)),
-                                    false,
                                     Collections.emptyList()
                                 ),
                                 new HealthIndicatorResult(
@@ -248,11 +244,9 @@ public class GetHealthActionIT extends ESIntegTestCase {
                                     indicator2Status,
                                     "Health is set to [" + indicator2Status + "] by test plugin",
                                     new SimpleHealthIndicatorDetails(Map.of("include_details", false)),
-                                    false,
                                     Collections.emptyList()
                                 )
-                            ),
-                            true
+                            )
                         )
                     )
                 );
@@ -269,11 +263,9 @@ public class GetHealthActionIT extends ESIntegTestCase {
                                     indicator3Status,
                                     "Health is set to [" + indicator3Status + "] by test plugin",
                                     new SimpleHealthIndicatorDetails(Map.of("include_details", false)),
-                                    false,
                                     Collections.emptyList()
                                 )
-                            ),
-                            true
+                            )
                         )
                     )
                 );
@@ -298,11 +290,9 @@ public class GetHealthActionIT extends ESIntegTestCase {
                                     indicator1Status,
                                     "Health is set to [" + indicator1Status + "] by test plugin",
                                     new SimpleHealthIndicatorDetails(Map.of("include_details", true)),
-                                    true,
                                     Collections.emptyList()
                                 )
-                            ),
-                            false
+                            )
                         )
                     )
                 );
@@ -327,7 +317,6 @@ public class GetHealthActionIT extends ESIntegTestCase {
                                     indicator1Status,
                                     "Health is set to [" + indicator1Status + "] by test plugin",
                                     new SimpleHealthIndicatorDetails(Map.of("include_details", true)),
-                                    true,
                                     Collections.emptyList()
                                 ),
                                 new HealthIndicatorResult(
@@ -336,11 +325,9 @@ public class GetHealthActionIT extends ESIntegTestCase {
                                     indicator2Status,
                                     "Health is set to [" + indicator2Status + "] by test plugin",
                                     new SimpleHealthIndicatorDetails(Map.of("include_details", true)),
-                                    true,
                                     Collections.emptyList()
                                 )
-                            ),
-                            true
+                            )
                         )
                     )
                 );

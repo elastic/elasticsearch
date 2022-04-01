@@ -368,15 +368,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         Map<String, Object> details,
         List<HealthIndicatorImpact> impacts
     ) {
-        return new HealthIndicatorResult(
-            NAME,
-            DATA,
-            status,
-            summary,
-            new SimpleHealthIndicatorDetails(addDefaults(details)),
-            true,
-            impacts
-        );
+        return new HealthIndicatorResult(NAME, DATA, status, summary, new SimpleHealthIndicatorDetails(addDefaults(details)), impacts);
     }
 
     private static ClusterState createClusterStateWith(List<IndexRoutingTable> indexes, List<NodeShutdown> nodeShutdowns) {

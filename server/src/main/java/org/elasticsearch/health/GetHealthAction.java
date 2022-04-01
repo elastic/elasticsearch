@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
@@ -42,16 +43,15 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
     public static class Response extends ActionResponse implements ToXContentObject {
 
         private final ClusterName clusterName;
+        @Nullable
         private final HealthStatus status;
         private final List<HealthComponentResult> components;
-        private final boolean showTopLevelStatus;
 
         public Response(StreamInput in) {
             throw new AssertionError("GetHealthAction should not be sent over the wire.");
         }
 
         public Response(final ClusterName clusterName, final List<HealthComponentResult> components, boolean showTopLevelStatus) {
-            this.showTopLevelStatus = showTopLevelStatus;
             this.components = components;
             this.clusterName = clusterName;
             if (showTopLevelStatus) {
@@ -88,7 +88,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
             builder.startObject();
-            if (showTopLevelStatus) {
+            if (status != null) {
                 builder.field("status", status.xContentValue());
             }
             builder.field("cluster_name", clusterName.value());
@@ -171,7 +171,7 @@ public class GetHealthAction extends ActionType<GetHealthAction.Response> {
                 new Response(
                     clusterService.getClusterName(),
                     healthService.getHealth(request.componentName, request.indicatorName, request.computeDetails),
-                    request.componentName == null && request.indicatorName == null
+                    request.componentName == null
                 )
             );
         }

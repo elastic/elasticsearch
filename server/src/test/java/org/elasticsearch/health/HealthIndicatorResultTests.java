@@ -36,7 +36,7 @@ public class HealthIndicatorResultTests extends ESTestCase {
         int impact2Severity = randomIntBetween(1, 5);
         String impact2Description = randomAlphaOfLength(30);
         impacts.add(new HealthIndicatorImpact(impact2Severity, impact2Description));
-        HealthIndicatorResult result = new HealthIndicatorResult(name, component, status, summary, details, true, impacts);
+        HealthIndicatorResult result = new HealthIndicatorResult(name, component, status, summary, details, impacts);
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
         result.toXContent(builder, ToXContent.EMPTY_PARAMS);
         Map<String, Object> xContentMap = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();

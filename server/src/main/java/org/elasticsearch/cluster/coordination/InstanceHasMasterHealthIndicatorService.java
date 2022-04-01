@@ -71,6 +71,6 @@ public class InstanceHasMasterHealthIndicatorService implements HealthIndicatorS
                 }
             });
             return builder.endObject();
-        } : HealthIndicatorDetails.EMPTY, includeDetails, Collections.emptyList());
+        } : HealthIndicatorDetails.EMPTY, Collections.emptyList());
     }
 }

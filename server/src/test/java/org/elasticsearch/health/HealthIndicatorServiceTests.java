@@ -33,13 +33,7 @@ public class HealthIndicatorServiceTests extends ESTestCase {
         for (int i = 0; i < 10; i++) {
             impacts.add(new HealthIndicatorImpact(randomIntBetween(5, 20), randomAlphaOfLength(20)));
         }
-        HealthIndicatorResult result = service.createIndicator(
-            status,
-            randomAlphaOfLength(20),
-            HealthIndicatorDetails.EMPTY,
-            true,
-            impacts
-        );
+        HealthIndicatorResult result = service.createIndicator(status, randomAlphaOfLength(20), HealthIndicatorDetails.EMPTY, impacts);
         List<HealthIndicatorImpact> outputImpacts = result.impacts();
         assertEquals(3, outputImpacts.size());
         List<HealthIndicatorImpact> expectedImpacts = List.of(impact1, impact2, impact3);

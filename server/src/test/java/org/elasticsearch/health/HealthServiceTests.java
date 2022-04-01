@@ -24,9 +24,9 @@ public class HealthServiceTests extends ESTestCase {
 
     public void testShouldReturnGroupedIndicators() {
 
-        var indicator1 = new HealthIndicatorResult("indicator1", "component1", GREEN, null, null, true, null);
-        var indicator2 = new HealthIndicatorResult("indicator2", "component1", YELLOW, null, null, true, null);
-        var indicator3 = new HealthIndicatorResult("indicator3", "component2", GREEN, null, null, true, null);
+        var indicator1 = new HealthIndicatorResult("indicator1", "component1", GREEN, null, null, null);
+        var indicator2 = new HealthIndicatorResult("indicator2", "component1", YELLOW, null, null, null);
+        var indicator3 = new HealthIndicatorResult("indicator3", "component2", GREEN, null, null, null);
 
         var service = new HealthService(
             List.of(
@@ -40,12 +40,12 @@ public class HealthServiceTests extends ESTestCase {
             service.getHealth(null, null, false),
             anyOf(
                 hasItems(
-                    new HealthComponentResult("component1", YELLOW, List.of(indicator2, indicator1), true),
-                    new HealthComponentResult("component2", GREEN, List.of(indicator3), true)
+                    new HealthComponentResult("component1", YELLOW, List.of(indicator2, indicator1)),
+                    new HealthComponentResult("component2", GREEN, List.of(indicator3))
                 ),
                 hasItems(
-                    new HealthComponentResult("component1", YELLOW, List.of(indicator1, indicator2), true),
-                    new HealthComponentResult("component2", GREEN, List.of(indicator3), true)
+                    new HealthComponentResult("component1", YELLOW, List.of(indicator1, indicator2)),
+                    new HealthComponentResult("component2", GREEN, List.of(indicator3))
                 )
             )
         );
@@ -53,21 +53,21 @@ public class HealthServiceTests extends ESTestCase {
         assertThat(
             service.getHealth("component1", null, false),
             anyOf(
-                hasItems(new HealthComponentResult("component1", YELLOW, List.of(indicator2, indicator1), true)),
-                hasItems(new HealthComponentResult("component1", YELLOW, List.of(indicator1, indicator2), true))
+                hasItems(new HealthComponentResult("component1", YELLOW, List.of(indicator2, indicator1))),
+                hasItems(new HealthComponentResult("component1", YELLOW, List.of(indicator1, indicator2)))
             )
         );
 
         assertThat(
             service.getHealth("component1", "indicator2", false),
-            hasItems(new HealthComponentResult("component1", null, List.of(indicator2), false))
+            hasItems(new HealthComponentResult("component1", null, List.of(indicator2)))
         );
     }
 
     public void testDuplicateIndicatorNamess() {
         // Same component, same indicator name, should throw exception:
-        var indicator1 = new HealthIndicatorResult("indicator1", "component1", GREEN, null, null, true, Collections.emptyList());
-        var indicator2 = new HealthIndicatorResult("indicator1", "component1", YELLOW, null, null, true, Collections.emptyList());
+        var indicator1 = new HealthIndicatorResult("indicator1", "component1", GREEN, null, null, Collections.emptyList());
+        var indicator2 = new HealthIndicatorResult("indicator1", "component1", YELLOW, null, null, Collections.emptyList());
         expectThrows(AssertionError.class, () -> HealthService.createComponentFromIndicators(List.of(indicator1, indicator2), true));
     }
 

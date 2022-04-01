@@ -30,7 +30,6 @@ public interface HealthIndicatorService {
      * @param status The status of the result
      * @param summary The summary used in the result
      * @param details The details used in the result
-     * @param showDetails Whether the details ought to appear in the returned result
      * @param impacts A collection of impacts. Only the 3 highest severity impacts are used in the result
      * @return A HealthIndicatorResult built from the given information
      */
@@ -38,13 +37,12 @@ public interface HealthIndicatorService {
         HealthStatus status,
         String summary,
         HealthIndicatorDetails details,
-        boolean showDetails,
         Collection<HealthIndicatorImpact> impacts
     ) {
         List<HealthIndicatorImpact> impactsList = impacts.stream()
             .sorted(Comparator.comparingInt(HealthIndicatorImpact::severity))
             .limit(3)
             .collect(Collectors.toList());
-        return new HealthIndicatorResult(name(), component(), status, summary, details, showDetails, impactsList);
+        return new HealthIndicatorResult(name(), component(), status, summary, details, impactsList);
     }
 }

@@ -31,6 +31,8 @@ public class HealthService {
     }
 
     public List<HealthComponentResult> getHealth(String componentName, String indicatorName, boolean computeDetails) {
+        final boolean shouldDrillDownToIndicatorLevel = indicatorName != null;
+        final boolean showRolledUpComponentStatus = shouldDrillDownToIndicatorLevel == false;
         return List.copyOf(
             healthIndicatorServices.stream()
                 .filter(service -> componentName == null || service.component().equals(componentName))
@@ -42,10 +44,7 @@ public class HealthService {
                         TreeMap::new,
                         collectingAndThen(
                             toList(),
-                            indicators -> HealthService.createComponentFromIndicators(
-                                indicators,
-                                componentName == null || indicatorName == null
-                            )
+                            indicators -> HealthService.createComponentFromIndicators(indicators, showRolledUpComponentStatus)
                         )
                     )
                 )
@@ -68,8 +67,7 @@ public class HealthService {
         return new HealthComponentResult(
             indicators.get(0).component(),
             showComponentSummary ? HealthStatus.merge(indicators.stream().map(HealthIndicatorResult::status)) : null,
-            indicators,
-            showComponentSummary
+            indicators
         );
     }
 

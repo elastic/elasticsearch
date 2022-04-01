@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.transform.action.schema;
+package org.elasticsearch.xpack.transform.action;
 
 import org.elasticsearch.test.xcontent.AbstractSchemaValidationTestCase;
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction.Response;

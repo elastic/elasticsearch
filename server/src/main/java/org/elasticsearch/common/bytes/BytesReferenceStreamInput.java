@@ -26,6 +26,7 @@ class BytesReferenceStreamInput extends StreamInput {
     protected final BytesReference bytesReference;
     private BytesRefIterator iterator;
     private ByteBuffer slice;
+    // for some inexplicable reason, HeapByteBuffer always sets arrayOffset to 0, so we keep track of it separately
     private int sliceOffset;
     private int totalOffset; // the offset on the stream at which the current slice starts
     private int mark = 0;

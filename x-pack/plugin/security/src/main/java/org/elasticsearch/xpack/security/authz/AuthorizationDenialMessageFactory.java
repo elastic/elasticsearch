@@ -22,19 +22,27 @@ import static org.elasticsearch.xpack.security.authz.AuthorizationService.isInde
 
 class AuthorizationDenialMessageFactory {
 
-    private AuthorizationDenialMessageFactory() {}
-
-    static String runAsDenied(Authentication authentication) {
-        String userText = authenticatedUserText(authentication);
-
-        if (authentication.getUser().isRunAs()) {
-            userText = userText + " is not authorized to run as [" + authentication.getUser().principal() + "]";
-        }
-
-        return "";
+    enum AuthorizationDenialType {
+        ACTION,
+        RUN_AS
     }
 
-    static String actionDenied(Authentication authentication, String action, TransportRequest request, @Nullable String context) {
+    private AuthorizationDenialMessageFactory() {}
+
+    static String denialMessage(
+        AuthorizationDenialType denialType,
+        Authentication authentication,
+        String action,
+        TransportRequest request,
+        @Nullable String context
+    ) {
+        return switch (denialType) {
+            case ACTION -> actionDenied(authentication, action, request, context);
+            case RUN_AS -> runAsDenied(authentication);
+        };
+    }
+
+    private static String actionDenied(Authentication authentication, String action, TransportRequest request, @Nullable String context) {
         String userText = authenticatedUserText(authentication);
 
         if (authentication.getUser().isRunAs()) {
@@ -72,6 +80,16 @@ class AuthorizationDenialMessageFactory {
         }
 
         return message;
+    }
+
+    private static String runAsDenied(Authentication authentication) {
+        assert authentication.getUser().isRunAs() : "run as denial message must be for run as user";
+
+        String userText = authenticatedUserText(authentication);
+
+        String runAsUserText = authentication.getUser().principal();
+
+        return userText + " is not authorized to run as [" + runAsUserText + "]";
     }
 
     private static String authenticatedUserText(Authentication authentication) {

@@ -363,7 +363,16 @@ public class AuthorizationService {
                             authzInfo.getAuthenticatedUserAuthorizationInfo()
                         );
                     }
-                    listener.onFailure(runAsDenialException(authentication, action));
+                    listener.onFailure(
+                        denialException(
+                            AuthorizationDenialMessageFactory.AuthorizationDenialType.RUN_AS,
+                            authentication,
+                            action,
+                            request,
+                            null,
+                            null
+                        )
+                    );
                 }
             }, e -> {
                 auditTrail.runAsDenied(requestId, authentication, action, request, authzInfo.getAuthenticatedUserAuthorizationInfo());
@@ -860,25 +869,25 @@ public class AuthorizationService {
         return denialException(authentication, action, request, null, cause);
     }
 
-    private ElasticsearchSecurityException runAsDenialException(Authentication authentication, String action) {
-        // Special case for anonymous user
-        if (isAnonymousEnabled && anonymousUser.equals(authentication.getUser().authenticatedUser())) {
-            if (anonymousAuthzExceptionEnabled == false) {
-                return authcFailureHandler.authenticationRequired(action, threadContext);
-            }
-        }
-
-        final AuthorizationDenialInfo.Builder denialInfoBuilder = AuthorizationDenialInfo.builder(authentication, action)
-            .withApiKeyId()
-            .withRunAsUserPrincipal()
-            .withContext("because user unauthorized to run as target user");
-
-        final String message = denialInfoBuilder.build().toMessage();
-        logger.debug(message);
-        return authorizationError(message);
+    private ElasticsearchSecurityException denialException(
+        Authentication authentication,
+        String action,
+        TransportRequest request,
+        @Nullable String context,
+        Exception cause
+    ) {
+        return denialException(
+            AuthorizationDenialMessageFactory.AuthorizationDenialType.ACTION,
+            authentication,
+            action,
+            request,
+            context,
+            cause
+        );
     }
 
     private ElasticsearchSecurityException denialException(
+        AuthorizationDenialMessageFactory.AuthorizationDenialType denialType,
         Authentication authentication,
         String action,
         TransportRequest request,
@@ -892,14 +901,7 @@ public class AuthorizationService {
             return authcFailureHandler.authenticationRequired(action, threadContext);
         }
 
-        final AuthorizationDenialInfo.Builder denialInfoBuilder = AuthorizationDenialInfo.builder(authentication, action)
-            .withApiKeyId()
-            .withRunAsUserPrincipal()
-            .withRoles()
-            .withContext(context)
-            .withGrantingPrivilegeInfo(request);
-
-        final String message = denialInfoBuilder.build().toMessage();
+        final String message = AuthorizationDenialMessageFactory.denialMessage(denialType, authentication, action, request, context);
         logger.debug(message);
         return authorizationError(message, cause);
     }

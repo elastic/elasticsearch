@@ -49,6 +49,20 @@ abstract class AbstractPagedHashMap implements Releasable {
         mask = buckets - 1;
     }
 
+    protected AbstractPagedHashMap(long capacity, float maxLoadFactor, long size, long maxSize, BigArrays bigArrays) {
+        if (capacity < 0) {
+            throw new IllegalArgumentException("capacity must be >= 0");
+        }
+        if (maxLoadFactor <= 0 || maxLoadFactor >= 1) {
+            throw new IllegalArgumentException("maxLoadFactor must be > 0 and < 1");
+        }
+        mask = capacity - 1;
+        this.maxLoadFactor = maxLoadFactor;
+        this.size = size;
+        this.maxSize = maxSize;
+        this.bigArrays = bigArrays;
+    }
+
     /**
      * Return the number of allocated slots to store this hash table.
      */

@@ -242,6 +242,15 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
+     * Writes an int in zig-zag encoding. See {@link BitUtil#zigZagEncode}
+     *
+     * This is typically useful to write small signed ints and is equivalent
+     */
+    public void writeZInt(int i) throws IOException {
+        writeVInt(BitUtil.zigZagEncode(i));
+    }
+
+    /**
      * Writes a long as eight bytes.
      */
     public void writeLong(long i) throws IOException {

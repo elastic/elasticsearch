@@ -24,6 +24,11 @@ abstract class AbstractHash extends AbstractPagedHashMap {
         ids = bigArrays.newLongArray(capacity(), true);
     }
 
+    protected AbstractHash(long capacity, float maxLoadFactor, long size, long maxSize, LongArray ids, BigArrays bigArrays) {
+        super(capacity, maxLoadFactor, size, maxSize, bigArrays);
+        this.ids = ids;
+    }
+
     /**
      * Get the id associated with key at <code>0 &lt;= index &lt;= capacity()</code> or -1 if this slot is unused.
      */

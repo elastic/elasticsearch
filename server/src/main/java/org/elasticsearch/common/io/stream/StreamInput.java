@@ -242,6 +242,13 @@ public abstract class StreamInput extends InputStream {
     }
 
     /**
+     * Read a zig-zag encoded int. See {@link BitUtil#zigZagDecode}
+     */
+    public int readZInt() throws IOException {
+        return BitUtil.zigZagDecode(readVInt());
+    }
+
+    /**
      * Reads eight bytes and returns a long.
      */
     public long readLong() throws IOException {

@@ -144,9 +144,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
         this.indexAnalyzers = indexAnalyzers;
         this.mapperRegistry = mapperRegistry;
-        Function<String, Mapper.TypeParser> typeParserLookup = indexVersionCreated.isLegacyIndexVersion() ?
-            LegacyMapperTypeParsers.INSTANCE::getParser :
-            mapperRegistry.getMapperParsers()::get;
+        Function<String, Mapper.TypeParser> typeParserLookup = indexVersionCreated.isLegacyIndexVersion()
+            ? LegacyMapperTypeParsers.INSTANCE::getParser
+            : mapperRegistry.getMapperParsers()::get;
         Function<DateFormatter, MappingParserContext> parserContextFunction = dateFormatter -> new MappingParserContext(
             similarityService::getSimilarity,
             typeParserLookup,

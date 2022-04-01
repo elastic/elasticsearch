@@ -152,18 +152,22 @@ public class ShortCircuitingRenormalizer implements Renormalizer {
         do {
             AugmentedQuantiles latestAugmentedQuantiles = getLatestAugmentedQuantilesAndClear();
             assert latestAugmentedQuantiles != null;
-            Quantiles latestQuantiles = latestAugmentedQuantiles.getQuantiles();
-            CountDownLatch latch = latestAugmentedQuantiles.getLatch();
-            try {
-                scoresUpdater.update(
-                    latestQuantiles.getQuantileState(),
-                    latestQuantiles.getTimestamp().getTime(),
-                    latestAugmentedQuantiles.getWindowExtensionMs()
-                );
-            } catch (Exception e) {
-                logger.error("[" + jobId + "] Normalization failed", e);
-            } finally {
-                latch.countDown();
+            if (latestAugmentedQuantiles != null) { // TODO: remove this if the assert doesn't trip in CI over the next year or so
+                Quantiles latestQuantiles = latestAugmentedQuantiles.getQuantiles();
+                CountDownLatch latch = latestAugmentedQuantiles.getLatch();
+                try {
+                    scoresUpdater.update(
+                        latestQuantiles.getQuantileState(),
+                        latestQuantiles.getTimestamp().getTime(),
+                        latestAugmentedQuantiles.getWindowExtensionMs()
+                    );
+                } catch (Exception e) {
+                    logger.error("[" + jobId + "] Normalization failed", e);
+                } finally {
+                    latch.countDown();
+                }
+            } else {
+                logger.warn("[{}] request to normalize null quantiles", jobId);
             }
             // Loop if more work has become available while we were working, because the
             // tasks originally submitted to do that work will have exited early.

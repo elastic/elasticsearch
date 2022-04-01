@@ -24,7 +24,8 @@ class AuthorizationDenialMessageFactory {
 
     enum AuthorizationDenialType {
         ACTION,
-        RUN_AS
+        RUN_AS,
+        REQUIRES_OPERATOR_PRIVILEGES,
     }
 
     private AuthorizationDenialMessageFactory() {}
@@ -38,6 +39,7 @@ class AuthorizationDenialMessageFactory {
     ) {
         return switch (denialType) {
             case ACTION -> actionDenied(authentication, action, request, context);
+            case REQUIRES_OPERATOR_PRIVILEGES -> actionDenied(authentication, action, request, "because it requires operator privileges");
             case RUN_AS -> runAsDenied(authentication);
         };
     }

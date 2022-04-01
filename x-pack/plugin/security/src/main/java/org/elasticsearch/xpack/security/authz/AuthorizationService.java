@@ -324,7 +324,14 @@ public class AuthorizationService {
             threadContext
         );
         if (operatorException != null) {
-            throw denialException(authentication, action, originalRequest, "because it requires operator privileges", operatorException);
+            throw denialException(
+                AuthorizationDenialMessageFactory.AuthorizationDenialType.REQUIRES_OPERATOR_PRIVILEGES,
+                authentication,
+                action,
+                originalRequest,
+                null,
+                operatorException
+            );
         }
         operatorPrivilegesService.maybeInterceptRequest(threadContext, originalRequest);
     }

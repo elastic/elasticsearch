@@ -234,7 +234,8 @@ public final class SearchPhaseController {
      * Builds an array, with potential null elements, with docs to load.
      */
     public static List<Integer>[] fillDocIdsToLoad(int numShards, ScoreDoc[] shardDocs) {
-        List<Integer>[] docIdsToLoad = (ArrayList<Integer>[]) new ArrayList[numShards];
+        @SuppressWarnings("unchecked")
+        List<Integer>[] docIdsToLoad = (List<Integer>[]) new ArrayList[numShards];
         for (ScoreDoc shardDoc : shardDocs) {
             List<Integer> shardDocIdsToLoad = docIdsToLoad[shardDoc.shardIndex];
             if (shardDocIdsToLoad == null) {

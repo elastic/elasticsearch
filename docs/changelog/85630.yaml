@@ -1,0 +1,5 @@
+pr: 85630
+summary: Implement a serializable version of a `BytesRefHash`
+area: "Infra/Core, Machine Learning"
+type: enhancement
+issues: []

@@ -147,16 +147,19 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
         indexDocs();
 
         Request query = new Request("POST", "_sql");
-        query.setJsonEntity(sqlQueryEntityWithOptionalMode("SELECT int FROM test GROUP BY 1 ORDER BY 1 NULLS LAST", bwcVersion, null));
+        query.setJsonEntity(sqlQueryEntityWithOptionalMode("SELECT int FROM test GROUP BY 1 ORDER BY 1 NULLS LAST", bwcVersion));
         Map<String, Object> result = performRequestAndReadBodyAsJson(queryClient, query);
 
         List<List<Object>> rows = (List<List<Object>>) result.get("rows");
         return rows.stream().map(row -> (Integer) row.get(0)).collect(Collectors.toList());
     }
 
-    public static String sqlQueryEntityWithOptionalMode(String query, Version bwcVersion, Integer fetchSize) throws IOException {
+    public static String sqlQueryEntityWithOptionalMode(String query, Version bwcVersion) throws IOException {
+        return sqlQueryEntityWithOptionalMode(Map.of("query", query), bwcVersion);
+    }
+
+    public static String sqlQueryEntityWithOptionalMode(Map<String, Object> fields, Version bwcVersion) throws IOException {
         XContentBuilder json = XContentFactory.jsonBuilder().startObject();
-        json.field("query", query);
         if (bwcVersion.before(Version.V_7_12_0)) {
             // a bug previous to 7.12 caused a NullPointerException when accessing displaySize in ColumnInfo. The bug has been addressed in
             // https://github.com/elastic/elasticsearch/pull/68802/files
@@ -166,8 +169,8 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
             json.field("binary_format", false);
             json.field("version", bwcVersion.toString());
         }
-        if (fetchSize != null) {
-            json.field("fetch_size", fetchSize);
+        for (Map.Entry<String, Object> entry : fields.entrySet()) {
+            json.field(entry.getKey(), entry.getValue());
         }
         json.endObject();
 
@@ -233,10 +236,10 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
 
         Request req = new Request("POST", "_sql");
         req.addParameter("format", "txt");
-        req.setJsonEntity(sqlQueryEntityWithOptionalMode("SELECT int FROM test", version1, 1));
+        req.setJsonEntity(sqlQueryEntityWithOptionalMode(Map.of("query", "SELECT int FROM test", "fetch_size", 1), version1));
         Response response = client1.performRequest(req);
         String cursor = response.getHeader("Cursor");
-        assertThat(cursor, Matchers.not(Matchers.emptyString()));
+        assertThat(cursor, Matchers.not(Matchers.emptyOrNullString()));
 
         Request scrollReq = new Request("POST", "_sql");
         scrollReq.addParameter("error_trace", "true");
@@ -261,7 +264,7 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
 
         Request req = new Request("POST", "_sql");
         req.addParameter("format", "txt");
-        req.setJsonEntity(sqlQueryEntityWithOptionalMode("SELECT int FROM test", version1, 1));
+        req.setJsonEntity(sqlQueryEntityWithOptionalMode(Map.of("query", "SELECT int FROM test", "fetch_size", 1), version1));
         Response response = client1.performRequest(req);
         String cursor = response.getHeader("Cursor");
         assertThat(cursor, Matchers.not(Matchers.emptyString()));
@@ -312,7 +315,7 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
 
     private static String fetch1RecordAndReturnCursor(Version version, RestClient client) throws IOException {
         Request req = new Request("POST", "_sql");
-        req.setJsonEntity(sqlQueryEntityWithOptionalMode("SELECT int FROM test", version, 1));
+        req.setJsonEntity(sqlQueryEntityWithOptionalMode(Map.of("query", "SELECT int FROM test", "fetch_size", 1), version));
         Map<String, Object> json = performRequestAndReadBodyAsJson(client, req);
         String cursor = (String) json.get("cursor");
         assertThat(cursor, Matchers.not(Matchers.emptyOrNullString()));

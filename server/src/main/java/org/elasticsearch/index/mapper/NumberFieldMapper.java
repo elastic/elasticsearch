@@ -995,8 +995,7 @@ public class NumberFieldMapper extends FieldMapper {
             this.name = name;
             this.numericType = numericType;
             this.parser = new TypeParser(
-                (n, c) -> new Builder(n, this, c.scriptCompiler(), c.getSettings(), c.indexVersionCreated()),
-                true
+                (n, c) -> new Builder(n, this, c.scriptCompiler(), c.getSettings(), c.indexVersionCreated())
             );
         }
 
@@ -1254,6 +1253,10 @@ public class NumberFieldMapper extends FieldMapper {
 
         public NumberFieldType(String name, NumberType type, boolean isIndexed) {
             this(name, type, isIndexed, false, true, true, null, Collections.emptyMap(), null, false, null);
+        }
+
+        public NumberFieldType(String name, NumberType type, Map<String, String> meta) {
+            this(name, type, false, false, true, false, null, meta, null, false, null);
         }
 
         @Override

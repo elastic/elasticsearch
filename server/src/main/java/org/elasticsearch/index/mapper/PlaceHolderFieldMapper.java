@@ -62,8 +62,7 @@ public class PlaceHolderFieldMapper extends FieldMapper {
                 name,
                 mappedFieldType,
                 multiFieldsBuilder.build(this, context),
-                copyTo.build(),
-                unknownParams
+                copyTo.build()
             );
         }
     }
@@ -225,8 +224,7 @@ public class PlaceHolderFieldMapper extends FieldMapper {
         String simpleName,
         PlaceHolderFieldType fieldType,
         MultiFields multiFields,
-        CopyTo copyTo,
-        Map<String, Object> unknownParams
+        CopyTo copyTo
     ) {
         super(simpleName, fieldType, multiFields, copyTo);
         this.unknownParams.putAll(unknownParams);

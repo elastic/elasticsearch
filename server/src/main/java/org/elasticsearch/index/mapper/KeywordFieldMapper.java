@@ -295,8 +295,7 @@ public final class KeywordFieldMapper extends FieldMapper {
     }
 
     public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, c.getIndexAnalyzers(), c.scriptCompiler(), c.indexVersionCreated()),
-        true
+        (n, c) -> new Builder(n, c.getIndexAnalyzers(), c.scriptCompiler(), c.indexVersionCreated())
     );
 
     public static final class KeywordFieldType extends StringFieldType {
@@ -364,7 +363,11 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
 
         public KeywordFieldType(String name, NamedAnalyzer analyzer) {
-            super(name, true, false, true, new TextSearchInfo(Defaults.FIELD_TYPE, null, analyzer, analyzer), Collections.emptyMap());
+            this(name, true, analyzer, Collections.emptyMap());
+        }
+
+        public KeywordFieldType(String name, boolean isIndexed, NamedAnalyzer analyzer, Map<String, String> meta) {
+            super(name, isIndexed, false, true, new TextSearchInfo(Defaults.FIELD_TYPE, null, analyzer, analyzer), meta);
             this.normalizer = Lucene.KEYWORD_ANALYZER;
             this.ignoreAbove = Integer.MAX_VALUE;
             this.nullValue = null;

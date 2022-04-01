@@ -78,7 +78,7 @@ public class TypeParsers {
 
     @SuppressWarnings({ "unchecked" })
     public static boolean parseMultiField(
-        Consumer<FieldMapper.Builder> multiFieldsBuilder,
+        Consumer<Mapper.Builder> multiFieldsBuilder,
         String name,
         MappingParserContext parserContext,
         String propName,
@@ -151,21 +151,11 @@ public class TypeParsers {
 
                 Mapper.TypeParser typeParser = parserContext.typeParser(type);
 
-                if (typeParser == null && parserContext.indexVersionCreated().isLegacyIndexVersion() == false) {
+                if (typeParser == null) {
                     throw new MapperParsingException("no handler for type [" + type + "] declared on field [" + multiFieldName + "]");
                 }
-                if (typeParser == null
-                    || (parserContext.indexVersionCreated().isLegacyIndexVersion() && typeParser.supportsLegacyField() == false)) {
-                    multiFieldsBuilder.accept(
-                        PlaceHolderFieldMapper.PARSER.apply(type).parse(multiFieldName, multiFieldNodes, parserContext)
-                    );
-                } else if (typeParser instanceof FieldMapper.TypeParser == false) {
-                    throw new MapperParsingException("Type [" + type + "] cannot be used in multi field");
-                } else {
-                    FieldMapper.TypeParser fieldTypeParser = (FieldMapper.TypeParser) typeParser;
-                    FieldMapper.Builder fieldBuilder = fieldTypeParser.parse(multiFieldName, multiFieldNodes, parserContext);
-                    multiFieldsBuilder.accept(fieldBuilder);
-                }
+                Mapper.Builder fieldBuilder = typeParser.parse(multiFieldName, multiFieldNodes, parserContext);
+                multiFieldsBuilder.accept(fieldBuilder);
                 multiFieldNodes.remove("type");
                 MappingParser.checkNoRemainingFields(propName, multiFieldNodes);
             }

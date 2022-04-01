@@ -630,15 +630,5 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         }));
         assertThat(service.fieldType("mykeyw"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
         assertEquals(Lucene.KEYWORD_ANALYZER, ((KeywordFieldMapper.KeywordFieldType) service.fieldType("mykeyw")).normalizer());
-
-        // check that normalizer can be updated
-        merge(service, mapping(b -> {
-            b.startObject("mykeyw");
-            b.field("type", "keyword");
-            b.field("normalizer", "lowercase");
-            b.endObject();
-        }));
-        assertThat(service.fieldType("mykeyw"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
-        assertNotEquals(Lucene.KEYWORD_ANALYZER, ((KeywordFieldMapper.KeywordFieldType) service.fieldType("mykeyw")).normalizer());
     }
 }

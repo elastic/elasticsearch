@@ -142,7 +142,7 @@ public class BooleanFieldMapper extends FieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.scriptCompiler(), c.indexVersionCreated()), true);
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.scriptCompiler(), c.indexVersionCreated()));
 
     public static final class BooleanFieldType extends TermBasedFieldType {
 
@@ -173,6 +173,10 @@ public class BooleanFieldMapper extends FieldMapper {
 
         public BooleanFieldType(String name, boolean isIndexed, boolean hasDocValues) {
             this(name, isIndexed, isIndexed, hasDocValues, false, null, Collections.emptyMap());
+        }
+
+        public BooleanFieldType(String name, Map<String, String> meta) {
+            this(name, false, false, true, false, null, meta);
         }
 
         @Override

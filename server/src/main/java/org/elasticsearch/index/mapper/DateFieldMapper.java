@@ -272,7 +272,7 @@ public final class DateFieldMapper extends FieldMapper {
                 : DEFAULT_DATE_TIME_NANOS_FORMATTER;
             this.format = Parameter.stringParam(
                 "format",
-                indexCreatedVersion.isLegacyIndexVersion(),
+                false,
                 m -> toType(m).format,
                 defaultFormat.pattern()
             );
@@ -368,7 +368,7 @@ public final class DateFieldMapper extends FieldMapper {
             ignoreMalformedByDefault,
             c.indexVersionCreated()
         );
-    }, true);
+    });
 
     public static final TypeParser NANOS_PARSER = new TypeParser((n, c) -> {
         boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(c.getSettings());
@@ -380,7 +380,7 @@ public final class DateFieldMapper extends FieldMapper {
             ignoreMalformedByDefault,
             c.indexVersionCreated()
         );
-    }, true);
+    });
 
     public static final class DateFieldType extends MappedFieldType {
         protected final DateFormatter dateTimeFormatter;
@@ -426,6 +426,10 @@ public final class DateFieldMapper extends FieldMapper {
 
         public DateFieldType(String name, Resolution resolution, DateFormatter dateFormatter) {
             this(name, true, false, true, dateFormatter, resolution, null, null, Collections.emptyMap());
+        }
+
+        public DateFieldType(String name, Resolution resolution, DateFormatter dateFormatter, Map<String, String> meta) {
+            this(name, false, false, true, dateFormatter, resolution, null, null, meta);
         }
 
         @Override

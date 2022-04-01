@@ -83,11 +83,6 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         public MetadataFieldMapper getDefault(MappingParserContext parserContext) {
             return mapperParser.apply(parserContext);
         }
-
-        @Override
-        public boolean supportsLegacyField() {
-            return true;
-        }
     }
 
     public static class ConfigurableTypeParser implements TypeParser {
@@ -114,11 +109,6 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         public MetadataFieldMapper getDefault(MappingParserContext parserContext) {
             return defaultMapperParser.apply(parserContext);
         }
-
-        @Override
-        public boolean supportsLegacyField() {
-            return true;
-        }
     }
 
     public abstract static class Builder extends FieldMapper.Builder {
@@ -132,9 +122,6 @@ public abstract class MetadataFieldMapper extends FieldMapper {
                 if (param.isConfigured()) {
                     return true;
                 }
-            }
-            if (unknownParams.isEmpty() == false) {
-                return true;
             }
             return false;
         }

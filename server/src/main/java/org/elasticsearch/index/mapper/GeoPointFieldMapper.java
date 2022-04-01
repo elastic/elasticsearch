@@ -165,8 +165,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
     }
 
     public static TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, c.scriptCompiler(), IGNORE_MALFORMED_SETTING.get(c.getSettings()), c.indexVersionCreated()),
-        true
+        (n, c) -> new Builder(n, c.scriptCompiler(), IGNORE_MALFORMED_SETTING.get(c.getSettings()), c.indexVersionCreated())
     );
 
     private final Builder builder;
@@ -302,6 +301,10 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         // only used in test
         public GeoPointFieldType(String name) {
             this(name, true, false, true, null, null, Collections.emptyMap());
+        }
+
+        public GeoPointFieldType(String name, Map<String, String> meta) {
+            this(name, false, false, true, null, null, meta);
         }
 
         @Override

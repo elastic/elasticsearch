@@ -576,15 +576,5 @@ public class DateFieldMapperTests extends MapperTestCase {
         }));
         assertThat(service.fieldType("mydate"), instanceOf(DateFieldType.class));
         assertEquals(DEFAULT_DATE_TIME_FORMATTER, ((DateFieldType) service.fieldType("mydate")).dateTimeFormatter);
-
-        // check that date format can be updated
-        merge(service, mapping(b -> {
-            b.startObject("mydate");
-            b.field("type", "date");
-            b.field("format", "YYYY/MM/dd");
-            b.endObject();
-        }));
-        assertThat(service.fieldType("mydate"), instanceOf(DateFieldType.class));
-        assertNotEquals(DEFAULT_DATE_TIME_FORMATTER, ((DateFieldType) service.fieldType("mydate")).dateTimeFormatter);
     }
 }

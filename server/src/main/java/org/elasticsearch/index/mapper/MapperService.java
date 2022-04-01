@@ -144,13 +144,11 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.indexVersionCreated = indexSettings.getIndexVersionCreated();
         this.indexAnalyzers = indexAnalyzers;
         this.mapperRegistry = mapperRegistry;
-        Function<DateFormatter, MappingParserContext> parserContextFunction = dateFormatter -> new MappingParserContext(
-            similarityService::getSimilarity,
-            mapperRegistry.getMapperParsers()::get,
-            mapperRegistry.getRuntimeFieldParsers()::get,
+        Function<DateFormatter, MappingParserContext> parserContextFunction = buildParserContextFunction(
+            similarityService,
+            mapperRegistry,
             indexVersionCreated,
             searchExecutionContextSupplier,
-            dateFormatter,
             scriptCompiler,
             indexAnalyzers,
             indexSettings,
@@ -171,6 +169,44 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             metadataMapperParsers,
             this::getMetadataMappers,
             this::resolveDocumentType
+        );
+    }
+
+    private static Function<DateFormatter, MappingParserContext> buildParserContextFunction(
+        SimilarityService similarityService,
+        MapperRegistry mapperRegistry,
+        Version indexVersionCreated,
+        Supplier<SearchExecutionContext> searchExecutionContextSupplier,
+        ScriptCompiler scriptCompiler,
+        IndexAnalyzers indexAnalyzers,
+        IndexSettings indexSettings,
+        IdFieldMapper idFieldMapper
+    ) {
+        if (indexVersionCreated.isLegacyIndexVersion()) {
+            return dateFormatter -> new MappingParserContext(
+                similarityService::getSimilarity,
+                LegacyMapperTypeParsers.INSTANCE::getParser,
+                f -> null,
+                indexVersionCreated,
+                searchExecutionContextSupplier,
+                dateFormatter,
+                scriptCompiler,
+                indexAnalyzers,
+                indexSettings,
+                idFieldMapper
+            );
+        }
+        return dateFormatter -> new MappingParserContext(
+            similarityService::getSimilarity,
+            mapperRegistry.getMapperParsers()::get,
+            mapperRegistry.getRuntimeFieldParsers()::get,
+            indexVersionCreated,
+            searchExecutionContextSupplier,
+            dateFormatter,
+            scriptCompiler,
+            indexAnalyzers,
+            indexSettings,
+            idFieldMapper
         );
     }
 

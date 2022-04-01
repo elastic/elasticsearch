@@ -8,6 +8,12 @@
 
 package org.elasticsearch.action.admin.indices.diskusage;
 
+import com.carrotsearch.randomizedtesting.RandomizedTest;
+
+import com.carrotsearch.randomizedtesting.SeedUtils;
+
+import com.carrotsearch.randomizedtesting.generators.RandomNumbers;
+
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
@@ -63,6 +69,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.function.Consumer;
 
 import static org.hamcrest.Matchers.empty;
@@ -469,7 +476,9 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
     }
 
     private static float[] randomVector() {
-        float[] vec = new float[500];
+        // used random but fixed vector size for each test
+        long masterSeed = SeedUtils.parseSeed(RandomizedTest.getContext().getRunnerSeedAsString());
+        float[] vec = new float[RandomNumbers.randomIntBetween(new Random(masterSeed), 10, 20)];
         for (int i = 0; i < vec.length; i++) {
             vec[i] = randomFloat();
         }

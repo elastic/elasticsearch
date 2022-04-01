@@ -42,7 +42,21 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
 
+/**
+ * This class helps to randomize {@link Authentication} related objects. It provides methods
+ * to randomize {@link User}, {@link Authentication.RealmRef}, {@link RealmDomain} and a builder
+ * to randomize {@link Authentication}. It should be used anytime a randomized Authentication
+ * object is needed in tests to ensure the Authentication object is created correctly, i.e. satisfies
+ * its internal logic.
+ *
+ * The Authentication builder class provides configuration methods that should suffice most customisations.
+ * There are dedicate methods for creating specific type of Authentication, e.g. {@code builder().apiKey().build()}.
+ *
+ * The simplest way to get a completely random Authentication that cover most (if not all) possible scenarios is to
+ * simply call {@code builder().build()}.
+ */
 public class AuthenticationTestHelper {
 
     private static final Set<String> SYNTHETIC_REALM_TYPES = Set.of(
@@ -129,6 +143,12 @@ public class AuthenticationTestHelper {
         }
     }
 
+    private static AnonymousUser randomAnonymousUser() {
+        return new AnonymousUser(
+            Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), ESTestCase.randomAlphaOfLengthBetween(3, 8)).build()
+        );
+    }
+
     public static class AuthenticationTestBuilder {
         private Version version;
         private Authentication authenticatingAuthentication;
@@ -152,14 +172,12 @@ public class AuthenticationTestHelper {
         }
 
         public AuthenticationTestBuilder realm(boolean underDomain) {
-            if (authenticatingAuthentication != null) {
-                throw new IllegalArgumentException("run-as authentication is always looked up from a realm");
-            }
+            assert authenticatingAuthentication == null : "shortcut method cannot be used for effective authentication";
             resetShortcutRelatedVariables();
-            this.user = null;
-            this.realmRef = null;
-            this.candidateAuthenticationTypes = EnumSet.of(AuthenticationType.REALM);
             this.isRealmUnderDomain = underDomain;
+            user = null;
+            realmRef = null;
+            candidateAuthenticationTypes = EnumSet.of(AuthenticationType.REALM);
             return this;
         }
 
@@ -170,46 +188,40 @@ public class AuthenticationTestHelper {
         }
 
         public AuthenticationTestBuilder serviceAccount(User user) {
+            assert authenticatingAuthentication == null : "shortcut method cannot be used for effective authentication";
             assert user.principal().contains("/") : "invalid service account principal";
-            if (authenticatingAuthentication != null) {
-                throw new IllegalArgumentException("run-as authentication cannot be service account");
-            }
             resetShortcutRelatedVariables();
-            this.isServiceAccount = true;
             this.user = user;
-            this.realmRef = null;
-            this.candidateAuthenticationTypes = EnumSet.of(AuthenticationType.TOKEN);
+            isServiceAccount = true;
+            realmRef = null;
+            candidateAuthenticationTypes = EnumSet.of(AuthenticationType.TOKEN);
             return this;
         }
 
+        public AuthenticationTestBuilder apiKey() {
+            return apiKey(ESTestCase.randomAlphaOfLength(20));
+        }
+
         public AuthenticationTestBuilder apiKey(String apiKeyId) {
-            if (authenticatingAuthentication != null) {
-                throw new IllegalArgumentException("run-as authentication cannot be api key");
-            }
+            assert authenticatingAuthentication == null : "shortcut method cannot be used for effective authentication";
             resetShortcutRelatedVariables();
-            this.realmRef = null;
-            this.candidateAuthenticationTypes = EnumSet.of(AuthenticationType.API_KEY);
+            realmRef = null;
+            candidateAuthenticationTypes = EnumSet.of(AuthenticationType.API_KEY);
             metadata.put(AuthenticationField.API_KEY_ID_KEY, Objects.requireNonNull(apiKeyId));
             return this;
         }
 
         public AuthenticationTestBuilder anonymous() {
-            return anonymous(
-                new AnonymousUser(
-                    Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), ESTestCase.randomAlphaOfLengthBetween(3, 8)).build()
-                )
-            );
+            return anonymous(randomAnonymousUser());
         }
 
         public AuthenticationTestBuilder anonymous(User user) {
+            assert authenticatingAuthentication == null : "shortcut method cannot be used for effective authentication";
             assert user instanceof AnonymousUser : "user must be anonymous for anonymous authentication";
-            if (authenticatingAuthentication != null) {
-                throw new IllegalArgumentException("run-as authentication cannot be anonymous");
-            }
             resetShortcutRelatedVariables();
-            this.user = null;
-            this.realmRef = null;
-            this.candidateAuthenticationTypes = EnumSet.of(AuthenticationType.ANONYMOUS);
+            this.user = user;
+            realmRef = null;
+            candidateAuthenticationTypes = EnumSet.of(AuthenticationType.ANONYMOUS);
             return this;
         }
 
@@ -220,14 +232,12 @@ public class AuthenticationTestHelper {
         }
 
         public AuthenticationTestBuilder internal(User user) {
+            assert authenticatingAuthentication == null : "shortcut method cannot be used for effective authentication";
             assert User.isInternal(user) : "user must be internal for internal authentication";
-            if (authenticatingAuthentication != null) {
-                throw new IllegalArgumentException("run-as authentication cannot be internal");
-            }
             resetShortcutRelatedVariables();
             this.user = user;
-            this.realmRef = null;
-            this.candidateAuthenticationTypes = EnumSet.of(AuthenticationType.INTERNAL);
+            realmRef = null;
+            candidateAuthenticationTypes = EnumSet.of(AuthenticationType.INTERNAL);
             return this;
         }
 
@@ -274,7 +284,9 @@ public class AuthenticationTestHelper {
             if (authenticatingAuthentication != null) {
                 throw new IllegalArgumentException("cannot convert to run-as again for run-as authentication");
             }
-            candidateAuthenticationTypes = EnumSet.of(AuthenticationType.REALM, AuthenticationType.API_KEY);
+            candidateAuthenticationTypes = candidateAuthenticationTypes.stream()
+                .filter(t -> t == AuthenticationType.REALM || t == AuthenticationType.API_KEY)
+                .collect(Collectors.toCollection(() -> EnumSet.noneOf(AuthenticationType.class)));
             final Authentication authentication = build(false);
             return new AuthenticationTestBuilder(authentication);
         }
@@ -288,9 +300,12 @@ public class AuthenticationTestHelper {
                 if (user == null) {
                     user = randomUser();
                 }
+                assert false == User.isInternal(user) && false == user instanceof AnonymousUser
+                    : "cannot run-as internal or anonymous user";
                 if (realmRef == null) {
                     realmRef = randomRealmRef(isRealmUnderDomain == null ? ESTestCase.randomBoolean() : isRealmUnderDomain);
                 }
+                assert false == SYNTHETIC_REALM_TYPES.contains(realmRef.getType()) : "cannot run-as users from synthetic realms";
                 return authenticatingAuthentication.runAs(user, realmRef);
             } else {
                 assert candidateAuthenticationTypes.size() > 0 : "no candidate authentication types";
@@ -354,6 +369,12 @@ public class AuthenticationTestHelper {
                                     AuthenticationResult.success(user, metadata),
                                     ESTestCase.randomAlphaOfLengthBetween(3, 8)
                                 ).token();
+                            } else if (tokenVariant == 2 && user == null && realmRef == null) {
+                                // token by anonymous user
+                                authentication = Authentication.newAnonymousAuthentication(
+                                    randomAnonymousUser(),
+                                    ESTestCase.randomAlphaOfLengthBetween(3, 8)
+                                ).token();
                             } else {
                                 // token by realm user
                                 if (user == null) {
@@ -368,11 +389,7 @@ public class AuthenticationTestHelper {
                     }
                     case ANONYMOUS -> {
                         if (user == null) {
-                            user = new AnonymousUser(
-                                Settings.builder()
-                                    .put(AnonymousUser.ROLES_SETTING.getKey(), ESTestCase.randomAlphaOfLengthBetween(3, 8))
-                                    .build()
-                            );
+                            user = randomAnonymousUser();
                         }
                         assert user instanceof AnonymousUser : "user must be anonymous for anonymous authentication";
                         assert realmRef == null : "cannot specify realm type for anonymous authentication";

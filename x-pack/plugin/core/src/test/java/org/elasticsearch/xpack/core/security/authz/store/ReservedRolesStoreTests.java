@@ -162,8 +162,8 @@ import org.elasticsearch.xpack.core.security.action.privilege.PutPrivilegesReque
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileRequest;
 import org.elasticsearch.xpack.core.security.action.profile.GetProfileAction;
-import org.elasticsearch.xpack.core.security.action.profile.SearchProfilesAction;
-import org.elasticsearch.xpack.core.security.action.profile.SearchProfilesRequest;
+import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesAction;
+import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesRequest;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAction;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
 import org.elasticsearch.xpack.core.security.action.role.PutRoleAction;
@@ -1672,7 +1672,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             is(true)
         );
         assertThat(superuserRole.cluster().check(GetProfileAction.NAME, mock(UpdateProfileDataRequest.class), authentication), is(true));
-        assertThat(superuserRole.cluster().check(SearchProfilesAction.NAME, mock(SearchProfilesRequest.class), authentication), is(true));
+        assertThat(superuserRole.cluster().check(SuggestProfilesAction.NAME, mock(SuggestProfilesRequest.class), authentication), is(true));
         assertThat(superuserRole.cluster().check(ActivateProfileAction.NAME, mock(ActivateProfileRequest.class), authentication), is(true));
 
         final Settings indexSettings = Settings.builder().put("index.version.created", Version.CURRENT).build();

@@ -111,7 +111,7 @@ public class AuthorizationService {
         true,
         Property.NodeScope
     );
-    public static final Setting<Boolean> TRACE_AUTHORIZATION = Setting.boolSetting(setting("authz.tracing"), true, Property.NodeScope);
+    public static final Setting<Boolean> TRACE_AUTHORIZATION = Setting.boolSetting(setting("authz.tracing"), false, Property.NodeScope);
     private static final AuthorizationInfo SYSTEM_AUTHZ_INFO = () -> Collections.singletonMap(
         PRINCIPAL_ROLES_FIELD_NAME,
         new String[] { SystemUser.ROLE_NAME }

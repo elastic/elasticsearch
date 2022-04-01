@@ -793,7 +793,16 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         ".metrics-endpoint.metadata_united_default"
                     )
                     .privileges("create_index", "delete_index", "read", "index")
-                    .build(), },
+                    .build(),
+                // For src/dest indices of the Cloud Security Posture packages that ships a transform
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("logs-cis_kubernetes_benchmark.findings-*")
+                    .privileges("read", "view_index_metadata")
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("logs-cloud_security_posture.findings_latest-default", "logs-cloud_security_posture.scores-default")
+                    .privileges("create_index", "read", "index", "delete")
+                    .build() },
             null,
             new ConfigurableClusterPrivilege[] {
                 new ManageApplicationPrivileges(Set.of("kibana-*")),

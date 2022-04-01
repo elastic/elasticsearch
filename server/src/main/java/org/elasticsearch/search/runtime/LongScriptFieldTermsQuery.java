@@ -8,23 +8,22 @@
 
 package org.elasticsearch.search.runtime;
 
-import com.carrotsearch.hppc.LongSet;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.script.AbstractLongFieldScript;
 import org.elasticsearch.script.Script;
 
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Function;
 
 public class LongScriptFieldTermsQuery extends AbstractLongScriptFieldQuery {
-    private final LongSet terms;
+    private final Set<Long> terms;
 
     public LongScriptFieldTermsQuery(
         Script script,
         Function<LeafReaderContext, AbstractLongFieldScript> leafFactory,
         String fieldName,
-        LongSet terms
+        Set<Long> terms
     ) {
         super(script, leafFactory, fieldName);
         this.terms = terms;
@@ -62,7 +61,7 @@ public class LongScriptFieldTermsQuery extends AbstractLongScriptFieldQuery {
         return terms.equals(other.terms);
     }
 
-    LongSet terms() {
+    Set<Long> terms() {
         return terms;
     }
 }

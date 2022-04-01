@@ -14,7 +14,6 @@ import org.apache.http.client.methods.HttpPut;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.searchable_snapshots.MountSnapshotRequest.Storage;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -36,6 +35,22 @@ import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class SearchableSnapshotsRollingUpgradeIT extends AbstractUpgradeTestCase {
+
+    public enum Storage {
+
+        FULL_COPY("full_copy"),
+        SHARED_CACHE("shared_cache");
+
+        private final String storageName;
+
+        public String storageName() {
+            return storageName;
+        }
+
+        Storage(final String storageName) {
+            this.storageName = storageName;
+        }
+    }
 
     public void testMountFullCopyAndRecoversCorrectly() throws Exception {
         final Storage storage = Storage.FULL_COPY;

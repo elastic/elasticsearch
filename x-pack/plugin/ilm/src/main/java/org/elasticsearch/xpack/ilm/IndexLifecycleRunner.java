@@ -524,7 +524,7 @@ class IndexLifecycleRunner {
             ),
             e
         );
-        clusterService.submitStateUpdateTask(
+        submitUnlessAlreadyQueued(
             String.format(
                 Locale.ROOT,
                 "ilm-move-to-error-step {policy [%s], index [%s], currentStep [%s]}",
@@ -535,8 +535,7 @@ class IndexLifecycleRunner {
             new MoveToErrorStepUpdateTask(index, policy, currentStepKey, e, nowSupplier, stepRegistry::getStep, clusterState -> {
                 IndexMetadata indexMetadata = clusterState.metadata().index(index);
                 registerFailedOperation(indexMetadata, e);
-            }),
-            newExecutor()
+            })
         );
     }
 

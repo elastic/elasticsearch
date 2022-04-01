@@ -240,22 +240,7 @@ public class CompositeRolesStore {
         final Role existing = roleCache.get(roleKey);
         if (existing == null) {
             final long invalidationCounter = numInvalidation.get();
-            roleReference.resolve(roleReferenceResolver, ActionListener.wrap(rolesRetrievalResult -> {
-                if (RolesRetrievalResult.EMPTY == rolesRetrievalResult) {
-                    roleActionListener.onResponse(Role.EMPTY);
-                } else if (RolesRetrievalResult.SUPERUSER == rolesRetrievalResult) {
-                    roleActionListener.onResponse(superuserRole);
-                } else {
-                    buildThenMaybeCacheRole(
-                        roleKey,
-                        rolesRetrievalResult.getRoleDescriptors(),
-                        rolesRetrievalResult.getMissingRoles(),
-                        rolesRetrievalResult.isSuccess(),
-                        invalidationCounter,
-                        roleActionListener
-                    );
-                }
-            }, e -> {
+            final Consumer<Exception> failureHandler = e -> {
                 // Because superuser does not have write access to restricted indices, it is valid to mix superuser with other roles to
                 // gain addition access. However, if retrieving those roles fails for some reason, then that could leave admins in a
                 // situation where they are unable to administer their cluster (in order to resolve the problem that is leading to failures
@@ -274,13 +259,29 @@ public class CompositeRolesStore {
                 } else {
                     roleActionListener.onFailure(e);
                 }
-            }));
+            };
+            roleReference.resolve(roleReferenceResolver, ActionListener.wrap(rolesRetrievalResult -> {
+                if (RolesRetrievalResult.EMPTY == rolesRetrievalResult) {
+                    roleActionListener.onResponse(Role.EMPTY);
+                } else if (RolesRetrievalResult.SUPERUSER == rolesRetrievalResult) {
+                    roleActionListener.onResponse(superuserRole);
+                } else {
+                    buildThenMaybeCacheRole(
+                        roleKey,
+                        rolesRetrievalResult.getRoleDescriptors(),
+                        rolesRetrievalResult.getMissingRoles(),
+                        rolesRetrievalResult.isSuccess(),
+                        invalidationCounter,
+                        ActionListener.wrap(roleActionListener::onResponse, failureHandler)
+                    );
+                }
+            }, failureHandler));
         } else {
             roleActionListener.onResponse(existing);
         }
     }
 
-    private boolean includesSuperuserRole(RoleReference roleReference) {
+    private static boolean includesSuperuserRole(RoleReference roleReference) {
         if (roleReference instanceof RoleReference.NamedRoleReference namedRoles) {
             return Arrays.asList(namedRoles.getRoleNames()).contains(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR.getName());
         } else {
@@ -363,7 +364,7 @@ public class CompositeRolesStore {
         );
     }
 
-    private Optional<RoleDescriptor> tryGetRoleDescriptorForInternalUser(Subject subject) {
+    private static Optional<RoleDescriptor> tryGetRoleDescriptorForInternalUser(Subject subject) {
         final User user = subject.getUser();
         if (SystemUser.is(user)) {
             throw new IllegalArgumentException(

@@ -581,7 +581,7 @@ public class DateFieldMapperTests extends MapperTestCase {
         Object input = generateRandomInputValue(nanos ? DateFieldMapper.Resolution.NANOSECONDS : DateFieldMapper.Resolution.MILLISECONDS);
         return new SyntheticSourceExample(
             input.toString(),
-            '"' + defaultFormatter.format(defaultFormatter.parse(input.toString())) + '"',
+            defaultFormatter.format(defaultFormatter.parse(input.toString())),
             b -> b.field("type", nanos ? "date_nanos" : "date")
         );
     }

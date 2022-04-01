@@ -8,8 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -767,7 +765,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             + "].";
     }
 
-    @Repeat(iterations = 100)
     public final void testSyntheticSource() throws IOException {
         SyntheticSourceExample syntheticSourceExample = syntheticSourceExample();
         DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
@@ -781,7 +778,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertThat(syntheticSource(mapper, b -> b.field("field", syntheticSourceExample.inputValue)), equalTo(expected));
     }
 
-    @Repeat(iterations = 100)
     public final void testSyntheticSourceInObject() throws IOException {
         SyntheticSourceExample syntheticSourceExample = syntheticSourceExample();
         DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {

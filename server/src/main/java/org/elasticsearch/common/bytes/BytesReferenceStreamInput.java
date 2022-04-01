@@ -85,37 +85,29 @@ class BytesReferenceStreamInput extends StreamInput {
     @Override
     public int readVInt() throws IOException {
         if (slice.remaining() >= 5) {
-            final byte[] buf = slice.array();
-            final int offset = slice.arrayOffset();
-            int position = slice.position();
-            byte b = buf[offset + position++];
+            byte b = slice.get();
             if (b >= 0) {
-                slice.position(position);
                 return b;
             }
             int i = b & 0x7F;
-            b = buf[offset + position++];
+            b = slice.get();
             i |= (b & 0x7F) << 7;
             if (b >= 0) {
-                slice.position(position);
                 return i;
             }
-            b = buf[offset + position++];
+            b = slice.get();
             i |= (b & 0x7F) << 14;
             if (b >= 0) {
-                slice.position(position);
                 return i;
             }
-            b = buf[offset + position++];
+            b = slice.get();
             i |= (b & 0x7F) << 21;
             if (b >= 0) {
-                slice.position(position);
                 return i;
             }
-            b = buf[offset + position++];
+            b = slice.get();
             i |= (b & 0x0F) << 28;
             if ((b & 0xF0) == 0) {
-                slice.position(position);
                 return i;
             }
             throwOnBrokenVInt(b, i);
@@ -126,68 +118,55 @@ class BytesReferenceStreamInput extends StreamInput {
     @Override
     public long readVLong() throws IOException {
         if (slice.remaining() >= 10) {
-            final byte[] buf = slice.array();
-            final int offset = slice.arrayOffset();
-            int position = slice.position();
-            byte b = buf[offset + position++];
+            byte b = slice.get();
             long i = b & 0x7FL;
             if ((b & 0x80) == 0) {
-                slice.position(position);
                 return i;
             }
-            b = buf[offset + position++];
+            b = slice.get();
             i |= (b & 0x7FL) << 7;
             if ((b & 0x80) == 0) {
-                slice.position(position);
                 return i;
             }
-            b = buf[offset + position++];
+            b = slice.get();
             i |= (b & 0x7FL) << 14;
             if ((b & 0x80) == 0) {
-                slice.position(position);
                 return i;
             }
-            b = buf[offset + position++];
+            b = slice.get();
             i |= (b & 0x7FL) << 21;
             if ((b & 0x80) == 0) {
-                slice.position(position);
                 return i;
             }
-            b = buf[offset + position++];
+            b = slice.get();
             i |= (b & 0x7FL) << 28;
             if ((b & 0x80) == 0) {
-                slice.position(position);
                 return i;
             }
-            b = buf[offset + position++];
+            b = slice.get();
             i |= (b & 0x7FL) << 35;
             if ((b & 0x80) == 0) {
-                slice.position(position);
                 return i;
             }
-            b = buf[offset + position++];
+            b = slice.get();
             i |= (b & 0x7FL) << 42;
             if ((b & 0x80) == 0) {
-                slice.position(position);
                 return i;
             }
-            b = buf[offset + position++];
+            b = slice.get();
             i |= (b & 0x7FL) << 49;
             if ((b & 0x80) == 0) {
-                slice.position(position);
                 return i;
             }
-            b = buf[offset + position++];
+            b = slice.get();
             i |= ((b & 0x7FL) << 56);
             if ((b & 0x80) == 0) {
-                slice.position(position);
                 return i;
             }
-            b = buf[offset + position++];
+            b = slice.get();
             if (b != 0 && b != 1) {
                 throwOnBrokenVLong(b, i);
             }
-            slice.position(position);
             i |= ((long) b) << 63;
             return i;
         } else {

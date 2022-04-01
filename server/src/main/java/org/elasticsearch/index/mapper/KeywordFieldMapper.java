@@ -996,7 +996,7 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return syntheticFieldLoader(name());
+        return syntheticFieldLoader(simpleName());
     }
 
     protected SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String simpleName) {
@@ -1005,7 +1005,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
             );
         }
-        return new BytesSyntheticFieldLoader(name(), simpleName()) {
+        return new BytesSyntheticFieldLoader(name(), simpleName) {
             @Override
             protected void loadNextValue(XContentBuilder b, BytesRef value) throws IOException {
                 b.value(value.utf8ToString());

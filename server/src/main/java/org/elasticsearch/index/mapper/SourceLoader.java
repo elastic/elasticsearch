@@ -65,6 +65,19 @@ public interface SourceLoader {
     }
 
     interface SyntheticFieldLoader {
+        SyntheticFieldLoader NOTHING = r -> new Leaf() {
+            @Override
+            public void advanceToDoc(int docId) throws IOException {}
+
+            @Override
+            public boolean hasValue() {
+                return false;
+            }
+
+            @Override
+            public void load(XContentBuilder b) throws IOException {}
+        };
+
         Leaf leaf(LeafReader reader) throws IOException;
 
         interface Leaf {
@@ -75,4 +88,5 @@ public interface SourceLoader {
             void load(XContentBuilder b) throws IOException;
         }
     }
+
 }

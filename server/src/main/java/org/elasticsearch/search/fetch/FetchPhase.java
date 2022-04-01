@@ -332,7 +332,17 @@ public class FetchPhase {
             }
 
             HitContext hitContext = new HitContext(hit, subReaderContext, subDocId);
-            BytesReference source = sourceRequired(context) ? sourceLoader.source(fieldsVisitor, subDocId) : null;
+            BytesReference source;
+            if (sourceRequired(context)) {
+                try {
+                    profiler.startLoadingSource();
+                    source = sourceLoader.source(fieldsVisitor, subDocId);
+                } finally {
+                    profiler.stopLoadingSource();
+                }
+            } else {
+                source = null;
+            }
             if (source != null) {
                 // Store the loaded source on the hit context so that fetch subphases can access it.
                 // Also make it available to scripts by storing it on the shared SearchLookup instance.
@@ -509,6 +519,10 @@ public class FetchPhase {
 
         void stopLoadingStoredFields();
 
+        void startLoadingSource();
+
+        void stopLoadingSource();
+
         void startNextReader();
 
         void stopNextReader();
@@ -532,6 +546,12 @@ public class FetchPhase {
 
             @Override
             public void stopLoadingStoredFields() {}
+
+            @Override
+            public void startLoadingSource() {}
+
+            @Override
+            public void stopLoadingSource() {}
 
             @Override
             public void startNextReader() {}

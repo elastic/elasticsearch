@@ -104,6 +104,14 @@ public class FetchProfiler implements FetchPhase.Profiler {
         current.getTimer(FetchPhaseTiming.LOAD_STORED_FIELDS).stop();
     }
 
+    @Override public void startLoadingSource() {
+        current.getTimer(FetchPhaseTiming.LOAD_SOURCE).start();
+    }
+
+    @Override public void stopLoadingSource() {
+        current.getTimer(FetchPhaseTiming.LOAD_SOURCE).stop();
+    }
+
     @Override
     public void startNextReader() {
         current.getTimer(FetchPhaseTiming.NEXT_READER).start();
@@ -140,7 +148,8 @@ public class FetchProfiler implements FetchPhase.Profiler {
 
     enum FetchPhaseTiming {
         NEXT_READER,
-        LOAD_STORED_FIELDS;
+        LOAD_STORED_FIELDS,
+        LOAD_SOURCE;
 
         @Override
         public String toString() {

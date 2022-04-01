@@ -14,11 +14,13 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -189,5 +191,26 @@ public class BooleanFieldMapperTests extends MapperTestCase {
             b.field("null_value", true);
         })));
         assertThat(e.getMessage(), equalTo("Failed to parse mapping: Field [null_value] cannot be set in conjunction with field [script]"));
+    }
+
+    @Override
+    protected SyntheticSourceExample syntheticSourceExample() throws IOException {
+        if (randomBoolean()) {
+            boolean v = randomBoolean();
+            return new SyntheticSourceExample(v, v, this::minimalMapping);
+        }
+        List<Boolean> in = randomList(1, 5, ESTestCase::randomBoolean);
+        Object out = in.size() == 1 ? in.get(0) : in.stream().sorted().toList();
+        return new SyntheticSourceExample(in, out, this::minimalMapping);
+    }
+
+    @Override
+    protected List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException {
+        return List.of(
+            new SyntheticSourceInvalidExample(
+                equalTo("field [field] of type [boolean] doesn't support synthetic source because it doesn't have doc values"),
+                b -> b.field("type", "boolean").field("doc_values", false)
+            )
+        );
     }
 }

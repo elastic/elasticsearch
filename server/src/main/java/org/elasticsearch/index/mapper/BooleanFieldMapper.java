@@ -419,4 +419,19 @@ public class BooleanFieldMapper extends FieldMapper {
     protected String contentType() {
         return CONTENT_TYPE;
     }
+
+    @Override
+    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        if (hasDocValues == false) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
+            );
+        }
+        return new NumberFieldMapper.NumericSyntheticFieldLoader(name(), simpleName()) {
+            @Override
+            protected void loadNextValue(XContentBuilder b, long value) throws IOException {
+                b.value(value == 1);
+            }
+        };
+    }
 }

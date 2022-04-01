@@ -781,13 +781,29 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertThat(syntheticSource(mapper, b -> b.field("field", syntheticSourceExample.inputValue)), equalTo(expected));
     }
 
-    // TODO multi-valued synthetic source
+    @Repeat(iterations = 100)
+    public final void testSyntheticSourceInObject() throws IOException {
+        SyntheticSourceExample syntheticSourceExample = syntheticSourceExample();
+        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+            b.startObject("obj").startObject("properties").startObject("field");
+            syntheticSourceExample.mapping().accept(b);
+            b.endObject().endObject().endObject();
+        }));
+        String expected = Strings.toString(
+            JsonXContent.contentBuilder()
+                .startObject()
+                .startObject("obj")
+                .field("field", syntheticSourceExample.result)
+                .endObject()
+                .endObject()
+        );
+        assertThat(
+            syntheticSource(mapper, b -> b.startObject("obj").field("field", syntheticSourceExample.inputValue).endObject()),
+            equalTo(expected)
+        );
+    }
 
-    public static record SyntheticSourceExample(
-        Object inputValue,
-        Object result,
-        CheckedConsumer<XContentBuilder, IOException> mapping
-    ) {}
+    public static record SyntheticSourceExample(Object inputValue, Object result, CheckedConsumer<XContentBuilder, IOException> mapping) {}
 
     protected SyntheticSourceExample syntheticSourceExample() throws IOException {
         assumeTrue("not supported", false);

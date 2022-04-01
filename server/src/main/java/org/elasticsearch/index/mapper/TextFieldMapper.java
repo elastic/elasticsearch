@@ -1142,7 +1142,7 @@ public class TextFieldMapper extends FieldMapper {
             if (sub.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {
                 KeywordFieldMapper kwd = (KeywordFieldMapper) sub;
                 if (kwd.fieldType().hasDocValues()) {
-                    return kwd.syntheticFieldLoader(name());
+                    return kwd.syntheticFieldLoader(simpleName());
                 }
             }
         }

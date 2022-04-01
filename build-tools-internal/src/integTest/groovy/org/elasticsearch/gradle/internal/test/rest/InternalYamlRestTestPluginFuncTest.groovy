@@ -8,10 +8,13 @@
 
 package org.elasticsearch.gradle.internal.test.rest
 
+import spock.lang.IgnoreIf
+
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.fixtures.AbstractRestResourcesFuncTest
 import org.gradle.testkit.runner.TaskOutcome
 
+@IgnoreIf({ os.isWindows() })
 class InternalYamlRestTestPluginFuncTest extends AbstractRestResourcesFuncTest {
 
     def "yamlRestTest does nothing when there are no tests"() {
@@ -94,15 +97,15 @@ class InternalYamlRestTestPluginFuncTest extends AbstractRestResourcesFuncTest {
             dependencies {
                yamlRestTestImplementation "junit:junit:4.12"
             }
-           
-            esplugin { 
+
+            esplugin {
                 description = 'test plugin'
                 classname = 'com.acme.plugin.TestPlugin'
             }
-            
+
             // for testing purposes only
             configurations.compileOnly.dependencies.clear()
-            
+
             testClusters {
               yamlRestTest {
                   version = "$distroVersion"
@@ -114,9 +117,9 @@ class InternalYamlRestTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         testFile.parentFile.mkdirs()
         testFile << """
         package org.acme;
-        
+
         import org.junit.Test;
-        
+
         public class SomeTestIT {
             @Test
             public void someMethod() {
@@ -177,13 +180,13 @@ echo "Running elasticsearch \$0"
             apply plugin:'distribution'
             def buildExpanded = tasks.register("buildExpanded", Copy) {
                 into("build/local")
-                
+
                 into('es-dummy-dist') {
                     from('src')
                     from('current-marker.txt')
                 }
             }
-            
+
             configurations {
                 extracted {
                     attributes {

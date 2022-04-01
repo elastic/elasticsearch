@@ -461,13 +461,19 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 }
             });
 
-            return allDiagnoses.entrySet().stream()
+            List<UserAction> results = allDiagnoses.entrySet().stream()
                 .map(entry -> {
                     List<ShardRouting> shardRoutings = entry.getValue();
                     Set<String> indices = shardRoutings.stream().map(ShardRouting::getIndexName).collect(Collectors.toSet());
                     return createUserAction(entry.getKey(), indices);
                 })
                 .collect(Collectors.toList());
+
+            if (results.isEmpty()) {
+                return null;
+            } else {
+                return results;
+            }
         }
 
         private UserAction createUserAction(String id, Set<String> indices) {

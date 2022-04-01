@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.health.HealthIndicatorImpact;
@@ -72,6 +73,9 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     public static final String NAME = "shards_availability";
 
     private static final String DATA_TIER_ALLOCATION_DECIDER_NAME = "data_tier";
+    private static final String SEARCHABLE_SNAPSHOT_ENABLE_ALLOCATION_DECIDER_NAME = "searchable_snapshots_enable";
+    private static final String SEARCHABLE_SNAPSHOT_REPOSITORY_EXISTS_ALLOCATION_DECIDER_NAME = "searchable_snapshot_repository_exists";
+    private static final String HAS_FROZEN_CACHE_ALLOCATION_DECIDER_NAME = "has_frozen_cache";
 
     private final ClusterService clusterService;
     private final AllocationService allocationService;
@@ -129,6 +133,22 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     private static final String ACTION_MIGRATE_TIERS_ID = "migrate_data_tiers";
     private static final String ACTION_MIGRATE_TIERS_MESSAGE = ""; // TODO
     private static final String ACTION_MIGRATE_TIERS_URL = ""; // TODO
+
+    private static final String ACTION_ENABLE_SEARCHABLE_SNAPSHOT_ALLOCATION_ID = "enable_searchable_snapshot_allocation";
+    private static final String ACTION_ENABLE_SEARCHABLE_SNAPSHOT_ALLOCATION_MESSAGE = ""; // TODO
+    private static final String ACTION_ENABLE_SEARCHABLE_SNAPSHOT_ALLOCATION_URL = ""; // TODO
+
+    private static final String ACTION_REDEFINE_SEARCHABLE_SNAPSHOT_REPOSITORY_ID = "redefine_searchable_snapshot_repository";
+    private static final String ACTION_REDEFINE_SEARCHABLE_SNAPSHOT_REPOSITORY_MESSAGE = ""; // TODO
+    private static final String ACTION_REDEFINE_SEARCHABLE_SNAPSHOT_REPOSITORY_URL = ""; // TODO
+
+    private static final String ACTION_ADD_FROZEN_TIER_RESOURCES_ID = "add_frozen_tier_resources";
+    private static final String ACTION_ADD_FROZEN_TIER_RESOURCES_MESSAGE = ""; // TODO
+    private static final String ACTION_ADD_FROZEN_TIER_RESOURCES_URL = ""; // TODO
+
+    private static final String ACTION_INCREASE_TIER_CAPACITY_FOR_ALLOCATIONS_ID = "increase_tier_capacity_for_allocations";
+    private static final String ACTION_INCREASE_TIER_CAPACITY_FOR_ALLOCATIONS_MESSAGE = ""; // TODO
+    private static final String ACTION_INCREASE_TIER_CAPACITY_FOR_ALLOCATIONS_URL = ""; // TODO
 
     private static final String ACTION_RESTORE_FROM_SNAPSHOT_ID = "restore_from_snapshot";
     private static final String ACTION_RESTORE_FROM_SNAPSHOT_MESSAGE = ""; // TODO
@@ -209,6 +229,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     }
 
     private void diagnoseDeciders(ShardAllocationCounts shardAllocationCounts, ShardRouting shardRouting, ClusterState state) {
+        LOGGER.trace("Diagnosing shard [{}]", shardRouting.shardId());
         RoutingAllocation allocation = new RoutingAllocation(
             allocationDeciders,
             state,
@@ -219,20 +240,31 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         allocation.setDebugMode(RoutingAllocation.DebugMode.ON);
         ShardAllocationDecision shardAllocationDecision = allocationService.explainShardAllocation(shardRouting, allocation);
         AllocateUnassignedDecision allocateDecision = shardAllocationDecision.getAllocateDecision();
+        LOGGER.trace("[{}]: Obtained decision: [{}/{}]",
+            shardRouting.shardId(),
+            allocateDecision.isDecisionTaken(),
+            allocateDecision.getAllocationDecision()
+        );
         if (allocateDecision.isDecisionTaken() && AllocationDecision.NO == allocateDecision.getAllocationDecision()) {
-            List<NodeAllocationResult> nodeAllocationResults = allocateDecision.getNodeDecisions();
-            IndexMetadata index = state.metadata().index(shardRouting.index());
-            if (index != null) {
-                if (LOGGER.isTraceEnabled()) {
-                    LOGGER.trace("Working with decisions: [{}]", nodeAllocationResults.stream()
+            if (LOGGER.isTraceEnabled()) {
+                LOGGER.trace("[{}]: Working with decisions: [{}]", shardRouting.shardId(),
+                    allocateDecision.getNodeDecisions().stream()
                         .map(n -> n.getCanAllocateDecision().getDecisions().stream()
                             .map(d -> d.label() + ": " + d.type())
                             .collect(Collectors.toList()))
                         .collect(Collectors.toList()));
-                }
+            }
+            List<NodeAllocationResult> nodeAllocationResults = allocateDecision.getNodeDecisions();
+            IndexMetadata index = state.metadata().index(shardRouting.index());
+            if (index != null) {
                 checkAllNodesAtShardsLimit(shardAllocationCounts, index, shardRouting, nodeAllocationResults);
                 checkIsAllocationDisabled(shardAllocationCounts, shardRouting, nodeAllocationResults);
                 checkDataTierConflictsWithFilters(shardAllocationCounts, index, shardRouting, nodeAllocationResults);
+                // TODO: The searchable snapshot allocators need snapshot shard size info before being called.
+//                checkSearchableSnapshotAllocationEnabled(shardAllocationCounts, index, shardRouting, nodeAllocationResults);
+//                checkSearchableSnapshotRepoExists(shardAllocationCounts, index, shardRouting, nodeAllocationResults);
+//                checkFrozenCacheExists(shardAllocationCounts, index, shardRouting, nodeAllocationResults);
+                checkNotEnoughTierNodesForShardAllocation(shardAllocationCounts, index, shardRouting, nodeAllocationResults);
             }
         }
     }
@@ -264,12 +296,12 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         ShardRouting shardRouting,
         List<NodeAllocationResult> nodeAllocationResults
     ) {
-        LOGGER.trace("Checking allocation disabled");
+        LOGGER.trace("[{}]: Checking allocation disabled", shardRouting.shardId());
         Optional<NodeAllocationResult> possibleHome = nodeAllocationResults.stream()
             .filter(nodeHasDeciderResult(EnableAllocationDecider.NAME, Decision.Type.YES))
             .findAny();
         if (possibleHome.isEmpty()) {
-            LOGGER.trace("Allocation disabled on all nodes, adding user action");
+            LOGGER.trace("[{}]: Allocation disabled on all nodes, adding user action", shardRouting.shardId());
             shardAllocationCounts.addUserAction(ACTION_ENABLE_ALLOCATIONS_ID, shardRouting);
         }
     }
@@ -280,17 +312,94 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         ShardRouting shardRouting,
         List<NodeAllocationResult> nodeAllocationResults
     ) {
-        LOGGER.trace("Checking tier/filter setting agreement");
+        LOGGER.trace("[{}]: Checking tier/filter setting agreement", shardRouting.shardId());
         if (indexMetadata.getTierPreference().size() > 0) {
-            LOGGER.trace("Tiers configured for index");
+            LOGGER.trace("[{}]: Tiers configured for index", shardRouting.shardId());
             Optional<NodeAllocationResult> possibleHome = nodeAllocationResults.stream()
                 .filter(nodeHasDeciderResult(DATA_TIER_ALLOCATION_DECIDER_NAME, Decision.Type.YES))
                 .filter(nodeHasDeciderResult(FilterAllocationDecider.NAME, Decision.Type.YES))
                 .findAny();
             if (possibleHome.isEmpty()) {
-                LOGGER.trace("Tier and filter settings conflict, adding user action");
+                LOGGER.trace("[{}]: Tier and filter settings conflict, adding user action", shardRouting.shardId());
                 // TODO: Check if shard is part of an index that can be migrated to data tiers?
                 shardAllocationCounts.addUserAction(ACTION_MIGRATE_TIERS_ID, shardRouting);
+            }
+        }
+    }
+
+    private void checkSearchableSnapshotAllocationEnabled(
+        ShardAllocationCounts shardAllocationCounts,
+        IndexMetadata indexMetadata,
+        ShardRouting shardRouting,
+        List<NodeAllocationResult> nodeAllocationResults
+    ) {
+        LOGGER.trace("[{}]: Checking snapshot allocation allowed", shardRouting.shardId());
+        if (indexMetadata.isSearchableSnapshot()) {
+            LOGGER.trace("[{}]: Index is searchable snapshot", shardRouting.shardId());
+            Optional<NodeAllocationResult> possibleHome = nodeAllocationResults.stream()
+                .filter(nodeHasDeciderResult(SEARCHABLE_SNAPSHOT_ENABLE_ALLOCATION_DECIDER_NAME, Decision.Type.YES))
+                .findAny();
+            if (possibleHome.isEmpty()) {
+                LOGGER.trace("[{}]: Searchable snapshot allocation is disabled", shardRouting.shardId());
+                shardAllocationCounts.addUserAction(ACTION_ENABLE_SEARCHABLE_SNAPSHOT_ALLOCATION_ID, shardRouting);
+            }
+        }
+    }
+
+    private void checkSearchableSnapshotRepoExists(
+        ShardAllocationCounts shardAllocationCounts,
+        IndexMetadata indexMetadata,
+        ShardRouting shardRouting,
+        List<NodeAllocationResult> nodeAllocationResults
+    ) {
+        LOGGER.trace("[{}]: Checking snapshot repo exists", shardRouting.shardId());
+        if (indexMetadata.isSearchableSnapshot()) {
+            LOGGER.trace("[{}]: Index is searchable snapshot", shardRouting.shardId());
+            Optional<NodeAllocationResult> possibleHome = nodeAllocationResults.stream()
+                .filter(nodeHasDeciderResult(SEARCHABLE_SNAPSHOT_REPOSITORY_EXISTS_ALLOCATION_DECIDER_NAME, Decision.Type.YES))
+                .findAny();
+            if (possibleHome.isEmpty()) {
+                LOGGER.trace("[{}]: Searchable snapshot repository is unavailable", shardRouting.shardId());
+                shardAllocationCounts.addUserAction(ACTION_REDEFINE_SEARCHABLE_SNAPSHOT_REPOSITORY_ID, shardRouting);
+            }
+        }
+    }
+
+    private void checkFrozenCacheExists(
+        ShardAllocationCounts shardAllocationCounts,
+        IndexMetadata indexMetadata,
+        ShardRouting shardRouting,
+        List<NodeAllocationResult> nodeAllocationResults
+    ) {
+        LOGGER.trace("[{}]: Checking if frozen cache is required", shardRouting.shardId());
+        if (indexMetadata.isPartialSearchableSnapshot()) {
+            LOGGER.trace("[{}]: Index is partial searchable snapshot", shardRouting.shardId());
+            Optional<NodeAllocationResult> possibleHome = nodeAllocationResults.stream()
+                .filter(nodeHasDeciderResult(HAS_FROZEN_CACHE_ALLOCATION_DECIDER_NAME, Decision.Type.YES))
+                .findAny();
+            if (possibleHome.isEmpty()) {
+                LOGGER.trace("[{}]: Frozen cache is unavailable", shardRouting.shardId());
+                shardAllocationCounts.addUserAction(ACTION_ADD_FROZEN_TIER_RESOURCES_ID, shardRouting);
+            }
+        }
+    }
+
+    private void checkNotEnoughTierNodesForShardAllocation(
+        ShardAllocationCounts shardAllocationCounts,
+        IndexMetadata indexMetadata,
+        ShardRouting shardRouting,
+        List<NodeAllocationResult> nodeAllocationResults
+    ) {
+        LOGGER.trace("[{}]: Checking if enough nodes in tier", shardRouting.shardId());
+        if (indexMetadata.getTierPreference().size() > 0) {
+            LOGGER.trace("[{}]: Tiers configured for index", shardRouting.shardId());
+            Optional<NodeAllocationResult> possibleHome = nodeAllocationResults.stream()
+                .filter(nodeHasDeciderResult(DATA_TIER_ALLOCATION_DECIDER_NAME, Decision.Type.YES))
+                .filter(nodeHasDeciderResult(SameShardAllocationDecider.NAME, Decision.Type.YES))
+                .findAny();
+            if (possibleHome.isEmpty()) {
+                LOGGER.trace("[{}]: All nodes in tier contain copies of this shard already, adding user action", shardRouting.shardId());
+                shardAllocationCounts.addUserAction(ACTION_INCREASE_TIER_CAPACITY_FOR_ALLOCATIONS_ID, shardRouting);
             }
         }
     }
@@ -436,6 +545,21 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 case ACTION_RESTORE_FROM_SNAPSHOT_ID ->
                     new UserAction(ACTION_RESTORE_FROM_SNAPSHOT_ID, ACTION_RESTORE_FROM_SNAPSHOT_MESSAGE, indices,
                         ACTION_RESTORE_FROM_SNAPSHOT_URL);
+                case ACTION_ENABLE_SEARCHABLE_SNAPSHOT_ALLOCATION_ID ->
+                    new UserAction(ACTION_ENABLE_SEARCHABLE_SNAPSHOT_ALLOCATION_ID, ACTION_ENABLE_SEARCHABLE_SNAPSHOT_ALLOCATION_MESSAGE,
+                        indices,
+                        ACTION_ENABLE_SEARCHABLE_SNAPSHOT_ALLOCATION_URL);
+                case ACTION_REDEFINE_SEARCHABLE_SNAPSHOT_REPOSITORY_ID ->
+                    new UserAction(ACTION_REDEFINE_SEARCHABLE_SNAPSHOT_REPOSITORY_ID,
+                        ACTION_REDEFINE_SEARCHABLE_SNAPSHOT_REPOSITORY_MESSAGE, indices,
+                        ACTION_REDEFINE_SEARCHABLE_SNAPSHOT_REPOSITORY_URL);
+                case ACTION_ADD_FROZEN_TIER_RESOURCES_ID ->
+                    new UserAction(ACTION_ADD_FROZEN_TIER_RESOURCES_ID, ACTION_ADD_FROZEN_TIER_RESOURCES_MESSAGE, indices,
+                        ACTION_ADD_FROZEN_TIER_RESOURCES_URL);
+                case ACTION_INCREASE_TIER_CAPACITY_FOR_ALLOCATIONS_ID ->
+                    new UserAction(ACTION_INCREASE_TIER_CAPACITY_FOR_ALLOCATIONS_ID, ACTION_INCREASE_TIER_CAPACITY_FOR_ALLOCATIONS_MESSAGE,
+                        indices,
+                        ACTION_INCREASE_TIER_CAPACITY_FOR_ALLOCATIONS_URL);
                 default -> throw new IllegalArgumentException("Invalid action id [" + id + "]");
             };
         }

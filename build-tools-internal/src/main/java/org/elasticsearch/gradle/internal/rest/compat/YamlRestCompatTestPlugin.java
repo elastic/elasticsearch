@@ -69,15 +69,12 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
         project.getPluginManager().apply(TestClustersPlugin.class);
         project.getPluginManager().apply(RestTestBasePlugin.class);
         project.getPluginManager().apply(RestResourcesPlugin.class);
-        project.getPluginManager().apply(InternalYamlRestTestPlugin.class);
 
         RestResourcesExtension extension = project.getExtensions().getByType(RestResourcesExtension.class);
 
         // create source set
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
         SourceSet yamlCompatTestSourceSet = sourceSets.create(SOURCE_SET_NAME);
-        SourceSet yamlTestSourceSet = sourceSets.getByName(InternalYamlRestTestPlugin.SOURCE_SET_NAME);
-        GradleUtils.extendSourceSet(project, InternalYamlRestTestPlugin.SOURCE_SET_NAME, SOURCE_SET_NAME);
 
         // copy compatible rest specs
         Configuration bwcMinorConfig = project.getConfigurations().create(BWC_MINOR_CONFIG_NAME);
@@ -196,23 +193,41 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
         String testTaskName = "yamlRestTestV" + COMPATIBLE_VERSION + "CompatTest";
 
         // setup the test task
-        Provider<RestIntegTestTask> yamlRestCompatTestTask = RestTestUtil.registerTestTask(project, yamlCompatTestSourceSet, testTaskName);
-        project.getTasks().withType(RestIntegTestTask.class).named(testTaskName).configure(testTask -> {
-            // Use test runner and classpath from "normal" yaml source set
-            testTask.setTestClassesDirs(
-                yamlTestSourceSet.getOutput().getClassesDirs().plus(yamlCompatTestSourceSet.getOutput().getClassesDirs())
-            );
+        TaskProvider<RestIntegTestTask> yamlRestCompatTestTask = RestTestUtil.registerTestTask(
+            project,
+            yamlCompatTestSourceSet,
+            testTaskName
+        );
+
+        yamlRestCompatTestTask.configure(testTask -> {
             testTask.setClasspath(
                 yamlCompatTestSourceSet.getRuntimeClasspath()
-                    // remove the "normal" api and tests
-                    .minus(project.files(yamlTestSourceSet.getOutput().getResourcesDir()))
                     .minus(project.files(originalYamlSpecsDir))
                     .minus(project.files(originalYamlTestsDir))
             );
 
-            // run compatibility tests after "normal" tests
-            testTask.mustRunAfter(project.getTasks().named(InternalYamlRestTestPlugin.SOURCE_SET_NAME));
             testTask.onlyIf(t -> isEnabled(project));
+        });
+
+        project.getPlugins().withType(InternalYamlRestTestPlugin.class, internalYamlRestTestPlugin -> {
+            SourceSet yamlTestSourceSet = sourceSets.getByName(InternalYamlRestTestPlugin.SOURCE_SET_NAME);
+            GradleUtils.extendSourceSet(project, InternalYamlRestTestPlugin.SOURCE_SET_NAME, SOURCE_SET_NAME);
+            project.getTasks().withType(RestIntegTestTask.class).named(testTaskName).configure(testTask -> {
+                // Use test runner and classpath from "normal" yaml source set
+                testTask.setTestClassesDirs(
+                    yamlTestSourceSet.getOutput().getClassesDirs().plus(yamlCompatTestSourceSet.getOutput().getClassesDirs())
+                );
+                testTask.setClasspath(
+                    yamlCompatTestSourceSet.getRuntimeClasspath()
+                        // remove the "normal" api and tests
+                        .minus(project.files(yamlTestSourceSet.getOutput().getResourcesDir()))
+                        .minus(project.files(originalYamlSpecsDir))
+                        .minus(project.files(originalYamlTestsDir))
+                );
+
+                // run compatibility tests after "normal" tests
+                testTask.mustRunAfter(project.getTasks().named(InternalYamlRestTestPlugin.SOURCE_SET_NAME));
+            });
         });
 
         setupYamlRestTestDependenciesDefaults(project, yamlCompatTestSourceSet);

@@ -71,11 +71,11 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
             import org.elasticsearch.gradle.testclusters.TestDistribution;
 
             dependencies {
-               yamlRestTestImplementation "junit:junit:4.12"
+                yamlRestTestV${compatibleVersion}CompatImplementation "junit:junit:4.12"
             }
 
             // can't actually spin up test cluster from this test
-           tasks.withType(Test).configureEach{ enabled = false }
+            tasks.withType(Test).configureEach{ enabled = false }
         """
 
         String wrongApi = "wrong_version.json"
@@ -131,6 +131,77 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         result.task(':copyRestCompatApiTask').outcome == TaskOutcome.UP_TO_DATE
         result.task(':copyRestCompatTestTask').outcome == TaskOutcome.UP_TO_DATE
         result.task(transformTask).outcome == TaskOutcome.UP_TO_DATE
+    }
+
+    def "standard yamlRestTest runner is used when yamlRestTest plugin is applied"() {
+        given:
+        internalBuild()
+
+        addSubProject(":distribution:bwc:maintenance") << """
+        configurations { checkout }
+        artifacts {
+            checkout(new File(projectDir, "checkoutDir"))
+        }
+        """
+
+        buildFile << """
+            apply plugin: 'elasticsearch.yaml-rest-compat-test'
+            apply plugin: 'elasticsearch.internal-yaml-rest-test'
+
+            // avoids a dependency problem in this test, the distribution in use here is inconsequential to the test
+            import org.elasticsearch.gradle.testclusters.TestDistribution;
+
+            dependencies {
+                yamlRestTestImplementation "junit:junit:4.12"
+            }
+
+            // can't actually spin up test cluster from this test
+            tasks.withType(Test).configureEach{ enabled = false }
+            
+            tasks.register("verifyCompatTestClasspath") {
+                dependsOn 'yamlRestTestV${compatibleVersion}CompatTest'
+                doLast {
+                    def classpath = tasks.named('yamlRestTestV${compatibleVersion}CompatTest').get().classpath
+                    classpath.files.each {
+                        println it
+                    }
+                }
+            }
+        """
+
+        String wrongApi = "wrong_version.json"
+        String wrongTest = "wrong_version.yml"
+        String additionalTest = "additional_test.yml"
+        setupRestResources([wrongApi], [wrongTest]) //setups up resources for current version, which should not be used for this test
+        String sourceSetName = "yamlRestTestV" + compatibleVersion + "Compat"
+        addRestTestsToProject([additionalTest], sourceSetName)
+        //intentionally adding to yamlRestTest source set since the .classes are copied from there
+        file("src/yamlRestTest/java/MockIT.java") << "import org.junit.Test;class MockIT { @Test public void doNothing() { }}"
+
+        String api = "foo.json"
+        String test = "10_basic.yml"
+
+        //add the compatible test and api files, these are the prior version's normal yaml rest tests
+        file("distribution/bwc/maintenance/checkoutDir/rest-api-spec/src/main/resources/rest-api-spec/api/" + api) << ""
+        file("distribution/bwc/maintenance/checkoutDir/src/yamlRestTest/resources/rest-api-spec/test/" + test) << ""
+
+        when:
+        def result = gradleRunner("yamlRestTestV${compatibleVersion}CompatTest", 'verifyCompatTestClasspath').build()
+
+        then:
+        result.task(":yamlRestTestV${compatibleVersion}CompatTest").outcome == TaskOutcome.SKIPPED
+        result.task(':copyRestCompatApiTask').outcome == TaskOutcome.SUCCESS
+        result.task(':copyRestCompatTestTask').outcome == TaskOutcome.SUCCESS
+        result.task(transformTask).outcome == TaskOutcome.SUCCESS
+
+        //The "standard" runner is used to execute the compat test
+        file("/build/classes/java/yamlRestTest/MockIT.class").exists()
+
+        when:
+        result = gradleRunner("yamlRestTestV${compatibleVersion}CompatTest").build()
+
+        then:
+        result.task(":yamlRestTestV${compatibleVersion}CompatTest").outcome == TaskOutcome.SKIPPED
     }
 
     def "yamlRestTestVxCompatTest is wired into check and checkRestCompat"() {
@@ -194,7 +265,7 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
             import org.elasticsearch.gradle.testclusters.TestDistribution;
 
             dependencies {
-               yamlRestTestImplementation "junit:junit:4.12"
+               yamlRestTestV${compatibleVersion}CompatImplementation "junit:junit:4.12"
             }
             tasks.named("yamlRestTestV${compatibleVersion}CompatTransform").configure({ task ->
               task.skipTest("test/test/two", "This is a test to skip test two")

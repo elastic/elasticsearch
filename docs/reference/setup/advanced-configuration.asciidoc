@@ -147,3 +147,28 @@ options. We do not recommend using `ES_JAVA_OPTS` in production.
 
 NOTE: If you are running {es} as a Windows service, you can change the heap size
 using the service manager. See <<windows-service>>.
+
+[[readiness-tcp-port]]
+===== Enable the Elasticsearch TCP readiness port
+
+preview::["This functionality is in technical preview and may be changed or removed in a future release.
+It is intended for internal, experimental use. Features in technical preview are not subject to the support
+SLA of official GA features."]
+
+If configured, a node can open a TCP port when the node is in a ready state. A node is deemed
+ready when it has successfully joined a cluster. In a single node configuration, the node is
+said to be ready, when it's able to accept requests.
+
+To enable the readiness TCP port, use the `readiness.port` setting. The port is
+always bound to the loopback address, which defaults to the IPv4 loopback address `127.0.0.1`.
+To bind the readiness port to the IPv6 loopback address `::1`,
+add `-Djava.net.preferIPv6Addresses=true` to the <<set-jvm-options,JVM options>>.
+
+If the node leaves the cluster, or the <<put-shutdown,Shutdown API>> is used to mark the node
+for shutdown, the readiness port is immediately closed.
+
+A successful connection to the readiness TCP port signals that the {es} node is ready. When a client
+connects to the readiness port, the server simply terminates the socket connection. No data is sent back
+to the client. If a client cannot connect to the readiness port, the node is not ready.
+
+

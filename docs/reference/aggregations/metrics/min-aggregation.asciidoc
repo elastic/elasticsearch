@@ -137,8 +137,8 @@ PUT metrics_index/_doc/1?refresh
 {
   "network.name" : "net-1",
   "latency_histo" : {
-      "values" : [0.1, 0.2, 0.3, 0.4, 0.5], <1>
-      "counts" : [3, 7, 23, 12, 6] <2>
+      "values" : [0.1, 0.2, 0.3, 0.4, 0.5],
+      "counts" : [3, 7, 23, 12, 6]
    }
 }
 
@@ -146,8 +146,8 @@ PUT metrics_index/_doc/2?refresh
 {
   "network.name" : "net-2",
   "latency_histo" : {
-      "values" :  [0.1, 0.2, 0.3, 0.4, 0.5], <1>
-      "counts" : [8, 17, 8, 7, 6] <2>
+      "values" :  [0.1, 0.2, 0.3, 0.4, 0.5],
+      "counts" : [8, 17, 8, 7, 6]
    }
 }
 

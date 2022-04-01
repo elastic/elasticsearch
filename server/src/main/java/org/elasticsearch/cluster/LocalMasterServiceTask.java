@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.Priority;
 
@@ -23,7 +24,14 @@ public abstract class LocalMasterServiceTask implements ClusterStateTaskListener
         this.priority = priority;
     }
 
-    public void execute(ClusterState currentState) throws Exception {}
+    protected void execute(ClusterState currentState) throws Exception {}
+
+    @Override
+    public final void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+        assert false : "not called";
+    }
+
+    protected void onPublicationComplete() {}
 
     public void submit(MasterService masterService, String source) {
         masterService.submitStateUpdateTask(
@@ -45,12 +53,24 @@ public abstract class LocalMasterServiceTask implements ClusterStateTaskListener
                 }
 
                 @Override
-                public ClusterTasksResult<LocalMasterServiceTask> execute(ClusterState currentState, List<LocalMasterServiceTask> tasks)
+                public ClusterState execute(ClusterState currentState, List<TaskContext<LocalMasterServiceTask>> taskContexts)
                     throws Exception {
-                    assert tasks.size() == 1 && tasks.get(0) == LocalMasterServiceTask.this
-                        : "expected one-element task list containing current object but was " + tasks;
-                    LocalMasterServiceTask.this.execute(currentState);
-                    return ClusterTasksResult.<LocalMasterServiceTask>builder().successes(tasks).build(currentState);
+                    final LocalMasterServiceTask thisTask = LocalMasterServiceTask.this;
+                    assert taskContexts.size() == 1 && taskContexts.get(0).getTask() == thisTask
+                        : "expected one-element task list containing current object but was " + taskContexts;
+                    thisTask.execute(currentState);
+                    taskContexts.get(0).success(new ActionListener<>() {
+                        @Override
+                        public void onResponse(ClusterState clusterState) {
+                            onPublicationComplete();
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            LocalMasterServiceTask.this.onFailure(e);
+                        }
+                    });
+                    return currentState;
                 }
             }
         );

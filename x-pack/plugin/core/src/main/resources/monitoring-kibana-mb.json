@@ -3,6 +3,7 @@
   "version": ${xpack.stack.monitoring.template.release.version},
   "template": {
     "mappings": {
+      "dynamic": false,
       "properties": {
         "process": {
           "properties": {
@@ -492,6 +493,10 @@
                 "uuid": {
                   "type": "alias",
                   "path": "service.id"
+                },
+                "version": {
+                  "type": "alias",
+                  "path": "service.version"
                 }
               }
             },

@@ -47,7 +47,7 @@ public class AutomatonQueries {
     /** Build an automaton accepting all terms ASCII case insensitive. */
     public static AutomatonQuery caseInsensitiveTermQuery(Term term) {
         BytesRef prefix = term.bytes();
-        return new AutomatonQuery(term, toCaseInsensitiveString(prefix, Integer.MAX_VALUE));
+        return new AutomatonQuery(term, toCaseInsensitiveString(prefix));
     }
 
     /** Build an automaton matching a wildcard pattern, ASCII case insensitive. */
@@ -100,8 +100,8 @@ public class AutomatonQueries {
         return Operations.concatenate(automata);
     }
 
-    protected static Automaton toCaseInsensitiveString(BytesRef br, int maxDeterminizedStates) {
-        return toCaseInsensitiveString(br.utf8ToString(), maxDeterminizedStates);
+    protected static Automaton toCaseInsensitiveString(BytesRef br) {
+        return toCaseInsensitiveString(br.utf8ToString(), Integer.MAX_VALUE);
     }
 
     public static Automaton toCaseInsensitiveString(String s, int maxDeterminizedStates) {

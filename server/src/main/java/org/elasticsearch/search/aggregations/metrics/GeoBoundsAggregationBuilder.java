@@ -67,6 +67,11 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<
         return new GeoBoundsAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
+    @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
     /**
      * Read from a stream.
      */

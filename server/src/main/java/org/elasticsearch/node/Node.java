@@ -25,6 +25,7 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchTransportService;
+import org.elasticsearch.action.support.StatsRequestLimiter;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.bootstrap.BootstrapCheck;
@@ -40,6 +41,7 @@ import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.coordination.Coordinator;
+import org.elasticsearch.cluster.coordination.InstanceHasMasterHealthIndicatorService;
 import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
@@ -55,6 +57,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
+import org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.breaker.CircuitBreaker;
@@ -95,6 +98,7 @@ import org.elasticsearch.gateway.GatewayModule;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
+import org.elasticsearch.health.HealthService;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexSettings;
@@ -135,6 +139,7 @@ import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
+import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -149,6 +154,7 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
@@ -163,6 +169,7 @@ import org.elasticsearch.search.aggregations.support.AggregationUsageService;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.shutdown.PluginShutdownService;
 import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
+import org.elasticsearch.snapshots.RepositoryIntegrityHealthIndicatorService;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.snapshots.SnapshotsInfoService;
@@ -209,6 +216,7 @@ import java.util.stream.Stream;
 import javax.net.ssl.SNIHostName;
 
 import static java.util.stream.Collectors.toList;
+import static org.elasticsearch.common.util.CollectionUtils.concatLists;
 import static org.elasticsearch.core.Types.forciblyCast;
 
 /**
@@ -300,6 +308,8 @@ public class Node implements Closeable {
         final List<Closeable> resourcesToClose = new ArrayList<>(); // register everything we need to release in the case of an error
         boolean success = false;
         try {
+            // Pass the node settings to the DeprecationLogger class so that it can have the deprecation.skip_deprecated_settings setting:
+            DeprecationLogger.initialize(initialEnvironment.settings());
             Settings tmpSettings = Settings.builder()
                 .put(initialEnvironment.settings())
                 .put(Client.CLIENT_TYPE_SETTING_S.getKey(), CLIENT_TYPE)
@@ -448,7 +458,7 @@ public class Node implements Closeable {
                 additionalSettingsFilter,
                 settingsUpgraders
             );
-            scriptModule.registerClusterSettingsListeners(scriptService, settingsModule.getClusterSettings());
+            ScriptModule.registerClusterSettingsListeners(scriptService, settingsModule.getClusterSettings());
             final NetworkService networkService = new NetworkService(
                 getCustomNameResolvers(pluginsService.filterPlugins(DiscoveryPlugin.class))
             );
@@ -457,6 +467,7 @@ public class Node implements Closeable {
             final ClusterService clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool);
             clusterService.addStateApplier(scriptService);
             resourcesToClose.add(clusterService);
+
             final Set<Setting<?>> consistentSettings = settingsModule.getConsistentSettings();
             if (consistentSettings.isEmpty() == false) {
                 clusterService.addLocalNodeMasterListener(
@@ -485,7 +496,7 @@ public class Node implements Closeable {
                 pluginsService.filterPlugins(Plugin.class).stream().flatMap(p -> p.getNamedWriteables().stream()),
                 ClusterModule.getNamedWriteables().stream(),
                 SystemIndexMigrationExecutor.getNamedWriteables().stream()
-            ).flatMap(Function.identity()).collect(Collectors.toList());
+            ).flatMap(Function.identity()).toList();
             final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
             NamedXContentRegistry xContentRegistry = new NamedXContentRegistry(
                 Stream.of(
@@ -493,7 +504,8 @@ public class Node implements Closeable {
                     IndicesModule.getNamedXContents().stream(),
                     searchModule.getNamedXContents().stream(),
                     pluginsService.filterPlugins(Plugin.class).stream().flatMap(p -> p.getNamedXContent().stream()),
-                    ClusterModule.getNamedXWriteables().stream()
+                    ClusterModule.getNamedXWriteables().stream(),
+                    SystemIndexMigrationExecutor.getNamedXContentParsers().stream()
                 ).flatMap(Function.identity()).collect(toList())
             );
             final Map<String, SystemIndices.Feature> featuresMap = pluginsService.filterPlugins(SystemIndexPlugin.class)
@@ -539,7 +551,7 @@ public class Node implements Closeable {
             List<BreakerSettings> pluginCircuitBreakers = pluginsService.filterPlugins(CircuitBreakerPlugin.class)
                 .stream()
                 .map(plugin -> plugin.getCircuitBreaker(settings))
-                .collect(Collectors.toList());
+                .toList();
             final CircuitBreakerService circuitBreakerService = createCircuitBreakerService(
                 settingsModule.getSettings(),
                 pluginCircuitBreakers,
@@ -567,7 +579,7 @@ public class Node implements Closeable {
             final Collection<EnginePlugin> enginePlugins = pluginsService.filterPlugins(EnginePlugin.class);
             final Collection<Function<IndexSettings, Optional<EngineFactory>>> engineFactoryProviders = enginePlugins.stream()
                 .map(plugin -> (Function<IndexSettings, Optional<EngineFactory>>) plugin::getEngineFactory)
-                .collect(Collectors.toList());
+                .toList();
 
             final Map<String, IndexStorePlugin.DirectoryFactory> indexStoreFactories = pluginsService.filterPlugins(IndexStorePlugin.class)
                 .stream()
@@ -585,7 +597,7 @@ public class Node implements Closeable {
 
             final List<IndexStorePlugin.IndexFoldersDeletionListener> indexFoldersDeletionListeners = pluginsService.filterPlugins(
                 IndexStorePlugin.class
-            ).stream().map(IndexStorePlugin::getIndexFoldersDeletionListeners).flatMap(List::stream).collect(Collectors.toList());
+            ).stream().map(IndexStorePlugin::getIndexFoldersDeletionListeners).flatMap(List::stream).toList();
 
             final Map<String, IndexStorePlugin.SnapshotCommitSupplier> snapshotCommitSuppliers = pluginsService.filterPlugins(
                 IndexStorePlugin.class
@@ -685,7 +697,7 @@ public class Node implements Closeable {
                         repositoriesServiceReference::get
                     ).stream()
                 )
-                .collect(Collectors.toList());
+                .toList();
 
             ActionModule actionModule = new ActionModule(
                 settings,
@@ -718,7 +730,7 @@ public class Node implements Closeable {
             );
             Collection<UnaryOperator<Map<String, IndexTemplateMetadata>>> indexTemplateMetadataUpgraders = pluginsService.filterPlugins(
                 Plugin.class
-            ).stream().map(Plugin::getIndexTemplateMetadataUpgrader).collect(Collectors.toList());
+            ).stream().map(Plugin::getIndexTemplateMetadataUpgrader).toList();
             final MetadataUpgrader metadataUpgrader = new MetadataUpgrader(indexTemplateMetadataUpgraders);
             final IndexMetadataVerifier indexMetadataVerifier = new IndexMetadataVerifier(
                 settings,
@@ -803,6 +815,8 @@ public class Node implements Closeable {
             );
             clusterInfoService.addListener(diskThresholdMonitor::onNewInfo);
 
+            final StatsRequestLimiter statsRequestLimiter = new StatsRequestLimiter(settings, settingsModule.getClusterSettings());
+
             final DiscoveryModule discoveryModule = new DiscoveryModule(
                 settings,
                 transportService,
@@ -836,7 +850,8 @@ public class Node implements Closeable {
                 responseCollectorService,
                 searchTransportService,
                 indexingLimits,
-                searchModule.getValuesSourceRegistry().getUsageService()
+                searchModule.getValuesSourceRegistry().getUsageService(),
+                statsRequestLimiter
             );
 
             final SearchService searchService = newSearchService(
@@ -859,7 +874,7 @@ public class Node implements Closeable {
                 metadataCreateIndexService,
                 settingsModule.getIndexScopedSettings()
             );
-            final List<PersistentTasksExecutor<?>> builtinTaskExecutors = Arrays.asList(systemIndexMigrationExecutor);
+            final List<PersistentTasksExecutor<?>> builtinTaskExecutors = List.of(systemIndexMigrationExecutor);
             final List<PersistentTasksExecutor<?>> pluginTaskExectors = pluginsService.filterPlugins(PersistentTaskPlugin.class)
                 .stream()
                 .map(
@@ -873,10 +888,9 @@ public class Node implements Closeable {
                 )
                 .flatMap(List::stream)
                 .collect(toList());
-            final List<PersistentTasksExecutor<?>> allTasksExectors = Stream.of(pluginTaskExectors, builtinTaskExecutors)
-                .flatMap(List::stream)
-                .collect(toList());
-            final PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(allTasksExectors);
+            final PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(
+                concatLists(pluginTaskExectors, builtinTaskExecutors)
+            );
             final PersistentTasksClusterService persistentTasksClusterService = new PersistentTasksClusterService(
                 settings,
                 registry,
@@ -894,6 +908,8 @@ public class Node implements Closeable {
             final DesiredNodesSettingsValidator desiredNodesSettingsValidator = new DesiredNodesSettingsValidator(
                 clusterService.getClusterSettings()
             );
+
+            HealthService healthService = createHealthService(clusterService);
 
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);
@@ -975,7 +991,14 @@ public class Node implements Closeable {
                 b.bind(ExecutorSelector.class).toInstance(executorSelector);
                 b.bind(IndexSettingProviders.class).toInstance(indexSettingProviders);
                 b.bind(DesiredNodesSettingsValidator.class).toInstance(desiredNodesSettingsValidator);
+                b.bind(HealthService.class).toInstance(healthService);
+                b.bind(StatsRequestLimiter.class).toInstance(statsRequestLimiter);
             });
+
+            if (ReadinessService.enabled(environment)) {
+                modules.add(b -> b.bind(ReadinessService.class).toInstance(new ReadinessService(clusterService, environment)));
+            }
+
             injector = modules.createInjector();
 
             // We allocate copies of existing shards by looking for a viable copy of the shard in the cluster and assigning the shard there.
@@ -988,7 +1011,7 @@ public class Node implements Closeable {
             List<LifecycleComponent> pluginLifecycleComponents = pluginComponents.stream()
                 .filter(p -> p instanceof LifecycleComponent)
                 .map(p -> (LifecycleComponent) p)
-                .collect(Collectors.toList());
+                .toList();
             resourcesToClose.addAll(pluginLifecycleComponents);
             resourcesToClose.add(injector.getInstance(PeerRecoverySourceService.class));
             this.pluginLifecycleComponents = Collections.unmodifiableList(pluginLifecycleComponents);
@@ -1025,6 +1048,19 @@ public class Node implements Closeable {
         }
     }
 
+    private HealthService createHealthService(ClusterService clusterService) {
+        var serverHealthIndicatorServices = List.of(
+            new InstanceHasMasterHealthIndicatorService(clusterService),
+            new RepositoryIntegrityHealthIndicatorService(clusterService),
+            new ShardsAvailabilityHealthIndicatorService(clusterService)
+        );
+        var pluginHealthIndicatorServices = pluginsService.filterPlugins(HealthPlugin.class)
+            .stream()
+            .flatMap(plugin -> plugin.getHealthIndicatorServices().stream())
+            .toList();
+        return new HealthService(concatLists(serverHealthIndicatorServices, pluginHealthIndicatorServices));
+    }
+
     private RecoveryPlannerService getRecoveryPlannerService(
         ThreadPool threadPool,
         ClusterService clusterService,
@@ -1045,8 +1081,7 @@ public class Node implements Closeable {
             threadPool,
             clusterService
         );
-        final RecoveryPlannerPlugin recoveryPlannerPlugin = recoveryPlannerPlugins.get(0);
-        return recoveryPlannerPlugin.createRecoveryPlannerService(shardSnapshotsService);
+        return recoveryPlannerPlugins.get(0).createRecoveryPlannerService(shardSnapshotsService);
     }
 
     protected TransportService newTransportService(
@@ -1104,6 +1139,9 @@ public class Node implements Closeable {
         logger.info("starting ...");
         pluginLifecycleComponents.forEach(LifecycleComponent::start);
 
+        if (ReadinessService.enabled(environment)) {
+            injector.getInstance(ReadinessService.class).start();
+        }
         injector.getInstance(MappingUpdatedAction.class).setClient(client);
         injector.getInstance(IndicesService.class).start();
         injector.getInstance(IndicesClusterStateService.class).start();
@@ -1167,7 +1205,7 @@ public class Node implements Closeable {
         validateNodeBeforeAcceptingRequests(
             new BootstrapContext(environment, onDiskMetadata),
             transportService.boundAddress(),
-            pluginsService.filterPlugins(Plugin.class).stream().flatMap(p -> p.getBootstrapChecks().stream()).collect(Collectors.toList())
+            pluginsService.filterPlugins(Plugin.class).stream().flatMap(p -> p.getBootstrapChecks().stream()).toList()
         );
 
         clusterService.addStateApplier(transportService.getTaskManager());
@@ -1222,6 +1260,11 @@ public class Node implements Closeable {
             writePortsFile("transport", transport.boundAddress());
             HttpServerTransport http = injector.getInstance(HttpServerTransport.class);
             writePortsFile("http", http.boundAddress());
+
+            if (ReadinessService.enabled(environment)) {
+                ReadinessService readiness = injector.getInstance(ReadinessService.class);
+                readiness.addBoundAddressListener(address -> writePortsFile("readiness", address));
+            }
         }
 
         logger.info("started");
@@ -1244,6 +1287,9 @@ public class Node implements Closeable {
         }
         logger.info("stopping ...");
 
+        if (ReadinessService.enabled(environment)) {
+            injector.getInstance(ReadinessService.class).stop();
+        }
         injector.getInstance(ResourceWatcherService.class).close();
         injector.getInstance(HttpServerTransport.class).stop();
 
@@ -1324,6 +1370,9 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(SearchService.class));
         toClose.add(() -> stopWatch.stop().start("transport"));
         toClose.add(injector.getInstance(TransportService.class));
+        if (ReadinessService.enabled(environment)) {
+            toClose.add(injector.getInstance(ReadinessService.class));
+        }
 
         for (LifecycleComponent plugin : pluginLifecycleComponents) {
             toClose.add(() -> stopWatch.stop().start("plugin(" + plugin.getClass().getName() + ")"));

@@ -75,6 +75,11 @@ public class MaxAggregationBuilder extends ValuesSourceAggregationBuilder.Single
     }
 
     @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
     protected void innerWriteTo(StreamOutput out) {
         // Do nothing, no extra state to write to stream
     }

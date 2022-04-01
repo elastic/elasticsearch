@@ -56,7 +56,6 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.FileStore;
@@ -298,7 +297,7 @@ public final class NodeEnvironment implements Closeable {
                     final String content = "written by Elasticsearch v"
                         + Version.CURRENT
                         + " to prevent a downgrade to a version prior to v8.0.0 which would result in data loss";
-                    Files.write(legacyNodesPath, content.getBytes(StandardCharsets.UTF_8));
+                    Files.writeString(legacyNodesPath, content);
                     IOUtils.fsync(legacyNodesPath, false);
                     IOUtils.fsync(dataPath, true);
                 }
@@ -501,7 +500,7 @@ public final class NodeEnvironment implements Closeable {
 
         logger.info("oldest index version recorded in NodeMetadata {}", metadata.oldestIndexVersion());
 
-        if (metadata.oldestIndexVersion().before(Version.CURRENT.minimumIndexCompatibilityVersion())) {
+        if (metadata.oldestIndexVersion().isLegacyIndexVersion()) {
             throw new IllegalStateException(
                 "cannot upgrade node because incompatible indices created with version ["
                     + metadata.oldestIndexVersion()
@@ -851,8 +850,9 @@ public final class NodeEnvironment implements Closeable {
         final InternalShardLock shardLock;
         final boolean acquired;
         synchronized (shardLocks) {
-            if (shardLocks.containsKey(shardId)) {
-                shardLock = shardLocks.get(shardId);
+            final InternalShardLock found = shardLocks.get(shardId);
+            if (found != null) {
+                shardLock = found;
                 shardLock.incWaitCount();
                 acquired = false;
             } else {
@@ -1266,7 +1266,7 @@ public final class NodeEnvironment implements Closeable {
         }
     }
 
-    private void ensureNoShardData(final NodePath[] nodePaths) throws IOException {
+    private static void ensureNoShardData(final NodePath[] nodePaths) throws IOException {
         List<Path> shardDataPaths = collectShardDataPaths(nodePaths);
         if (shardDataPaths.isEmpty() == false) {
             final String message = String.format(
@@ -1279,7 +1279,7 @@ public final class NodeEnvironment implements Closeable {
         }
     }
 
-    private void ensureNoIndexMetadata(final NodePath[] nodePaths) throws IOException {
+    private static void ensureNoIndexMetadata(final NodePath[] nodePaths) throws IOException {
         List<Path> indexMetadataPaths = collectIndexMetadataPaths(nodePaths);
         if (indexMetadataPaths.isEmpty() == false) {
             final String message = String.format(

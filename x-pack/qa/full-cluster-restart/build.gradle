@@ -1,3 +1,4 @@
+import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
@@ -60,9 +61,8 @@ BuildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
         keystore 'xpack.security.transport.ssl.secure_key_passphrase', 'testnode'
 
         setting 'xpack.security.authc.api_key.enabled', 'true'
-        if (BuildParams.isSnapshotBuild() == false && bwcVersion.toString() == project.version) {
-            systemProperty 'es.index_mode_feature_flag_registered', 'true'
-        }
+
+        requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
     }
 
     tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {
@@ -83,9 +83,6 @@ BuildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
         useCluster baseCluster
         dependsOn "${baseName}#oldClusterTest"
         doFirst {
-            if (BuildParams.isSnapshotBuild() == false) {
-                systemProperty 'es.index_mode_feature_flag_registered', 'true'
-            }
             baseCluster.get().goToNextVersion()
             if (bwcVersion.before(BuildParams.bwcVersions.minimumWireCompatibleVersion)) {
               // When doing a full cluster restart of older versions we actually have to upgrade twice. First to 7.last, then to the current version.

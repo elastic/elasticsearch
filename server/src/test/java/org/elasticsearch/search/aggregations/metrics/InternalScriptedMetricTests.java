@@ -24,6 +24,7 @@ import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.VersionUtils;
 
@@ -159,6 +160,16 @@ public class InternalScriptedMetricTests extends InternalAggregationTestCase<Int
         } else {
             assertEquals(size, ((List<?>) reduced.aggregation()).size());
         }
+    }
+
+    @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
+    protected void assertSampled(InternalScriptedMetric sampled, InternalScriptedMetric reduced, SamplingContext samplingContext) {
+        // Nothing to check
     }
 
     @Override

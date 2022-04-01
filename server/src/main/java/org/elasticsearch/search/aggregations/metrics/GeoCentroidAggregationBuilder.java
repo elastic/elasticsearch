@@ -78,6 +78,11 @@ public class GeoCentroidAggregationBuilder extends ValuesSourceAggregationBuilde
     }
 
     @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
     protected void innerWriteTo(StreamOutput out) {
         // Do nothing, no extra state to write to stream
     }

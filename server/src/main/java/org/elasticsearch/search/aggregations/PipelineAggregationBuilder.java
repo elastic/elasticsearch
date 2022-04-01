@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.common.Strings;
@@ -258,10 +257,5 @@ public abstract class PipelineAggregationBuilder
     @Override
     public PipelineAggregationBuilder rewrite(QueryRewriteContext context) throws IOException {
         return this;
-    }
-
-    @Override
-    public Version getMinimalSupportedVersion() {
-        return Version.V_EMPTY;
     }
 }

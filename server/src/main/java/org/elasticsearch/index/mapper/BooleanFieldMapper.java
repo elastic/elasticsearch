@@ -21,6 +21,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
@@ -98,9 +99,12 @@ public class BooleanFieldMapper extends FieldMapper {
 
         private final ScriptCompiler scriptCompiler;
 
-        public Builder(String name, ScriptCompiler scriptCompiler) {
+        private final Version indexCreatedVersion;
+
+        public Builder(String name, ScriptCompiler scriptCompiler, Version indexCreatedVersion) {
             super(name);
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
+            this.indexCreatedVersion = Objects.requireNonNull(indexCreatedVersion);
             this.script.precludesParameters(nullValue);
             addScriptValidation(script, indexed, docValues);
         }
@@ -114,7 +118,7 @@ public class BooleanFieldMapper extends FieldMapper {
         public BooleanFieldMapper build(MapperBuilderContext context) {
             MappedFieldType ft = new BooleanFieldType(
                 context.buildFullName(name),
-                indexed.getValue(),
+                indexed.getValue() && indexCreatedVersion.isLegacyIndexVersion() == false,
                 stored.getValue(),
                 docValues.getValue(),
                 nullValue.getValue(),
@@ -138,7 +142,7 @@ public class BooleanFieldMapper extends FieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.scriptCompiler()));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.scriptCompiler(), c.indexVersionCreated()));
 
     public static final class BooleanFieldType extends TermBasedFieldType {
 
@@ -328,6 +332,7 @@ public class BooleanFieldMapper extends FieldMapper {
     private final Script script;
     private final FieldValues<Boolean> scriptValues;
     private final ScriptCompiler scriptCompiler;
+    private final Version indexCreatedVersion;
 
     protected BooleanFieldMapper(
         String simpleName,
@@ -352,6 +357,7 @@ public class BooleanFieldMapper extends FieldMapper {
         this.script = builder.script.get();
         this.scriptValues = builder.scriptValues();
         this.scriptCompiler = builder.scriptCompiler;
+        this.indexCreatedVersion = builder.indexCreatedVersion;
     }
 
     @Override
@@ -406,7 +412,7 @@ public class BooleanFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), scriptCompiler).init(this);
+        return new Builder(simpleName(), scriptCompiler, indexCreatedVersion).init(this);
     }
 
     @Override

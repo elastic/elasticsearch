@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
@@ -35,6 +36,7 @@ import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
@@ -795,7 +797,13 @@ public class RealmsTests extends ESTestCase {
     }
 
     public void testUnlicensedWithNonStandardRealms() throws Exception {
-        final String selectedRealmType = randomFrom(SamlRealmSettings.TYPE, KerberosRealmSettings.TYPE, OpenIdConnectRealmSettings.TYPE);
+        final List<String> platinumRealms = CollectionUtils.arrayAsArrayList(
+            SamlRealmSettings.TYPE,
+            KerberosRealmSettings.TYPE,
+            OpenIdConnectRealmSettings.TYPE,
+            JwtRealmSettings.TYPE
+        );
+        final String selectedRealmType = randomFrom(platinumRealms);
         factories.put(selectedRealmType, config -> new DummyRealm(config));
         final LicensedFeature.Persistent feature = InternalRealms.getLicensedFeature(selectedRealmType);
         String realmName = randomAlphaOfLengthBetween(3, 8);

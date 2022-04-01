@@ -20,7 +20,6 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.node.NodeValidationException;
@@ -36,8 +35,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.function.Predicate;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -207,7 +204,6 @@ final class BootstrapChecks {
         checks.add(new OnErrorCheck());
         checks.add(new OnOutOfMemoryErrorCheck());
         checks.add(new EarlyAccessCheck());
-        checks.add(new G1GCCheck());
         checks.add(new AllPermissionCheck());
         checks.add(new DiscoveryConfiguredCheck());
         return Collections.unmodifiableList(checks);
@@ -303,7 +299,7 @@ final class BootstrapChecks {
 
         // visible for testing
         long getMaxFileDescriptorCount() {
-            return ProcessProbe.getInstance().getMaxFileDescriptorCount();
+            return ProcessProbe.getMaxFileDescriptorCount();
         }
 
     }
@@ -462,7 +458,7 @@ final class BootstrapChecks {
         }
 
         @SuppressForbidden(reason = "access /proc/sys/vm/max_map_count")
-        private Path getProcSysVmMaxMapCountPath() {
+        private static Path getProcSysVmMaxMapCountPath() {
             return PathUtils.get("/proc/sys/vm/max_map_count");
         }
 
@@ -472,12 +468,12 @@ final class BootstrapChecks {
         }
 
         // visible for testing
-        String readProcSysVmMaxMapCount(final BufferedReader bufferedReader) throws IOException {
+        static String readProcSysVmMaxMapCount(final BufferedReader bufferedReader) throws IOException {
             return bufferedReader.readLine();
         }
 
         // visible for testing
-        long parseProcSysVmMaxMapCount(final String procSysVmMaxMapCount) throws NumberFormatException {
+        static long parseProcSysVmMaxMapCount(final String procSysVmMaxMapCount) throws NumberFormatException {
             return Long.parseLong(procSysVmMaxMapCount);
         }
 
@@ -659,60 +655,6 @@ final class BootstrapChecks {
 
         String javaVersion() {
             return Constants.JAVA_VERSION;
-        }
-
-    }
-
-    /**
-     * Bootstrap check for versions of HotSpot that are known to have issues that can lead to index corruption when G1GC is enabled.
-     */
-    static class G1GCCheck implements BootstrapCheck {
-
-        @Override
-        public BootstrapCheckResult check(BootstrapContext context) {
-            if ("Oracle Corporation".equals(jvmVendor()) && isJava8() && isG1GCEnabled()) {
-                final String jvmVersion = jvmVersion();
-                // HotSpot versions on Java 8 match this regular expression; note that this changes with Java 9 after JEP-223
-                final Pattern pattern = Pattern.compile("(\\d+)\\.(\\d+)-b\\d+");
-                final Matcher matcher = pattern.matcher(jvmVersion);
-                final boolean matches = matcher.matches();
-                assert matches : jvmVersion;
-                final int major = Integer.parseInt(matcher.group(1));
-                final int update = Integer.parseInt(matcher.group(2));
-                // HotSpot versions for Java 8 have major version 25, the bad versions are all versions prior to update 40
-                if (major == 25 && update < 40) {
-                    final String message = String.format(
-                        Locale.ROOT,
-                        "JVM version [%s] can cause data corruption when used with G1GC; upgrade to at least Java 8u40",
-                        jvmVersion
-                    );
-                    return BootstrapCheckResult.failure(message);
-                }
-            }
-            return BootstrapCheckResult.success();
-        }
-
-        // visible for testing
-        String jvmVendor() {
-            return Constants.JVM_VENDOR;
-        }
-
-        // visible for testing
-        boolean isG1GCEnabled() {
-            assert "Oracle Corporation".equals(jvmVendor());
-            return JvmInfo.jvmInfo().useG1GC().equals("true");
-        }
-
-        // visible for testing
-        String jvmVersion() {
-            assert "Oracle Corporation".equals(jvmVendor());
-            return Constants.JVM_VERSION;
-        }
-
-        // visible for testing
-        boolean isJava8() {
-            assert "Oracle Corporation".equals(jvmVendor());
-            return JavaVersion.current().equals(JavaVersion.parse("1.8"));
         }
 
     }

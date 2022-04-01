@@ -24,18 +24,16 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -149,7 +147,7 @@ public final class Settings implements ToXContentFragment {
         return map;
     }
 
-    private void processSetting(Map<String, Object> map, String prefix, String setting, Object value) {
+    private static void processSetting(Map<String, Object> map, String prefix, String setting, Object value) {
         int prefixLength = setting.indexOf('.');
         if (prefixLength == -1) {
             @SuppressWarnings("unchecked")
@@ -184,7 +182,7 @@ public final class Settings implements ToXContentFragment {
         }
     }
 
-    private Object convertMapsToArrays(Map<String, Object> map) {
+    private static Object convertMapsToArrays(Map<String, Object> map) {
         if (map.isEmpty()) {
             return map;
         }
@@ -442,7 +440,8 @@ public final class Settings implements ToXContentFragment {
                 final List<String> valuesAsList = (List<String>) valueFromPrefix;
                 return valuesAsList;
             } else if (commaDelimited) {
-                String[] strings = Strings.splitStringByCommaToArray(get(key));
+                String value = get(key);
+                String[] strings = Strings.splitStringByCommaToArray(value);
                 if (strings.length > 0) {
                     for (String string : strings) {
                         result.add(string.trim());
@@ -601,7 +600,19 @@ public final class Settings implements ToXContentFragment {
 
     public static void writeSettingsToStream(Settings settings, StreamOutput out) throws IOException {
         // pull settings to exclude secure settings in size()
-        out.writeMap(settings.settings, StreamOutput::writeString, StreamOutput::writeGenericValue);
+        out.writeMap(settings.settings, StreamOutput::writeString, (streamOutput, value) -> {
+            if (value instanceof String) {
+                streamOutput.writeGenericString((String) value);
+            } else if (value instanceof List<?>) {
+                @SuppressWarnings("unchecked")
+                // exploit the fact that we know all lists to be string lists
+                final List<String> stringList = (List<String>) value;
+                streamOutput.writeGenericList(stringList, StreamOutput::writeGenericString);
+            } else {
+                assert value == null : "unexpected value [" + value + "]";
+                streamOutput.writeGenericNull();
+            }
+        });
     }
 
     /**
@@ -641,7 +652,7 @@ public final class Settings implements ToXContentFragment {
     }
 
     @SuppressWarnings("unchecked")
-    private void toXContentFlat(XContentBuilder builder, Settings settings) throws IOException {
+    private static void toXContentFlat(XContentBuilder builder, Settings settings) throws IOException {
         for (Map.Entry<String, Object> entry : settings.getAsStructuredMap().entrySet()) {
             final Object value = entry.getValue();
             final String key = entry.getKey();
@@ -1139,10 +1150,7 @@ public final class Settings implements ToXContentFragment {
          * Loads settings from the actual string content that represents them using {@link #fromXContent(XContentParser)}
          */
         public Builder loadFromSource(String source, XContentType xContentType) {
-            try (
-                XContentParser parser = XContentFactory.xContent(xContentType)
-                    .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, source)
-            ) {
+            try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(XContentParserConfiguration.EMPTY, source)) {
                 this.put(fromXContent(parser, true, true));
             } catch (Exception e) {
                 throw new SettingsException("Failed to load settings from [" + source + "]", e);
@@ -1172,10 +1180,7 @@ public final class Settings implements ToXContentFragment {
                 throw new IllegalArgumentException("unable to detect content type from resource name [" + resourceName + "]");
             }
             // fromXContent doesn't use named xcontent or deprecation.
-            try (
-                XContentParser parser = XContentFactory.xContent(xContentType)
-                    .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, is)
-            ) {
+            try (XContentParser parser = XContentFactory.xContent(xContentType).createParser(XContentParserConfiguration.EMPTY, is)) {
                 if (parser.currentToken() == null) {
                     if (parser.nextToken() == null) {
                         return this; // empty file
@@ -1206,19 +1211,10 @@ public final class Settings implements ToXContentFragment {
          * another setting already set on this builder.
          */
         public Builder replacePropertyPlaceholders() {
-            return replacePropertyPlaceholders(System::getenv);
-        }
-
-        // visible for testing
-        Builder replacePropertyPlaceholders(Function<String, String> getenv) {
             PropertyPlaceholder propertyPlaceholder = new PropertyPlaceholder("${", "}", false);
             PropertyPlaceholder.PlaceholderResolver placeholderResolver = new PropertyPlaceholder.PlaceholderResolver() {
                 @Override
                 public String resolvePlaceholder(String placeholderName) {
-                    final String value = getenv.apply(placeholderName);
-                    if (value != null) {
-                        return value;
-                    }
                     return Settings.toString(map.get(placeholderName));
                 }
 

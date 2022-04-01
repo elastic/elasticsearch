@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -17,7 +16,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.IndexSettings;
@@ -170,9 +168,7 @@ import org.elasticsearch.search.aggregations.metrics.InternalGeoBounds;
 import org.elasticsearch.search.aggregations.metrics.InternalGeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentileRanks;
 import org.elasticsearch.search.aggregations.metrics.InternalHDRPercentiles;
-import org.elasticsearch.search.aggregations.metrics.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.InternalMedianAbsoluteDeviation;
-import org.elasticsearch.search.aggregations.metrics.InternalMin;
 import org.elasticsearch.search.aggregations.metrics.InternalScriptedMetric;
 import org.elasticsearch.search.aggregations.metrics.InternalStats;
 import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentileRanks;
@@ -180,8 +176,10 @@ import org.elasticsearch.search.aggregations.metrics.InternalTDigestPercentiles;
 import org.elasticsearch.search.aggregations.metrics.InternalTopHits;
 import org.elasticsearch.search.aggregations.metrics.InternalValueCount;
 import org.elasticsearch.search.aggregations.metrics.InternalWeightedAvg;
+import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MedianAbsoluteDeviationAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.PercentileRanksAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.PercentilesAggregationBuilder;
@@ -289,21 +287,6 @@ public class SearchModule {
         Setting.Property.NodeScope
     );
 
-    private static final Boolean RANDOM_SAMPLER_AGGREGATION_FLAG_REGISTERED;
-
-    static {
-        final String property = System.getProperty("es.random_sampler_feature_flag_registered");
-        if (Build.CURRENT.isSnapshot() && property != null) {
-            throw new IllegalArgumentException("es.random_sampler_feature_flag_registered is only supported in non-snapshot builds");
-        }
-        RANDOM_SAMPLER_AGGREGATION_FLAG_REGISTERED = Booleans.parseBoolean(property, null);
-    }
-
-    public static boolean randomSamplerAggEnabled() {
-        return Build.CURRENT.isSnapshot()
-            || (RANDOM_SAMPLER_AGGREGATION_FLAG_REGISTERED != null && RANDOM_SAMPLER_AGGREGATION_FLAG_REGISTERED);
-    }
-
     private final Map<String, Highlighter> highlighters;
 
     private final List<FetchSubPhase> fetchSubPhases = new ArrayList<>();
@@ -388,13 +371,13 @@ public class SearchModule {
         );
         registerAggregation(
             new AggregationSpec(MinAggregationBuilder.NAME, MinAggregationBuilder::new, MinAggregationBuilder.PARSER).addResultReader(
-                InternalMin::new
+                Min::new
             ).setAggregatorRegistrar(MinAggregationBuilder::registerAggregators),
             builder
         );
         registerAggregation(
             new AggregationSpec(MaxAggregationBuilder.NAME, MaxAggregationBuilder::new, MaxAggregationBuilder.PARSER).addResultReader(
-                InternalMax::new
+                Max::new
             ).setAggregatorRegistrar(MaxAggregationBuilder::registerAggregators),
             builder
         );
@@ -484,17 +467,15 @@ public class SearchModule {
             ).addResultReader(InternalAdjacencyMatrix::new),
             builder
         );
-        if (randomSamplerAggEnabled()) {
-            registerAggregation(
-                new AggregationSpec(
-                    RandomSamplerAggregationBuilder.NAME,
-                    RandomSamplerAggregationBuilder::new,
-                    RandomSamplerAggregationBuilder.PARSER
-                ).addResultReader(InternalRandomSampler.NAME, InternalRandomSampler::new)
-                    .setAggregatorRegistrar(s -> s.registerUsage(RandomSamplerAggregationBuilder.NAME)),
-                builder
-            );
-        }
+        registerAggregation(
+            new AggregationSpec(
+                RandomSamplerAggregationBuilder.NAME,
+                RandomSamplerAggregationBuilder::new,
+                RandomSamplerAggregationBuilder.PARSER
+            ).addResultReader(InternalRandomSampler.NAME, InternalRandomSampler::new)
+                .setAggregatorRegistrar(s -> s.registerUsage(RandomSamplerAggregationBuilder.NAME)),
+            builder
+        );
         registerAggregation(
             new AggregationSpec(SamplerAggregationBuilder.NAME, SamplerAggregationBuilder::new, SamplerAggregationBuilder::parse)
                 .addResultReader(InternalSampler.NAME, InternalSampler::new)
@@ -879,7 +860,7 @@ public class SearchModule {
         namedWriteables.add(new NamedWriteableRegistry.Entry(SortBuilder.class, FieldSortBuilder.NAME, FieldSortBuilder::new));
     }
 
-    private <T> void registerFromPlugin(List<SearchPlugin> plugins, Function<SearchPlugin, List<T>> producer, Consumer<T> consumer) {
+    private static <T> void registerFromPlugin(List<SearchPlugin> plugins, Function<SearchPlugin, List<T>> producer, Consumer<T> consumer) {
         for (SearchPlugin plugin : plugins) {
             for (T t : producer.apply(plugin)) {
                 consumer.accept(t);
@@ -941,7 +922,7 @@ public class SearchModule {
         );
     }
 
-    private Map<String, Highlighter> setupHighlighters(Settings settings, List<SearchPlugin> plugins) {
+    private static Map<String, Highlighter> setupHighlighters(Settings settings, List<SearchPlugin> plugins) {
         NamedRegistry<Highlighter> highlighters = new NamedRegistry<>("highlighter");
         highlighters.register("fvh", new FastVectorHighlighter(settings));
         highlighters.register("plain", new PlainHighlighter());
@@ -1194,7 +1175,7 @@ public class SearchModule {
         namedWriteables.addAll(getIntervalsSourceProviderNamedWritables());
     }
 
-    private CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> registerRequestCacheKeyDifferentiator(
+    private static CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> registerRequestCacheKeyDifferentiator(
         List<SearchPlugin> plugins
     ) {
         CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> differentiator = null;

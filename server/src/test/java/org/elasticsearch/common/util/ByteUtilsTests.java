@@ -63,6 +63,12 @@ public class ByteUtilsTests extends ESTestCase {
         return arr;
     }
 
+    private byte[] readLongBEHelper(long number, int offset) {
+        byte[] arr = new byte[8];
+        ByteUtils.writeLongBE(number, arr, offset);
+        return arr;
+    }
+
     public void testLongToBytes() {
         assertThat(readLongLEHelper(123456L, 0), is(new byte[] { 64, -30, 1, 0, 0, 0, 0, 0 }));
         assertThat(readLongLEHelper(-123456L, 0), is(new byte[] { -64, 29, -2, -1, -1, -1, -1, -1 }));
@@ -71,6 +77,14 @@ public class ByteUtilsTests extends ESTestCase {
         assertThat(readLongLEHelper(Long.MAX_VALUE + 127, 0), is(new byte[] { 126, 0, 0, 0, 0, 0, 0, -128 }));
         assertThat(readLongLEHelper(Long.MIN_VALUE - 1, 0), is(new byte[] { -1, -1, -1, -1, -1, -1, -1, 127 }));
         assertThat(readLongLEHelper(Long.MIN_VALUE - 127, 0), is(new byte[] { -127, -1, -1, -1, -1, -1, -1, 127 }));
+
+        assertThat(readLongBEHelper(123456L, 0), is(new byte[] { 0, 0, 0, 0, 0, 1, -30, 64 }));
+        assertThat(readLongBEHelper(-123456L, 0), is(new byte[] { -1, -1, -1, -1, -1, -2, 29, -64 }));
+        assertThat(readLongBEHelper(0L, 0), is(new byte[] { 0, 0, 0, 0, 0, 0, 0, 0 }));
+        assertThat(readLongBEHelper(Long.MAX_VALUE + 1, 0), is(new byte[] { -128, 0, 0, 0, 0, 0, 0, 0 }));
+        assertThat(readLongBEHelper(Long.MAX_VALUE + 127, 0), is(new byte[] { -128, 0, 0, 0, 0, 0, 0, 126 }));
+        assertThat(readLongBEHelper(Long.MIN_VALUE - 1, 0), is(new byte[] { 127, -1, -1, -1, -1, -1, -1, -1 }));
+        assertThat(readLongBEHelper(Long.MIN_VALUE - 127, 0), is(new byte[] { 127, -1, -1, -1, -1, -1, -1, -127 }));
     }
 
     public void testBytesToLong() {
@@ -80,10 +94,21 @@ public class ByteUtilsTests extends ESTestCase {
         assertThat(ByteUtils.readLongLE(new byte[] { 0, 0, 0, 0, 0, 0, 0, -128 }, 0), is(Long.MIN_VALUE));
         assertThat(ByteUtils.readLongLE(new byte[] { 126, 0, 0, 0, 0, 0, 0, -128 }, 0), is(Long.MIN_VALUE + 127 - 1));
         assertThat(ByteUtils.readLongLE(new byte[] { -1, -1, -1, -1, -1, -1, -1, 127 }, 0), is(Long.MAX_VALUE));
-        assertThat(ByteUtils.readLongLE(new byte[] { -127, -1, -1, -1, -1, -1, -1, 127, 0 }, 0), is(Long.MAX_VALUE - 127 + 1));
+        assertThat(ByteUtils.readLongLE(new byte[] { -127, -1, -1, -1, -1, -1, -1, 127, randomByte() }, 0), is(Long.MAX_VALUE - 127 + 1));
 
-        assertThat(ByteUtils.readLongLE(new byte[] { 100, 64, -30, 1, 0, 0, 0, 0, 0 }, 1), is(123456L));
-        assertThat(ByteUtils.readLongLE(new byte[] { -100, -64, 29, -2, -1, -1, -1, -1, -1 }, 1), is(-123456L));
+        assertThat(ByteUtils.readLongLE(new byte[] { randomByte(), 64, -30, 1, 0, 0, 0, 0, 0 }, 1), is(123456L));
+        assertThat(ByteUtils.readLongLE(new byte[] { randomByte(), -64, 29, -2, -1, -1, -1, -1, -1 }, 1), is(-123456L));
+
+        assertThat(ByteUtils.readLongBE(new byte[] { 0, 0, 0, 0, 0, 1, -30, 64 }, 0), is(123456L));
+        assertThat(ByteUtils.readLongBE(new byte[] { -1, -1, -1, -1, -1, -2, 29, -64 }, 0), is(-123456L));
+        assertThat(ByteUtils.readLongBE(new byte[] { 0, 0, 0, 0, 0, 0, 0, 0 }, 0), is(0L));
+        assertThat(ByteUtils.readLongBE(new byte[] { -128, 0, 0, 0, 0, 0, 0, 0 }, 0), is(Long.MIN_VALUE));
+        assertThat(ByteUtils.readLongBE(new byte[] { -128, 0, 0, 0, 0, 0, 0, 126 }, 0), is(Long.MIN_VALUE + 127 - 1));
+        assertThat(ByteUtils.readLongBE(new byte[] { 127, -1, -1, -1, -1, -1, -1, -1 }, 0), is(Long.MAX_VALUE));
+        assertThat(ByteUtils.readLongBE(new byte[] { 127, -1, -1, -1, -1, -1, -1, -127, randomByte() }, 0), is(Long.MAX_VALUE - 127 + 1));
+
+        assertThat(ByteUtils.readLongBE(new byte[] { randomByte(), 0, 0, 0, 0, 0, 1, -30, 64 }, 1), is(123456L));
+        assertThat(ByteUtils.readLongBE(new byte[] { randomByte(), -1, -1, -1, -1, -1, -2, 29, -64 }, 1), is(-123456L));
     }
 
     private byte[] readIntLEHelper(int number, int offset) {

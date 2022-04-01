@@ -106,8 +106,13 @@ public class ScriptedMetricAggregationBuilder extends AbstractAggregationBuilder
         boolean hasParams = params != null;
         out.writeBoolean(hasParams);
         if (hasParams) {
-            out.writeMap(params);
+            out.writeGenericMap(params);
         }
+    }
+
+    @Override
+    public boolean supportsSampling() {
+        return true;
     }
 
     /**

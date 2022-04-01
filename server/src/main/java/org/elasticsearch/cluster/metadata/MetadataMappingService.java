@@ -24,7 +24,6 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
@@ -57,15 +56,10 @@ public class MetadataMappingService {
         this.indicesService = indicesService;
     }
 
-    static class PutMappingClusterStateUpdateTask implements ClusterStateTaskListener, ClusterStateAckListener {
-
-        private final PutMappingClusterStateUpdateRequest request;
-        private final ActionListener<AcknowledgedResponse> listener;
-
-        PutMappingClusterStateUpdateTask(PutMappingClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> listener) {
-            this.request = request;
-            this.listener = listener;
-        }
+    record PutMappingClusterStateUpdateTask(PutMappingClusterStateUpdateRequest request, ActionListener<AcknowledgedResponse> listener)
+        implements
+            ClusterStateTaskListener,
+            ClusterStateAckListener {
 
         @Override
         public void onFailure(Exception e) {
@@ -78,8 +72,13 @@ public class MetadataMappingService {
         }
 
         @Override
-        public void onAllNodesAcked(@Nullable Exception e) {
-            listener.onResponse(AcknowledgedResponse.of(e == null));
+        public void onAllNodesAcked() {
+            listener.onResponse(AcknowledgedResponse.of(true));
+        }
+
+        @Override
+        public void onAckFailure(Exception e) {
+            listener.onResponse(AcknowledgedResponse.of(false));
         }
 
         @Override
@@ -95,14 +94,12 @@ public class MetadataMappingService {
 
     class PutMappingExecutor implements ClusterStateTaskExecutor<PutMappingClusterStateUpdateTask> {
         @Override
-        public ClusterTasksResult<PutMappingClusterStateUpdateTask> execute(
-            ClusterState currentState,
-            List<PutMappingClusterStateUpdateTask> tasks
-        ) throws Exception {
+        public ClusterState execute(ClusterState currentState, List<TaskContext<PutMappingClusterStateUpdateTask>> taskContexts)
+            throws Exception {
             Map<Index, MapperService> indexMapperServices = new HashMap<>();
-            ClusterTasksResult.Builder<PutMappingClusterStateUpdateTask> builder = ClusterTasksResult.builder();
             try {
-                for (PutMappingClusterStateUpdateTask task : tasks) {
+                for (final var taskContext : taskContexts) {
+                    final var task = taskContext.getTask();
                     final PutMappingClusterStateUpdateRequest request = task.request;
                     try {
                         for (Index index : request.indices()) {
@@ -115,18 +112,18 @@ public class MetadataMappingService {
                             }
                         }
                         currentState = applyRequest(currentState, request, indexMapperServices);
-                        builder.success(task);
+                        taskContext.success(task);
                     } catch (Exception e) {
-                        builder.failure(task, e);
+                        taskContext.onFailure(e);
                     }
                 }
-                return builder.build(currentState);
+                return currentState;
             } finally {
                 IOUtils.close(indexMapperServices.values());
             }
         }
 
-        private ClusterState applyRequest(
+        private static ClusterState applyRequest(
             ClusterState currentState,
             PutMappingClusterStateUpdateRequest request,
             Map<Index, MapperService> indexMapperServices

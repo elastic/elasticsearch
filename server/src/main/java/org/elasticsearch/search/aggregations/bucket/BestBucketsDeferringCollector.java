@@ -21,6 +21,7 @@ import org.apache.lucene.util.packed.PackedInts;
 import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongHash;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -110,7 +111,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
+    public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException {
         finishLeaf();
 
         return new LeafBucketCollector() {
@@ -119,7 +120,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
             @Override
             public void collect(int doc, long bucket) throws IOException {
                 if (context == null) {
-                    context = ctx;
+                    context = aggCtx.getLeafReaderContext();
                     docDeltasBuilder = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
                     bucketsBuilder = PackedLongValues.packedBuilder(PackedInts.DEFAULT);
                 }

@@ -112,11 +112,11 @@ Contributing to the Elasticsearch codebase
 
 **Repository:** [https://github.com/elastic/elasticsearch](https://github.com/elastic/elasticsearch)
 
-JDK 16 is required to build Elasticsearch. You must have a JDK 16 installation
+JDK 17 is required to build Elasticsearch. You must have a JDK 17 installation
 with the environment variable `JAVA_HOME` referencing the path to Java home for
-your JDK 16 installation. By default, tests use the same runtime as `JAVA_HOME`.
+your JDK 17 installation. By default, tests use the same runtime as `JAVA_HOME`.
 However, since Elasticsearch supports JDK 11, the build supports compiling with
-JDK 16 and testing on a JDK 11 runtime; to do this, set `RUNTIME_JAVA_HOME`
+JDK 17 and testing on a JDK 11 runtime; to do this, set `RUNTIME_JAVA_HOME`
 pointing to the Java home of a JDK 11 installation. Note that this mechanism can
 be used to test against other JDKs as well, this is not only limited to JDK 11.
 
@@ -129,7 +129,7 @@ script on Windows in the root of the repository. The examples below show the
 usage on Unix.
 
 We support development in IntelliJ versions IntelliJ 2020.1 and
-onwards and Eclipse 2021-12 and onwards.
+onwards.
 
 [Docker](https://docs.docker.com/install/) is required for building some Elasticsearch artifacts and executing certain test suites. You can run Elasticsearch without building all the artifacts with:
 
@@ -151,9 +151,9 @@ and then run `curl` in another window like this:
 ### Importing the project into IntelliJ IDEA
 
 The minimum IntelliJ IDEA version required to import the Elasticsearch project is 2020.1
-Elasticsearch builds using Java 16. When importing into IntelliJ you will need
+Elasticsearch builds using Java 17. When importing into IntelliJ you will need
 to define an appropriate SDK. The convention is that **this SDK should be named
-"16"** so that the project import will detect it automatically. For more details
+"17"** so that the project import will detect it automatically. For more details
 on defining an SDK in IntelliJ please refer to [their documentation](https://www.jetbrains.com/help/idea/sdk.html#define-sdk).
 SDK definitions are global, so you can add the JDK from any project, or after
 project import. Importing with a missing JDK will still work, IntelliJ will
@@ -180,13 +180,12 @@ action is required.
 
 #### Formatting
 
-We are in the process of migrating towards automatic formatting Java file
-using [spotless], backed by the Eclipse formatter. **We strongly recommend
-installing using the [Eclipse Code Formatter] plugin** so that you can
-apply the correct formatting directly in IntelliJ.  The configuration for
-the plugin is held in `.idea/eclipseCodeFormatter.xml` and should be
-automatically applied, but manual instructions are below in case you you
-need them.
+Elasticsearch code is automatically formatted with [spotless], backed by the
+Eclipse formatter. You can do the same in IntelliJ with the
+[Eclipse Code Formatter] so that you can apply the correct formatting directly in
+your IDE.  The configuration for the plugin is held in
+`.idea/eclipseCodeFormatter.xml` and should be automatically applied, but manual
+instructions are below in case you need them.
 
    1. Open **Preferences > Other Settings > Eclipse Code Formatter**
    2. Click "Use the Eclipse Code Formatter"
@@ -202,60 +201,6 @@ Alternative manual steps for IntelliJ.
    2. Gear icon > Import Scheme > Eclipse XML Profile
    3. Navigate to the file `build-conventions/formatterConfig.xml`
    4. Click "OK"
-
-Note that only some sub-projects in the Elasticsearch project are currently
-fully-formatted. You can see a list of project that **are not**
-automatically formatted in
-[FormattingPrecommitPlugin.java](build-conventions/src/main/java/org/elasticsearch/gradle/internal/conventions/precommit/FormattingPrecommitPlugin.java).
-
-### Importing the project into Eclipse
-
-Elasticsearch builds using Gradle and Java 17. You'll need to point
-[eclipse.ini](https://wiki.eclipse.org/Eclipse.ini)'s `-vm` to Java 17.
-
- - Select **File > Import...**
- - Select **Existing Gradle Project**
- - Select **Next** then **Next** again
- - Set the **Project root directory** to the root of your elasticsearch clone
- - Click **Finish**
-
-This will spin for a long, long time but you'll see many errors about circular
-dependencies. Fix them:
-
- - Select **Window > Preferences**
- - Select **Java > Compiler > Building**
- - Look under **Build Path Problems**
- - Set **Circular dependencies** to **Warning**
- - Apply that and let the build spin away for a while
-
-Next you'll want to import our auto-formatter:
-
- - Select **Window > Preferences**
- - Select **Java > Code Style > Formatter**
- - Click **Import**
- - Import the file at **build-conventions/formatterConfig.xml**
- - Make sure it is the **Active profile**
-
-Finally, set up import order:
-
- - Select **Window > Preferences**
- - Select **Java > Code Style > Organize Imports**
- - Click **Import...**
- - Import the file at **build-conventions/elastic.importorder**
- - Set the **Number of imports needed for `.*`** to ***9999***
- - Set the **Number of static imports needed for `.*`** to ***9999*** as well
- - Apply that
-
-IMPORTANT: There is an option in **Gradle** for **Automatic Project Synchronization**.
-           As convenient as it'd be for the projects to always be perfect this
-           tends to add many many seconds to every branch change. Instead, you
-           should manually right click on a project and
-           **Gradle > Refresh Gradle Project** if the configuration is out of
-           date.
-
-As we add more subprojects you might have to re-import the gradle project (the
-first step) again. There is no need to blow away the existing projects before
-doing that.
 
 ### REST Endpoint Conventions
 
@@ -482,9 +427,11 @@ that the logs fill up with noise and the useful signal is lost.
 
 Elasticsearch uses Log4J for logging. In most cases you should log via a
 `Logger` named after the class that is writing the log messages, which you can
-do by declaring a static field of the class as follows:
+do by declaring a static field of the class. For example:
 
-    private static final Logger logger = LogManager.getLogger();
+    class Foo {
+        private static final Logger logger = LogManager.getLogger(Foo.class);
+    }
 
 In rare situations you may want to configure your `Logger` slightly
 differently, perhaps specifying a different class or maybe using one of the

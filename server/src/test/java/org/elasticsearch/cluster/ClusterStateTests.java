@@ -133,7 +133,7 @@ public class ClusterStateTests extends ESTestCase {
         IndexRoutingTable index = clusterState.getRoutingTable().getIndicesRouting().get("index");
 
         String ephemeralId = clusterState.getNodes().get("nodeId1").getEphemeralId();
-        String allocationId = index.getShards().get(1).getAllAllocationIds().iterator().next();
+        String allocationId = index.shard(0).getAllAllocationIds().iterator().next();
 
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
@@ -145,7 +145,7 @@ public class ClusterStateTests extends ESTestCase {
               "cluster_uuid": "clusterUUID",
               "version": 0,
               "state_uuid": "stateUUID",
-              "master_node": "masterNodeId",
+              "master_node": "nodeId1",
               "blocks": {
                 "global": {
                   "1": {
@@ -290,13 +290,13 @@ public class ClusterStateTests extends ESTestCase {
                 "indices": {
                   "index": {
                     "shards": {
-                      "1": [
+                      "0": [
                         {
                           "state": "STARTED",
                           "primary": true,
                           "node": "nodeId2",
                           "relocating_node": null,
-                          "shard": 1,
+                          "shard": 0,
                           "index": "index",
                           "allocation_id": {
                             "id": "%s"
@@ -316,7 +316,7 @@ public class ClusterStateTests extends ESTestCase {
                       "primary": true,
                       "node": "nodeId2",
                       "relocating_node": null,
-                      "shard": 1,
+                      "shard": 0,
                       "index": "index",
                       "allocation_id": {
                         "id": "%s"
@@ -343,7 +343,7 @@ public class ClusterStateTests extends ESTestCase {
         IndexRoutingTable index = clusterState.getRoutingTable().getIndicesRouting().get("index");
 
         String ephemeralId = clusterState.getNodes().get("nodeId1").getEphemeralId();
-        String allocationId = index.getShards().get(1).getAllAllocationIds().iterator().next();
+        String allocationId = index.shard(0).getAllAllocationIds().iterator().next();
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
@@ -355,7 +355,7 @@ public class ClusterStateTests extends ESTestCase {
               "cluster_uuid" : "clusterUUID",
               "version" : 0,
               "state_uuid" : "stateUUID",
-              "master_node" : "masterNodeId",
+              "master_node" : "nodeId1",
               "blocks" : {
                 "global" : {
                   "1" : {
@@ -492,13 +492,13 @@ public class ClusterStateTests extends ESTestCase {
                 "indices" : {
                   "index" : {
                     "shards" : {
-                      "1" : [
+                      "0" : [
                         {
                           "state" : "STARTED",
                           "primary" : true,
                           "node" : "nodeId2",
                           "relocating_node" : null,
-                          "shard" : 1,
+                          "shard" : 0,
                           "index" : "index",
                           "allocation_id" : {
                             "id" : "%s"
@@ -518,7 +518,7 @@ public class ClusterStateTests extends ESTestCase {
                       "primary" : true,
                       "node" : "nodeId2",
                       "relocating_node" : null,
-                      "shard" : 1,
+                      "shard" : 0,
                       "index" : "index",
                       "allocation_id" : {
                         "id" : "%s"
@@ -546,7 +546,7 @@ public class ClusterStateTests extends ESTestCase {
         IndexRoutingTable index = clusterState.getRoutingTable().getIndicesRouting().get("index");
 
         String ephemeralId = clusterState.getNodes().get("nodeId1").getEphemeralId();
-        String allocationId = index.getShards().get(1).getAllAllocationIds().iterator().next();
+        String allocationId = index.shard(0).getAllAllocationIds().iterator().next();
 
         XContentBuilder builder = JsonXContent.contentBuilder().prettyPrint();
         builder.startObject();
@@ -558,7 +558,7 @@ public class ClusterStateTests extends ESTestCase {
               "cluster_uuid" : "clusterUUID",
               "version" : 0,
               "state_uuid" : "stateUUID",
-              "master_node" : "masterNodeId",
+              "master_node" : "nodeId1",
               "blocks" : {
                 "global" : {
                   "1" : {
@@ -701,13 +701,13 @@ public class ClusterStateTests extends ESTestCase {
                 "indices" : {
                   "index" : {
                     "shards" : {
-                      "1" : [
+                      "0" : [
                         {
                           "state" : "STARTED",
                           "primary" : true,
                           "node" : "nodeId2",
                           "relocating_node" : null,
-                          "shard" : 1,
+                          "shard" : 0,
                           "index" : "index",
                           "allocation_id" : {
                             "id" : "%s"
@@ -727,7 +727,7 @@ public class ClusterStateTests extends ESTestCase {
                       "primary" : true,
                       "node" : "nodeId2",
                       "relocating_node" : null,
-                      "shard" : 1,
+                      "shard" : 0,
                       "index" : "index",
                       "allocation_id" : {
                         "id" : "%s"
@@ -877,7 +877,7 @@ public class ClusterStateTests extends ESTestCase {
             .stateUUID("stateUUID")
             .nodes(
                 DiscoveryNodes.builder()
-                    .masterNodeId("masterNodeId")
+                    .masterNodeId("nodeId1")
                     .add(new DiscoveryNode("nodeId1", new TransportAddress(InetAddress.getByName("127.0.0.1"), 111), Version.CURRENT))
                     .build()
             )
@@ -937,9 +937,9 @@ public class ClusterStateTests extends ESTestCase {
                     .add(
                         IndexRoutingTable.builder(new Index("index", "indexUUID"))
                             .addIndexShard(
-                                new IndexShardRoutingTable.Builder(new ShardId("index", "_na_", 1)).addShard(
+                                new IndexShardRoutingTable.Builder(new ShardId("index", "indexUUID", 0)).addShard(
                                     TestShardRouting.newShardRouting(
-                                        new ShardId("index", "_na_", 1),
+                                        new ShardId("index", "indexUUID", 0),
                                         "nodeId2",
                                         true,
                                         ShardRoutingState.STARTED

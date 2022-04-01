@@ -11,6 +11,7 @@ import org.apache.http.HttpHost;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -21,6 +22,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.ql.TestNode;
 import org.elasticsearch.xpack.ql.TestNodes;
 import org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase;
+import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.Before;
 
@@ -111,8 +113,7 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
         assertNull(result.get(2));
     }
 
-    @SuppressWarnings("unchecked")
-    private List<Integer> runOrderByNullsLastQuery(RestClient queryClient) throws IOException {
+    private void indexDocs() throws IOException {
         Request putIndex = new Request("PUT", "/test");
         putIndex.setJsonEntity("""
             {"settings":{"index":{"number_of_shards":3}}}""");
@@ -124,24 +125,29 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
         for (String doc : Arrays.asList("{\"int\":1,\"kw\":\"foo\"}", "{\"int\":2,\"kw\":\"bar\"}", "{\"kw\":\"bar\"}")) {
             bulk.append("{\"index\":{}}\n").append(doc).append("\n");
         }
+
         indexDocs.setJsonEntity(bulk.toString());
         client().performRequest(indexDocs);
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Integer> runOrderByNullsLastQuery(RestClient queryClient) throws IOException {
+        indexDocs();
 
         Request query = new Request("POST", "_sql");
         query.setJsonEntity(sqlQueryEntityWithOptionalMode("SELECT int FROM test GROUP BY 1 ORDER BY 1 NULLS LAST", bwcVersion));
-        Response queryResponse = queryClient.performRequest(query);
+        Map<String, Object> result = performRequestAndReadBodyAsJson(queryClient, query);
 
-        assertEquals(200, queryResponse.getStatusLine().getStatusCode());
-
-        InputStream content = queryResponse.getEntity().getContent();
-        Map<String, Object> result = XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
         List<List<Object>> rows = (List<List<Object>>) result.get("rows");
         return rows.stream().map(row -> (Integer) row.get(0)).collect(Collectors.toList());
     }
 
     public static String sqlQueryEntityWithOptionalMode(String query, Version bwcVersion) throws IOException {
+        return sqlQueryEntityWithOptionalMode(Map.of("query", query), bwcVersion);
+    }
+
+    public static String sqlQueryEntityWithOptionalMode(Map<String, Object> fields, Version bwcVersion) throws IOException {
         XContentBuilder json = XContentFactory.jsonBuilder().startObject();
-        json.field("query", query);
         if (bwcVersion.before(Version.V_7_12_0)) {
             // a bug previous to 7.12 caused a NullPointerException when accessing displaySize in ColumnInfo. The bug has been addressed in
             // https://github.com/elastic/elasticsearch/pull/68802/files
@@ -151,9 +157,78 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
             json.field("binary_format", false);
             json.field("version", bwcVersion.toString());
         }
+        for (Map.Entry<String, Object> entry : fields.entrySet()) {
+            json.field(entry.getKey(), entry.getValue());
+        }
         json.endObject();
 
         return Strings.toString(json);
+    }
+
+    public void testCursorFromOldNodeFailsOnNewNode() throws IOException {
+        assertCursorNotCompatibleAcrossVersions(bwcVersion, oldNodesClient, Version.CURRENT, newNodesClient);
+    }
+
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/83726")
+    public void testCursorFromNewNodeFailsOnOldNode() throws IOException {
+        assertCursorNotCompatibleAcrossVersions(Version.CURRENT, newNodesClient, bwcVersion, oldNodesClient);
+    }
+
+    private void assertCursorNotCompatibleAcrossVersions(Version version1, RestClient client1, Version version2, RestClient client2)
+        throws IOException {
+        indexDocs();
+
+        Request req = new Request("POST", "_sql");
+        req.setJsonEntity(sqlQueryEntityWithOptionalMode(Map.of("query", "SELECT int FROM test", "fetch_size", 1), bwcVersion));
+        Map<String, Object> json = performRequestAndReadBodyAsJson(client1, req);
+        String cursor = (String) json.get("cursor");
+        assertThat(cursor, Matchers.not(Matchers.emptyOrNullString()));
+
+        Request scrollReq = new Request("POST", "_sql");
+        scrollReq.setJsonEntity("{\"cursor\": \"%s\"}".formatted(cursor));
+        ResponseException exception = expectThrows(ResponseException.class, () -> client2.performRequest(scrollReq));
+
+        assertThat(
+            exception.getMessage(),
+            Matchers.containsString("Unsupported cursor version [" + version1 + "], expected [" + version2 + "]")
+        );
+    }
+
+    private Map<String, Object> performRequestAndReadBodyAsJson(RestClient client, Request request) throws IOException {
+        Response response = client.performRequest(request);
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        try (InputStream content = response.getEntity().getContent()) {
+            return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
+        }
+    }
+
+    public void testCreateCursorWithFormatTxtOnNewNode() throws IOException {
+        testCreateCursorWithFormatTxt(newNodesClient);
+    }
+
+    public void testCreateCursorWithFormatTxtOnOldNode() throws IOException {
+        testCreateCursorWithFormatTxt(oldNodesClient);
+    }
+
+    /**
+     * Tests covering https://github.com/elastic/elasticsearch/issues/83581
+     */
+    public void testCreateCursorWithFormatTxt(RestClient client) throws IOException {
+        index("{\"foo\":1}", "{\"foo\":2}");
+
+        Request query = new Request("POST", "_sql");
+        XContentBuilder json = XContentFactory.jsonBuilder()
+            .startObject()
+            .field("query", randomFrom("SELECT foo FROM test", "SELECT foo FROM test GROUP BY foo"))
+            .field("fetch_size", 1)
+            .endObject();
+
+        query.setJsonEntity(Strings.toString(json));
+        query.addParameter("format", "txt");
+
+        Response response = client.performRequest(query);
+        assertOK(response);
+        assertFalse(Strings.isNullOrEmpty(response.getHeader("Cursor")));
     }
 
 }

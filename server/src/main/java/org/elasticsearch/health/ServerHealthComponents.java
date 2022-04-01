@@ -8,7 +8,14 @@
 
 package org.elasticsearch.health;
 
+/**
+ * This class defines common component names for the health indicators.
+ */
 public class ServerHealthComponents {
+
+    public static final String CLUSTER_COORDINATION = "cluster_coordination";
     public static final String DATA = "data";
     public static final String SNAPSHOT = "snapshot";
+
+    private ServerHealthComponents() {}
 }

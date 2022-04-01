@@ -45,10 +45,6 @@ public final class MatcherAndConverter {
         return typeMatcher;
     }
 
-    public Object getSource() {
-        return source;
-    }
-
     @Override
     public String toString() {
         return typeConverter + " which matches " + typeMatcher + " (bound at " + source + ")";

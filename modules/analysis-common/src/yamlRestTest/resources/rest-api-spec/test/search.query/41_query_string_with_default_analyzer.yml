@@ -15,7 +15,7 @@
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         body:
           body: Ich lese die Bücher
 

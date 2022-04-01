@@ -318,15 +318,30 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
         );
     }
 
+    private Bucket createBucket(Bucket prototype, InternalAggregations aggregations, long docCount) {
+        return new Bucket(
+            format,
+            prototype.key,
+            prototype.keyed,
+            prototype.isIpv6,
+            prototype.prefixLength,
+            prototype.appendPrefixLength,
+            docCount,
+            aggregations
+        );
+    }
+
     @Override
     protected Bucket reduceBucket(List<Bucket> buckets, AggregationReduceContext context) {
         assert buckets.size() > 0;
         List<InternalAggregations> aggregations = new ArrayList<>(buckets.size());
+        long docCount = 0;
         for (InternalIpPrefix.Bucket bucket : buckets) {
+            docCount += bucket.docCount;
             aggregations.add(bucket.getAggregations());
         }
         InternalAggregations aggs = InternalAggregations.reduce(aggregations, context);
-        return createBucket(aggs, buckets.get(0));
+        return createBucket(buckets.get(0), aggs, docCount);
     }
 
     @Override

@@ -133,30 +133,47 @@ public class CompoundProcessor implements Processor {
         final IngestMetric metric = processorWithMetric.v2();
         final long startTimeInNanos = relativeTimeProvider.getAsLong();
         metric.preIngest();
-        processor.execute(ingestDocument, (result, e) -> {
-            long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
-            metric.postIngest(ingestTimeInNanos);
+        try {
+            processor.execute(ingestDocument, (result, e) -> {
+                long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
+                metric.postIngest(ingestTimeInNanos);
 
-            if (e != null) {
-                metric.ingestFailed();
-                if (ignoreFailure) {
-                    innerExecute(currentProcessor + 1, ingestDocument, handler);
+                if (e != null) {
+                    executeOnFailure(currentProcessor, ingestDocument, handler, processor, metric, e);
                 } else {
-                    IngestProcessorException compoundProcessorException = newCompoundProcessorException(e, processor, ingestDocument);
-                    if (onFailureProcessors.isEmpty()) {
-                        handler.accept(null, compoundProcessorException);
+                    if (result != null) {
+                        innerExecute(currentProcessor + 1, result, handler);
                     } else {
-                        executeOnFailureAsync(0, ingestDocument, compoundProcessorException, handler);
+                        handler.accept(null, null);
                     }
                 }
+            });
+        } catch (Exception e) {
+            long ingestTimeInNanos = relativeTimeProvider.getAsLong() - startTimeInNanos;
+            metric.postIngest(ingestTimeInNanos);
+            executeOnFailure(currentProcessor, ingestDocument, handler, processor, metric, e);
+        }
+    }
+
+    private void executeOnFailure(
+        int currentProcessor,
+        IngestDocument ingestDocument,
+        BiConsumer<IngestDocument, Exception> handler,
+        Processor processor,
+        IngestMetric metric,
+        Exception e
+    ) {
+        metric.ingestFailed();
+        if (ignoreFailure) {
+            innerExecute(currentProcessor + 1, ingestDocument, handler);
+        } else {
+            IngestProcessorException compoundProcessorException = newCompoundProcessorException(e, processor, ingestDocument);
+            if (onFailureProcessors.isEmpty()) {
+                handler.accept(null, compoundProcessorException);
             } else {
-                if (result != null) {
-                    innerExecute(currentProcessor + 1, result, handler);
-                } else {
-                    handler.accept(null, null);
-                }
+                executeOnFailureAsync(0, ingestDocument, compoundProcessorException, handler);
             }
-        });
+        }
     }
 
     void executeOnFailureAsync(
@@ -191,7 +208,7 @@ public class CompoundProcessor implements Processor {
         });
     }
 
-    private void putFailureMetadata(IngestDocument ingestDocument, ElasticsearchException cause) {
+    private static void putFailureMetadata(IngestDocument ingestDocument, ElasticsearchException cause) {
         List<String> processorTypeHeader = cause.getHeader("processor_type");
         List<String> processorTagHeader = cause.getHeader("processor_tag");
         List<String> processorOriginHeader = cause.getHeader("pipeline_origin");
@@ -207,7 +224,7 @@ public class CompoundProcessor implements Processor {
         }
     }
 
-    private void removeFailureMetadata(IngestDocument ingestDocument) {
+    private static void removeFailureMetadata(IngestDocument ingestDocument) {
         Map<String, Object> ingestMetadata = ingestDocument.getIngestMetadata();
         ingestMetadata.remove(ON_FAILURE_MESSAGE_FIELD);
         ingestMetadata.remove(ON_FAILURE_PROCESSOR_TYPE_FIELD);

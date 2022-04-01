@@ -16,7 +16,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.http.HttpHost;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TotalHits;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
@@ -1516,6 +1516,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         throws InterruptedException {
         Random random = random();
         Set<String> indices = new HashSet<>();
+        builders = new ArrayList<>(builders);
         for (IndexRequestBuilder builder : builders) {
             indices.add(builder.request().index());
         }
@@ -1625,6 +1626,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
             ? Settings.builder().put(Metadata.SETTING_READ_ONLY_SETTING.getKey(), value).build()
             : Settings.builder().putNull(Metadata.SETTING_READ_ONLY_SETTING.getKey()).build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(settings).get());
+    }
+
+    /** Sets cluster persistent settings **/
+    public void updateClusterSettings(Settings.Builder persistentSettings) {
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setPersistentSettings(persistentSettings).get());
     }
 
     private static CountDownLatch newLatch(List<CountDownLatch> latches) {
@@ -2136,8 +2142,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
         Set<String> nodes = new HashSet<>();
         ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
         for (IndexRoutingTable indexRoutingTable : clusterState.routingTable()) {
-            for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                for (ShardRouting shardRouting : indexShardRoutingTable) {
+            for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+                final IndexShardRoutingTable indexShard = indexRoutingTable.shard(shardId);
+                for (int copy = 0; copy < indexShard.size(); copy++) {
+                    ShardRouting shardRouting = indexShard.shard(copy);
                     if (shardRouting.currentNodeId() != null && index.equals(shardRouting.getIndexName())) {
                         String name = clusterState.nodes().get(shardRouting.currentNodeId()).getName();
                         nodes.add(name);
@@ -2197,7 +2205,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
         // need to check that there are no more in-flight search contexts before
         // we remove indices
         if (isInternalCluster()) {
-            internalCluster().setBootstrapMasterNodeIndex(-1);
+            internalCluster().setBootstrapMasterNodeIndex(InternalTestCluster.BOOTSTRAP_MASTER_NODE_INDEX_AUTO);
         }
         super.ensureAllSearchContextsReleased();
         if (runTestScopeLifecycle()) {

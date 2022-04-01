@@ -62,6 +62,11 @@ public class SumAggregationBuilder extends ValuesSourceAggregationBuilder.Single
         return new SumAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
+    @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
     /**
      * Read from a stream.
      */

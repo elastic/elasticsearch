@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.carrotsearch.hppc.ObjectHashSet;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.CollectionUtil;
@@ -27,7 +25,6 @@ import org.elasticsearch.cluster.coordination.CoordinationMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction.ConcreteIndex;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -54,6 +51,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.AbstractCollection;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -75,7 +73,9 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 
@@ -86,7 +86,7 @@ import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
  * The details of how this is persisted are covered in {@link org.elasticsearch.gateway.PersistedClusterStateService}.
  * </p>
  */
-public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, ToXContentFragment {
+public class Metadata extends AbstractCollection<IndexMetadata> implements Diffable<Metadata>, ToXContentFragment {
 
     private static final Logger logger = LogManager.getLogger(Metadata.class);
 
@@ -203,6 +203,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
     private final Settings settings;
     private final DiffableStringMap hashesOfConsistentSettings;
     private final ImmutableOpenMap<String, IndexMetadata> indices;
+    private final ImmutableOpenMap<String, Set<Index>> aliasedIndices;
     private final ImmutableOpenMap<String, IndexTemplateMetadata> templates;
     private final ImmutableOpenMap<String, Custom> customs;
 
@@ -233,6 +234,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         int totalNumberOfShards,
         int totalOpenIndexShards,
         ImmutableOpenMap<String, IndexMetadata> indices,
+        ImmutableOpenMap<String, Set<Index>> aliasedIndices,
         ImmutableOpenMap<String, IndexTemplateMetadata> templates,
         ImmutableOpenMap<String, Custom> customs,
         String[] allIndices,
@@ -254,6 +256,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         this.settings = settings;
         this.hashesOfConsistentSettings = hashesOfConsistentSettings;
         this.indices = indices;
+        this.aliasedIndices = aliasedIndices;
         this.customs = customs;
         this.templates = templates;
         this.totalNumberOfShards = totalNumberOfShards;
@@ -282,6 +285,67 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             totalNumberOfShards,
             totalOpenIndexShards,
             indices,
+            aliasedIndices,
+            templates,
+            customs,
+            allIndices,
+            visibleIndices,
+            allOpenIndices,
+            visibleOpenIndices,
+            allClosedIndices,
+            visibleClosedIndices,
+            indicesLookup,
+            mappingsByHash,
+            oldestIndexVersion
+        );
+    }
+
+    /**
+     * Given an index and lifecycle state, returns a metadata where the lifecycle state will be
+     * associated with the given index.
+     *
+     * The passed-in index must already be present in the cluster state, this method cannot
+     * be used to add an index.
+     *
+     * @param index A non-null index
+     * @param lifecycleState A non-null lifecycle execution state
+     * @return a <code>Metadata</code> instance where the index has the provided lifecycle state
+     */
+    public Metadata withLifecycleState(final Index index, final LifecycleExecutionState lifecycleState) {
+        Objects.requireNonNull(index, "index must not be null");
+        Objects.requireNonNull(lifecycleState, "lifecycleState must not be null");
+
+        IndexMetadata indexMetadata = getIndexSafe(index);
+        if (lifecycleState.equals(indexMetadata.getLifecycleExecutionState())) {
+            return this;
+        }
+
+        // build a new index metadata with the version incremented and the new lifecycle state
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata);
+        indexMetadataBuilder.version(indexMetadataBuilder.version() + 1);
+        indexMetadataBuilder.putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.asMap());
+
+        // drop it into the indices
+        final ImmutableOpenMap.Builder<String, IndexMetadata> builder = ImmutableOpenMap.builder(indices);
+        builder.put(index.getName(), indexMetadataBuilder.build());
+
+        // construct a new Metadata object directly rather than using Metadata.builder(this).[...].build().
+        // the Metadata.Builder validation needs to handle the general case where anything at all could
+        // have changed, and hence it is expensive -- since we are changing so little about the metadata
+        // (and at a leaf in the object tree), we can bypass that validation for efficiency's sake
+        return new Metadata(
+            clusterUUID,
+            clusterUUIDCommitted,
+            version,
+            coordinationMetadata,
+            transientSettings,
+            persistentSettings,
+            settings,
+            hashesOfConsistentSettings,
+            totalNumberOfShards,
+            totalOpenIndexShards,
+            builder.build(),
+            aliasedIndices,
             templates,
             customs,
             allIndices,
@@ -339,15 +403,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         return this.oldestIndexVersion;
     }
 
-    public boolean hasAlias(String alias) {
-        IndexAbstraction indexAbstraction = getIndicesLookup().get(alias);
-        if (indexAbstraction != null) {
-            return indexAbstraction.getType() == IndexAbstraction.Type.ALIAS;
-        } else {
-            return false;
-        }
-    }
-
     public boolean equalsAliases(Metadata other) {
         for (IndexMetadata otherIndex : other.indices().values()) {
             IndexMetadata thisIndex = index(otherIndex.getIndex());
@@ -381,6 +436,10 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             indicesLookup = Builder.buildIndicesLookup(dataStreamMetadata, indices);
         }
         return indicesLookup;
+    }
+
+    public boolean sameIndicesLookup(Metadata other) {
+        return this.indicesLookup == other.indicesLookup;
     }
 
     /**
@@ -473,13 +532,13 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         }
 
         ImmutableOpenMap.Builder<String, MappingMetadata> indexMapBuilder = ImmutableOpenMap.builder();
-        Iterable<String> intersection = HppcMaps.intersection(ObjectHashSet.from(concreteIndices), indices.keys());
-        for (String index : intersection) {
+        Set<String> indicesKeys = indices.keySet();
+        Stream.of(concreteIndices).filter(indicesKeys::contains).forEach(index -> {
             onNextIndex.run();
             IndexMetadata indexMetadata = indices.get(index);
             Predicate<String> fieldPredicate = fieldFilter.apply(index);
             indexMapBuilder.put(index, filterFields(indexMetadata.mapping(), fieldPredicate));
-        }
+        });
         return indexMapBuilder.build();
     }
 
@@ -698,7 +757,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         return routing;
     }
 
-    private void rejectSingleIndexOperation(String aliasOrIndex, IndexAbstraction result) {
+    private static void rejectSingleIndexOperation(String aliasOrIndex, IndexAbstraction result) {
         String[] indexNames = new String[result.getIndices().size()];
         int i = 0;
         for (Index indexName : result.getIndices()) {
@@ -787,6 +846,36 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         return indices();
     }
 
+    /**
+     * Returns whether an alias exists with provided alias name.
+     *
+     * @param aliasName The provided alias name
+     * @return whether an alias exists with provided alias name
+     */
+    public boolean hasAlias(String aliasName) {
+        return aliasedIndices.containsKey(aliasName) || dataStreamAliases().containsKey(aliasName);
+    }
+
+    /**
+     * Returns all the indices that the alias with the provided alias name refers to.
+     * These are aliased indices. Not that, this only return indices that have been aliased
+     * and not indices that are behind a data stream or data stream alias.
+     *
+     * @param aliasName The provided alias name
+     * @return all aliased indices by the alias with the provided alias name
+     */
+    public Set<Index> aliasedIndices(String aliasName) {
+        Objects.requireNonNull(aliasName);
+        return aliasedIndices.getOrDefault(aliasName, Set.of());
+    }
+
+    /**
+     * @return the names of all indices aliases.
+     */
+    public Set<String> aliasedIndices() {
+        return aliasedIndices.keySet();
+    }
+
     public ImmutableOpenMap<String, IndexTemplateMetadata> templates() {
         return this.templates;
     }
@@ -866,7 +955,12 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
     @Override
     public Iterator<IndexMetadata> iterator() {
-        return indices.valuesIt();
+        return indices.values().iterator();
+    }
+
+    @Override
+    public int size() {
+        return indices.size();
     }
 
     public static boolean isGlobalStateEquals(Metadata metadata1, Metadata metadata2) {
@@ -1051,13 +1145,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         }
         final Function<String, MappingMetadata> mappingLookup;
         if (in.getVersion().onOrAfter(MAPPINGS_AS_HASH_VERSION)) {
-            final int mappings = in.readVInt();
-            if (mappings > 0) {
-                final Map<String, MappingMetadata> mappingMetadataMap = new HashMap<>(mappings);
-                for (int i = 0; i < mappings; i++) {
-                    final MappingMetadata m = new MappingMetadata(in);
-                    mappingMetadataMap.put(m.getSha256(), m);
-                }
+            final Map<String, MappingMetadata> mappingMetadataMap = in.readMapValues(MappingMetadata::new, MappingMetadata::getSha256);
+            if (mappingMetadataMap.size() > 0) {
                 mappingLookup = mappingMetadataMap::get;
             } else {
                 mappingLookup = null;
@@ -1096,7 +1185,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         // Starting in #MAPPINGS_AS_HASH_VERSION we write the mapping metadata first and then write the indices without metadata so that
         // we avoid writing duplicate mappings twice
         if (out.getVersion().onOrAfter(MAPPINGS_AS_HASH_VERSION)) {
-            out.writeCollection(mappingsByHash.values());
+            out.writeMapValues(mappingsByHash);
         }
         out.writeVInt(indices.size());
         final boolean writeMappingsHash = out.getVersion().onOrAfter(MAPPINGS_AS_HASH_VERSION);
@@ -1136,6 +1225,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         private DiffableStringMap hashesOfConsistentSettings = DiffableStringMap.EMPTY;
 
         private final ImmutableOpenMap.Builder<String, IndexMetadata> indices;
+        private final ImmutableOpenMap.Builder<String, Set<Index>> aliasedIndices;
         private final ImmutableOpenMap.Builder<String, IndexTemplateMetadata> templates;
         private final ImmutableOpenMap.Builder<String, Custom> customs;
 
@@ -1155,15 +1245,17 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             this.hashesOfConsistentSettings = metadata.hashesOfConsistentSettings;
             this.version = metadata.version;
             this.indices = ImmutableOpenMap.builder(metadata.indices);
+            this.aliasedIndices = ImmutableOpenMap.builder(metadata.aliasedIndices);
             this.templates = ImmutableOpenMap.builder(metadata.templates);
             this.customs = ImmutableOpenMap.builder(metadata.customs);
-            previousIndicesLookup = metadata.getIndicesLookup();
+            this.previousIndicesLookup = metadata.indicesLookup;
             this.mappingsByHash = new HashMap<>(metadata.mappingsByHash);
         }
 
         private Builder(Map<String, MappingMetadata> mappingsByHash) {
             clusterUUID = UNKNOWN_CLUSTER_UUID;
             indices = ImmutableOpenMap.builder();
+            aliasedIndices = ImmutableOpenMap.builder();
             templates = ImmutableOpenMap.builder();
             customs = ImmutableOpenMap.builder();
             indexGraveyard(IndexGraveyard.builder().build()); // create new empty index graveyard to initialize
@@ -1177,6 +1269,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             dedupeMapping(indexMetadataBuilder);
             IndexMetadata indexMetadata = indexMetadataBuilder.build();
             IndexMetadata previous = indices.put(indexMetadata.getIndex().getName(), indexMetadata);
+            updateAliases(previous, indexMetadata);
             if (unsetPreviousIndicesLookup(previous, indexMetadata)) {
                 previousIndicesLookup = null;
             }
@@ -1193,13 +1286,14 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 indexMetadata = IndexMetadata.builder(indexMetadata).version(indexMetadata.getVersion() + 1).build();
             }
             IndexMetadata previous = indices.put(indexMetadata.getIndex().getName(), indexMetadata);
+            updateAliases(previous, indexMetadata);
             if (unsetPreviousIndicesLookup(previous, indexMetadata)) {
                 previousIndicesLookup = null;
             }
             return this;
         }
 
-        boolean unsetPreviousIndicesLookup(IndexMetadata previous, IndexMetadata current) {
+        static boolean unsetPreviousIndicesLookup(IndexMetadata previous, IndexMetadata current) {
             if (previous == null) {
                 return true;
             }
@@ -1246,7 +1340,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         public Builder remove(String index) {
             previousIndicesLookup = null;
 
-            indices.remove(index);
+            IndexMetadata previous = indices.remove(index);
+            updateAliases(previous, null);
             return this;
         }
 
@@ -1255,14 +1350,76 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
             indices.clear();
             mappingsByHash.clear();
+            aliasedIndices.clear();
             return this;
         }
 
         public Builder indices(ImmutableOpenMap<String, IndexMetadata> indices) {
             previousIndicesLookup = null;
 
-            for (var cursor : indices) {
-                put(cursor.value, false);
+            for (var value : indices.values()) {
+                put(value, false);
+            }
+            return this;
+        }
+
+        void updateAliases(IndexMetadata previous, IndexMetadata current) {
+            if (previous == null && current != null) {
+                for (var key : current.getAliases().keySet()) {
+                    putAlias(key, current.getIndex());
+                }
+            } else if (previous != null && current == null) {
+                for (var key : previous.getAliases().keySet()) {
+                    removeAlias(key, previous.getIndex());
+                }
+            } else if (previous != null && current != null) {
+                if (Objects.equals(previous.getAliases(), current.getAliases())) {
+                    return;
+                }
+
+                for (var key : current.getAliases().keySet()) {
+                    if (previous.getAliases().containsKey(key) == false) {
+                        putAlias(key, current.getIndex());
+                    }
+                }
+                for (var key : previous.getAliases().keySet()) {
+                    if (current.getAliases().containsKey(key) == false) {
+                        removeAlias(key, current.getIndex());
+                    }
+                }
+            }
+        }
+
+        private Builder putAlias(String alias, Index index) {
+            Objects.requireNonNull(alias);
+            Objects.requireNonNull(index);
+
+            Set<Index> indices = new HashSet<>(aliasedIndices.getOrDefault(alias, Set.of()));
+            if (indices.add(index) == false) {
+                return this; // indices already contained this index
+            }
+            aliasedIndices.put(alias, Collections.unmodifiableSet(indices));
+            return this;
+        }
+
+        private Builder removeAlias(String alias, Index index) {
+            Objects.requireNonNull(alias);
+            Objects.requireNonNull(index);
+
+            Set<Index> indices = aliasedIndices.get(alias);
+            if (indices == null || indices.isEmpty()) {
+                throw new IllegalStateException("Cannot remove non-existent alias [" + alias + "] for index [" + index.getName() + "]");
+            }
+
+            indices = new HashSet<>(indices);
+            if (indices.remove(index) == false) {
+                throw new IllegalStateException("Cannot remove non-existent alias [" + alias + "] for index [" + index.getName() + "]");
+            }
+
+            if (indices.isEmpty()) {
+                aliasedIndices.remove(alias); // for consistency, we don't store empty sets, so null it out
+            } else {
+                aliasedIndices.put(alias, Collections.unmodifiableSet(indices));
             }
             return this;
         }
@@ -1282,7 +1439,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         }
 
         public Builder templates(ImmutableOpenMap<String, IndexTemplateMetadata> templates) {
-            this.templates.putAll(templates);
+            this.templates.putAllFromMap(templates);
             return this;
         }
 
@@ -1506,8 +1663,8 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
         }
 
         public Builder customs(ImmutableOpenMap<String, Custom> customs) {
-            customs.stream().forEach(entry -> Objects.requireNonNull(entry.getValue(), entry.getKey()));
-            this.customs.putAll(customs);
+            customs.forEach((key, value) -> Objects.requireNonNull(value, key));
+            this.customs.putAllFromMap(customs);
             return this;
         }
 
@@ -1522,7 +1679,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
 
         public Builder updateSettings(Settings settings, String... indices) {
             if (indices == null || indices.length == 0) {
-                indices = this.indices.keys().toArray(String.class);
+                indices = this.indices.keys().toArray(new String[0]);
             }
             for (String index : indices) {
                 IndexMetadata indexMetadata = this.indices.get(index);
@@ -1618,18 +1775,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
          * @return a new <code>Metadata</code> instance
          */
         public Metadata build() {
-            return build(true);
-        }
-
-        /**
-         * @param builtIndicesLookupEagerly Controls whether indices lookup should be build as part of the execution of this method
-         *                                  or after when needed. Almost all of the time indices lookup should be built eagerly, however
-         *                                  in certain cases when <code>Metdata</code> instances are build that are not published and
-         *                                  many indices have been defined then it makes sense to skip building indices lookup.
-         *
-         * @return a new <code>Metadata</code> instance
-         */
-        public Metadata build(boolean builtIndicesLookupEagerly) {
             // TODO: We should move these datastructures to IndexNameExpressionResolver, this will give the following benefits:
             // 1) The datastructures will be rebuilt only when needed. Now during serializing we rebuild these datastructures
             // while these datastructures aren't even used.
@@ -1639,7 +1784,6 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             final List<String> visibleOpenIndices = new ArrayList<>();
             final List<String> allClosedIndices = new ArrayList<>();
             final List<String> visibleClosedIndices = new ArrayList<>();
-            final Set<String> indicesAliases = new HashSet<>();
             final ImmutableOpenMap<String, IndexMetadata> indicesMap = indices.build();
             final Set<String> allIndices = indicesMap.keySet();
 
@@ -1662,23 +1806,22 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                         visibleClosedIndices.add(name);
                     }
                 }
-                indexMetadata.getAliases().keysIt().forEachRemaining(indicesAliases::add);
                 oldestIndexVersionId = Math.min(oldestIndexVersionId, indexMetadata.getCompatibilityVersion().id);
             }
 
+            var aliasedIndices = this.aliasedIndices.build();
+            for (var entry : aliasedIndices.entrySet()) {
+                List<IndexMetadata> aliasIndices = entry.getValue().stream().map(idx -> indicesMap.get(idx.getName())).toList();
+                validateAlias(entry.getKey(), aliasIndices);
+            }
             final DataStreamMetadata dataStreamMetadata = (DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE);
-            ensureNoNameCollisions(indicesAliases, indicesMap, allIndices, dataStreamMetadata);
+            ensureNoNameCollisions(aliasedIndices.keySet(), indicesMap, allIndices, dataStreamMetadata);
+            assert assertDataStreams(indicesMap, dataStreamMetadata);
 
-            SortedMap<String, IndexAbstraction> indicesLookup;
+            SortedMap<String, IndexAbstraction> indicesLookup = null;
             if (previousIndicesLookup != null) {
                 assert previousIndicesLookup.equals(buildIndicesLookup(dataStreamMetadata, indicesMap));
                 indicesLookup = previousIndicesLookup;
-            } else {
-                if (builtIndicesLookupEagerly) {
-                    indicesLookup = buildIndicesLookup(dataStreamMetadata, indicesMap);
-                } else {
-                    indicesLookup = null;
-                }
             }
 
             purgeUnusedEntries(indicesMap);
@@ -1715,6 +1858,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 totalNumberOfShards,
                 totalOpenIndexShards,
                 indicesMap,
+                aliasedIndices,
                 templates.build(),
                 customs.build(),
                 allIndicesArray,
@@ -1852,7 +1996,7 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                         List<String> aliases = dataStreamToAliasLookup.computeIfAbsent(name, k -> new LinkedList<>());
                         aliases.add(alias.getName());
                         return dataStreamMetadata.dataStreams().get(name);
-                    }).flatMap(ds -> ds.getIndices().stream()).collect(Collectors.toList());
+                    }).flatMap(ds -> ds.getIndices().stream()).toList();
                     Index writeIndexOfWriteDataStream = null;
                     if (alias.getWriteDataStream() != null) {
                         DataStream writeDataStream = dataStreamMetadata.dataStreams().get(alias.getWriteDataStream());
@@ -1882,17 +2026,16 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             }
 
             Map<String, List<IndexMetadata>> aliasToIndices = new HashMap<>();
-            for (var entry : indices) {
-                final String name = entry.key;
-                final IndexMetadata indexMetadata = entry.value;
+            for (var entry : indices.entrySet()) {
+                final String name = entry.getKey();
+                final IndexMetadata indexMetadata = entry.getValue();
                 final IndexAbstraction.DataStream parent = indexToDataStreamLookup.get(name);
                 assert parent == null || parent.getIndices().stream().anyMatch(index -> name.equals(index.getName()))
                     : "Expected data stream [" + parent.getName() + "] to contain index " + indexMetadata.getIndex();
                 IndexAbstraction existing = indicesLookup.put(name, new ConcreteIndex(indexMetadata, parent));
                 assert existing == null : "duplicate for " + indexMetadata.getIndex();
 
-                for (var aliasCursor : indexMetadata.getAliases()) {
-                    AliasMetadata aliasMetadata = aliasCursor.value;
+                for (var aliasMetadata : indexMetadata.getAliases().values()) {
                     List<IndexMetadata> aliasIndices = aliasToIndices.computeIfAbsent(aliasMetadata.getAlias(), k -> new ArrayList<>());
                     aliasIndices.add(indexMetadata);
                 }
@@ -1904,32 +2047,102 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
                 assert existing == null : "duplicate for " + entry.getKey();
             }
 
-            validateDataStreams(indicesLookup, dataStreamMetadata);
             return Collections.unmodifiableSortedMap(indicesLookup);
         }
 
-        static void validateDataStreams(SortedMap<String, IndexAbstraction> indicesLookup, @Nullable DataStreamMetadata dsMetadata) {
-            if (dsMetadata != null) {
-                // Sanity check, because elsewhere a more user friendly error should have occurred:
-                List<String> conflictingAliases = indicesLookup.values()
-                    .stream()
-                    .filter(ia -> ia.getType() == IndexAbstraction.Type.ALIAS)
-                    .filter(ia -> ia.isDataStreamRelated() == false)
-                    .filter(ia -> {
-                        for (Index index : ia.getIndices()) {
-                            if (indicesLookup.get(index.getName()).getParentDataStream() != null) {
-                                return true;
-                            }
-                        }
+        private static boolean isNonEmpty(List<IndexMetadata> idxMetas) {
+            return (Objects.isNull(idxMetas) || idxMetas.isEmpty()) == false;
+        }
 
-                        return false;
-                    })
-                    .map(IndexAbstraction::getName)
-                    .collect(Collectors.toList());
-                if (conflictingAliases.isEmpty() == false) {
-                    throw new IllegalStateException("aliases " + conflictingAliases + " cannot refer to backing indices of data streams");
+        private static void validateAlias(String aliasName, List<IndexMetadata> indexMetadatas) {
+            // Validate write indices
+            List<String> writeIndices = indexMetadatas.stream()
+                .filter(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).writeIndex()))
+                .map(im -> im.getIndex().getName())
+                .toList();
+            if (writeIndices.size() > 1) {
+                throw new IllegalStateException(
+                    "alias ["
+                        + aliasName
+                        + "] has more than one write index ["
+                        + Strings.collectionToCommaDelimitedString(writeIndices)
+                        + "]"
+                );
+            }
+
+            // Validate hidden status
+            final Map<Boolean, List<IndexMetadata>> groupedByHiddenStatus = indexMetadatas.stream()
+                .collect(Collectors.groupingBy(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).isHidden())));
+            if (isNonEmpty(groupedByHiddenStatus.get(true)) && isNonEmpty(groupedByHiddenStatus.get(false))) {
+                List<String> hiddenOn = groupedByHiddenStatus.get(true).stream().map(idx -> idx.getIndex().getName()).toList();
+                List<String> nonHiddenOn = groupedByHiddenStatus.get(false).stream().map(idx -> idx.getIndex().getName()).toList();
+                throw new IllegalStateException(
+                    "alias ["
+                        + aliasName
+                        + "] has is_hidden set to true on indices ["
+                        + Strings.collectionToCommaDelimitedString(hiddenOn)
+                        + "] but does not have is_hidden set to true on indices ["
+                        + Strings.collectionToCommaDelimitedString(nonHiddenOn)
+                        + "]; alias must have the same is_hidden setting "
+                        + "on all indices"
+                );
+            }
+
+            // Validate system status
+            final Map<Boolean, List<IndexMetadata>> groupedBySystemStatus = indexMetadatas.stream()
+                .collect(Collectors.groupingBy(IndexMetadata::isSystem));
+            // If the alias has either all system or all non-system, then no more validation is required
+            if (isNonEmpty(groupedBySystemStatus.get(false)) && isNonEmpty(groupedBySystemStatus.get(true))) {
+                final List<String> newVersionSystemIndices = groupedBySystemStatus.get(true)
+                    .stream()
+                    .filter(i -> i.getCreationVersion().onOrAfter(IndexNameExpressionResolver.SYSTEM_INDEX_ENFORCEMENT_VERSION))
+                    .map(i -> i.getIndex().getName())
+                    .sorted() // reliable error message for testing
+                    .toList();
+
+                if (newVersionSystemIndices.isEmpty() == false) {
+                    final List<String> nonSystemIndices = groupedBySystemStatus.get(false)
+                        .stream()
+                        .map(i -> i.getIndex().getName())
+                        .sorted() // reliable error message for testing
+                        .toList();
+                    throw new IllegalStateException(
+                        "alias ["
+                            + aliasName
+                            + "] refers to both system indices "
+                            + newVersionSystemIndices
+                            + " and non-system indices: "
+                            + nonSystemIndices
+                            + ", but aliases must refer to either system or"
+                            + " non-system indices, not both"
+                    );
                 }
             }
+        }
+
+        static boolean assertDataStreams(ImmutableOpenMap<String, IndexMetadata> indices, @Nullable DataStreamMetadata dsMetadata) {
+            if (dsMetadata != null) {
+                // Sanity check, because elsewhere a more user friendly error should have occurred:
+                List<String> conflictingAliases = null;
+
+                for (var dataStream : dsMetadata.dataStreams().values()) {
+                    for (var index : dataStream.getIndices()) {
+                        IndexMetadata im = indices.get(index.getName());
+                        if (im != null && im.getAliases().isEmpty() == false) {
+                            for (var alias : im.getAliases().values()) {
+                                if (conflictingAliases == null) {
+                                    conflictingAliases = new LinkedList<>();
+                                }
+                                conflictingAliases.add(alias.alias());
+                            }
+                        }
+                    }
+                }
+                if (conflictingAliases != null) {
+                    throw new AssertionError("aliases " + conflictingAliases + " cannot refer to backing indices of data streams");
+                }
+            }
+            return true;
         }
 
         public static void toXContent(Metadata metadata, XContentBuilder builder, ToXContent.Params params) throws IOException {
@@ -2128,5 +2341,4 @@ public class Metadata implements Iterable<IndexMetadata>, Diffable<Metadata>, To
             return Builder.fromXContent(parser);
         }
     };
-
 }

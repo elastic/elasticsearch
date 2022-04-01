@@ -46,6 +46,11 @@ public class MatrixStatsAggregationBuilder extends ArrayValuesSourceAggregationB
         return new MatrixStatsAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
+    @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
     /**
      * Read from a stream.
      */

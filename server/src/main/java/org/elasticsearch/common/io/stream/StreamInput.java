@@ -60,15 +60,14 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Date;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
 import java.util.function.IntFunction;
 
 import static org.elasticsearch.ElasticsearchException.readStackTrace;
@@ -553,7 +552,7 @@ public abstract class StreamInput extends InputStream {
         return readBoolean(readByte());
     }
 
-    private boolean readBoolean(final byte value) {
+    private static boolean readBoolean(final byte value) {
         if (value == 0) {
             return false;
         } else if (value == 1) {
@@ -607,11 +606,11 @@ public abstract class StreamInput extends InputStream {
      * If the returned map contains any entries it will be mutable. If it is empty it might be immutable.
      */
     public <K, V> Map<K, V> readMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader) throws IOException {
-        return readMap(keyReader, valueReader, HashMap::new);
+        return readMap(keyReader, valueReader, Maps::newHashMapWithExpectedSize);
     }
 
     public <K, V> Map<K, V> readOrderedMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader) throws IOException {
-        return readMap(keyReader, valueReader, LinkedHashMap::new);
+        return readMap(keyReader, valueReader, Maps::newLinkedHashMapWithExpectedSize);
     }
 
     private <K, V> Map<K, V> readMap(Writeable.Reader<K> keyReader, Writeable.Reader<V> valueReader, IntFunction<Map<K, V>> constructor)
@@ -650,6 +649,26 @@ public abstract class StreamInput extends InputStream {
         final Map<K, List<V>> map = Maps.newMapWithExpectedSize(size);
         for (int i = 0; i < size; ++i) {
             map.put(keyReader.read(this), readList(valueReader));
+        }
+        return map;
+    }
+
+    /**
+     * Reads a multiple {@code V}-values and then converts them to a {@code Map} using keyMapper.
+     *
+     * @param valueReader The value reader
+     * @param keyMapper function to create a key from a value
+     * @return Never {@code null}.
+     */
+    public <K, V> Map<K, V> readMapValues(final Writeable.Reader<V> valueReader, final Function<V, K> keyMapper) throws IOException {
+        final int size = readArraySize();
+        if (size == 0) {
+            return Map.of();
+        }
+        final Map<K, V> map = Maps.newMapWithExpectedSize(size);
+        for (int i = 0; i < size; i++) {
+            V value = valueReader.read(this);
+            map.put(keyMapper.apply(value), value);
         }
         return map;
     }
@@ -784,7 +803,7 @@ public abstract class StreamInput extends InputStream {
         if (size9 == 0) {
             return Collections.emptyMap();
         }
-        Map<String, Object> map9 = new LinkedHashMap<>(size9);
+        Map<String, Object> map9 = Maps.newLinkedHashMapWithExpectedSize(size9);
         for (int i = 0; i < size9; i++) {
             map9.put(readString(), readGenericValue());
         }
@@ -953,14 +972,18 @@ public abstract class StreamInput extends InputStream {
         if (readBoolean()) {
             T t = reader.read(this);
             if (t == null) {
-                throw new IOException(
-                    "Writeable.Reader [" + reader + "] returned null which is not allowed and probably means it screwed up the stream."
-                );
+                throwOnNullRead(reader);
             }
             return t;
         } else {
             return null;
         }
+    }
+
+    protected static void throwOnNullRead(Writeable.Reader<?> reader) throws IOException {
+        final IOException e = new IOException("Writeable.Reader [" + reader + "] returned null which is not allowed.");
+        assert false : e;
+        throw e;
     }
 
     @Nullable
@@ -1162,15 +1185,7 @@ public abstract class StreamInput extends InputStream {
      * If it is empty it might be immutable.
      */
     public <T extends NamedWriteable> List<T> readNamedWriteableList(Class<T> categoryClass) throws IOException {
-        int count = readArraySize();
-        if (count == 0) {
-            return Collections.emptyList();
-        }
-        List<T> builder = new ArrayList<>(count);
-        for (int i = 0; i < count; i++) {
-            builder.add(readNamedWriteable(categoryClass));
-        }
-        return builder;
+        throw new UnsupportedOperationException("can't read named writeable from StreamInput");
     }
 
     /**

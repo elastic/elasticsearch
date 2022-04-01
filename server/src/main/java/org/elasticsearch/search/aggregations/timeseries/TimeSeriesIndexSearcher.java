@@ -14,15 +14,16 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 
@@ -36,29 +37,41 @@ import java.util.List;
  * TODO: Convert it to use index sort instead of hard-coded tsid and timestamp values
  */
 public class TimeSeriesIndexSearcher {
+    private static final int CHECK_CANCELLED_SCORER_INTERVAL = 1 << 11;
 
     // We need to delegate to the other searcher here as opposed to extending IndexSearcher and inheriting default implementations as the
     // IndexSearcher would most of the time be a ContextIndexSearcher that has important logic related to e.g. document-level security.
     private final IndexSearcher searcher;
+    private final List<Runnable> cancellations;
 
-    public TimeSeriesIndexSearcher(IndexSearcher searcher) {
+    public TimeSeriesIndexSearcher(IndexSearcher searcher, List<Runnable> cancellations) {
         this.searcher = searcher;
+        this.cancellations = cancellations;
     }
 
     public void search(Query query, BucketCollector bucketCollector) throws IOException {
+        int seen = 0;
         query = searcher.rewrite(query);
         Weight weight = searcher.createWeight(query, bucketCollector.scoreMode(), 1);
 
         // Create LeafWalker for each subreader
         List<LeafWalker> leafWalkers = new ArrayList<>();
         for (LeafReaderContext leaf : searcher.getIndexReader().leaves()) {
-            LeafBucketCollector leafCollector = bucketCollector.getLeafCollector(leaf);
+            if (++seen % CHECK_CANCELLED_SCORER_INTERVAL == 0) {
+                checkCancelled();
+            }
             Scorer scorer = weight.scorer(leaf);
             if (scorer != null) {
-                LeafWalker leafWalker = new LeafWalker(leaf, scorer, leafCollector);
+                LeafWalker leafWalker = new LeafWalker(leaf, scorer, bucketCollector, leaf);
                 if (leafWalker.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                     leafWalkers.add(leafWalker);
                 }
+            } else {
+                // Even though we will not walk through this aggregation as a part of normal processing
+                // this is needed to trigger actions in some bucketCollectors that bypass the normal iteration logic
+                // for example, global aggregator triggers a separate iterator that ignores the query but still needs
+                // to know all leaves
+                bucketCollector.getLeafCollector(new AggregationExecutionContext(leaf, null));
             }
         }
 
@@ -75,6 +88,9 @@ public class TimeSeriesIndexSearcher {
         // walkers are ordered by timestamp.
         while (populateQueue(leafWalkers, queue)) {
             do {
+                if (++seen % CHECK_CANCELLED_SCORER_INTERVAL == 0) {
+                    checkCancelled();
+                }
                 LeafWalker walker = queue.top();
                 walker.collectCurrent();
                 if (walker.nextDoc() == DocIdSetIterator.NO_MORE_DOCS || walker.shouldPop()) {
@@ -87,7 +103,7 @@ public class TimeSeriesIndexSearcher {
     }
 
     // Re-populate the queue with walkers on the same TSID.
-    private boolean populateQueue(List<LeafWalker> leafWalkers, PriorityQueue<LeafWalker> queue) throws IOException {
+    private static boolean populateQueue(List<LeafWalker> leafWalkers, PriorityQueue<LeafWalker> queue) throws IOException {
         BytesRef currentTsid = null;
         assert queue.size() == 0;
         Iterator<LeafWalker> it = leafWalkers.iterator();
@@ -99,7 +115,7 @@ public class TimeSeriesIndexSearcher {
                 it.remove();
                 continue;
             }
-            BytesRef tsid = leafWalker.tsids.lookupOrd(leafWalker.tsids.ordValue());
+            BytesRef tsid = leafWalker.getTsid();
             if (currentTsid == null) {
                 currentTsid = tsid;
             }
@@ -122,7 +138,7 @@ public class TimeSeriesIndexSearcher {
         return queue.size() > 0;
     }
 
-    private boolean queueAllHaveTsid(PriorityQueue<LeafWalker> queue, BytesRef tsid) throws IOException {
+    private static boolean queueAllHaveTsid(PriorityQueue<LeafWalker> queue, BytesRef tsid) throws IOException {
         for (LeafWalker leafWalker : queue) {
             BytesRef walkerId = leafWalker.tsids.lookupOrd(leafWalker.tsids.ordValue());
             assert walkerId.equals(tsid) : tsid.utf8ToString() + " != " + walkerId.utf8ToString();
@@ -130,18 +146,26 @@ public class TimeSeriesIndexSearcher {
         return true;
     }
 
+    private void checkCancelled() {
+        for (Runnable r : cancellations) {
+            r.run();
+        }
+    }
+
     private static class LeafWalker {
-        private final LeafCollector collector;
+        private final LeafBucketCollector collector;
         private final Bits liveDocs;
         private final DocIdSetIterator iterator;
         private final SortedDocValues tsids;
         private final SortedNumericDocValues timestamps;    // TODO can we have this just a NumericDocValues?
+        private final BytesRefBuilder scratch = new BytesRefBuilder();
         int docId = -1;
         int tsidOrd;
         long timestamp;
 
-        LeafWalker(LeafReaderContext context, Scorer scorer, LeafCollector collector) throws IOException {
-            this.collector = collector;
+        LeafWalker(LeafReaderContext context, Scorer scorer, BucketCollector bucketCollector, LeafReaderContext leaf) throws IOException {
+            AggregationExecutionContext aggCtx = new AggregationExecutionContext(leaf, scratch::get);
+            this.collector = bucketCollector.getLeafCollector(aggCtx);
             liveDocs = context.reader().getLiveDocs();
             this.collector.setScorer(scorer);
             iterator = scorer.iterator();
@@ -166,6 +190,11 @@ public class TimeSeriesIndexSearcher {
                 timestamp = timestamps.nextValue();
             }
             return docId;
+        }
+
+        BytesRef getTsid() throws IOException {
+            scratch.copyBytes(tsids.lookupOrd(tsids.ordValue()));
+            return scratch.get();
         }
 
         // invalid if the doc is deleted or if it doesn't have a tsid or timestamp entry

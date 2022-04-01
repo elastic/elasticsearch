@@ -17,17 +17,23 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.DocumentDimensions;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
+import org.elasticsearch.index.mapper.NestedLookup;
+import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.BooleanSupplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -49,7 +55,7 @@ public enum IndexMode {
             settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_END_TIME);
         }
 
-        private void settingRequiresTimeSeries(Map<Setting<?>, Object> settings, Setting<?> setting) {
+        private static void settingRequiresTimeSeries(Map<Setting<?>, Object> settings, Setting<?> setting) {
             if (false == Objects.equals(setting.getDefault(Settings.EMPTY), settings.get(setting))) {
                 throw new IllegalArgumentException("[" + setting.getKey() + "] requires " + tsdbMode());
             }
@@ -83,6 +89,21 @@ public enum IndexMode {
             // non time-series indices must not have a TimeSeriesIdFieldMapper
             return null;
         }
+
+        @Override
+        public IdFieldMapper buildNoFieldDataIdFieldMapper() {
+            return ProvidedIdFieldMapper.NO_FIELD_DATA;
+        }
+
+        @Override
+        public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
+            return new ProvidedIdFieldMapper(fieldDataEnabled);
+        }
+
+        @Override
+        public DocumentDimensions buildDocumentDimensions() {
+            return new DocumentDimensions.OnlySingleValueAllowed();
+        }
     },
     TIME_SERIES("time_series") {
         @Override
@@ -98,18 +119,21 @@ public enum IndexMode {
             checkSetting(settings, IndexMetadata.INDEX_ROUTING_PATH);
         }
 
-        private void checkSetting(Map<Setting<?>, Object> settings, Setting<?> setting) {
+        private static void checkSetting(Map<Setting<?>, Object> settings, Setting<?> setting) {
             if (Objects.equals(setting.getDefault(Settings.EMPTY), settings.get(setting))) {
                 throw new IllegalArgumentException(tsdbMode() + " requires a non-empty [" + setting.getKey() + "]");
             }
         }
 
-        private String error(Setting<?> unsupported) {
+        private static String error(Setting<?> unsupported) {
             return tsdbMode() + " is incompatible with [" + unsupported.getKey() + "]";
         }
 
         @Override
         public void validateMapping(MappingLookup lookup) {
+            if (lookup.nestedLookup() != NestedLookup.EMPTY) {
+                throw new IllegalArgumentException("cannot have nested fields when index is in " + tsdbMode());
+            }
             if (((RoutingFieldMapper) lookup.getMapper(RoutingFieldMapper.NAME)).required()) {
                 throw new IllegalArgumentException(routingRequiredBad());
             }
@@ -137,7 +161,7 @@ public enum IndexMode {
             return new TimestampBounds(settings);
         }
 
-        private String routingRequiredBad() {
+        private static String routingRequiredBad() {
             return "routing is forbidden on CRUD operations that target indices in " + tsdbMode();
         }
 
@@ -145,9 +169,25 @@ public enum IndexMode {
         public MetadataFieldMapper buildTimeSeriesIdFieldMapper() {
             return TimeSeriesIdFieldMapper.INSTANCE;
         }
+
+        @Override
+        public IdFieldMapper buildNoFieldDataIdFieldMapper() {
+            return TsidExtractingIdFieldMapper.INSTANCE;
+        }
+
+        @Override
+        public IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled) {
+            // We don't support field data on TSDB's _id
+            return TsidExtractingIdFieldMapper.INSTANCE;
+        }
+
+        @Override
+        public DocumentDimensions buildDocumentDimensions() {
+            return new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder();
+        }
     };
 
-    protected String tsdbMode() {
+    protected static String tsdbMode() {
         return "[" + IndexSettings.MODE.getKey() + "=time_series]";
     }
 
@@ -224,6 +264,10 @@ public enum IndexMode {
     @Nullable
     public abstract CompressedXContent getDefaultMapping();
 
+    public abstract IdFieldMapper buildIdFieldMapper(BooleanSupplier fieldDataEnabled);
+
+    public abstract IdFieldMapper buildNoFieldDataIdFieldMapper();
+
     /**
      * Get timebounds
      */
@@ -236,6 +280,11 @@ public enum IndexMode {
      * field mappers for the index.
      */
     public abstract MetadataFieldMapper buildTimeSeriesIdFieldMapper();
+
+    /**
+     * How {@code time_series_dimension} fields are handled by indices in this mode.
+     */
+    public abstract DocumentDimensions buildDocumentDimensions();
 
     public static IndexMode fromString(String value) {
         return switch (value) {

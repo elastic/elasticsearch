@@ -60,7 +60,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.LongUnaryOperator;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.search.aggregations.MultiBucketConsumerService.MAX_BUCKET_SETTING;
 
@@ -96,10 +95,10 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
     ) throws IOException {
         super(name, factories, context, parent, CardinalityUpperBound.MANY, metadata);
         this.size = size;
-        this.sourceNames = Arrays.stream(sourceConfigs).map(CompositeValuesSourceConfig::name).collect(Collectors.toList());
+        this.sourceNames = Arrays.stream(sourceConfigs).map(CompositeValuesSourceConfig::name).toList();
         this.reverseMuls = Arrays.stream(sourceConfigs).mapToInt(CompositeValuesSourceConfig::reverseMul).toArray();
         this.missingOrders = Arrays.stream(sourceConfigs).map(CompositeValuesSourceConfig::missingOrder).toArray(MissingOrder[]::new);
-        this.formats = Arrays.stream(sourceConfigs).map(CompositeValuesSourceConfig::format).collect(Collectors.toList());
+        this.formats = Arrays.stream(sourceConfigs).map(CompositeValuesSourceConfig::format).toList();
         this.sources = new SingleDimensionValuesSource<?>[sourceConfigs.length];
         // check that the provided size is not greater than the search.max_buckets setting
         int bucketLimit = context.multiBucketConsumer().getLimit();
@@ -239,7 +238,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
     }
 
     /** Return true if the provided field may have multiple values per document in the leaf **/
-    private boolean isMaybeMultivalued(LeafReaderContext context, SortField sortField) throws IOException {
+    private static boolean isMaybeMultivalued(LeafReaderContext context, SortField sortField) throws IOException {
         SortField.Type type = IndexSortConfig.getSortFieldType(sortField);
         switch (type) {
             case STRING:
@@ -344,8 +343,8 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
                     }
 
                     @Override
-                    public FieldComparator<?> getComparator(int numHits, int sortPos) {
-                        return new LongComparator(1, delegate.getField(), (Long) missingValue, delegate.getReverse(), sortPos) {
+                    public FieldComparator<?> getComparator(int numHits, boolean enableSkipping) {
+                        return new LongComparator(1, delegate.getField(), (Long) missingValue, delegate.getReverse(), false) {
                             @Override
                             public LeafFieldComparator getLeafComparator(LeafReaderContext context) throws IOException {
                                 return new LongLeafComparator(context) {

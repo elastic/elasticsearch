@@ -899,7 +899,7 @@ public class MasterService extends AbstractLifecycleComponent {
         final var taskContexts = castTaskContexts(executionResults);
         try {
             return executor.execute(previousClusterState, taskContexts);
-        } catch (Throwable e) {
+        } catch (Exception e) {
             logger.trace(
                 () -> new ParameterizedMessage(
                     "failed to execute cluster state update (on version: [{}], uuid: [{}]) for [{}]\n{}{}{}",
@@ -913,7 +913,7 @@ public class MasterService extends AbstractLifecycleComponent {
                 e
             );
             for (final var executionResult : executionResults) {
-                executionResult.onBatchFailure(new Exception(e));
+                executionResult.onBatchFailure(e);
             }
             return previousClusterState;
         }

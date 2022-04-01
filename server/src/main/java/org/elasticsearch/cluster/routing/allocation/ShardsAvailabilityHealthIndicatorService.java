@@ -73,9 +73,6 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     public static final String NAME = "shards_availability";
 
     private static final String DATA_TIER_ALLOCATION_DECIDER_NAME = "data_tier";
-    private static final String SEARCHABLE_SNAPSHOT_ENABLE_ALLOCATION_DECIDER_NAME = "searchable_snapshots_enable";
-    private static final String SEARCHABLE_SNAPSHOT_REPOSITORY_EXISTS_ALLOCATION_DECIDER_NAME = "searchable_snapshot_repository_exists";
-    private static final String HAS_FROZEN_CACHE_ALLOCATION_DECIDER_NAME = "has_frozen_cache";
 
     private final ClusterService clusterService;
     private final AllocationService allocationService;
@@ -260,10 +257,6 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 checkAllNodesAtShardsLimit(shardAllocationCounts, index, shardRouting, nodeAllocationResults);
                 checkIsAllocationDisabled(shardAllocationCounts, shardRouting, nodeAllocationResults);
                 checkDataTierConflictsWithFilters(shardAllocationCounts, index, shardRouting, nodeAllocationResults);
-                // TODO: The searchable snapshot allocators need snapshot shard size info before being called.
-//                checkSearchableSnapshotAllocationEnabled(shardAllocationCounts, index, shardRouting, nodeAllocationResults);
-//                checkSearchableSnapshotRepoExists(shardAllocationCounts, index, shardRouting, nodeAllocationResults);
-//                checkFrozenCacheExists(shardAllocationCounts, index, shardRouting, nodeAllocationResults);
                 checkNotEnoughTierNodesForShardAllocation(shardAllocationCounts, index, shardRouting, nodeAllocationResults);
             }
         }
@@ -323,63 +316,6 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 LOGGER.trace("[{}]: Tier and filter settings conflict, adding user action", shardRouting.shardId());
                 // TODO: Check if shard is part of an index that can be migrated to data tiers?
                 shardAllocationCounts.addUserAction(ACTION_MIGRATE_TIERS_ID, shardRouting);
-            }
-        }
-    }
-
-    private void checkSearchableSnapshotAllocationEnabled(
-        ShardAllocationCounts shardAllocationCounts,
-        IndexMetadata indexMetadata,
-        ShardRouting shardRouting,
-        List<NodeAllocationResult> nodeAllocationResults
-    ) {
-        LOGGER.trace("[{}]: Checking snapshot allocation allowed", shardRouting.shardId());
-        if (indexMetadata.isSearchableSnapshot()) {
-            LOGGER.trace("[{}]: Index is searchable snapshot", shardRouting.shardId());
-            Optional<NodeAllocationResult> possibleHome = nodeAllocationResults.stream()
-                .filter(nodeHasDeciderResult(SEARCHABLE_SNAPSHOT_ENABLE_ALLOCATION_DECIDER_NAME, Decision.Type.YES))
-                .findAny();
-            if (possibleHome.isEmpty()) {
-                LOGGER.trace("[{}]: Searchable snapshot allocation is disabled", shardRouting.shardId());
-                shardAllocationCounts.addUserAction(ACTION_ENABLE_SEARCHABLE_SNAPSHOT_ALLOCATION_ID, shardRouting);
-            }
-        }
-    }
-
-    private void checkSearchableSnapshotRepoExists(
-        ShardAllocationCounts shardAllocationCounts,
-        IndexMetadata indexMetadata,
-        ShardRouting shardRouting,
-        List<NodeAllocationResult> nodeAllocationResults
-    ) {
-        LOGGER.trace("[{}]: Checking snapshot repo exists", shardRouting.shardId());
-        if (indexMetadata.isSearchableSnapshot()) {
-            LOGGER.trace("[{}]: Index is searchable snapshot", shardRouting.shardId());
-            Optional<NodeAllocationResult> possibleHome = nodeAllocationResults.stream()
-                .filter(nodeHasDeciderResult(SEARCHABLE_SNAPSHOT_REPOSITORY_EXISTS_ALLOCATION_DECIDER_NAME, Decision.Type.YES))
-                .findAny();
-            if (possibleHome.isEmpty()) {
-                LOGGER.trace("[{}]: Searchable snapshot repository is unavailable", shardRouting.shardId());
-                shardAllocationCounts.addUserAction(ACTION_REDEFINE_SEARCHABLE_SNAPSHOT_REPOSITORY_ID, shardRouting);
-            }
-        }
-    }
-
-    private void checkFrozenCacheExists(
-        ShardAllocationCounts shardAllocationCounts,
-        IndexMetadata indexMetadata,
-        ShardRouting shardRouting,
-        List<NodeAllocationResult> nodeAllocationResults
-    ) {
-        LOGGER.trace("[{}]: Checking if frozen cache is required", shardRouting.shardId());
-        if (indexMetadata.isPartialSearchableSnapshot()) {
-            LOGGER.trace("[{}]: Index is partial searchable snapshot", shardRouting.shardId());
-            Optional<NodeAllocationResult> possibleHome = nodeAllocationResults.stream()
-                .filter(nodeHasDeciderResult(HAS_FROZEN_CACHE_ALLOCATION_DECIDER_NAME, Decision.Type.YES))
-                .findAny();
-            if (possibleHome.isEmpty()) {
-                LOGGER.trace("[{}]: Frozen cache is unavailable", shardRouting.shardId());
-                shardAllocationCounts.addUserAction(ACTION_ADD_FROZEN_TIER_RESOURCES_ID, shardRouting);
             }
         }
     }

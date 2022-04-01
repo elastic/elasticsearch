@@ -107,7 +107,7 @@ public class TransformUpdaterTests extends ESTestCase {
             randomAlphaOfLengthBetween(1, 10),
             Version.CURRENT
         );
-        transformConfigManager.putTransformConfiguration(maxCompatibleConfig, ActionListener.wrap(r -> {}, e -> {}));
+        transformConfigManager.putTransformConfiguration(maxCompatibleConfig, ActionListener.noop());
         assertConfiguration(
             listener -> transformConfigManager.getTransformConfiguration(maxCompatibleConfig.getId(), listener),
             config -> {}
@@ -145,7 +145,7 @@ public class TransformUpdaterTests extends ESTestCase {
             randomAlphaOfLengthBetween(1, 10),
             TransformConfig.CONFIG_VERSION_LAST_DEFAULTS_CHANGED
         );
-        transformConfigManager.putTransformConfiguration(minCompatibleConfig, ActionListener.wrap(r -> {}, e -> {}));
+        transformConfigManager.putTransformConfiguration(minCompatibleConfig, ActionListener.noop());
 
         assertUpdate(
             listener -> TransformUpdater.updateTransform(
@@ -187,7 +187,7 @@ public class TransformUpdaterTests extends ESTestCase {
             )
         );
 
-        transformConfigManager.putOldTransformConfiguration(oldConfig, ActionListener.wrap(r -> {}, e -> {}));
+        transformConfigManager.putOldTransformConfiguration(oldConfig, ActionListener.noop());
         TransformCheckpoint checkpoint = new TransformCheckpoint(
             oldConfig.getId(),
             0L, // timestamp
@@ -195,7 +195,7 @@ public class TransformUpdaterTests extends ESTestCase {
             Collections.singletonMap("index_1", new long[] { 1, 2, 3, 4 }), // index checkpoints
             0L
         );
-        transformConfigManager.putOldTransformCheckpoint(checkpoint, ActionListener.wrap(r -> {}, e -> {}));
+        transformConfigManager.putOldTransformCheckpoint(checkpoint, ActionListener.noop());
 
         TransformStoredDoc stateDoc = new TransformStoredDoc(
             oldConfig.getId(),
@@ -211,7 +211,7 @@ public class TransformUpdaterTests extends ESTestCase {
             ),
             TransformIndexerStatsTests.randomStats()
         );
-        transformConfigManager.putOrUpdateOldTransformStoredDoc(stateDoc, null, ActionListener.wrap(r -> {}, e -> {}));
+        transformConfigManager.putOrUpdateOldTransformStoredDoc(stateDoc, null, ActionListener.noop());
 
         assertConfiguration(listener -> transformConfigManager.getTransformConfiguration(oldConfig.getId(), listener), config -> {});
 
@@ -274,7 +274,7 @@ public class TransformUpdaterTests extends ESTestCase {
             )
         );
 
-        transformConfigManager.putOldTransformConfiguration(oldConfigForDryRunUpdate, ActionListener.wrap(r -> {}, e -> {}));
+        transformConfigManager.putOldTransformConfiguration(oldConfigForDryRunUpdate, ActionListener.noop());
         assertConfiguration(
             listener -> transformConfigManager.getTransformConfiguration(oldConfigForDryRunUpdate.getId(), listener),
             config -> {}

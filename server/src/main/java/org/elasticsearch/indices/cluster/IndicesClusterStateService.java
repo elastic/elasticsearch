@@ -94,8 +94,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     private final PeerRecoveryTargetService recoveryTargetService;
     private final ShardStateAction shardStateAction;
 
-    private static final ActionListener<Void> SHARD_STATE_ACTION_LISTENER = ActionListener.wrap(() -> {});
-
     private final Settings settings;
     // a list of shards that failed during recovery
     // we keep track of these shards in order to prevent repeated recovery of these shards on each cluster state update
@@ -258,7 +256,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 if (masterNode != null) { // TODO: can we remove this? Is resending shard failures the responsibility of shardStateAction?
                     String message = "master " + masterNode + " has not removed previously failed shard. resending shard failure";
                     logger.trace("[{}] re-sending failed shard [{}], reason [{}]", matchedRouting.shardId(), matchedRouting, message);
-                    shardStateAction.localShardFailed(matchedRouting, message, null, SHARD_STATE_ACTION_LISTENER, state);
+                    shardStateAction.localShardFailed(matchedRouting, message, null, ActionListener.noop(), state);
                 }
             }
         }
@@ -282,7 +280,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
     }
 
     // overrideable by tests
-    Logger getLogger() {
+    static Logger getLogger() {
         return logger;
     }
 
@@ -670,7 +668,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         + state
                         + "], mark shard as started",
                     shard.getTimestampRange(),
-                    SHARD_STATE_ACTION_LISTENER,
+                    ActionListener.noop(),
                     clusterState
                 );
             }
@@ -735,7 +733,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 primaryTerm,
                 "after " + state.getRecoverySource(),
                 timestampMillisFieldRange,
-                SHARD_STATE_ACTION_LISTENER
+                ActionListener.noop()
             );
         }
 
@@ -791,7 +789,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                 failure
             );
             failedShardsCache.put(shardRouting.shardId(), shardRouting);
-            shardStateAction.localShardFailed(shardRouting, message, failure, SHARD_STATE_ACTION_LISTENER, state);
+            shardStateAction.localShardFailed(shardRouting, message, failure, ActionListener.noop(), state);
         } catch (Exception inner) {
             if (failure != null) inner.addSuppressed(failure);
             logger.warn(

@@ -143,7 +143,7 @@ Use the following APIs to retrieve and manage user profiles.
 * <<security-api-update-user-profile-data, Update user profile data>>
 * <<security-api-enable-user-profile, Enable user profile>>
 * <<security-api-disable-user-profile, Disable user profile>>
-* <<security-api-search-user-profile, Search user profile>>
+* <<security-api-suggest-user-profile, Suggest user profile>>
 
 
 include::security/activate-user-profile.asciidoc[]
@@ -198,5 +198,5 @@ include::security/saml-invalidate-api.asciidoc[]
 include::security/saml-complete-logout-api.asciidoc[]
 include::security/saml-sp-metadata.asciidoc[]
 include::security/ssl.asciidoc[]
-include::security/search-user-profile.asciidoc[]
+include::security/suggest-user-profile.asciidoc[]
 include::security/update-user-profile-data.asciidoc[]

@@ -124,7 +124,7 @@ public class DiffableStringMap extends AbstractMap<String, String> implements Di
             return deletes;
         }
 
-        public Map<String, Diff<String>> getDiffs() {
+        public static Map<String, Diff<String>> getDiffs() {
             return Collections.emptyMap();
         }
 

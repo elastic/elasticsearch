@@ -235,7 +235,12 @@ public class AutodetectResultProcessor {
 
     public void setProcessKilled() {
         processKilled = true;
-        renormalizer.shutdown();
+        try {
+            renormalizer.shutdown();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new RuntimeException(e);
+        }
     }
 
     void handleOpenForecasts() {
@@ -539,7 +544,7 @@ public class AutodetectResultProcessor {
         flushListener.clear(flushId);
     }
 
-    public void waitUntilRenormalizerIsIdle() {
+    public void waitUntilRenormalizerIsIdle() throws InterruptedException {
         renormalizer.waitUntilIdle();
     }
 

@@ -60,8 +60,10 @@ class VectorTileUtils {
      * Adds the provided key / value pair into the feature as tags.
      */
     public static void addPropertyToFeature(VectorTile.Tile.Feature.Builder feature, MvtLayerProps layerProps, String key, Object value) {
-        feature.addTags(layerProps.addKey(key));
-        feature.addTags(layerProps.addValue(value));
+        if (key != null && value != null) { // just make sure we don't try to add a null values
+            feature.addTags(layerProps.addKey(key));
+            feature.addTags(layerProps.addValue(value));
+        }
     }
 
     /**

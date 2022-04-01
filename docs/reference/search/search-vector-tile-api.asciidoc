@@ -202,6 +202,13 @@ larger than the vector tile.
 square with equal sides. Defaults to `4096`.
 // end::extent-param[]
 
+// tag::buffer-param[]
+`buffer`::
+(Optional, integer) Size, in pixels, of a clipping buffer outside the tile.
+This allows renderers to avoid outline artifacts from geometries that extend past the extent of the tile.
+Defaults to `5`.
+// end::buffer-param[]
+
 // tag::grid-agg[]
 `grid_agg`::
 (Optional, string) Aggregation used to create a grid for the `<field>`.
@@ -374,6 +381,8 @@ for internal aggregations.
 include::search-vector-tile-api.asciidoc[tag=exact-bounds]
 
 include::search-vector-tile-api.asciidoc[tag=extent-param]
+
+include::search-vector-tile-api.asciidoc[tag=buffer-param]
 
 `fields`::
 (Optional, array of strings and objects) Fields to return in the `hits` layer.

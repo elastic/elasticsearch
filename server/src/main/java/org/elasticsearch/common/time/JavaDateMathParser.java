@@ -69,7 +69,7 @@ public class JavaDateMathParser implements DateMathParser {
         return parseMath(mathString, time, roundUpProperty, timeZone);
     }
 
-    private Instant parseMath(final String mathString, final Instant time, final boolean roundUpProperty, ZoneId timeZone)
+    private static Instant parseMath(final String mathString, final Instant time, final boolean roundUpProperty, ZoneId timeZone)
         throws ElasticsearchParseException {
         if (timeZone == null) {
             timeZone = ZoneOffset.UTC;

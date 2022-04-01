@@ -130,7 +130,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
             }
         }
 
-        private ObjectMapper.Builder findChild(String fullChildName, DocumentParserContext context) {
+        private static ObjectMapper.Builder findChild(String fullChildName, DocumentParserContext context) {
             // does the child mapper already exist? if so, use that
             ObjectMapper child = context.mappingLookup().objectMappers().get(fullChildName);
             if (child != null) {

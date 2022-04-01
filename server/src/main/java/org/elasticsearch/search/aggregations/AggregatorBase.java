@@ -74,12 +74,12 @@ public abstract class AggregatorBase extends Aggregator {
         context.addReleasable(this);
         // Register a safeguard to highlight any invalid construction logic (call to this constructor without subsequent preCollection call)
         collectableSubAggregators = new BucketCollector() {
-            void badState() {
+            static void badState() {
                 throw new IllegalStateException("preCollection not called on new Aggregator before use");
             }
 
             @Override
-            public LeafBucketCollector getLeafCollector(LeafReaderContext reader) {
+            public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) {
                 badState();
                 assert false;
                 return null; // unreachable but compiler does not agree
@@ -201,6 +201,12 @@ public abstract class AggregatorBase extends Aggregator {
      */
     protected abstract LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException;
 
+    // TODO: Remove this method in refactoring
+    protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub, AggregationExecutionContext aggCtx)
+        throws IOException {
+        return getLeafCollector(ctx, sub);
+    }
+
     /**
      * Collect results for this leaf.
      * <p>
@@ -210,10 +216,10 @@ public abstract class AggregatorBase extends Aggregator {
      * for more details on what this does.
      */
     @Override
-    public final LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
-        preGetSubLeafCollectors(ctx);
-        final LeafBucketCollector sub = collectableSubAggregators.getLeafCollector(ctx);
-        return getLeafCollector(ctx, sub);
+    public final LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException {
+        preGetSubLeafCollectors(aggCtx.getLeafReaderContext());
+        final LeafBucketCollector sub = collectableSubAggregators.getLeafCollector(aggCtx);
+        return getLeafCollector(aggCtx.getLeafReaderContext(), sub, aggCtx);
     }
 
     /**

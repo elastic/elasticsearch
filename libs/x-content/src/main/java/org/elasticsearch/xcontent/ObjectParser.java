@@ -340,7 +340,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         throw new XContentParseException(parser.getTokenLocation(), "[" + name + "] no field found");
     }
 
-    private void throwMissingRequiredFields(List<String[]> requiredFields) {
+    private static void throwMissingRequiredFields(List<String[]> requiredFields) {
         final StringBuilder message = new StringBuilder();
         for (String[] fields : requiredFields) {
             message.append("Required one of fields ").append(Arrays.toString(fields)).append(", but none were specified. ");
@@ -348,7 +348,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         throw new IllegalArgumentException(message.toString());
     }
 
-    private void ensureExclusiveFields(List<List<String>> exclusiveFields) {
+    private static void ensureExclusiveFields(List<List<String>> exclusiveFields) {
         StringBuilder message = null;
         for (List<String> fieldset : exclusiveFields) {
             if (fieldset.size() > 1) {
@@ -373,7 +373,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         }
     }
 
-    private void maybeMarkRequiredField(String currentFieldName, List<String[]> requiredFields) {
+    private static void maybeMarkRequiredField(String currentFieldName, List<String[]> requiredFields) {
         Iterator<String[]> iter = requiredFields.iterator();
         while (iter.hasNext()) {
             String[] requiredFieldNames = iter.next();
@@ -522,7 +522,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         }, field, ValueType.OBJECT_ARRAY);
     }
 
-    private <T> void parseObjectsInArray(
+    private static <Value, Context, T> void parseObjectsInArray(
         Consumer<Value> orderedModeCallback,
         ParseField field,
         BiFunction<XContentParser, Context, T> objectParser,
@@ -546,7 +546,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         }
     }
 
-    private XContentParseException wrapCanBeObjectOrArrayOfObjects(ParseField field, XContentParser p) {
+    private static XContentParseException wrapCanBeObjectOrArrayOfObjects(ParseField field, XContentParser p) {
         return new XContentParseException(
             p.getTokenLocation(),
             "["
@@ -556,11 +556,11 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         );
     }
 
-    private XContentParseException wrapParseError(ParseField field, XContentParser p, IOException e, String s) {
+    private static XContentParseException wrapParseError(ParseField field, XContentParser p, IOException e, String s) {
         return new XContentParseException(p.getTokenLocation(), "[" + field + "] " + s, e);
     }
 
-    private XContentParseException rethrowFieldParseFailure(ParseField field, XContentParser p, String currentName, Exception e) {
+    private static XContentParseException rethrowFieldParseFailure(ParseField field, XContentParser p, String currentName, Exception e) {
         return new XContentParseException(p.getTokenLocation(), "[" + field + "] failed to parse field [" + currentName + "]", e);
     }
 
@@ -668,7 +668,7 @@ public final class ObjectParser<Value, Context> extends AbstractObjectParser<Val
         }
     }
 
-    private void throwMustEndOn(String currentFieldName, XContentParser.Token token) {
+    private static void throwMustEndOn(String currentFieldName, XContentParser.Token token) {
         throw new IllegalStateException("parser for [" + currentFieldName + "] did not end on " + token);
     }
 

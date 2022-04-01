@@ -18,6 +18,27 @@ provides stronger security guarantees and should be preferred for any use case w
 as an OIDC _Relying Party_ (RP). In particular the `oidc` realm is the only supported way to enable OpenID
 Connect authentication in Kibana.
 
+A simple JWT realm configuration is as follows: 
+
+[source, yaml]
+------------------------------------------------------------
+xpack.security.authc.realms.jwt.jwt1:
+  order: 3 <1>
+  allowed_issuer: "https://issuer.example.com/jwt/" <2>
+  allowed_audiences: [ "https://app.example.net/" ] 
+  allowed_signature_algorithms: [RS256] <3>
+  pkc_jwkset_path: example.jwkset
+  claims.principal: sub <4>
+  client_authentication.type: shared_secret <5>  
+------------------------------------------------------------
+<1> The realm `order` controls the order in which the configured realms are checked
+    when authenticating a user.
+<2> The `allowed_issuer` and `allowed_audiences` settings are described below in
+    <<jwt-validation>>
+ <3> The `allowed_signature_algorithms` and `pkc_jwkset_path` settings are
+    described below in <<jws-signature-validation>>
+<4> The `claims.principal` setting is described below in <<jwt-authorization>>
+<5> The `client_authentication.type` setting is described below in <<client-authentication>>
 [[external-workflow-requirements]]
 ==== External Workflow Requirements
 

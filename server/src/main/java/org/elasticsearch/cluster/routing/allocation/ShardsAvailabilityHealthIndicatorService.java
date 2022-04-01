@@ -9,6 +9,8 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -16,12 +18,19 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
@@ -67,10 +76,11 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     public HealthIndicatorResult calculate() {
         var state = clusterService.state();
         var shutdown = state.getMetadata().custom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY);
-        var status = new ShardAllocationStatus();
+        var status = new ShardAllocationStatus(state.getMetadata());
 
         for (IndexRoutingTable indexShardRouting : state.routingTable()) {
-            for (IndexShardRoutingTable shardRouting : indexShardRouting) {
+            for (int i = 0; i < indexShardRouting.size(); i++) {
+                IndexShardRoutingTable shardRouting = indexShardRouting.shard(i);
                 status.addPrimary(shardRouting.primaryShard(), shutdown);
                 for (ShardRouting replicaShard : shardRouting.replicaShards()) {
                     status.addReplica(replicaShard, shutdown);
@@ -78,22 +88,26 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             }
         }
 
-        return createIndicator(status.getStatus(), status.getSummary(), status.getDetails());
+        return createIndicator(status.getStatus(), status.getSummary(), status.getDetails(), status.getImpacts());
     }
 
     private static class ShardAllocationCounts {
-        private boolean available = true;
+        private boolean available = true; // This will be true even if no replicas are expected, as long as none are unavailable
         private int unassigned = 0;
         private int unassigned_new = 0;
         private int unassigned_restarting = 0;
         private int initializing = 0;
         private int started = 0;
         private int relocating = 0;
+        private Set<String> indicesWithUnavailableShards = new HashSet<>();
 
         public void increment(ShardRouting routing, NodesShutdownMetadata shutdowns) {
             boolean isNew = isUnassignedDueToNewInitialization(routing);
             boolean isRestarting = isUnassignedDueToTimelyRestart(routing, shutdowns);
             available &= routing.active() || isRestarting || isNew;
+            if ((routing.active() || isRestarting || isNew) == false) {
+                indicesWithUnavailableShards.add(routing.getIndexName());
+            }
 
             switch (routing.state()) {
                 case UNASSIGNED -> {
@@ -133,6 +147,11 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     private static class ShardAllocationStatus {
         private final ShardAllocationCounts primaries = new ShardAllocationCounts();
         private final ShardAllocationCounts replicas = new ShardAllocationCounts();
+        private final Metadata clusterMetadata;
+
+        ShardAllocationStatus(Metadata clusterMetadata) {
+            this.clusterMetadata = clusterMetadata;
+        }
 
         public void addPrimary(ShardRouting routing, NodesShutdownMetadata shutdowns) {
             primaries.increment(routing, shutdowns);
@@ -166,7 +185,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                         createMessage(primaries.unassigned_restarting, "restarting primary", " restarting primaries"),
                         createMessage(replicas.unassigned, "unavailable replica", "unavailable replicas"),
                         createMessage(replicas.unassigned_restarting, "restarting replica", "restarting replicas")
-                    ).flatMap(Function.identity()).collect(joining(" , "))
+                    ).flatMap(Function.identity()).collect(joining(", "))
                 ).append(".");
             } else {
                 builder.append("all shards available.");
@@ -206,5 +225,53 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 )
             );
         }
+
+        public List<HealthIndicatorImpact> getImpacts() {
+            final List<HealthIndicatorImpact> impacts = new ArrayList<>();
+            if (primaries.indicesWithUnavailableShards.isEmpty() == false) {
+                String impactDescription = String.format(
+                    Locale.ROOT,
+                    "Cannot add data to %d %s [%s]. Searches might return incomplete results.",
+                    primaries.indicesWithUnavailableShards.size(),
+                    primaries.indicesWithUnavailableShards.size() == 1 ? "index" : "indices",
+                    getTruncatedIndicesString(primaries.indicesWithUnavailableShards, clusterMetadata)
+                );
+                impacts.add(new HealthIndicatorImpact(1, impactDescription));
+            }
+            /*
+             * It is possible that we're working with an intermediate cluster state, and that for an index we have no primary but a replica
+             * that is reported as unavailable. That replica is likely being promoted to primary. The only impact that matters at this
+             * point is the one above, which has already been reported for this index.
+             */
+            Set<String> indicesWithUnavailableReplicasOnly = new HashSet<>(replicas.indicesWithUnavailableShards);
+            indicesWithUnavailableReplicasOnly.removeAll(primaries.indicesWithUnavailableShards);
+            if (indicesWithUnavailableReplicasOnly.isEmpty() == false) {
+                String impactDescription = String.format(
+                    Locale.ROOT,
+                    "Searches might return slower than usual. Fewer redundant copies of the data exist on %d %s [%s].",
+                    indicesWithUnavailableReplicasOnly.size(),
+                    indicesWithUnavailableReplicasOnly.size() == 1 ? "index" : "indices",
+                    getTruncatedIndicesString(indicesWithUnavailableReplicasOnly, clusterMetadata)
+                );
+                impacts.add(new HealthIndicatorImpact(3, impactDescription));
+            }
+            return impacts;
+        }
+
+    }
+
+    private static String getTruncatedIndicesString(Set<String> indices, Metadata clusterMetadata) {
+        final int maxIndices = 10;
+        final int unknownIndexPriority = -1;
+        // We want to show indices with a numerically higher index.priority first (since lower priority ones might get truncated):
+        Comparator<String> priorityThenNameComparator = Comparator.comparingInt((String indexName) -> {
+            IndexMetadata indexMetadata = clusterMetadata.index(indexName);
+            return indexMetadata == null ? unknownIndexPriority : indexMetadata.priority();
+        }).reversed().thenComparing(Comparator.naturalOrder());
+        String truncatedIndicesString = indices.stream().sorted(priorityThenNameComparator).limit(maxIndices).collect(joining(", "));
+        if (maxIndices < indices.size()) {
+            truncatedIndicesString = truncatedIndicesString + ", ...";
+        }
+        return truncatedIndicesString;
     }
 }

@@ -25,7 +25,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
-import java.util.Map;
 
 /**
  * Tests for the {@link ActiveShardCount} class
@@ -207,9 +206,10 @@ public class ActiveShardCountTests extends ESTestCase {
         RoutingTable routingTable = clusterState.routingTable();
         IndexRoutingTable indexRoutingTable = routingTable.index(indexName);
         IndexRoutingTable.Builder newIndexRoutingTable = IndexRoutingTable.builder(indexRoutingTable.getIndex());
-        for (final Map.Entry<Integer, IndexShardRoutingTable> shardEntry : indexRoutingTable.getShards().entrySet()) {
-            final IndexShardRoutingTable shardRoutingTable = shardEntry.getValue();
-            for (ShardRouting shardRouting : shardRoutingTable.getShards()) {
+        for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+            IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(shardId);
+            for (int copy = 0; copy < shardRoutingTable.size(); copy++) {
+                ShardRouting shardRouting = shardRoutingTable.shard(copy);
                 if (shardRouting.primary()) {
                     shardRouting = shardRouting.initialize(randomAlphaOfLength(8), null, shardRouting.getExpectedShardSize())
                         .moveToStarted();
@@ -225,12 +225,13 @@ public class ActiveShardCountTests extends ESTestCase {
         RoutingTable routingTable = clusterState.routingTable();
         IndexRoutingTable indexRoutingTable = routingTable.index(indexName);
         IndexRoutingTable.Builder newIndexRoutingTable = IndexRoutingTable.builder(indexRoutingTable.getIndex());
-        for (final Map.Entry<Integer, IndexShardRoutingTable> shardEntry : indexRoutingTable.getShards().entrySet()) {
-            final IndexShardRoutingTable shardRoutingTable = shardEntry.getValue();
-            assert shardRoutingTable.getSize() > 2;
+        for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+            IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(shardId);
+            assert shardRoutingTable.size() > 2;
             int numToStart = numShardsToStart;
             // want less than half, and primary is already started
-            for (ShardRouting shardRouting : shardRoutingTable.getShards()) {
+            for (int copy = 0; copy < shardRoutingTable.size(); copy++) {
+                ShardRouting shardRouting = shardRoutingTable.shard(copy);
                 if (shardRouting.primary()) {
                     assertTrue(shardRouting.active());
                 } else {
@@ -251,11 +252,12 @@ public class ActiveShardCountTests extends ESTestCase {
         RoutingTable routingTable = clusterState.routingTable();
         IndexRoutingTable indexRoutingTable = routingTable.index(indexName);
         IndexRoutingTable.Builder newIndexRoutingTable = IndexRoutingTable.builder(indexRoutingTable.getIndex());
-        for (final Map.Entry<Integer, IndexShardRoutingTable> shardEntry : indexRoutingTable.getShards().entrySet()) {
-            final IndexShardRoutingTable shardRoutingTable = shardEntry.getValue();
-            assert shardRoutingTable.getSize() > 2;
+        for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+            IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(shardId);
+            assert shardRoutingTable.size() > 2;
             int numToStart = numShardsToStart;
-            for (ShardRouting shardRouting : shardRoutingTable.getShards()) {
+            for (int copy = 0; copy < shardRoutingTable.size(); copy++) {
+                ShardRouting shardRouting = shardRoutingTable.shard(copy);
                 if (shardRouting.primary()) {
                     assertTrue(shardRouting.active());
                 } else {
@@ -280,9 +282,10 @@ public class ActiveShardCountTests extends ESTestCase {
         RoutingTable routingTable = clusterState.routingTable();
         IndexRoutingTable indexRoutingTable = routingTable.index(indexName);
         IndexRoutingTable.Builder newIndexRoutingTable = IndexRoutingTable.builder(indexRoutingTable.getIndex());
-        for (final Map.Entry<Integer, IndexShardRoutingTable> shardEntry : indexRoutingTable.getShards().entrySet()) {
-            final IndexShardRoutingTable shardRoutingTable = shardEntry.getValue();
-            for (ShardRouting shardRouting : shardRoutingTable.getShards()) {
+        for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+            IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(shardId);
+            for (int copy = 0; copy < shardRoutingTable.size(); copy++) {
+                ShardRouting shardRouting = shardRoutingTable.shard(copy);
                 if (shardRouting.primary()) {
                     assertTrue(shardRouting.active());
                 } else {

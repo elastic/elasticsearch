@@ -12,7 +12,6 @@ import org.apache.lucene.document.Field;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
-import org.elasticsearch.xcontent.DotExpandingXContentParser;
 import org.elasticsearch.xcontent.FilterXContentParserWrapper;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -215,6 +214,15 @@ public abstract class DocumentParserContext {
     }
 
     /**
+     * Description on the document being parsed used in error messages. Not
+     * called unless there is an error.
+     */
+    public final String documentDescription() {
+        IdFieldMapper idMapper = (IdFieldMapper) getMetadataMapper(IdFieldMapper.NAME);
+        return idMapper.documentDescription(this);
+    }
+
+    /**
      * Add a new mapper dynamically created while parsing.
      */
     public final void addDynamicMapper(Mapper mapper) {
@@ -237,10 +245,6 @@ public abstract class DocumentParserContext {
      */
     public final List<Mapper> getDynamicMappers() {
         return dynamicMappers;
-    }
-
-    public final boolean isShadowed(String field) {
-        return mappingLookup.isShadowed(field);
     }
 
     public final ObjectMapper getDynamicObjectMapper(String name) {

@@ -49,7 +49,7 @@ dependencies {
 
   // utilities
   api project(":libs:elasticsearch-cli")
-  api 'com.carrotsearch:hppc:0.8.1'
+  implementation 'com.carrotsearch:hppc:0.8.1'
 
   // percentiles aggregation
   api 'com.tdunning:t-digest:3.2'
@@ -81,6 +81,13 @@ tasks.named("forbiddenPatterns").configure {
     exclude '**/*.dic'
     exclude '**/*.binary'
     exclude '**/*.st'
+}
+
+tasks.named('forbiddenApisMain').configure {
+  addSignatureFiles 'hppc-signatures'
+}
+tasks.named('forbiddenApisTest').configure {
+  addSignatureFiles 'hppc-signatures'
 }
 
 tasks.named("testingConventions").configure {

@@ -182,7 +182,6 @@ import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.LongUnaryOperator;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.DataStream.TIMESERIES_LEAF_READERS_SORTER;
 import static org.elasticsearch.index.seqno.RetentionLeaseActions.RETAIN_ALL;
@@ -695,7 +694,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         if (indexSettings.isSoftDeleteEnabled() && useRetentionLeasesInPeerRecovery == false) {
             final RetentionLeases retentionLeases = replicationTracker.getRetentionLeases();
-            final Set<ShardRouting> shardRoutings = new HashSet<>(routingTable.getShards());
+            final Set<ShardRouting> shardRoutings = new HashSet<>(routingTable.size());
+            for (int copy = 0; copy < routingTable.size(); copy++) {
+                shardRoutings.add(routingTable.shard(copy));
+            }
             shardRoutings.addAll(routingTable.assignedShards()); // include relocation targets
             if (shardRoutings.stream()
                 .allMatch(
@@ -3054,7 +3056,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                         recoveryListener,
                         l -> recoverFromLocalShards(
                             mappingUpdateConsumer,
-                            startedShards.stream().filter((s) -> requiredShards.contains(s.shardId())).collect(Collectors.toList()),
+                            startedShards.stream().filter((s) -> requiredShards.contains(s.shardId())).toList(),
                             l
                         )
                     );

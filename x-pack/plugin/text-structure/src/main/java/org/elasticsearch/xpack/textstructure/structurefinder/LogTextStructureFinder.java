@@ -23,6 +23,7 @@ import java.util.regex.Pattern;
 
 public class LogTextStructureFinder implements TextStructureFinder {
 
+    private static final int TOO_MANY_IDENTICAL_DELIMITERS_BEFORE_WILDCARDS = 8;
     private final List<String> sampleMessages;
     private final TextStructure structure;
 
@@ -250,10 +251,24 @@ public class LogTextStructureFinder implements TextStructureFinder {
     static String createMultiLineMessageStartRegex(Collection<String> prefaces, String simpleDateRegex) {
 
         StringBuilder builder = new StringBuilder("^");
-        GrokPatternCreator.addIntermediateRegex(builder, prefaces);
+        int complexity = GrokPatternCreator.addIntermediateRegex(builder, prefaces);
         builder.append(simpleDateRegex);
         if (builder.substring(0, 3).equals("^\\b")) {
             builder.delete(1, 3);
+        }
+        // This is here primarily to protect against the horrible patterns that are generated when a not-quite-valid-CSV file
+        // has its timestamp column near the end of each line. The algorithm used to produce the multi-line start patterns can
+        // then produce patterns like this:
+        // ^.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,.*?,\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}
+        // If a pattern like this is matched against a line that nearly matches but not quite (which is basically guaranteed in
+        // the not-quite-valid-CSV file case) then the backtracking will cause the match attempt to run for many days. Therefore
+        // it's better to just error out in this case and let the user try again with overrides.
+        if (complexity >= TOO_MANY_IDENTICAL_DELIMITERS_BEFORE_WILDCARDS) {
+            throw new IllegalArgumentException(
+                "Generated multi-line start pattern based on timestamp position ["
+                    + builder
+                    + "] is too complex. If your sample is delimited then try overriding the format."
+            );
         }
         return builder.toString();
     }

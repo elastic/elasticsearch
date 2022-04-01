@@ -1001,7 +1001,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
             service.acceptIncomingRequests();
             final IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> service.getRemoteClusterService().collectNodes(Set.of(), ActionListener.wrap(r -> {}, r -> {}))
+                () -> service.getRemoteClusterService().collectNodes(Set.of(), ActionListener.noop())
             );
             assertThat(e.getMessage(), equalTo("this node does not have the remote_cluster_client role"));
         }

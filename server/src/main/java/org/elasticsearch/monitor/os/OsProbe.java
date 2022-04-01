@@ -29,7 +29,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -253,7 +252,7 @@ public class OsProbe {
         return readSingleLine(PathUtils.get("/proc/loadavg"));
     }
 
-    public short getSystemCpuPercent() {
+    public static short getSystemCpuPercent() {
         return Probes.getLoadAndScaleToPercent(getSystemCpuLoad, osMxBean);
     }
 
@@ -264,7 +263,7 @@ public class OsProbe {
      * @return the single line
      * @throws IOException if an I/O exception occurs reading the file
      */
-    private String readSingleLine(final Path path) throws IOException {
+    private static String readSingleLine(final Path path) throws IOException {
         final List<String> lines = Files.readAllLines(path);
         assert lines.size() == 1 : String.join("\n", lines);
         return lines.get(0);
@@ -777,9 +776,7 @@ public class OsProbe {
              * wrapped in single- or double-quotes.
              */
             final List<String> etcOsReleaseLines = readOsRelease();
-            final List<String> prettyNameLines = etcOsReleaseLines.stream()
-                .filter(line -> line.startsWith("PRETTY_NAME"))
-                .collect(Collectors.toList());
+            final List<String> prettyNameLines = etcOsReleaseLines.stream().filter(line -> line.startsWith("PRETTY_NAME")).toList();
             assert prettyNameLines.size() <= 1 : prettyNameLines;
             final Optional<String> maybePrettyNameLine = prettyNameLines.size() == 1
                 ? Optional.of(prettyNameLines.get(0))
@@ -852,7 +849,7 @@ public class OsProbe {
      */
     long getTotalMemFromProcMeminfo() throws IOException {
         List<String> meminfoLines = readProcMeminfo();
-        final List<String> memTotalLines = meminfoLines.stream().filter(line -> line.startsWith("MemTotal")).collect(Collectors.toList());
+        final List<String> memTotalLines = meminfoLines.stream().filter(line -> line.startsWith("MemTotal")).toList();
         assert memTotalLines.size() <= 1 : memTotalLines;
         if (memTotalLines.size() == 1) {
             final String memTotalLine = memTotalLines.get(0);

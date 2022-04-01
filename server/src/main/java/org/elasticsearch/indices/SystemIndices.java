@@ -133,7 +133,7 @@ public class SystemIndices {
                         ).getFormattedMessage()
                     )
             )
-            .collect(Collectors.toList());
+            .toList();
         if (descriptorsWithNoRoomForSuffix.isEmpty() == false) {
             throw new IllegalStateException(
                 new ParameterizedMessage(
@@ -160,7 +160,7 @@ public class SystemIndices {
             .filter(entry -> entry.getValue() > 1)
             .map(Map.Entry::getKey)
             .sorted()
-            .collect(Collectors.toList());
+            .toList();
 
         if (duplicateAliases.isEmpty() == false) {
             throw new IllegalStateException("Found aliases associated with multiple system index descriptors: " + duplicateAliases + "");
@@ -428,14 +428,14 @@ public class SystemIndices {
         }
     }
 
-    public IllegalArgumentException dataStreamAccessException(ThreadContext threadContext, Collection<String> names) {
+    public static IllegalArgumentException dataStreamAccessException(ThreadContext threadContext, Collection<String> names) {
         return dataStreamAccessException(
             threadContext.getHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY),
             names.toArray(Strings.EMPTY_ARRAY)
         );
     }
 
-    public IllegalArgumentException netNewSystemIndexAccessException(ThreadContext threadContext, Collection<String> names) {
+    public static IllegalArgumentException netNewSystemIndexAccessException(ThreadContext threadContext, Collection<String> names) {
         final String product = threadContext.getHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY);
         if (product == null) {
             return new IllegalArgumentException(
@@ -448,7 +448,7 @@ public class SystemIndices {
         }
     }
 
-    IllegalArgumentException dataStreamAccessException(@Nullable String product, String... dataStreamNames) {
+    static IllegalArgumentException dataStreamAccessException(@Nullable String product, String... dataStreamNames) {
         if (product == null) {
             return new IllegalArgumentException(
                 "Data stream(s) " + Arrays.toString(dataStreamNames) + " use and access is reserved for system operations"
@@ -468,7 +468,7 @@ public class SystemIndices {
      * {@link SystemIndexAccessLevel#RESTRICTED} if a subset of system index access should be allowed, or
      * {@link SystemIndexAccessLevel#NONE} if no system index access should be allowed.
      */
-    public SystemIndexAccessLevel getSystemIndexAccessLevel(ThreadContext threadContext) {
+    public static SystemIndexAccessLevel getSystemIndexAccessLevel(ThreadContext threadContext) {
         // This method intentionally cannot return BACKWARDS_COMPATIBLE_ONLY - that access level should only be used manually
         // in known special cases.
         final String headerValue = threadContext.getHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY);
@@ -592,7 +592,7 @@ public class SystemIndices {
     }
 
     Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
-        return this.featureDescriptors.values().stream().flatMap(f -> f.getIndexDescriptors().stream()).collect(Collectors.toList());
+        return this.featureDescriptors.values().stream().flatMap(f -> f.getIndexDescriptors().stream()).toList();
     }
 
     /**
@@ -788,7 +788,7 @@ public class SystemIndices {
             List<String> allIndices = Stream.concat(indexDescriptors.stream(), associatedIndexDescriptors.stream())
                 .map(descriptor -> descriptor.getMatchingIndices(metadata))
                 .flatMap(List::stream)
-                .collect(Collectors.toList());
+                .toList();
 
             if (allIndices.isEmpty()) {
                 // if no actual indices match the pattern, we can stop here

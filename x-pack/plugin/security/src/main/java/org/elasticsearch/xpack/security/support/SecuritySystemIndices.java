@@ -18,7 +18,6 @@ import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -28,8 +27,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
-import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
-import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_TOKENS_ALIAS;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.SECURITY_VERSION_STRING;
 
 /**
@@ -40,6 +37,11 @@ public class SecuritySystemIndices {
     public static final int INTERNAL_MAIN_INDEX_FORMAT = 6;
     private static final int INTERNAL_TOKENS_INDEX_FORMAT = 7;
     private static final int INTERNAL_PROFILE_INDEX_FORMAT = 8;
+
+    public static final String SECURITY_MAIN_ALIAS = ".security";
+    private static final String MAIN_INDEX_CONCRETE_NAME = ".security-7";
+    public static final String SECURITY_TOKENS_ALIAS = ".security-tokens";
+    private static final String TOKENS_INDEX_CONCRETE_NAME = ".security-tokens-7";
 
     public static final String INTERNAL_SECURITY_PROFILE_INDEX_8 = ".security-profile-8";
     public static final String SECURITY_PROFILE_ALIAS = ".security-profile";
@@ -107,7 +109,7 @@ public class SecuritySystemIndices {
         return SystemIndexDescriptor.builder()
             // This can't just be `.security-*` because that would overlap with the tokens index pattern
             .setIndexPattern(".security-[0-9]+*")
-            .setPrimaryIndex(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7)
+            .setPrimaryIndex(MAIN_INDEX_CONCRETE_NAME)
             .setDescription("Contains Security configuration")
             .setMappings(getMainIndexMappings())
             .setSettings(getMainIndexSettings())
@@ -119,7 +121,7 @@ public class SecuritySystemIndices {
             .build();
     }
 
-    private Settings getMainIndexSettings() {
+    private static Settings getMainIndexSettings() {
         return Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -539,18 +541,15 @@ public class SecuritySystemIndices {
 
             return builder;
         } catch (IOException e) {
-            logger.fatal("Failed to build " + RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7 + " index mappings", e);
-            throw new UncheckedIOException(
-                "Failed to build " + RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7 + " index mappings",
-                e
-            );
+            logger.fatal("Failed to build " + MAIN_INDEX_CONCRETE_NAME + " index mappings", e);
+            throw new UncheckedIOException("Failed to build " + MAIN_INDEX_CONCRETE_NAME + " index mappings", e);
         }
     }
 
-    private SystemIndexDescriptor getSecurityTokenIndexDescriptor() {
+    private static SystemIndexDescriptor getSecurityTokenIndexDescriptor() {
         return SystemIndexDescriptor.builder()
             .setIndexPattern(".security-tokens-[0-9]+*")
-            .setPrimaryIndex(RestrictedIndicesNames.INTERNAL_SECURITY_TOKENS_INDEX_7)
+            .setPrimaryIndex(TOKENS_INDEX_CONCRETE_NAME)
             .setDescription("Contains auth token data")
             .setMappings(getTokenIndexMappings())
             .setSettings(getTokenIndexSettings())
@@ -573,7 +572,7 @@ public class SecuritySystemIndices {
             .build();
     }
 
-    private XContentBuilder getTokenIndexMappings() {
+    private static XContentBuilder getTokenIndexMappings() {
         try {
             final XContentBuilder builder = jsonBuilder();
 
@@ -656,6 +655,8 @@ public class SecuritySystemIndices {
                                     builder.endObject();
 
                                     defineRealmDomain(builder, "realm_domain");
+
+                                    builder.startObject("authentication").field("type", "binary").endObject();
                                 }
                                 builder.endObject();
                             }
@@ -721,10 +722,7 @@ public class SecuritySystemIndices {
             builder.endObject();
             return builder;
         } catch (IOException e) {
-            throw new UncheckedIOException(
-                "Failed to build " + RestrictedIndicesNames.INTERNAL_SECURITY_TOKENS_INDEX_7 + " index mappings",
-                e
-            );
+            throw new UncheckedIOException("Failed to build " + TOKENS_INDEX_CONCRETE_NAME + " index mappings", e);
         }
     }
 
@@ -743,7 +741,7 @@ public class SecuritySystemIndices {
             .build();
     }
 
-    private Settings getProfileIndexSettings() {
+    private static Settings getProfileIndexSettings() {
         return Settings.builder()
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -791,6 +789,13 @@ public class SecuritySystemIndices {
                                 {
                                     builder.startObject("username");
                                     builder.field("type", "search_as_you_type");
+                                    builder.startObject("fields");
+                                    {
+                                        builder.startObject("keyword");
+                                        builder.field("type", "keyword");
+                                        builder.endObject();
+                                    }
+                                    builder.endObject();
                                     builder.endObject();
 
                                     builder.startObject("roles");
@@ -869,8 +874,8 @@ public class SecuritySystemIndices {
         }
     }
 
-    private void defineRealmDomain(XContentBuilder builder, String realm_domain) throws IOException {
-        builder.startObject(realm_domain);
+    private static void defineRealmDomain(XContentBuilder builder, String fieldName) throws IOException {
+        builder.startObject(fieldName);
         {
             builder.field("type", "object");
             builder.startObject("properties");

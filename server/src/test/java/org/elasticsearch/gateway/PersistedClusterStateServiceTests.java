@@ -1314,7 +1314,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 CorruptionUtils.corruptFile(random(), randomFrom(StreamSupport.stream(directoryStream.spliterator(), false).filter(p -> {
                     final String filename = p.getFileName().toString();
                     return ExtrasFS.isExtra(filename) == false && filename.equals(WRITE_LOCK_NAME) == false;
-                }).collect(Collectors.toList())));
+                }).toList()));
             }
 
             assertThat(
@@ -1568,7 +1568,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
     private NodeEnvironment newNodeEnvironment(Path[] dataPaths) throws IOException {
         return newNodeEnvironment(
             Settings.builder()
-                .putList(Environment.PATH_DATA_SETTING.getKey(), Arrays.stream(dataPaths).map(Path::toString).collect(Collectors.toList()))
+                .putList(Environment.PATH_DATA_SETTING.getKey(), Arrays.stream(dataPaths).map(Path::toString).toList())
                 .build()
         );
     }

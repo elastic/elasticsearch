@@ -288,9 +288,6 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
     @Override
     public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (builder.getRestApiVersion() == RestApiVersion.V_7) {
-            builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
-        }
         innerToXContent(builder, params);
         builder.endObject();
         return builder;
@@ -307,6 +304,9 @@ public abstract class DocWriteResponse extends ReplicationResponse implements Wr
         if (getSeqNo() >= 0) {
             builder.field(_SEQ_NO, getSeqNo());
             builder.field(_PRIMARY_TERM, getPrimaryTerm());
+        }
+        if (builder.getRestApiVersion() == RestApiVersion.V_7) {
+            builder.field(MapperService.TYPE_FIELD_NAME, MapperService.SINGLE_MAPPING_NAME);
         }
         return builder;
     }

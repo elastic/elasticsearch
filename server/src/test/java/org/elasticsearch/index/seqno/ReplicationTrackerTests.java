@@ -380,7 +380,9 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         // synchronize starting with the waiting thread
         barrier.await();
 
-        final List<Integer> elements = IntStream.rangeClosed(0, globalCheckpoint - 1).boxed().collect(Collectors.toList());
+        final List<Integer> elements = IntStream.rangeClosed(0, globalCheckpoint - 1)
+            .boxed()
+            .collect(Collectors.toCollection(ArrayList::new));
         Randomness.shuffle(elements);
         for (int i = 0; i < elements.size(); i++) {
             updateLocalCheckpoint(tracker, trackingAllocationId.getId(), elements.get(i));
@@ -1031,7 +1033,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
     private static void addPeerRecoveryRetentionLease(final ReplicationTracker tracker, final AllocationId allocationId) {
         final String nodeId = nodeIdFromAllocationId(allocationId);
         if (tracker.getRetentionLeases().contains(ReplicationTracker.getPeerRecoveryRetentionLeaseId(nodeId)) == false) {
-            tracker.addPeerRecoveryRetentionLease(nodeId, NO_OPS_PERFORMED, ActionListener.wrap(() -> {}));
+            tracker.addPeerRecoveryRetentionLease(nodeId, NO_OPS_PERFORMED, ActionListener.noop());
         }
     }
 
@@ -1165,7 +1167,7 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
                 equalTo(expectedLeaseIds)
             );
             // ... and any extra peer recovery retention leases are expired immediately since the shard is fully active
-            tracker.addPeerRecoveryRetentionLease(randomAlphaOfLength(10), randomNonNegativeLong(), ActionListener.wrap(() -> {}));
+            tracker.addPeerRecoveryRetentionLease(randomAlphaOfLength(10), randomNonNegativeLong(), ActionListener.noop());
         });
 
         tracker.renewPeerRecoveryRetentionLeases();

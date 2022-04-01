@@ -75,6 +75,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 import static org.elasticsearch.common.settings.Settings.readSettingsFromStream;
 import static org.elasticsearch.common.settings.Settings.writeSettingsToStream;
 
@@ -284,6 +285,66 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             totalNumberOfShards,
             totalOpenIndexShards,
             indices,
+            aliasedIndices,
+            templates,
+            customs,
+            allIndices,
+            visibleIndices,
+            allOpenIndices,
+            visibleOpenIndices,
+            allClosedIndices,
+            visibleClosedIndices,
+            indicesLookup,
+            mappingsByHash,
+            oldestIndexVersion
+        );
+    }
+
+    /**
+     * Given an index and lifecycle state, returns a metadata where the lifecycle state will be
+     * associated with the given index.
+     *
+     * The passed-in index must already be present in the cluster state, this method cannot
+     * be used to add an index.
+     *
+     * @param index A non-null index
+     * @param lifecycleState A non-null lifecycle execution state
+     * @return a <code>Metadata</code> instance where the index has the provided lifecycle state
+     */
+    public Metadata withLifecycleState(final Index index, final LifecycleExecutionState lifecycleState) {
+        Objects.requireNonNull(index, "index must not be null");
+        Objects.requireNonNull(lifecycleState, "lifecycleState must not be null");
+
+        IndexMetadata indexMetadata = getIndexSafe(index);
+        if (lifecycleState.equals(indexMetadata.getLifecycleExecutionState())) {
+            return this;
+        }
+
+        // build a new index metadata with the version incremented and the new lifecycle state
+        IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata);
+        indexMetadataBuilder.version(indexMetadataBuilder.version() + 1);
+        indexMetadataBuilder.putCustom(ILM_CUSTOM_METADATA_KEY, lifecycleState.asMap());
+
+        // drop it into the indices
+        final ImmutableOpenMap.Builder<String, IndexMetadata> builder = ImmutableOpenMap.builder(indices);
+        builder.put(index.getName(), indexMetadataBuilder.build());
+
+        // construct a new Metadata object directly rather than using Metadata.builder(this).[...].build().
+        // the Metadata.Builder validation needs to handle the general case where anything at all could
+        // have changed, and hence it is expensive -- since we are changing so little about the metadata
+        // (and at a leaf in the object tree), we can bypass that validation for efficiency's sake
+        return new Metadata(
+            clusterUUID,
+            clusterUUIDCommitted,
+            version,
+            coordinationMetadata,
+            transientSettings,
+            persistentSettings,
+            settings,
+            hashesOfConsistentSettings,
+            totalNumberOfShards,
+            totalOpenIndexShards,
+            builder.build(),
             aliasedIndices,
             templates,
             customs,
@@ -696,7 +757,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
         return routing;
     }
 
-    private void rejectSingleIndexOperation(String aliasOrIndex, IndexAbstraction result) {
+    private static void rejectSingleIndexOperation(String aliasOrIndex, IndexAbstraction result) {
         String[] indexNames = new String[result.getIndices().size()];
         int i = 0;
         for (Index indexName : result.getIndices()) {
@@ -1232,7 +1293,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             return this;
         }
 
-        boolean unsetPreviousIndicesLookup(IndexMetadata previous, IndexMetadata current) {
+        static boolean unsetPreviousIndicesLookup(IndexMetadata previous, IndexMetadata current) {
             if (previous == null) {
                 return true;
             }
@@ -1618,7 +1679,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
         public Builder updateSettings(Settings settings, String... indices) {
             if (indices == null || indices.length == 0) {
-                indices = this.indices.keys().toArray(String.class);
+                indices = this.indices.keys().toArray(new String[0]);
             }
             for (String index : indices) {
                 IndexMetadata indexMetadata = this.indices.get(index);
@@ -1750,10 +1811,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
 
             var aliasedIndices = this.aliasedIndices.build();
             for (var entry : aliasedIndices.entrySet()) {
-                List<IndexMetadata> aliasIndices = entry.getValue()
-                    .stream()
-                    .map(idx -> indicesMap.get(idx.getName()))
-                    .collect(Collectors.toList());
+                List<IndexMetadata> aliasIndices = entry.getValue().stream().map(idx -> indicesMap.get(idx.getName())).toList();
                 validateAlias(entry.getKey(), aliasIndices);
             }
             final DataStreamMetadata dataStreamMetadata = (DataStreamMetadata) this.customs.get(DataStreamMetadata.TYPE);
@@ -1938,7 +1996,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                         List<String> aliases = dataStreamToAliasLookup.computeIfAbsent(name, k -> new LinkedList<>());
                         aliases.add(alias.getName());
                         return dataStreamMetadata.dataStreams().get(name);
-                    }).flatMap(ds -> ds.getIndices().stream()).collect(Collectors.toList());
+                    }).flatMap(ds -> ds.getIndices().stream()).toList();
                     Index writeIndexOfWriteDataStream = null;
                     if (alias.getWriteDataStream() != null) {
                         DataStream writeDataStream = dataStreamMetadata.dataStreams().get(alias.getWriteDataStream());
@@ -2001,7 +2059,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             List<String> writeIndices = indexMetadatas.stream()
                 .filter(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).writeIndex()))
                 .map(im -> im.getIndex().getName())
-                .collect(Collectors.toList());
+                .toList();
             if (writeIndices.size() > 1) {
                 throw new IllegalStateException(
                     "alias ["
@@ -2016,14 +2074,8 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             final Map<Boolean, List<IndexMetadata>> groupedByHiddenStatus = indexMetadatas.stream()
                 .collect(Collectors.groupingBy(idxMeta -> Boolean.TRUE.equals(idxMeta.getAliases().get(aliasName).isHidden())));
             if (isNonEmpty(groupedByHiddenStatus.get(true)) && isNonEmpty(groupedByHiddenStatus.get(false))) {
-                List<String> hiddenOn = groupedByHiddenStatus.get(true)
-                    .stream()
-                    .map(idx -> idx.getIndex().getName())
-                    .collect(Collectors.toList());
-                List<String> nonHiddenOn = groupedByHiddenStatus.get(false)
-                    .stream()
-                    .map(idx -> idx.getIndex().getName())
-                    .collect(Collectors.toList());
+                List<String> hiddenOn = groupedByHiddenStatus.get(true).stream().map(idx -> idx.getIndex().getName()).toList();
+                List<String> nonHiddenOn = groupedByHiddenStatus.get(false).stream().map(idx -> idx.getIndex().getName()).toList();
                 throw new IllegalStateException(
                     "alias ["
                         + aliasName
@@ -2046,14 +2098,14 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
                     .filter(i -> i.getCreationVersion().onOrAfter(IndexNameExpressionResolver.SYSTEM_INDEX_ENFORCEMENT_VERSION))
                     .map(i -> i.getIndex().getName())
                     .sorted() // reliable error message for testing
-                    .collect(Collectors.toList());
+                    .toList();
 
                 if (newVersionSystemIndices.isEmpty() == false) {
                     final List<String> nonSystemIndices = groupedBySystemStatus.get(false)
                         .stream()
                         .map(i -> i.getIndex().getName())
                         .sorted() // reliable error message for testing
-                        .collect(Collectors.toList());
+                        .toList();
                     throw new IllegalStateException(
                         "alias ["
                             + aliasName

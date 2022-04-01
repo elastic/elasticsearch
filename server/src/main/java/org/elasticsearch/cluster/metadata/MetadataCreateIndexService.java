@@ -162,7 +162,7 @@ public class MetadataCreateIndexService {
     /**
      * Validate the name for an index against some static rules and a cluster state.
      */
-    public void validateIndexName(String index, ClusterState state) {
+    public static void validateIndexName(String index, ClusterState state) {
         validateIndexOrAliasName(index, InvalidIndexNameException::new);
         if (index.toLowerCase(Locale.ROOT).equals(index) == false) {
             throw new InvalidIndexNameException(index, "must be lowercase");
@@ -514,7 +514,7 @@ public class MetadataCreateIndexService {
     ) throws Exception {
         logger.debug(
             "applying create index request using legacy templates {}",
-            templates.stream().map(IndexTemplateMetadata::name).collect(Collectors.toList())
+            templates.stream().map(IndexTemplateMetadata::name).toList()
         );
 
         final Map<String, Object> mappingsMap = parseV1Mappings(
@@ -527,7 +527,7 @@ public class MetadataCreateIndexService {
         if (mappingsMap.isEmpty()) {
             mappings = null;
         } else {
-            mappings = new CompressedXContent((builder, params) -> builder.mapContents(mappingsMap));
+            mappings = new CompressedXContent(mappingsMap);
         }
 
         final Settings aggregatedIndexSettings = aggregateIndexSettings(
@@ -559,7 +559,7 @@ public class MetadataCreateIndexService {
                 // shard id and the current timestamp
                 xContentRegistry,
                 indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
-                indexService.dateMathExpressionResolverAt(request.getNameResolvedAt()),
+                IndexService.dateMathExpressionResolverAt(request.getNameResolvedAt()),
                 systemIndices::isSystemName
             ),
             templates.stream().map(IndexTemplateMetadata::getName).collect(toList()),
@@ -625,7 +625,7 @@ public class MetadataCreateIndexService {
                 xContentRegistry,
                 // the context is used ony for validation so it's fine to pass fake values for the shard id and the current timestamp
                 indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
-                indexService.dateMathExpressionResolverAt(request.getNameResolvedAt()),
+                IndexService.dateMathExpressionResolverAt(request.getNameResolvedAt()),
                 systemIndices::isSystemName
             ),
             Collections.singletonList(templateName),
@@ -681,7 +681,7 @@ public class MetadataCreateIndexService {
                 // shard id and the current timestamp
                 xContentRegistry,
                 indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
-                indexService.dateMathExpressionResolverAt(request.getNameResolvedAt()),
+                IndexService.dateMathExpressionResolverAt(request.getNameResolvedAt()),
                 systemIndices::isSystemName
             ),
             List.of(),
@@ -724,7 +724,7 @@ public class MetadataCreateIndexService {
         if (requestMappings != null) {
             Map<String, Object> parsedRequestMappings = MapperService.parseMapping(xContentRegistry, requestMappings);
             if (parsedRequestMappings.isEmpty() == false) {
-                result.add(new CompressedXContent((builder, params) -> builder.mapContents(parsedRequestMappings)));
+                result.add(new CompressedXContent(parsedRequestMappings));
             }
         }
         return result;
@@ -775,7 +775,7 @@ public class MetadataCreateIndexService {
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
                 indexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
-                indexService.dateMathExpressionResolverAt(request.getNameResolvedAt()),
+                IndexService.dateMathExpressionResolverAt(request.getNameResolvedAt()),
                 systemIndices::isSystemName
             ),
             List.of(),
@@ -1214,7 +1214,7 @@ public class MetadataCreateIndexService {
         return blocksBuilder;
     }
 
-    private void updateIndexMappingsAndBuildSortOrder(
+    private static void updateIndexMappingsAndBuildSortOrder(
         IndexService indexService,
         CreateIndexClusterStateUpdateRequest request,
         List<CompressedXContent> mappings,

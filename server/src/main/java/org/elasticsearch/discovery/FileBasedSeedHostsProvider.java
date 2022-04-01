@@ -18,7 +18,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -50,7 +49,7 @@ public class FileBasedSeedHostsProvider implements SeedHostsProvider {
         if (Files.exists(unicastHostsFilePath)) {
             try (Stream<String> lines = Files.lines(unicastHostsFilePath)) {
                 return lines.filter(line -> line.startsWith("#") == false) // lines starting with `#` are comments
-                    .collect(Collectors.toList());
+                    .toList();
             } catch (IOException e) {
                 logger.warn(() -> new ParameterizedMessage("failed to read file [{}]", unicastHostsFilePath), e);
                 return Collections.emptyList();

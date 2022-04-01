@@ -27,11 +27,13 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -74,7 +76,7 @@ public class TaskManager implements ClusterStateApplier {
     private static final TimeValue WAIT_FOR_COMPLETION_POLL = timeValueMillis(100);
 
     /** Rest headers that are copied to the task */
-    private final List<String> taskHeaders;
+    private final String[] taskHeaders;
     private final ThreadPool threadPool;
 
     private final Map<Long, Task> tasks = ConcurrentCollections.newConcurrentMapWithAggressiveConcurrency();
@@ -97,7 +99,7 @@ public class TaskManager implements ClusterStateApplier {
 
     public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
         this.threadPool = threadPool;
-        this.taskHeaders = new ArrayList<>(taskHeaders);
+        this.taskHeaders = taskHeaders.toArray(Strings.EMPTY_ARRAY);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
     }
 
@@ -155,13 +157,13 @@ public class TaskManager implements ClusterStateApplier {
         if (request.getParentTask().isSet()) {
             unregisterChildNode = registerChildConnection(request.getParentTask().getId(), localConnection);
         } else {
-            unregisterChildNode = () -> {};
+            unregisterChildNode = null;
         }
         final Task task;
         try {
             task = register(type, action.actionName, request);
         } catch (TaskCancelledException e) {
-            unregisterChildNode.close();
+            Releasables.close(unregisterChildNode);
             throw e;
         }
         // NOTE: ActionListener cannot infer Response, see https://bugs.openjdk.java.net/browse/JDK-8203195
@@ -257,7 +259,10 @@ public class TaskManager implements ClusterStateApplier {
     /**
      * Register a connection on which a child task will execute on the target connection. The returned {@link Releasable} must be called
      * to unregister the child connection once the child task is completed or failed.
+     *
+     * @return Releasable that must be closed once the child task completes or {@code null} if no cancellable task for the given id exists
      */
+    @Nullable
     public Releasable registerChildConnection(long taskId, Transport.Connection childConnection) {
         assert TransportService.unwrapConnection(childConnection) == childConnection : "Child connection must be unwrapped";
         final CancellableTaskHolder holder = cancellableTasks.get(taskId);
@@ -269,7 +274,7 @@ public class TaskManager implements ClusterStateApplier {
                 holder.unregisterChildConnection(childConnection);
             });
         }
-        return () -> {};
+        return null;
     }
 
     /**
@@ -545,12 +550,11 @@ public class TaskManager implements ClusterStateApplier {
             final List<Runnable> listeners;
             synchronized (this) {
                 this.finished = true;
-                if (cancellationListeners != null) {
-                    listeners = cancellationListeners;
-                    cancellationListeners = null;
-                } else {
-                    listeners = Collections.emptyList();
+                if (cancellationListeners == null) {
+                    return;
                 }
+                listeners = cancellationListeners;
+                cancellationListeners = null;
             }
             // We need to call the listener outside of the synchronised section to avoid potential bottle necks
             // in the listener synchronization
@@ -594,12 +598,11 @@ public class TaskManager implements ClusterStateApplier {
                 if (childTasksPerConnection.addTo(node, -1) == 0) {
                     childTasksPerConnection.remove(node);
                 }
-                if (childTasksPerConnection.isEmpty() && this.childTaskCompletedListeners != null) {
-                    listeners = childTaskCompletedListeners;
-                    childTaskCompletedListeners = null;
-                } else {
-                    listeners = Collections.emptyList();
+                if (childTasksPerConnection.isEmpty() == false || this.childTaskCompletedListeners == null) {
+                    return;
                 }
+                listeners = childTaskCompletedListeners;
+                childTaskCompletedListeners = null;
             }
             notifyListeners(listeners);
         }
@@ -716,7 +719,7 @@ public class TaskManager implements ClusterStateApplier {
                 @Override
                 protected void doRun() {
                     for (CancellableTask task : tasks) {
-                        cancelTaskAndDescendants(task, "channel was closed", false, ActionListener.wrap(() -> {}));
+                        cancelTaskAndDescendants(task, "channel was closed", false, ActionListener.noop());
                     }
                 }
             });
@@ -739,6 +742,6 @@ public class TaskManager implements ClusterStateApplier {
     }
 
     public List<String> getTaskHeaders() {
-        return taskHeaders;
+        return List.of(taskHeaders);
     }
 }

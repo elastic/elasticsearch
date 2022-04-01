@@ -15,6 +15,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.node.Node;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.AbstractExecutorService;
@@ -270,9 +272,11 @@ public class EsExecutors {
 
         @Override
         public Thread newThread(Runnable r) {
-            Thread t = new Thread(group, r, namePrefix + "[T#" + threadNumber.getAndIncrement() + "]", 0);
-            t.setDaemon(true);
-            return t;
+            return AccessController.doPrivileged((PrivilegedAction<Thread>) () -> {
+                Thread t = new Thread(group, r, namePrefix + "[T#" + threadNumber.getAndIncrement() + "]", 0);
+                t.setDaemon(true);
+                return t;
+            });
         }
 
     }
@@ -351,7 +355,7 @@ public class EsExecutors {
             }
         }
 
-        private void put(ThreadPoolExecutor executor, Runnable task) {
+        private static void put(ThreadPoolExecutor executor, Runnable task) {
             final BlockingQueue<Runnable> queue = executor.getQueue();
             // force queue policy should only be used with a scaling queue
             assert queue instanceof ExecutorScalingQueue;

@@ -68,7 +68,11 @@ class S3Service implements Closeable {
     final CustomWebIdentityTokenCredentialsProvider webIdentityTokenCredentialsProvider;
 
     S3Service(Environment environment) {
-        webIdentityTokenCredentialsProvider = new CustomWebIdentityTokenCredentialsProvider(environment);
+        webIdentityTokenCredentialsProvider = new CustomWebIdentityTokenCredentialsProvider(
+            environment,
+            System::getenv,
+            System::getProperty
+        );
     }
 
     /**
@@ -282,13 +286,19 @@ class S3Service implements Closeable {
      */
     static class CustomWebIdentityTokenCredentialsProvider implements AWSCredentialsProvider {
 
+        private static final String STS_HOSTNAME = "https://sts.amazonaws.com";
+
         private STSAssumeRoleWithWebIdentitySessionCredentialsProvider credentialsProvider;
         private AWSSecurityTokenService stsClient;
 
-        CustomWebIdentityTokenCredentialsProvider(Environment environment) {
+        CustomWebIdentityTokenCredentialsProvider(
+            Environment environment,
+            SystemEnvironment systemEnvironment,
+            JvmEnvironment jvmEnvironment
+        ) {
             // Check whether the original environment variable exists. If it doesn't,
             // the system doesn't support AWS web identity tokens
-            if (System.getenv(AWS_WEB_IDENTITY_ENV_VAR) == null) {
+            if (systemEnvironment.getEnv(AWS_WEB_IDENTITY_ENV_VAR) == null) {
                 return;
             }
             // Make sure that a readable symlink to the token file exists in the plugin config directory
@@ -304,8 +314,8 @@ class S3Service implements Closeable {
             if (Files.isReadable(webIdentityTokenFileSymlink) == false) {
                 throw new IllegalStateException("Unable to read a Web Identity Token symlink in the config directory");
             }
-            String roleArn = System.getenv(AWS_ROLE_ARN_ENV_VAR);
-            String roleSessionName = System.getenv(AWS_ROLE_SESSION_NAME_ENV_VAR);
+            String roleArn = systemEnvironment.getEnv(AWS_ROLE_ARN_ENV_VAR);
+            String roleSessionName = systemEnvironment.getEnv(AWS_ROLE_SESSION_NAME_ENV_VAR);
             if (roleArn == null || roleSessionName == null) {
                 LOGGER.warn(
                     "Unable to use a web identity token for authentication. The AWS_WEB_IDENTITY_TOKEN_FILE environment "
@@ -315,11 +325,10 @@ class S3Service implements Closeable {
             }
             AWSSecurityTokenServiceClientBuilder stsClientBuilder = AWSSecurityTokenServiceClient.builder();
 
-            // Just for testing
-            String customStsEndpoint = System.getProperty("com.amazonaws.sdk.stsMetadataServiceEndpointOverride");
-            if (customStsEndpoint != null) {
-                stsClientBuilder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(customStsEndpoint, null));
-            }
+            // Custom system property used for specifying a mocked version of the STS for testing
+            String customStsEndpoint = jvmEnvironment.getProperty("com.amazonaws.sdk.stsMetadataServiceEndpointOverride", STS_HOSTNAME);
+            // Set the region explicitly via the endpoint URL, so the AWS SDK doesn't make any guesses internally.
+            stsClientBuilder.withEndpointConfiguration(new AwsClientBuilder.EndpointConfiguration(customStsEndpoint, null));
             stsClientBuilder.withCredentials(new AWSStaticCredentialsProvider(new AnonymousAWSCredentials()));
             stsClient = SocketAccess.doPrivileged(stsClientBuilder::build);
             try {
@@ -356,5 +365,15 @@ class S3Service implements Closeable {
                 IOUtils.close(credentialsProvider, () -> stsClient.shutdown());
             }
         }
+    }
+
+    @FunctionalInterface
+    interface SystemEnvironment {
+        String getEnv(String name);
+    }
+
+    @FunctionalInterface
+    interface JvmEnvironment {
+        String getProperty(String key, String defaultValue);
     }
 }

@@ -232,7 +232,7 @@ public class TextFieldMapper extends FieldMapper {
 
         final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> ((TextFieldMapper) m).similarity);
 
-        final Parameter<String> indexOptions = TextParams.indexOptions(m -> ((TextFieldMapper) m).indexOptions);
+        final Parameter<String> indexOptions = TextParams.textIndexOptions(m -> ((TextFieldMapper) m).indexOptions);
         final Parameter<Boolean> norms = TextParams.norms(true, m -> ((TextFieldMapper) m).norms);
         final Parameter<String> termVectors = TextParams.termVectors(m -> ((TextFieldMapper) m).termVectors);
 
@@ -834,7 +834,7 @@ public class TextFieldMapper extends FieldMapper {
             return createPhraseQuery(stream, field, slop, enablePositionIncrements);
         }
 
-        private int countTokens(TokenStream ts) throws IOException {
+        private static int countTokens(TokenStream ts) throws IOException {
             ts.reset();
             int count = 0;
             while (ts.incrementToken()) {

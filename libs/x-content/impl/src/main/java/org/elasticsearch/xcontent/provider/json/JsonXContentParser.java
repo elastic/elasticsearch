@@ -254,7 +254,7 @@ public class JsonXContentParser extends AbstractXContentParser {
         IOUtils.closeWhileHandlingException(parser);
     }
 
-    private NumberType convertNumberType(JsonParser.NumberType numberType) {
+    private static NumberType convertNumberType(JsonParser.NumberType numberType) {
         return switch (numberType) {
             case INT -> NumberType.INT;
             case BIG_INTEGER -> NumberType.BIG_INTEGER;
@@ -265,7 +265,7 @@ public class JsonXContentParser extends AbstractXContentParser {
         };
     }
 
-    private Token convertToken(JsonToken token) {
+    private static Token convertToken(JsonToken token) {
         if (token == null) {
             return null;
         }

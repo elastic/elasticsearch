@@ -64,12 +64,11 @@ if [ ! -z "$JAVA_HOME" ]; then
   echo "warning: ignoring JAVA_HOME=$JAVA_HOME; using $JAVA_TYPE" >&2
 fi
 
-LAUNCHER_CLASSPATH=$ES_HOME/lib/cli/*
+LAUNCHER_CLASSPATH=$ES_HOME/lib/*:$ES_HOME/lib/launcher/*
 
 exec \
     "$JAVA" \
-    $JAVA_OPTS \
-    -Des.tool="$ES_TOOLNAME" \
+    $LAUNCHER_JAVA_OPTS \
     -cp "$LAUNCHER_CLASSPATH" \
-    org.elasticsearch.cli.Launcher \
+    org.elasticsearch.launcher.Launcher \
     "${ARG_LIST[@]}" \

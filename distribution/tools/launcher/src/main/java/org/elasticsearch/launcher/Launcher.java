@@ -6,7 +6,10 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.cli;
+package org.elasticsearch.launcher;
+
+import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.ToolProvider;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
@@ -33,16 +36,17 @@ class Launcher {
 
     // TODO: don't throw, catch this and give a nice error message
     public static void main(String[] args) throws Exception {
-        String toolname = System.getProperty("es.tool");
         Path homeDir = Paths.get("").toAbsolutePath();
+        String toolname = System.getenv("LAUNCHER_TOOLNAME");
+        String libs = System.getenv("LAUNCHER_LIBS");
 
         System.out.println("Running ES cli");
         System.out.println("ES_HOME=" + homeDir);
         System.out.println("tool: " + toolname);
+        System.out.println("libs: " + libs);
 
         Path libDir = homeDir.resolve("lib");
-        ClassLoader serverLoader = loadJars(libDir, ClassLoader.getSystemClassLoader());
-        ClassLoader cliLoader = loadJars(libDir.resolve("cli").resolve(toolname), serverLoader);
+        ClassLoader cliLoader = loadJars(libDir.resolve("tools").resolve(toolname), ClassLoader.getSystemClassLoader());
         ServiceLoader<ToolProvider> toolProvider = ServiceLoader.load(ToolProvider.class, cliLoader);
         ToolProvider tool = toolProvider.findFirst().orElseThrow();
         System.exit(tool.main(args, Terminal.DEFAULT));

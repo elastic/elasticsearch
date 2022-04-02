@@ -5,31 +5,18 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.java'
+apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.publish'
 
 dependencies {
   api 'net.sf.jopt-simple:jopt-simple:5.0.2'
   api project(':libs:elasticsearch-core')
 }
 
-sourceSets {
-  unsupportedJdkVersionEntrypoint
-}
+tasks.named("test").configure { enabled = false }
+// Since CLI does not depend on :server, it cannot run the jarHell task
+tasks.named("jarHell").configure { enabled = false }
 
-tasks.named('compileUnsupportedJdkVersionEntrypointJava').configure {
-  targetCompatibility = JavaVersion.VERSION_1_7
-}
-
-tasks.named("jar") {
-  manifest {
-    attributes("Multi-Release": "true")
-  }
-
-  from(sourceSets.unsupportedJdkVersionEntrypoint.output)
-  eachFile { details ->
-    if (details.path.equals("org/elasticsearch/cli/Launcher.class") &&
-      sourceSets.main.output.asFileTree.contains(details.file)) {
-      details.relativePath = details.relativePath.prepend("META-INF/versions/17")
-    }
-  }
+tasks.named('forbiddenApisMain').configure {
+  replaceSignatureFiles 'jdk-signatures'
 }

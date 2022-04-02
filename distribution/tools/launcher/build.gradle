@@ -1,6 +1,10 @@
 
 apply plugin: 'elasticsearch.java'
 
+dependencies {
+  compileOnly project(':server')
+}
+
 sourceSets {
   unsupportedJdkVersionEntrypoint
 }

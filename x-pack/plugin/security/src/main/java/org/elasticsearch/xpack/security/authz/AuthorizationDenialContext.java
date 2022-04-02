@@ -12,6 +12,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
+import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 
@@ -20,36 +22,68 @@ import java.util.Collection;
 import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
 import static org.elasticsearch.xpack.security.authz.AuthorizationService.isIndexAction;
 
-class AuthorizationDenialMessageFactory {
-
-    record AuthorizationDenialContext(AuthorizationDenialType type, @Nullable String additionalMessage) {
-        AuthorizationDenialContext(AuthorizationDenialType type) {
-            this(type, null);
-        }
+record AuthorizationDenialContext(
+    AuthorizationDenialType type,
+    Authentication authentication,
+    String action,
+    TransportRequest request,
+    @Nullable String additionalFailureDescription
+) {
+    private enum AuthorizationDenialType {
+        ACTION_DENIED,
+        RUN_AS_DENIED
     }
 
-    enum AuthorizationDenialType {
-        ACTION,
-        RUN_AS,
-        REQUIRES_OPERATOR_PRIVILEGES,
+    static AuthorizationDenialContext runAsDenied(Authentication authentication, String action, TransportRequest request) {
+        return new AuthorizationDenialContext(AuthorizationDenialType.RUN_AS_DENIED, authentication, action, request, null);
     }
 
-    private AuthorizationDenialMessageFactory() {}
+    static AuthorizationDenialContext requiresOperatorPrivileges(Authentication authentication, String action, TransportRequest request) {
+        return actionDenied(authentication, action, request, "because it requires operator privileges");
+    }
 
-    static String denialMessage(
+    static AuthorizationDenialContext bulkActionDenied(
         Authentication authentication,
         String action,
         TransportRequest request,
-        AuthorizationDenialContext context
+        Collection<String> deniedIndices,
+        RestrictedIndices restrictedNames
     ) {
-        return switch (context.type) {
-            case ACTION -> actionDenied(authentication, action, request, context.additionalMessage);
-            case REQUIRES_OPERATOR_PRIVILEGES -> actionDenied(authentication, action, request, "because it requires operator privileges");
-            case RUN_AS -> runAsDenied(authentication);
+        return actionDenied(
+            authentication,
+            action,
+            request,
+            AuthorizationEngine.IndexAuthorizationResult.getFailureDescription(deniedIndices, restrictedNames)
+        );
+    }
+
+    static AuthorizationDenialContext actionDenied(
+        Authentication authentication,
+        String action,
+        TransportRequest request,
+        String additionalFailureDescription
+    ) {
+        return new AuthorizationDenialContext(
+            AuthorizationDenialType.ACTION_DENIED,
+            authentication,
+            action,
+            request,
+            additionalFailureDescription
+        );
+    }
+
+    static AuthorizationDenialContext actionDenied(Authentication authentication, String action, TransportRequest request) {
+        return actionDenied(authentication, action, request, null);
+    }
+
+    String toErrorMessage() {
+        return switch (type) {
+            case ACTION_DENIED -> actionDeniedMessage(authentication, action, request, additionalFailureDescription);
+            case RUN_AS_DENIED -> runAsDenied(authentication);
         };
     }
 
-    private static String actionDenied(
+    private static String actionDeniedMessage(
         Authentication authentication,
         String action,
         TransportRequest request,
@@ -95,7 +129,7 @@ class AuthorizationDenialMessageFactory {
     }
 
     private static String runAsDenied(Authentication authentication) {
-        assert authentication.getUser().isRunAs() : "run as denial additionalMessage must be for run-as user";
+        assert authentication.getUser().isRunAs() : "";
 
         String userText = authenticatedUserText(authentication);
 
@@ -116,4 +150,5 @@ class AuthorizationDenialMessageFactory {
         }
         return userText;
     }
+
 }

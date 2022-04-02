@@ -325,12 +325,7 @@ public class AuthorizationService {
         );
         if (operatorException != null) {
             throw denialException(
-                authentication,
-                action,
-                originalRequest,
-                new AuthorizationDenialMessageFactory.AuthorizationDenialContext(
-                    AuthorizationDenialMessageFactory.AuthorizationDenialType.REQUIRES_OPERATOR_PRIVILEGES
-                ),
+                AuthorizationDenialContext.requiresOperatorPrivileges(authentication, action, originalRequest),
                 operatorException
             );
         }
@@ -371,17 +366,7 @@ public class AuthorizationService {
                             authzInfo.getAuthenticatedUserAuthorizationInfo()
                         );
                     }
-                    listener.onFailure(
-                        denialException(
-                            authentication,
-                            action,
-                            request,
-                            new AuthorizationDenialMessageFactory.AuthorizationDenialContext(
-                                AuthorizationDenialMessageFactory.AuthorizationDenialType.RUN_AS
-                            ),
-                            null
-                        )
-                    );
+                    listener.onFailure(denialException(AuthorizationDenialContext.runAsDenied(authentication, action, request), null));
                 }
             }, e -> {
                 auditTrail.runAsDenied(requestId, authentication, action, request, authzInfo.getAuthenticatedUserAuthorizationInfo());
@@ -790,10 +775,10 @@ public class AuthorizationService {
                             item.abort(
                                 resolvedIndex,
                                 denialException(
-                                    authentication,
-                                    itemAction,
-                                    request,
-                                    AuthorizationEngine.IndexAuthorizationResult.getFailureDescription(
+                                    AuthorizationDenialContext.bulkActionDenied(
+                                        authentication,
+                                        itemAction,
+                                        request,
                                         List.of(resolvedIndex),
                                         restrictedIndices
                                     ),
@@ -875,15 +860,7 @@ public class AuthorizationService {
         TransportRequest request,
         Exception cause
     ) {
-        return denialException(
-            authentication,
-            action,
-            request,
-            new AuthorizationDenialMessageFactory.AuthorizationDenialContext(
-                AuthorizationDenialMessageFactory.AuthorizationDenialType.ACTION
-            ),
-            cause
-        );
+        return denialException(AuthorizationDenialContext.actionDenied(authentication, action, request), cause);
     }
 
     private ElasticsearchSecurityException denialException(
@@ -893,33 +870,19 @@ public class AuthorizationService {
         @Nullable String context,
         Exception cause
     ) {
-        return denialException(
-            authentication,
-            action,
-            request,
-            new AuthorizationDenialMessageFactory.AuthorizationDenialContext(
-                AuthorizationDenialMessageFactory.AuthorizationDenialType.ACTION,
-                context
-            ),
-            cause
-        );
+        return denialException(AuthorizationDenialContext.actionDenied(authentication, action, request, context), cause);
     }
 
-    private ElasticsearchSecurityException denialException(
-        Authentication authentication,
-        String action,
-        TransportRequest request,
-        AuthorizationDenialMessageFactory.AuthorizationDenialContext context,
-        Exception cause
-    ) {
+    // Pass in message or include auth, action, etc in context?
+    private ElasticsearchSecurityException denialException(AuthorizationDenialContext context, Exception cause) {
         // Special case for anonymous user
         if (isAnonymousEnabled
-            && anonymousUser.equals(authentication.getUser().authenticatedUser())
+            && anonymousUser.equals(context.authentication().getUser().authenticatedUser())
             && anonymousAuthzExceptionEnabled == false) {
-            return authcFailureHandler.authenticationRequired(action, threadContext);
+            return authcFailureHandler.authenticationRequired(context.action(), threadContext);
         }
 
-        final String message = AuthorizationDenialMessageFactory.denialMessage(authentication, action, request, context);
+        final String message = context.toErrorMessage();
         logger.debug(message);
         return authorizationError(message, cause);
     }

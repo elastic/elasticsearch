@@ -21,11 +21,11 @@ import java.util.Collections;
 /**
  * A cli tool for adding, removing and listing plugins for elasticsearch.
  */
-public class PluginCli extends LoggingAwareMultiCommand implements ToolProvider {
+class PluginCli extends LoggingAwareMultiCommand {
 
     private final Collection<Command> commands;
 
-    public PluginCli() {
+    PluginCli() {
         super("A tool for managing installed elasticsearch plugins");
         subcommands.put("list", new ListPluginsCommand());
         subcommands.put("install", new InstallPluginCommand());

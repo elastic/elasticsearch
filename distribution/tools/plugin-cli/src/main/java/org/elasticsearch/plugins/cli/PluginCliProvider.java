@@ -6,13 +6,20 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.cli;
+package org.elasticsearch.plugins.cli;
 
-public interface ToolProvider {
+import org.elasticsearch.cli.Command;
+import org.elasticsearch.cli.ToolProvider;
 
-    // TODO: merge launcher and cli lib, move to subdir in distro, make compileOnly dep in server
-    String name();
+public class PluginCliProvider implements ToolProvider {
 
-    // TODO: this is temporary
-    Command create();
+    @Override
+    public String name() {
+        return "plugin";
+    }
+
+    @Override
+    public Command create() {
+        return new PluginCli();
+    }
 }

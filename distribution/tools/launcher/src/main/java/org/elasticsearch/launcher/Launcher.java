@@ -8,6 +8,7 @@
 
 package org.elasticsearch.launcher;
 
+import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.ToolProvider;
 
@@ -18,10 +19,14 @@ import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 import java.util.ServiceLoader;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
+import java.util.stream.StreamSupport;
 
 class Launcher {
 
@@ -44,19 +49,26 @@ class Launcher {
         System.out.println("ES_HOME=" + homeDir);
         System.out.println("tool: " + toolname);
         System.out.println("libs: " + libs);
+        System.out.println("args: " + Arrays.asList(args));
 
-        Path libDir = homeDir.resolve("lib");
-        ClassLoader cliLoader = loadJars(libDir.resolve("tools").resolve(toolname), ClassLoader.getSystemClassLoader());
-        ServiceLoader<ToolProvider> toolProvider = ServiceLoader.load(ToolProvider.class, cliLoader);
-        ToolProvider tool = toolProvider.findFirst().orElseThrow();
-        System.exit(tool.main(args, Terminal.DEFAULT));
+        List<Path> libsToLoad = Stream.of(libs.split(",")).map(homeDir::resolve).toList();
+
+        ClassLoader cliLoader = loadJars(libsToLoad);
+        ServiceLoader<ToolProvider> toolFinder = ServiceLoader.load(ToolProvider.class, cliLoader);
+        ToolProvider tool = StreamSupport.stream(toolFinder.spliterator(), false)
+            .filter(p -> p.name().equals(toolname))
+            .findFirst().orElseThrow();
+        Command toolCommand = tool.create();
+        System.exit(toolCommand.main(args, Terminal.DEFAULT));
     }
 
-    private static ClassLoader loadJars(Path dir, ClassLoader parent) throws IOException {
-        final URL[] urls;
-        try (Stream<Path> jarFiles = Files.list(dir)) {
-            urls = jarFiles.filter(JAR_PREDICATE).map(MAP_PATH_TO_URL).toArray(URL[]::new);
+    private static ClassLoader loadJars(List<Path> dirs) throws IOException {
+        final List<URL> urls = new ArrayList<>();
+        for (var dir : dirs) {
+            try (Stream<Path> jarFiles = Files.list(dir)) {
+                jarFiles.filter(JAR_PREDICATE).map(MAP_PATH_TO_URL).forEach(urls::add);
+            }
         }
-        return URLClassLoader.newInstance(urls, parent);
+        return URLClassLoader.newInstance(urls.toArray(URL[]::new));
     }
 }

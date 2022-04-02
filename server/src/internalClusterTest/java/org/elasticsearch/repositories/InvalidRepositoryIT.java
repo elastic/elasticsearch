@@ -87,6 +87,7 @@ public class InvalidRepositoryIT extends ESIntegTestCase {
     }
 
     public void testCreateInvalidRepository() throws Exception {
+        internalCluster().ensureAtLeastNumDataNodes(2);
         final String repositoryName = "test-duplicate-create-repo";
 
         // put repository for the first time: only let master node create repository successfully

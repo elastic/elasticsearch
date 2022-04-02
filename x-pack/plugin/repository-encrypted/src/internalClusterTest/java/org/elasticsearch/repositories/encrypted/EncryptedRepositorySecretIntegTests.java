@@ -422,13 +422,7 @@ public final class EncryptedRepositorySecretIntegTests extends ESIntegTestCase {
                 .stream()
                 .allMatch(
                     shardFailure -> shardFailure.reason()
-                        .contains(
-                            "RepositoryException[["
-                                + repositoryName
-                                + "] failed to create repository]; nested: IllegalArgumentException[Secure setting [repository.encrypted."
-                                + repositoryName
-                                + ".password] must be set]"
-                        )
+                        .contains("Secure setting [repository.encrypted." + repositoryName + ".password] must be set")
                 )
         );
         assertThat(

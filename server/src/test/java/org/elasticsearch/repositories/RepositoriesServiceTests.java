@@ -281,7 +281,7 @@ public class RepositoriesServiceTests extends ESTestCase {
 
             @Override
             public void onFailure(Exception e) {
-                fail("[" + repoName + "] repository type [test] faield to create");
+                assert false : e;
             }
         });
     }

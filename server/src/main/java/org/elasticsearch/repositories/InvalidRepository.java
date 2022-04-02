@@ -29,8 +29,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
- * This class represents a repository that failed during creation.
- * This could happen when repository plugin is not stable enough to guarantee repository creation success all the time
+ * Represents a repository that exists in the cluster state but could not be instantiated on a node, typically due to invalid configuration.
  */
 public class InvalidRepository extends AbstractLifecycleComponent implements Repository {
 

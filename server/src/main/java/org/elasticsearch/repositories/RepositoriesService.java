@@ -526,10 +526,9 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                         repository = new InvalidRepository(repositoryMetadata, ex);
                     }
                 }
-                if (repository != null) {
-                    logger.debug("registering repository [{}]", repositoryMetadata.name());
-                    builder.put(repositoryMetadata.name(), repository);
-                }
+                assert repository != null : "repository should not be null here";
+                logger.debug("registering repository [{}]", repositoryMetadata.name());
+                builder.put(repositoryMetadata.name(), repository);
             }
             for (Repository repo : builder.values()) {
                 repo.updateState(state);

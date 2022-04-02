@@ -12,7 +12,6 @@ import org.elasticsearch.action.admin.cluster.repositories.get.GetRepositoriesRe
 import org.elasticsearch.action.admin.cluster.repositories.verify.VerifyRepositoryResponse;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -88,38 +87,44 @@ public class RepositoriesDuplicatedCreationIT extends ESIntegTestCase {
         }
     }
 
-    public void testDuplicateCreateRepository() throws Exception {
+    public void testCreateInvalidRepository() throws Exception {
         final String repositoryName = "test-duplicate-create-repo";
-        String unstableNode = Strings.arrayToCommaDelimitedString(
-            Arrays.stream(internalCluster().getNodeNames())
-                .filter(name -> name.equals(internalCluster().getMasterName()) == false)
-                .toArray()
-        );
 
         // put repository for the first time: only let master node create repository successfully
         createRepository(
             repositoryName,
             UnstableRepository.TYPE,
-            Settings.builder().put("location", randomRepoPath()).put(UnstableRepository.UNSTABLE_NODES.getKey(), unstableNode)
+            Settings.builder()
+                .put("location", randomRepoPath())
+                .putList(
+                    UnstableRepository.UNSTABLE_NODES.getKey(),
+                    Arrays.stream(internalCluster().getNodeNames())
+                        .filter(name -> name.equals(internalCluster().getMasterName()) == false)
+                        .toList()
+                )
         );
         // verification should fail with some node has InvalidRepository
+        boolean verifyPass = false;
         try {
             client().admin().cluster().prepareVerifyRepository(repositoryName).get();
-            fail("verification should fail when some node failed to create repository");
+            verifyPass = true;
         } catch (Exception e) {
             assertThat(e, isA(RepositoryVerificationException.class));
-            assertEquals(e.getSuppressed().length, 2);
-            assertThatException(
-                e.getSuppressed()[0].getCause(),
-                RepositoryException.class,
-                equalTo("[" + repositoryName + "] repository type [" + UnstableRepository.TYPE + "] failed to create on current node")
-            );
-            assertThatException(
-                e.getSuppressed()[1].getCause(),
-                RepositoryException.class,
-                equalTo("[" + repositoryName + "] repository type [" + UnstableRepository.TYPE + "] failed to create on current node")
-            );
+            assertEquals(e.getSuppressed().length, internalCluster().numDataAndMasterNodes() - 1);
+            for (Throwable suppressed : e.getSuppressed()) {
+                assertThatException(
+                    suppressed.getCause(),
+                    RepositoryException.class,
+                    equalTo("[" + repositoryName + "] repository type [" + UnstableRepository.TYPE + "] failed to create on current node")
+                );
+                assertThatException(
+                    suppressed.getCause().getCause().getCause(),
+                    RepositoryException.class,
+                    equalTo("[" + repositoryName + "] Failed to create repository: current node is not stable")
+                );
+            }
         }
+        assertFalse("verification should fail when some node failed to create repository", verifyPass);
 
         // restart master
         internalCluster().restartNode(internalCluster().getMasterName());

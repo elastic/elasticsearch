@@ -35,8 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.isA;
 
-@ESIntegTestCase.ClusterScope(supportsDedicatedMasters = false, numDataNodes = 3)
-public class RepositoriesDuplicatedCreationIT extends ESIntegTestCase {
+public class InvalidRepositoryIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singletonList(UnstableRepository.Plugin.class);
@@ -134,7 +133,7 @@ public class RepositoriesDuplicatedCreationIT extends ESIntegTestCase {
         createRepository(repositoryName, UnstableRepository.TYPE, Settings.builder().put("location", randomRepoPath()));
         // verification should succeed with all node create repository successfully
         VerifyRepositoryResponse verifyRepositoryResponse = client().admin().cluster().prepareVerifyRepository(repositoryName).get();
-        assertEquals(verifyRepositoryResponse.getNodes().size(), 3);
+        assertEquals(verifyRepositoryResponse.getNodes().size(), internalCluster().numDataAndMasterNodes());
 
     }
 

@@ -98,7 +98,7 @@ class JvmOption {
             Stream.of("-Xshare:off"),
             Stream.of("-XX:+PrintFlagsFinal"),
             Stream.of("-version")
-        ).reduce(Stream::concat).get().collect(Collectors.toUnmodifiableList());
+        ).reduce(Stream::concat).get().toList();
         final Process process = new ProcessBuilder().command(command).start();
         final List<String> output = readLinesFromInputStream(process.getInputStream());
         final List<String> error = readLinesFromInputStream(process.getErrorStream());
@@ -119,7 +119,7 @@ class JvmOption {
 
     private static List<String> readLinesFromInputStream(final InputStream is) throws IOException {
         try (InputStreamReader isr = new InputStreamReader(is, StandardCharsets.UTF_8); BufferedReader br = new BufferedReader(isr)) {
-            return br.lines().collect(Collectors.toUnmodifiableList());
+            return br.lines().toList();
         }
     }
 }

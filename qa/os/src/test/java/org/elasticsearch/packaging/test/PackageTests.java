@@ -63,19 +63,19 @@ public class PackageTests extends PackagingTestCase {
     }
 
     public void test20PluginsCommandWhenNoPlugins() {
-        assertThat(sh.run(installation.bin("elasticsearch-plugin") + " list").stdout, is(emptyString()));
+        assertThat(sh.run(installation.bin("elasticsearch-plugin") + " list").stdout(), is(emptyString()));
     }
 
     public void test30DaemonIsNotEnabledOnRestart() {
         if (isSystemd()) {
             sh.run("systemctl daemon-reload");
-            String isEnabledOutput = sh.runIgnoreExitCode("systemctl is-enabled elasticsearch.service").stdout.trim();
+            String isEnabledOutput = sh.runIgnoreExitCode("systemctl is-enabled elasticsearch.service").stdout().trim();
             assertThat(isEnabledOutput, equalTo("disabled"));
         }
     }
 
     public void test31InstallDoesNotStartServer() {
-        assertThat(sh.run("ps aux").stdout, not(containsString("org.elasticsearch.bootstrap.Elasticsearch")));
+        assertThat(sh.run("ps aux").stdout(), not(containsString("org.elasticsearch.bootstrap.Elasticsearch")));
     }
 
     private void assertRunsWithJavaHome() throws Exception {
@@ -131,12 +131,12 @@ public class PackageTests extends PackagingTestCase {
     }
 
     public void test40StartServer() throws Exception {
-        String start = sh.runIgnoreExitCode("date ").stdout.trim();
+        String start = sh.runIgnoreExitCode("date ").stdout().trim();
         startElasticsearch();
 
         String journalEntries = sh.runIgnoreExitCode(
             "journalctl _SYSTEMD_UNIT=elasticsearch.service " + "--since \"" + start + "\" --output cat | wc -l"
-        ).stdout.trim();
+        ).stdout().trim();
         assertThat(journalEntries, equalTo("0"));
 
         assertPathsExist(installation.pidDir.resolve("elasticsearch.pid"));
@@ -166,7 +166,7 @@ public class PackageTests extends PackagingTestCase {
         remove(distribution());
 
         // removing must stop the service
-        assertThat(sh.run("ps aux").stdout, not(containsString("org.elasticsearch.bootstrap.Elasticsearch")));
+        assertThat(sh.run("ps aux").stdout(), not(containsString("org.elasticsearch.bootstrap.Elasticsearch")));
 
         if (isSystemd()) {
 
@@ -186,15 +186,15 @@ public class PackageTests extends PackagingTestCase {
             } else {
 
                 final Result versionResult = sh.run("systemctl --version");
-                final Matcher matcher = Pattern.compile("^systemd (\\d+)").matcher(versionResult.stdout);
+                final Matcher matcher = Pattern.compile("^systemd (\\d+)").matcher(versionResult.stdout());
                 matcher.find();
                 final int version = Integer.parseInt(matcher.group(1));
 
                 statusExitCode = version < 231 ? 3 : 4;
             }
 
-            assertThat(sh.runIgnoreExitCode("systemctl status elasticsearch.service").exitCode, is(statusExitCode));
-            assertThat(sh.runIgnoreExitCode("systemctl is-enabled elasticsearch.service").exitCode, is(1));
+            assertThat(sh.runIgnoreExitCode("systemctl status elasticsearch.service").exitCode(), is(statusExitCode));
+            assertThat(sh.runIgnoreExitCode("systemctl is-enabled elasticsearch.service").exitCode(), is(1));
 
         }
 
@@ -258,7 +258,7 @@ public class PackageTests extends PackagingTestCase {
                 assertThat(nodesStatsResponse, containsString("\"adjusted_total_in_bytes\":891289600"));
 
                 // 40% of 850MB
-                assertThat(sh.run("ps auwwx").stdout, containsString("-Xms340m -Xmx340m"));
+                assertThat(sh.run("ps auwwx").stdout(), containsString("-Xms340m -Xmx340m"));
 
                 stopElasticsearch();
             });
@@ -358,16 +358,16 @@ public class PackageTests extends PackagingTestCase {
         final Path pidFile = installation.pidDir.resolve("elasticsearch.pid");
         assertThat(pidFile, fileExists());
         String pid = slurp(pidFile).trim();
-        String maxFileSize = sh.run("cat /proc/%s/limits | grep \"Max file size\" | awk '{ print $4 }'", pid).stdout.trim();
+        String maxFileSize = sh.run("cat /proc/%s/limits | grep \"Max file size\" | awk '{ print $4 }'", pid).stdout().trim();
         assertThat(maxFileSize, equalTo("unlimited"));
 
-        String maxProcesses = sh.run("cat /proc/%s/limits | grep \"Max processes\" | awk '{ print $3 }'", pid).stdout.trim();
+        String maxProcesses = sh.run("cat /proc/%s/limits | grep \"Max processes\" | awk '{ print $3 }'", pid).stdout().trim();
         assertThat(maxProcesses, equalTo("4096"));
 
-        String maxOpenFiles = sh.run("cat /proc/%s/limits | grep \"Max open files\" | awk '{ print $4 }'", pid).stdout.trim();
+        String maxOpenFiles = sh.run("cat /proc/%s/limits | grep \"Max open files\" | awk '{ print $4 }'", pid).stdout().trim();
         assertThat(maxOpenFiles, equalTo("65535"));
 
-        String maxAddressSpace = sh.run("cat /proc/%s/limits | grep \"Max address space\" | awk '{ print $4 }'", pid).stdout.trim();
+        String maxAddressSpace = sh.run("cat /proc/%s/limits | grep \"Max address space\" | awk '{ print $4 }'", pid).stdout().trim();
         assertThat(maxAddressSpace, equalTo("unlimited"));
 
         stopElasticsearch();
@@ -389,7 +389,7 @@ public class PackageTests extends PackagingTestCase {
 
             assertBusy(() -> {
                 final Result logs = journald.getLogs();
-                assertThat(logs.stdout, containsString("Failed to load settings from [elasticsearch.yml]"));
+                assertThat(logs.stdout(), containsString("Failed to load settings from [elasticsearch.yml]"));
             });
         });
     }

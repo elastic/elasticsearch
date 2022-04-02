@@ -360,7 +360,7 @@ public class RangeIT extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(2L));
         Sum sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
-        assertThat(sum.getValue(), equalTo(3.0)); // 1 + 2
+        assertThat(sum.value(), equalTo(3.0)); // 1 + 2
         assertThat(propertiesKeys[0], equalTo("*-3.0"));
         assertThat(propertiesDocCounts[0], equalTo(2L));
         assertThat(propertiesCounts[0], equalTo(3.0));
@@ -375,7 +375,7 @@ public class RangeIT extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(3L));
         sum = bucket.getAggregations().get("sum");
         assertThat(sum, notNullValue());
-        assertThat(sum.getValue(), equalTo(12.0)); // 3 + 4 + 5
+        assertThat(sum.value(), equalTo(12.0)); // 3 + 4 + 5
         assertThat(propertiesKeys[1], equalTo("3.0-6.0"));
         assertThat(propertiesDocCounts[1], equalTo(3L));
         assertThat(propertiesCounts[1], equalTo(12.0));
@@ -394,7 +394,7 @@ public class RangeIT extends ESIntegTestCase {
         for (int i = 5; i < numDocs; ++i) {
             total += i + 1;
         }
-        assertThat(sum.getValue(), equalTo((double) total));
+        assertThat(sum.value(), equalTo((double) total));
         assertThat(propertiesKeys[2], equalTo("6.0-*"));
         assertThat(propertiesDocCounts[2], equalTo(numDocs - 5L));
         assertThat(propertiesCounts[2], equalTo((double) total));

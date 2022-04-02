@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
+import static org.hamcrest.Matchers.equalTo;
 
 public class InternalSettingsPreparerTests extends ESTestCase {
     private static final Supplier<String> DEFAULT_NODE_NAME_SHOULDNT_BE_CALLED = () -> { throw new AssertionError("shouldn't be called"); };
@@ -49,27 +50,21 @@ public class InternalSettingsPreparerTests extends ESTestCase {
     }
 
     public void testEmptySettings() {
-        Settings settings = InternalSettingsPreparer.prepareSettings(Settings.EMPTY);
-        assertNull(settings.get("node.name"));
-        assertNotNull(settings.get(ClusterName.CLUSTER_NAME_SETTING.getKey())); // a cluster name was set
-        int size = settings.names().size();
-
         String defaultNodeName = randomAlphaOfLength(8);
         Environment env = InternalSettingsPreparer.prepareEnvironment(baseEnvSettings, emptyMap(), null, () -> defaultNodeName);
-        settings = env.settings();
+        Settings settings = env.settings();
         assertEquals(defaultNodeName, settings.get("node.name"));
         assertNotNull(settings.get(ClusterName.CLUSTER_NAME_SETTING.getKey())); // a cluster name was set
-        assertEquals(settings.toString(), size + 1 /* path.home is in the base settings */, settings.names().size());
         String home = Environment.PATH_HOME_SETTING.get(baseEnvSettings);
         String configDir = env.configFile().toString();
         assertTrue(configDir, configDir.startsWith(home));
+        assertEquals("elasticsearch", settings.get("cluster.name"));
     }
 
-    public void testDefaultClusterName() {
-        Settings settings = InternalSettingsPreparer.prepareSettings(Settings.EMPTY);
-        assertEquals("elasticsearch", settings.get("cluster.name"));
-        settings = InternalSettingsPreparer.prepareSettings(Settings.builder().put("cluster.name", "foobar").build());
-        assertEquals("foobar", settings.get("cluster.name"));
+    public void testExplicitClusterName() {
+        Settings.Builder output = Settings.builder();
+        InternalSettingsPreparer.finalizeSettings(output.put("cluster.name", "foobar"), () -> "nodename");
+        assertEquals("foobar", output.build().get("cluster.name"));
     }
 
     public void testGarbageIsNotSwallowed() throws IOException {
@@ -90,40 +85,6 @@ public class InternalSettingsPreparerTests extends ESTestCase {
         }
     }
 
-    public void testYamlNotAllowed() throws IOException {
-        InputStream yaml = getClass().getResourceAsStream("/config/elasticsearch.yml");
-        Path config = homeDir.resolve("config");
-        Files.createDirectory(config);
-        Files.copy(yaml, config.resolve("elasticsearch.yaml"));
-        SettingsException e = expectThrows(
-            SettingsException.class,
-            () -> InternalSettingsPreparer.prepareEnvironment(
-                Settings.builder().put(baseEnvSettings).build(),
-                emptyMap(),
-                null,
-                DEFAULT_NODE_NAME_SHOULDNT_BE_CALLED
-            )
-        );
-        assertEquals("elasticsearch.yaml was deprecated in 5.5.0 and must be renamed to elasticsearch.yml", e.getMessage());
-    }
-
-    public void testJsonNotAllowed() throws IOException {
-        InputStream yaml = getClass().getResourceAsStream("/config/elasticsearch.json");
-        Path config = homeDir.resolve("config");
-        Files.createDirectory(config);
-        Files.copy(yaml, config.resolve("elasticsearch.json"));
-        SettingsException e = expectThrows(
-            SettingsException.class,
-            () -> InternalSettingsPreparer.prepareEnvironment(
-                Settings.builder().put(baseEnvSettings).build(),
-                emptyMap(),
-                null,
-                DEFAULT_NODE_NAME_SHOULDNT_BE_CALLED
-            )
-        );
-        assertEquals("elasticsearch.json was deprecated in 5.5.0 and must be converted to elasticsearch.yml", e.getMessage());
-    }
-
     public void testSecureSettings() {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("foo", "secret");
@@ -140,4 +101,87 @@ public class InternalSettingsPreparerTests extends ESTestCase {
         assertNull(env.settings().get("setting"));
     }
 
+    private Path copyConfig(String resourceName) throws IOException {
+        InputStream yaml = getClass().getResourceAsStream(resourceName);
+        Path configDir = homeDir.resolve("config");
+        Files.createDirectory(configDir);
+        Path configFile = configDir.resolve("elasticsearch.yaml");
+        Files.copy(yaml, configFile);
+        return configFile;
+    }
+
+    private Settings loadConfigWithSubstitutions(Path configFile, Map<String, String> env) throws IOException {
+        Settings.Builder output = Settings.builder();
+        InternalSettingsPreparer.loadConfigWithSubstitutions(output, configFile, env::get);
+        return output.build();
+    }
+
+    public void testSubstitutionEntireLine() throws Exception {
+        Path config = copyConfig("subst-entire-line.yml");
+        Settings settings = loadConfigWithSubstitutions(config, Map.of("mysubst", "foo: bar"));
+        assertThat(settings.get("foo"), equalTo("bar"));
+    }
+
+    public void testSubstitutionFirstLine() throws Exception {
+        Path config = copyConfig("subst-first-line.yml");
+        Settings settings = loadConfigWithSubstitutions(config, Map.of("mysubst", "v1"));
+        assertThat(settings.get("foo"), equalTo("v1"));
+        assertThat(settings.get("bar"), equalTo("v2"));
+        assertThat(settings.get("baz"), equalTo("v3"));
+    }
+
+    public void testSubstitutionLastLine() throws Exception {
+        Path config = copyConfig("subst-last-line.yml");
+        Settings settings = loadConfigWithSubstitutions(config, Map.of("mysubst", "kazaam"));
+        assertThat(settings.get("foo.bar.baz"), equalTo("kazaam"));
+    }
+
+    public void testSubstitutionMultiple() throws Exception {
+        Path config = copyConfig("subst-multiple.yml");
+        Settings settings = loadConfigWithSubstitutions(config, Map.of("s1", "substituted", "s2", "line"));
+        assertThat(settings.get("foo"), equalTo("substituted line value"));
+    }
+
+    public void testSubstitutionMissingLenient() throws Exception {
+        Path config = copyConfig("subst-missing.yml");
+        Settings settings = loadConfigWithSubstitutions(config, Map.of());
+        assertThat(settings.get("foo"), equalTo("${dne}"));
+    }
+
+    public void testSubstitutionBrokenLenient() throws Exception {
+        Path config = copyConfig("subst-broken.yml");
+        Settings settings = loadConfigWithSubstitutions(config, Map.of("goodsubst", "replaced"));
+        assertThat(settings.get("foo"), equalTo("${no closing brace"));
+        assertThat(settings.get("bar"), equalTo("replaced"));
+    }
+
+    public void testOverridesOverride() throws Exception {
+        Settings.Builder output = Settings.builder().put("foo", "bar");
+        InternalSettingsPreparer.loadOverrides(output, Map.of("foo", "baz"));
+        Settings settings = output.build();
+        assertThat(settings.get("foo"), equalTo("baz"));
+    }
+
+    public void testOverridesEmpty() throws Exception {
+        Settings.Builder output = Settings.builder().put("foo", "bar");
+        InternalSettingsPreparer.loadOverrides(output, Map.of());
+        Settings settings = output.build();
+        assertThat(settings.get("foo"), equalTo("bar"));
+    }
+
+    public void testOverridesNew() throws Exception {
+        Settings.Builder output = Settings.builder().put("foo", "bar");
+        InternalSettingsPreparer.loadOverrides(output, Map.of("baz", "wat"));
+        Settings settings = output.build();
+        assertThat(settings.get("foo"), equalTo("bar"));
+        assertThat(settings.get("baz"), equalTo("wat"));
+    }
+
+    public void testOverridesMultiple() throws Exception {
+        Settings.Builder output = Settings.builder().put("foo1", "bar").put("foo2", "baz");
+        InternalSettingsPreparer.loadOverrides(output, Map.of("foo1", "wat", "foo2", "yas"));
+        Settings settings = output.build();
+        assertThat(settings.get("foo1"), equalTo("wat"));
+        assertThat(settings.get("foo2"), equalTo("yas"));
+    }
 }

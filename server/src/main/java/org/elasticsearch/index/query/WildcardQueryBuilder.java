@@ -246,4 +246,9 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
             && Objects.equals(rewrite, other.rewrite)
             && Objects.equals(caseInsensitive, other.caseInsensitive);
     }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
+    }
 }

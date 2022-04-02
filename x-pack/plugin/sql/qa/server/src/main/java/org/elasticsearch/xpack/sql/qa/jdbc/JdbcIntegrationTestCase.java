@@ -31,7 +31,7 @@ public abstract class JdbcIntegrationTestCase extends RemoteClusterAwareSqlRestT
 
     @After
     public void checkSearchContent() throws Exception {
-        // Some context might linger due to fire and forget nature of scroll cleanup
+        // Some context might linger due to fire and forget nature of PIT cleanup
         assertNoSearchContexts(provisioningClient());
     }
 

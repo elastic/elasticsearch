@@ -33,9 +33,6 @@ import java.util.StringTokenizer;
 import java.util.TreeSet;
 import java.util.function.Supplier;
 
-import static java.util.Collections.unmodifiableSet;
-import static org.elasticsearch.common.util.set.Sets.newHashSet;
-
 public class Strings {
 
     public static final String[] EMPTY_ARRAY = new String[0];
@@ -354,9 +351,7 @@ public class Strings {
         return sb.toString();
     }
 
-    public static final Set<Character> INVALID_FILENAME_CHARS = unmodifiableSet(
-        newHashSet('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',')
-    );
+    public static final Set<Character> INVALID_FILENAME_CHARS = Set.of('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',');
 
     public static boolean validFileName(String fileName) {
         for (int i = 0; i < fileName.length(); i++) {

@@ -54,7 +54,7 @@ public class ReplaceTextual implements RestTestTransformByParentObject {
 
     @Override
     public boolean shouldApply(RestTestContext testContext) {
-        return testName == null || testContext.getTestName().equals(testName);
+        return testName == null || testContext.testName().equals(testName);
     }
 
     @Override

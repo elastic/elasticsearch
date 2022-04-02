@@ -71,33 +71,31 @@ subprojects {
     }
 
     // Configure compatibility testing tasks
-    BuildParams.bwcVersions.withIndexCompatiple { bwcVersion, baseName ->
-      // Compatibility testing for JDBC driver started with version 7.9.0
-      if (bwcVersion.onOrAfter(Version.fromString("7.9.0")) && (bwcVersion.equals(VersionProperties.elasticsearchVersion) == false)) {
-        UnreleasedVersionInfo unreleasedVersion = BuildParams.bwcVersions.unreleasedInfo(bwcVersion)
-        Configuration driverConfiguration = configurations.create("jdbcDriver${baseName}") {
-          // TODO: Temporary workaround for https://github.com/elastic/elasticsearch/issues/73433
-          transitive = false
-        }
-        Object driverDependency = null
+    // Compatibility testing for JDBC driver started with version 7.9.0
+    BuildParams.bwcVersions.withIndexCompatible({ it.onOrAfter(Version.fromString("7.9.0")) && it != VersionProperties.elasticsearchVersion }) { bwcVersion, baseName ->
+      UnreleasedVersionInfo unreleasedVersion = BuildParams.bwcVersions.unreleasedInfo(bwcVersion)
+      Configuration driverConfiguration = configurations.create("jdbcDriver${baseName}") {
+        // TODO: Temporary workaround for https://github.com/elastic/elasticsearch/issues/73433
+        transitive = false
+      }
+      Object driverDependency = null
 
-        if (unreleasedVersion) {
-          // For unreleased snapshot versions, build them from source
-          driverDependency = files(project(unreleasedVersion.gradleProjectPath).tasks.named('buildBwcJdbc'))
-        } else {
-          // For released versions, download it
-          driverDependency = "org.elasticsearch.plugin:x-pack-sql-jdbc:${bwcVersion}"
-        }
+      if (unreleasedVersion) {
+        // For unreleased snapshot versions, build them from source
+        driverDependency = files(project(unreleasedVersion.gradleProjectPath).tasks.named('buildBwcJdbc'))
+      } else {
+        // For released versions, download it
+        driverDependency = "org.elasticsearch.plugin:x-pack-sql-jdbc:${bwcVersion}"
+      }
 
-        dependencies {
-          "jdbcDriver${baseName}"(driverDependency)
-        }
+      dependencies {
+        "jdbcDriver${baseName}"(driverDependency)
+      }
 
-        final String bwcVersionString = bwcVersion.toString()
-        tasks.register(bwcTaskName(bwcVersion), RestIntegTestTask) {
-            classpath += driverConfiguration
-            systemProperty 'jdbc.driver.version', bwcVersionString
-        }
+      final String bwcVersionString = bwcVersion.toString()
+      tasks.register(bwcTaskName(bwcVersion), RestIntegTestTask) {
+          classpath += driverConfiguration
+          systemProperty 'jdbc.driver.version', bwcVersionString
       }
     }
   }

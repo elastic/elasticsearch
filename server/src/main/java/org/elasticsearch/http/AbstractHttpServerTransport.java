@@ -65,7 +65,6 @@ import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_PUBLISH_
 
 public abstract class AbstractHttpServerTransport extends AbstractLifecycleComponent implements HttpServerTransport {
     private static final Logger logger = LogManager.getLogger(AbstractHttpServerTransport.class);
-    private static final ActionListener<Void> NO_OP = ActionListener.wrap(() -> {});
 
     protected final Settings settings;
     public final HttpHandlingSettings handlingSettings;
@@ -292,7 +291,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
                 // just close and ignore - we are already stopped and just need to make sure we release all resources
                 return;
             }
-            if (NetworkExceptionHelper.getCloseConnectionExceptionLevel(e) != Level.OFF) {
+            if (NetworkExceptionHelper.getCloseConnectionExceptionLevel(e, false) != Level.OFF) {
                 logger.trace(
                     () -> new ParameterizedMessage(
                         "close connection exception caught while handling client http traffic, closing connection {}",
@@ -329,7 +328,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         }
     }
 
-    protected void onServerException(HttpServerChannel channel, Exception e) {
+    protected static void onServerException(HttpServerChannel channel, Exception e) {
         logger.error(new ParameterizedMessage("exception from http server channel caught on transport layer [channel={}]", channel), e);
     }
 
@@ -490,7 +489,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         if (HttpUtils.shouldCloseConnection(request)) {
             return ActionListener.wrap(() -> CloseableChannel.closeChannel(httpChannel));
         } else {
-            return NO_OP;
+            return ActionListener.noop();
         }
     }
 }

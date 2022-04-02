@@ -455,12 +455,12 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         assertBusy(() -> {
             ClusterStateResponse clusterStateResponse = client().admin().cluster().prepareState().get();
             RoutingTable routingTables = clusterStateResponse.getState().routingTable();
-            assertTrue(routingTables.index("target").shard(0).getShards().get(0).unassigned());
+            assertTrue(routingTables.index("target").shard(0).shard(0).unassigned());
             assertEquals(
                 UnassignedInfo.Reason.ALLOCATION_FAILED,
-                routingTables.index("target").shard(0).getShards().get(0).unassignedInfo().getReason()
+                routingTables.index("target").shard(0).shard(0).unassignedInfo().getReason()
             );
-            assertEquals(1, routingTables.index("target").shard(0).getShards().get(0).unassignedInfo().getNumFailedAllocations());
+            assertEquals(1, routingTables.index("target").shard(0).shard(0).unassignedInfo().getNumFailedAllocations());
         });
         client().admin()
             .indices()
@@ -472,13 +472,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         refreshClusterInfo();
         // kick off a retry and wait until it's done!
         ClusterRerouteResponse clusterRerouteResponse = client().admin().cluster().prepareReroute().setRetryFailed(true).get();
-        long expectedShardSize = clusterRerouteResponse.getState()
-            .routingTable()
-            .index("target")
-            .shard(0)
-            .getShards()
-            .get(0)
-            .getExpectedShardSize();
+        long expectedShardSize = clusterRerouteResponse.getState().routingTable().index("target").shard(0).shard(0).getExpectedShardSize();
         // we support the expected shard size in the allocator to sum up over the source index shards
         assertTrue("expected shard size must be set but wasn't: " + expectedShardSize, expectedShardSize > 0);
         ensureGreen();
@@ -632,7 +626,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         IndexMetadata target = clusterStateResponse.getState().getMetadata().index("target");
         client().admin().indices().prepareForceMerge("target").setMaxNumSegments(1).setFlush(false).get();
         IndicesSegmentResponse targetSegStats = client().admin().indices().prepareSegments("target").get();
-        ShardSegments segmentsStats = targetSegStats.getIndices().get("target").getShards().get(0).getShards()[0];
+        ShardSegments segmentsStats = targetSegStats.getIndices().get("target").getShards().get(0).shards()[0];
         assertTrue(segmentsStats.getNumberOfCommitted() > 0);
         assertNotEquals(segmentsStats.getSegments(), segmentsStats.getNumberOfCommitted());
 
@@ -648,7 +642,7 @@ public class ShrinkIndexIT extends ESIntegTestCase {
         }
         assertBusy(() -> {
             IndicesSegmentResponse targetStats = client().admin().indices().prepareSegments("target").get();
-            ShardSegments targetShardSegments = targetStats.getIndices().get("target").getShards().get(0).getShards()[0];
+            ShardSegments targetShardSegments = targetStats.getIndices().get("target").getShards().get(0).shards()[0];
             Map<Integer, IndexShardSegments> source = sourceStats.getIndices().get("source").getShards();
             int numSourceSegments = 0;
             for (IndexShardSegments s : source.values()) {

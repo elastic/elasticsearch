@@ -14,6 +14,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -240,7 +241,7 @@ public class SnapshotStatus implements ToXContentObject, Writeable {
                 indicesStatus = emptyMap();
                 shards = emptyList();
             } else {
-                indicesStatus = new HashMap<>(indices.size());
+                indicesStatus = Maps.newMapWithExpectedSize(indices.size());
                 shards = new ArrayList<>();
                 for (SnapshotIndexStatus index : indices) {
                     indicesStatus.put(index.getIndex(), index);

@@ -144,7 +144,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         }
     }
 
-    protected void confirm(Terminal terminal, String msg) {
+    protected static void confirm(Terminal terminal, String msg) {
         terminal.println(msg);
         String text = terminal.readText("Confirm [y/N] ");
         if (text.equalsIgnoreCase("y") == false) {
@@ -180,7 +180,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
     protected abstract void processNodePaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment env) throws IOException,
         UserException;
 
-    protected NodeEnvironment.NodePath[] toNodePaths(Path[] dataPaths) {
+    protected static NodeEnvironment.NodePath[] toNodePaths(Path[] dataPaths) {
         return Arrays.stream(dataPaths).map(ElasticsearchNodeCommand::createNodePath).toArray(NodeEnvironment.NodePath[]::new);
     }
 
@@ -197,15 +197,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         return parser;
     }
 
-    public static class UnknownMetadataCustom implements Metadata.Custom {
-
-        private final String name;
-        private final Map<String, Object> contents;
-
-        public UnknownMetadataCustom(String name, Map<String, Object> contents) {
-            this.name = name;
-            this.contents = contents;
-        }
+    public record UnknownMetadataCustom(String name, Map<String, Object> contents) implements Metadata.Custom {
 
         @Override
         public EnumSet<Metadata.XContentContext> context() {

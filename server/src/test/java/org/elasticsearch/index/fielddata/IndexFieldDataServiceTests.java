@@ -20,6 +20,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
@@ -77,32 +78,42 @@ public class IndexFieldDataServiceTests extends ESSingleNodeTestCase {
             indicesService.getCircuitBreakerService()
         );
         MapperBuilderContext context = MapperBuilderContext.ROOT;
-        final MappedFieldType stringMapper = new KeywordFieldMapper.Builder("string").build(context).fieldType();
+        final MappedFieldType stringMapper = new KeywordFieldMapper.Builder("string", Version.CURRENT).build(context).fieldType();
         ifdService.clear();
         IndexFieldData<?> fd = ifdService.getForField(stringMapper, "test", () -> { throw new UnsupportedOperationException(); });
         assertTrue(fd instanceof SortedSetOrdinalsIndexFieldData);
 
         for (MappedFieldType mapper : Arrays.asList(
-            new NumberFieldMapper.Builder("int", BYTE, ScriptCompiler.NONE, false, true).build(context).fieldType(),
-            new NumberFieldMapper.Builder("int", SHORT, ScriptCompiler.NONE, false, true).build(context).fieldType(),
-            new NumberFieldMapper.Builder("int", INTEGER, ScriptCompiler.NONE, false, true).build(context).fieldType(),
-            new NumberFieldMapper.Builder("long", LONG, ScriptCompiler.NONE, false, true).build(context).fieldType()
+            new NumberFieldMapper.Builder("int", BYTE, ScriptCompiler.NONE, false, true, Version.CURRENT).build(context).fieldType(),
+            new NumberFieldMapper.Builder("int", SHORT, ScriptCompiler.NONE, false, true, Version.CURRENT).build(context).fieldType(),
+            new NumberFieldMapper.Builder("int", INTEGER, ScriptCompiler.NONE, false, true, Version.CURRENT).build(context).fieldType(),
+            new NumberFieldMapper.Builder("long", LONG, ScriptCompiler.NONE, false, true, Version.CURRENT).build(context).fieldType()
         )) {
             ifdService.clear();
             fd = ifdService.getForField(mapper, "test", () -> { throw new UnsupportedOperationException(); });
             assertTrue(fd instanceof SortedNumericIndexFieldData);
         }
 
-        final MappedFieldType floatMapper = new NumberFieldMapper.Builder("float", NumberType.FLOAT, ScriptCompiler.NONE, false, true)
-            .build(context)
-            .fieldType();
+        final MappedFieldType floatMapper = new NumberFieldMapper.Builder(
+            "float",
+            NumberType.FLOAT,
+            ScriptCompiler.NONE,
+            false,
+            true,
+            Version.CURRENT
+        ).build(context).fieldType();
         ifdService.clear();
         fd = ifdService.getForField(floatMapper, "test", () -> { throw new UnsupportedOperationException(); });
         assertTrue(fd instanceof SortedDoublesIndexFieldData);
 
-        final MappedFieldType doubleMapper = new NumberFieldMapper.Builder("double", DOUBLE, ScriptCompiler.NONE, false, true).build(
-            context
-        ).fieldType();
+        final MappedFieldType doubleMapper = new NumberFieldMapper.Builder(
+            "double",
+            DOUBLE,
+            ScriptCompiler.NONE,
+            false,
+            true,
+            Version.CURRENT
+        ).build(context).fieldType();
         ifdService.clear();
         fd = ifdService.getForField(doubleMapper, "test", () -> { throw new UnsupportedOperationException(); });
         assertTrue(fd instanceof SortedDoublesIndexFieldData);

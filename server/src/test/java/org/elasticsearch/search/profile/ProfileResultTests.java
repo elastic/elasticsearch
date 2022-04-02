@@ -10,6 +10,7 @@ package org.elasticsearch.search.profile;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -18,7 +19,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,7 +32,7 @@ public class ProfileResultTests extends AbstractSerializingTestCase<ProfileResul
         String type = randomAlphaOfLengthBetween(5, 10);
         String description = randomAlphaOfLengthBetween(5, 10);
         int breakdownsSize = randomIntBetween(0, 5);
-        Map<String, Long> breakdown = new HashMap<>(breakdownsSize);
+        Map<String, Long> breakdown = Maps.newMapWithExpectedSize(breakdownsSize);
         while (breakdown.size() < breakdownsSize) {
             long value = randomNonNegativeLong();
             if (randomBoolean()) {
@@ -42,7 +42,7 @@ public class ProfileResultTests extends AbstractSerializingTestCase<ProfileResul
             breakdown.put(randomAlphaOfLengthBetween(5, 10), value);
         }
         int debugSize = randomIntBetween(0, 5);
-        Map<String, Object> debug = new HashMap<>(debugSize);
+        Map<String, Object> debug = Maps.newMapWithExpectedSize(debugSize);
         while (debug.size() < debugSize) {
             debug.put(randomAlphaOfLength(5), randomAlphaOfLength(4));
         }

@@ -33,13 +33,13 @@ public class LicensesAcknowledgementTests extends AbstractLicenseServiceTestCase
         // ensure acknowledgement message was part of the response
         licenseService.registerLicense(putLicenseRequest, new AssertingLicensesUpdateResponse(false, LicensesStatus.VALID, true));
         assertThat(licenseService.getLicense(), not(signedLicense));
-        verify(clusterService, times(0)).submitStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class));
+        verify(clusterService, times(0)).submitStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class), any());
 
         // try installing a signed license with acknowledgement
         putLicenseRequest = new PutLicenseRequest().license(signedLicense).acknowledge(true);
         // ensure license was installed and no acknowledgment message was returned
         licenseService.registerLicense(putLicenseRequest, new AssertingLicensesUpdateResponse(true, LicensesStatus.VALID, false));
-        verify(clusterService, times(1)).submitStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class));
+        verify(clusterService, times(1)).submitStateUpdateTask(any(String.class), any(ClusterStateUpdateTask.class), any());
     }
 
     private static class AssertingLicensesUpdateResponse implements ActionListener<PutLicenseResponse> {

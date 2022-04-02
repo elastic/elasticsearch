@@ -1,0 +1,56 @@
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+apply plugin: 'elasticsearch.test-with-dependencies'
+apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
+
+esplugin {
+  description 'Elasticsearch Expanded Pack Plugin - Data Streams'
+  classname 'org.elasticsearch.datastreams.DataStreamsPlugin'
+}
+
+dependencies {
+  testImplementation project(path: ':plugins:transport-nio') // for http in SystemDataStreamIT
+}
+
+restResources {
+  restApi {
+    include 'bulk', 'count', 'search', '_common', 'indices', 'index', 'cluster', 'rank_eval', 'reindex', 'update_by_query', 'delete_by_query',
+      'eql', 'data_stream'
+  }
+}
+
+testClusters.configureEach {
+  module ':modules:reindex'
+  testDistribution = 'DEFAULT'
+  // disable ILM history, since it disturbs tests using _all
+  setting 'indices.lifecycle.history_index_enabled', 'false'
+  setting 'xpack.security.enabled', 'true'
+  keystore 'bootstrap.password', 'x-pack-test-password'
+  user username: "x_pack_rest_user", password: "x-pack-test-password"
+  requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
+}
+
+testClusters.matching { it.name == "javaRestTest" }.configureEach {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.security.enabled', 'false'
+  // disable ILM history, since it disturbs tests using _all
+  setting 'indices.lifecycle.history_index_enabled', 'false'
+  requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
+}
+
+if (BuildParams.inFipsJvm){
+  // These fail in CI but only when run as part of checkPart2 and not individually.
+  // Tracked in :
+  tasks.named("javaRestTest").configure{enabled = false }
+  tasks.named("yamlRestTest").configure{enabled = false }
+}
+
+if (BuildParams.isSnapshotBuild() == false) {
+  tasks.named("internalClusterTest").configure {
+    systemProperty 'es.index_mode_feature_flag_registered', 'true'
+  }
+}

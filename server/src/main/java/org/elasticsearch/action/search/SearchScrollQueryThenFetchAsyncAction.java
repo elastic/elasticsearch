@@ -37,13 +37,12 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
         Logger logger,
         ClusterService clusterService,
         SearchTransportService searchTransportService,
-        SearchPhaseController searchPhaseController,
         SearchScrollRequest request,
         SearchTask task,
         ParsedScrollId scrollId,
         ActionListener<SearchResponse> listener
     ) {
-        super(scrollId, logger, clusterService.state().nodes(), listener, searchPhaseController, request, searchTransportService);
+        super(scrollId, logger, clusterService.state().nodes(), listener, request, searchTransportService);
         this.task = task;
         this.fetchResults = new AtomicArray<>(scrollId.getContext().length);
         this.queryResults = new AtomicArray<>(scrollId.getContext().length);
@@ -67,17 +66,17 @@ final class SearchScrollQueryThenFetchAsyncAction extends SearchScrollAsyncActio
         return new SearchPhase("fetch") {
             @Override
             public void run() {
-                final SearchPhaseController.ReducedQueryPhase reducedQueryPhase = searchPhaseController.reducedScrollQueryPhase(
+                final SearchPhaseController.ReducedQueryPhase reducedQueryPhase = SearchPhaseController.reducedScrollQueryPhase(
                     queryResults.asList()
                 );
-                ScoreDoc[] scoreDocs = reducedQueryPhase.sortedTopDocs.scoreDocs;
+                ScoreDoc[] scoreDocs = reducedQueryPhase.sortedTopDocs().scoreDocs();
                 if (scoreDocs.length == 0) {
                     sendResponse(reducedQueryPhase, fetchResults);
                     return;
                 }
 
-                final IntArrayList[] docIdsToLoad = searchPhaseController.fillDocIdsToLoad(queryResults.length(), scoreDocs);
-                final ScoreDoc[] lastEmittedDocPerShard = searchPhaseController.getLastEmittedDocPerShard(
+                final IntArrayList[] docIdsToLoad = SearchPhaseController.fillDocIdsToLoad(queryResults.length(), scoreDocs);
+                final ScoreDoc[] lastEmittedDocPerShard = SearchPhaseController.getLastEmittedDocPerShard(
                     reducedQueryPhase,
                     queryResults.length()
                 );

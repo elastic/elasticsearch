@@ -30,9 +30,9 @@ import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberFieldType;
-import org.elasticsearch.index.mapper.ObjectMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardException;
@@ -55,7 +55,6 @@ import java.util.function.Function;
 
 import static org.elasticsearch.index.mapper.DateFieldMapper.Resolution.MILLISECONDS;
 import static org.elasticsearch.index.mapper.DateFieldMapper.Resolution.NANOSECONDS;
-import static org.elasticsearch.index.search.NestedHelper.parentObject;
 import static org.elasticsearch.search.sort.NestedSortBuilder.NESTED_FIELD;
 
 /**
@@ -419,7 +418,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             // unmapped
             return false;
         }
-        if (fieldType.isSearchable() == false) {
+        if (fieldType.isIndexed() == false) {
             return false;
         }
         DocValueFormat docValueFormat = bottomSortValues.getSortValueFormats()[0];
@@ -574,7 +573,7 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
         }
         IndexReader reader = context.getIndexReader();
         MappedFieldType fieldType = context.getFieldType(sortField.getField());
-        if (reader == null || (fieldType == null || fieldType.isSearchable() == false)) {
+        if (reader == null || (fieldType == null || fieldType.isIndexed() == false)) {
             return null;
         }
         switch (IndexSortConfig.getSortFieldType(sortField)) {
@@ -660,17 +659,13 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
             // already in nested context
             return;
         }
-        for (String parent = parentObject(field); parent != null; parent = parentObject(parent)) {
-            ObjectMapper parentMapper = context.getObjectMapper(parent);
-            if (parentMapper != null && parentMapper.isNested()) {
-                NestedObjectMapper parentNested = (NestedObjectMapper) parentMapper;
-                if (parentNested.isIncludeInRoot() == false) {
-                    throw new QueryShardException(
-                        context,
-                        "it is mandatory to set the [nested] context on the nested sort field: [" + field + "]."
-                    );
-                }
-            }
+        NestedLookup nestedLookup = context.nestedLookup();
+        String nestedParent = nestedLookup.getNestedParent(field);
+        if (nestedParent != null && nestedLookup.getNestedMappers().get(nestedParent).isIncludeInRoot() == false) {
+            throw new QueryShardException(
+                context,
+                "it is mandatory to set the [nested] context on the nested sort field: [" + field + "]."
+            );
         }
     }
 
@@ -712,6 +707,11 @@ public class FieldSortBuilder extends SortBuilder<FieldSortBuilder> {
     @Override
     public String getWriteableName() {
         return NAME;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 
     /**

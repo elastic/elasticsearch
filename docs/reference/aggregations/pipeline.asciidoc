@@ -283,6 +283,8 @@ include::pipeline/bucket-selector-aggregation.asciidoc[]
 
 include::pipeline/bucket-sort-aggregation.asciidoc[]
 
+include::pipeline/change-point-aggregation.asciidoc[]
+
 include::pipeline/cumulative-cardinality-aggregation.asciidoc[]
 
 include::pipeline/cumulative-sum-aggregation.asciidoc[]

@@ -125,9 +125,7 @@ final class JvmOptionsParser {
         final List<String> jvmOptions = readJvmOptionsFiles(config);
 
         if (esJavaOpts != null) {
-            jvmOptions.addAll(
-                Arrays.stream(esJavaOpts.split("\\s+")).filter(Predicate.not(String::isBlank)).collect(Collectors.toUnmodifiableList())
-            );
+            jvmOptions.addAll(Arrays.stream(esJavaOpts.split("\\s+")).filter(Predicate.not(String::isBlank)).toList());
         }
 
         final List<String> substitutedJvmOptions = substitutePlaceholders(jvmOptions, Collections.unmodifiableMap(substitutions));

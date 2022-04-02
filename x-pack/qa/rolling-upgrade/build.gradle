@@ -30,7 +30,7 @@ tasks.register("copyTestNodeKeyMaterial", Copy) {
   into outputDir
 }
 
-BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
+BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
   String oldVersion = bwcVersion.toString()
 
   // SearchableSnapshotsRollingUpgradeIT uses a specific repository to not interfere with other tests
@@ -40,6 +40,13 @@ BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
     testDistribution = "DEFAULT"
     versions = [oldVersion, project.version]
     numberOfNodes = 3
+
+    systemProperty 'ingest.geoip.downloader.enabled.default', 'true'
+    //we don't want to hit real service from each test
+    systemProperty 'ingest.geoip.downloader.endpoint.default', 'http://invalid.endpoint'
+    if (bwcVersion.onOrAfter('7.14.0')) {
+      setting 'ingest.geoip.downloader.endpoint', 'http://invalid.endpoint'
+    }
 
     setting 'repositories.url.allowed_urls', 'http://snapshot.test*'
     setting 'path.repo', "['${buildDir}/cluster/shared/repo/${baseName}', '${searchableSnapshotRepository}']"

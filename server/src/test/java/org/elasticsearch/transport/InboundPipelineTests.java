@@ -19,7 +19,6 @@ import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
-import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
@@ -93,7 +92,6 @@ public class InboundPipelineTests extends ESTestCase {
         long totalMessages = 0;
         long bytesReceived = 0;
 
-        final BytesRefRecycler recycler = new BytesRefRecycler(PageCacheRecycler.NON_RECYCLING_INSTANCE);
         for (int i = 0; i < iterations; ++i) {
             actual.clear();
             expected.clear();
@@ -148,8 +146,9 @@ public class InboundPipelineTests extends ESTestCase {
                     }
 
                     expected.add(new Tuple<>(messageData, expectedExceptionClass));
-                    final BytesReference reference = message.serialize(new RecyclerBytesStreamOutput(recycler));
-                    Streams.copy(reference.streamInput(), streamOutput, false);
+                    try (RecyclerBytesStreamOutput temporaryOutput = new RecyclerBytesStreamOutput(recycler)) {
+                        Streams.copy(message.serialize(temporaryOutput).streamInput(), streamOutput, false);
+                    }
                 }
 
                 final BytesReference networkBytes = streamOutput.bytes();

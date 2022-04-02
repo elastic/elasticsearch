@@ -19,6 +19,7 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchHit;
@@ -36,7 +37,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.OptionalInt;
@@ -72,7 +72,7 @@ public class RankEvalResponseTests extends ESTestCase {
 
     private static RankEvalResponse createRandomResponse() {
         int numberOfRequests = randomIntBetween(0, 5);
-        Map<String, EvalQueryQuality> partials = new HashMap<>(numberOfRequests);
+        Map<String, EvalQueryQuality> partials = Maps.newMapWithExpectedSize(numberOfRequests);
         for (int i = 0; i < numberOfRequests; i++) {
             String id = randomAlphaOfLengthBetween(3, 10);
             EvalQueryQuality evalQuality = new EvalQueryQuality(id, randomDoubleBetween(0.0, 1.0, true));
@@ -85,7 +85,7 @@ public class RankEvalResponseTests extends ESTestCase {
             partials.put(id, evalQuality);
         }
         int numberOfErrors = randomIntBetween(0, 2);
-        Map<String, Exception> errors = new HashMap<>(numberOfRequests);
+        Map<String, Exception> errors = Maps.newMapWithExpectedSize(numberOfRequests);
         for (int i = 0; i < numberOfErrors; i++) {
             errors.put(randomAlphaOfLengthBetween(3, 10), randomFrom(RANDOM_EXCEPTIONS));
         }

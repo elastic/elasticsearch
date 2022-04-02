@@ -268,12 +268,12 @@ public class TextStructure implements ToXContentObject, Writeable {
         }
         out.writeOptionalString(timestampField);
         out.writeBoolean(needClientTimezone);
-        out.writeMap(mappings);
+        out.writeGenericMap(mappings);
         if (ingestPipeline == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeMap(ingestPipeline);
+            out.writeGenericMap(ingestPipeline);
         }
         out.writeMap(fieldStats, StreamOutput::writeString, (out1, value) -> value.writeTo(out1));
         out.writeCollection(explanation, StreamOutput::writeString);

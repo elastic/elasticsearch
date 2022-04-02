@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.core.transform.action.schema;
 
-import org.elasticsearch.test.AbstractSchemaValidationTestCase;
+import org.elasticsearch.test.xcontent.AbstractSchemaValidationTestCase;
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction.Response;
 
 import static org.elasticsearch.xpack.core.transform.action.GetTransformStatsActionResponseTests.randomTransformStatsResponse;

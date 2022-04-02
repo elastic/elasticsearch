@@ -25,6 +25,8 @@ import java.util.List;
  * A {@link Comparable}, {@link DocValueFormat} aware wrapper around a sort value.
  */
 public abstract class SortValue implements NamedWriteable, Comparable<SortValue> {
+    private static final SortValue EMPTY_SORT_VALUE = new EmptySortValue();
+
     /**
      * Get a {@linkplain SortValue} for a double.
      */
@@ -48,13 +50,21 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
     }
 
     /**
+     * Get a {@linkplain SortValue} for data which cannot be sorted.
+     */
+    public static SortValue empty() {
+        return EMPTY_SORT_VALUE;
+    }
+
+    /**
      * Get the list of {@linkplain NamedWriteable}s that this class needs.
      */
     public static List<NamedWriteableRegistry.Entry> namedWriteables() {
         return Arrays.asList(
             new NamedWriteableRegistry.Entry(SortValue.class, DoubleSortValue.NAME, DoubleSortValue::new),
             new NamedWriteableRegistry.Entry(SortValue.class, LongSortValue.NAME, LongSortValue::new),
-            new NamedWriteableRegistry.Entry(SortValue.class, BytesSortValue.NAME, BytesSortValue::new)
+            new NamedWriteableRegistry.Entry(SortValue.class, BytesSortValue.NAME, BytesSortValue::new),
+            new NamedWriteableRegistry.Entry(SortValue.class, EmptySortValue.NAME, EmptySortValue::new)
         );
     }
 
@@ -336,6 +346,64 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
         @Override
         public Number numberValue() {
             return Double.NaN;
+        }
+    }
+
+    private static class EmptySortValue extends SortValue {
+
+        public static final String NAME = "empty";
+        private static final String EMPTY_STRING = "";
+
+        private EmptySortValue() {}
+
+        private EmptySortValue(StreamInput ignoredIn) {}
+
+        @Override
+        public String getWriteableName() {
+            return NAME;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {}
+
+        @Override
+        public Object getKey() {
+            return EMPTY_STRING;
+        }
+
+        @Override
+        public String format(DocValueFormat format) {
+            return EMPTY_STRING;
+        }
+
+        @Override
+        protected XContentBuilder rawToXContent(XContentBuilder builder) throws IOException {
+            return builder;
+        }
+
+        @Override
+        protected int compareToSameType(SortValue obj) {
+            return 0;
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            return obj != null && false != getClass().equals(obj.getClass());
+        }
+
+        @Override
+        public int hashCode() {
+            return 0;
+        }
+
+        @Override
+        public String toString() {
+            return EMPTY_STRING;
+        }
+
+        @Override
+        public Number numberValue() {
+            return null;
         }
     }
 }

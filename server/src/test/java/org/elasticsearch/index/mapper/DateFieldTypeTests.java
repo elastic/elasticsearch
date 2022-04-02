@@ -63,8 +63,19 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         );
     }
 
+    public void testIsFieldWithinRangeOnlyDocValues() throws IOException {
+        QueryRewriteContext context = new QueryRewriteContext(parserConfig(), writableRegistry(), null, () -> nowInMillis);
+        IndexReader reader = new MultiReader();
+        DateFieldType ft = new DateFieldType("my_date", false);
+        // in case of only doc-values, we can't establish disjointness
+        assertEquals(
+            Relation.INTERSECTS,
+            ft.isFieldWithinQuery(reader, "2015-10-12", "2016-04-03", randomBoolean(), randomBoolean(), null, null, context)
+        );
+    }
+
     public void testIsFieldWithinQueryDateMillis() throws IOException {
-        DateFieldType ft = new DateFieldType("my_date", Resolution.MILLISECONDS);
+        DateFieldType ft = new DateFieldType("my_date");
         isFieldWithinRangeTestCase(ft);
     }
 
@@ -172,7 +183,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             null,
             null,
             null,
-            xContentRegistry(),
+            parserConfig(),
             writableRegistry(),
             null,
             null,
@@ -192,11 +203,15 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         );
         assertEquals(expected, ft.termQuery(date, context));
 
+        ft = new DateFieldType("field", false);
+        expected = SortedNumericDocValuesField.newSlowRangeQuery("field", instant, instant + 999);
+        assertEquals(expected, ft.termQuery(date, context));
+
         MappedFieldType unsearchable = new DateFieldType(
             "field",
             false,
             false,
-            true,
+            false,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             Resolution.MILLISECONDS,
             null,
@@ -204,7 +219,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             Collections.emptyMap()
         );
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery(date, context));
-        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+        assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
     }
 
     public void testRangeQuery() throws IOException {
@@ -223,7 +238,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             null,
             null,
             null,
-            xContentRegistry(),
+            parserConfig(),
             writableRegistry(),
             null,
             null,
@@ -245,6 +260,10 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         );
         assertEquals(expected, ft.rangeQuery(date1, date2, true, true, null, null, null, context).rewrite(new MultiReader()));
 
+        MappedFieldType ft2 = new DateFieldType("field", false);
+        Query expected2 = SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2);
+        assertEquals(expected2, ft2.rangeQuery(date1, date2, true, true, null, null, null, context).rewrite(new MultiReader()));
+
         instant1 = nowInMillis;
         instant2 = instant1 + 100;
         expected = new DateRangeIncludingNowQuery(
@@ -255,11 +274,14 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
         );
         assertEquals(expected, ft.rangeQuery("now", instant2, true, true, null, null, null, context));
 
+        expected2 = new DateRangeIncludingNowQuery(SortedNumericDocValuesField.newSlowRangeQuery("field", instant1, instant2));
+        assertEquals(expected2, ft2.rangeQuery("now", instant2, true, true, null, null, null, context));
+
         MappedFieldType unsearchable = new DateFieldType(
             "field",
             false,
             false,
-            true,
+            false,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,
             Resolution.MILLISECONDS,
             null,
@@ -270,7 +292,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             IllegalArgumentException.class,
             () -> unsearchable.rangeQuery(date1, date2, true, true, null, null, null, context)
         );
-        assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
+        assertEquals("Cannot search on field [field] since it is not indexed nor has doc values.", e.getMessage());
     }
 
     public void testRangeQueryWithIndexSort() {
@@ -294,7 +316,7 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             null,
             null,
             null,
-            xContentRegistry(),
+            parserConfig(),
             writableRegistry(),
             null,
             null,
@@ -320,6 +342,10 @@ public class DateFieldTypeTests extends FieldTypeTestCase {
             instant2,
             new IndexOrDocValuesQuery(pointQuery, dvQuery)
         );
+        assertEquals(expected, ft.rangeQuery(date1, date2, true, true, null, null, null, context));
+
+        ft = new DateFieldType("field", false);
+        expected = new IndexSortSortedNumericDocValuesRangeQuery("field", instant1, instant2, dvQuery);
         assertEquals(expected, ft.rangeQuery(date1, date2, true, true, null, null, null, context));
     }
 

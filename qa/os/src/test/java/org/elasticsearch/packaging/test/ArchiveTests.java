@@ -80,7 +80,7 @@ public class ArchiveTests extends PackagingTestCase {
         final Installation.Executables bin = installation.executables();
         final Result r = bin.pluginTool.run("list");
 
-        assertThat(r.stdout, emptyString());
+        assertThat(r.stdout(), emptyString());
     }
 
     public void test30MissingBundledJdk() throws Exception {
@@ -95,8 +95,8 @@ public class ArchiveTests extends PackagingTestCase {
             }
             // ask for elasticsearch version to quickly exit if java is actually found (ie test failure)
             final Result runResult = sh.runIgnoreExitCode(bin.elasticsearch.toString() + " -V");
-            assertThat(runResult.exitCode, is(1));
-            assertThat(runResult.stderr, containsString("could not find java in bundled JDK"));
+            assertThat(runResult.exitCode(), is(1));
+            assertThat(runResult.stderr(), containsString("could not find java in bundled JDK"));
         } finally {
             if (distribution().hasJdk) {
                 mv(relocatedJdk, installation.bundledJdk);
@@ -110,8 +110,8 @@ public class ArchiveTests extends PackagingTestCase {
 
         // ask for elasticsearch version to quickly exit if java is actually found (ie test failure)
         final Result runResult = sh.runIgnoreExitCode(bin.elasticsearch.toString() + " -V");
-        assertThat(runResult.exitCode, is(1));
-        assertThat(runResult.stderr, containsString("could not find java in ES_JAVA_HOME"));
+        assertThat(runResult.exitCode(), is(1));
+        assertThat(runResult.stderr(), containsString("could not find java in ES_JAVA_HOME"));
     }
 
     public void test32SpecialCharactersInJdkPath() throws Exception {
@@ -125,7 +125,7 @@ public class ArchiveTests extends PackagingTestCase {
             mv(installation.bundledJdk, relocatedJdk);
             // ask for elasticsearch version to avoid starting the app
             final Result runResult = sh.run(bin.elasticsearch.toString() + " -V");
-            assertThat(runResult.stdout, startsWith("Version: "));
+            assertThat(runResult.stdout(), startsWith("Version: "));
         } finally {
             mv(relocatedJdk, installation.bundledJdk);
         }
@@ -300,11 +300,11 @@ public class ArchiveTests extends PackagingTestCase {
 
     public void test61EsJavaHomeOverride() throws Exception {
         Platforms.onLinux(() -> {
-            String systemJavaHome1 = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
+            String systemJavaHome1 = sh.run("echo $SYSTEM_JAVA_HOME").stdout().trim();
             sh.getEnv().put("ES_JAVA_HOME", systemJavaHome1);
         });
         Platforms.onWindows(() -> {
-            final String systemJavaHome1 = sh.run("$Env:SYSTEM_JAVA_HOME").stdout.trim();
+            final String systemJavaHome1 = sh.run("$Env:SYSTEM_JAVA_HOME").stdout().trim();
             sh.getEnv().put("ES_JAVA_HOME", systemJavaHome1);
         });
 
@@ -319,13 +319,13 @@ public class ArchiveTests extends PackagingTestCase {
     public void test62JavaHomeIgnored() throws Exception {
         assumeTrue(distribution().hasJdk);
         Platforms.onLinux(() -> {
-            String systemJavaHome1 = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
+            String systemJavaHome1 = sh.run("echo $SYSTEM_JAVA_HOME").stdout().trim();
             sh.getEnv().put("JAVA_HOME", systemJavaHome1);
             // ensure that ES_JAVA_HOME is not set for the test
             sh.getEnv().remove("ES_JAVA_HOME");
         });
         Platforms.onWindows(() -> {
-            final String systemJavaHome1 = sh.run("$Env:SYSTEM_JAVA_HOME").stdout.trim();
+            final String systemJavaHome1 = sh.run("$Env:SYSTEM_JAVA_HOME").stdout().trim();
             sh.getEnv().put("JAVA_HOME", systemJavaHome1);
             // ensure that ES_JAVA_HOME is not set for the test
             sh.getEnv().remove("ES_JAVA_HOME");
@@ -333,7 +333,7 @@ public class ArchiveTests extends PackagingTestCase {
 
         final Installation.Executables bin = installation.executables();
         final Result runResult = sh.run(bin.elasticsearch.toString() + " -V");
-        assertThat(runResult.stderr, containsString("warning: ignoring JAVA_HOME=" + systemJavaHome + "; using bundled JDK"));
+        assertThat(runResult.stderr(), containsString("warning: ignoring JAVA_HOME=" + systemJavaHome + "; using bundled JDK"));
 
         startElasticsearch();
         runElasticsearchTests();
@@ -351,11 +351,11 @@ public class ArchiveTests extends PackagingTestCase {
         try {
             mv(installation.bundledJdk, relocatedJdk);
             Platforms.onLinux(() -> {
-                String systemJavaHome1 = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
+                String systemJavaHome1 = sh.run("echo $SYSTEM_JAVA_HOME").stdout().trim();
                 sh.getEnv().put("ES_JAVA_HOME", systemJavaHome1);
             });
             Platforms.onWindows(() -> {
-                final String systemJavaHome1 = sh.run("$Env:SYSTEM_JAVA_HOME").stdout.trim();
+                final String systemJavaHome1 = sh.run("$Env:SYSTEM_JAVA_HOME").stdout().trim();
                 sh.getEnv().put("ES_JAVA_HOME", systemJavaHome1);
             });
 
@@ -386,7 +386,7 @@ public class ArchiveTests extends PackagingTestCase {
 
                 String pluginListCommand = installation.bin + "/elasticsearch-plugin list";
                 Result result = sh.run(pluginListCommand);
-                assertThat(result.exitCode, equalTo(0));
+                assertThat(result.exitCode(), equalTo(0));
 
             } finally {
                 // clean up sym link
@@ -400,7 +400,7 @@ public class ArchiveTests extends PackagingTestCase {
             // Create temporary directory with a space and link to real java home
             String testJavaHome = Paths.get("/tmp", "java home").toString();
             try {
-                final String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout.trim();
+                final String systemJavaHome = sh.run("echo $SYSTEM_JAVA_HOME").stdout().trim();
                 sh.run("ln -s \"" + systemJavaHome + "\" \"" + testJavaHome + "\"");
                 sh.getEnv().put("ES_JAVA_HOME", testJavaHome);
 
@@ -411,7 +411,7 @@ public class ArchiveTests extends PackagingTestCase {
 
                 String pluginListCommand = installation.bin + "/elasticsearch-plugin list";
                 Result result = sh.run(pluginListCommand);
-                assertThat(result.exitCode, equalTo(0));
+                assertThat(result.exitCode(), equalTo(0));
             } finally {
                 FileUtils.rm(Paths.get(testJavaHome));
             }
@@ -557,12 +557,12 @@ public class ArchiveTests extends PackagingTestCase {
         assertThat(installation.lib.resolve("tools").resolve("security-cli"), fileExists());
         final Platforms.PlatformAction action = () -> {
             Result result = sh.run(bin.certutilTool + " --help");
-            assertThat(result.stdout, containsString("Simplifies certificate creation for use with the Elastic Stack"));
+            assertThat(result.stdout(), containsString("Simplifies certificate creation for use with the Elastic Stack"));
 
             // Ensure that the exit code from the java command is passed back up through the shell script
             result = sh.runIgnoreExitCode(bin.certutilTool + " invalid-command");
-            assertThat(result.exitCode, is(not(0)));
-            assertThat(result.stderr, containsString("Unknown command [invalid-command]"));
+            assertThat(result.exitCode(), is(not(0)));
+            assertThat(result.stderr(), containsString("Unknown command [invalid-command]"));
         };
         Platforms.onLinux(action);
         Platforms.onWindows(action);
@@ -573,7 +573,7 @@ public class ArchiveTests extends PackagingTestCase {
 
         Platforms.PlatformAction action = () -> {
             final Result result = sh.run(bin.shardTool + " -h");
-            assertThat(result.stdout, containsString("A CLI tool to remove corrupted parts of unrecoverable shards"));
+            assertThat(result.stdout(), containsString("A CLI tool to remove corrupted parts of unrecoverable shards"));
         };
 
         Platforms.onLinux(action);
@@ -585,7 +585,7 @@ public class ArchiveTests extends PackagingTestCase {
 
         Platforms.PlatformAction action = () -> {
             final Result result = sh.run(bin.nodeTool + " -h");
-            assertThat(result.stdout, containsString("A CLI tool to do unsafe cluster and index manipulations on current node"));
+            assertThat(result.stdout(), containsString("A CLI tool to do unsafe cluster and index manipulations on current node"));
         };
 
         Platforms.onLinux(action);
@@ -606,7 +606,7 @@ public class ArchiveTests extends PackagingTestCase {
         }
 
         Result result = sh.run("echo y | " + nodeTool + " unsafe-bootstrap");
-        assertThat(result.stdout, containsString("Master node was successfully bootstrapped"));
+        assertThat(result.stdout(), containsString("Master node was successfully bootstrapped"));
     }
 
     public void test94ElasticsearchNodeExecuteCliNotEsHomeWorkDir() throws Exception {
@@ -616,15 +616,15 @@ public class ArchiveTests extends PackagingTestCase {
 
         Platforms.PlatformAction action = () -> {
             Result result = sh.run(bin.certutilTool + " -h");
-            assertThat(result.stdout, containsString("Simplifies certificate creation for use with the Elastic Stack"));
+            assertThat(result.stdout(), containsString("Simplifies certificate creation for use with the Elastic Stack"));
             result = sh.run(bin.syskeygenTool + " -h");
-            assertThat(result.stdout, containsString("system key tool"));
+            assertThat(result.stdout(), containsString("system key tool"));
             result = sh.run(bin.setupPasswordsTool + " -h");
-            assertThat(result.stdout, containsString("Sets the passwords for reserved users"));
+            assertThat(result.stdout(), containsString("Sets the passwords for reserved users"));
             result = sh.run(bin.usersTool + " -h");
-            assertThat(result.stdout, containsString("Manages elasticsearch file users"));
+            assertThat(result.stdout(), containsString("Manages elasticsearch file users"));
             result = sh.run(bin.serviceTokensTool + " -h");
-            assertThat(result.stdout, containsString("Manages elasticsearch service account file-tokens"));
+            assertThat(result.stdout(), containsString("Manages elasticsearch service account file-tokens"));
         };
 
         Platforms.onLinux(action);

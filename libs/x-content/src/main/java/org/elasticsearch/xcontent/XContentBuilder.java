@@ -157,9 +157,9 @@ public final class XContentBuilder implements Closeable, Flushable {
             dateTransformers.putAll(addlDateTransformers);
         }
 
-        WRITERS = Collections.unmodifiableMap(writers);
-        HUMAN_READABLE_TRANSFORMERS = Collections.unmodifiableMap(humanReadableTransformer);
-        DATE_TRANSFORMERS = Collections.unmodifiableMap(dateTransformers);
+        WRITERS = Map.copyOf(writers);
+        HUMAN_READABLE_TRANSFORMERS = Map.copyOf(humanReadableTransformer);
+        DATE_TRANSFORMERS = Map.copyOf(dateTransformers);
     }
 
     @FunctionalInterface
@@ -865,6 +865,29 @@ public final class XContentBuilder implements Closeable, Flushable {
 
     public XContentBuilder field(String name, Object value) throws IOException {
         return field(name).value(value);
+    }
+
+    public XContentBuilder field(String name, Number value) throws IOException {
+        field(name);
+        if (value instanceof Short) {
+            return value(value.shortValue());
+        } else if (value instanceof Integer) {
+            return value(value.intValue());
+        } else if (value instanceof Long) {
+            return value(value.longValue());
+        } else if (value instanceof Float) {
+            return value(value.floatValue());
+        } else if (value instanceof Double) {
+            return value(value.doubleValue());
+        } else if (value instanceof BigInteger) {
+            generator.writeNumber((BigInteger) value);
+            return this;
+        } else if (value instanceof BigDecimal) {
+            generator.writeNumber((BigDecimal) value);
+            return this;
+        } else {
+            return value(value);
+        }
     }
 
     public XContentBuilder array(String name, Object... values) throws IOException {

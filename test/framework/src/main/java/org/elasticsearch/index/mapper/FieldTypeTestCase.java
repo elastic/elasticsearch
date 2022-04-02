@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
@@ -39,6 +40,7 @@ public abstract class FieldTypeTestCase extends ESTestCase {
         SearchLookup searchLookup = mock(SearchLookup.class);
         when(searchLookup.source()).thenReturn(sourceLookup);
         when(searchExecutionContext.lookup()).thenReturn(searchLookup);
+        when(searchExecutionContext.indexVersionCreated()).thenReturn(Version.CURRENT);
         return searchExecutionContext;
     }
 

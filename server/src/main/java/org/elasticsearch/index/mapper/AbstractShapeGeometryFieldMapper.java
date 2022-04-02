@@ -32,8 +32,10 @@ public abstract class AbstractShapeGeometryFieldMapper<T> extends AbstractGeomet
             true,
             () -> IMPLICIT_RIGHT,
             (n, c, o) -> new Explicit<>(Orientation.fromString(o.toString()), true),
-            initializer
-        ).setSerializer((b, f, v) -> b.field(f, v.value()), v -> v.value().toString());
+            initializer,
+            (b, f, v) -> b.field(f, v.value()),
+            v -> v.value().toString()
+        );
     }
 
     public abstract static class AbstractShapeGeometryFieldType<T> extends AbstractGeometryFieldType<T> {

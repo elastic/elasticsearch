@@ -700,8 +700,8 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
 
     private static void verify(ActionRequestBuilder<?, ?> requestBuilder, boolean fail, long expectedCount) {
         if (fail) {
-            if (requestBuilder instanceof MultiSearchRequestBuilder) {
-                MultiSearchResponse multiSearchResponse = ((MultiSearchRequestBuilder) requestBuilder).get();
+            if (requestBuilder instanceof MultiSearchRequestBuilder multiSearchRequestBuilder) {
+                MultiSearchResponse multiSearchResponse = multiSearchRequestBuilder.get();
                 assertThat(multiSearchResponse.getResponses().length, equalTo(1));
                 assertThat(multiSearchResponse.getResponses()[0].isFailure(), is(true));
                 assertThat(multiSearchResponse.getResponses()[0].getResponse(), nullValue());
@@ -714,8 +714,8 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         } else {
             if (requestBuilder instanceof SearchRequestBuilder searchRequestBuilder) {
                 assertHitCount(searchRequestBuilder.get(), expectedCount);
-            } else if (requestBuilder instanceof MultiSearchRequestBuilder) {
-                MultiSearchResponse multiSearchResponse = ((MultiSearchRequestBuilder) requestBuilder).get();
+            } else if (requestBuilder instanceof MultiSearchRequestBuilder multiSearchRequestBuilder) {
+                MultiSearchResponse multiSearchResponse = multiSearchRequestBuilder.get();
                 assertThat(multiSearchResponse.getResponses().length, equalTo(1));
                 assertThat(multiSearchResponse.getResponses()[0].getResponse(), notNullValue());
             } else {

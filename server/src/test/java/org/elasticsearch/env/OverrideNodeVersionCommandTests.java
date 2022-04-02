@@ -95,7 +95,7 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
     }
 
     public void testFailsIfUnnecessary() throws IOException {
-        final Version nodeVersion = Version.fromId(between(Version.CURRENT.minimumIndexCompatibilityVersion().id, Version.CURRENT.id));
+        final Version nodeVersion = Version.fromId(between(Version.CURRENT.minimumCompatibilityVersion().id, Version.CURRENT.id));
         PersistedClusterStateService.overrideVersion(nodeVersion, nodePaths);
         final MockTerminal mockTerminal = new MockTerminal();
         final ElasticsearchException elasticsearchException = expectThrows(

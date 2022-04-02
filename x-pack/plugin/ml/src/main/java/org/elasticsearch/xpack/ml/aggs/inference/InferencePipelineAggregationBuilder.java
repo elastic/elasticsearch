@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ml.aggs.inference;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
@@ -375,5 +376,10 @@ public class InferencePipelineAggregationBuilder extends AbstractPipelineAggrega
         return Objects.equals(bucketPathMap, other.bucketPathMap)
             && Objects.equals(modelId, other.modelId)
             && Objects.equals(inferenceConfig, other.inferenceConfig);
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_9_0;
     }
 }

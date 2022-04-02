@@ -17,12 +17,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
@@ -352,13 +351,7 @@ public class PutIndexTemplateRequest extends TimedRequest implements ToXContentF
      */
     public PutIndexTemplateRequest aliases(BytesReference source) {
         // EMPTY is safe here because we never call namedObject
-        try (
-            XContentParser parser = XContentHelper.createParser(
-                NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                source
-            )
-        ) {
+        try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source)) {
             // move to the first alias
             parser.nextToken();
             while ((parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -413,11 +406,7 @@ public class PutIndexTemplateRequest extends TimedRequest implements ToXContentF
         if (mappings != null) {
             builder.field("mappings");
             try (
-                XContentParser parser = JsonXContent.jsonXContent.createParser(
-                    NamedXContentRegistry.EMPTY,
-                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                    mappings.utf8ToString()
-                )
+                XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, mappings.utf8ToString())
             ) {
                 builder.copyCurrentStructure(parser);
             }

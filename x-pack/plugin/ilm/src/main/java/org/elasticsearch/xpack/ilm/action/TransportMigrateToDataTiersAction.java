@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -20,6 +21,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.Task;
@@ -29,6 +31,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.cluster.action.MigrateToDataTiersAction;
 import org.elasticsearch.xpack.cluster.action.MigrateToDataTiersRequest;
 import org.elasticsearch.xpack.cluster.action.MigrateToDataTiersResponse;
+import org.elasticsearch.xpack.cluster.metadata.MetadataMigrateToDataTiersRoutingService;
 import org.elasticsearch.xpack.cluster.metadata.MetadataMigrateToDataTiersRoutingService.MigratedEntities;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 
@@ -85,8 +88,17 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
                 licenseState,
                 request.isDryRun()
             ).v2();
+            MetadataMigrateToDataTiersRoutingService.MigratedTemplates migratedTemplates = entities.migratedTemplates;
             listener.onResponse(
-                new MigrateToDataTiersResponse(entities.removedIndexTemplateName, entities.migratedPolicies, entities.migratedIndices, true)
+                new MigrateToDataTiersResponse(
+                    entities.removedIndexTemplateName,
+                    entities.migratedPolicies,
+                    entities.migratedIndices,
+                    entities.migratedTemplates.migratedLegacyTemplates,
+                    entities.migratedTemplates.migratedComposableTemplates,
+                    entities.migratedTemplates.migratedComponentTemplates,
+                    true
+                )
             );
             return;
         }
@@ -120,25 +132,33 @@ public class TransportMigrateToDataTiersAction extends TransportMasterNodeAction
             }
 
             @Override
-            public void onFailure(String source, Exception e) {
+            public void onFailure(Exception e) {
                 listener.onFailure(e);
             }
 
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                super.clusterStateProcessed(source, oldState, newState);
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                super.clusterStateProcessed(oldState, newState);
                 MigratedEntities entities = migratedEntities.get();
                 listener.onResponse(
                     new MigrateToDataTiersResponse(
                         entities.removedIndexTemplateName,
                         entities.migratedPolicies,
                         entities.migratedIndices,
+                        entities.migratedTemplates.migratedLegacyTemplates,
+                        entities.migratedTemplates.migratedComposableTemplates,
+                        entities.migratedTemplates.migratedComponentTemplates,
                         false
                     )
                 );
             }
-        });
+        }, newExecutor());
 
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 
     @Override

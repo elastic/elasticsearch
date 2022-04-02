@@ -52,7 +52,7 @@ add time series mappings:
 can't shadow dimensions:
   - skip:
       version: " - 8.0.99"
-      reason: introduced in 8.1.0 to be backported to 8.0.0
+      reason: introduced in 8.1.0
 
   - do:
       indices.create:
@@ -118,7 +118,7 @@ can't shadow dimensions:
 can't shadow metrics:
   - skip:
       version: " - 8.0.99"
-      reason: introduced in 8.1.0 to be backported to 8.0.0
+      reason: introduced in 8.1.0
 
   - do:
       indices.create:
@@ -214,3 +214,25 @@ no _tsid in standard indices:
   - is_false: fields.metricset.keyword.non_searchable_indices
   - is_false: fields.metricset.keyword.non_aggregatable_indices
   - is_false: fields._tsid  # _tsid metadata field must not exist in non-time-series indices
+
+---
+no nested dimensions:
+  - skip:
+      version: " - 8.1.99"
+      reason: introduced in 8.2.0
+
+  - do:
+      catch: /time_series_dimension can't be configured in nested field \[nested.dim\]/
+      indices.create:
+          index: test
+          body:
+            mappings:
+              properties:
+                "@timestamp":
+                  type: date
+                nested:
+                  type: nested
+                  properties:
+                      dim:
+                        type: keyword
+                        time_series_dimension: true

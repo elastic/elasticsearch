@@ -440,26 +440,26 @@ public final class MethodWriter extends GeneratorAdapter {
     }
 
     public void invokeMethodCall(PainlessMethod painlessMethod) {
-        Type type = Type.getType(painlessMethod.javaMethod.getDeclaringClass());
-        Method method = Method.getMethod(painlessMethod.javaMethod);
+        Type type = Type.getType(painlessMethod.javaMethod().getDeclaringClass());
+        Method method = Method.getMethod(painlessMethod.javaMethod());
 
-        if (Modifier.isStatic(painlessMethod.javaMethod.getModifiers())) {
+        if (Modifier.isStatic(painlessMethod.javaMethod().getModifiers())) {
             // invokeStatic assumes that the owner class is not an interface, so this is a
             // special case for interfaces where the interface method boolean needs to be set to
             // true to reference the appropriate class constant when calling a static interface
             // method since java 8 did not check, but java 9 and 10 do
-            if (painlessMethod.javaMethod.getDeclaringClass().isInterface()) {
+            if (painlessMethod.javaMethod().getDeclaringClass().isInterface()) {
                 visitMethodInsn(
                     Opcodes.INVOKESTATIC,
                     type.getInternalName(),
-                    painlessMethod.javaMethod.getName(),
+                    painlessMethod.javaMethod().getName(),
                     method.getDescriptor(),
                     true
                 );
             } else {
                 invokeStatic(type, method);
             }
-        } else if (painlessMethod.javaMethod.getDeclaringClass().isInterface()) {
+        } else if (painlessMethod.javaMethod().getDeclaringClass().isInterface()) {
             invokeInterface(type, method);
         } else {
             invokeVirtual(type, method);

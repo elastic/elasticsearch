@@ -211,6 +211,16 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
     }
 
     /**
+     * Has the information in this object ever been refreshed?
+     * This method is intended for use when it's not essential to
+     * have the most up-to-date information, but having <em>some</em>
+     * information is necessary, for example in telemetry.
+     */
+    public boolean isEverRefreshed() {
+        return isMaster && lastUpdateTime != null;
+    }
+
+    /**
      * Get the memory requirement for an anomaly detector job.
      * This method only works on the master node.
      * @param jobId The job ID.

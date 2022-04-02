@@ -21,7 +21,9 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.ql.type.DataTypeConverter.toUnsignedLong;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.DATE;
 
 public class TopHitsAggExtractor implements BucketExtractor {
@@ -83,6 +85,16 @@ public class TopHitsAggExtractor implements BucketExtractor {
             return DateUtils.asDateTimeWithNanos(value.toString()).withZoneSameInstant(zoneId());
         } else if (SqlDataTypes.isTimeBased(fieldDataType)) {
             return DateUtils.asTimeOnly(Long.parseLong(value.toString()), zoneId);
+        } else if (fieldDataType == UNSIGNED_LONG) {
+            if (value == null) {
+                return null;
+            } else if (value instanceof Number number) {
+                // values can be returned either as unsigned_longs or longs (if range allows), which can lead to cast exceptions
+                // when sorting rows locally -> upcast to BigInteger
+                return toUnsignedLong(number);
+            } else {
+                throw new SqlIllegalArgumentException("Invalid unsigned_long key returned: {}", value);
+            }
         } else {
             return value;
         }

@@ -39,7 +39,6 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.StreamSupport;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -209,7 +208,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         );
 
         assertThat(context.nodes().size(), equalTo(1));
-        assertThat(context.nodes(), equalTo(StreamSupport.stream(state.nodes().spliterator(), false).collect(Collectors.toSet())));
+        assertThat(context.nodes(), equalTo(state.nodes().stream().collect(Collectors.toSet())));
         if (hasDataRole) {
             assertNull(context.currentCapacity());
         } else {

@@ -40,6 +40,7 @@ import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
@@ -94,6 +95,7 @@ import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.action.search.SearchType.DFS_QUERY_THEN_FETCH;
 import static org.elasticsearch.action.search.SearchType.QUERY_THEN_FETCH;
+import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
 import static org.elasticsearch.search.sort.FieldSortBuilder.hasPrimaryFieldSort;
 import static org.elasticsearch.threadpool.ThreadPool.Names.SYSTEM_CRITICAL_READ;
 import static org.elasticsearch.threadpool.ThreadPool.Names.SYSTEM_READ;
@@ -131,6 +133,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     private final CircuitBreaker circuitBreaker;
     private final ExecutorSelector executorSelector;
     private final int defaultPreFilterShardSize;
+    private final boolean ccsCheckCompatibility;
 
     @Inject
     public TransportSearchAction(
@@ -159,6 +162,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         this.namedWriteableRegistry = namedWriteableRegistry;
         this.executorSelector = executorSelector;
         this.defaultPreFilterShardSize = DEFAULT_PRE_FILTER_SHARD_SIZE.get(clusterService.getSettings());
+        this.ccsCheckCompatibility = SearchService.CCS_VERSION_CHECK_SETTING.get(clusterService.getSettings());
     }
 
     private Map<String, OriginalIndices> buildPerIndexOriginalIndices(
@@ -248,11 +252,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
      * to moving backwards due to NTP and other such complexities, etc.). There are also issues with
      * using a relative clock for reporting real time. Thus, we simply separate these two uses.
      */
-    static final class SearchTimeProvider {
-
-        private final long absoluteStartMillis;
-        private final long relativeStartNanos;
-        private final LongSupplier relativeCurrentNanosProvider;
+    record SearchTimeProvider(long absoluteStartMillis, long relativeStartNanos, LongSupplier relativeCurrentNanosProvider) {
 
         /**
          * Instantiates a new search time provider. The absolute start time is the real clock time
@@ -261,19 +261,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
          * operation took can be measured against the provided relative clock and the relative start
          * time.
          *
-         * @param absoluteStartMillis the absolute start time in milliseconds since the epoch
-         * @param relativeStartNanos the relative start time in nanoseconds
+         * @param absoluteStartMillis          the absolute start time in milliseconds since the epoch
+         * @param relativeStartNanos           the relative start time in nanoseconds
          * @param relativeCurrentNanosProvider provides the current relative time
          */
-        SearchTimeProvider(final long absoluteStartMillis, final long relativeStartNanos, final LongSupplier relativeCurrentNanosProvider) {
-            this.absoluteStartMillis = absoluteStartMillis;
-            this.relativeStartNanos = relativeStartNanos;
-            this.relativeCurrentNanosProvider = relativeCurrentNanosProvider;
-        }
-
-        long getAbsoluteStartMillis() {
-            return absoluteStartMillis;
-        }
+        SearchTimeProvider {}
 
         long buildTookInMillis() {
             return TimeUnit.NANOSECONDS.toMillis(relativeCurrentNanosProvider.getAsLong() - relativeStartNanos);
@@ -382,6 +374,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         ActionListener<SearchRequest> rewriteListener = ActionListener.wrap(rewritten -> {
             final SearchContextId searchContext;
             final Map<String, OriginalIndices> remoteClusterIndices;
+            if (ccsCheckCompatibility) {
+                checkCCSVersionCompatibility(rewritten);
+            }
             if (rewritten.pointInTimeBuilder() != null) {
                 searchContext = rewritten.pointInTimeBuilder().getSearchContextId(namedWriteableRegistry);
                 remoteClusterIndices = getIndicesFromSearchContexts(searchContext, rewritten.indicesOptions());
@@ -404,7 +399,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 );
             } else {
                 if (shouldMinimizeRoundtrips(rewritten)) {
-                    final TaskId parentTaskId = task.taskInfo(clusterService.localNode().getId(), false).getTaskId();
+                    final TaskId parentTaskId = task.taskInfo(clusterService.localNode().getId(), false).taskId();
                     ccsRemoteReduce(
                         parentTaskId,
                         rewritten,
@@ -480,7 +475,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 }
             }
         }, listener::onFailure);
-        Rewriteable.rewriteAndFetch(original, searchService.getRewriteContext(timeProvider::getAbsoluteStartMillis), rewriteListener);
+        Rewriteable.rewriteAndFetch(original, searchService.getRewriteContext(timeProvider::absoluteStartMillis), rewriteListener);
     }
 
     static boolean shouldMinimizeRoundtrips(SearchRequest searchRequest) {
@@ -528,7 +523,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 searchRequest,
                 indices.indices(),
                 clusterAlias,
-                timeProvider.getAbsoluteStartMillis(),
+                timeProvider.absoluteStartMillis(),
                 true
             );
             Client remoteClusterClient = remoteClusterService.getRemoteClusterClient(threadPool, clusterAlias);
@@ -591,7 +586,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     searchRequest,
                     indices.indices(),
                     clusterAlias,
-                    timeProvider.getAbsoluteStartMillis(),
+                    timeProvider.absoluteStartMillis(),
                     false
                 );
                 ActionListener<SearchResponse> ccsListener = createCCSListener(
@@ -623,7 +618,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     searchRequest,
                     localIndices.indices(),
                     RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
-                    timeProvider.getAbsoluteStartMillis(),
+                    timeProvider.absoluteStartMillis(),
                     false
                 );
                 localSearchConsumer.accept(ccsLocalSearchRequest, ccsListener);
@@ -879,7 +874,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
 
         List<String> frozenIndices = null;
-        Index[] indices = indexNameExpressionResolver.concreteIndices(clusterState, localIndices, timeProvider.getAbsoluteStartMillis());
+        Index[] indices = indexNameExpressionResolver.concreteIndices(clusterState, localIndices, timeProvider.absoluteStartMillis());
         for (Index index : indices) {
             IndexMetadata indexMetadata = clusterState.metadata().index(index);
             if (indexMetadata.getSettings().getAsBoolean("index.frozen", false)) {
@@ -974,7 +969,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 OriginalIndices finalIndices = finalIndicesMap.get(it.shardId().getIndex().getUUID());
                 assert finalIndices != null;
                 return new SearchShardIterator(searchRequest.getLocalClusterAlias(), it.shardId(), it.getShardRoutings(), finalIndices);
-            }).collect(Collectors.toList());
+            }).toList();
         }
         final GroupShardsIterator<SearchShardIterator> shardIterators = mergeShardsIterators(localShardIterators, remoteShardIterators);
 
@@ -1037,9 +1032,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     Executor asyncSearchExecutor(final String[] indices) {
-        final List<String> executorsForIndices = Arrays.stream(indices)
-            .map(executorSelector::executorForSearch)
-            .collect(Collectors.toList());
+        final List<String> executorsForIndices = Arrays.stream(indices).map(executorSelector::executorForSearch).toList();
         if (executorsForIndices.size() == 1) { // all indices have same executor
             return threadPool.executor(executorsForIndices.get(0));
         }
@@ -1179,7 +1172,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     return action;
                 },
                 clusters,
-                searchService.getCoordinatorRewriteContextProvider(timeProvider::getAbsoluteStartMillis)
+                searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis)
             );
         } else {
             final QueryPhaseResultConsumer queryResultConsumer = searchPhaseController.newSearchPhaseResults(
@@ -1198,7 +1191,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     connectionLookup,
                     aliasFilter,
                     concreteIndexBoosts,
-                    searchPhaseController,
                     executor,
                     queryResultConsumer,
                     searchRequest,
@@ -1215,7 +1207,6 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     connectionLookup,
                     aliasFilter,
                     concreteIndexBoosts,
-                    searchPhaseController,
                     executor,
                     queryResultConsumer,
                     searchRequest,
@@ -1238,7 +1229,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         String[] concreteLocalIndices
     ) {
         HashSet<String> searchedIndices = new HashSet<>(Arrays.asList(concreteLocalIndices));
-        HashMap<String, long[]> newWaitForCheckpoints = new HashMap<>(searchRequest.getWaitForCheckpoints().size());
+        Map<String, long[]> newWaitForCheckpoints = Maps.newMapWithExpectedSize(searchRequest.getWaitForCheckpoints().size());
         for (Map.Entry<String, long[]> waitForCheckpointIndex : searchRequest.getWaitForCheckpoints().entrySet()) {
             long[] checkpoints = waitForCheckpointIndex.getValue();
             int checkpointsProvided = checkpoints.length;

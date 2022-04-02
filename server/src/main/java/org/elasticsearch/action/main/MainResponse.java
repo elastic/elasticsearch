@@ -86,7 +86,7 @@ public class MainResponse extends ActionResponse implements ToXContentObject {
         builder.field("cluster_name", clusterName.value());
         builder.field("cluster_uuid", clusterUuid);
         builder.startObject("version")
-            .field("number", build.getQualifiedVersion())
+            .field("number", build.qualifiedVersion())
             .field("build_flavor", build.flavor().displayName())
             .field("build_type", build.type().displayName())
             .field("build_hash", build.hash())

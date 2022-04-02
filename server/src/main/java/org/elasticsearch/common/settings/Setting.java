@@ -23,12 +23,11 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -579,15 +578,11 @@ public class Setting<T> implements ToXContentObject {
         if (this.isDeprecated() && this.exists(settings)) {
             // It would be convenient to show its replacement key, but replacement is often not so simple
             final String key = getKey();
-            List<String> skipTheseDeprecations = settings.getAsList("deprecation.skip_deprecated_settings");
-            if (Regex.simpleMatch(skipTheseDeprecations, key) == false) {
-                String message = "[{}] setting was deprecated in Elasticsearch and will be removed in a future release! "
-                    + "See the breaking changes documentation for the next major version.";
-                if (this.isDeprecatedWarningOnly()) {
-                    Settings.DeprecationLoggerHolder.deprecationLogger.warn(DeprecationCategory.SETTINGS, key, message, key);
-                } else {
-                    Settings.DeprecationLoggerHolder.deprecationLogger.critical(DeprecationCategory.SETTINGS, key, message, key);
-                }
+            String message = "[{}] setting was deprecated in Elasticsearch and will be removed in a future release.";
+            if (this.isDeprecatedWarningOnly()) {
+                Settings.DeprecationLoggerHolder.deprecationLogger.warn(DeprecationCategory.SETTINGS, key, message, key);
+            } else {
+                Settings.DeprecationLoggerHolder.deprecationLogger.critical(DeprecationCategory.SETTINGS, key, message, key);
             }
         }
     }
@@ -1234,6 +1229,15 @@ public class Setting<T> implements ToXContentObject {
         return new Setting<>(key, s -> Integer.toString(defaultValue.id), s -> Version.fromId(Integer.parseInt(s)), properties);
     }
 
+    public static Setting<Version> versionSetting(
+        final String key,
+        Setting<Version> fallbackSetting,
+        Validator<Version> validator,
+        Property... properties
+    ) {
+        return new Setting<>(key, fallbackSetting, s -> Version.fromId(Integer.parseInt(s)), properties);
+    }
+
     public static Setting<Float> floatSetting(String key, float defaultValue, Property... properties) {
         return new Setting<>(key, (s) -> Float.toString(defaultValue), Float::parseFloat, properties);
     }
@@ -1722,7 +1726,7 @@ public class Setting<T> implements ToXContentObject {
         if (defaultStringValue.apply(Settings.EMPTY) == null) {
             throw new IllegalArgumentException("default value function must not return null");
         }
-        Function<String, List<T>> parser = (s) -> parseableStringToList(s).stream().map(singleValueParser).collect(Collectors.toList());
+        Function<String, List<T>> parser = (s) -> parseableStringToList(s).stream().map(singleValueParser).toList();
 
         return new ListSetting<>(key, fallbackSetting, defaultStringValue, parser, validator, properties);
     }
@@ -1732,10 +1736,7 @@ public class Setting<T> implements ToXContentObject {
             return List.of();
         }
         // fromXContent doesn't use named xcontent or deprecation.
-        try (
-            XContentParser xContentParser = XContentType.JSON.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, parsableString)
-        ) {
+        try (XContentParser xContentParser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, parsableString)) {
             xContentParser.nextToken();
             return XContentParserUtils.parseList(xContentParser, p -> {
                 XContentParserUtils.ensureExpectedToken(XContentParser.Token.VALUE_STRING, p.currentToken(), p);
@@ -1979,28 +1980,35 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static Setting<Double> doubleSetting(String key, double defaultValue, double minValue, double maxValue, Property... properties) {
-        return new Setting<>(key, (s) -> Double.toString(defaultValue), (s) -> {
-            final double d = Double.parseDouble(s);
-            if (d < minValue) {
-                String err = "Failed to parse value"
-                    + (isFiltered(properties) ? "" : " [" + s + "]")
-                    + " for setting ["
-                    + key
-                    + "] must be >= "
-                    + minValue;
-                throw new IllegalArgumentException(err);
-            }
-            if (d > maxValue) {
-                String err = "Failed to parse value"
-                    + (isFiltered(properties) ? "" : " [" + s + "]")
-                    + " for setting ["
-                    + key
-                    + "] must be <= "
-                    + maxValue;
-                throw new IllegalArgumentException(err);
-            }
-            return d;
-        }, properties);
+        return new Setting<>(
+            key,
+            (s) -> Double.toString(defaultValue),
+            (s) -> parseDouble(s, minValue, maxValue, key, properties),
+            properties
+        );
+    }
+
+    public static Double parseDouble(String s, double minValue, double maxValue, String key, Property... properties) {
+        final double d = Double.parseDouble(s);
+        if (d < minValue) {
+            String err = "Failed to parse value"
+                + (isFiltered(properties) ? "" : " [" + s + "]")
+                + " for setting ["
+                + key
+                + "] must be >= "
+                + minValue;
+            throw new IllegalArgumentException(err);
+        }
+        if (d > maxValue) {
+            String err = "Failed to parse value"
+                + (isFiltered(properties) ? "" : " [" + s + "]")
+                + " for setting ["
+                + key
+                + "] must be <= "
+                + maxValue;
+            throw new IllegalArgumentException(err);
+        }
+        return d;
     }
 
     @Override

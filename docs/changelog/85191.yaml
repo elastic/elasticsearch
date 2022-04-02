@@ -1,0 +1,5 @@
+pr: 85191
+summary: Make `FieldMapper.Param` Cheaper to Construct
+area: Mapping
+type: enhancement
+issues: []

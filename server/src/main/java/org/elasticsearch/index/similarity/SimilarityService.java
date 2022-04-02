@@ -23,6 +23,7 @@ import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -80,7 +81,7 @@ public final class SimilarityService {
         ScriptService scriptService,
         Map<String, TriFunction<Settings, Version, ScriptService, Similarity>> similarities
     ) {
-        Map<String, Supplier<Similarity>> providers = new HashMap<>(similarities.size());
+        Map<String, Supplier<Similarity>> providers = Maps.newMapWithExpectedSize(similarities.size());
         Map<String, Settings> similaritySettings = indexSettings.getSettings().getGroups(IndexModule.SIMILARITY_SETTINGS_PREFIX);
 
         for (Map.Entry<String, Settings> entry : similaritySettings.entrySet()) {

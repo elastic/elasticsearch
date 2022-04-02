@@ -43,7 +43,8 @@ import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.TransportSettings;
-import org.elasticsearch.transport.nio.MockNioTransport;
+import org.elasticsearch.transport.netty4.Netty4Transport;
+import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.junit.After;
 import org.junit.Before;
 
@@ -179,14 +180,15 @@ public abstract class TaskManagerTestCase extends ESTestCase {
             };
             transportService = new TransportService(
                 settings,
-                new MockNioTransport(
+                new Netty4Transport(
                     settings,
                     Version.CURRENT,
                     threadPool,
                     new NetworkService(Collections.emptyList()),
                     PageCacheRecycler.NON_RECYCLING_INSTANCE,
                     new NamedWriteableRegistry(ClusterModule.getNamedWriteables()),
-                    new NoneCircuitBreakerService()
+                    new NoneCircuitBreakerService(),
+                    new SharedGroupFactory(settings)
                 ),
                 threadPool,
                 TransportService.NOOP_TRANSPORT_INTERCEPTOR,

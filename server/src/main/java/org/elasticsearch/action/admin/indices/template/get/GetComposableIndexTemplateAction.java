@@ -137,7 +137,7 @@ public class GetComposableIndexTemplateAction extends ActionType<GetComposableIn
             for (Map.Entry<String, ComposableIndexTemplate> indexTemplate : this.indexTemplates.entrySet()) {
                 builder.startObject();
                 builder.field(NAME.getPreferredName(), indexTemplate.getKey());
-                builder.field(INDEX_TEMPLATE.getPreferredName(), indexTemplate.getValue());
+                builder.field(INDEX_TEMPLATE.getPreferredName(), indexTemplate.getValue(), params);
                 builder.endObject();
             }
             builder.endArray();

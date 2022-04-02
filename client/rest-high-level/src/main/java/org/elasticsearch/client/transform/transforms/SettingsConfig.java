@@ -27,6 +27,7 @@ public class SettingsConfig implements ToXContentObject {
     private static final ParseField DATES_AS_EPOCH_MILLIS = new ParseField("dates_as_epoch_millis");
     private static final ParseField ALIGN_CHECKPOINTS = new ParseField("align_checkpoints");
     private static final ParseField USE_PIT = new ParseField("use_point_in_time");
+    private static final ParseField DEDUCE_MAPPINGS = new ParseField("deduce_mappings");
     private static final int DEFAULT_MAX_PAGE_SEARCH_SIZE = -1;
     private static final float DEFAULT_DOCS_PER_SECOND = -1F;
 
@@ -39,16 +40,27 @@ public class SettingsConfig implements ToXContentObject {
     // use an integer as we need to code 4 states: true, false, null (unchanged), default (defined server side)
     private static final int DEFAULT_USE_PIT = -1;
 
+    // use an integer as we need to code 4 states: true, false, null (unchanged), default (defined server side)
+    private static final int DEFAULT_DEDUCE_MAPPINGS = -1;
+
     private final Integer maxPageSearchSize;
     private final Float docsPerSecond;
     private final Integer datesAsEpochMillis;
     private final Integer alignCheckpoints;
     private final Integer usePit;
+    private final Integer deduceMappings;
 
     private static final ConstructingObjectParser<SettingsConfig, Void> PARSER = new ConstructingObjectParser<>(
         "settings_config",
         true,
-        args -> new SettingsConfig((Integer) args[0], (Float) args[1], (Integer) args[2], (Integer) args[3], (Integer) args[4])
+        args -> new SettingsConfig(
+            (Integer) args[0],
+            (Float) args[1],
+            (Integer) args[2],
+            (Integer) args[3],
+            (Integer) args[4],
+            (Integer) args[5]
+        )
     );
 
     static {
@@ -75,18 +87,33 @@ public class SettingsConfig implements ToXContentObject {
             USE_PIT,
             ValueType.BOOLEAN_OR_NULL
         );
+        // this boolean requires 4 possible values: true, false, not_specified, default, therefore using a custom parser
+        PARSER.declareField(
+            optionalConstructorArg(),
+            p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? DEFAULT_DEDUCE_MAPPINGS : p.booleanValue() ? 1 : 0,
+            DEDUCE_MAPPINGS,
+            ValueType.BOOLEAN_OR_NULL
+        );
     }
 
     public static SettingsConfig fromXContent(final XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
-    SettingsConfig(Integer maxPageSearchSize, Float docsPerSecond, Integer datesAsEpochMillis, Integer alignCheckpoints, Integer usePit) {
+    SettingsConfig(
+        Integer maxPageSearchSize,
+        Float docsPerSecond,
+        Integer datesAsEpochMillis,
+        Integer alignCheckpoints,
+        Integer usePit,
+        Integer deduceMappings
+    ) {
         this.maxPageSearchSize = maxPageSearchSize;
         this.docsPerSecond = docsPerSecond;
         this.datesAsEpochMillis = datesAsEpochMillis;
         this.alignCheckpoints = alignCheckpoints;
         this.usePit = usePit;
+        this.deduceMappings = deduceMappings;
     }
 
     @Override
@@ -127,6 +154,13 @@ public class SettingsConfig implements ToXContentObject {
                 builder.field(USE_PIT.getPreferredName(), usePit > 0 ? true : false);
             }
         }
+        if (deduceMappings != null) {
+            if (deduceMappings.equals(DEFAULT_DEDUCE_MAPPINGS)) {
+                builder.field(DEDUCE_MAPPINGS.getPreferredName(), (Boolean) null);
+            } else {
+                builder.field(DEDUCE_MAPPINGS.getPreferredName(), deduceMappings > 0 ? true : false);
+            }
+        }
         builder.endObject();
         return builder;
     }
@@ -151,6 +185,10 @@ public class SettingsConfig implements ToXContentObject {
         return usePit != null ? usePit > 0 : null;
     }
 
+    public Boolean getDeduceMappings() {
+        return deduceMappings != null ? deduceMappings > 0 : null;
+    }
+
     @Override
     public boolean equals(Object other) {
         if (other == this) {
@@ -165,12 +203,13 @@ public class SettingsConfig implements ToXContentObject {
             && Objects.equals(docsPerSecond, that.docsPerSecond)
             && Objects.equals(datesAsEpochMillis, that.datesAsEpochMillis)
             && Objects.equals(alignCheckpoints, that.alignCheckpoints)
-            && Objects.equals(usePit, that.usePit);
+            && Objects.equals(usePit, that.usePit)
+            && Objects.equals(deduceMappings, that.deduceMappings);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(maxPageSearchSize, docsPerSecond, datesAsEpochMillis, alignCheckpoints, usePit);
+        return Objects.hash(maxPageSearchSize, docsPerSecond, datesAsEpochMillis, alignCheckpoints, usePit, deduceMappings);
     }
 
     public static Builder builder() {
@@ -183,6 +222,7 @@ public class SettingsConfig implements ToXContentObject {
         private Integer datesAsEpochMillis;
         private Integer alignCheckpoints;
         private Integer usePit;
+        private Integer deduceMappings;
 
         /**
          * Sets the paging maximum paging maxPageSearchSize that transform can use when
@@ -256,8 +296,22 @@ public class SettingsConfig implements ToXContentObject {
             return this;
         }
 
+        /**
+         * Whether the destination index mappings should be deduced from the transform config.
+         * It is used per default.
+         *
+         * An explicit `null` resets to default.
+         *
+         * @param deduceMappings true if the transform should try deducing mappings from the config.
+         * @return the {@link Builder} with deduceMappings set.
+         */
+        public Builder setDeduceMappings(Boolean deduceMappings) {
+            this.deduceMappings = deduceMappings == null ? DEFAULT_DEDUCE_MAPPINGS : deduceMappings ? 1 : 0;
+            return this;
+        }
+
         public SettingsConfig build() {
-            return new SettingsConfig(maxPageSearchSize, docsPerSecond, datesAsEpochMillis, alignCheckpoints, usePit);
+            return new SettingsConfig(maxPageSearchSize, docsPerSecond, datesAsEpochMillis, alignCheckpoints, usePit, deduceMappings);
         }
     }
 }

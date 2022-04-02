@@ -9,8 +9,7 @@ package org.elasticsearch.cluster.remote.test;
 
 import org.apache.http.HttpHost;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
-import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.common.settings.SecureString;
@@ -28,6 +27,7 @@ import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
+import java.util.function.Consumer;
 
 @SuppressWarnings("removal")
 public abstract class AbstractMultiClusterRemoteTestCase extends ESRestTestCase {
@@ -58,8 +58,12 @@ public abstract class AbstractMultiClusterRemoteTestCase extends ESRestTestCase 
         cluster1Client = buildClient("localhost:" + getProperty("test.fixtures.elasticsearch-" + getDistribution() + "-1.tcp.9200"));
         cluster2Client = buildClient("localhost:" + getProperty("test.fixtures.elasticsearch-" + getDistribution() + "-2.tcp.9200"));
 
-        cluster1Client().cluster().health(new ClusterHealthRequest().waitForNodes("1").waitForYellowStatus(), RequestOptions.DEFAULT);
-        cluster2Client().cluster().health(new ClusterHealthRequest().waitForNodes("1").waitForYellowStatus(), RequestOptions.DEFAULT);
+        Consumer<Request> waitForYellowRequest = request -> {
+            request.addParameter("wait_for_status", "yellow");
+            request.addParameter("wait_for_nodes", "1");
+        };
+        ensureHealth(cluster1Client().getLowLevelClient(), waitForYellowRequest);
+        ensureHealth(cluster2Client().getLowLevelClient(), waitForYellowRequest);
 
         initialized = true;
     }

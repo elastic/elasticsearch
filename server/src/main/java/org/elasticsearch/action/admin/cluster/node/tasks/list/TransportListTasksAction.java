@@ -45,7 +45,7 @@ public class TransportListTasksAction extends TransportTasksAction<Task, ListTas
             actionFilters,
             ListTasksRequest::new,
             ListTasksResponse::new,
-            TaskInfo::new,
+            TaskInfo::from,
             ThreadPool.Names.MANAGEMENT
         );
     }

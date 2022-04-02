@@ -8,6 +8,7 @@
 
 package org.elasticsearch.gradle.internal.test.rest
 
+import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.fixtures.AbstractRestResourcesFuncTest
 import org.gradle.testkit.runner.TaskOutcome
 
@@ -77,5 +78,122 @@ class InternalYamlRestTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         result.task(':yamlRestTest').outcome == TaskOutcome.SKIPPED
         result.task(':copyRestApiSpecsTask').outcome == TaskOutcome.UP_TO_DATE
         result.task(':copyYamlTestsTask').outcome == TaskOutcome.NO_SOURCE
+    }
+
+    def "#type projects are wired into test cluster setup"() {
+        given:
+        internalBuild()
+        localDistroSetup()
+        def distroVersion = VersionProperties.getElasticsearch()
+
+        def subProjectBuildFile = addSubProject(pluginProjectPath)
+        subProjectBuildFile << """
+            apply plugin: 'elasticsearch.esplugin'
+            apply plugin: 'elasticsearch.internal-yaml-rest-test'
+
+            dependencies {
+               yamlRestTestImplementation "junit:junit:4.12"
+            }
+           
+            esplugin { 
+                description = 'test plugin'
+                classname = 'com.acme.plugin.TestPlugin'
+            }
+            
+            // for testing purposes only
+            configurations.compileOnly.dependencies.clear()
+            
+            testClusters {
+              yamlRestTest {
+                  version = "$distroVersion"
+                  testDistribution = 'INTEG_TEST'
+              }
+            }
+        """
+        def testFile = new File(subProjectBuildFile.parentFile, 'src/yamlRestTest/java/org/acme/SomeTestIT.java')
+        testFile.parentFile.mkdirs()
+        testFile << """
+        package org.acme;
+        
+        import org.junit.Test;
+        
+        public class SomeTestIT {
+            @Test
+            public void someMethod() {
+            }
+        }
+        """
+
+        when:
+        def result = gradleRunner("yamlRestTest", "--console", 'plain', '--stacktrace').buildAndFail()
+
+        then:
+        result.task(":distribution:archives:integ-test-zip:buildExpanded").outcome == TaskOutcome.SUCCESS
+        result.getOutput().contains(expectedInstallLog)
+
+        where:
+        type     | pluginProjectPath   | expectedInstallLog
+        "plugin" | ":plugins:plugin-a" | "installing 1 plugins in a single transaction"
+        "module" | ":modules:module-a" | "Installing 1 modules"
+    }
+
+    private void localDistroSetup() {
+        settingsFile << """
+        include ":distribution:archives:integ-test-zip"
+        """
+        def distProjectFolder = file("distribution/archives/integ-test-zip")
+        file(distProjectFolder, 'current-marker.txt') << "current"
+
+        def elasticPluginScript = file(distProjectFolder, 'src/bin/elasticsearch-plugin')
+        elasticPluginScript << """#!/bin/bash
+@echo off
+echo "Installing plugin \$0"
+"""
+        assert elasticPluginScript.setExecutable(true)
+
+        def elasticKeystoreScript = file(distProjectFolder, 'src/bin/elasticsearch-keystore')
+        elasticKeystoreScript << """#!/bin/bash
+@echo off
+echo "Installing keystore \$0"
+"""
+        assert elasticKeystoreScript.setExecutable(true)
+
+        def elasticScript = file(distProjectFolder, 'src/bin/elasticsearch')
+        elasticScript << """#!/bin/bash
+@echo off
+echo "Running elasticsearch \$0"
+"""
+        assert elasticScript.setExecutable(true)
+
+        file(distProjectFolder, 'src/config/elasticsearch.properties') << "some propes"
+        file(distProjectFolder, 'src/config/jvm.options') << """
+-Xlog:gc*,gc+age=trace,safepoint:file=logs/gc.log:utctime,pid,tags:filecount=32,filesize=64m
+-XX:ErrorFile=logs/hs_err_pid%p.log
+-XX:HeapDumpPath=data
+"""
+        file(distProjectFolder, 'build.gradle') << """
+            import org.gradle.api.internal.artifacts.ArtifactAttributes;
+
+            apply plugin:'distribution'
+            def buildExpanded = tasks.register("buildExpanded", Copy) {
+                into("build/local")
+                
+                into('es-dummy-dist') {
+                    from('src')
+                    from('current-marker.txt')
+                }
+            }
+            
+            configurations {
+                extracted {
+                    attributes {
+                          attribute(ArtifactAttributes.ARTIFACT_FORMAT, "directory")
+                    }
+                }
+            }
+            artifacts {
+                it.add("extracted", buildExpanded)
+            }
+        """
     }
 }

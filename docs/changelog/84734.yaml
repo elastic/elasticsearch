@@ -1,0 +1,6 @@
+pr: 84734
+summary: Integrate filtering support for ANN
+area: Search
+type: enhancement
+issues:
+ - 81788

@@ -10,6 +10,7 @@ package org.elasticsearch.common.util.concurrent;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -688,6 +689,26 @@ public class ThreadContextTests extends ESTestCase {
             () -> threadContext.putHeader(Collections.<String, String>singletonMap("foo", "boom"))
         );
         assertEquals("value for key [foo] already present", e.getMessage());
+    }
+
+    public void testHeadersCopiedOnStash() {
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
+
+        try (ThreadContext.StoredContext ignored = threadContext.stashContext()) {
+            threadContext.putHeader(Task.X_OPAQUE_ID_HTTP_HEADER, "x-opaque-id");
+            threadContext.putHeader(Task.TRACE_ID, "0af7651916cd43dd8448eb211c80319c");
+            threadContext.putHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER, "kibana");
+
+            try (ThreadContext.StoredContext ignored2 = threadContext.stashContext()) {
+                assertEquals("x-opaque-id", threadContext.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER));
+                assertEquals("0af7651916cd43dd8448eb211c80319c", threadContext.getHeader(Task.TRACE_ID));
+                assertEquals("kibana", threadContext.getHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER));
+            }
+
+            assertEquals("x-opaque-id", threadContext.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER));
+            assertEquals("0af7651916cd43dd8448eb211c80319c", threadContext.getHeader(Task.TRACE_ID));
+            assertEquals("kibana", threadContext.getHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER));
+        }
     }
 
     /**

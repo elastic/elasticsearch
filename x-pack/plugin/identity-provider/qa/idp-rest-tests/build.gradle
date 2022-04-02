@@ -35,7 +35,7 @@ testClusters.configureEach {
   setting 'xpack.security.authc.realms.saml.cloud-saml.attributes.name', 'https://idp.test.es.elasticsearch.org/attribute/name'
   setting 'logger.org.elasticsearch.xpack.security.authc.saml', 'TRACE'
   setting 'logger.org.elasticsearch.xpack.idp', 'TRACE'
-  extraConfigFile 'roles.yml', file('src/javaRestTest/resources/roles.yml')
+  rolesFile file('src/javaRestTest/resources/roles.yml')
   extraConfigFile 'idp-sign.crt', file('src/javaRestTest/resources/idp-sign.crt')
   extraConfigFile 'idp-sign.key', file('src/javaRestTest/resources/idp-sign.key')
   extraConfigFile 'wildcard_services.json', file('src/javaRestTest/resources/wildcard_services.json')

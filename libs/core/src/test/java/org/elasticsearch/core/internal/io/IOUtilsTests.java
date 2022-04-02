@@ -18,8 +18,8 @@
 
 package org.elasticsearch.core.internal.io;
 
-import org.apache.lucene.mockfile.FilterFileSystemProvider;
-import org.apache.lucene.mockfile.FilterPath;
+import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
+import org.apache.lucene.tests.mockfile.FilterPath;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.PathUtils;

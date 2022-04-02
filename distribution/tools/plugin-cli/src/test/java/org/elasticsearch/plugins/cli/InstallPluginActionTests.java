@@ -12,7 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
 
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.bouncycastle.bcpg.ArmoredOutputStream;
 import org.bouncycastle.bcpg.BCPGOutputStream;
 import org.bouncycastle.bcpg.HashAlgorithmTags;
@@ -88,6 +88,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.CountDownLatch;
 import java.util.function.BiFunction;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -105,6 +106,11 @@ import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.doCallRealMethod;
+import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.spy;
 
 @LuceneTestCase.SuppressFileSystems("*")
 public class InstallPluginActionTests extends ESTestCase {
@@ -402,6 +408,64 @@ public class InstallPluginActionTests extends ESTestCase {
         PluginDescriptor pluginZip = createPluginZip("fake", pluginDir);
         installPlugin(pluginZip);
         assertPlugin("fake", pluginDir, env.v2());
+    }
+
+    public void testSlowSignatureVerificationMessage() throws Exception {
+        String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-"
+            + Build.CURRENT.qualifiedVersion()
+            + ".zip";
+        final MessageDigest digest = MessageDigest.getInstance("SHA-512");
+
+        InstallPluginAction action = makeActionPluginThatDownloads(
+            "analysis-icu",
+            url,
+            null,
+            false,
+            ".sha512",
+            checksumAndFilename(digest, url),
+            newSecretKey(),
+            this::signature
+        );
+
+        final InstallPluginAction spied = spy(action);
+
+        // Control for timeout on waiting for signature verification to complete
+        CountDownLatch countDownLatch = new CountDownLatch(1);
+
+        doAnswer(i -> {
+            i.callRealMethod();
+            countDownLatch.countDown();
+            return null;
+        }).when(spied).reportLongSignatureVerification();
+
+        // Make the slow verification acceptable delay artificially low for testing
+        doReturn(100L).when(spied).acceptableSignatureVerificationDelay();
+
+        doAnswer(i -> {
+            countDownLatch.await(); // wait until we trip the timer
+            i.callRealMethod();
+            return null;
+        }).when(spied).computeSignatureForDownloadedPlugin(any(InputStream.class), any(InputStream.class), any(PGPSignature.class));
+
+        installPlugin(new PluginDescriptor("analysis-icu", null), env.v1(), spied);
+        assertThat(terminal.getOutput(), containsString("The plugin installer is trying to verify the signature "));
+
+        // Clean-up the exiting plugin, let's try to reinstall with 'fast' random numbers
+        final List<PluginDescriptor> plugins = List.of(new PluginDescriptor("analysis-icu", null));
+        new RemovePluginAction(terminal, env.v2(), true).execute(plugins);
+
+        // Make the timer wait practically indefinitely, probably an overkill, but avoid flaky tests.
+        // Divide by two to meet the limitation of the Timer.schedule API.
+        doReturn(Long.MAX_VALUE / 2).when(spied).acceptableSignatureVerificationDelay();
+
+        // Make sure we don't see any slow error messages when the signature verification is fast
+        doCallRealMethod().when(spied)
+            .computeSignatureForDownloadedPlugin(any(InputStream.class), any(InputStream.class), any(PGPSignature.class));
+
+        terminal.reset();
+
+        installPlugin(new PluginDescriptor("analysis-icu", null), env.v1(), spied);
+        assertThat(terminal.getOutput(), not(containsString("The plugin installer is trying to verify the signature ")));
     }
 
     public void testMultipleWorks() throws Exception {
@@ -875,10 +939,34 @@ public class InstallPluginActionTests extends ESTestCase {
         );
     }
 
-    @SuppressForbidden(reason = "Path.of() is OK in this context")
     void assertInstallPluginFromUrl(
         final String pluginId,
         final String pluginUrl,
+        final String url,
+        final String stagingHash,
+        final boolean isSnapshot,
+        final String shaExtension,
+        final Function<byte[], String> shaCalculator,
+        final PGPSecretKey secretKey,
+        final BiFunction<byte[], PGPSecretKey, String> signature
+    ) throws Exception {
+        InstallPluginAction action = makeActionPluginThatDownloads(
+            pluginId,
+            url,
+            stagingHash,
+            isSnapshot,
+            shaExtension,
+            shaCalculator,
+            secretKey,
+            signature
+        );
+        installPlugin(new PluginDescriptor(pluginId, pluginUrl), env.v1(), action);
+        assertPlugin(pluginId, pluginDir, env.v2());
+    }
+
+    @SuppressForbidden(reason = "Path.of() is OK in this context")
+    private InstallPluginAction makeActionPluginThatDownloads(
+        final String pluginId,
         final String url,
         final String stagingHash,
         final boolean isSnapshot,
@@ -969,13 +1057,13 @@ public class InstallPluginActionTests extends ESTestCase {
                 // no jarhell check
             }
         };
-        installPlugin(new PluginDescriptor(pluginId, pluginUrl), env.v1(), action);
-        assertPlugin(pluginId, pluginDir, env.v2());
+
+        return action;
     }
 
     public void testOfficialPlugin() throws Exception {
         String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-"
-            + Build.CURRENT.getQualifiedVersion()
+            + Build.CURRENT.qualifiedVersion()
             + ".zip";
         assertInstallPluginFromUrl("analysis-icu", url, null, false);
     }
@@ -985,7 +1073,7 @@ public class InstallPluginActionTests extends ESTestCase {
             Locale.ROOT,
             "https://snapshots.elastic.co/%s-abc123/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-%s.zip",
             Version.CURRENT,
-            Build.CURRENT.getQualifiedVersion()
+            Build.CURRENT.qualifiedVersion()
         );
         assertInstallPluginFromUrl("analysis-icu", url, "abc123", true);
     }
@@ -995,7 +1083,7 @@ public class InstallPluginActionTests extends ESTestCase {
             Locale.ROOT,
             "https://snapshots.elastic.co/%s-abc123/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-%s.zip",
             Version.CURRENT,
-            Build.CURRENT.getQualifiedVersion()
+            Build.CURRENT.qualifiedVersion()
         );
         // attempting to install a release build of a plugin (no staging ID) on a snapshot build should throw a user exception
         final UserException e = expectThrows(
@@ -1013,7 +1101,7 @@ public class InstallPluginActionTests extends ESTestCase {
         String url = "https://staging.elastic.co/"
             + Version.CURRENT
             + "-abc123/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-"
-            + Build.CURRENT.getQualifiedVersion()
+            + Build.CURRENT.qualifiedVersion()
             + ".zip";
         assertInstallPluginFromUrl("analysis-icu", url, "abc123", false);
     }
@@ -1022,7 +1110,7 @@ public class InstallPluginActionTests extends ESTestCase {
         String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-"
             + Platforms.PLATFORM_NAME
             + "-"
-            + Build.CURRENT.getQualifiedVersion()
+            + Build.CURRENT.qualifiedVersion()
             + ".zip";
         assertInstallPluginFromUrl("analysis-icu", url, null, false);
     }
@@ -1033,7 +1121,7 @@ public class InstallPluginActionTests extends ESTestCase {
             "https://snapshots.elastic.co/%s-abc123/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-%s-%s.zip",
             Version.CURRENT,
             Platforms.PLATFORM_NAME,
-            Build.CURRENT.getQualifiedVersion()
+            Build.CURRENT.qualifiedVersion()
         );
         assertInstallPluginFromUrl("analysis-icu", url, "abc123", true);
     }
@@ -1044,7 +1132,7 @@ public class InstallPluginActionTests extends ESTestCase {
             + "-abc123/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-"
             + Platforms.PLATFORM_NAME
             + "-"
-            + Build.CURRENT.getQualifiedVersion()
+            + Build.CURRENT.qualifiedVersion()
             + ".zip";
         assertInstallPluginFromUrl("analysis-icu", url, "abc123", false);
     }
@@ -1084,7 +1172,7 @@ public class InstallPluginActionTests extends ESTestCase {
 
     public void testOfficialChecksumWithoutFilename() throws Exception {
         String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-"
-            + Build.CURRENT.getQualifiedVersion()
+            + Build.CURRENT.qualifiedVersion()
             + ".zip";
         MessageDigest digest = MessageDigest.getInstance("SHA-512");
         UserException e = expectThrows(
@@ -1097,7 +1185,7 @@ public class InstallPluginActionTests extends ESTestCase {
 
     public void testOfficialShaMissing() throws Exception {
         String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-"
-            + Build.CURRENT.getQualifiedVersion()
+            + Build.CURRENT.qualifiedVersion()
             + ".zip";
         MessageDigest digest = MessageDigest.getInstance("SHA-1");
         UserException e = expectThrows(
@@ -1130,7 +1218,7 @@ public class InstallPluginActionTests extends ESTestCase {
 
     public void testInvalidShaFileMissingFilename() throws Exception {
         String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-"
-            + Build.CURRENT.getQualifiedVersion()
+            + Build.CURRENT.qualifiedVersion()
             + ".zip";
         MessageDigest digest = MessageDigest.getInstance("SHA-512");
         UserException e = expectThrows(
@@ -1143,7 +1231,7 @@ public class InstallPluginActionTests extends ESTestCase {
 
     public void testInvalidShaFileMismatchFilename() throws Exception {
         String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-"
-            + Build.CURRENT.getQualifiedVersion()
+            + Build.CURRENT.qualifiedVersion()
             + ".zip";
         MessageDigest digest = MessageDigest.getInstance("SHA-512");
         UserException e = expectThrows(
@@ -1155,7 +1243,7 @@ public class InstallPluginActionTests extends ESTestCase {
                 null,
                 false,
                 ".sha512",
-                checksumAndString(digest, "  repository-s3-" + Build.CURRENT.getQualifiedVersion() + ".zip"),
+                checksumAndString(digest, "  repository-s3-" + Build.CURRENT.qualifiedVersion() + ".zip"),
                 null,
                 (b, p) -> null
             )
@@ -1166,7 +1254,7 @@ public class InstallPluginActionTests extends ESTestCase {
 
     public void testInvalidShaFileContainingExtraLine() throws Exception {
         String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-"
-            + Build.CURRENT.getQualifiedVersion()
+            + Build.CURRENT.qualifiedVersion()
             + ".zip";
         MessageDigest digest = MessageDigest.getInstance("SHA-512");
         UserException e = expectThrows(
@@ -1178,7 +1266,7 @@ public class InstallPluginActionTests extends ESTestCase {
                 null,
                 false,
                 ".sha512",
-                checksumAndString(digest, "  analysis-icu-" + Build.CURRENT.getQualifiedVersion() + ".zip\nfoobar"),
+                checksumAndString(digest, "  analysis-icu-" + Build.CURRENT.qualifiedVersion() + ".zip\nfoobar"),
                 null,
                 (b, p) -> null
             )
@@ -1189,7 +1277,7 @@ public class InstallPluginActionTests extends ESTestCase {
 
     public void testSha512Mismatch() {
         String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/analysis-icu-"
-            + Build.CURRENT.getQualifiedVersion()
+            + Build.CURRENT.qualifiedVersion()
             + ".zip";
         UserException e = expectThrows(
             UserException.class,
@@ -1200,7 +1288,7 @@ public class InstallPluginActionTests extends ESTestCase {
                 null,
                 false,
                 ".sha512",
-                bytes -> "foobar  analysis-icu-" + Build.CURRENT.getQualifiedVersion() + ".zip",
+                bytes -> "foobar  analysis-icu-" + Build.CURRENT.qualifiedVersion() + ".zip",
                 null,
                 (b, p) -> null
             )
@@ -1234,7 +1322,7 @@ public class InstallPluginActionTests extends ESTestCase {
         final String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/"
             + icu
             + "-"
-            + Build.CURRENT.getQualifiedVersion()
+            + Build.CURRENT.qualifiedVersion()
             + ".zip";
         final MessageDigest digest = MessageDigest.getInstance("SHA-512");
         /*
@@ -1269,7 +1357,7 @@ public class InstallPluginActionTests extends ESTestCase {
         final String url = "https://artifacts.elastic.co/downloads/elasticsearch-plugins/analysis-icu/"
             + icu
             + "-"
-            + Build.CURRENT.getQualifiedVersion()
+            + Build.CURRENT.qualifiedVersion()
             + ".zip";
         final MessageDigest digest = MessageDigest.getInstance("SHA-512");
         /*

@@ -18,6 +18,7 @@ import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.indices.CreateIndexRequest;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.common.CheckedBiFunction;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -32,7 +33,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.URL;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -67,7 +67,7 @@ public class DataLoader {
     private static boolean main = false;
 
     private static Map<String, String[]> getReplacementPatterns() {
-        final Map<String, String[]> map = new HashMap<>(1);
+        final Map<String, String[]> map = Maps.newMapWithExpectedSize(1);
         map.put("[runtime_random_keyword_type]", new String[] { "keyword", "wildcard" });
         return map;
     }

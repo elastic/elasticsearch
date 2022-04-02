@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.sql.jdbc;
 import java.io.InputStream;
 import java.io.Reader;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.net.URL;
 import java.sql.Array;
 import java.sql.Blob;
@@ -44,6 +45,7 @@ import java.util.List;
 import java.util.Locale;
 
 import static java.time.ZoneOffset.UTC;
+import static org.elasticsearch.xpack.sql.jdbc.TypeUtils.scaleOrLength;
 
 class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
 
@@ -209,7 +211,7 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
         // {@code java.sql.Array} etc) will generate the correct exception message. Otherwise, the method call
         // {@code TypeConverter.fromJavaToJDBC(x.getClass())} will report the implementing class as not being supported.
         checkKnownUnsupportedTypes(x);
-        setObject(parameterIndex, x, TypeUtils.of(x.getClass()).getVendorTypeNumber(), 0);
+        setObject(parameterIndex, x, TypeUtils.of(x.getClass()).getVendorTypeNumber(), scaleOrLength(x));
     }
 
     @Override
@@ -353,7 +355,7 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
 
     @Override
     public void setObject(int parameterIndex, Object x, SQLType targetSqlType, int scaleOrLength) throws SQLException {
-        setObject(parameterIndex, x, TypeUtils.of(targetSqlType), targetSqlType.getName());
+        setObject(parameterIndex, x, TypeUtils.of(targetSqlType, scaleOrLength), targetSqlType.getName());
     }
 
     private void setObject(int parameterIndex, Object x, EsType dataType, String typeString) throws SQLException {
@@ -418,6 +420,7 @@ class JdbcPreparedStatement extends JdbcStatement implements PreparedStatement {
             || x instanceof Short
             || x instanceof Integer
             || x instanceof Long
+            || x instanceof BigInteger
             || x instanceof Float
             || x instanceof Double
             || x instanceof String) {

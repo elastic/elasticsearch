@@ -98,7 +98,7 @@ public class InternalInferModelAction extends ActionType<InternalInferModelActio
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(modelId);
-            out.writeCollection(objectsToInfer, StreamOutput::writeMap);
+            out.writeCollection(objectsToInfer, StreamOutput::writeGenericMap);
             out.writeNamedWriteable(update);
             out.writeBoolean(previouslyLicensed);
         }

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.graph.action;
 
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -58,6 +59,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
@@ -233,13 +236,12 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                 if (lastWaveVerticesForField == null) {
                     continue;
                 }
-                String[] terms = new String[lastWaveVerticesForField.size()];
-                int i = 0;
+                SortedSet<BytesRef> terms = new TreeSet<>();
                 for (Vertex v : lastWaveVerticesForField) {
-                    terms[i++] = v.getTerm();
+                    terms.add(new BytesRef(v.getTerm()));
                 }
                 TermsAggregationBuilder lastWaveTermsAgg = AggregationBuilders.terms("field" + fieldNum)
-                    .includeExclude(new IncludeExclude(terms, null))
+                    .includeExclude(new IncludeExclude(null, null, terms, null))
                     .shardMinDocCount(1)
                     .field(lastVr.fieldName())
                     .minDocCount(1)
@@ -247,7 +249,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                     // focused on smaller sets of high quality docs and therefore
                     // examine smaller volumes of terms
                     .executionHint("map")
-                    .size(terms.length);
+                    .size(terms.size());
                 sampleAgg.subAggregation(lastWaveTermsAgg);
                 for (int f = 0; f < currentHop.getNumberVertexRequests(); f++) {
                     VertexRequest vr = currentHop.getVertexRequest(f);
@@ -275,8 +277,8 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                         // nextWaveSigTerms.significanceHeuristic(new ChiSquare.ChiSquareBuilder(false, true));
 
                         if (vr.hasIncludeClauses()) {
-                            String[] includes = vr.includeValuesAsStringArray();
-                            nextWaveSigTerms.includeExclude(new IncludeExclude(includes, null));
+                            SortedSet<BytesRef> includes = vr.includeValuesAsSortedSet();
+                            nextWaveSigTerms.includeExclude(new IncludeExclude(null, null, includes, null));
                             // Originally I thought users would always want the
                             // same number of results as listed in the include
                             // clause but it may be the only want the most
@@ -288,7 +290,7 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                             // nextWaveSigTerms.size(includes.length);
 
                         } else if (vr.hasExcludeClauses()) {
-                            nextWaveSigTerms.includeExclude(new IncludeExclude(null, vr.excludesAsArray()));
+                            nextWaveSigTerms.includeExclude(new IncludeExclude(null, null, null, vr.excludesAsSortedSet()));
                         }
                         lastWaveTermsAgg.subAggregation(nextWaveSigTerms);
                     } else {
@@ -302,11 +304,11 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                             .executionHint("map")
                             .size(size);
                         if (vr.hasIncludeClauses()) {
-                            String[] includes = vr.includeValuesAsStringArray();
-                            nextWavePopularTerms.includeExclude(new IncludeExclude(includes, null));
+                            SortedSet<BytesRef> includes = vr.includeValuesAsSortedSet();
+                            nextWavePopularTerms.includeExclude(new IncludeExclude(null, null, includes, null));
                             // nextWavePopularTerms.size(includes.length);
                         } else if (vr.hasExcludeClauses()) {
-                            nextWavePopularTerms.includeExclude(new IncludeExclude(null, vr.excludesAsArray()));
+                            nextWavePopularTerms.includeExclude(new IncludeExclude(null, null, null, vr.excludesAsSortedSet()));
                         }
                         lastWaveTermsAgg.subAggregation(nextWavePopularTerms);
                     }
@@ -640,12 +642,12 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                         // PercentageScore.PercentageScoreBuilder());
 
                         if (vr.hasIncludeClauses()) {
-                            String[] includes = vr.includeValuesAsStringArray();
-                            sigBuilder.includeExclude(new IncludeExclude(includes, null));
-                            sigBuilder.size(includes.length);
+                            SortedSet<BytesRef> includes = vr.includeValuesAsSortedSet();
+                            sigBuilder.includeExclude(new IncludeExclude(null, null, includes, null));
+                            sigBuilder.size(includes.size());
                         }
                         if (vr.hasExcludeClauses()) {
-                            sigBuilder.includeExclude(new IncludeExclude(null, vr.excludesAsArray()));
+                            sigBuilder.includeExclude(new IncludeExclude(null, null, null, vr.excludesAsSortedSet()));
                         }
                         rootSampleAgg.subAggregation(sigBuilder);
                     } else {
@@ -657,12 +659,12 @@ public class TransportGraphExploreAction extends HandledTransportAction<GraphExp
                         // .minDocCount(minDocCount).executionHint("map").size(vr.size());
                         termsBuilder.field(vr.fieldName()).executionHint("map").size(vr.size());
                         if (vr.hasIncludeClauses()) {
-                            String[] includes = vr.includeValuesAsStringArray();
-                            termsBuilder.includeExclude(new IncludeExclude(includes, null));
-                            termsBuilder.size(includes.length);
+                            SortedSet<BytesRef> includes = vr.includeValuesAsSortedSet();
+                            termsBuilder.includeExclude(new IncludeExclude(null, null, includes, null));
+                            termsBuilder.size(includes.size());
                         }
                         if (vr.hasExcludeClauses()) {
-                            termsBuilder.includeExclude(new IncludeExclude(null, vr.excludesAsArray()));
+                            termsBuilder.includeExclude(new IncludeExclude(null, null, null, vr.excludesAsSortedSet()));
                         }
                         rootSampleAgg.subAggregation(termsBuilder);
                     }

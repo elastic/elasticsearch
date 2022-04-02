@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.mapper.flattened;
 
-import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocValuesFieldExistsQuery;
 import org.apache.lucene.search.FuzzyQuery;
@@ -21,13 +20,9 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.index.fielddata.FieldData;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedFieldType;
-import org.elasticsearch.script.field.DelegateDocValuesField;
-import org.elasticsearch.script.field.ToScriptField;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -35,13 +30,9 @@ import java.util.List;
 import java.util.Map;
 
 public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
-    private static final ToScriptField<SortedSetDocValues> MOCK_TO_SCRIPT_FIELD = (dv, n) -> new DelegateDocValuesField(
-        new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
-        n
-    );
 
     private static RootFlattenedFieldType createDefaultFieldType() {
-        return new RootFlattenedFieldType("field", true, true, Collections.emptyMap(), false, false, MOCK_TO_SCRIPT_FIELD);
+        return new RootFlattenedFieldType("field", true, true, Collections.emptyMap(), false, false);
     }
 
     public void testValueForDisplay() {
@@ -61,40 +52,16 @@ public class RootFlattenedFieldTypeTests extends FieldTypeTestCase {
         expected = AutomatonQueries.caseInsensitiveTermQuery(new Term("field", "Value"));
         assertEquals(expected, ft.termQueryCaseInsensitive("Value", null));
 
-        RootFlattenedFieldType unsearchable = new RootFlattenedFieldType(
-            "field",
-            false,
-            true,
-            Collections.emptyMap(),
-            false,
-            false,
-            MOCK_TO_SCRIPT_FIELD
-        );
+        RootFlattenedFieldType unsearchable = new RootFlattenedFieldType("field", false, true, Collections.emptyMap(), false, false);
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> unsearchable.termQuery("field", null));
         assertEquals("Cannot search on field [field] since it is not indexed.", e.getMessage());
     }
 
     public void testExistsQuery() {
-        RootFlattenedFieldType ft = new RootFlattenedFieldType(
-            "field",
-            true,
-            false,
-            Collections.emptyMap(),
-            false,
-            false,
-            MOCK_TO_SCRIPT_FIELD
-        );
+        RootFlattenedFieldType ft = new RootFlattenedFieldType("field", true, false, Collections.emptyMap(), false, false);
         assertEquals(new TermQuery(new Term(FieldNamesFieldMapper.NAME, new BytesRef("field"))), ft.existsQuery(null));
 
-        RootFlattenedFieldType withDv = new RootFlattenedFieldType(
-            "field",
-            true,
-            true,
-            Collections.emptyMap(),
-            false,
-            false,
-            MOCK_TO_SCRIPT_FIELD
-        );
+        RootFlattenedFieldType withDv = new RootFlattenedFieldType("field", true, true, Collections.emptyMap(), false, false);
         assertEquals(new DocValuesFieldExistsQuery("field"), withDv.existsQuery(null));
     }
 

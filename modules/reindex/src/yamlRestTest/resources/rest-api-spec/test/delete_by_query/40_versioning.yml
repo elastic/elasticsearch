@@ -7,7 +7,7 @@
   - do:
       index:
         index:        index1
-        id:           1
+        id:           "1"
         version:      0 # Starting version is zero
         version_type: external
         body:    {"delete": 0}
@@ -27,5 +27,5 @@
   - do:
       get:
         index: index1
-        id:    1
+        id:    "1"
   - match: {_version: 0}

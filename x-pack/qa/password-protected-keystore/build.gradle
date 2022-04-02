@@ -26,7 +26,8 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   extraConfigFile 'transport.key', file('src/test/resources/ssl/transport.key')
   extraConfigFile 'transport.crt', file('src/test/resources/ssl/transport.crt')
   extraConfigFile 'ca.crt', file('src/test/resources/ssl/ca.crt')
-  extraConfigFile 'roles.yml', file('src/test/resources/roles.yml')
+
+  rolesFile file('src/test/resources/roles.yml')
 
   user username: 'admin_user', password: 'admin-password'
   user username:'test-user' ,password: 'test-user-password', role: 'user_role'

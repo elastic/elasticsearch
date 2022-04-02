@@ -72,7 +72,14 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
         clusterService = mock(ClusterService.class);
         threadPool = new TestThreadPool(
             "TrainedModelAllocationNodeServiceTests",
-            new ScalingExecutorBuilder(UTILITY_THREAD_POOL_NAME, 1, 4, TimeValue.timeValueMinutes(10), "xpack.ml.utility_thread_pool")
+            new ScalingExecutorBuilder(
+                UTILITY_THREAD_POOL_NAME,
+                1,
+                4,
+                TimeValue.timeValueMinutes(10),
+                false,
+                "xpack.ml.utility_thread_pool"
+            )
         );
         taskManager = new TaskManager(Settings.EMPTY, threadPool, Collections.emptySet());
         deploymentManager = mock(DeploymentManager.class);
@@ -189,7 +196,7 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
         // Only one model should be loaded, the other should be stopped
         trainedModelAllocationNodeService.prepareModelToLoad(newParams(modelToLoad));
         trainedModelAllocationNodeService.prepareModelToLoad(newParams(stoppedModelToLoad));
-        trainedModelAllocationNodeService.getTask(stoppedModelToLoad).stop("testing");
+        trainedModelAllocationNodeService.getTask(stoppedModelToLoad).stop("testing", ActionListener.noop());
         trainedModelAllocationNodeService.loadQueuedModels();
 
         assertBusy(() -> {

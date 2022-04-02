@@ -37,7 +37,7 @@ tasks.register("copyTestNodeKeyMaterial", Copy) {
   into outputDir
 }
 
-BuildParams.bwcVersions.withWireCompatiple { bwcVersion, baseName ->
+BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
   String oldVersion = bwcVersion.toString()
 
   // SearchableSnapshotsRollingUpgradeIT uses a specific repository to not interfere with other tests

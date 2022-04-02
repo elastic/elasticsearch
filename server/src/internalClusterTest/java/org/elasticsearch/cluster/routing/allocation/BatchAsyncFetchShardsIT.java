@@ -102,7 +102,7 @@ public class BatchAsyncFetchShardsIT extends ESIntegTestCase {
         shards.put(new ShardId(index, 2), "");
 
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        DiscoveryNode node = state.getNodes().getDataNodes().iterator().next().value;
+        DiscoveryNode node = state.getNodes().getDataNodes().values().iterator().next();
 
         NodesGatewayBatchStartedShards response;
         response = ActionTestUtils.executeBlocking(
@@ -133,7 +133,7 @@ public class BatchAsyncFetchShardsIT extends ESIntegTestCase {
         shards.put(new ShardId(index, 2), "");
 
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        DiscoveryNode node = state.getNodes().getDataNodes().iterator().next().value;
+        DiscoveryNode node = state.getNodes().getDataNodes().values().iterator().next();
 
         NodesBatchStoreFilesMetadata response;
         response = ActionTestUtils.executeBlocking(

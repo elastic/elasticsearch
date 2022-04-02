@@ -50,11 +50,11 @@ final class SocketAccess {
 
     private static IOException causeAsIOException(PrivilegedActionException e) {
         final Throwable cause = e.getCause();
-        if (cause instanceof IOException) {
-            return (IOException) cause;
+        if (cause instanceof IOException ioException) {
+            return ioException;
         }
-        if (cause instanceof RuntimeException) {
-            throw (RuntimeException) cause;
+        if (cause instanceof RuntimeException runtimeException) {
+            throw runtimeException;
         }
         throw new RuntimeException(cause);
     }

@@ -23,6 +23,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -55,7 +56,6 @@ import java.io.IOException;
 import java.nio.file.FileAlreadyExistsException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -1165,7 +1165,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         if (actual instanceof ElasticsearchException actualException) {
             if (randomBoolean()) {
                 int nbHeaders = randomIntBetween(1, 5);
-                Map<String, List<String>> randomHeaders = new HashMap<>(nbHeaders);
+                Map<String, List<String>> randomHeaders = Maps.newMapWithExpectedSize(nbHeaders);
 
                 for (int i = 0; i < nbHeaders; i++) {
                     List<String> values = new ArrayList<>();
@@ -1190,7 +1190,7 @@ public class ElasticsearchExceptionTests extends ESTestCase {
 
             if (randomBoolean()) {
                 int nbMetadata = randomIntBetween(1, 5);
-                Map<String, List<String>> randomMetadata = new HashMap<>(nbMetadata);
+                Map<String, List<String>> randomMetadata = Maps.newMapWithExpectedSize(nbMetadata);
 
                 for (int i = 0; i < nbMetadata; i++) {
                     List<String> values = new ArrayList<>();

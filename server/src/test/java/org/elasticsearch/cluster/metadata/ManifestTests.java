@@ -27,10 +27,10 @@ import static org.hamcrest.Matchers.equalTo;
 public class ManifestTests extends ESTestCase {
 
     private Manifest copyState(Manifest state, boolean introduceErrors) {
-        long currentTerm = state.getCurrentTerm();
-        long clusterStateVersion = state.getClusterStateVersion();
-        long generation = state.getGlobalGeneration();
-        Map<Index, Long> indices = new HashMap<>(state.getIndexGenerations());
+        long currentTerm = state.currentTerm();
+        long clusterStateVersion = state.clusterStateVersion();
+        long generation = state.globalGeneration();
+        Map<Index, Long> indices = new HashMap<>(state.indexGenerations());
         if (introduceErrors) {
             switch (randomInt(3)) {
                 case 0 -> {

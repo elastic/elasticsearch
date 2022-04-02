@@ -37,15 +37,16 @@ import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.junit.Before;
 
 import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_KEY;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ORIGINATING_ACTION_KEY;
 import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
 import static org.elasticsearch.xpack.security.authz.AuthorizationServiceTests.authzInfoRoles;
-import static org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener.ensureAuthenticatedUserIsSame;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -222,170 +223,165 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testEnsuredAuthenticatedUserIsSame() {
-        Authentication original = new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null);
-        Authentication current = randomBoolean()
-            ? original
-            : new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null);
-        ShardSearchContextId contextId = new ShardSearchContextId(UUIDs.randomBase64UUID(), randomLong());
-        final String action = randomAlphaOfLength(4);
-        TransportRequest request = Empty.INSTANCE;
-        MockLicenseState licenseState = mock(MockLicenseState.class);
-        when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
-        AuditTrail auditTrail = mock(AuditTrail.class);
-        AuditTrailService auditTrailService = new AuditTrailService(Collections.singletonList(auditTrail), licenseState);
-
-        final String auditId = randomAlphaOfLengthBetween(8, 20);
-        ensureAuthenticatedUserIsSame(
-            original,
-            current,
-            auditTrailService,
-            contextId,
-            action,
-            request,
-            auditId,
-            () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, original.getUser().roles())
-        );
-        verifyNoMoreInteractions(auditTrail);
-
-        // original user being run as
-        User user = new User(new User("test", "role"), new User("authenticated", "runas"));
-        current = new Authentication(
-            user,
-            new RealmRef("realm", "file", "node"),
-            new RealmRef(randomAlphaOfLengthBetween(1, 16), "file", "node")
-        );
-        ensureAuthenticatedUserIsSame(
-            original,
-            current,
-            auditTrailService,
-            contextId,
-            action,
-            request,
-            auditId,
-            () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, original.getUser().roles())
-        );
-        verifyNoMoreInteractions(auditTrail);
-
-        // both user are run as
-        current = new Authentication(
-            user,
-            new RealmRef("realm", "file", "node"),
-            new RealmRef(randomAlphaOfLengthBetween(1, 16), "file", "node")
-        );
-        Authentication runAs = current;
-        ensureAuthenticatedUserIsSame(
-            runAs,
-            current,
-            auditTrailService,
-            contextId,
-            action,
-            request,
-            auditId,
-            () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, original.getUser().roles())
-        );
-        verifyNoMoreInteractions(auditTrail);
-
-        // different authenticated by type
-        Authentication differentRealmType = new Authentication(
-            new User("test", "role"),
-            new RealmRef("realm", randomAlphaOfLength(5), "node"),
-            null
-        );
-        SearchContextMissingException e = expectThrows(
-            SearchContextMissingException.class,
-            () -> ensureAuthenticatedUserIsSame(
-                original,
-                differentRealmType,
-                auditTrailService,
-                contextId,
-                action,
-                request,
-                auditId,
-                () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, original.getUser().roles())
+    public void testValidateResourceAccessCheck() throws Exception {
+        final ShardSearchRequest shardSearchRequest = mock(ShardSearchRequest.class);
+        when(shardSearchRequest.scroll()).thenReturn(new Scroll(TimeValue.timeValueMinutes(between(1, 10))));
+        final ShardSearchContextId shardSearchContextId = new ShardSearchContextId(UUIDs.randomBase64UUID(), randomLong());
+        try (
+            LegacyReaderContext readerContext = new LegacyReaderContext(
+                shardSearchContextId,
+                indexService,
+                shard,
+                shard.acquireSearcherSupplier(),
+                shardSearchRequest,
+                Long.MAX_VALUE
             )
-        );
-        assertEquals(contextId, e.contextId());
-        verify(auditTrail).accessDenied(
-            eq(auditId),
-            eq(differentRealmType),
-            eq(action),
-            eq(request),
-            authzInfoRoles(original.getUser().roles())
-        );
+        ) {
+            readerContext.putInContext(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, mock(IndicesAccessControl.class));
+            final MockLicenseState licenseState = mock(MockLicenseState.class);
+            when(licenseState.isAllowed(Security.AUDITING_FEATURE)).thenReturn(true);
+            final SecurityContext securityContext = new SecurityContext(Settings.EMPTY, new ThreadContext(Settings.EMPTY));
+            final AuditTrail auditTrail = mock(AuditTrail.class);
+            final AuditTrailService auditTrailService = new AuditTrailService(List.of(auditTrail), licenseState);
 
-        // wrong user
-        Authentication differentUser = new Authentication(new User("test2", "role"), new RealmRef("realm", "realm", "node"), null);
-        e = expectThrows(
-            SearchContextMissingException.class,
-            () -> ensureAuthenticatedUserIsSame(
-                original,
-                differentUser,
-                auditTrailService,
-                contextId,
-                action,
-                request,
-                auditId,
-                () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, original.getUser().roles())
-            )
-        );
-        assertEquals(contextId, e.contextId());
-        verify(auditTrail).accessDenied(
-            eq(auditId),
-            eq(differentUser),
-            eq(action),
-            eq(request),
-            authzInfoRoles(original.getUser().roles())
-        );
+            final SecuritySearchOperationListener listener = new SecuritySearchOperationListener(securityContext, auditTrailService);
+            final TransportRequest request = mock(TransportRequest.class);
 
-        // run as different user
-        Authentication diffRunAs = new Authentication(
-            new User(new User("test2", "role"), new User("authenticated", "runas")),
-            new RealmRef("realm", "file", "node1"),
-            new RealmRef("realm", "file", "node1")
-        );
-        e = expectThrows(
-            SearchContextMissingException.class,
-            () -> ensureAuthenticatedUserIsSame(
-                original,
-                diffRunAs,
-                auditTrailService,
-                contextId,
-                action,
-                request,
-                auditId,
-                () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, original.getUser().roles())
-            )
-        );
-        assertEquals(contextId, e.contextId());
-        verify(auditTrail).accessDenied(eq(auditId), eq(diffRunAs), eq(action), eq(request), authzInfoRoles(original.getUser().roles()));
+            // same user
+            try (ThreadContext.StoredContext ignore = securityContext.getThreadContext().stashContext()) {
+                readerContext.putInContext(
+                    AuthenticationField.AUTHENTICATION_KEY,
+                    new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null)
+                );
+                new Authentication(new User("test", "role"), new Authentication.RealmRef("realm", "file", "node"), null).writeToContext(
+                    securityContext.getThreadContext()
+                );
+                listener.validateReaderContext(readerContext, request);
+                verifyNoMoreInteractions(auditTrail);
+            }
 
-        // run as different looked up by type
-        Authentication runAsDiffType = new Authentication(
-            user,
-            new RealmRef("realm", "file", "node"),
-            new RealmRef(randomAlphaOfLengthBetween(1, 16), randomAlphaOfLengthBetween(5, 12), "node")
-        );
-        e = expectThrows(
-            SearchContextMissingException.class,
-            () -> ensureAuthenticatedUserIsSame(
-                runAs,
-                runAsDiffType,
-                auditTrailService,
-                contextId,
-                action,
-                request,
-                auditId,
-                () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, original.getUser().roles())
-            )
-        );
-        assertEquals(contextId, e.contextId());
-        verify(auditTrail).accessDenied(
-            eq(auditId),
-            eq(runAsDiffType),
-            eq(action),
-            eq(request),
-            authzInfoRoles(original.getUser().roles())
-        );
+            // only current user being run as
+            try (ThreadContext.StoredContext ignore = securityContext.getThreadContext().stashContext()) {
+                readerContext.putInContext(
+                    AuthenticationField.AUTHENTICATION_KEY,
+                    new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null)
+                );
+                new Authentication(
+                    new User(new User("test", "role"), new User("authenticated", "runas")),
+                    new RealmRef(randomAlphaOfLengthBetween(1, 16), randomAlphaOfLength(5), randomAlphaOfLength(5)),
+                    new RealmRef("realm", "file", "node")
+                ).writeToContext(securityContext.getThreadContext());
+                listener.validateReaderContext(readerContext, request);
+                verifyNoMoreInteractions(auditTrail);
+            }
+
+            // only original user being run as
+            try (ThreadContext.StoredContext ignore = securityContext.getThreadContext().stashContext()) {
+                readerContext.putInContext(
+                    AuthenticationField.AUTHENTICATION_KEY,
+                    new Authentication(
+                        new User(new User("test", "role"), new User("authenticated", "runas")),
+                        new RealmRef(randomAlphaOfLengthBetween(1, 16), randomAlphaOfLength(5), "node"),
+                        new RealmRef("realm2", "file", "node")
+                    )
+                );
+                new Authentication(new User("test", "role"), new Authentication.RealmRef("realm", "file", "node"), null).writeToContext(
+                    securityContext.getThreadContext()
+                );
+                listener.validateReaderContext(readerContext, request);
+                verifyNoMoreInteractions(auditTrail);
+            }
+
+            // both user are run as
+            try (ThreadContext.StoredContext ignore = securityContext.getThreadContext().stashContext()) {
+                readerContext.putInContext(
+                    AuthenticationField.AUTHENTICATION_KEY,
+                    new Authentication(
+                        new User(new User("test", "role"), new User("authenticated", "runas")),
+                        new RealmRef(randomAlphaOfLengthBetween(1, 16), randomAlphaOfLength(5), "node"),
+                        new RealmRef("realm", "file", "node")
+                    )
+                );
+                new Authentication(
+                    new User(new User("test", "role"), new User("authenticated", "runas")),
+                    new RealmRef(randomAlphaOfLengthBetween(1, 16), randomAlphaOfLength(5), "node"),
+                    new RealmRef("realm2", "file", "node")
+                ).writeToContext(securityContext.getThreadContext());
+                listener.validateReaderContext(readerContext, request);
+                verifyNoMoreInteractions(auditTrail);
+            }
+
+            // current authenticated by different realm type
+            try (ThreadContext.StoredContext ignore = securityContext.getThreadContext().stashContext()) {
+                if (randomBoolean()) {
+                    readerContext.putInContext(
+                        AuthenticationField.AUTHENTICATION_KEY,
+                        new Authentication(
+                            new User(new User("test", "role"), new User("authenticated", "runas")),
+                            new RealmRef(randomAlphaOfLengthBetween(1, 16), randomAlphaOfLength(5), "node"),
+                            new RealmRef("realm", "file", "node")
+                        )
+                    );
+                } else {
+                    readerContext.putInContext(
+                        AuthenticationField.AUTHENTICATION_KEY,
+                        new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null)
+                    );
+                }
+                final String differentRealmType = randomAlphaOfLength(5); // different from "file" which has length 4
+                Authentication currentAuthn = randomBoolean()
+                    ? new Authentication(new User("test", "role"), new Authentication.RealmRef("realm", differentRealmType, "node"), null)
+                    : new Authentication(
+                        new User(new User("test", "role"), new User("authenticated", "runas")),
+                        new RealmRef(randomAlphaOfLengthBetween(1, 16), randomAlphaOfLength(5), "node"),
+                        new RealmRef("realm", differentRealmType, "node")
+                    );
+                currentAuthn.writeToContext(securityContext.getThreadContext());
+                SearchContextMissingException e = expectThrows(
+                    SearchContextMissingException.class,
+                    () -> listener.validateReaderContext(readerContext, request)
+                );
+                assertThat(e.contextId(), is(shardSearchContextId));
+                verify(auditTrail).accessDenied(isNull(), eq(currentAuthn), isNull(), eq(request), isNull());
+            }
+
+            // current authenticated by different user
+            try (ThreadContext.StoredContext ignore = securityContext.getThreadContext().stashContext()) {
+                if (randomBoolean()) {
+                    readerContext.putInContext(
+                        AuthenticationField.AUTHENTICATION_KEY,
+                        new Authentication(
+                            new User(new User("test", "role"), new User("authenticated", "runas")),
+                            new RealmRef(randomAlphaOfLengthBetween(1, 16), randomAlphaOfLength(5), "node"),
+                            new RealmRef("realm", "file", "node")
+                        )
+                    );
+                } else {
+                    readerContext.putInContext(
+                        AuthenticationField.AUTHENTICATION_KEY,
+                        new Authentication(new User("test", "role"), new RealmRef("realm", "file", "node"), null)
+                    );
+                }
+                Authentication currentAuthn = randomBoolean()
+                    ? new Authentication(
+                        new User(randomAlphaOfLength(5), "role"),
+                        new Authentication.RealmRef("realm", "file", "node"),
+                        null
+                    )
+                    : new Authentication(
+                        new User(new User(randomAlphaOfLength(5), "role"), new User("authenticated", "runas")),
+                        new RealmRef(randomAlphaOfLengthBetween(1, 16), "file", "node"),
+                        new RealmRef("realm", "file", "node")
+                    );
+                currentAuthn.writeToContext(securityContext.getThreadContext());
+                SearchContextMissingException e = expectThrows(
+                    SearchContextMissingException.class,
+                    () -> listener.validateReaderContext(readerContext, request)
+                );
+                assertThat(e.contextId(), is(shardSearchContextId));
+                verify(auditTrail).accessDenied(isNull(), eq(currentAuthn), isNull(), eq(request), isNull());
+            }
+        }
+
     }
 }

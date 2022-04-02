@@ -324,7 +324,7 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
         getTaskRequest.setTaskId(reindexTaskId);
         client.admin().cluster().getTask(getTaskRequest, ActionListener.wrap(taskResponse -> {
             TaskResult taskResult = taskResponse.getTask();
-            BulkByScrollTask.Status taskStatus = (BulkByScrollTask.Status) taskResult.getTask().getStatus();
+            BulkByScrollTask.Status taskStatus = (BulkByScrollTask.Status) taskResult.getTask().status();
             int progress = (int) (taskStatus.getCreated() * 100.0 / taskStatus.getTotal());
             listener.onResponse(progress);
         }, error -> {

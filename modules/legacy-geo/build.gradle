@@ -9,7 +9,6 @@
 import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.internal-cluster-test'
-apply plugin: 'nebula.optional-base'
 
 esplugin {
   description 'Placeholder plugin for geospatial features in ES'
@@ -18,8 +17,9 @@ esplugin {
 
 dependencies {
   api "org.apache.lucene:lucene-spatial-extras:${versions.lucene}"
-  api "org.locationtech.spatial4j:spatial4j:${versions.spatial4j}", optional
-  api "org.locationtech.jts:jts-core:${versions.jts}", optional
+  api "org.locationtech.spatial4j:spatial4j:${versions.spatial4j}"
+  api "org.locationtech.jts:jts-core:${versions.jts}"
+  implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   testImplementation project(":test:framework")
 }
 
@@ -57,5 +57,6 @@ tasks.named("thirdPartyAudit").configure {
 
 tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
+  mapping from: /jackson-.*/, to: 'jackson'
 }
 

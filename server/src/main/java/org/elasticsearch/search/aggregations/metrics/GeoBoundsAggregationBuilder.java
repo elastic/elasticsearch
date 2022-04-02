@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -64,6 +65,11 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<
     @Override
     protected AggregationBuilder shallowCopy(AggregatorFactories.Builder factoriesBuilder, Map<String, Object> metadata) {
         return new GeoBoundsAggregationBuilder(this, factoriesBuilder, metadata);
+    }
+
+    @Override
+    public boolean supportsSampling() {
+        return true;
     }
 
     /**
@@ -152,5 +158,10 @@ public class GeoBoundsAggregationBuilder extends ValuesSourceAggregationBuilder<
     @Override
     protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
         return REGISTRY_KEY;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

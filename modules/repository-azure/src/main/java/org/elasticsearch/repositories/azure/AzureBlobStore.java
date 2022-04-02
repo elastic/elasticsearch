@@ -279,7 +279,7 @@ public class AzureBlobStore implements BlobStore {
             // Ignore not found blobs, as it's possible that due to network errors a request
             // for an already deleted blob is retried, causing an error.
             .onErrorResume(
-                e -> e instanceof BlobStorageException && ((BlobStorageException) e).getStatusCode() == 404,
+                e -> e instanceof BlobStorageException blobStorageException && blobStorageException.getStatusCode() == 404,
                 throwable -> Mono.empty()
             )
             .onErrorMap(throwable -> new IOException("Error deleting blob " + blobName, throwable));

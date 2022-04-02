@@ -51,6 +51,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.Streams;
@@ -71,7 +72,6 @@ import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
@@ -268,7 +268,7 @@ public class HttpClient implements Closeable {
         try (CloseableHttpResponse response = SocketAccess.doPrivileged(() -> client.execute(httpHost, internalRequest, localContext))) {
             // headers
             Header[] headers = response.getAllHeaders();
-            Map<String, String[]> responseHeaders = new HashMap<>(headers.length);
+            Map<String, String[]> responseHeaders = Maps.newMapWithExpectedSize(headers.length);
             for (Header header : headers) {
                 if (responseHeaders.containsKey(header.getName())) {
                     String[] old = responseHeaders.get(header.getName());
@@ -398,7 +398,7 @@ public class HttpClient implements Closeable {
     /**
      * Helper class to have all HTTP methods except HEAD allow for an body, including GET
      */
-    final class HttpMethodWithEntity extends HttpEntityEnclosingRequestBase {
+    static final class HttpMethodWithEntity extends HttpEntityEnclosingRequestBase {
 
         private final String methodName;
 

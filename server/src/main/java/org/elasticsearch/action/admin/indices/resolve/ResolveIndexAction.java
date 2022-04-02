@@ -34,6 +34,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -49,10 +50,13 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.SortedMap;
 import java.util.TreeMap;
+
+import static org.elasticsearch.action.search.TransportSearchHelper.checkCCSVersionCompatibility;
 
 public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> {
 
@@ -436,6 +440,7 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         private final ClusterService clusterService;
         private final RemoteClusterService remoteClusterService;
         private final IndexAbstractionResolver indexAbstractionResolver;
+        private final boolean ccsCheckCompatibility;
 
         @Inject
         public TransportAction(
@@ -450,10 +455,14 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             this.clusterService = clusterService;
             this.remoteClusterService = transportService.getRemoteClusterService();
             this.indexAbstractionResolver = new IndexAbstractionResolver(indexNameExpressionResolver);
+            this.ccsCheckCompatibility = SearchService.CCS_VERSION_CHECK_SETTING.get(clusterService.getSettings());
         }
 
         @Override
         protected void doExecute(Task task, Request request, final ActionListener<Response> listener) {
+            if (ccsCheckCompatibility) {
+                checkCCSVersionCompatibility(request);
+            }
             final ClusterState clusterState = clusterService.state();
             final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(
                 request.indicesOptions(),
@@ -572,21 +581,24 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                     case CONCRETE_INDEX -> {
                         IndexMetadata writeIndex = metadata.index(ia.getWriteIndex());
                         String[] aliasNames = writeIndex.getAliases().keySet().stream().sorted().toArray(String[]::new);
-                        List<String> attributes = new ArrayList<>();
-                        attributes.add(writeIndex.getState() == IndexMetadata.State.OPEN ? "open" : "closed");
+                        List<Attribute> attributes = new ArrayList<>();
+                        attributes.add(writeIndex.getState() == IndexMetadata.State.OPEN ? Attribute.OPEN : Attribute.CLOSED);
                         if (ia.isHidden()) {
-                            attributes.add("hidden");
+                            attributes.add(Attribute.HIDDEN);
+                        }
+                        if (ia.isSystem()) {
+                            attributes.add(Attribute.SYSTEM);
                         }
                         final boolean isFrozen = Boolean.parseBoolean(writeIndex.getSettings().get("index.frozen"));
                         if (isFrozen) {
-                            attributes.add("frozen");
+                            attributes.add(Attribute.FROZEN);
                         }
-                        attributes.sort(String::compareTo);
+                        attributes.sort(Comparator.comparing(e -> e.name().toLowerCase(Locale.ROOT)));
                         indices.add(
                             new ResolvedIndex(
                                 ia.getName(),
                                 aliasNames,
-                                attributes.toArray(Strings.EMPTY_ARRAY),
+                                attributes.stream().map(Enum::name).map(e -> e.toLowerCase(Locale.ROOT)).toArray(String[]::new),
                                 ia.getParentDataStream() == null ? null : ia.getParentDataStream().getName()
                             )
                         );
@@ -611,5 +623,14 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
                 }
             }
         }
+
+        enum Attribute {
+            OPEN,
+            CLOSED,
+            HIDDEN,
+            SYSTEM,
+            FROZEN
+        }
+
     }
 }

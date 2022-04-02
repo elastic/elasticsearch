@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -265,6 +266,11 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
         unit = DistanceUnit.readFromStream(in);
     }
 
+    @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
     // for parsing
     GeoDistanceAggregationBuilder(String name) {
         this(name, null, InternalGeoDistance.FACTORY);
@@ -496,6 +502,11 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
             && Objects.equals(keyed, other.keyed)
             && Objects.equals(distanceType, other.distanceType)
             && Objects.equals(unit, other.unit);
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 
 }

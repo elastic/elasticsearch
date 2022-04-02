@@ -254,7 +254,7 @@ public class NioHttpRequest implements HttpRequest {
 
         @Override
         public boolean containsKey(Object key) {
-            return key instanceof String && httpHeaders.contains((String) key);
+            return key instanceof String string && httpHeaders.contains(string);
         }
 
         @Override
@@ -264,7 +264,7 @@ public class NioHttpRequest implements HttpRequest {
 
         @Override
         public List<String> get(Object key) {
-            return key instanceof String ? httpHeaders.getAll((String) key) : null;
+            return key instanceof String string ? httpHeaders.getAll(string) : null;
         }
 
         @Override
@@ -294,7 +294,7 @@ public class NioHttpRequest implements HttpRequest {
 
         @Override
         public Collection<List<String>> values() {
-            return httpHeaders.names().stream().map(k -> Collections.unmodifiableList(httpHeaders.getAll(k))).collect(Collectors.toList());
+            return httpHeaders.names().stream().map(k -> Collections.unmodifiableList(httpHeaders.getAll(k))).toList();
         }
 
         @Override

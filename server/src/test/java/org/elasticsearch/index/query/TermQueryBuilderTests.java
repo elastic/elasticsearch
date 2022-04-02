@@ -8,8 +8,6 @@
 
 package org.elasticsearch.index.query;
 
-import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.AutomatonQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -17,7 +15,9 @@ import org.apache.lucene.search.PointRangeQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.xcontent.json.JsonStringEncoder;
 
 import java.io.IOException;
 
@@ -105,9 +105,9 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
 
     private Query termQuery(MappedFieldType mapper, Object value, boolean caseInsensitive) {
         if (caseInsensitive) {
-            return mapper.termQueryCaseInsensitive(value, null);
+            return mapper.termQueryCaseInsensitive(value, FieldTypeTestCase.MOCK_CONTEXT);
         }
-        return mapper.termQuery(value, null);
+        return mapper.termQuery(value, FieldTypeTestCase.MOCK_CONTEXT);
     }
 
     public void testTermArray() throws IOException {

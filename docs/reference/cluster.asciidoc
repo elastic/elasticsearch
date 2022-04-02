@@ -107,3 +107,9 @@ include::cluster/remote-info.asciidoc[]
 include::cluster/tasks.asciidoc[]
 
 include::cluster/voting-exclusions.asciidoc[]
+
+include::cluster/update-desired-nodes.asciidoc[]
+
+include::cluster/get-desired-nodes.asciidoc[]
+
+include::cluster/delete-desired-nodes.asciidoc[]

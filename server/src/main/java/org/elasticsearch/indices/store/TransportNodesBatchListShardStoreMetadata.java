@@ -304,7 +304,7 @@ public class TransportNodesBatchListShardStoreMetadata extends TransportNodesAct
             super(in, node);
             int size = in.readVInt();
             for (int i = 0; i < size; i++) {
-                storeFilesMetadataList.add(new TransportNodesListShardStoreMetadata.StoreFilesMetadata(in));
+                storeFilesMetadataList.add(StoreFilesMetadata.readFrom(in));
             }
         }
 

@@ -43,13 +43,13 @@ public abstract class StringFieldType extends TermBasedFieldType {
 
     public StringFieldType(
         String name,
-        boolean isSearchable,
+        boolean isIndexed,
         boolean isStored,
         boolean hasDocValues,
         TextSearchInfo textSearchInfo,
         Map<String, String> meta
     ) {
-        super(name, isSearchable, isStored, hasDocValues, textSearchInfo, meta);
+        super(name, isIndexed, isStored, hasDocValues, textSearchInfo, meta);
     }
 
     @Override

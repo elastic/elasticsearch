@@ -1,6 +1,10 @@
 
 // tag::cloud[]
 include::{docs-root}/shared/cloud/ess-getting-started.asciidoc[tag=generic]
+
+. Click **Continue** to open {kib}.
+
+. Click **Explore on my own**.
 // end::cloud[]
 
 // tag::self-managed[]
@@ -23,7 +27,6 @@ docker network create elastic
 docker pull {docker-repo}:{version}
 docker run --name es-node01 --net elastic -p 9200:9200 -p 9300:9300 -it {docker-image}
 ----
-endif::[]
 +
 When you start {es} for the first time, the following security configuration 
 occurs automatically:
@@ -52,6 +55,7 @@ To generate new enrollment tokens for {kib} or {es} nodes, run the
 <<create-enrollment-token,`elasticsearch-create-enrollment-token`>> tool.
 These tools are available in the {es} `bin` directory.
 ====
+endif::[]
 
 **Install and run {kib}**
 
@@ -61,6 +65,7 @@ To analyze, visualize, and manage {es} data using an intuitive UI, install
 ifeval::["{release-state}"=="unreleased"]
 NOTE: No Docker image is currently available for {kib} {version}.
 endif::[]
+
 ifeval::["{release-state}"!="unreleased"]
 
 . In a new terminal session, run:

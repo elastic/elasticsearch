@@ -239,39 +239,6 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         assertThat(result.get("c").size(), equalTo(1));
     }
 
-    public void testDeprecationWarningEmittedWhenRequestingNonExistingAliasInSystemPattern() {
-        ClusterState state = systemIndexTestClusterState();
-        SystemIndices systemIndices = new SystemIndices(
-            Collections.singletonMap(
-                this.getTestName(),
-                new SystemIndices.Feature(
-                    this.getTestName(),
-                    "test feature",
-                    Collections.singletonList(new SystemIndexDescriptor(".y*", "an index that doesn't exist"))
-                )
-            )
-        );
-
-        GetAliasesRequest request = new GetAliasesRequest(".y");
-        ImmutableOpenMap<String, List<AliasMetadata>> aliases = ImmutableOpenMap.<String, List<AliasMetadata>>builder().build();
-        final String[] concreteIndices = {};
-        assertEquals(state.metadata().findAliases(request.aliases(), concreteIndices), aliases);
-        ImmutableOpenMap<String, List<AliasMetadata>> result = TransportGetAliasesAction.postProcess(
-            request,
-            concreteIndices,
-            aliases,
-            state,
-            SystemIndexAccessLevel.NONE,
-            null,
-            systemIndices
-        );
-        assertThat(result.size(), equalTo(0));
-        assertWarnings(
-            "this request accesses aliases with names reserved for system indices: [.y], but in a future major version, direct"
-                + " access to system indices and their aliases will not be allowed"
-        );
-    }
-
     public void testPostProcessDataStreamAliases() {
         var resolver = TestIndexNameExpressionResolver.newInstance();
         var tuples = List.of(new Tuple<>("logs-foo", 1), new Tuple<>("logs-bar", 1), new Tuple<>("logs-baz", 1));

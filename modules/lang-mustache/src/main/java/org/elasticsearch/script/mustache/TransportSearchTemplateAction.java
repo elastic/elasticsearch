@@ -28,6 +28,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -98,10 +99,9 @@ public class TransportSearchTemplateAction extends HandledTransportAction<Search
             return null;
         }
 
-        try (
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, source)
-        ) {
+        XContentParserConfiguration parserConfig = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
+            .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, source)) {
             SearchSourceBuilder builder = SearchSourceBuilder.searchSource();
             builder.parseXContent(parser, false);
             builder.explain(searchTemplateRequest.isExplain());

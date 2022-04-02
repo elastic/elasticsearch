@@ -38,10 +38,10 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.constantkeyword.ConstantKeywordDocValuesField;
 import org.elasticsearch.xpack.core.termsenum.action.SimpleTermCountEnum;
-import org.elasticsearch.xpack.core.termsenum.action.TermCount;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -77,7 +77,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 throw new MapperParsingException("Property [value] on field [" + n + "] must be a number or a string, but got [" + o + "]");
             }
             return o.toString();
-        }, m -> toType(m).fieldType().value);
+        }, m -> toType(m).fieldType().value, XContentBuilder::field, Objects::toString);
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
         public Builder(String name) {
@@ -150,8 +150,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
         }
 
         @Override
-        public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter)
-            throws IOException {
+        public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter) {
             boolean matches = caseInsensitive
                 ? value.toLowerCase(Locale.ROOT).startsWith(string.toLowerCase(Locale.ROOT))
                 : value.startsWith(string);
@@ -164,8 +163,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                     return null;
                 }
             }
-            int docCount = queryShardContext.searcher().getIndexReader().maxDoc();
-            return new SimpleTermCountEnum(new TermCount(value, docCount));
+            return new SimpleTermCountEnum(value);
         }
 
         @Override

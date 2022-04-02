@@ -19,7 +19,6 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteConnectionInfo;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.transport.nio.MockNioTransportPlugin;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -96,7 +95,7 @@ public abstract class AbstractMultiClustersTestCase extends ESTestCase {
             final List<Class<? extends Plugin>> mockPlugins = List.of(
                 MockHttpTransport.TestPlugin.class,
                 MockTransportService.TestPlugin.class,
-                MockNioTransportPlugin.class
+                getTestTransportPlugin()
             );
             final Collection<Class<? extends Plugin>> nodePlugins = nodePlugins(clusterAlias);
 

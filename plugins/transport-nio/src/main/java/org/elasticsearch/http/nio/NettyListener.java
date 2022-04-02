@@ -203,8 +203,8 @@ public class NettyListener implements BiConsumer<Void, Exception>, ChannelPromis
     }
 
     public static NettyListener fromBiConsumer(BiConsumer<Void, Exception> biConsumer, Channel channel) {
-        if (biConsumer instanceof NettyListener) {
-            return (NettyListener) biConsumer;
+        if (biConsumer instanceof NettyListener nettyListener) {
+            return nettyListener;
         } else {
             ChannelPromise channelPromise = channel.newPromise();
             channelPromise.addListener(f -> {
@@ -212,11 +212,11 @@ public class NettyListener implements BiConsumer<Void, Exception>, ChannelPromis
                 if (cause == null) {
                     biConsumer.accept(null, null);
                 } else {
-                    if (cause instanceof Error) {
+                    if (cause instanceof Exception exception) {
+                        biConsumer.accept(null, exception);
+                    } else {
                         ExceptionsHelper.maybeDieOnAnotherThread(cause);
                         biConsumer.accept(null, new Exception(cause));
-                    } else {
-                        biConsumer.accept(null, (Exception) cause);
                     }
                 }
             });
@@ -226,8 +226,8 @@ public class NettyListener implements BiConsumer<Void, Exception>, ChannelPromis
     }
 
     public static NettyListener fromChannelPromise(ChannelPromise channelPromise) {
-        if (channelPromise instanceof NettyListener) {
-            return (NettyListener) channelPromise;
+        if (channelPromise instanceof NettyListener nettyListener) {
+            return nettyListener;
         } else {
             return new NettyListener(channelPromise);
         }

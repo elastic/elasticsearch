@@ -7,13 +7,13 @@
 package org.elasticsearch.xpack.enrich;
 
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.script.TemplateScript;
 
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiConsumer;
 
 public final class MatchProcessor extends AbstractEnrichProcessor {
@@ -21,7 +21,7 @@ public final class MatchProcessor extends AbstractEnrichProcessor {
     MatchProcessor(
         String tag,
         String description,
-        BiConsumer<SearchRequest, BiConsumer<SearchResponse, Exception>> searchRunner,
+        BiConsumer<SearchRequest, BiConsumer<List<Map<?, ?>>, Exception>> searchRunner,
         String policyName,
         TemplateScript.Factory field,
         TemplateScript.Factory targetField,

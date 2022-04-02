@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.repositories.fs;
 
-import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedDocValuesField;
@@ -20,9 +19,10 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.analysis.MockAnalyzer;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOSupplier;
-import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -66,7 +66,6 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.emptySet;
@@ -193,8 +192,8 @@ public class FsRepositoryTests extends ESTestCase {
                 .fileDetails()
                 .stream()
                 .filter(f -> f.reused() == false)
-                .collect(Collectors.toList());
-            Collections.sort(recoveredFiles, Comparator.comparing(RecoveryState.FileDetail::name));
+                .sorted(Comparator.comparing(RecoveryState.FileDetail::name))
+                .toList();
             assertTrue(recoveredFiles.get(0).name(), recoveredFiles.get(0).name().endsWith(".liv"));
             assertTrue(recoveredFiles.get(1).name(), recoveredFiles.get(1).name().endsWith("segments_" + incIndexCommit.getGeneration()));
         } finally {

@@ -1,10 +1,6 @@
-description = 'Integration tests for SQL'
-apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.java'
 
-// the main files are actually test files, so use the appropriate forbidden api sigs
-tasks.named('forbiddenApisMain').configure {
-  replaceSignatureFiles 'es-all-signatures', 'es-test-signatures'
-}
+description = 'Integration tests for SQL'
 
 dependencies {
   api project(":test:framework")
@@ -35,19 +31,12 @@ dependencies {
   testRuntimeOnly "net.java.dev.jna:jna:${versions.jna}"
 }
 
-// this is just a test fixture used by other projects and not in production
-['test', 'dependencyLicenses', 'thirdPartyAudit', 'dependenciesInfo', 'dependenciesGraph'].each {
-  tasks.named(it).configure {
-    enabled = false
-  }
-}
-
 subprojects {
   if (subprojects.isEmpty()) {
     // leaf project
     apply plugin: 'elasticsearch.standalone-rest-test'
   } else {
-    apply plugin: 'elasticsearch.build'
+    apply plugin: 'elasticsearch.java'
   }
 
   dependencies {

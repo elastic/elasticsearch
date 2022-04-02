@@ -13,7 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 import org.apache.http.HttpHost;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.util.TimeUnits;
+import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.client.HttpAsyncResponseConsumerFactory;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;

@@ -28,7 +28,11 @@ import static org.hamcrest.Matchers.equalTo;
 public class FillMaskConfigUpdateTests extends AbstractBWCSerializationTestCase<FillMaskConfigUpdate> {
 
     public void testFromMap() {
-        FillMaskConfigUpdate expected = new FillMaskConfigUpdate(3, "ml-results", new BertTokenizationUpdate(Tokenization.Truncate.FIRST));
+        FillMaskConfigUpdate expected = new FillMaskConfigUpdate(
+            3,
+            "ml-results",
+            new BertTokenizationUpdate(Tokenization.Truncate.FIRST, null)
+        );
         Map<String, Object> config = new HashMap<>() {
             {
                 put(NlpConfig.RESULTS_FIELD.getPreferredName(), "ml-results");
@@ -62,7 +66,7 @@ public class FillMaskConfigUpdateTests extends AbstractBWCSerializationTestCase<
         );
 
         assertFalse(
-            new FillMaskConfigUpdate.Builder().setTokenizationUpdate(new BertTokenizationUpdate(Tokenization.Truncate.SECOND))
+            new FillMaskConfigUpdate.Builder().setTokenizationUpdate(new BertTokenizationUpdate(Tokenization.Truncate.SECOND, null))
                 .build()
                 .isNoop(new FillMaskConfig.Builder().setResultsField("bar").build())
         );
@@ -94,7 +98,7 @@ public class FillMaskConfigUpdateTests extends AbstractBWCSerializationTestCase<
             new FillMaskConfig.Builder(originalConfig).setTokenization(tokenization).build(),
             equalTo(
                 new FillMaskConfigUpdate.Builder().setTokenizationUpdate(
-                    createTokenizationUpdate(originalConfig.getTokenization(), truncate)
+                    createTokenizationUpdate(originalConfig.getTokenization(), truncate, null)
                 ).build().apply(originalConfig)
             )
         );
@@ -120,7 +124,7 @@ public class FillMaskConfigUpdateTests extends AbstractBWCSerializationTestCase<
             builder.setResultsField(randomAlphaOfLength(8));
         }
         if (randomBoolean()) {
-            builder.setTokenizationUpdate(new BertTokenizationUpdate(randomFrom(Tokenization.Truncate.values())));
+            builder.setTokenizationUpdate(new BertTokenizationUpdate(randomFrom(Tokenization.Truncate.values()), null));
         }
         return builder.build();
     }

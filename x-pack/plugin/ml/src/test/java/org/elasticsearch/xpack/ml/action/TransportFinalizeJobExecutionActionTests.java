@@ -76,7 +76,7 @@ public class TransportFinalizeJobExecutionActionTests extends ESTestCase {
 
         assertTrue(ack.get().isAcknowledged());
         verify(client, times(2)).execute(eq(UpdateAction.INSTANCE), any(), any());
-        verify(clusterService, never()).submitStateUpdateTask(any(), any());
+        verify(clusterService, never()).submitStateUpdateTask(any(), any(), any());
     }
 
     private TransportFinalizeJobExecutionAction createAction(ClusterService clusterService) {

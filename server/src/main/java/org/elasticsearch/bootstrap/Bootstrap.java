@@ -301,7 +301,7 @@ final class Bootstrap {
         final SecureSettings keystore = BootstrapUtil.loadSecureSettings(initialEnv);
         final Environment environment = createEnvironment(pidFile, keystore, initialEnv.settings(), initialEnv.configFile());
 
-        BootstrapInfo.setConsoleOutput(getConsole(environment));
+        BootstrapInfo.setConsole(getConsole(environment));
 
         // the LogConfigurator will replace System.out and System.err with redirects to our logfile, so we need to capture
         // the stream objects before calling LogConfigurator to be able to close them when appropriate
@@ -417,7 +417,7 @@ final class Bootstrap {
         }
     }
 
-    private static PrintStream getConsole(Environment environment) {
+    private static ConsoleLoader.Console getConsole(Environment environment) {
         return ConsoleLoader.loadConsole(environment);
     }
 

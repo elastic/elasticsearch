@@ -42,6 +42,7 @@ import org.elasticsearch.legacygeo.XShapeCollection;
 import org.elasticsearch.legacygeo.builders.ShapeBuilder;
 import org.elasticsearch.legacygeo.parsers.ShapeParser;
 import org.elasticsearch.legacygeo.query.LegacyGeoShapeQueryProcessor;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.locationtech.spatial4j.shape.Point;
 import org.locationtech.spatial4j.shape.Shape;
@@ -155,7 +156,9 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             false,
             () -> SpatialStrategy.RECURSIVE,
             (n, c, o) -> SpatialStrategy.fromString(o.toString()),
-            m -> builder(m).strategy.get()
+            m -> builder(m).strategy.get(),
+            (b, f, v) -> b.field(f, v.getStrategyName()),
+            SpatialStrategy::getStrategyName
         ).deprecated();
         Parameter<String> tree = Parameter.stringParam("tree", false, m -> builder(m).tree.get(), Defaults.TREE).deprecated();
         Parameter<Integer> treeLevels = new Parameter<>(
@@ -163,28 +166,54 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             false,
             () -> null,
             (n, c, o) -> o == null ? null : XContentMapValues.nodeIntegerValue(o),
-            m -> builder(m).treeLevels.get()
+            m -> builder(m).treeLevels.get(),
+            (b, f, v) -> {
+                if (v != null && v != 0) {
+                    b.field(f, v);
+                } else {
+                    b.field(f, Defaults.defaultTreeLevel(tree.get()));
+                }
+            },
+            Objects::toString
         ).deprecated();
         Parameter<DistanceUnit.Distance> precision = new Parameter<>(
             "precision",
             false,
             () -> null,
             (n, c, o) -> o == null ? null : DistanceUnit.Distance.parseDistance(o.toString()),
-            m -> builder(m).precision.get()
+            m -> builder(m).precision.get(),
+            (b, f, v) -> {
+                if (v == null) {
+                    b.field(f, "50.0m");
+                } else {
+                    b.field(f, v.toString());
+                }
+            },
+            Objects::toString
         ).deprecated();
         Parameter<Double> distanceErrorPct = new Parameter<>(
             "distance_error_pct",
             true,
             () -> null,
             (n, c, o) -> o == null ? null : XContentMapValues.nodeDoubleValue(o),
-            m -> builder(m).distanceErrorPct.get()
+            m -> builder(m).distanceErrorPct.get(),
+            XContentBuilder::field,
+            Objects::toString
         ).deprecated().acceptsNull();
         Parameter<Boolean> pointsOnly = new Parameter<>(
             "points_only",
             false,
             () -> null,
             (n, c, o) -> XContentMapValues.nodeBooleanValue(o),
-            m -> builder(m).pointsOnly.get()
+            m -> builder(m).pointsOnly.get(),
+            (b, f, v) -> {
+                if (v == null) {
+                    b.field(f, strategy.get() == SpatialStrategy.TERM);
+                } else {
+                    b.field(f, v);
+                }
+            },
+            Objects::toString
         ).deprecated().acceptsNull();
 
         Parameter<Map<String, String>> meta = Parameter.metaParam();
@@ -215,32 +244,10 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
             if (version.onOrAfter(Version.V_7_0_0)) {
                 this.strategy.alwaysSerialize();
             }
-            this.strategy.setSerializer((b, f, v) -> b.field(f, v.getStrategyName()), SpatialStrategy::getStrategyName);
             // serialize treeLevels if treeLevels is configured, OR if defaults are requested and precision is not configured
             treeLevels.setSerializerCheck((id, ic, v) -> ic || (id && precision.get() == null));
-            treeLevels.setSerializer((b, f, v) -> {
-                if (v != null && v != 0) {
-                    b.field(f, v);
-                } else {
-                    b.field(f, Defaults.defaultTreeLevel(tree.get()));
-                }
-            }, Objects::toString);
             // serialize precision if precision is configured, OR if defaults are requested and treeLevels is not configured
             precision.setSerializerCheck((id, ic, v) -> ic || (id && treeLevels.get() == null));
-            precision.setSerializer((b, f, v) -> {
-                if (v == null) {
-                    b.field(f, "50.0m");
-                } else {
-                    b.field(f, v.toString());
-                }
-            }, Objects::toString);
-            pointsOnly.setSerializer((b, f, v) -> {
-                if (v == null) {
-                    b.field(f, strategy.get() == SpatialStrategy.TERM);
-                } else {
-                    b.field(f, v);
-                }
-            }, Objects::toString);
         }
 
         @Override

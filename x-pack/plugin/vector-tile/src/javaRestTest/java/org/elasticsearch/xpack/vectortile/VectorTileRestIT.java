@@ -273,9 +273,8 @@ public class VectorTileRestIT extends ESRestTestCase {
             assertThat(tile.getLayersCount(), Matchers.equalTo(1));
             assertLayer(tile, META_LAYER, 4096, 1, 8);
             final VectorTile.Tile.Layer layer = getLayer(tile, META_LAYER);
-            // edge case: because all points are the same, the bounding box is a point and cannot be expressed as a polygon.
-            // Therefore the feature ends-up without a geometry.
-            assertThat(layer.getFeatures(0).hasType(), Matchers.equalTo(false));
+            // edge case: because all points are the same, the bounding box is a point
+            assertThat(layer.getFeatures(0).getType(), Matchers.equalTo(VectorTile.Tile.GeomType.POINT));
         }
         {
             final Request mvtRequest = new Request(
@@ -318,10 +317,18 @@ public class VectorTileRestIT extends ESRestTestCase {
         }
     }
 
-    public void testGridType() throws Exception {
+    public void testGeoTileGrid() throws Exception {
+        doGridAggType(randomBoolean() ? "" : ", \"grid_agg\": \"geotile\"");
+    }
+
+    public void testGeoHexGrid() throws Exception {
+        doGridAggType(", \"grid_agg\": \"geohex\"");
+    }
+
+    private void doGridAggType(String gridAgg) throws Exception {
         {
             final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS + "/_mvt/location/" + z + "/" + x + "/" + y);
-            mvtRequest.setJsonEntity("{\"size\" : 100, \"grid_type\": \"point\" }");
+            mvtRequest.setJsonEntity("{\"size\" : 100" + gridAgg + ",\"grid_type\": \"point\" }");
             final VectorTile.Tile tile = execute(mvtRequest);
             assertThat(tile.getLayersCount(), Matchers.equalTo(3));
             assertLayer(tile, HITS_LAYER, 4096, 33, 2);
@@ -331,7 +338,7 @@ public class VectorTileRestIT extends ESRestTestCase {
         }
         {
             final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS + "/_mvt/location/" + z + "/" + x + "/" + y);
-            mvtRequest.setJsonEntity("{\"size\" : 100, \"grid_type\": \"grid\" }");
+            mvtRequest.setJsonEntity("{\"size\" : 100" + gridAgg + ", \"grid_type\": \"grid\" }");
             final VectorTile.Tile tile = execute(mvtRequest);
             assertThat(tile.getLayersCount(), Matchers.equalTo(3));
             assertLayer(tile, HITS_LAYER, 4096, 33, 2);
@@ -341,7 +348,7 @@ public class VectorTileRestIT extends ESRestTestCase {
         }
         {
             final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS + "/_mvt/location/" + z + "/" + x + "/" + y);
-            mvtRequest.setJsonEntity("{\"size\" : 100, \"grid_type\": \"centroid\" }");
+            mvtRequest.setJsonEntity("{\"size\" : 100" + gridAgg + ", \"grid_type\": \"centroid\" }");
             final VectorTile.Tile tile = execute(mvtRequest);
             assertThat(tile.getLayersCount(), Matchers.equalTo(3));
             assertLayer(tile, HITS_LAYER, 4096, 33, 2);
@@ -352,6 +359,12 @@ public class VectorTileRestIT extends ESRestTestCase {
         {
             final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS + "/_mvt/location/" + z + "/" + x + "/" + y);
             mvtRequest.setJsonEntity("{\"grid_type\": \"invalid_type\" }");
+            final ResponseException ex = expectThrows(ResponseException.class, () -> execute(mvtRequest));
+            assertThat(ex.getResponse().getStatusLine().getStatusCode(), Matchers.equalTo(HttpStatus.SC_BAD_REQUEST));
+        }
+        {
+            final Request mvtRequest = new Request(getHttpMethod(), INDEX_POINTS + "/_mvt/location/" + z + "/" + x + "/" + y);
+            mvtRequest.setJsonEntity("{\"grid_agg\": \"invalid_agg\" }");
             final ResponseException ex = expectThrows(ResponseException.class, () -> execute(mvtRequest));
             assertThat(ex.getResponse().getStatusLine().getStatusCode(), Matchers.equalTo(HttpStatus.SC_BAD_REQUEST));
         }

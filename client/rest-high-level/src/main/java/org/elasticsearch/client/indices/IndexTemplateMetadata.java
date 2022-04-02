@@ -35,7 +35,7 @@ public class IndexTemplateMetadata {
         true,
         (a, name) -> {
             List<Map.Entry<String, AliasMetadata>> alias = (List<Map.Entry<String, AliasMetadata>>) a[5];
-            ImmutableOpenMap<String, AliasMetadata> aliasMap = new ImmutableOpenMap.Builder<String, AliasMetadata>().putAll(
+            ImmutableOpenMap<String, AliasMetadata> aliasMap = new ImmutableOpenMap.Builder<String, AliasMetadata>().putAllFromMap(
                 alias.stream().collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue))
             ).build();
             return new IndexTemplateMetadata(

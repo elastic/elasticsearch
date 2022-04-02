@@ -122,15 +122,6 @@ if [ "x$IS_UPGRADE" != "xtrue" ]; then
         echo " sudo systemctl start elasticsearch.service"
     fi
     set -e
-
-elif [ "$RESTART_ON_UPGRADE" = "true" ]; then
-
-    echo -n "Restarting elasticsearch service..."
-    if command -v systemctl >/dev/null; then
-        systemctl daemon-reload
-        systemctl restart elasticsearch.service || true
-    fi
-    echo " OK"
 fi
 
 # the equivalent code for rpm is in posttrans
@@ -147,6 +138,16 @@ if [ "$PACKAGE" = "deb" ]; then
           /usr/share/elasticsearch/bin/elasticsearch-keystore upgrade
         fi
     fi
+fi
+
+if [ "$RESTART_ON_UPGRADE" = "true" ]; then
+
+    echo -n "Restarting elasticsearch service..."
+    if command -v systemctl >/dev/null; then
+        systemctl daemon-reload
+        systemctl restart elasticsearch.service || true
+    fi
+    echo " OK"
 fi
 
 @scripts.footer@

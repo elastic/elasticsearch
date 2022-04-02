@@ -12,7 +12,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplateMetadata;
-import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ItemUsage;
@@ -136,7 +136,7 @@ public class LifecyclePolicyUtilsTests extends ESTestCase {
                                         null,
                                         null,
                                         null,
-                                        new ComposableIndexTemplate.DataStreamTemplate(false, false)
+                                        new ComposableIndexTemplate.DataStreamTemplate(false, false, null)
                                     )
                                 )
                             )
@@ -205,19 +205,13 @@ public class LifecyclePolicyUtilsTests extends ESTestCase {
                                 null,
                                 null,
                                 null,
-                                new ComposableIndexTemplate.DataStreamTemplate(false, false)
+                                new ComposableIndexTemplate.DataStreamTemplate(false, false, null)
                             )
                         )
                     )
                 );
             // Need to get the real Index instance of myindex:
-            mBuilder.put(
-                new DataStream(
-                    "myds",
-                    new DataStream.TimestampField("@timestamp"),
-                    Collections.singletonList(mBuilder.get("myindex").getIndex())
-                )
-            );
+            mBuilder.put(DataStreamTestHelper.newInstance("myds", Collections.singletonList(mBuilder.get("myindex").getIndex())));
 
             // Test where policy exists and is used by an index, datastream, and template
             ClusterState state = ClusterState.builder(new ClusterName("mycluster")).metadata(mBuilder.build()).build();

@@ -70,7 +70,7 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         TransportService transportService = new TransportService(
             Settings.EMPTY,
             mock(Transport.class),
-            null,
+            threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> null,
             null,
@@ -124,7 +124,7 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         TransportService transportService = new TransportService(
             Settings.EMPTY,
             mock(Transport.class),
-            null,
+            threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> null,
             null,
@@ -198,7 +198,7 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         TransportService transportService = new TransportService(
             Settings.EMPTY,
             mock(Transport.class),
-            null,
+            threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> null,
             null,
@@ -267,7 +267,7 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         TransportService transportService = new TransportService(
             Settings.EMPTY,
             mock(Transport.class),
-            null,
+            threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> null,
             null,
@@ -326,7 +326,7 @@ public class TransportSetEnabledActionTests extends ESTestCase {
         TransportService transportService = new TransportService(
             Settings.EMPTY,
             mock(Transport.class),
-            null,
+            threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> null,
             null,

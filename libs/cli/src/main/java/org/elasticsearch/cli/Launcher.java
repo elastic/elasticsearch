@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.launcher;
+package org.elasticsearch.cli;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
@@ -15,11 +15,12 @@ import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ServiceLoader;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Stream;
 
-public class Launcher {
+class Launcher {
 
     private static Function<Path, URL> MAP_PATH_TO_URL = p -> {
         try {
@@ -31,7 +32,7 @@ public class Launcher {
     private static Predicate<Path> JAR_PREDICATE = p -> p.getFileName().toString().endsWith(".jar");
 
     // TODO: don't throw, catch this and give a nice error message
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws Exception {
         String toolname = System.getProperty("es.tool");
         Path homeDir = Paths.get("").toAbsolutePath();
 
@@ -40,9 +41,11 @@ public class Launcher {
         System.out.println("tool: " + toolname);
 
         Path libDir = homeDir.resolve("lib");
-        ClassLoader serverLoader = loadJars(libDir, null);
-        ClassLoader cliLoader = loadJars(libDir.resolve("tools").resolve(toolname), serverLoader);
-
+        ClassLoader serverLoader = loadJars(libDir, ClassLoader.getSystemClassLoader());
+        ClassLoader cliLoader = loadJars(libDir.resolve("cli").resolve(toolname), serverLoader);
+        ServiceLoader<ToolProvider> toolProvider = ServiceLoader.load(ToolProvider.class, cliLoader);
+        ToolProvider tool = toolProvider.findFirst().orElseThrow();
+        System.exit(tool.main(args, Terminal.DEFAULT));
     }
 
     private static ClassLoader loadJars(Path dir, ClassLoader parent) throws IOException {

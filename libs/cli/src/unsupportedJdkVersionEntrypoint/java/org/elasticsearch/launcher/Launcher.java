@@ -10,7 +10,7 @@ package org.elasticsearch.launcher;
 
 import java.util.Locale;
 
-public class Launcher {
+class Launcher {
     public static void main(String[] args) {
         final String message = String.format(
             Locale.ROOT,

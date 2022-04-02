@@ -48,7 +48,8 @@ dependencies {
   api "org.apache.lucene:lucene-suggest:${versions.lucene}"
 
   // utilities
-  api project(":libs:elasticsearch-cli")
+// TODO: move this out!
+  compileOnly project(":libs:elasticsearch-cli")
   implementation 'com.carrotsearch:hppc:0.8.1'
 
   // percentiles aggregation

@@ -6,12 +6,12 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.launcher;
+package org.elasticsearch.cli;
 
 public interface ToolProvider {
 
     // TODO: merge launcher and cli lib, move to subdir in distro, make compileOnly dep in server
 
     // TODO: this is temporary
-    void main(String[] args, Terminal terminal) throws Exception;
+    int main(String[] args, Terminal terminal) throws Exception;
 }

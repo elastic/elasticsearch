@@ -22,6 +22,12 @@ import static org.elasticsearch.xpack.security.authz.AuthorizationService.isInde
 
 class AuthorizationDenialMessageFactory {
 
+    record AuthorizationDenialContext(AuthorizationDenialType type, @Nullable String additionalMessage) {
+        AuthorizationDenialContext(AuthorizationDenialType type) {
+            this(type, null);
+        }
+    }
+
     enum AuthorizationDenialType {
         ACTION,
         RUN_AS,
@@ -31,20 +37,24 @@ class AuthorizationDenialMessageFactory {
     private AuthorizationDenialMessageFactory() {}
 
     static String denialMessage(
-        AuthorizationDenialType denialType,
         Authentication authentication,
         String action,
         TransportRequest request,
-        @Nullable String context
+        AuthorizationDenialContext context
     ) {
-        return switch (denialType) {
-            case ACTION -> actionDenied(authentication, action, request, context);
+        return switch (context.type) {
+            case ACTION -> actionDenied(authentication, action, request, context.additionalMessage);
             case REQUIRES_OPERATOR_PRIVILEGES -> actionDenied(authentication, action, request, "because it requires operator privileges");
             case RUN_AS -> runAsDenied(authentication);
         };
     }
 
-    private static String actionDenied(Authentication authentication, String action, TransportRequest request, @Nullable String context) {
+    private static String actionDenied(
+        Authentication authentication,
+        String action,
+        TransportRequest request,
+        @Nullable String additionalMessage
+    ) {
         String userText = authenticatedUserText(authentication);
 
         if (authentication.getUser().isRunAs()) {
@@ -59,8 +69,8 @@ class AuthorizationDenialMessageFactory {
         }
 
         String message = "action [" + action + "] is unauthorized for " + userText;
-        if (context != null) {
-            message = message + " " + context;
+        if (additionalMessage != null) {
+            message = message + " " + additionalMessage;
         }
 
         if (ClusterPrivilegeResolver.isClusterAction(action)) {
@@ -85,7 +95,7 @@ class AuthorizationDenialMessageFactory {
     }
 
     private static String runAsDenied(Authentication authentication) {
-        assert authentication.getUser().isRunAs() : "run as denial message must be for run-as user";
+        assert authentication.getUser().isRunAs() : "run as denial additionalMessage must be for run-as user";
 
         String userText = authenticatedUserText(authentication);
 

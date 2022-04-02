@@ -325,11 +325,12 @@ public class AuthorizationService {
         );
         if (operatorException != null) {
             throw denialException(
-                AuthorizationDenialMessageFactory.AuthorizationDenialType.REQUIRES_OPERATOR_PRIVILEGES,
                 authentication,
                 action,
                 originalRequest,
-                null,
+                new AuthorizationDenialMessageFactory.AuthorizationDenialContext(
+                    AuthorizationDenialMessageFactory.AuthorizationDenialType.REQUIRES_OPERATOR_PRIVILEGES
+                ),
                 operatorException
             );
         }
@@ -372,11 +373,12 @@ public class AuthorizationService {
                     }
                     listener.onFailure(
                         denialException(
-                            AuthorizationDenialMessageFactory.AuthorizationDenialType.RUN_AS,
                             authentication,
                             action,
                             request,
-                            null,
+                            new AuthorizationDenialMessageFactory.AuthorizationDenialContext(
+                                AuthorizationDenialMessageFactory.AuthorizationDenialType.RUN_AS
+                            ),
                             null
                         )
                     );
@@ -873,7 +875,15 @@ public class AuthorizationService {
         TransportRequest request,
         Exception cause
     ) {
-        return denialException(authentication, action, request, null, cause);
+        return denialException(
+            authentication,
+            action,
+            request,
+            new AuthorizationDenialMessageFactory.AuthorizationDenialContext(
+                AuthorizationDenialMessageFactory.AuthorizationDenialType.ACTION
+            ),
+            cause
+        );
     }
 
     private ElasticsearchSecurityException denialException(
@@ -884,21 +894,22 @@ public class AuthorizationService {
         Exception cause
     ) {
         return denialException(
-            AuthorizationDenialMessageFactory.AuthorizationDenialType.ACTION,
             authentication,
             action,
             request,
-            context,
+            new AuthorizationDenialMessageFactory.AuthorizationDenialContext(
+                AuthorizationDenialMessageFactory.AuthorizationDenialType.ACTION,
+                context
+            ),
             cause
         );
     }
 
     private ElasticsearchSecurityException denialException(
-        AuthorizationDenialMessageFactory.AuthorizationDenialType denialType,
         Authentication authentication,
         String action,
         TransportRequest request,
-        @Nullable String context,
+        AuthorizationDenialMessageFactory.AuthorizationDenialContext context,
         Exception cause
     ) {
         // Special case for anonymous user
@@ -908,7 +919,7 @@ public class AuthorizationService {
             return authcFailureHandler.authenticationRequired(action, threadContext);
         }
 
-        final String message = AuthorizationDenialMessageFactory.denialMessage(denialType, authentication, action, request, context);
+        final String message = AuthorizationDenialMessageFactory.denialMessage(authentication, action, request, context);
         logger.debug(message);
         return authorizationError(message, cause);
     }

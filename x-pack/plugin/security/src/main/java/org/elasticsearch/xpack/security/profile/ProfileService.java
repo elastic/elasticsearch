@@ -52,8 +52,8 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.profile.Profile;
-import org.elasticsearch.xpack.core.security.action.profile.SearchProfilesRequest;
-import org.elasticsearch.xpack.core.security.action.profile.SearchProfilesResponse;
+import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesRequest;
+import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesResponse;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationContext;
@@ -174,10 +174,14 @@ public class ProfileService {
         );
     }
 
-    public void searchProfile(SearchProfilesRequest request, ActionListener<SearchProfilesResponse> listener) {
+    public void suggestProfile(SuggestProfilesRequest request, ActionListener<SuggestProfilesResponse> listener) {
         tryFreezeAndCheckIndex(listener.map(response -> {
             assert response == null : "only null response can reach here";
-            return new SearchProfilesResponse(new SearchProfilesResponse.ProfileHit[] {}, 0, new TotalHits(0, TotalHits.Relation.EQUAL_TO));
+            return new SuggestProfilesResponse(
+                new SuggestProfilesResponse.ProfileHit[] {},
+                0,
+                new TotalHits(0, TotalHits.Relation.EQUAL_TO)
+            );
         })).ifPresent(frozenProfileIndex -> {
             final BoolQueryBuilder query = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("user_profile.enabled", true));
             if (Strings.hasText(request.getName())) {
@@ -211,11 +215,11 @@ public class ProfileService {
                     ActionListener.wrap(searchResponse -> {
                         final SearchHits searchHits = searchResponse.getHits();
                         final SearchHit[] hits = searchHits.getHits();
-                        final SearchProfilesResponse.ProfileHit[] profileHits;
+                        final SuggestProfilesResponse.ProfileHit[] profileHits;
                         if (hits.length == 0) {
-                            profileHits = new SearchProfilesResponse.ProfileHit[0];
+                            profileHits = new SuggestProfilesResponse.ProfileHit[0];
                         } else {
-                            profileHits = new SearchProfilesResponse.ProfileHit[hits.length];
+                            profileHits = new SuggestProfilesResponse.ProfileHit[hits.length];
                             for (int i = 0; i < hits.length; i++) {
                                 final SearchHit hit = hits[i];
                                 final VersionedDocument versionedDocument = new VersionedDocument(
@@ -223,14 +227,14 @@ public class ProfileService {
                                     hit.getPrimaryTerm(),
                                     hit.getSeqNo()
                                 );
-                                profileHits[i] = new SearchProfilesResponse.ProfileHit(
+                                profileHits[i] = new SuggestProfilesResponse.ProfileHit(
                                     versionedDocument.toProfile(request.getDataKeys()),
                                     hit.getScore()
                                 );
                             }
                         }
                         listener.onResponse(
-                            new SearchProfilesResponse(profileHits, searchResponse.getTook().millis(), searchHits.getTotalHits())
+                            new SuggestProfilesResponse(profileHits, searchResponse.getTook().millis(), searchHits.getTotalHits())
                         );
                     }, listener::onFailure)
                 )

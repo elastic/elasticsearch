@@ -32,6 +32,8 @@ import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.TreeSet;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class Strings {
 
@@ -351,7 +353,9 @@ public class Strings {
         return sb.toString();
     }
 
-    public static final Set<Character> INVALID_FILENAME_CHARS = Set.of('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',');
+    public static final String INVALID_FILENAME_CHARS = "["
+        + Stream.of('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',').map(c -> "'" + c + "'").collect(Collectors.joining(","))
+        + "]";
 
     public static boolean validFileName(String fileName) {
         for (int i = 0; i < fileName.length(); i++) {
@@ -373,12 +377,10 @@ public class Strings {
     }
 
     private static boolean isInvalidFileNameCharacter(char c) {
-        switch (c) {
-            case '\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',' -> {
-                return true;
-            }
-        }
-        return false;
+        return switch (c) {
+            case '\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',' -> true;
+            default -> false;
+        };
     }
 
     /**

@@ -10,7 +10,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreMode;
@@ -31,7 +30,7 @@ import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FormattedDocValues;
-import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
@@ -48,14 +47,11 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.elasticsearch.search.aggregations.timeseries.TimeSeriesIndexSearcher;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
 import org.elasticsearch.xpack.core.rollup.RollupActionDateHistogramGroupConfig;
-import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
 import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
-import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.time.ZoneId;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -89,11 +85,27 @@ class RollupShardIndexer {
     private final AtomicLong numSent = new AtomicLong();
     private final AtomicLong numIndexed = new AtomicLong();
 
-    RollupShardIndexer(Client client, IndexService indexService, ShardId shardId, RollupActionConfig config, String rollupIndex) {
+    RollupShardIndexer(Client client, IndexService indexService, ShardId shardId, RollupActionConfig config, String rollupIndex)
+        throws IOException {
         this.client = client;
         this.indexShard = indexService.getShard(shardId.id());
         this.config = config;
         this.rollupIndex = rollupIndex;
+
+        /*
+         * We merge the shard to a single segment as a workaround for
+         * out-of-order timestamps when iterating shards with multiple segments.
+         * This operation should be removed when we fix the problem at
+         * the @TimeSeriesIndexSearcher level.
+         *
+         * Also, even if this operation stays, the constructor is not the
+         * best place to have it.
+         * TODO: Remove the merge operation
+         */
+        // this.indexShard.refresh("rollup");
+        // ForceMergeRequest m = new ForceMergeRequest();
+        // m.maxNumSegments(1);
+        // indexShard.forceMerge(m);
 
         this.searcher = indexShard.acquireSearcher("rollup");
         Closeable toClose = searcher;
@@ -106,8 +118,7 @@ class RollupShardIndexer {
                 null,
                 Collections.emptyMap()
             );
-            this.timestampField = searchExecutionContext.getFieldType(config.getGroupConfig().getDateHistogram().getField());
-            verifyTimestampField(timestampField);
+            this.timestampField = searchExecutionContext.getFieldType(DataStreamTimestampFieldMapper.DEFAULT_PATH);
             this.timestampFormat = timestampField.docValueFormat(null, null);
             this.rounding = createRounding(config.getGroupConfig().getDateHistogram()).prepareForUnknown();
 
@@ -132,22 +143,8 @@ class RollupShardIndexer {
         }
     }
 
-    private void verifyTimestampField(MappedFieldType fieldType) {
-        if (fieldType == null) {
-            throw new IllegalArgumentException("Timestamp field type is null");
-        }
-        // TODO: Support nanosecond fields?
-        if (fieldType instanceof DateFieldMapper.DateFieldType == false) {
-            throw new IllegalArgumentException("Wrong type for the timestamp field, " + "expected [date], got [" + fieldType.name() + "]");
-        }
-        if (fieldType.isIndexed() == false) {
-            throw new IllegalArgumentException("The timestamp field [" + fieldType.name() + "] is not indexed");
-        }
-    }
-
     public long execute() throws IOException {
         BulkProcessor bulkProcessor = createBulkProcessor();
-
         try (searcher; bulkProcessor) {
             // TODO: add cancellations
             final TimeSeriesIndexSearcher timeSeriesSearcher = new TimeSeriesIndexSearcher(searcher, List.of());
@@ -221,46 +218,106 @@ class RollupShardIndexer {
     }
 
     private class TimeSeriesBucketCollector extends BucketCollector {
-
-        private final RollupBucketBuilder rollupBucketBuilder = new RollupBucketBuilder();
         private final BulkProcessor bulkProcessor;
-        private long docsProcessed = 0;
-        private long bucketsCreated = 0;
+        private long docsProcessed;
+        private long bucketsCreated;
+        private final RollupBucketBuilder rollupBucketBuilder = new RollupBucketBuilder();
+        long lastTimestamp = Long.MAX_VALUE;
+        BytesRef lastTsid = null;
 
         TimeSeriesBucketCollector(BulkProcessor bulkProcessor) {
             this.bulkProcessor = bulkProcessor;
         }
 
         @Override
-        public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException {
-            LeafReaderContext ctx = aggCtx.getLeafReaderContext();
-            final SortedDocValues tsidValues = DocValues.getSorted(ctx.reader(), TimeSeriesIdFieldMapper.NAME);
+        public LeafBucketCollector getLeafCollector(final AggregationExecutionContext aggCtx) throws IOException {
+            final LeafReaderContext ctx = aggCtx.getLeafReaderContext();
             final SortedNumericDocValues timestampValues = DocValues.getSortedNumeric(ctx.reader(), timestampField.name());
-
-            rollupBucketBuilder.setLeafReaderContext(ctx);
+            final DocCountProvider docCountProvider = new DocCountProvider();
+            docCountProvider.setLeafReaderContext(ctx);
+            final Map<String, FormattedDocValues> metricsFieldLeaves = new HashMap<>();
+            for (FieldValueFetcher fetcher : metricFieldFetchers) {
+                FormattedDocValues leafField = fetcher.getLeaf(ctx);
+                metricsFieldLeaves.put(fetcher.name, leafField);
+            }
 
             return new LeafBucketCollector() {
                 @Override
                 public void collect(int docId, long owningBucketOrd) throws IOException {
-                    if (tsidValues.advanceExact(docId) && timestampValues.advanceExact(docId)) {
-                        BytesRef tsid = tsidValues.lookupOrd(tsidValues.ordValue());
+                    BytesRef tsid = aggCtx.getTsid();
+                    if (tsid != null && timestampValues.advanceExact(docId)) {
+                        assert timestampValues.docValueCount() == 1 : "@timestamp field cannot be a multi value field";
                         long timestamp = timestampValues.nextValue();
-                        long bucketTimestamp = rounding.round(timestamp);
+                        long histoTimestamp = rounding.round(timestamp);
 
-                        if (tsid.equals(rollupBucketBuilder.tsid()) == false || rollupBucketBuilder.timestamp() != bucketTimestamp) {
+                        logger.info(
+                            "Doc: "
+                                + docId
+                                + " - "
+                                + DocValueFormat.TIME_SERIES_ID.format(tsid)
+                                + "/"
+                                + timestampFormat.format(timestamp)
+                                + " -> "
+                                + timestampFormat.format(histoTimestamp)
+                        );
+
+                        /*
+                         * Sanity checks to ensure that we receive documents in the correct order
+                         * - tsid must be sorted in ascending order
+                         * - timestamp must be sorted in descending order within the same tsid
+                         */
+                        assert lastTsid == null || lastTsid.compareTo(tsid) <= 0
+                            : "_tsid is not sorted in ascending order: ["
+                                + DocValueFormat.TIME_SERIES_ID.format(lastTsid)
+                                + "] -> ["
+                                + DocValueFormat.TIME_SERIES_ID.format(tsid)
+                                + "]";
+                        assert tsid.equals(lastTsid) == false || lastTimestamp >= timestamp
+                            : "@timestamp is not sorted in descending order: ["
+                                + timestampFormat.format(lastTimestamp)
+                                + "] -> ["
+                                + timestampFormat.format(timestamp)
+                                + "]";
+                        lastTsid = BytesRef.deepCopyOf(tsid);
+                        lastTimestamp = timestamp;
+
+                        if (tsid.equals(rollupBucketBuilder.tsid()) == false || rollupBucketBuilder.timestamp() != histoTimestamp) {
                             // Flush rollup doc if not empty
-                            if (rollupBucketBuilder.tsid() != null) {
+                            if (rollupBucketBuilder.isEmpty() == false) {
                                 Map<String, Object> doc = rollupBucketBuilder.buildRollupDocument();
                                 indexBucket(doc);
                             }
 
                             // Create new rollup bucket
-                            rollupBucketBuilder.init(tsid, bucketTimestamp);
+                            rollupBucketBuilder.init(tsid, histoTimestamp);
                             bucketsCreated++;
                         }
 
-                        // Collect docs to rollup doc
-                        rollupBucketBuilder.addDocument(docId);
+                        int docCount = docCountProvider.getDocCount(docId);
+                        rollupBucketBuilder.collectDocCount(docCount);
+
+                        for (Map.Entry<String, FormattedDocValues> e : metricsFieldLeaves.entrySet()) {
+                            String fieldName = e.getKey();
+                            FormattedDocValues leafField = e.getValue();
+
+                            if (leafField.advanceExact(docId)) {
+                                for (int i = 0; i < leafField.docValueCount(); i++) {
+                                    Object obj = leafField.nextValue();
+                                    if (obj instanceof Number number) {
+                                        // Collect docs to rollup doc
+                                        double value = number.doubleValue();
+                                        rollupBucketBuilder.collectMetric(fieldName, value);
+                                    } else {
+                                        throw new IllegalArgumentException("Expected [Number], got [" + obj.getClass() + "]");
+                                    }
+                                }
+                            }
+                        }
+                        docsProcessed++;
+                    } else {
+                        throw new IllegalStateException(
+                            "Document without [" + TimeSeriesIdFieldMapper.NAME + "] or [" + timestampField.name() + "] field was found."
+                        );
                     }
                 }
             };
@@ -269,6 +326,7 @@ class RollupShardIndexer {
         private void indexBucket(Map<String, Object> doc) {
             IndexRequestBuilder request = client.prepareIndex(rollupIndex);
             request.setSource(doc);
+            logger.info("Indexing rollup doc: " + doc);
             bulkProcessor.add(request.request());
         }
 
@@ -280,12 +338,12 @@ class RollupShardIndexer {
         @Override
         public void postCollection() throws IOException {
             // Flush rollup doc if not empty
-            if (rollupBucketBuilder.tsid() != null) {
+            if (rollupBucketBuilder.isEmpty() == false) {
                 Map<String, Object> doc = rollupBucketBuilder.buildRollupDocument();
                 indexBucket(doc);
             }
             bulkProcessor.flush();
-            logger.info("Docs processed: " + docsProcessed + ", buckets created: " + bucketsCreated);
+            logger.info("Docs processed: [" + docsProcessed + "], rollup buckets created: [" + bucketsCreated + "]");
         }
 
         @Override
@@ -295,82 +353,34 @@ class RollupShardIndexer {
     }
 
     private class RollupBucketBuilder {
-
         private BytesRef tsid;
         private long timestamp;
         private int docCount;
-
-        private LeafReaderContext ctx;
-        private DocCountProvider docCountProvider;
-
-        private Map<String, MetricFieldProducer> metricFields;
+        private final Map<String, MetricFieldProducer> metricFields;
 
         RollupBucketBuilder() {
-            docCountProvider = new DocCountProvider();
-        }
-
-        public void setLeafReaderContext(LeafReaderContext ctx) throws IOException {
-            this.ctx = ctx;
-            docCountProvider.setLeafReaderContext(ctx);
+            this.metricFields = MetricFieldProducer.buildMetrics(config.getMetricsConfig());
         }
 
         public RollupBucketBuilder init(BytesRef tsid, long timestamp) {
             this.tsid = BytesRef.deepCopyOf(tsid);
-            ;
             this.timestamp = timestamp;
             this.docCount = 0;
-            metricFields = MetricFieldProducer.buildMetrics(config.getMetricsConfig());
+            this.metricFields.values().stream().forEach(p -> p.reset());
+            logger.info("New rollup bucket for " + DocValueFormat.TIME_SERIES_ID.format(tsid) + "/" + timestampFormat.format(timestamp));
+
             return this;
         }
 
-        public void addDocument(int docId) throws IOException {
-            /* Skip loading dimensions, we decode them from tsid directly
-            // We extract dimension values only once per rollup bucket
-            if (docCount == 0) {
-                collectDimensions(docId);
+        public void collectMetric(String fieldName, double value) {
+            MetricFieldProducer field = this.metricFields.get(fieldName);
+            for (MetricFieldProducer.Metric metric : field.metrics) {
+                metric.collect(value);
             }
-            */
-            collectMetrics(docId);
+        }
 
-            // Compute doc_count for bucket
-            int docCount = docCountProvider.getDocCount(docId);
+        public void collectDocCount(int docCount) {
             this.docCount += docCount;
-        }
-
-        // TODO: Remove this method, because we don't need to load the doc_values.
-        // We can parse _tsid instead
-        private void collectDimensions(int docId) throws IOException {
-            for (FieldValueFetcher f : dimensionFieldFetchers) {
-                FormattedDocValues leafField = f.getLeaf(ctx);
-                if (leafField.advanceExact(docId)) {
-                    List<Object> lst = new ArrayList<>();
-                    for (int i = 0; i < leafField.docValueCount(); i++) {
-                        lst.add(leafField.nextValue());
-                    }
-                    // combinationKeys.add(lst);
-                }
-            }
-        }
-
-        private void collectMetrics(int docId) throws IOException {
-            for (FieldValueFetcher fetcher : metricFieldFetchers) {
-                FormattedDocValues formattedDocValues = fetcher.getLeaf(ctx);
-
-                if (formattedDocValues.advanceExact(docId)) {
-                    for (int i = 0; i < formattedDocValues.docValueCount(); i++) {
-                        Object obj = formattedDocValues.nextValue();
-                        if (obj instanceof Number number) {
-                            MetricFieldProducer field = metricFields.get(fetcher.name);
-                            double value = number.doubleValue();
-                            for (MetricFieldProducer.Metric metric : field.metrics) {
-                                metric.collect(value);
-                            }
-                        } else {
-                            throw new IllegalArgumentException("Expected [Number], got [" + obj.getClass() + "]");
-                        }
-                    }
-                }
-            }
         }
 
         public Map<String, Object> buildRollupDocument() {
@@ -410,6 +420,14 @@ class RollupShardIndexer {
 
         public BytesRef tsid() {
             return tsid;
+        }
+
+        public int docCount() {
+            return docCount;
+        }
+
+        public boolean isEmpty() {
+            return docCount() == 0;
         }
     }
 }

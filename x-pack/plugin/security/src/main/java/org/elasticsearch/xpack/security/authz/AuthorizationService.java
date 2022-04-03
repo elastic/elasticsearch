@@ -100,6 +100,10 @@ import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceFi
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authorizationError;
 import static org.elasticsearch.xpack.core.security.user.User.isInternal;
 import static org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail.PRINCIPAL_ROLES_FIELD_NAME;
+import static org.elasticsearch.xpack.security.authz.AuthorizationDenialMessages.actionDenied;
+import static org.elasticsearch.xpack.security.authz.AuthorizationDenialMessages.runAsDenied;
+import static org.elasticsearch.xpack.security.authz.AuthorizationDenialMessages.indexActionDenied;
+import static org.elasticsearch.xpack.security.authz.AuthorizationDenialMessages.requiresOperatorPrivileges;
 
 public class AuthorizationService {
     public static final Setting<Boolean> ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING = Setting.boolSetting(
@@ -325,7 +329,9 @@ public class AuthorizationService {
         );
         if (operatorException != null) {
             throw denialException(
-                AuthorizationDenialContext.requiresOperatorPrivileges(authentication, action, originalRequest),
+                authentication,
+                action,
+                requiresOperatorPrivileges(authentication, action, originalRequest),
                 operatorException
             );
         }
@@ -366,11 +372,11 @@ public class AuthorizationService {
                             authzInfo.getAuthenticatedUserAuthorizationInfo()
                         );
                     }
-                    listener.onFailure(denialException(AuthorizationDenialContext.runAsDenied(authentication, action, request), null));
+                    listener.onFailure(denialException(authentication, action, runAsDenied(authentication), null));
                 }
             }, e -> {
                 auditTrail.runAsDenied(requestId, authentication, action, request, authzInfo.getAuthenticatedUserAuthorizationInfo());
-                listener.onFailure(denialException(authentication, action, request, null));
+                listener.onFailure(denialException(authentication, action, actionDenied(authentication, action, request), null));
             }), threadContext);
             authorizeRunAs(requestInfo, authzInfo, runAsListener);
         } else {
@@ -430,7 +436,9 @@ public class AuthorizationService {
                                 if (e instanceof IndexNotFoundException) {
                                     listener.onFailure(e);
                                 } else {
-                                    listener.onFailure(denialException(authentication, action, request, e));
+                                    listener.onFailure(
+                                        denialException(authentication, action, actionDenied(authentication, action, request), e)
+                                    );
                                 }
                             }
                         )
@@ -465,7 +473,7 @@ public class AuthorizationService {
         } else {
             logger.warn("denying access as action [{}] is not an index or cluster action", action);
             auditTrail.accessDenied(requestId, authentication, action, request, authzInfo);
-            listener.onFailure(denialException(authentication, action, request, null));
+            listener.onFailure(denialException(authentication, action, actionDenied(authentication, action, request), null));
         }
     }
 
@@ -615,7 +623,7 @@ public class AuthorizationService {
             listener.onResponse(null);
         } else {
             auditTrail.accessDenied(requestId, authentication, action, request, SYSTEM_AUTHZ_INFO);
-            listener.onFailure(denialException(authentication, action, request, null));
+            listener.onFailure(denialException(authentication, action, actionDenied(authentication, action, request), null));
         }
     }
 
@@ -639,14 +647,14 @@ public class AuthorizationService {
                     "originalRequest is not a proxy request: [" + originalRequest + "] but action: [" + action + "] is a proxy action"
                 );
                 auditTrail.accessDenied(requestId, authentication, action, request, EmptyAuthorizationInfo.INSTANCE);
-                throw denialException(authentication, action, request, cause);
+                throw denialException(authentication, action, actionDenied(authentication, action, request), cause);
             }
             if (TransportActionProxy.isProxyRequest(originalRequest) && TransportActionProxy.isProxyAction(action) == false) {
                 IllegalStateException cause = new IllegalStateException(
                     "originalRequest is a proxy request for: [" + request + "] but action: [" + action + "] isn't"
                 );
                 auditTrail.accessDenied(requestId, authentication, action, request, EmptyAuthorizationInfo.INSTANCE);
-                throw denialException(authentication, action, request, cause);
+                throw denialException(authentication, action, actionDenied(authentication, action, request), cause);
             }
         }
         return request;
@@ -675,7 +683,7 @@ public class AuthorizationService {
      * and then checks whether that action is allowed on the targeted index. Items
      * that fail this checks are {@link BulkItemRequest#abort(String, Exception)
      * aborted}, with an
-     * {@link #denialException(Authentication, String, TransportRequest, Exception) access
+     * {@link #denialException(Authentication, String, String, Exception) access
      * denied} exception. Because a shard level request is for exactly 1 index, and
      * there are a small number of possible item {@link DocWriteRequest.OpType
      * types}, the number of distinct authorization checks that need to be performed
@@ -775,13 +783,9 @@ public class AuthorizationService {
                             item.abort(
                                 resolvedIndex,
                                 denialException(
-                                    AuthorizationDenialContext.bulkActionDenied(
-                                        authentication,
-                                        itemAction,
-                                        request,
-                                        List.of(resolvedIndex),
-                                        restrictedIndices
-                                    ),
+                                    authentication,
+                                    itemAction,
+                                    indexActionDenied(authentication, itemAction, request, List.of(resolvedIndex), restrictedIndices),
                                     null
                                 )
                             );
@@ -854,35 +858,14 @@ public class AuthorizationService {
         }
     }
 
-    private ElasticsearchSecurityException denialException(
-        Authentication authentication,
-        String action,
-        TransportRequest request,
-        Exception cause
-    ) {
-        return denialException(AuthorizationDenialContext.actionDenied(authentication, action, request), cause);
-    }
-
-    private ElasticsearchSecurityException denialException(
-        Authentication authentication,
-        String action,
-        TransportRequest request,
-        @Nullable String context,
-        Exception cause
-    ) {
-        return denialException(AuthorizationDenialContext.actionDenied(authentication, action, request, context), cause);
-    }
-
-    // Pass in message or include auth, action, etc in context?
-    private ElasticsearchSecurityException denialException(AuthorizationDenialContext context, Exception cause) {
+    private ElasticsearchSecurityException denialException(Authentication authentication, String action, String message, Exception cause) {
         // Special case for anonymous user
         if (isAnonymousEnabled
-            && anonymousUser.equals(context.authentication().getUser().authenticatedUser())
+            && anonymousUser.equals(authentication.getUser().authenticatedUser())
             && anonymousAuthzExceptionEnabled == false) {
-            return authcFailureHandler.authenticationRequired(context.action(), threadContext);
+            return authcFailureHandler.authenticationRequired(action, threadContext);
         }
 
-        final String message = context.toErrorMessage();
         logger.debug(message);
         return authorizationError(message, cause);
     }
@@ -938,13 +921,13 @@ public class AuthorizationService {
         }
 
         private void handleFailure(boolean audit, @Nullable String context, @Nullable Exception e) {
+            Authentication authentication = requestInfo.getAuthentication();
+            String action = requestInfo.getAction();
+            TransportRequest request = requestInfo.getRequest();
             if (audit) {
-                auditTrailService.get()
-                    .accessDenied(requestId, requestInfo.getAuthentication(), requestInfo.getAction(), requestInfo.getRequest(), authzInfo);
+                auditTrailService.get().accessDenied(requestId, authentication, action, request, authzInfo);
             }
-            failureConsumer.accept(
-                denialException(requestInfo.getAuthentication(), requestInfo.getAction(), requestInfo.getRequest(), context, e)
-            );
+            failureConsumer.accept(denialException(authentication, action, actionDenied(authentication, action, request, context), e));
         }
     }
 

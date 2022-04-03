@@ -15,15 +15,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-class MetricFieldProducer {
-
-    final String fieldName;
-    final List<Metric> metrics;
-
-    MetricFieldProducer(String fieldName, List<Metric> metrics) {
-        this.fieldName = fieldName;
-        this.metrics = metrics;
-    }
+record MetricFieldProducer(String field, List<Metric> metrics) {
 
     void reset() {
         for (Metric metric : metrics) {

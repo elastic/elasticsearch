@@ -373,7 +373,7 @@ class RollupShardIndexer {
 
         public void collectMetric(String fieldName, double value) {
             MetricFieldProducer field = this.metricFields.get(fieldName);
-            for (MetricFieldProducer.Metric metric : field.metrics) {
+            for (MetricFieldProducer.Metric metric : field.metrics()) {
                 metric.collect(value);
             }
         }
@@ -402,12 +402,12 @@ class RollupShardIndexer {
                 }
             }
 
-            for (MetricFieldProducer field : metricFields.values()) {
+            for (MetricFieldProducer fieldProducer : metricFields.values()) {
                 Map<String, Object> map = new HashMap<>();
-                for (MetricFieldProducer.Metric metric : field.metrics) {
+                for (MetricFieldProducer.Metric metric : fieldProducer.metrics()) {
                     map.put(metric.name, metric.get());
                 }
-                doc.put(field.fieldName, map);
+                doc.put(fieldProducer.field(), map);
             }
 
             return doc;

@@ -98,11 +98,6 @@ setup:
   - is_true: acknowledged
 
   - do:
-      indices.forcemerge:
-        index: rollup-test
-        max_num_segments: 1
-
-  - do:
       search:
         index: rollup-test
         body:

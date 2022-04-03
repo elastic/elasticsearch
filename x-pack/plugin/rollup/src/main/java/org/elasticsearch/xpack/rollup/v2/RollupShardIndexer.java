@@ -62,8 +62,11 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 /**
- * An indexer for rollup that sorts the buckets from the provided source shard on disk and send them
- * to the target rollup index.
+ * An indexer for rollups that iterates documents collected by {@link TimeSeriesIndexSearcher},
+ * computes the rollup buckets and stores the buckets in the rollup index.
+ *
+ * The documents collected by the {@link TimeSeriesIndexSearcher} are expected to be sorted
+ * by _tsid in ascending order and @timestamp in descending order.
  */
 class RollupShardIndexer {
     private static final Logger logger = LogManager.getLogger(RollupShardIndexer.class);
@@ -84,6 +87,7 @@ class RollupShardIndexer {
 
     private final AtomicLong numSent = new AtomicLong();
     private final AtomicLong numIndexed = new AtomicLong();
+    private final AtomicLong numFailed = new AtomicLong();
 
     RollupShardIndexer(Client client, IndexService indexService, ShardId shardId, RollupActionConfig config, String rollupIndex) {
         this.client = client;
@@ -138,7 +142,13 @@ class RollupShardIndexer {
             bucketCollector.postCollection();
         }
         // TODO: check that numIndexed == numSent, otherwise throw an exception
-        logger.info("Successfully sent [{}], indexed [{}]", numSent.get(), numIndexed.get());
+        logger.info(
+            "Shard {} successfully sent [{}], indexed [{}], failed [{}]",
+            indexShard.shardId(),
+            numSent.get(),
+            numIndexed.get(),
+            numFailed.get()
+        );
         return numIndexed.get();
     }
 
@@ -162,14 +172,18 @@ class RollupShardIndexer {
                                 (msg1, msg2) -> Objects.equals(msg1, msg2) ? msg1 : msg1 + "," + msg2
                             )
                         );
-                    logger.error("failures: [{}]", failures);
+                    numFailed.addAndGet(failures.size());
+                    logger.error("Shard {} failed to populate rollup index: [{}]", indexShard.shardId(), failures);
                 }
             }
 
             @Override
             public void afterBulk(long executionId, BulkRequest request, Throwable failure) {
-                long items = request.numberOfActions();
-                numSent.addAndGet(-items);
+                if (failure != null) {
+                    long items = request.numberOfActions();
+                    numSent.addAndGet(-items);
+                    numFailed.addAndGet(items);
+                }
             }
         };
         return BulkProcessor.builder(client::bulk, listener, "rollup-shard-indexer")
@@ -229,77 +243,77 @@ class RollupShardIndexer {
                 @Override
                 public void collect(int docId, long owningBucketOrd) throws IOException {
                     BytesRef tsid = aggCtx.getTsid();
-                    if (tsid != null && timestampValues.advanceExact(docId)) {
-                        assert timestampValues.docValueCount() == 1 : "@timestamp field cannot be a multi value field";
-                        long timestamp = timestampValues.nextValue();
-                        long histoTimestamp = rounding.round(timestamp);
-
-                        logger.trace(
-                            "Doc: [{}] - _tsid: [{}], @timestamp: [{}}] -> rollup bucket ts: [{}]",
-                            docId,
-                            DocValueFormat.TIME_SERIES_ID.format(tsid),
-                            timestampFormat.format(timestamp),
-                            timestampFormat.format(histoTimestamp)
-                        );
-
-                        /*
-                         * Sanity checks to ensure that we receive documents in the correct order
-                         * - _tsid must be sorted in ascending order
-                         * - @timestamp must be sorted in descending order within the same _tsid
-                         */
-                        assert lastTsid == null || lastTsid.compareTo(tsid) <= 0
-                            : "_tsid is not sorted in ascending order: ["
-                                + DocValueFormat.TIME_SERIES_ID.format(lastTsid)
-                                + "] -> ["
-                                + DocValueFormat.TIME_SERIES_ID.format(tsid)
-                                + "]";
-                        assert tsid.equals(lastTsid) == false || lastTimestamp >= timestamp
-                            : "@timestamp is not sorted in descending order: ["
-                                + timestampFormat.format(lastTimestamp)
-                                + "] -> ["
-                                + timestampFormat.format(timestamp)
-                                + "]";
-                        lastTsid = BytesRef.deepCopyOf(tsid);
-                        lastTimestamp = timestamp;
-
-                        if (tsid.equals(rollupBucketBuilder.tsid()) == false || rollupBucketBuilder.timestamp() != histoTimestamp) {
-                            // Flush rollup doc if not empty
-                            if (rollupBucketBuilder.isEmpty() == false) {
-                                Map<String, Object> doc = rollupBucketBuilder.buildRollupDocument();
-                                indexBucket(doc);
-                            }
-
-                            // Create new rollup bucket
-                            rollupBucketBuilder.init(tsid, histoTimestamp);
-                            bucketsCreated++;
-                        }
-
-                        int docCount = docCountProvider.getDocCount(docId);
-                        rollupBucketBuilder.collectDocCount(docCount);
-
-                        for (Map.Entry<String, FormattedDocValues> e : metricsFieldLeaves.entrySet()) {
-                            String fieldName = e.getKey();
-                            FormattedDocValues leafField = e.getValue();
-
-                            if (leafField.advanceExact(docId)) {
-                                for (int i = 0; i < leafField.docValueCount(); i++) {
-                                    Object obj = leafField.nextValue();
-                                    if (obj instanceof Number number) {
-                                        // Collect docs to rollup doc
-                                        double value = number.doubleValue();
-                                        rollupBucketBuilder.collectMetric(fieldName, value);
-                                    } else {
-                                        throw new IllegalArgumentException("Expected [Number], got [" + obj.getClass() + "]");
-                                    }
-                                }
-                            }
-                        }
-                        docsProcessed++;
-                    } else {
-                        throw new IllegalStateException(
+                    if (tsid == null || timestampValues.advanceExact(docId) == false) {
+                        throw new IllegalArgumentException(
                             "Document without [" + TimeSeriesIdFieldMapper.NAME + "] or [" + timestampField.name() + "] field was found."
                         );
                     }
+                    assert timestampValues.docValueCount() == 1 : "@timestamp field cannot be a multi-value field";
+                    long timestamp = timestampValues.nextValue();
+                    long histoTimestamp = rounding.round(timestamp);
+
+                    logger.trace(
+                        "Doc: [{}] - _tsid: [{}], @timestamp: [{}}] -> rollup bucket ts: [{}]",
+                        docId,
+                        DocValueFormat.TIME_SERIES_ID.format(tsid),
+                        timestampFormat.format(timestamp),
+                        timestampFormat.format(histoTimestamp)
+                    );
+
+                    /*
+                     * Sanity checks to ensure that we receive documents in the correct order
+                     * - _tsid must be sorted in ascending order
+                     * - @timestamp must be sorted in descending order within the same _tsid
+                     */
+                    assert lastTsid == null || lastTsid.compareTo(tsid) <= 0
+                        : "_tsid is not sorted in ascending order: ["
+                            + DocValueFormat.TIME_SERIES_ID.format(lastTsid)
+                            + "] -> ["
+                            + DocValueFormat.TIME_SERIES_ID.format(tsid)
+                            + "]";
+                    assert tsid.equals(lastTsid) == false || lastTimestamp >= timestamp
+                        : "@timestamp is not sorted in descending order: ["
+                            + timestampFormat.format(lastTimestamp)
+                            + "] -> ["
+                            + timestampFormat.format(timestamp)
+                            + "]";
+                    lastTsid = BytesRef.deepCopyOf(tsid);
+                    lastTimestamp = timestamp;
+
+                    if (tsid.equals(rollupBucketBuilder.tsid()) == false || rollupBucketBuilder.timestamp() != histoTimestamp) {
+                        // Flush rollup doc if not empty
+                        if (rollupBucketBuilder.isEmpty() == false) {
+                            Map<String, Object> doc = rollupBucketBuilder.buildRollupDocument();
+                            indexBucket(doc);
+                        }
+
+                        // Create new rollup bucket
+                        rollupBucketBuilder.init(tsid, histoTimestamp);
+                        bucketsCreated++;
+                    }
+
+                    int docCount = docCountProvider.getDocCount(docId);
+                    rollupBucketBuilder.collectDocCount(docCount);
+
+                    for (Map.Entry<String, FormattedDocValues> e : metricsFieldLeaves.entrySet()) {
+                        String fieldName = e.getKey();
+                        FormattedDocValues leafField = e.getValue();
+
+                        if (leafField.advanceExact(docId)) {
+                            for (int i = 0; i < leafField.docValueCount(); i++) {
+                                Object obj = leafField.nextValue();
+                                if (obj instanceof Number number) {
+                                    // Collect docs to rollup doc
+                                    double value = number.doubleValue();
+                                    rollupBucketBuilder.collectMetric(fieldName, value);
+                                    // TODO: Implement aggregate_metric_double for rollup of rollups
+                                } else {
+                                    throw new IllegalArgumentException("Expected [Number], got [" + obj.getClass() + "]");
+                                }
+                            }
+                        }
+                    }
+                    docsProcessed++;
                 }
             };
         }
@@ -324,7 +338,7 @@ class RollupShardIndexer {
                 indexBucket(doc);
             }
             bulkProcessor.flush();
-            logger.info("Docs processed: [{}], rollup buckets created: [{}]", docsProcessed, bucketsCreated);
+            logger.info("Shard {} processed [{}] docs, created [{}] rollup buckets", indexShard.shardId(), docsProcessed, bucketsCreated);
         }
 
         @Override

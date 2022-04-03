@@ -12,8 +12,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
-import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 
@@ -26,31 +24,12 @@ class AuthorizationDenialMessages {
 
     private AuthorizationDenialMessages() {}
 
-    static String runAsDenied(Authentication authentication) {
+    static String runAsDenied(Authentication authentication, String action) {
         String userText = authenticatedUserText(authentication);
 
         String runAsUserText = authentication.getUser().isRunAs() ? authentication.getUser().principal() : "";
 
         return userText + " is unauthorized to run as [" + runAsUserText + "]";
-    }
-
-    static String indexActionDenied(
-        Authentication authentication,
-        String action,
-        TransportRequest request,
-        Collection<String> deniedIndices,
-        RestrictedIndices restrictedNames
-    ) {
-        return actionDenied(
-            authentication,
-            action,
-            request,
-            AuthorizationEngine.IndexAuthorizationResult.getFailureDescription(deniedIndices, restrictedNames)
-        );
-    }
-
-    static String requiresOperatorPrivileges(Authentication authentication, String action, TransportRequest request) {
-        return actionDenied(authentication, action, request, "because it requires operator privileges");
     }
 
     static String actionDenied(Authentication authentication, String action, TransportRequest request) {

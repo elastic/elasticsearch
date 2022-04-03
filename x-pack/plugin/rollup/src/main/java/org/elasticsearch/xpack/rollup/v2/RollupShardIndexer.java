@@ -85,27 +85,11 @@ class RollupShardIndexer {
     private final AtomicLong numSent = new AtomicLong();
     private final AtomicLong numIndexed = new AtomicLong();
 
-    RollupShardIndexer(Client client, IndexService indexService, ShardId shardId, RollupActionConfig config, String rollupIndex)
-        throws IOException {
+    RollupShardIndexer(Client client, IndexService indexService, ShardId shardId, RollupActionConfig config, String rollupIndex) {
         this.client = client;
         this.indexShard = indexService.getShard(shardId.id());
         this.config = config;
         this.rollupIndex = rollupIndex;
-
-        /*
-         * We merge the shard to a single segment as a workaround for
-         * out-of-order timestamps when iterating shards with multiple segments.
-         * This operation should be removed when we fix the problem at
-         * the @TimeSeriesIndexSearcher level.
-         *
-         * Also, even if this operation stays, the constructor is not the
-         * best place to have it.
-         * TODO: Remove the merge operation
-         */
-        // this.indexShard.refresh("rollup");
-        // ForceMergeRequest m = new ForceMergeRequest();
-        // m.maxNumSegments(1);
-        // indexShard.forceMerge(m);
 
         this.searcher = indexShard.acquireSearcher("rollup");
         Closeable toClose = searcher;
@@ -154,7 +138,7 @@ class RollupShardIndexer {
             bucketCollector.postCollection();
         }
         // TODO: check that numIndexed == numSent, otherwise throw an exception
-        logger.info("Successfully sent [" + numSent.get() + "], indexed [" + numIndexed.get() + "]");
+        logger.info("Successfully sent [{}], indexed [{}]", numSent.get(), numIndexed.get());
         return numIndexed.get();
     }
 
@@ -250,21 +234,18 @@ class RollupShardIndexer {
                         long timestamp = timestampValues.nextValue();
                         long histoTimestamp = rounding.round(timestamp);
 
-                        logger.info(
-                            "Doc: "
-                                + docId
-                                + " - "
-                                + DocValueFormat.TIME_SERIES_ID.format(tsid)
-                                + "/"
-                                + timestampFormat.format(timestamp)
-                                + " -> "
-                                + timestampFormat.format(histoTimestamp)
+                        logger.trace(
+                            "Doc: [{}] - _tsid: [{}], @timestamp: [{}}] -> rollup bucket ts: [{}]",
+                            docId,
+                            DocValueFormat.TIME_SERIES_ID.format(tsid),
+                            timestampFormat.format(timestamp),
+                            timestampFormat.format(histoTimestamp)
                         );
 
                         /*
                          * Sanity checks to ensure that we receive documents in the correct order
-                         * - tsid must be sorted in ascending order
-                         * - timestamp must be sorted in descending order within the same tsid
+                         * - _tsid must be sorted in ascending order
+                         * - @timestamp must be sorted in descending order within the same _tsid
                          */
                         assert lastTsid == null || lastTsid.compareTo(tsid) <= 0
                             : "_tsid is not sorted in ascending order: ["
@@ -326,7 +307,7 @@ class RollupShardIndexer {
         private void indexBucket(Map<String, Object> doc) {
             IndexRequestBuilder request = client.prepareIndex(rollupIndex);
             request.setSource(doc);
-            logger.info("Indexing rollup doc: " + doc);
+            logger.trace("Indexing rollup doc: [{}]", doc);
             bulkProcessor.add(request.request());
         }
 
@@ -343,7 +324,7 @@ class RollupShardIndexer {
                 indexBucket(doc);
             }
             bulkProcessor.flush();
-            logger.info("Docs processed: [" + docsProcessed + "], rollup buckets created: [" + bucketsCreated + "]");
+            logger.info("Docs processed: [{}], rollup buckets created: [{}]", docsProcessed, bucketsCreated);
         }
 
         @Override
@@ -367,7 +348,11 @@ class RollupShardIndexer {
             this.timestamp = timestamp;
             this.docCount = 0;
             this.metricFields.values().stream().forEach(p -> p.reset());
-            logger.info("New rollup bucket for " + DocValueFormat.TIME_SERIES_ID.format(tsid) + "/" + timestampFormat.format(timestamp));
+            logger.trace(
+                "New bucket for _tsid: [{}], @timestamp: [{}]",
+                DocValueFormat.TIME_SERIES_ID.format(tsid),
+                timestampFormat.format(timestamp)
+            );
 
             return this;
         }
@@ -388,7 +373,7 @@ class RollupShardIndexer {
                 throw new IllegalStateException("Rollup bucket builder is not initialized.");
             }
 
-            // Extract dimension values from tsid, so we avoid load them from doc_values
+            // Extract dimension values from _tsid field, so we avoid load them from doc_values
             @SuppressWarnings("unchecked")
             Map<String, Object> dimensions = (Map<String, Object>) DocValueFormat.TIME_SERIES_ID.format(tsid);
 

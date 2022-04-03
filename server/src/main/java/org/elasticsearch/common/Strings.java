@@ -355,8 +355,7 @@ public class Strings {
 
     public static boolean validFileName(String fileName) {
         for (int i = 0; i < fileName.length(); i++) {
-            char c = fileName.charAt(i);
-            if (INVALID_FILENAME_CHARS.contains(c)) {
+            if (isInvalidFileNameCharacter(fileName.charAt(i))) {
                 return false;
             }
         }
@@ -366,11 +365,20 @@ public class Strings {
     public static boolean validFileNameExcludingAstrix(String fileName) {
         for (int i = 0; i < fileName.length(); i++) {
             char c = fileName.charAt(i);
-            if (c != '*' && INVALID_FILENAME_CHARS.contains(c)) {
+            if (c != '*' && isInvalidFileNameCharacter(c)) {
                 return false;
             }
         }
         return true;
+    }
+
+    private static boolean isInvalidFileNameCharacter(char c) {
+        switch (c) {
+            case '\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',' -> {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

@@ -53,9 +53,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-@Fork(1)
+@Fork(value = 1) //jvmArgs = { "-XX:+PrintCompilation", "-XX:+UnlockDiagnosticVMOptions", "-XX:+PrintInlining" })
 @Warmup(iterations = 5)
-@Measurement(iterations = 5)
+@Measurement(iterations = 15)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @State(Scope.Benchmark)
@@ -69,41 +69,69 @@ public class KeywordFieldMapperBenchmark {
     public void setUp() {
         this.mapperService = createMapperService("""
             {
-                "_doc": {
-                  "dynamic": false,
-                  "properties": {
-                    "host": {
-                      "type": "keyword",
-                      "store": true
-                    },
-                    "name": {
-                      "type": "keyword"
-                    },
-                    "type": {
-                      "type": "keyword",
-                      "normalizer": "lowercase"
-                    },
-                    "uuid": {
-                      "type": "keyword",
-                      "doc_values": false
-                    },
-                    "version": {
-                      "type": "keyword"
-                    },
-                    "extra_field": {
-                      "type": "keyword"
+              "_doc": {
+                "dynamic": false,
+                "properties": {
+                  "host": {
+                    "type": "keyword",
+                    "store": true
+                  },
+                  "name": {
+                    "type": "keyword"
+                  },
+                  "type": {
+                    "type": "keyword",
+                    "normalizer": "lowercase"
+                  },
+                  "uuid": {
+                    "type": "keyword",
+                    "doc_values": false
+                  },
+                  "version": {
+                    "type": "keyword"
+                  },
+                  "extra_field": {
+                    "type": "keyword"
+                  },
+                  "extra_field_text": {
+                    "type": "text",
+                    "fields": {
+                      "keyword": {
+                        "type": "keyword",
+                        "ignore_above": 1024
+                      }
+                    }
+                  },
+                  "nested_object": {
+                    "properties": {
+                      "keyword_nested": {
+                        "type": "keyword"
+                      },
+                      "text_nested": {
+                        "type": "text"
+                      },
+                      "number_nested": {
+                        "type": "long"
+                      }
                     }
                   }
                 }
+              }
             }
-                        """);
+                       \s""");
         this.sourceToParse = new SourceToParse(UUIDs.randomBase64UUID(), new BytesArray("""
             {
               "host": "some_value",
               "name": "some_other_thing",
               "type": "some_type_thing",
               "uuid": "some_keyword_uuid",
-              "version": "some_version"
+              "version": "some_version",
+              "extra_field_text": "bla bla text",
+              "nested_object" : {
+                "keyword_nested": "some random nested keyword",
+                "text_nested": "some random nested text",
+                "number_nested": 123234234
+              }
             }"""), XContentType.JSON);
     }
 

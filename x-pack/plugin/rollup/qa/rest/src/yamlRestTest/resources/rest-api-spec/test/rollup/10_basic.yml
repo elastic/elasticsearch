@@ -75,25 +75,8 @@ setup:
         rollup_index: rollup-test
         body:  >
           {
-            "groups" : {
-              "date_histogram": {
-                "field": "@timestamp",
-                "fixed_interval": "1h"
-              },
-              "terms": {
-                "fields": ["k8s.pod.uid", "metricset"]
-              }
-            },
-            "metrics": [
-              {
-                "field": "k8s.pod.network.tx",
-                "metrics": ["min", "max", "sum", "value_count", "avg"]
-              },
-              {
-                "field": "k8s.pod.network.rx",
-                "metrics": ["min", "max", "sum", "value_count", "avg"]
-              }
-            ]
+            "fixed_interval": "1h",
+            "time_zone": "UTC"
           }
   - is_true: acknowledged
 
@@ -133,29 +116,11 @@ setup:
       version: " - 8.1.99"
       reason: tsdb rollups added in 8.2.0
   - do:
-      catch: /no such index \[non-existing-index\]/
+      catch: /Source index \[non-existing-index\] not found/
       rollup.rollup:
         index: non-existing-index
         rollup_index: rollup-test
         body:  >
           {
-            "groups" : {
-              "date_histogram": {
-                "field": "@timestamp",
-                "fixed_interval": "1h"
-              },
-              "terms": {
-                "fields": ["k8s.pod.uid", "metricset"]
-              }
-            },
-            "metrics": [
-              {
-                "field": "k8s.pod.network.tx",
-                "metrics": ["min", "max", "sum", "value_count", "avg"]
-              },
-              {
-                "field": "k8s.pod.network.rx",
-                "metrics": ["min", "max", "sum", "value_count", "avg"]
-              }
-            ]
+            "fixed_interval": "1h"
           }

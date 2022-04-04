@@ -42,16 +42,11 @@ import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.DocCountProvider;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
-import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.timeseries.TimeSeriesIndexSearcher;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
-import org.elasticsearch.xpack.core.rollup.RollupActionDateHistogramGroupConfig;
-import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -82,7 +77,7 @@ class RollupShardIndexer {
     private final DocValueFormat timestampFormat;
     private final Rounding.Prepared rounding;
 
-    private final List<FieldValueFetcher> dimensionFieldFetchers;
+    // private final List<FieldValueFetcher> dimensionFieldFetchers;
     private final List<FieldValueFetcher> metricFieldFetchers;
 
     private final AtomicLong numSent = new AtomicLong();
@@ -108,22 +103,24 @@ class RollupShardIndexer {
             );
             this.timestampField = searchExecutionContext.getFieldType(DataStreamTimestampFieldMapper.DEFAULT_PATH);
             this.timestampFormat = timestampField.docValueFormat(null, null);
-            this.rounding = createRounding(config.getGroupConfig().getDateHistogram()).prepareForUnknown();
+            this.rounding = config.createRounding();
 
-            // TODO: Replace this config parsing with index mapping parsing
-            if (config.getGroupConfig().getTerms() != null && config.getGroupConfig().getTerms().getFields().length > 0) {
-                final String[] dimensionFields = config.getGroupConfig().getTerms().getFields();
-                this.dimensionFieldFetchers = FieldValueFetcher.build(searchExecutionContext, dimensionFields);
-            } else {
-                this.dimensionFieldFetchers = Collections.emptyList();
-            }
+            // FIXME: Replace this config parsing with index mapping parsing
+            // if (config.getGroupConfig().getTerms() != null && config.getGroupConfig().getTerms().getFields().length > 0) {
+            // final String[] dimensionFields = config.getGroupConfig().getTerms().getFields();
+            // this.dimensionFieldFetchers = FieldValueFetcher.build(searchExecutionContext, dimensionFields);
+            // } else {
+            // this.dimensionFieldFetchers = Collections.emptyList();
+            // }
 
-            if (config.getMetricsConfig().size() > 0) {
-                final String[] metricFields = config.getMetricsConfig().stream().map(MetricConfig::getField).toArray(String[]::new);
-                this.metricFieldFetchers = FieldValueFetcher.build(searchExecutionContext, metricFields);
-            } else {
-                this.metricFieldFetchers = Collections.emptyList();
-            }
+            // FIXME
+            // if (config.getMetricsConfig().size() > 0) {
+            // final String[] metricFields = config.getMetricsConfig().stream().map(MetricConfig::getField).toArray(String[]::new);
+            // this.metricFieldFetchers = FieldValueFetcher.build(searchExecutionContext, metricFields);
+            // } else {
+            // this.metricFieldFetchers = Collections.emptyList();
+            // }
+            this.metricFieldFetchers = Collections.emptyList();
 
             toClose = null;
         } finally {
@@ -195,25 +192,25 @@ class RollupShardIndexer {
             .build();
     }
 
-    private static Rounding createRounding(RollupActionDateHistogramGroupConfig groupConfig) {
-        DateHistogramInterval interval = groupConfig.getInterval();
-        ZoneId zoneId = groupConfig.getTimeZone() != null ? ZoneId.of(groupConfig.getTimeZone()) : null;
-        Rounding.Builder tzRoundingBuilder;
-        if (groupConfig instanceof RollupActionDateHistogramGroupConfig.FixedInterval) {
-            TimeValue timeValue = TimeValue.parseTimeValue(
-                interval.toString(),
-                null,
-                RollupShardIndexer.class.getSimpleName() + ".interval"
-            );
-            tzRoundingBuilder = Rounding.builder(timeValue);
-        } else if (groupConfig instanceof RollupActionDateHistogramGroupConfig.CalendarInterval) {
-            Rounding.DateTimeUnit dateTimeUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(interval.toString());
-            tzRoundingBuilder = Rounding.builder(dateTimeUnit);
-        } else {
-            throw new IllegalStateException("unsupported interval type");
-        }
-        return tzRoundingBuilder.timeZone(zoneId).build();
-    }
+    // private static Rounding createRounding(RollupActionConfig config) {
+    // DateHistogramInterval interval = config.getFixedInterval();
+    // ZoneId zoneId = ZoneId.of(config.getTimeZone());
+    // Rounding.Builder tzRoundingBuilder;
+    // if (groupConfig instanceof RollupActionDateHistogramGroupConfig.FixedInterval) {
+    // TimeValue timeValue = TimeValue.parseTimeValue(
+    // interval.toString(),
+    // null,
+    // RollupShardIndexer.class.getSimpleName() + ".interval"
+    // );
+    // tzRoundingBuilder = Rounding.builder(timeValue);
+    // } else if (groupConfig instanceof RollupActionDateHistogramGroupConfig.CalendarInterval) {
+    // Rounding.DateTimeUnit dateTimeUnit = DateHistogramAggregationBuilder.DATE_FIELD_UNITS.get(interval.toString());
+    // tzRoundingBuilder = Rounding.builder(dateTimeUnit);
+    // } else {
+    // throw new IllegalStateException("unsupported interval type");
+    // }
+    // return tzRoundingBuilder.timeZone(zoneId).build();
+    // }
 
     private class TimeSeriesBucketCollector extends BucketCollector {
         private final BulkProcessor bulkProcessor;
@@ -354,7 +351,9 @@ class RollupShardIndexer {
         private final Map<String, MetricFieldProducer> metricFields;
 
         RollupBucketBuilder() {
-            this.metricFields = MetricFieldProducer.buildMetrics(config.getMetricsConfig());
+            // FIXME
+            // this.metricFields = MetricFieldProducer.buildMetrics(config.getMetricsConfig());
+            this.metricFields = MetricFieldProducer.buildMetrics(null);
         }
 
         public RollupBucketBuilder init(BytesRef tsid, long timestamp) {
@@ -387,7 +386,7 @@ class RollupShardIndexer {
                 throw new IllegalStateException("Rollup bucket builder is not initialized.");
             }
 
-            // Extract dimension values from _tsid field, so we avoid load them from doc_values
+            // Extract dimension values from _tsid field, so we avoid loading them from doc_values
             @SuppressWarnings("unchecked")
             Map<String, Object> dimensions = (Map<String, Object>) DocValueFormat.TIME_SERIES_ID.format(tsid);
 
@@ -395,11 +394,17 @@ class RollupShardIndexer {
             doc.put(DocCountFieldMapper.NAME, docCount);
             doc.put(timestampField.name(), timestampFormat.format(timestamp));
 
-            for (FieldValueFetcher fetcher : dimensionFieldFetchers) {
-                Object value = dimensions.get(fetcher.name);
-                if (value != null) {
-                    doc.put(fetcher.name, fetcher.format(value));
-                }
+            // FIXME
+            // for (FieldValueFetcher fetcher : dimensionFieldFetchers) {
+            // Object value = dimensions.get(fetcher.name);
+            // if (value != null) {
+            // doc.put(fetcher.name, fetcher.format(value));
+            // }
+            // }
+
+            for (Map.Entry<String, Object> e : dimensions.entrySet()) {
+                assert e.getValue() != null;
+                doc.put(e.getKey(), e.getValue());
             }
 
             for (MetricFieldProducer fieldProducer : metricFields.values()) {
@@ -409,7 +414,7 @@ class RollupShardIndexer {
                         metricValues.put(metric.name, metric.get());
                     }
                 }
-                if (metricValues.isEmpty() == false){
+                if (metricValues.isEmpty() == false) {
                     doc.put(fieldProducer.field(), metricValues);
                 }
             }

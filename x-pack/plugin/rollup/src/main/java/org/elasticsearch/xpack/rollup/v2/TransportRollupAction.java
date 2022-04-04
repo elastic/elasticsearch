@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.rollup.v2;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -14,6 +15,7 @@ import org.elasticsearch.action.admin.indices.rollover.MetadataRolloverService;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
+import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -29,6 +31,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -43,8 +46,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -55,18 +56,16 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
-import org.elasticsearch.xpack.core.rollup.RollupActionDateHistogramGroupConfig;
-import org.elasticsearch.xpack.core.rollup.RollupActionGroupConfig;
 import org.elasticsearch.xpack.core.rollup.action.RollupAction;
 import org.elasticsearch.xpack.core.rollup.action.RollupActionRequestValidationException;
 import org.elasticsearch.xpack.core.rollup.action.RollupIndexerAction;
-import org.elasticsearch.xpack.core.rollup.job.HistogramGroupConfig;
-import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
 
 import java.io.IOException;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * The master rollup action that coordinates
@@ -114,8 +113,25 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         RollupAction.Request request,
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
-    ) throws IOException {
+    ) {
         String sourceIndexName = request.getSourceIndex();
+
+        IndexMetadata sourceIndexMetadata = state.getMetadata().index(sourceIndexName);
+        if (sourceIndexMetadata == null) {
+            throw new ResourceNotFoundException("Source index [" + sourceIndexName + "] not found.");
+        }
+
+        if (IndexSettings.MODE.get(sourceIndexMetadata.getSettings()) != IndexMode.TIME_SERIES) {
+            throw new IllegalArgumentException(
+                "Rollup requires setting ["
+                    + IndexSettings.MODE.getKey()
+                    + "="
+                    + IndexMode.TIME_SERIES
+                    + "] for index ["
+                    + sourceIndexName
+                    + "]"
+            );
+        }
 
         final String rollupIndexName;
         if (request.getRollupIndex() == null) {
@@ -126,25 +142,11 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
 
         String tmpIndexName = ".rolluptmp-" + rollupIndexName;
 
-        final XContentBuilder mapping;
-        try {
-            mapping = getMapping(request.getRollupConfig());
-        } catch (IOException e) {
-            listener.onFailure(e);
-            return;
-        }
-
-        FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest().indices(sourceIndexName)
-            .fields(request.getRollupConfig().getAllFields().toArray(new String[0]));
+        FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest().indices(sourceIndexName).fields("*");
         fieldCapsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
-        IndexMetadata sourceIndexMetadata = state.getMetadata().index(sourceIndexName);
 
-        CreateIndexClusterStateUpdateRequest createIndexClusterStateUpdateRequest = new CreateIndexClusterStateUpdateRequest(
-            "rollup",
-            tmpIndexName,
-            tmpIndexName
-        ).settings(MetadataRolloverService.HIDDEN_INDEX_SETTINGS)
-            .mappings(XContentHelper.convertToJson(BytesReference.bytes(mapping), false, XContentType.JSON));
+        MappingMetadata sourceIndexMapping = sourceIndexMetadata.mapping();
+        sourceIndexMapping.getSourceAsMap();
 
         RollupIndexerAction.Request rollupIndexerRequest = new RollupIndexerAction.Request(request);
         ResizeRequest resizeRequest = new ResizeRequest(request.getRollupIndex(), tmpIndexName);
@@ -152,8 +154,8 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         resizeRequest.getTargetIndexRequest().settings(VISIBLE_INDEX_SETTINGS);
         UpdateSettingsRequest updateSettingsReq = new UpdateSettingsRequest(WRITE_BLOCKED_SETTINGS, tmpIndexName);
 
-        // 1. validate Rollup Config against Field Caps
-        // 2. create hidden temporary index
+        // 1. Extract rollup config from source index field caps
+        // 2. Create hidden temporary index
         // 3. run rollup indexer
         // 4. make temp index read-only
         // 5. shrink index
@@ -163,29 +165,55 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
 
         // 1.
         client.fieldCaps(fieldCapsRequest, ActionListener.wrap(fieldCapsResponse -> {
+            Map<String, FieldCapabilities> dimensions = new HashMap<>();
+            Map<String, FieldCapabilities> metrics = new HashMap<>();
+            for (Map.Entry<String, Map<String, FieldCapabilities>> e : fieldCapsResponse.get().entrySet()) {
+                String field = e.getKey();
+                FieldCapabilities fieldCaps = e.getValue().values().iterator().next();
+                if (fieldCaps.isDimension()) {
+                    dimensions.put(field, fieldCaps);
+                } else if (e.getValue().values().iterator().next().getMetricType() != null) {
+                    metrics.put(field, fieldCaps);
+                }
+            }
+
             RollupActionRequestValidationException validationException = new RollupActionRequestValidationException();
-            if (fieldCapsResponse.get().size() == 0) {
-                validationException.addValidationError(
-                    "Could not find any fields in the index [" + sourceIndexName + "] that were configured in job"
-                );
-                listener.onFailure(validationException);
+            if (dimensions.isEmpty()) {
+                validationException.addValidationError("Index [" + sourceIndexName + "] does not contain any dimension fields");
+            }
+            if (metrics.isEmpty()) {
+                validationException.addValidationError("Index [" + sourceIndexName + "] does not contain any metric fields");
+            }
+
+            final XContentBuilder mapping;
+            try {
+                mapping = createRollupIndexMapping(request.getRollupConfig(), dimensions, metrics, validationException);
+            } catch (IOException e) {
+                listener.onFailure(e);
                 return;
             }
-            request.getRollupConfig().validateMappings(fieldCapsResponse.get(), validationException);
-            if (validationException.validationErrors().size() > 0) {
+
+            if (validationException.validationErrors().isEmpty() == false) {
                 listener.onFailure(validationException);
                 return;
             }
 
+            CreateIndexClusterStateUpdateRequest createIndexClusterStateUpdateRequest = new CreateIndexClusterStateUpdateRequest(
+                "rollup",
+                tmpIndexName,
+                tmpIndexName
+            ).settings(MetadataRolloverService.HIDDEN_INDEX_SETTINGS)
+                .mappings(XContentHelper.convertToJson(BytesReference.bytes(mapping), false, XContentType.JSON));
+
             // 2.
-            clusterService.submitStateUpdateTask("rollup create index", new ClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask("create-rollup-index", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     return metadataCreateIndexService.applyCreateIndexRequest(
                         currentState,
                         createIndexClusterStateUpdateRequest,
                         true,
-                        (builder, indexMetadata) -> builder.put(copyIndexMetadata(sourceIndexMetadata, indexMetadata))
+                        (builder, rollupIndexMetadata) -> builder.put(copyIndexMetadata(sourceIndexMetadata, rollupIndexMetadata))
                     );
                 }
 
@@ -244,10 +272,65 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
-    private XContentBuilder getMapping(RollupActionConfig config) throws IOException {
+    /**
+     * This method creates the mapping for the rollup index, based on the
+     * mapping (dimensions and metrics) from the source index, as well as the
+     * rollup configuration.
+     *
+     * @param config the rollup configuration
+     * @param dimensions a map with the field name as key and the fields caps response as value
+     *                  for the dimension fields of the source index
+     * @param metrics a map with the field name as key and the fields caps response as value
+     *                for the metric fields of the source index
+     * @param validationException validation exception is updated when an error happens
+     *
+     * @return the mapping of the rollup index
+     */
+    public static XContentBuilder createRollupIndexMapping(
+        RollupActionConfig config,
+        Map<String, FieldCapabilities> dimensions,
+        Map<String, FieldCapabilities> metrics,
+        RollupActionRequestValidationException validationException
+    ) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         builder = getDynamicTemplates(builder);
-        builder = getProperties(builder, config);
+
+        builder.startObject("properties");
+
+        String timestampField = config.getTimestampField();
+        String dateIntervalType = config.getIntervalType();
+        String dateInterval = config.getInterval().toString();
+        String tz = config.getTimeZone();
+
+        builder.startObject(timestampField)
+            .field("type", DateFieldMapper.CONTENT_TYPE)
+            .startObject("meta")
+            .field(dateIntervalType, dateInterval)
+            .field(RollupActionConfig.TIME_ZONE, tz)
+            .endObject()
+            .endObject();
+
+        for (Map.Entry<String, FieldCapabilities> e : dimensions.entrySet()) {
+            builder.startObject(e.getKey())
+                .field("type", e.getValue().getType())
+                .field(TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM, true)
+                .endObject();
+        }
+
+        for (Map.Entry<String, FieldCapabilities> e : metrics.entrySet()) {
+            TimeSeriesParams.MetricType metricType = e.getValue().getMetricType();
+
+            List<String> aggs = List.of(metricType.supportedAggs());
+            String defaultMetric = aggs.contains("value_count") ? "value_count" : aggs.get(0);
+            builder.startObject(e.getKey())
+                .field("type", AggregateDoubleMetricFieldMapper.CONTENT_TYPE)
+                .stringListField(AggregateDoubleMetricFieldMapper.Names.METRICS, aggs)
+                .field(AggregateDoubleMetricFieldMapper.Names.DEFAULT_METRIC, defaultMetric)
+                .field(TimeSeriesParams.TIME_SERIES_METRIC_PARAM, metricType)
+                .endObject();
+        }
+
+        builder.endObject();
         return builder.endObject();
     }
 
@@ -256,18 +339,6 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
      */
     private IndexMetadata.Builder copyIndexMetadata(IndexMetadata sourceIndexMetadata, IndexMetadata rollupIndexMetadata) {
         String sourceIndexName = sourceIndexMetadata.getIndex().getName();
-        IndexMode indexMode = IndexSettings.MODE.get(sourceIndexMetadata.getSettings());
-        if (indexMode != IndexMode.TIME_SERIES) {
-            throw new IllegalArgumentException(
-                "Rollup requires setting ["
-                    + IndexSettings.MODE.getKey()
-                    + "="
-                    + IndexMode.TIME_SERIES
-                    + "] for index ["
-                    + sourceIndexName
-                    + "]"
-            );
-        }
 
         /*
          * Add the source index name and UUID to the rollup index metadata.
@@ -285,6 +356,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         List<String> indexRoutingPath = sourceIndexMetadata.getRoutingPaths();
         Instant startTime = IndexSettings.TIME_SERIES_START_TIME.get(sourceIndexMetadata.getSettings());
         Instant endTime = IndexSettings.TIME_SERIES_END_TIME.get(sourceIndexMetadata.getSettings());
+        IndexMode indexMode = IndexSettings.MODE.get(sourceIndexMetadata.getSettings());
 
         return IndexMetadata.builder(rollupIndexMetadata)
             // Copy numbers of shards and replicas from source index
@@ -317,64 +389,6 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             .endObject()
             .endObject()
             .endArray();
-    }
-
-    /**
-     * Creates the rollup mapping properties from the provided {@link RollupActionConfig}.
-     */
-    private static XContentBuilder getProperties(XContentBuilder builder, RollupActionConfig config) throws IOException {
-        builder.startObject("properties");
-
-        RollupActionGroupConfig groupConfig = config.getGroupConfig();
-        RollupActionDateHistogramGroupConfig dateHistogramConfig = groupConfig.getDateHistogram();
-        String dateField = dateHistogramConfig.getField();
-        String dateIntervalType = dateHistogramConfig.getIntervalTypeName();
-        String dateInterval = dateHistogramConfig.getInterval().toString();
-        String tz = dateHistogramConfig.getTimeZone() != null
-            ? dateHistogramConfig.getTimeZone()
-            : RollupActionDateHistogramGroupConfig.DEFAULT_TIMEZONE;
-
-        builder.startObject(dateField)
-            .field("type", DateFieldMapper.CONTENT_TYPE)
-            .startObject("meta")
-            .field(dateIntervalType, dateInterval)
-            .field(RollupActionDateHistogramGroupConfig.CalendarInterval.TIME_ZONE, tz)
-            .endObject()
-            .endObject();
-
-        HistogramGroupConfig histogramGroupConfig = groupConfig.getHistogram();
-        if (histogramGroupConfig != null) {
-            for (String field : histogramGroupConfig.getFields()) {
-                builder.startObject(field)
-                    .field("type", NumberFieldMapper.NumberType.DOUBLE.typeName())
-                    .startObject("meta")
-                    .field(HistogramGroupConfig.INTERVAL, String.valueOf(histogramGroupConfig.getInterval()))
-                    .endObject()
-                    .endObject();
-            }
-        }
-
-        // TODO: Set the correct field types for dimensions
-        for (String termField : config.getGroupConfig().getTerms().getFields()) {
-            builder.startObject(termField)
-                .field("type", KeywordFieldMapper.CONTENT_TYPE)
-                .field(TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM, true)
-                .endObject();
-        }
-
-        List<MetricConfig> metricConfigs = config.getMetricsConfig();
-        for (MetricConfig metricConfig : metricConfigs) {
-            List<String> metrics = MetricFieldProducer.normalizeMetrics(metricConfig.getMetrics());
-            String defaultMetric = metrics.contains("value_count") ? "value_count" : metrics.get(0);
-            builder.startObject(metricConfig.getField())
-                .field("type", AggregateDoubleMetricFieldMapper.CONTENT_TYPE)
-                .stringListField(AggregateDoubleMetricFieldMapper.Names.METRICS, metrics)
-                .field(AggregateDoubleMetricFieldMapper.Names.DEFAULT_METRIC, defaultMetric)
-                .field(TimeSeriesParams.TIME_SERIES_METRIC_PARAM, TimeSeriesParams.MetricType.gauge)
-                .endObject();
-        }
-
-        return builder.endObject();
     }
 
     private void publishMetadata(

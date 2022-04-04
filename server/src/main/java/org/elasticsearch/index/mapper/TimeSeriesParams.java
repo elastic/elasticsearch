@@ -23,10 +23,18 @@ public final class TimeSeriesParams {
     private TimeSeriesParams() {}
 
     public enum MetricType {
-        gauge,
-        counter,
-        histogram,
-        summary
+        gauge(new String[] { "value_count", "sum", "min", "max" }),
+        counter(new String[] { "max" });
+
+        private final String[] supportedAggs;
+
+        MetricType(String[] supportedAggs) {
+            this.supportedAggs = supportedAggs;
+        }
+
+        public String[] supportedAggs() {
+            return supportedAggs;
+        }
     }
 
     public static FieldMapper.Parameter<MetricType> metricParam(Function<FieldMapper, MetricType> initializer, MetricType... values) {

@@ -319,13 +319,13 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
                                 writerUuid = new BytesRef(parser.binaryValue());
                                 assert writerUuid.length > 0;
                             }
-                            default -> XContentParserUtils.throwUnknownField(currentFieldName, parser.getTokenLocation());
+                            default -> XContentParserUtils.throwUnknownField(currentFieldName, parser);
                         }
                     } else {
-                        XContentParserUtils.throwUnknownToken(token, parser.getTokenLocation());
+                        XContentParserUtils.throwUnknownToken(token, parser);
                     }
                 } else {
-                    XContentParserUtils.throwUnknownToken(token, parser.getTokenLocation());
+                    XContentParserUtils.throwUnknownToken(token, parser);
                 }
             }
 
@@ -563,16 +563,16 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
                 } else if (PARSE_INCREMENTAL_SIZE.match(currentFieldName, parser.getDeprecationHandler())) {
                     incrementalSize = parser.longValue();
                 } else {
-                    XContentParserUtils.throwUnknownField(currentFieldName, parser.getTokenLocation());
+                    XContentParserUtils.throwUnknownField(currentFieldName, parser);
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if (PARSE_FILES.match(currentFieldName, parser.getDeprecationHandler())) {
                     indexFiles = XContentParserUtils.parseList(parser, FileInfo::fromXContent);
                 } else {
-                    XContentParserUtils.throwUnknownField(currentFieldName, parser.getTokenLocation());
+                    XContentParserUtils.throwUnknownField(currentFieldName, parser);
                 }
             } else {
-                XContentParserUtils.throwUnknownToken(token, parser.getTokenLocation());
+                XContentParserUtils.throwUnknownToken(token, parser);
             }
         }
 

@@ -26,10 +26,6 @@ import java.util.Locale;
 
 public class CronEvalTool extends LoggingAwareCommand {
 
-    public static void main(String[] args) throws Exception {
-        exit(new CronEvalTool().main(args, Terminal.DEFAULT));
-    }
-
     private static final DateFormatter UTC_FORMATTER = DateFormatter.forPattern("EEE, d MMM yyyy HH:mm:ss")
         .withZone(ZoneOffset.UTC)
         .withLocale(Locale.ROOT);

@@ -30,7 +30,6 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ThrowableAssertions.assertThatException;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.isA;
@@ -104,27 +103,24 @@ public class InvalidRepositoryIT extends ESIntegTestCase {
                 )
         );
         // verification should fail with some node has InvalidRepository
-        boolean verifyPass = false;
-        try {
-            client().admin().cluster().prepareVerifyRepository(repositoryName).get();
-            verifyPass = true;
-        } catch (Exception e) {
-            assertThat(e, isA(RepositoryVerificationException.class));
-            assertEquals(e.getSuppressed().length, internalCluster().numDataAndMasterNodes() - 1);
-            for (Throwable suppressed : e.getSuppressed()) {
-                assertThatException(
-                    suppressed.getCause(),
-                    RepositoryException.class,
-                    equalTo("[" + repositoryName + "] repository type [" + UnstableRepository.TYPE + "] failed to create on current node")
-                );
-                assertThatException(
-                    suppressed.getCause().getCause().getCause(),
-                    RepositoryException.class,
-                    equalTo("[" + repositoryName + "] Failed to create repository: current node is not stable")
-                );
-            }
+        final var expectedException = expectThrows(
+            RepositoryVerificationException.class,
+            () -> client().admin().cluster().prepareVerifyRepository(repositoryName).get()
+        );
+        for (Throwable suppressed : expectedException.getSuppressed()) {
+            Throwable outerCause = suppressed.getCause();
+            assertThat(outerCause, isA(RepositoryException.class));
+            assertThat(
+                outerCause.getMessage(),
+                equalTo("[" + repositoryName + "] repository type [" + UnstableRepository.TYPE + "] failed to create on current node")
+            );
+            Throwable innerCause = suppressed.getCause().getCause().getCause();
+            assertThat(innerCause, isA(RepositoryException.class));
+            assertThat(
+                innerCause.getMessage(),
+                equalTo("[" + repositoryName + "] Failed to create repository: current node is not stable")
+            );
         }
-        assertFalse("verification should fail when some node failed to create repository", verifyPass);
 
         // restart master
         internalCluster().restartNode(internalCluster().getMasterName());

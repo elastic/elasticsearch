@@ -248,10 +248,8 @@ public class RepositoriesServiceTests extends ESTestCase {
         var clusterState = createClusterStateWithRepo(repoName, UnstableRepository.TYPE);
         repositoriesService.applyClusterState(new ClusterChangedEvent("put unstable repository", clusterState, emptyState()));
         repositoriesService.applyClusterState(new ClusterChangedEvent("removing repo", emptyState(), clusterState));
-
-        assertThatThrows(
-            () -> repositoriesService.repository(repoName),
-            RepositoryMissingException.class,
+        assertThat(
+            expectThrows(RepositoryMissingException.class, () -> repositoriesService.repository(repoName)).getMessage(),
             equalTo("[" + repoName + "] missing")
         );
     }

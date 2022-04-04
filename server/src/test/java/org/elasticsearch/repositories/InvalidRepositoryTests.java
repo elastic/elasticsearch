@@ -13,8 +13,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.elasticsearch.test.hamcrest.ThrowableAssertions.assertThatThrows;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.isA;
 
 public class InvalidRepositoryTests extends ESTestCase {
 
@@ -24,12 +24,12 @@ public class InvalidRepositoryTests extends ESTestCase {
     );
 
     public void testShouldThrowWhenGettingMetadata() {
-        assertThatThrows(
-            () -> repository.getSnapshotGlobalMetadata(new SnapshotId("name", "uuid")),
+        final var expectedException = expectThrows(
             RepositoryException.class,
-            equalTo("[name] repository type [type] failed to create on current node"),
-            RepositoryException.class,
-            equalTo("[name] failed to create repository")
+            () -> repository.getSnapshotGlobalMetadata(new SnapshotId("name", "uuid"))
         );
+        assertThat(expectedException.getMessage(), equalTo("[name] repository type [type] failed to create on current node"));
+        assertThat(expectedException.getCause(), isA(RepositoryException.class));
+        assertThat(expectedException.getCause().getMessage(), equalTo("[name] failed to create repository"));
     }
 }

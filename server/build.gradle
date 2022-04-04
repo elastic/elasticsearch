@@ -65,6 +65,9 @@ dependencies {
   api "co.elastic.logging:log4j2-ecs-layout:${versions.ecsLogging}"
   api "co.elastic.logging:ecs-logging-core:${versions.ecsLogging}"
 
+  // Spacetime: macaroons
+  api "com.github.nitram509:jmacaroons:${versions.jmacaroons}"
+
   testImplementation(project(":test:framework")) {
     // tests use the locally compiled version of server
     exclude group: 'org.elasticsearch', module: 'server'

@@ -898,7 +898,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 0L,
                 electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
-                List.of(new JoinStatus(otherNode1, 1, "waiting for response", TimeValue.ZERO))
+                List.of(new JoinStatus(otherNode1, 1, JoinHelper.PENDING_JOIN_WAITING_RESPONSE, TimeValue.ZERO))
             ).getDescription(),
             is(prefix + "; joining [" + noAttr(otherNode1) + "] in term [1] has status [waiting for response] after [0ms]")
         );
@@ -913,9 +913,9 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                 electionStrategy,
                 new StatusInfo(HEALTHY, "healthy-info"),
                 List.of(
-                    new JoinStatus(otherNode1, 2, "waiting for response", TimeValue.timeValueMillis(10000)),
-                    new JoinStatus(otherNode2, 2, "waiting for response", TimeValue.timeValueMillis(30000)),
-                    new JoinStatus(otherNode2, 1, "waiting for response", TimeValue.timeValueMillis(20000))
+                    new JoinStatus(otherNode1, 2, JoinHelper.PENDING_JOIN_CONNECTING, TimeValue.timeValueMillis(10000)),
+                    new JoinStatus(otherNode2, 2, JoinHelper.PENDING_JOIN_WAITING_RESPONSE, TimeValue.timeValueMillis(30000)),
+                    new JoinStatus(otherNode2, 1, JoinHelper.PENDING_JOIN_WAITING_STATE, TimeValue.timeValueMillis(20000))
                 )
             ).getDescription(),
             is(
@@ -925,10 +925,10 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
                     + "] in term [2] has status [waiting for response] after [30s/30000ms]"
                     + "; joining ["
                     + noAttr(otherNode2)
-                    + "] in term [1] has status [waiting for response] after [20s/20000ms]"
+                    + "] in term [1] has status [waiting to receive cluster state] after [20s/20000ms]"
                     + "; joining ["
                     + noAttr(otherNode1)
-                    + "] in term [2] has status [waiting for response] after [10s/10000ms]"
+                    + "] in term [2] has status [waiting to connect] after [10s/10000ms]"
             )
         );
 

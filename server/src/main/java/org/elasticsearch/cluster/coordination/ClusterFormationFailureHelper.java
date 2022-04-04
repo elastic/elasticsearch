@@ -264,7 +264,7 @@ public class ClusterFormationFailureHelper {
             inFlightJoinStatuses.stream()
                 .sorted(Comparator.comparing(JoinStatus::age).reversed())
                 .limit(10)
-                .forEach(
+                .forEachOrdered(
                     joinStatus -> stringBuilder.append("; joining [")
                         .append(joinStatus.remoteNode().descriptionWithoutAttributes())
                         .append("] in term [")

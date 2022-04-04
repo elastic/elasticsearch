@@ -753,7 +753,7 @@ public final class Settings implements ToXContentFragment {
                     validateValue(key, parser.text(), parser, allowNullValues);
                     builder.put(key, parser.booleanValue());
                 } else {
-                    XContentParserUtils.throwUnknownToken(parser.currentToken(), parser.getTokenLocation());
+                    XContentParserUtils.throwUnknownToken(parser.currentToken(), parser);
                 }
         }
     }

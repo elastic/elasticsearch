@@ -71,6 +71,7 @@ public abstract class ShardOperationFailedException extends Exception implements
     /**
      * The cause of this failure
      */
+    @Override
     public final Throwable getCause() {
         return cause;
     }

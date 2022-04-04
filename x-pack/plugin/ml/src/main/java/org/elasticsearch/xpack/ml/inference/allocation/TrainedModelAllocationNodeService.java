@@ -16,7 +16,9 @@ import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.util.set.Sets;
@@ -34,6 +36,7 @@ import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAllocationStateA
 import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingState;
 import org.elasticsearch.xpack.core.ml.inference.allocation.RoutingStateAndReason;
 import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
+import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
@@ -41,6 +44,7 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.deployment.DeploymentManager;
 import org.elasticsearch.xpack.ml.inference.deployment.ModelStats;
 import org.elasticsearch.xpack.ml.inference.deployment.TrainedModelDeploymentTask;
+import org.elasticsearch.xpack.ml.task.AbstractJobPersistentTasksExecutor;
 
 import java.util.ArrayDeque;
 import java.util.ArrayList;
@@ -68,7 +72,9 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
     private final ThreadPool threadPool;
     private final Deque<TrainedModelDeploymentTask> loadingModels;
     private final XPackLicenseState licenseState;
+    private final IndexNameExpressionResolver expressionResolver;
     private volatile Scheduler.Cancellable scheduledFuture;
+    private volatile ClusterState latestState;
     private volatile boolean stopped;
     private volatile String nodeId;
 
@@ -76,6 +82,7 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
         TrainedModelAllocationService trainedModelAllocationService,
         ClusterService clusterService,
         DeploymentManager deploymentManager,
+        IndexNameExpressionResolver expressionResolver,
         TaskManager taskManager,
         ThreadPool threadPool,
         XPackLicenseState licenseState
@@ -99,12 +106,14 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
                 stop();
             }
         });
+        this.expressionResolver = expressionResolver;
     }
 
     TrainedModelAllocationNodeService(
         TrainedModelAllocationService trainedModelAllocationService,
         ClusterService clusterService,
         DeploymentManager deploymentManager,
+        IndexNameExpressionResolver expressionResolver,
         TaskManager taskManager,
         ThreadPool threadPool,
         String nodeId,
@@ -129,6 +138,7 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
                 stop();
             }
         });
+        this.expressionResolver = expressionResolver;
     }
 
     void stopDeploymentAsync(TrainedModelDeploymentTask task, String reason, ActionListener<Void> listener) {
@@ -168,6 +178,24 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
 
     void loadQueuedModels() {
         TrainedModelDeploymentTask loadingTask;
+        if (loadingModels.isEmpty()) {
+            return;
+        }
+        if (latestState != null) {
+            List<String> unassignedIndices = AbstractJobPersistentTasksExecutor.verifyIndicesPrimaryShardsAreActive(
+                latestState,
+                expressionResolver,
+                // we allow missing as that means the index doesn't exist at all and our loading will fail for the models and we need
+                // to notify as necessary
+                true,
+                InferenceIndexConstants.INDEX_PATTERN,
+                InferenceIndexConstants.nativeDefinitionStore()
+            );
+            if (unassignedIndices.size() > 0) {
+                logger.trace("not loading models as indices {} primary shards are unassigned", unassignedIndices);
+                return;
+            }
+        }
         logger.trace("attempting to load all currently queued models");
         // NOTE: As soon as this method exits, the timer for the scheduler starts ticking
         Deque<TrainedModelDeploymentTask> loadingToRetry = new ArrayDeque<>();
@@ -193,11 +221,14 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
                 handleLoadSuccess(deployedTask);
             } catch (Exception ex) {
                 if (ExceptionsHelper.unwrapCause(ex) instanceof ResourceNotFoundException) {
-                    handleLoadFailure(loadingTask, ExceptionsHelper.missingTrainedModel(loadingTask.getModelId()));
+                    logger.warn(new ParameterizedMessage("[{}] Start deployment failed", modelId), ex);
+                    handleLoadFailure(loadingTask, ExceptionsHelper.missingTrainedModel(modelId, ex));
                 } else if (ExceptionsHelper.unwrapCause(ex) instanceof SearchPhaseExecutionException) {
+                    logger.trace(new ParameterizedMessage("[{}] Start deployment failed, will retry", modelId), ex);
                     // A search phase execution failure should be retried, push task back to the queue
                     loadingToRetry.add(loadingTask);
                 } else {
+                    logger.warn(new ParameterizedMessage("[{}] Start deployment failed", modelId), ex);
                     handleLoadFailure(loadingTask, ex);
                 }
             }
@@ -284,6 +315,7 @@ public class TrainedModelAllocationNodeService implements ClusterStateListener {
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
+        latestState = event.state();
         if (event.metadataChanged()) {
             final boolean isResetMode = MlMetadata.getMlMetadata(event.state()).isResetMode();
             TrainedModelAllocationMetadata modelAllocationMetadata = TrainedModelAllocationMetadata.fromState(event.state());

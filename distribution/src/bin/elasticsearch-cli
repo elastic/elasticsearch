@@ -72,8 +72,9 @@ ES_DISTRIBUTION_TYPE=@es.distribution.type@
 ES_BUNDLED_JDK=@es.bundled_jdk@
 LAUNCHER_CLASSPATH=$ES_HOME/lib/*:$ES_HOME/lib/launcher/*
 
+SCRIPTNAME=$(basename "$0")
 # temporary hack to force these into the launcher, but do we want to pollute env?
-export LAUNCHER_TOOLNAME
+export LAUNCHER_TOOLNAME=${SCRIPTNAME#"elasticsearch-"}
 export LAUNCHER_LIBS
 
 exec \

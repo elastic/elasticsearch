@@ -2,5 +2,4 @@
 
 LAUNCHER_JAVA_OPTS="--add-opens java.base/sun.security.provider=ALL-UNNAMED"
 LAUNCHER_LIBS=lib/tools/plugin-cli
-LAUNCHER_TOOLNAME=plugin
 source "`dirname "$0"`"/elasticsearch-cli

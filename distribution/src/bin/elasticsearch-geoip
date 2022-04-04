@@ -1,5 +1,4 @@
 #!/bin/bash
 
-LAUNCHER_TOOLNAME=geoip
 LAUNCHER_LIBS=lib/tools/geoip-cli
 source "`dirname "$0"`"/elasticsearch-cli

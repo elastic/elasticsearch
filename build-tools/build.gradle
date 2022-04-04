@@ -108,7 +108,7 @@ dependencies {
 
     api localGroovy()
     api gradleApi()
-    api 'org.apache.commons:commons-compress:1.19'
+    api 'org.apache.commons:commons-compress:1.21'
     api 'org.apache.ant:ant:1.10.8'
     api 'commons-io:commons-io:2.2'
 

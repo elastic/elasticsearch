@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.action.search;
 
-import com.carrotsearch.hppc.IntArrayList;
-
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.ScoreDoc;
@@ -118,7 +116,7 @@ final class FetchSearchPhase extends SearchPhase {
             finishPhase.run();
         } else {
             ScoreDoc[] scoreDocs = reducedQueryPhase.sortedTopDocs().scoreDocs();
-            final IntArrayList[] docIdsToLoad = SearchPhaseController.fillDocIdsToLoad(numShards, scoreDocs);
+            final List<Integer>[] docIdsToLoad = SearchPhaseController.fillDocIdsToLoad(numShards, scoreDocs);
             // no docs to fetch -- sidestep everything and return
             if (scoreDocs.length == 0) {
                 // we have to release contexts here to free up resources
@@ -135,7 +133,7 @@ final class FetchSearchPhase extends SearchPhase {
                     context
                 );
                 for (int i = 0; i < docIdsToLoad.length; i++) {
-                    IntArrayList entry = docIdsToLoad[i];
+                    List<Integer> entry = docIdsToLoad[i];
                     SearchPhaseResult queryResult = queryResults.get(i);
                     if (entry == null) { // no results for this shard ID
                         if (queryResult != null) {
@@ -176,7 +174,7 @@ final class FetchSearchPhase extends SearchPhase {
     protected ShardFetchSearchRequest createFetchRequest(
         ShardSearchContextId contextId,
         int index,
-        IntArrayList entry,
+        List<Integer> entry,
         ScoreDoc[] lastEmittedDocPerShard,
         OriginalIndices originalIndices,
         ShardSearchRequest shardSearchRequest,

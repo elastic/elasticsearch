@@ -2074,7 +2074,7 @@ public class IndexMetadata implements Diffable<IndexMetadata>, ToXContentFragmen
                         // unknown, ignore
                     }
                 } else {
-                    XContentParserUtils.throwUnknownToken(token, parser.getTokenLocation());
+                    XContentParserUtils.throwUnknownToken(token, parser);
                 }
             }
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);

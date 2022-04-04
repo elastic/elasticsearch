@@ -101,7 +101,7 @@ WARNING: Disabling client authentication is possible, but strongly discouraged.
 [[jwt-validation]]
 ==== JWT validation
 
-JWT validation is one of two credentials required by JWT realms.
+JWT is one of two credentials required by JWT realms.
 See <<client-authentication>> for the other credential.
 
 The supported JWT encoding is JSON Web Signature (JWS).
@@ -121,14 +121,42 @@ See `allowed_signature_algorithms` in <<ref-jwt-settings>>.
 [[jwt-claims-set-validation]]
 ==== JWT claims set validation
 
-OIDC ID Token claims `iss`, `aud`, `sub`, `iat`, `exp`, `nbf`, and `auth_time` are validated using OIDC ID Token validation rules.
-
-TIP: `iss`, `aud`, `iat`, and `exp` are required. `iss` and `aud` must be allowed in JWT realm settings.
+OIDC ID Token claims `iss`, `aud`, `sub`, `exp`, `iat`, `nbf`, and `auth_time` are validated using OIDC ID Token validation rules.
 
 IMPORTANT: `nonce` claim is ignored; it is only applicable inside an OIDC workflow, not application to JWT realm.
 
+* The `iss` claim from the JWT is required. It must be an exact, case-sensitive match to the realm setting `allowed_issuer`.
+
+* The `aud` claim from the JWT is required. It is a comma separated value (CSV). One of the values must be an exact,
+case-sensitive match to any of the CSV values in the realm setting `allowed_audiences`.
+
+* The `exp` claim from the JWT is required. It is UTC milliseconds since epoch, and must be after wall clock.
+
+* The `iat` claim from the JWT is required. It is UTC milliseconds since epoch, and must be before wall clock.
+
+* The `nbf` claim from the JWT is optional. If present, it is UTC milliseconds since epoch, and must be before wall clock.
+
+* The `auth_time` claim from the JWT is optional. If present, it is UTC milliseconds since epoch, and must be before wall clock.
+
+NOTE: Validation of time-based JWT claims can be relaxed via the realm setting `allowed_clock_skew`.
+
 Elasticsearch claims `principal`, `groups`, `name`, `mail`, and `dn` are validated using {es} validation rules.
 Regular expression settings may be used.
+
+* The _principal_ claim from the JWT is required, and defaults to `sub`. It is configurable via the realm setting `claims.principal`.
+An optional regular expression can be configured via the realm setting `claims.principal_pattern` to extract a substring.
+
+* The _groups_ claim from the JWT is optional. It is configurable via the realm setting `claims.groups`.
+An optional regular expression can be configured via the realm setting `claims.groups_pattern` to extract a substring value.
+
+* The _name_ claim from the JWT is required. It is configurable via the realm setting `claims.name`.
+An optional regular expression can be configured via the realm setting `claims.name_pattern` to extract a substring value.
+
+* The _mail_ claim from the JWT is required. It is configurable via the realm setting `claims.mail`.
+An optional regular expression can be configured via the realm setting `claims.mail_pattern` to extract a substring value.
+
+* The _dn_ claim from the JWT is required. It is configurable via the realm setting `claims.dn`.
+An optional regular expression can be configured via the realm setting `claims.dn_pattern` to extract a substring value.
 
 See <<ref-jwt-settings>>.
 

@@ -52,8 +52,7 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import static org.elasticsearch.test.hamcrest.ThrowableAssertions.assertThatException;
-import static org.elasticsearch.test.hamcrest.ThrowableAssertions.assertThatThrows;
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.isA;
 import static org.mockito.Mockito.mock;
@@ -190,9 +189,8 @@ public class RepositoriesServiceTests extends ESTestCase {
         repositoriesService.applyClusterState(new ClusterChangedEvent("starting", clusterState, emptyState()));
         repositoriesService.applyClusterState(new ClusterChangedEvent("removing repo", emptyState(), clusterState));
 
-        assertThatThrows(
-            () -> repositoriesService.repository(repoName),
-            RepositoryMissingException.class,
+        assertThat(
+            expectThrows(RepositoryMissingException.class, () -> repositoriesService.repository(repoName)).getMessage(),
             equalTo("[" + repoName + "] missing")
         );
     }
@@ -209,7 +207,8 @@ public class RepositoriesServiceTests extends ESTestCase {
 
             @Override
             public void onFailure(Exception e) {
-                assertThatException(e, RepositoryException.class, equalTo("[" + repoName + "] repository type [unknown] does not exist"));
+                assertThat(e, isA(RepositoryException.class));
+                assertThat(e.getMessage(), equalTo("[" + repoName + "] repository type [unknown] does not exist"));
             }
         });
     }

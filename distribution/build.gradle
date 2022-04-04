@@ -230,7 +230,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
    *             Properties to expand when copying packaging files             *
    *****************************************************************************/
   configurations {
-    ['libs', 'libsLauncher', 'libsLaunchers', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole'].each {
+    ['libs', 'libsLauncher', 'libsLaunchers', 'libsVersionChecker', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole'].each {
       create(it) {
         canBeConsumed = false
         canBeResolved = true
@@ -251,7 +251,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     libs project(':server')
 
     libsLauncher project(':distribution:tools:launcher')
-    libsLaunchers project(':distribution:tools:java-version-checker')
+    libsVersionChecker project(':distribution:tools:java-version-checker')
     libsLaunchers project(':distribution:tools:launchers')
     libsAnsiConsole project(':distribution:tools:ansi-console')
     libsPluginCli project(':distribution:tools:plugin-cli')
@@ -271,6 +271,9 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         from(configurations.libs)
         into('launcher') {
           from(configurations.libsLauncher)
+        }
+        into('java-version-checker') {
+          from(configurations.libsVersionChecker)
         }
         into('launchers') {
           from(configurations.libsLaunchers)

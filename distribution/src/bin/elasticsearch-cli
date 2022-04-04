@@ -38,7 +38,7 @@ if [ ! -z "$ES_JAVA_HOME" ]; then
   JAVA="$ES_JAVA_HOME/bin/java"
   JAVA_TYPE="ES_JAVA_HOME"
 
-  "$JAVA" -cp "$ES_HOME/tools/java_version_checker/*" org.elasticsearch.tools.java_version_checker.JavaVersionChecker
+  "$JAVA" -cp "$ES_HOME/lib/java-version-checker/*" org.elasticsearch.tools.java_version_checker.JavaVersionChecker
 else
   # use the bundled JDK (default)
   if [ "$(uname -s)" = "Darwin" ]; then

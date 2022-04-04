@@ -41,6 +41,7 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.xpack.vectors.query.VectorIndexFieldData;
+import org.elasticsearch.xpack.vectors.query.VectorRadiusQuery;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -302,6 +303,16 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
         }
 
         public KnnVectorQuery createKnnQuery(float[] queryVector, int numCands, Query filter) {
+            validateQueryVector(queryVector);
+            return new KnnVectorQuery(name(), queryVector, numCands, filter);
+        }
+
+        public VectorRadiusQuery createRadiusQuery(float[] queryVector, int numCands, float radius) {
+            validateQueryVector(queryVector);
+            return new VectorRadiusQuery(name(), queryVector, radius, numCands);
+        }
+
+        private void validateQueryVector(float[] queryVector) {
             if (isIndexed() == false) {
                 throw new IllegalArgumentException(
                     "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
@@ -321,7 +332,6 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
                 }
                 checkVectorMagnitude(queryVector, squaredMagnitude);
             }
-            return new KnnVectorQuery(name(), queryVector, numCands, filter);
         }
 
         private void checkVectorMagnitude(float[] vector, float squaredMagnitude) {

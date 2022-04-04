@@ -1,0 +1,94 @@
+setup:
+  - skip:
+      features: headers
+
+  - do:
+      indices.create:
+        index: test-index
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              vector:
+                type: dense_vector
+                dims: 5
+                index: true
+                similarity: cosine
+              other_vector:
+                type: dense_vector
+                dims: 5
+                index: true
+                similarity: l2_norm
+  - do:
+      index:
+        index: test-index
+        id: "1"
+        body:
+          vector: [230.0, 300.33, -34.8988, 15.555, -200.0]
+          other_vector: [1, 0, 0, 0, 2]
+
+  - do:
+      index:
+        index: test-index
+        id: "2"
+        body:
+          vector: [-0.5, 100.0, -13, 14.8, -156.0]
+          other_vector: [0, 0, 0, 0, 0]
+
+  - do:
+      index:
+        index: test-index
+        id: "3"
+        body:
+          vector: [0.5, 111.3, -13.0, 14.8, -156.0]
+          other_vector: [2, 1, 2, 3, 1]
+
+  - do:
+      indices.refresh: {}
+
+---
+"Radius search with cosine similarity":
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            vector_radius:
+              field: vector
+              origin: [0.5, 111.3, -13.0, 14.8, -156.0]
+              radius: 0.8
+              num_candidates: 3
+
+  - match: {hits.total: 2}
+
+  - match: {hits.hits.0._id: "2"}
+  - match: {hits.hits.1._score: 1.0}
+
+  - match: {hits.hits.1._id: "3"}
+  - match: {hits.hits.1._score: 1.0}
+
+---
+"Radius search with l2 distance":
+  - do:
+      headers:
+        Content-Type: application/json
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query:
+            vector_radius:
+              field: other_vector
+              origin: [1, 0, 0, 0, 0]
+              radius: 3
+              num_candidates: 3
+
+  - match: {hits.total: 2}
+
+  - match: {hits.hits.0._id: "1"}
+  - match: {hits.hits.1._score: 1.0}
+
+  - match: {hits.hits.1._id: "2"}
+  - match: {hits.hits.1._score: 1.0}

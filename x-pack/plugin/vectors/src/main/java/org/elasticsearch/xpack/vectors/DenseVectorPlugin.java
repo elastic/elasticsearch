@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.vectors.action.RestKnnSearchAction;
 import org.elasticsearch.xpack.vectors.mapper.DenseVectorFieldMapper;
 import org.elasticsearch.xpack.vectors.mapper.SparseVectorFieldMapper;
 import org.elasticsearch.xpack.vectors.query.KnnVectorQueryBuilder;
+import org.elasticsearch.xpack.vectors.query.VectorRadiusQueryBuilder;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -66,7 +67,8 @@ public class DenseVectorPlugin extends Plugin implements ActionPlugin, MapperPlu
                 parser -> {
                     throw new IllegalArgumentException("[knn] queries cannot be provided directly, use the [_knn_search] endpoint instead");
                 }
-            )
+            ),
+            new QuerySpec<>(VectorRadiusQueryBuilder.NAME, VectorRadiusQueryBuilder::new, VectorRadiusQueryBuilder::fromXContent)
         );
     }
 }

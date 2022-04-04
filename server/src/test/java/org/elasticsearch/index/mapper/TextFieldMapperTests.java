@@ -1117,14 +1117,14 @@ public class TextFieldMapperTests extends MapperTestCase {
             new SyntheticSourceInvalidExample(
                 equalTo(
                     "field [field] of type [text] doesn't support synthetic source "
-                        + "unless it has a sub-field of type [keyword] with doc values enabled"
+                        + "unless it has a sub-field of type [keyword] with doc values enabled and without ignore_above"
                 ),
                 this::minimalMapping
             ),
             new SyntheticSourceInvalidExample(
                 equalTo(
                     "field [field] of type [text] doesn't support synthetic source "
-                        + "unless it has a sub-field of type [keyword] with doc values enabled"
+                        + "unless it has a sub-field of type [keyword] with doc values enabled and without ignore_above"
                 ),
                 b -> {
                     b.field("type", "text");
@@ -1132,6 +1132,23 @@ public class TextFieldMapperTests extends MapperTestCase {
                     {
                         b.startObject("l");
                         b.field("type", "long");
+                        b.endObject();
+                    }
+                    b.endObject();
+                }
+            ),
+            new SyntheticSourceInvalidExample(
+                equalTo(
+                    "field [field] of type [text] doesn't support synthetic source "
+                        + "unless it has a sub-field of type [keyword] with doc values enabled and without ignore_above"
+                ),
+                b -> {
+                    b.field("type", "text");
+                    b.startObject("fields");
+                    {
+                        b.startObject("kwd");
+                        b.field("type", "keyword");
+                        b.field("ignore_above", 10);
                         b.endObject();
                     }
                     b.endObject();

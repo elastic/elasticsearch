@@ -376,7 +376,11 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
         return List.of(
             new SyntheticSourceInvalidExample(
                 equalTo("field [field] of type [scaled_float] doesn't support synthetic source because it doesn't have doc values"),
-                b -> b.field("type", "scaled_float").field("doc_values", false).field("scaling_factor", 10)
+                b -> b.field("type", "scaled_float").field("scaling_factor", 10).field("doc_values", false)
+            ),
+            new SyntheticSourceInvalidExample(
+                equalTo("field [field] of type [scaled_float] doesn't support synthetic source because it ignores malformed numbers"),
+                b -> b.field("type", "scaled_float").field("scaling_factor", 10).field("ignore_malformed", true)
             )
         );
     }

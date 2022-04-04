@@ -636,6 +636,10 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             new SyntheticSourceInvalidExample(
                 equalTo("field [field] of type [keyword] doesn't support synthetic source because it doesn't have doc values"),
                 b -> b.field("type", "keyword").field("doc_values", false)
+            ),
+            new SyntheticSourceInvalidExample(
+                equalTo("field [field] of type [keyword] doesn't support synthetic source because it declares ignore_above"),
+                b -> b.field("type", "keyword").field("ignore_above", 10)
             )
         );
     }

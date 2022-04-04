@@ -902,7 +902,6 @@ public final class KeywordFieldMapper extends FieldMapper {
 
         if (value.length() > ignoreAbove) {
             context.addIgnoredField(name());
-            // NOCOMMIT fail on synthetic source? - but only if this field is needed for synthetic source
             return;
         }
 
@@ -1003,6 +1002,11 @@ public final class KeywordFieldMapper extends FieldMapper {
         if (hasDocValues == false) {
             throw new IllegalArgumentException(
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
+            );
+        }
+        if (ignoreAbove != Defaults.IGNORE_ABOVE) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares ignore_above"
             );
         }
         return new BytesSyntheticFieldLoader(name(), simpleName) {

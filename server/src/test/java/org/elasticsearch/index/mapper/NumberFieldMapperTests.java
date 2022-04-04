@@ -350,7 +350,17 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
         return List.of(
             new SyntheticSourceInvalidExample(
                 matchesPattern("field \\[field] of type \\[.+] doesn't support synthetic source because it doesn't have doc values"),
-                b -> b.field("type", "keyword").field("doc_values", false)
+                b -> {
+                    minimalMapping(b);
+                    b.field("doc_values", false);
+                }
+            ),
+            new SyntheticSourceInvalidExample(
+                matchesPattern("field \\[field] of type \\[.+] doesn't support synthetic source because it ignores malformed numbers"),
+                b -> {
+                    minimalMapping(b);
+                    b.field("ignore_malformed", true);
+                }
             )
         );
     }

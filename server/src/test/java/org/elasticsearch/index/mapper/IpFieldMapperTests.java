@@ -320,11 +320,15 @@ public class IpFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException {
+    protected final List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException {
         return List.of(
             new SyntheticSourceInvalidExample(
                 equalTo("field [field] of type [ip] doesn't support synthetic source because it doesn't have doc values"),
                 b -> b.field("type", "ip").field("doc_values", false)
+            ),
+            new SyntheticSourceInvalidExample(
+                equalTo("field [field] of type [ip] doesn't support synthetic source because it ignores malformed ips"),
+                b -> b.field("type", "ip").field("ignore_malformed", true)
             )
         );
     }

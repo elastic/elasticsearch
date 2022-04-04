@@ -540,6 +540,11 @@ public class IpFieldMapper extends FieldMapper {
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
             );
         }
+        if (ignoreMalformed) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it ignores malformed ips"
+            );
+        }
         return new KeywordFieldMapper.BytesSyntheticFieldLoader(name(), simpleName()) {
             @Override
             protected void loadNextValue(XContentBuilder b, BytesRef value) throws IOException {

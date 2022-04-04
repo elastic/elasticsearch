@@ -23,6 +23,7 @@ import java.math.BigDecimal;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
@@ -588,11 +589,25 @@ public class DateFieldMapperTests extends MapperTestCase {
 
     @Override
     protected List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException {
-        return List.of(
-            new SyntheticSourceInvalidExample(
-                equalTo("field [field] of type [date] doesn't support synthetic source because it doesn't have doc values"),
-                b -> b.field("type", "date").field("doc_values", false)
-            )
-        );
+        List<SyntheticSourceInvalidExample> examples = new ArrayList<>();
+        for (String fieldType : new String[] { "date", "date_nanos" }) {
+            examples.add(
+                new SyntheticSourceInvalidExample(
+                    equalTo(
+                        "field [field] of type [" + fieldType + "] doesn't support synthetic source because it doesn't have doc values"
+                    ),
+                    b -> b.field("type", fieldType).field("doc_values", false)
+                )
+            );
+            examples.add(
+                new SyntheticSourceInvalidExample(
+                    equalTo(
+                        "field [field] of type [" + fieldType + "] doesn't support synthetic source because it ignores malformed dates"
+                    ),
+                    b -> b.field("type", fieldType).field("ignore_malformed", true)
+                )
+            );
+        }
+        return examples;
     }
 }

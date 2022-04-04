@@ -211,6 +211,7 @@ public class BooleanFieldMapperTests extends MapperTestCase {
                 equalTo("field [field] of type [boolean] doesn't support synthetic source because it doesn't have doc values"),
                 b -> b.field("type", "boolean").field("doc_values", false)
             )
+            // If boolean had ignore_malformed we'd fail to index here
         );
     }
 }

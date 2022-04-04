@@ -8,8 +8,6 @@
 
 package org.elasticsearch.common.collect;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
@@ -53,14 +51,18 @@ public class ImmutableOpenMapTests extends ESTestCase {
 
     public void testStreamOperationsAreSupported() {
         assertThat(
-            regionCurrencySymbols.stream().filter(e -> e.getKey().startsWith("U")).map(Map.Entry::getValue).collect(Collectors.toSet()),
+            regionCurrencySymbols.entrySet()
+                .stream()
+                .filter(e -> e.getKey().startsWith("U"))
+                .map(Map.Entry::getValue)
+                .collect(Collectors.toSet()),
             equalTo(Set.of("£", "$"))
         );
     }
 
     public void testSortedStream() {
         assertThat(
-            regionCurrencySymbols.stream().sorted(Map.Entry.comparingByKey()).map(Map.Entry::getValue).collect(Collectors.toList()),
+            regionCurrencySymbols.entrySet().stream().sorted(Map.Entry.comparingByKey()).map(Map.Entry::getValue).toList(),
             equalTo(List.of("€", "¥", "₩", "£", "$"))
         );
     }
@@ -69,16 +71,17 @@ public class ImmutableOpenMapTests extends ESTestCase {
         ImmutableOpenMap<Long, String> map = randomImmutableOpenMap();
 
         int limit = randomIntBetween(0, map.size());
-        Map<Long, List<String>> collectedViaStreams = map.stream()
+        Map<Long, List<String>> collectedViaStreams = map.entrySet()
+            .stream()
             .filter(e -> e.getKey() > 0)
             .sorted(Map.Entry.comparingByKey())
             .limit(limit)
             .collect(Collectors.groupingBy(e -> e.getKey() % 2, Collectors.mapping(Map.Entry::getValue, Collectors.toList())));
 
         Map<Long, String> sortedMap = new TreeMap<>();
-        for (ObjectObjectCursor<Long, String> cursor : map) {
-            if (cursor.key > 0) {
-                sortedMap.put(cursor.key, cursor.value);
+        for (var entry : map.entrySet()) {
+            if (entry.getKey() > 0) {
+                sortedMap.put(entry.getKey(), entry.getValue());
             }
         }
         int i = 0;
@@ -94,7 +97,7 @@ public class ImmutableOpenMapTests extends ESTestCase {
     }
 
     public void testEmptyStreamWorks() {
-        assertThat(ImmutableOpenMap.of().stream().count(), equalTo(0L));
+        assertThat(ImmutableOpenMap.of().entrySet().stream().count(), equalTo(0L));
     }
 
     public void testKeySetStreamOperationsAreSupported() {
@@ -124,12 +127,12 @@ public class ImmutableOpenMapTests extends ESTestCase {
         ImmutableOpenMap<Long, String> map = randomImmutableOpenMap();
 
         int limit = randomIntBetween(0, map.size());
-        List<Long> collectedViaStream = map.keySet().stream().filter(e -> e > 0).sorted().limit(limit).collect(Collectors.toList());
+        List<Long> collectedViaStream = map.keySet().stream().filter(e -> e > 0).sorted().limit(limit).toList();
 
         SortedSet<Long> positiveNumbers = new TreeSet<>();
-        for (ObjectObjectCursor<Long, String> cursor : map) {
-            if (cursor.key > 0) {
-                positiveNumbers.add(cursor.key);
+        for (var key : map.keySet()) {
+            if (key > 0) {
+                positiveNumbers.add(key);
             }
         }
         int i = 0;
@@ -183,12 +186,7 @@ public class ImmutableOpenMapTests extends ESTestCase {
 
     public void testStreamOperationOnValues() {
         assertThat(
-            countryPopulations.values()
-                .stream()
-                .filter(e -> e > 60_000_000)
-                .sorted(Comparator.reverseOrder())
-                .limit(2)
-                .collect(Collectors.toList()),
+            countryPopulations.values().stream().filter(e -> e > 60_000_000).sorted(Comparator.reverseOrder()).limit(2).toList(),
             equalTo(List.of(83_783_942, 65_273_511))
         );
     }
@@ -202,12 +200,12 @@ public class ImmutableOpenMapTests extends ESTestCase {
             .filter(Predicate.not(e -> e.contains("ab") || e.contains("cd") || e.contains("ef")))
             .sorted()
             .limit(limit)
-            .collect(Collectors.toList());
+            .toList();
 
         SortedSet<String> filteredSortedStrings = new TreeSet<>();
-        for (ObjectObjectCursor<Long, String> cursor : map) {
-            if ((cursor.value.contains("ab") || cursor.value.contains("cd") || cursor.value.contains("ef")) == false) {
-                filteredSortedStrings.add(cursor.value);
+        for (var value : map.values()) {
+            if ((value.contains("ab") || value.contains("cd") || value.contains("ef")) == false) {
+                filteredSortedStrings.add(value);
             }
         }
         int i = 0;
@@ -260,6 +258,19 @@ public class ImmutableOpenMapTests extends ESTestCase {
     public void testIntMapContainsValue() {
         ImmutableOpenIntMap<String> map = ImmutableOpenIntMap.<String>builder().fPut(1, "foo").fPut(2, "bar").build();
         assertTrue(map.containsValue("bar"));
+    }
+
+    public void testBuilderUseAfterBuild() {
+        ImmutableOpenMap.Builder<String, Integer> builder = ImmutableOpenMap.<String, Integer>builder().fPut("foo", 1);
+        assertTrue(builder.build().get("foo") == 1);
+        expectThrows(NullPointerException.class, () -> builder.build());
+        expectThrows(NullPointerException.class, () -> builder.put("bar", 2));
+    }
+
+    public void testBuilderNoopReferencesUnchanged() {
+        ImmutableOpenMap<String, Integer> map = ImmutableOpenMap.<String, Integer>builder().fPut("foo", 1).build();
+        assertTrue(map == ImmutableOpenMap.builder(map).build());
+        assertFalse(map == ImmutableOpenMap.builder(map).fPut("bar", 2).build());
     }
 
     private static <KType, VType> Map.Entry<KType, VType> entry(KType key, VType value) {

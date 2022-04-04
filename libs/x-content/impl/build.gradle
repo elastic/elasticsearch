@@ -1,0 +1,49 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+apply plugin: 'elasticsearch.java'
+
+archivesBaseName = "x-content-impl"
+
+String jacksonVersion = "2.13.2"
+String snakeyamlVersion = "1.30"
+
+dependencies {
+  compileOnly project(':libs:elasticsearch-core')
+  compileOnly project(':libs:elasticsearch-x-content')
+  implementation "com.fasterxml.jackson.core:jackson-core:${jacksonVersion}"
+  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-smile:${jacksonVersion}"
+  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${jacksonVersion}"
+  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${jacksonVersion}"
+  implementation "org.yaml:snakeyaml:${snakeyamlVersion}"
+
+  testImplementation(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'elasticsearch-x-content'
+  }
+}
+
+tasks.named('forbiddenApisMain').configure {
+  // x-content does not depend on server
+  // TODO: Need to decide how we want to handle for forbidden signatures with the changes to core
+  replaceSignatureFiles 'jdk-signatures'
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /jackson-.*/, to: 'jackson'
+}
+
+// not published, so no need for javadoc
+tasks.named("javadoc").configure { enabled = false }
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+    // from com.fasterxml.jackson.dataformat.yaml.YAMLMapper (jackson-dataformat-yaml)
+    'com.fasterxml.jackson.databind.ObjectMapper',
+    'com.fasterxml.jackson.databind.cfg.MapperBuilder'
+  )
+}

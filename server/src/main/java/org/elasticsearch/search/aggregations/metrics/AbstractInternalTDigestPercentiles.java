@@ -21,7 +21,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetricsAggregation.MultiValue {
 
@@ -37,11 +36,10 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
         DocValueFormat formatter,
         Map<String, Object> metadata
     ) {
-        super(name, metadata);
+        super(name, formatter, metadata);
         this.keys = keys;
         this.state = state;
         this.keyed = keyed;
-        this.format = formatter;
     }
 
     /**
@@ -49,7 +47,6 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
      */
     protected AbstractInternalTDigestPercentiles(StreamInput in) throws IOException {
         super(in);
-        format = in.readNamedWriteable(DocValueFormat.class);
         keys = in.readDoubleArray();
         state = TDigestState.read(in);
         keyed = in.readBoolean();
@@ -70,7 +67,7 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
 
     @Override
     public Iterable<String> valueNames() {
-        return Arrays.stream(getKeys()).mapToObj(d -> String.valueOf(d)).collect(Collectors.toList());
+        return Arrays.stream(getKeys()).mapToObj(d -> String.valueOf(d)).toList();
     }
 
     public abstract double value(double key);

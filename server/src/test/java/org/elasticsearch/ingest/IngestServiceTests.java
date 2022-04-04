@@ -1401,7 +1401,7 @@ public class IngestServiceTests extends ESTestCase {
 
         // Test to make sure that ingest respects content types other than the default index content type
         XContentType xContentType = randomFrom(
-            Arrays.stream(XContentType.values()).filter(t -> Requests.INDEX_CONTENT_TYPE.equals(t) == false).collect(Collectors.toList())
+            Arrays.stream(XContentType.values()).filter(t -> Requests.INDEX_CONTENT_TYPE.equals(t) == false).toList()
         );
 
         logger.info("Using [{}], not randomly determined default [{}]", xContentType, Requests.INDEX_CONTENT_TYPE);

@@ -21,7 +21,6 @@ import org.elasticsearch.tasks.Task;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 /**
  * This class guards the amount of stats requests a node can concurrently coordinate.
@@ -94,7 +93,7 @@ public class StatsRequestLimiter {
     }
 
     public StatsRequestStats stats() {
-        return new StatsRequestStats(stats.values().stream().map(StatsHolder::stats).collect(Collectors.toList()));
+        return new StatsRequestStats(stats.values().stream().map(StatsHolder::stats).sorted().toList());
     }
 
     // visible for testing

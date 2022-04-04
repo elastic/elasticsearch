@@ -213,7 +213,8 @@ public class TestFeatureResetIT extends MlNativeAutodetectIntegTestCase {
             PutTrainedModelVocabularyAction.INSTANCE,
             new PutTrainedModelVocabularyAction.Request(
                 TRAINED_MODEL_ID,
-                List.of("these", "are", "my", "words", BertTokenizer.PAD_TOKEN, BertTokenizer.UNKNOWN_TOKEN)
+                List.of("these", "are", "my", "words", BertTokenizer.PAD_TOKEN, BertTokenizer.UNKNOWN_TOKEN),
+                List.of()
             )
         ).actionGet();
         client().execute(StartTrainedModelDeploymentAction.INSTANCE, new StartTrainedModelDeploymentAction.Request(TRAINED_MODEL_ID))

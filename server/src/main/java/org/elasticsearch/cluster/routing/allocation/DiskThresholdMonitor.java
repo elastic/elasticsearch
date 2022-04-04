@@ -143,8 +143,7 @@ public class DiskThresholdMonitor {
         final long currentTimeMillis = currentTimeMillisSupplier.getAsLong();
 
         // Clean up nodes that have been removed from the cluster
-        final Set<String> nodes = new HashSet<>(usages.size());
-        usages.keys().iterator().forEachRemaining(item -> nodes.add(item.value));
+        final Set<String> nodes = new HashSet<>(usages.keySet());
         cleanUpRemovedNodes(nodes, nodesOverLowThreshold);
         cleanUpRemovedNodes(nodes, nodesOverHighThreshold);
         cleanUpRemovedNodes(nodes, nodesOverHighThresholdAndRelocating);
@@ -435,7 +434,7 @@ public class DiskThresholdMonitor {
         );
     }
 
-    private void markNodesMissingUsageIneligibleForRelease(
+    private static void markNodesMissingUsageIneligibleForRelease(
         RoutingNodes routingNodes,
         ImmutableOpenMap<String, DiskUsage> usages,
         Set<String> indicesToMarkIneligibleForAutoRelease
@@ -481,7 +480,7 @@ public class DiskThresholdMonitor {
         }
     }
 
-    private boolean isDedicatedFrozenNode(RoutingNode routingNode) {
+    private static boolean isDedicatedFrozenNode(RoutingNode routingNode) {
         if (routingNode == null) {
             return false;
         }

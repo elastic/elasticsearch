@@ -13,8 +13,8 @@ import org.elasticsearch.test.NativeRealmIntegTestCase;
 import org.elasticsearch.test.TestSecurityClient;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
-import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
+import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
@@ -69,7 +69,7 @@ public class ClearRolesCacheTests extends NativeRealmIntegTestCase {
             logger.debug("--> created role [{}]", role);
         }
 
-        ensureGreen(RestrictedIndicesNames.SECURITY_MAIN_ALIAS);
+        ensureGreen(SecuritySystemIndices.SECURITY_MAIN_ALIAS);
 
         final Set<String> rolesSet = new HashSet<>(Arrays.asList(roles));
         // warm up the caches on every node

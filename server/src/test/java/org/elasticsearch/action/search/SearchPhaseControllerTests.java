@@ -78,7 +78,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
@@ -240,7 +239,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
         boolean profile = randomBoolean();
         for (int trackTotalHits : new int[] { SearchContext.TRACK_TOTAL_HITS_DISABLED, SearchContext.TRACK_TOTAL_HITS_ACCURATE }) {
             AtomicArray<SearchPhaseResult> queryResults = generateQueryResults(nShards, suggestions, queryResultSize, false, profile);
-            SearchPhaseController.ReducedQueryPhase reducedQueryPhase = searchPhaseController.reducedQueryPhase(
+            SearchPhaseController.ReducedQueryPhase reducedQueryPhase = SearchPhaseController.reducedQueryPhase(
                 queryResults.asList(),
                 new ArrayList<>(),
                 new ArrayList<>(),
@@ -257,7 +256,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
                 reducedQueryPhase.suggest(),
                 profile
             );
-            InternalSearchResponse mergedResponse = searchPhaseController.merge(
+            InternalSearchResponse mergedResponse = SearchPhaseController.merge(
                 false,
                 reducedQueryPhase,
                 fetchResults.asList(),
@@ -406,7 +405,7 @@ public class SearchPhaseControllerTests extends ESTestCase {
             }
         }
         CompletionSuggestion completionSuggestion = new CompletionSuggestion(null, -1, randomBoolean());
-        return groupedSuggestion.values().stream().map(completionSuggestion::reduce).collect(Collectors.toList());
+        return groupedSuggestion.values().stream().map(completionSuggestion::reduce).toList();
     }
 
     private static AtomicArray<SearchPhaseResult> generateFetchResults(

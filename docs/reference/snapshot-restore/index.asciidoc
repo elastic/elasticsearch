@@ -46,6 +46,7 @@ Snapshots don't contain or back up:
 * Transient cluster settings
 * Registered snapshot repositories
 * Node configuration files
+* <<security-files,Security configuration files>>
 
 [discrete]
 [[feature-state]]
@@ -206,6 +207,9 @@ contents.
 
 . When you have finished restoring the repository its contents are exactly as
 they were when you took the backup.
+
+Additionally, snapshots may contain security-sensitive information, which you
+may wish to <<cluster-state-snapshots,store in a dedicated repository>>.
 
 include::register-repository.asciidoc[]
 include::take-snapshot.asciidoc[]

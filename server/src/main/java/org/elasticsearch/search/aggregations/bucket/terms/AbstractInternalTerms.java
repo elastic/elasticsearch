@@ -30,7 +30,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.search.aggregations.InternalOrder.isKeyAsc;
 import static org.elasticsearch.search.aggregations.InternalOrder.isKeyOrder;
@@ -356,7 +355,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
                         b
                     )
                 )
-                .collect(Collectors.toList()),
+                .toList(),
             getOrder(),
             samplingContext.scaleUp(getDocCountError()),
             samplingContext.scaleUp(getSumOfOtherDocCounts())

@@ -175,7 +175,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                                     // SnapshotInfo instances can be quite large in case they contain e.g. a large collection of
                                     // exceptions so we extract the only two things (id + policy id) here so they can be GCed
                                     .map(snapshotInfo -> Tuple.tuple(snapshotInfo.snapshotId(), getPolicyId(snapshotInfo)))
-                                    .collect(Collectors.toList())
+                                    .toList()
                             )
                         );
 
@@ -246,7 +246,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                         .map(pId -> pId.equals(policyId))
                         .orElse(false)
                 )
-                .collect(Collectors.toList())
+                .toList()
         ).test(snapshot);
         logger.debug(
             "[{}] testing snapshot [{}] deletion eligibility: {}",
@@ -286,7 +286,7 @@ public class SnapshotRetentionTask implements SchedulerEngine.Listener {
                                     .filter(info -> repo.equals(info.repository()))
                                     .map(si -> si.snapshotId().getName())
                             )
-                            .collect(Collectors.toList())
+                            .toList()
                     );
                 }
                 Map<String, List<SnapshotInfo>> snapshots = new HashMap<>();

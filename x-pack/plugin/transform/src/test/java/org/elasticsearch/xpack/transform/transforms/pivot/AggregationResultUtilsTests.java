@@ -178,7 +178,7 @@ public class AggregationResultUtilsTests extends ESTestCase {
         private final Map<String, Double> values;
 
         TestNumericMultiValueAggregation(String name, Map<String, Double> values) {
-            super(name, emptyMap());
+            super(name, null, emptyMap());
             this.values = values;
         }
 

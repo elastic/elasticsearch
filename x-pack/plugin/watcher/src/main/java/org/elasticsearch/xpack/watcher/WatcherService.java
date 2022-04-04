@@ -59,7 +59,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -164,7 +163,7 @@ public class WatcherService {
                 || (watcherIndexMetadata.getState() == IndexMetadata.State.OPEN
                     && state.routingTable().index(watcherIndexMetadata.getIndex()).allPrimaryShardsActive());
         } catch (IllegalStateException e) {
-            logger.debug("error validating to start watcher", e);
+            logger.warn("Validation error: cannot start watcher", e);
             return false;
         }
     }
@@ -355,7 +354,7 @@ public class WatcherService {
                     .map(AllocationId::getId)
                     .filter(Objects::nonNull)
                     .sorted()
-                    .collect(Collectors.toList());
+                    .toList();
 
                 sortedShards.put(localShardRouting.getId(), sortedAllocationIds);
             }

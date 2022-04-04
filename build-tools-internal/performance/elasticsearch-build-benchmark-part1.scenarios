@@ -1,0 +1,72 @@
+# Can specify scenarios to use when none are specified on the command line
+default-scenarios = ["buildConfiguration_master", "buildConfiguration_branch", "single_project_master", "single_project_branch"]
+
+buildConfiguration_master {
+    title = "configuration phase (master)"
+    versions = ["@masterWrapper@"]
+    tasks = ["help"]
+    gradle-args = ["--no-scan", "--no-build-cache"]
+    run-using = cli // value can be "cli" or "tooling-api"
+    daemon = warm // value can be "warm", "cold", or "none"
+    warm-ups = 5
+    iterations = 10
+    system-properties {
+        "BUILD_PERFORMANCE_TEST" = "true"
+    }
+    git-checkout = {
+        build = "master"
+    }
+}
+
+buildConfiguration_branch {
+    title = "configuration phase (@testGitCommit@)"
+    versions = ["@branchWrapper@"]
+    tasks = ["help"]
+    gradle-args = ["--no-scan", "--no-build-cache"]
+    run-using = cli // value can be "cli" or "tooling-api"
+    daemon = warm // value can be "warm", "cold", or "none"
+    warm-ups = 5
+    iterations = 10
+    system-properties {
+        "BUILD_PERFORMANCE_TEST" = "true"
+    }
+    git-checkout = {
+        build = "@testGitCommit@"
+    }
+}
+
+single_project_master {
+    title = "single project (master)"
+    versions = ["@masterWrapper@"]
+    tasks = [":server:precommit"]
+    gradle-args = ["--no-scan"]
+    apply-abi-change-to = "server/src/main/java/org/elasticsearch/bootstrap/BootstrapInfo.java"
+    run-using = cli // value can be "cli" or "tooling-api"
+    daemon = warm // value can be "warm", "cold", or "none"
+    warm-ups = 5
+    iterations = 10
+    system-properties {
+        "BUILD_PERFORMANCE_TEST" = "true"
+    }
+    git-checkout = {
+        build = "master"
+    }
+}
+
+single_project_branch {
+    title = "single project (@testGitCommit@)"
+    versions = ["@branchWrapper@"]
+    tasks = [":server:precommit"]
+    gradle-args = ["--no-scan"]
+    apply-abi-change-to = "server/src/main/java/org/elasticsearch/bootstrap/BootstrapInfo.java"
+    run-using = cli // value can be "cli" or "tooling-api"
+    daemon = warm // value can be "warm", "cold", or "none"
+    warm-ups = 5
+    iterations = 10
+    system-properties {
+        "BUILD_PERFORMANCE_TEST" = "true"
+    }
+    git-checkout = {
+        build = "@testGitCommit@"
+    }
+}

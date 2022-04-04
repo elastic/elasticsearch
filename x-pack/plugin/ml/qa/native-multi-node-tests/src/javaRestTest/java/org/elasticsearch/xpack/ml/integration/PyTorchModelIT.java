@@ -290,25 +290,56 @@ public class PyTorchModelIT extends ESRestTestCase {
         putVocabulary(List.of("once", "twice"), modelA);
         putModelDefinition(modelA);
         startDeployment(modelA, AllocationStatus.State.FULLY_ALLOCATED.toString());
+        {
+            Response noInferenceCallsStatsResponse = getTrainedModelStats(modelA);
+            List<Map<String, Object>> stats = (List<Map<String, Object>>) entityAsMap(noInferenceCallsStatsResponse).get(
+                "trained_model_stats"
+            );
+            assertThat(stats, hasSize(1));
+
+            List<Map<String, Object>> nodes = (List<Map<String, Object>>) XContentMapValues.extractValue(
+                "deployment_stats.nodes",
+                stats.get(0)
+            );
+            int inferenceCount = sumInferenceCountOnNodes(nodes);
+            assertThat(inferenceCount, equalTo(0));
+
+            for (var node : nodes) {
+                // null before the model is used
+                assertThat(node.get("last_access"), nullValue());
+                assertThat(node.get("average_inference_time_ms"), nullValue());
+                assertThat(node.get("average_inference_time_ms_last_minute"), nullValue());
+            }
+        }
+
         infer("once", modelA);
         infer("twice", modelA);
-        Response response = getTrainedModelStats(modelA);
-        List<Map<String, Object>> stats = (List<Map<String, Object>>) entityAsMap(response).get("trained_model_stats");
-        assertThat(stats, hasSize(1));
-        assertThat(XContentMapValues.extractValue("deployment_stats.model_id", stats.get(0)), equalTo(modelA));
-        assertThat(XContentMapValues.extractValue("model_size_stats.model_size_bytes", stats.get(0)), equalTo((int) RAW_MODEL_SIZE));
-        List<Map<String, Object>> nodes = (List<Map<String, Object>>) XContentMapValues.extractValue(
-            "deployment_stats.nodes",
-            stats.get(0)
-        );
-        // 2 of the 3 nodes in the cluster are ML nodes
-        assertThat(nodes, hasSize(2));
-        int inferenceCount = sumInferenceCountOnNodes(nodes);
-        for (var node : nodes) {
-            assertThat(node.get("number_of_pending_requests"), notNullValue());
+        {
+            Response postInferStatsResponse = getTrainedModelStats(modelA);
+            List<Map<String, Object>> stats = (List<Map<String, Object>>) entityAsMap(postInferStatsResponse).get("trained_model_stats");
+            assertThat(stats, hasSize(1));
+            assertThat(XContentMapValues.extractValue("deployment_stats.model_id", stats.get(0)), equalTo(modelA));
+            assertThat(XContentMapValues.extractValue("model_size_stats.model_size_bytes", stats.get(0)), equalTo((int) RAW_MODEL_SIZE));
+            List<Map<String, Object>> nodes = (List<Map<String, Object>>) XContentMapValues.extractValue(
+                "deployment_stats.nodes",
+                stats.get(0)
+            );
+            // 2 of the 3 nodes in the cluster are ML nodes
+            assertThat(nodes, hasSize(2));
+            for (var node : nodes) {
+                assertThat(node.get("number_of_pending_requests"), notNullValue());
+            }
             // last_access and average_inference_time_ms may be null if inference wasn't performed on this node
+            assertAtLeastOneOfTheseIsNotNull("last_access", nodes);
+            assertAtLeastOneOfTheseIsNotNull("average_inference_time_ms", nodes);
+
+            int inferenceCount = sumInferenceCountOnNodes(nodes);
+            assertThat(inferenceCount, equalTo(2));
         }
-        assertThat(inferenceCount, equalTo(2));
+    }
+
+    private void assertAtLeastOneOfTheseIsNotNull(String name, List<Map<String, Object>> nodes) {
+        assertTrue("all nodes have null value for [" + name + "]", nodes.stream().anyMatch(n -> n.get(name) != null));
     }
 
     @SuppressWarnings("unchecked")

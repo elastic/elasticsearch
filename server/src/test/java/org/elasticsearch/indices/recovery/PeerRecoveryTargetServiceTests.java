@@ -102,8 +102,8 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         final RecoveryTarget recoveryTarget = new RecoveryTarget(targetShard, null, null, null, null);
         final PlainActionFuture<Void> receiveFileInfoFuture = new PlainActionFuture<>();
         recoveryTarget.receiveFileInfo(
-            mdFiles.stream().map(StoreFileMetadata::name).collect(Collectors.toList()),
-            mdFiles.stream().map(StoreFileMetadata::length).collect(Collectors.toList()),
+            mdFiles.stream().map(StoreFileMetadata::name).toList(),
+            mdFiles.stream().map(StoreFileMetadata::length).toList(),
             emptyList(),
             emptyList(),
             0,
@@ -181,7 +181,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
     }
 
     private SeqNoStats populateRandomData(IndexShard shard) throws IOException {
-        List<Long> seqNos = LongStream.range(0, 100).boxed().collect(Collectors.toList());
+        List<Long> seqNos = LongStream.range(0, 100).boxed().collect(Collectors.toCollection(ArrayList::new));
         Randomness.shuffle(seqNos);
         for (long seqNo : seqNos) {
             shard.applyIndexOperationOnReplica(

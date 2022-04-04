@@ -257,7 +257,7 @@ public class SecuritySettingsSource extends NodeConfigurationSource {
         }
     }
 
-    private static void addSSLSettingsForStore(
+    public static void addSSLSettingsForStore(
         Settings.Builder builder,
         String prefix,
         String resourcePathToStore,

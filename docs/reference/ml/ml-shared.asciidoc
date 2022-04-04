@@ -939,6 +939,7 @@ values are
 --
 * `bert`: Use for BERT-style models
 * `mpnet`: Use for MPNet-style models
+* `roberta`: Use for RoBERTa-style and BART-style models
 --
 end::inference-config-nlp-tokenization[]
 
@@ -946,12 +947,12 @@ tag::inference-config-nlp-tokenization-bert[]
 BERT-style tokenization is to be performed with the enclosed settings.
 end::inference-config-nlp-tokenization-bert[]
 
-tag::inference-config-nlp-tokenization-bert-do-lower-case[]
+tag::inference-config-nlp-tokenization-do-lower-case[]
 Specifies if the tokenization lower case the text sequence when building the
 tokens.
-end::inference-config-nlp-tokenization-bert-do-lower-case[]
+end::inference-config-nlp-tokenization-do-lower-case[]
 
-tag::inference-config-nlp-tokenization-bert-span[]
+tag::inference-config-nlp-tokenization-span[]
 When `truncate` is `none`, you can partition longer text sequences
 for inference. The value indicates how many tokens overlap between each
 subsequence.
@@ -960,9 +961,9 @@ The default value is `-1`, indicating no windowing or spanning occurs.
 +
 NOTE: When your typical input is just slightly larger than `max_sequence_length`, it may be best to simply truncate;
 there will be very little information in the second subsequence.
-end::inference-config-nlp-tokenization-bert-span[]
+end::inference-config-nlp-tokenization-span[]
 
-tag::inference-config-nlp-tokenization-bert-truncate[]
+tag::inference-config-nlp-tokenization-truncate[]
 Indicates how tokens are truncated when they exceed `max_sequence_length`.
 The default value is `first`.
 +
@@ -976,7 +977,7 @@ The default value is `first`.
 NOTE: For `zero_shot_classification`, the hypothesis sequence is always the second
 sequence. Therefore, do not use `second` in this case.
 
-end::inference-config-nlp-tokenization-bert-truncate[]
+end::inference-config-nlp-tokenization-truncate[]
 
 tag::inference-config-nlp-tokenization-bert-with-special-tokens[]
 Tokenize with special tokens. The tokens typically included in BERT-style tokenization are:
@@ -987,10 +988,26 @@ Tokenize with special tokens. The tokens typically included in BERT-style tokeni
 --
 end::inference-config-nlp-tokenization-bert-with-special-tokens[]
 
-tag::inference-config-nlp-tokenization-bert-max-sequence-length[]
+tag::inference-config-nlp-tokenization-max-sequence-length[]
 Specifies the maximum number of tokens allowed to be output by the tokenizer.
-The default for BERT-style tokenization is `512`.
-end::inference-config-nlp-tokenization-bert-max-sequence-length[]
+end::inference-config-nlp-tokenization-max-sequence-length[]
+
+tag::inference-config-nlp-tokenization-roberta[]
+RoBERTa-style tokenization is to be performed with the enclosed settings.
+end::inference-config-nlp-tokenization-roberta[]
+
+tag::inference-config-nlp-tokenization-roberta-add-prefix-space[]
+Specifies if the tokenization should prefix a space to the tokenized input to the model.
+end::inference-config-nlp-tokenization-roberta-add-prefix-space[]
+
+tag::inference-config-nlp-tokenization-roberta-with-special-tokens[]
+Tokenize with special tokens. The tokens typically included in RoBERTa-style tokenization are:
++
+--
+* `<s>`: The first token of the sequence being classified.
+* `</s>`: Indicates sequence separation.
+--
+end::inference-config-nlp-tokenization-roberta-with-special-tokens[]
 
 tag::inference-config-nlp-tokenization-mpnet[]
 MPNet-style tokenization is to be performed with the enclosed settings.

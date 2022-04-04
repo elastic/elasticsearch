@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -452,11 +453,11 @@ public class MetadataIndexStateServiceTests extends ESTestCase {
         final IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(indexName);
         assertThat(indexRoutingTable, notNullValue());
 
-        for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
-            assertThat(shardRoutingTable.shards().stream().allMatch(ShardRouting::unassigned), is(true));
+        for (int i = 0; i < indexRoutingTable.size(); i++) {
+            IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
+            assertThat(RoutingNodesHelper.asStream(shardRoutingTable).allMatch(ShardRouting::unassigned), is(true));
             assertThat(
-                shardRoutingTable.shards()
-                    .stream()
+                RoutingNodesHelper.asStream(shardRoutingTable)
                     .map(ShardRouting::unassignedInfo)
                     .map(UnassignedInfo::getReason)
                     .allMatch(info -> info == UnassignedInfo.Reason.INDEX_CLOSED),

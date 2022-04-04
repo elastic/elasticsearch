@@ -49,7 +49,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ilm.PhaseCacheManagement.updateIndicesForPolicy;
 import static org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants.SEARCHABLE_SNAPSHOT_FEATURE;
@@ -211,7 +210,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
             .values()
             .stream()
             .filter(phase -> phase.getActions().containsKey(SearchableSnapshotAction.NAME))
-            .collect(Collectors.toList());
+            .toList();
         // check license level for searchable snapshots
         if (phasesWithSearchableSnapshotActions.isEmpty() == false
             && SEARCHABLE_SNAPSHOT_FEATURE.checkWithoutTracking(licenseState) == false) {
@@ -246,7 +245,7 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
             .values()
             .stream()
             .filter(phase -> phase.getActions().containsKey(WaitForSnapshotAction.NAME))
-            .collect(Collectors.toList());
+            .toList();
         // make sure any referenced snapshot lifecycle policies exist
         for (Phase phase : phasesWithWaitForSnapshotActions) {
             WaitForSnapshotAction action = (WaitForSnapshotAction) phase.getActions().get(WaitForSnapshotAction.NAME);

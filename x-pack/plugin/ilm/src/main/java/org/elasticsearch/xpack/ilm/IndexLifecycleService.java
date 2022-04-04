@@ -499,6 +499,7 @@ public class IndexLifecycleService
 
         Set<String> indicesPreventingShutdown = state.metadata()
             .indices()
+            .entrySet()
             .stream()
             // Filter out to only consider managed indices
             .filter(indexToMetadata -> Strings.hasText(indexToMetadata.getValue().getLifecyclePolicyName()))

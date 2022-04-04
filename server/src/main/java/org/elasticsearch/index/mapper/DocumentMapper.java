@@ -60,10 +60,6 @@ public class DocumentMapper {
         return metadataMapper(SourceFieldMapper.class);
     }
 
-    public IdFieldMapper idFieldMapper() {
-        return metadataMapper(IdFieldMapper.class);
-    }
-
     public RoutingFieldMapper routingFieldMapper() {
         return metadataMapper(RoutingFieldMapper.class);
     }

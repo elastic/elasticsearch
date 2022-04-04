@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.unsignedlong;
 
-import com.fasterxml.jackson.core.JsonParseException;
-import com.fasterxml.jackson.core.exc.InputCoercionException;
-
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -534,7 +531,7 @@ public class UnsignedLongFieldMapper extends FieldMapper {
                 } else {
                     numericValue = parseUnsignedLong(parser.text());
                 }
-            } catch (InputCoercionException | IllegalArgumentException | JsonParseException e) {
+            } catch (IllegalArgumentException e) {
                 if (ignoreMalformed.value() && parser.currentToken().isValue()) {
                     context.addIgnoredField(mappedFieldType.name());
                     return;

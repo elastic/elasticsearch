@@ -20,7 +20,6 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class OperatorOnlyRegistry {
@@ -72,7 +71,7 @@ public class OperatorOnlyRegistry {
         ).filter(k -> {
             final Setting<?> setting = clusterSettings.get(k);
             return setting != null && setting.isOperatorOnly();
-        }).collect(Collectors.toList());
+        }).toList();
         if (false == operatorOnlySettingKeys.isEmpty()) {
             return () -> (operatorOnlySettingKeys.size() == 1 ? "setting" : "settings")
                 + " ["

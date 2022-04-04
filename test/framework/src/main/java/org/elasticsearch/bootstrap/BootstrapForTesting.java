@@ -201,6 +201,7 @@ public class BootstrapForTesting {
         addClassCodebase(codebases, "elasticsearch-nio", "org.elasticsearch.nio.ChannelFactory");
         addClassCodebase(codebases, "elasticsearch-secure-sm", "org.elasticsearch.secure_sm.SecureSM");
         addClassCodebase(codebases, "elasticsearch-rest-client", "org.elasticsearch.client.RestClient");
+        addClassCodebase(codebases, "elasticsearch-x-content", "org.elasticsearch.xcontent.XContent");
         return codebases;
     }
 

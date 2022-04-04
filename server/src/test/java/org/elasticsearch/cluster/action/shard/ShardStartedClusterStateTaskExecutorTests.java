@@ -28,7 +28,6 @@ import org.elasticsearch.index.shard.ShardLongFieldRange;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -112,7 +111,7 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
                     )
                 )
 
-        ).collect(Collectors.toList());
+        ).toList();
 
         assertSame(clusterState, executeTasks(clusterState, tasks));
     }
@@ -138,7 +137,7 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
                     createTestListener()
                 );
             })
-            .collect(Collectors.toList());
+            .toList();
 
         assertSame(clusterState, executeTasks(clusterState, tasks));
     }
@@ -201,7 +200,7 @@ public class ShardStartedClusterStateTaskExecutorTests extends ESAllocationTestC
                     createTestListener()
                 )
             )
-            .collect(Collectors.toList());
+            .toList();
 
         final var resultingState = executeTasks(clusterState, tasks);
         assertNotSame(clusterState, resultingState);

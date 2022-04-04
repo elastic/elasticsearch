@@ -46,12 +46,24 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
-import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.xpack.core.security.support.Automatons.patterns;
 import static org.elasticsearch.xpack.core.security.support.Automatons.unionAndMinimize;
 
+/**
+ * The name of an index related action always being with `indices:` followed by a sequence of slash-separated terms
+ * that generally describes the hierarchy (from broader to more specific) of the action. For example, the
+ * first level comprises `admin`, `monitor`, `data` which generally categorize an action into either an admin
+ * related function, or a monitoring related function or a user-data related function. Subsequent levels further
+ * narrow down the category until the meaning is specific enough.
+ *
+ * Note that these terms are meant to categorize what the action does, *not* how it should be invoked. This means
+ * whether an action is accessible via REST API should not contribute to its naming.
+ *
+ * Also note that the `internal:transport/proxy/` prefix is automatically added and stripped for actions that go
+ * through a CCR/CCS proxy. No action should be explicitly named like that.
+ */
 public final class IndexPrivilege extends Privilege {
     private static final Logger logger = LogManager.getLogger(IndexPrivilege.class);
 
@@ -240,10 +252,6 @@ public final class IndexPrivilege extends Privilege {
      * @see Privilege#sortByAccessLevel
      */
     public static Collection<String> findPrivilegesThatGrant(String action) {
-        return VALUES.entrySet()
-            .stream()
-            .filter(e -> e.getValue().predicate.test(action))
-            .map(e -> e.getKey())
-            .collect(Collectors.toUnmodifiableList());
+        return VALUES.entrySet().stream().filter(e -> e.getValue().predicate.test(action)).map(e -> e.getKey()).toList();
     }
 }

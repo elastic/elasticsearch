@@ -8,6 +8,11 @@
 
 package org.elasticsearch.health;
 
+import java.util.Collection;
+import java.util.Comparator;
+import java.util.List;
+import java.util.stream.Collectors;
+
 /**
  * This is a service interface used to calculate health indicator from the different modules or plugins.
  */
@@ -19,7 +24,25 @@ public interface HealthIndicatorService {
 
     HealthIndicatorResult calculate();
 
-    default HealthIndicatorResult createIndicator(HealthStatus status, String summary, HealthIndicatorDetails details) {
-        return new HealthIndicatorResult(name(), component(), status, summary, details);
+    /**
+     * This method creates a HealthIndicatorResult with the given information. Note that it sorts the impacts by severity (the lower the
+     * number the higher the severity), and only keeps the 3 highest-severity impacts.
+     * @param status The status of the result
+     * @param summary The summary used in the result
+     * @param details The details used in the result
+     * @param impacts A collection of impacts. Only the 3 highest severity impacts are used in the result
+     * @return A HealthIndicatorResult built from the given information
+     */
+    default HealthIndicatorResult createIndicator(
+        HealthStatus status,
+        String summary,
+        HealthIndicatorDetails details,
+        Collection<HealthIndicatorImpact> impacts
+    ) {
+        List<HealthIndicatorImpact> impactsList = impacts.stream()
+            .sorted(Comparator.comparingInt(HealthIndicatorImpact::severity))
+            .limit(3)
+            .collect(Collectors.toList());
+        return new HealthIndicatorResult(name(), component(), status, summary, details, impactsList);
     }
 }

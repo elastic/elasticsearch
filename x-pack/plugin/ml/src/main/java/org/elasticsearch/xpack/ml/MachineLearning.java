@@ -273,6 +273,8 @@ import org.elasticsearch.xpack.ml.action.TransportValidateDetectorAction;
 import org.elasticsearch.xpack.ml.action.TransportValidateJobConfigAction;
 import org.elasticsearch.xpack.ml.aggs.categorization.CategorizeTextAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.categorization.InternalCategorizationAggregation;
+import org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointAggregationBuilder;
+import org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointNamedContentProvider;
 import org.elasticsearch.xpack.ml.aggs.correlation.BucketCorrelationAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.correlation.CorrelationNamedContentProvider;
 import org.elasticsearch.xpack.ml.aggs.heuristic.PValueScore;
@@ -306,6 +308,7 @@ import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
 import org.elasticsearch.xpack.ml.inference.modelsize.MlModelSizeNamedXContentProvider;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
+import org.elasticsearch.xpack.ml.inference.pytorch.process.BlackHolePyTorchProcess;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.NativePyTorchProcessFactory;
 import org.elasticsearch.xpack.ml.inference.pytorch.process.PyTorchProcessFactory;
 import org.elasticsearch.xpack.ml.job.JobManager;
@@ -433,7 +436,6 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -632,6 +634,14 @@ public class MachineLearning extends Plugin
         Property.Dynamic,
         Setting.Property.NodeScope
     );
+
+    /**
+     * Each model deployment results in one or more entries in the cluster state
+     * for the model allocations. In order to prevent the cluster state from
+     * potentially growing uncontrollably we impose a limit on the number of
+     * trained model deployments.
+     */
+    public static final int MAX_TRAINED_MODEL_DEPLOYMENTS = 100;
 
     private static final Logger logger = LogManager.getLogger(MachineLearning.class);
 
@@ -881,7 +891,7 @@ public class MachineLearning extends Plugin
             normalizerProcessFactory = (jobId, quantilesState, bucketSpan, executorService) -> new MultiplyingNormalizerProcess(1.0);
             analyticsProcessFactory = (jobId, analyticsProcessConfig, hasState, executorService, onProcessCrash) -> null;
             memoryEstimationProcessFactory = (jobId, analyticsProcessConfig, hasState, executorService, onProcessCrash) -> null;
-            pyTorchProcessFactory = (task, executorService, onProcessCrash) -> null;
+            pyTorchProcessFactory = (task, executorService, onProcessCrash) -> new BlackHolePyTorchProcess();
         }
         NormalizerFactory normalizerFactory = new NormalizerFactory(
             normalizerProcessFactory,
@@ -1389,7 +1399,8 @@ public class MachineLearning extends Plugin
         return Arrays.asList(
             InferencePipelineAggregationBuilder.buildSpec(modelLoadingService, getLicenseState(), settings),
             BucketCorrelationAggregationBuilder.buildSpec(),
-            BucketCountKSTestAggregationBuilder.buildSpec()
+            BucketCountKSTestAggregationBuilder.buildSpec(),
+            ChangePointAggregationBuilder.buildSpec()
         );
     }
 
@@ -1514,6 +1525,7 @@ public class MachineLearning extends Plugin
         namedWriteables.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
         namedWriteables.addAll(MlAutoscalingNamedWritableProvider.getNamedWriteables());
         namedWriteables.addAll(new CorrelationNamedContentProvider().getNamedWriteables());
+        namedWriteables.addAll(new ChangePointNamedContentProvider().getNamedWriteables());
         return namedWriteables;
     }
 
@@ -1711,7 +1723,7 @@ public class MachineLearning extends Plugin
                     .stream()
                     .filter(result -> result.getValue() == false)
                     .map(Map.Entry::getKey)
-                    .collect(Collectors.toList());
+                    .toList();
                 unsetResetModeListener.onFailure(
                     new RuntimeException("Some machine learning components failed to reset: " + failedComponents)
                 );
@@ -1744,7 +1756,7 @@ public class MachineLearning extends Plugin
                     .stream()
                     .filter(result -> result.getValue() == false)
                     .map(Map.Entry::getKey)
-                    .collect(Collectors.toList());
+                    .toList();
                 unsetResetModeListener.onFailure(
                     new RuntimeException("Some machine learning components failed to reset: " + failedComponents)
                 );

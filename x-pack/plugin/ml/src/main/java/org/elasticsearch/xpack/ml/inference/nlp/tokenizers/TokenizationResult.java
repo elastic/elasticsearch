@@ -56,6 +56,10 @@ public abstract class TokenizationResult {
         return vocab.get(tokenId);
     }
 
+    public String decode(String token) {
+        return token;
+    }
+
     public Tokens getTokenization(int tokenizationIndex) {
         return tokens.get(tokenizationIndex);
     }

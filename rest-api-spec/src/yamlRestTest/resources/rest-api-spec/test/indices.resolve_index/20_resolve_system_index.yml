@@ -1,0 +1,21 @@
+---
+setup:
+  - skip:
+      version: " - 8.1.99"
+      reason: "system index attribute introduced in 8.2"
+
+  - do:
+      indices.create:
+        index: ".tasks"
+---
+"Resolve system index":
+
+  - do:
+      indices.resolve_index:
+        name: '.tasks'
+        expand_wildcards: [all]
+
+  - match: {indices.0.name: ".tasks"}
+  - match: {indices.0.attributes.0: hidden}
+  - match: {indices.0.attributes.1: open}
+  - match: {indices.0.attributes.2: system}

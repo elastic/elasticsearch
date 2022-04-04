@@ -34,7 +34,6 @@ import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction.Request;
 import java.util.List;
 import java.util.SortedMap;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
 
 public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Request, AcknowledgedResponse> {
 
@@ -73,7 +72,7 @@ public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Re
                         .stream()
                         .filter(idxMeta -> policyToDelete.equals(idxMeta.getLifecyclePolicyName()))
                         .map(idxMeta -> idxMeta.getIndex().getName())
-                        .collect(Collectors.toList());
+                        .toList();
                     if (indicesUsingPolicy.isEmpty() == false) {
                         throw new IllegalArgumentException(
                             "Cannot delete policy ["

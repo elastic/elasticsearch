@@ -155,7 +155,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
             List<String> closedIndices = migrationQueue.stream()
                 .filter(SystemIndexMigrationInfo::isCurrentIndexClosed)
                 .map(SystemIndexMigrationInfo::getCurrentIndexName)
-                .collect(Collectors.toList());
+                .toList();
             if (closedIndices.isEmpty() == false) {
                 markAsFailed(
                     new IllegalStateException(
@@ -360,7 +360,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         }, this::markAsFailed));
     }
 
-    private boolean needsToBeMigrated(IndexMetadata indexMetadata) {
+    private static boolean needsToBeMigrated(IndexMetadata indexMetadata) {
         assert indexMetadata != null : "null IndexMetadata should be impossible, we're not consistently using the same cluster state";
         if (indexMetadata == null) {
             return false;
@@ -530,7 +530,7 @@ public class SystemIndexMigrator extends AllocatedPersistentTask {
         setWriteBlock(index, false, ActionListener.wrap(unsetReadOnlyResponse -> listener.onFailure(ex), e1 -> listener.onFailure(ex)));
     }
 
-    private ElasticsearchException logAndThrowExceptionForFailures(BulkByScrollResponse bulkByScrollResponse) {
+    private static ElasticsearchException logAndThrowExceptionForFailures(BulkByScrollResponse bulkByScrollResponse) {
         String bulkFailures = (bulkByScrollResponse.getBulkFailures() != null)
             ? Strings.collectionToCommaDelimitedString(bulkByScrollResponse.getBulkFailures())
             : "";

@@ -25,6 +25,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -364,7 +365,8 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      * Returns the {@link AsyncTask} if the provided <code>asyncTaskId</code>
      * is registered in the task manager, <code>null</code> otherwise.
      */
-    public <T extends AsyncTask> T getTask(TaskManager taskManager, AsyncExecutionId asyncExecutionId, Class<T> tClass) throws IOException {
+    public static <T extends AsyncTask> T getTask(TaskManager taskManager, AsyncExecutionId asyncExecutionId, Class<T> tClass)
+        throws IOException {
         Task task = taskManager.getTask(asyncExecutionId.getTaskId().getId());
         if (tClass.isInstance(task) == false) {
             return null;
@@ -535,13 +537,19 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
         }
     }
 
+    private static final FetchSourceContext FETCH_HEADERS_FIELD_CONTEXT = FetchSourceContext.of(
+        true,
+        new String[] { HEADERS_FIELD },
+        Strings.EMPTY_ARRAY
+    );
+
     /**
      * Checks if the current user can access the async search result of the original user.
      **/
     void ensureAuthenticatedUserCanDeleteFromIndex(AsyncExecutionId executionId, ActionListener<Void> listener) {
         GetRequest internalGet = new GetRequest(index).preference(executionId.getEncoded())
             .id(executionId.getDocId())
-            .fetchSourceContext(new FetchSourceContext(true, new String[] { HEADERS_FIELD }, new String[] {}));
+            .fetchSourceContext(FETCH_HEADERS_FIELD_CONTEXT);
 
         clientWithOrigin.get(internalGet, ActionListener.wrap(get -> {
             if (get.isExists() == false) {

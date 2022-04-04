@@ -1,0 +1,5 @@
+pr: 85334
+summary: Do not fetch source when finding index of last state docs
+area: Machine Learning
+type: bug
+issues: []

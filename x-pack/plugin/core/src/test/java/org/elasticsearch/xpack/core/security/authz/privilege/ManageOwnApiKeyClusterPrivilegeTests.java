@@ -18,6 +18,9 @@ import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.authc.RealmDomain;
 import org.elasticsearch.xpack.core.security.authz.permission.ClusterPermission;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -69,20 +72,43 @@ public class ManageOwnApiKeyClusterPrivilegeTests extends ESTestCase {
         final ClusterPermission clusterPermission = ManageOwnApiKeyClusterPrivilege.INSTANCE.buildPermission(ClusterPermission.builder())
             .build();
 
-        final boolean isRunAs = randomBoolean();
-        final User userJoe = new User("joe");
-        final Authentication authentication = createMockAuthentication(
-            isRunAs ? new User(userJoe, new User("not-joe")) : userJoe,
-            "realm1",
-            isRunAs ? randomFrom(AuthenticationType.REALM, AuthenticationType.API_KEY) : AuthenticationType.REALM,
-            Map.of()
-        );
-        final TransportRequest getApiKeyRequest = GetApiKeyRequest.usingRealmAndUserName("realm1", "joe");
-        final TransportRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingRealmAndUserName("realm1", "joe");
+        final Authentication.RealmRef realmRef = AuthenticationTests.randomRealmRef(randomBoolean());
+        final Authentication authentication = AuthenticationTests.randomAuthentication(new User("joe"), realmRef);
 
+        TransportRequest getApiKeyRequest = GetApiKeyRequest.usingRealmAndUserName(realmRef.getName(), "joe");
+        TransportRequest invalidateApiKeyRequest = InvalidateApiKeyRequest.usingRealmAndUserName(realmRef.getName(), "joe");
         assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/get", getApiKeyRequest, authentication));
         assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/invalidate", invalidateApiKeyRequest, authentication));
+
         assertFalse(clusterPermission.check("cluster:admin/something", mock(TransportRequest.class), authentication));
+
+        getApiKeyRequest = GetApiKeyRequest.usingRealmAndUserName(realmRef.getName(), "jane");
+        assertFalse(clusterPermission.check("cluster:admin/xpack/security/api_key/get", getApiKeyRequest, authentication));
+        invalidateApiKeyRequest = InvalidateApiKeyRequest.usingRealmAndUserName(realmRef.getName(), "jane");
+        assertFalse(clusterPermission.check("cluster:admin/xpack/security/api_key/invalidate", invalidateApiKeyRequest, authentication));
+
+        RealmDomain realmDomain = realmRef.getDomain();
+        final String otherRealmName;
+        if (realmDomain != null) {
+            for (RealmConfig.RealmIdentifier realmIdentifier : realmDomain.realms()) {
+                getApiKeyRequest = GetApiKeyRequest.usingRealmAndUserName(realmIdentifier.getName(), "joe");
+                assertTrue(clusterPermission.check("cluster:admin/xpack/security/api_key/get", getApiKeyRequest, authentication));
+                invalidateApiKeyRequest = InvalidateApiKeyRequest.usingRealmAndUserName(realmIdentifier.getName(), "joe");
+                assertTrue(
+                    clusterPermission.check("cluster:admin/xpack/security/api_key/invalidate", invalidateApiKeyRequest, authentication)
+                );
+            }
+            otherRealmName = randomValueOtherThanMany(
+                realmName -> realmDomain.realms().stream().map(ri -> ri.getName()).anyMatch(realmName::equals),
+                () -> randomAlphaOfLengthBetween(2, 10)
+            );
+        } else {
+            otherRealmName = randomValueOtherThan(realmRef.getName(), () -> randomAlphaOfLengthBetween(2, 10));
+        }
+        getApiKeyRequest = GetApiKeyRequest.usingRealmAndUserName(otherRealmName, "joe");
+        assertFalse(clusterPermission.check("cluster:admin/xpack/security/api_key/get", getApiKeyRequest, authentication));
+        invalidateApiKeyRequest = InvalidateApiKeyRequest.usingRealmAndUserName(otherRealmName, "joe");
+        assertFalse(clusterPermission.check("cluster:admin/xpack/security/api_key/invalidate", invalidateApiKeyRequest, authentication));
     }
 
     public void testAuthenticationWithUserAllowsAccessToApiKeyActionsWhenItIsOwner_WithOwnerFlagOnly() {

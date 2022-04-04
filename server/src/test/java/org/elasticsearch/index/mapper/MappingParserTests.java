@@ -44,7 +44,7 @@ public class MappingParserTests extends MapperServiceTestCase {
             scriptService,
             indexAnalyzers,
             indexSettings,
-            IdFieldMapper.NO_FIELD_DATA
+            indexSettings.getMode().buildNoFieldDataIdFieldMapper()
         );
         Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = mapperRegistry.getMetadataMapperParsers(
             indexSettings.getIndexVersionCreated()

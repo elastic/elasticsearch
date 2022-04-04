@@ -72,7 +72,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         Answer<Object> answer = invocationOnMock -> {
             AckedClusterStateUpdateTask updateTask = (AckedClusterStateUpdateTask) invocationOnMock.getArguments()[1];
-            updateTask.onAllNodesAcked(null);
+            updateTask.onAllNodesAcked();
             return null;
         };
         doAnswer(answer).when(clusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class), any());

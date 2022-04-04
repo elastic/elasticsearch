@@ -168,9 +168,7 @@ public class SeedHostsResolverTests extends ESTestCase {
         );
         closeables.push(transportService);
         recreateSeedHostsResolver(transportService);
-        List<String> hosts = IntStream.range(9300, 9310)
-            .mapToObj(port -> NetworkAddress.format(loopbackAddress) + ":" + port)
-            .collect(Collectors.toList());
+        List<String> hosts = IntStream.range(9300, 9310).mapToObj(port -> NetworkAddress.format(loopbackAddress) + ":" + port).toList();
         final List<TransportAddress> transportAddresses = seedHostsResolver.resolveHosts(hosts);
         assertThat(transportAddresses, hasSize(7));
         final Set<Integer> ports = new HashSet<>();

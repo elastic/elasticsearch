@@ -192,7 +192,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
                                 .values()
                                 .stream()
                                 .filter(t -> t.getParentTaskId() != null && t.getDescription().equals(req.taskDescription()))
-                                .collect(Collectors.toList());
+                                .toList();
                             assertThat(childTasks, hasSize(1));
                             CancellableTask childTask = (CancellableTask) childTasks.get(0);
                             assertTrue(childTask.isCancelled());
@@ -336,7 +336,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
                                 .values()
                                 .stream()
                                 .filter(t -> t.getParentTaskId() != null && t.getDescription().equals(req.taskDescription()))
-                                .collect(Collectors.toList());
+                                .toList();
                             assertThat(childTasks, hasSize(1));
                             CancellableTask childTask = (CancellableTask) childTasks.get(0);
                             assertTrue(childTask.isCancelled());
@@ -385,7 +385,7 @@ public class CancellableTasksIT extends ESIntegTestCase {
             List<TaskInfo> tasks = listTasksResponse.getTasks()
                 .stream()
                 .filter(t -> t.description().equals(request.taskDescription()))
-                .collect(Collectors.toList());
+                .toList();
             assertThat(tasks, hasSize(1));
             taskId.set(tasks.get(0).taskId());
         });

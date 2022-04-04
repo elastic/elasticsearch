@@ -567,10 +567,17 @@ public class AuthenticationTests extends ESTestCase {
             realmRef = randomRealmRef(false);
         }
         final Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_0_0, Version.CURRENT);
-        final AuthenticationType authenticationType = randomValueOtherThan(
-            AuthenticationType.API_KEY,
-            () -> randomFrom(AuthenticationType.values())
-        );
+        final AuthenticationType authenticationType;
+        if (realmRef.getDomain() != null) {
+            authenticationType = randomValueOtherThanMany(
+                authType -> authType == AuthenticationType.API_KEY
+                    || authType == AuthenticationType.INTERNAL
+                    || authType == AuthenticationType.ANONYMOUS,
+                () -> randomFrom(AuthenticationType.values())
+            );
+        } else {
+            authenticationType = randomValueOtherThan(AuthenticationType.API_KEY, () -> randomFrom(AuthenticationType.values()));
+        }
         final Map<String, Object> metadata;
         if (randomBoolean()) {
             metadata = Map.of(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8));
@@ -582,7 +589,7 @@ public class AuthenticationTests extends ESTestCase {
         if (randomBoolean()) { // run-as
             return new Authentication(
                 new User(user.principal(), user.roles(), randomUser()),
-                randomRealmRef(false),
+                randomRealmRef(randomBoolean()),
                 realmRef,
                 version,
                 authenticationType,
@@ -598,11 +605,27 @@ public class AuthenticationTests extends ESTestCase {
     }
 
     public static Authentication randomApiKeyAuthentication(User user, String apiKeyId, Version version) {
+        return randomApiKeyAuthentication(
+            user,
+            apiKeyId,
+            AuthenticationField.API_KEY_CREATOR_REALM_NAME,
+            AuthenticationField.API_KEY_CREATOR_REALM_TYPE,
+            version
+        );
+    }
+
+    public static Authentication randomApiKeyAuthentication(
+        User user,
+        String apiKeyId,
+        String creatorRealmName,
+        String creatorRealmType,
+        Version version
+    ) {
         final HashMap<String, Object> metadata = new HashMap<>();
         metadata.put(AuthenticationField.API_KEY_ID_KEY, apiKeyId);
         metadata.put(AuthenticationField.API_KEY_NAME_KEY, randomBoolean() ? null : randomAlphaOfLengthBetween(1, 16));
-        metadata.put(AuthenticationField.API_KEY_CREATOR_REALM_NAME, AuthenticationField.API_KEY_CREATOR_REALM_NAME);
-        metadata.put(AuthenticationField.API_KEY_CREATOR_REALM_TYPE, AuthenticationField.API_KEY_CREATOR_REALM_TYPE);
+        metadata.put(AuthenticationField.API_KEY_CREATOR_REALM_NAME, creatorRealmName);
+        metadata.put(AuthenticationField.API_KEY_CREATOR_REALM_TYPE, creatorRealmType);
         metadata.put(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY, new BytesArray("{}"));
         metadata.put(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY, new BytesArray("""
             {"x":{"cluster":["all"],"indices":[{"names":["index*"],"privileges":["all"]}]}}"""));

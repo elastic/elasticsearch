@@ -281,7 +281,8 @@ public class AutoscalingIT extends MlNativeAutodetectIntegTestCase {
             PutTrainedModelVocabularyAction.INSTANCE,
             new PutTrainedModelVocabularyAction.Request(
                 modelId,
-                List.of("these", "are", "my", "words", BertTokenizer.UNKNOWN_TOKEN, BertTokenizer.PAD_TOKEN)
+                List.of("these", "are", "my", "words", BertTokenizer.UNKNOWN_TOKEN, BertTokenizer.PAD_TOKEN),
+                List.of()
             )
         ).actionGet();
         client().execute(

@@ -117,7 +117,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON;
+import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -147,7 +147,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
         final Role role = Role.builder(
             ElasticServiceAccounts.ACCOUNTS.get("elastic/fleet-server").roleDescriptor(),
             null,
-            RESTRICTED_INDICES_AUTOMATON
+            RESTRICTED_INDICES
         ).build();
         final Authentication authentication = mock(Authentication.class);
         assertThat(
@@ -304,7 +304,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
         final Role role = Role.builder(
             ElasticServiceAccounts.ACCOUNTS.get("elastic/enterprise-search-server").roleDescriptor(),
             null,
-            RESTRICTED_INDICES_AUTOMATON
+            RESTRICTED_INDICES
         ).build();
 
         final Authentication authentication = mock(Authentication.class);
@@ -345,6 +345,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             "enterprise-search-" + randomAlphaOfLengthBetween(1, 20),
             "logs-app_search.analytics-default",
             "logs-enterprise_search.api-default",
+            "logs-enterprise_search.audit-default",
             "logs-app_search.search_relevance_suggestions-default",
             "logs-crawler-default",
             "logs-workplace_search.analytics-default",

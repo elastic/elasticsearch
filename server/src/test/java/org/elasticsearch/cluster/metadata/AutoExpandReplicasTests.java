@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.cluster.ClusterStateChanges;
@@ -187,7 +188,7 @@ public class AutoExpandReplicasTests extends ESTestCase {
                             n.getVersion()
                         )
                     )
-                    .collect(Collectors.toList());
+                    .collect(Collectors.toCollection(ArrayList::new));
 
                 if (randomBoolean()) {
                     nodesToAdd.add(createNode(DiscoveryNodeRole.DATA_ROLE));
@@ -197,15 +198,14 @@ public class AutoExpandReplicasTests extends ESTestCase {
                 postTable = state.routingTable().index("index").shard(0);
             }
 
-            Set<String> unchangedAllocationIds = preTable.getShards()
-                .stream()
+            Set<String> unchangedAllocationIds = RoutingNodesHelper.asStream(preTable)
                 .filter(shr -> unchangedNodeIds.contains(shr.currentNodeId()))
                 .map(shr -> shr.allocationId().getId())
                 .collect(Collectors.toSet());
 
             assertThat(postTable.toString(), unchangedAllocationIds, everyItem(is(in(postTable.getAllAllocationIds()))));
 
-            postTable.getShards().forEach(shardRouting -> {
+            RoutingNodesHelper.asStream(postTable).forEach(shardRouting -> {
                 if (shardRouting.assignedToNode() && unchangedAllocationIds.contains(shardRouting.allocationId().getId())) {
                     assertTrue("Shard should be active: " + shardRouting, shardRouting.active());
                 }

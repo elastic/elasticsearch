@@ -8,11 +8,17 @@
 package org.elasticsearch.xpack.vectors.query;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.script.field.DocValuesField;
+import org.elasticsearch.script.field.AbstractScriptFieldFactory;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
+import org.elasticsearch.script.field.Field;
 
 import java.util.Iterator;
 
-public abstract class DenseVectorDocValuesField implements DocValuesField<DenseVector>, DenseVectorScriptDocValues.DenseVectorSupplier {
+public abstract class DenseVectorDocValuesField extends AbstractScriptFieldFactory<DenseVector>
+    implements
+        Field<DenseVector>,
+        DocValuesScriptFieldFactory,
+        DenseVectorScriptDocValues.DenseVectorSupplier {
     protected final String name;
 
     public DenseVectorDocValuesField(String name) {
@@ -41,7 +47,7 @@ public abstract class DenseVectorDocValuesField implements DocValuesField<DenseV
 
     public abstract DenseVector get(DenseVector defaultValue);
 
-    public abstract DenseVectorScriptDocValues getScriptDocValues();
+    public abstract DenseVectorScriptDocValues toScriptDocValues();
 
     // DenseVector fields are single valued, so Iterable does not make sense.
     @Override

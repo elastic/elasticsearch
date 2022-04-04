@@ -287,7 +287,7 @@ public class DocumentMapperTests extends MapperServiceTestCase {
         DocumentMapper documentMapper = DocumentMapper.createEmpty(mapperService);
         assertEquals("{\"_doc\":{}}", Strings.toString(documentMapper.mapping()));
         assertTrue(documentMapper.mappers().hasMappings());
-        assertNotNull(documentMapper.idFieldMapper());
+        assertNotNull(documentMapper.mappers().getMapper(IdFieldMapper.NAME));
         assertNotNull(documentMapper.sourceMapper());
         assertNotNull(documentMapper.IndexFieldMapper());
         List<Class<?>> metadataMappers = new ArrayList<>(documentMapper.mappers().getMapping().getMetadataMappersMap().keySet());
@@ -297,10 +297,10 @@ public class DocumentMapperTests extends MapperServiceTestCase {
             matchesList().item(DataStreamTimestampFieldMapper.class)
                 .item(DocCountFieldMapper.class)
                 .item(FieldNamesFieldMapper.class)
-                .item(IdFieldMapper.class)
                 .item(IgnoredFieldMapper.class)
                 .item(IndexFieldMapper.class)
                 .item(NestedPathFieldMapper.class)
+                .item(ProvidedIdFieldMapper.class)
                 .item(RoutingFieldMapper.class)
                 .item(SeqNoFieldMapper.class)
                 .item(SourceFieldMapper.class)

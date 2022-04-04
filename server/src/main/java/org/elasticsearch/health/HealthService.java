@@ -8,8 +8,12 @@
 
 package org.elasticsearch.health;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.TreeMap;
+import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.collectingAndThen;
 import static java.util.stream.Collectors.groupingBy;
@@ -41,14 +45,27 @@ public class HealthService {
         );
     }
 
-    private static HealthComponentResult createComponentFromIndicators(List<HealthIndicatorResult> indicators) {
+    // Non-private for testing purposes
+    static HealthComponentResult createComponentFromIndicators(List<HealthIndicatorResult> indicators) {
         assert indicators.size() > 0 : "Component should not be non empty";
         assert indicators.stream().map(HealthIndicatorResult::component).distinct().count() == 1L
             : "Should not mix indicators from different components";
+        assert findDuplicatesByName(indicators).isEmpty()
+            : String.format(
+                Locale.ROOT,
+                "Found multiple indicators with the same name within the %s component: %s",
+                indicators.get(0).component(),
+                findDuplicatesByName(indicators)
+            );
         return new HealthComponentResult(
             indicators.get(0).component(),
             HealthStatus.merge(indicators.stream().map(HealthIndicatorResult::status)),
             indicators
         );
+    }
+
+    private static Set<String> findDuplicatesByName(List<HealthIndicatorResult> indicators) {
+        Set<String> items = new HashSet<>();
+        return indicators.stream().map(HealthIndicatorResult::name).filter(name -> items.add(name) == false).collect(Collectors.toSet());
     }
 }

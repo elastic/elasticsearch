@@ -15,7 +15,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 import org.elasticsearch.xpack.ql.util.StringUtils;
@@ -108,21 +107,14 @@ public class SearchHitCursor implements Cursor {
         client.search(
             request,
             ActionListener.wrap(
-                (SearchResponse response) -> handle(
-                    client,
-                    response,
-                    request.source(),
-                    makeRowSet(nextQuery.size(), response),
-                    listener,
-                    includeFrozen
-                ),
+                (SearchResponse response) -> handle(client, response, request.source(), makeRowSet(response), listener, includeFrozen),
                 listener::onFailure
             )
         );
     }
 
-    private Supplier<SearchHitRowSet> makeRowSet(int sizeRequested, SearchResponse response) {
-        return () -> new SearchHitRowSet(extractors, mask, sizeRequested, limit, response);
+    private Supplier<SearchHitRowSet> makeRowSet(SearchResponse response) {
+        return () -> new SearchHitRowSet(extractors, mask, nextQuery.size(), limit, response);
     }
 
     static void handle(
@@ -149,7 +141,6 @@ public class SearchHitCursor implements Cursor {
                 ActionListener.wrap(r -> listener.onResponse(Page.last(rowSet)), listener::onFailure)
             );
         } else {
-            source.pointInTimeBuilder(new PointInTimeBuilder(response.pointInTimeId()));
             updateSearchAfter(hits, source);
 
             SearchHitCursor nextCursor = new SearchHitCursor(

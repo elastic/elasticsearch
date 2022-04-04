@@ -844,9 +844,9 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             }
             final Set<String> indexNames = indices.keySet();
             final Set<String> indexNamesInShards = new HashSet<>();
-            shards.iterator().forEachRemaining(s -> {
-                indexNamesInShards.add(s.key.getIndexName());
-                assert source == null || s.value.nodeId == null
+            shards.entrySet().forEach(s -> {
+                indexNamesInShards.add(s.getKey().getIndexName());
+                assert source == null || s.getValue().nodeId == null
                     : "Shard snapshot must not be assigned to data node when copying from snapshot [" + source + "]";
             });
             assert source == null || indexNames.isEmpty() == false : "No empty snapshot clones allowed";
@@ -1261,7 +1261,7 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             return builder;
         }
 
-        private void writeShardSnapshotStatus(XContentBuilder builder, ToXContent indexId, int shardId, ShardSnapshotStatus status)
+        private static void writeShardSnapshotStatus(XContentBuilder builder, ToXContent indexId, int shardId, ShardSnapshotStatus status)
             throws IOException {
             builder.startObject();
             builder.field("index", indexId);
@@ -1294,17 +1294,17 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
             out.writeByte(state.value());
             out.writeCollection(indices.values());
             out.writeLong(startTime);
-            out.writeImmutableMap(shards);
+            out.writeMap(shards);
             out.writeLong(repositoryStateId);
             out.writeOptionalString(failure);
-            out.writeMap(userMetadata);
+            out.writeGenericMap(userMetadata);
             Version.writeVersion(version, out);
             out.writeStringCollection(dataStreams);
             out.writeOptionalWriteable(source);
             if (source == null) {
-                out.writeImmutableMap(ImmutableOpenMap.of());
+                out.writeMap(ImmutableOpenMap.of());
             } else {
-                out.writeImmutableMap(shardStatusByRepoShardId);
+                out.writeMap(shardStatusByRepoShardId);
             }
             out.writeList(featureStates);
         }

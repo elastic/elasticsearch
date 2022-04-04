@@ -10,7 +10,7 @@ package org.elasticsearch.index.shard;
 import org.apache.lucene.index.Term;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.InternalEngineTests;
+import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -126,10 +126,14 @@ public class IndexingOperationListenerTests extends ESTestCase {
             indexingOperationListeners,
             logger
         );
-        ParsedDocument doc = InternalEngineTests.createParsedDoc("1", null);
+        ParsedDocument doc = EngineTestCase.createParsedDoc("1", EngineTestCase.randomIdFieldType(), null);
         Engine.Delete delete = new Engine.Delete("1", new Term("_id", Uid.encodeId(doc.id())), randomNonNegativeLong());
         Engine.Index index = new Engine.Index(new Term("_id", Uid.encodeId(doc.id())), randomNonNegativeLong(), doc);
-        compositeListener.postDelete(randomShardId, delete, new Engine.DeleteResult(1, 0, SequenceNumbers.UNASSIGNED_SEQ_NO, true));
+        compositeListener.postDelete(
+            randomShardId,
+            delete,
+            new Engine.DeleteResult(1, 0, SequenceNumbers.UNASSIGNED_SEQ_NO, true, delete.id())
+        );
         assertEquals(0, preIndex.get());
         assertEquals(0, postIndex.get());
         assertEquals(0, postIndexException.get());
@@ -153,7 +157,11 @@ public class IndexingOperationListenerTests extends ESTestCase {
         assertEquals(2, postDelete.get());
         assertEquals(2, postDeleteException.get());
 
-        compositeListener.postIndex(randomShardId, index, new Engine.IndexResult(0, 0, SequenceNumbers.UNASSIGNED_SEQ_NO, false));
+        compositeListener.postIndex(
+            randomShardId,
+            index,
+            new Engine.IndexResult(0, 0, SequenceNumbers.UNASSIGNED_SEQ_NO, false, index.id())
+        );
         assertEquals(0, preIndex.get());
         assertEquals(2, postIndex.get());
         assertEquals(0, postIndexException.get());

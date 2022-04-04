@@ -75,13 +75,7 @@ public class TransportResolveIndexActionTests extends ESTestCase {
 
             IllegalArgumentException ex = expectThrows(
                 IllegalArgumentException.class,
-                () -> action.doExecute(null, request, new ActionListener<ResolveIndexAction.Response>() {
-                    @Override
-                    public void onResponse(ResolveIndexAction.Response response) {}
-
-                    @Override
-                    public void onFailure(Exception e) {}
-                })
+                () -> action.doExecute(null, request, ActionListener.noop())
             );
 
             assertThat(ex.getMessage(), containsString("not compatible with version"));

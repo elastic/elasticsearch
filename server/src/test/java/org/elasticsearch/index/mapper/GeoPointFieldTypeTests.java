@@ -71,6 +71,16 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
             assertEquals(List.of(), fetchSourceValue(mapper, sourceValue, null));
             assertEquals(List.of(), fetchSourceValue(mapper, sourceValue, "wkt"));
         }
+
+        // test single point in GeoJSON format
+        sourceValue = jsonPoint;
+        assertEquals(List.of(jsonPoint), fetchSourceValue(mapper, sourceValue, null));
+        assertEquals(List.of(wktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
+
+        // Test a list of points in GeoJSON format
+        sourceValue = List.of(jsonPoint, otherJsonPoint);
+        assertEquals(List.of(jsonPoint, otherJsonPoint), fetchSourceValue(mapper, sourceValue, null));
+        assertEquals(List.of(wktPoint, otherWktPoint), fetchSourceValue(mapper, sourceValue, "wkt"));
     }
 
     public void testFetchVectorTile() throws IOException {

@@ -66,8 +66,9 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
     }
 
     void init(InferenceConfig inferenceConfig) {
-        this.inferenceConfigHolder.set(inferenceConfig);
-        licensedFeature.startTracking(licenseState, "model-" + params.getModelId());
+        if (this.inferenceConfigHolder.trySet(inferenceConfig)) {
+            licensedFeature.startTracking(licenseState, "model-" + params.getModelId());
+        }
     }
 
     public String getModelId() {

@@ -29,7 +29,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.action.profile.ActivateProfileAction;
 import org.elasticsearch.xpack.core.security.action.profile.GetProfileAction;
-import org.elasticsearch.xpack.core.security.action.profile.SearchProfilesAction;
+import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesAction;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAction;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
@@ -121,7 +121,7 @@ public class WriteProfileDataPrivilegesTests extends ESTestCase {
         // different action name
         assertFalse(
             writeProfileDataPermission.check(
-                randomFrom(ActivateProfileAction.NAME, GetProfileAction.NAME, SearchProfilesAction.NAME),
+                randomFrom(ActivateProfileAction.NAME, GetProfileAction.NAME, SuggestProfilesAction.NAME),
                 updateProfileDataRequest,
                 authentication
             )

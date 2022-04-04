@@ -8,6 +8,8 @@
 package org.elasticsearch.oldrepos;
 
 import org.apache.http.HttpHost;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
@@ -18,15 +20,14 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRe
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.indices.CloseIndexRequest;
-import org.elasticsearch.client.indices.GetMappingsRequest;
-import org.elasticsearch.client.indices.PutMappingRequest;
+import org.elasticsearch.client.core.ShardsAcknowledgedResponse;
 import org.elasticsearch.cluster.SnapshotsInProgress;
-import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
@@ -270,15 +271,10 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         );
 
         // close indices
-        assertTrue(client.indices().close(new CloseIndexRequest("restored_" + indexName), RequestOptions.DEFAULT).isShardsAcknowledged());
-        assertTrue(
-            client.indices().close(new CloseIndexRequest("mounted_full_copy_" + indexName), RequestOptions.DEFAULT).isShardsAcknowledged()
-        );
-        assertTrue(
-            client.indices()
-                .close(new CloseIndexRequest("mounted_shared_cache_" + indexName), RequestOptions.DEFAULT)
-                .isShardsAcknowledged()
-        );
+        RestClient llClient = client.getLowLevelClient();
+        assertTrue(closeIndex(llClient, "restored_" + indexName).isShardsAcknowledged());
+        assertTrue(closeIndex(llClient, "mounted_full_copy_" + indexName).isShardsAcknowledged());
+        assertTrue(closeIndex(llClient, "mounted_shared_cache_" + indexName).isShardsAcknowledged());
 
         // restore / mount again
         restoreMountAndVerify(
@@ -329,16 +325,15 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
 
         ensureGreen("restored_" + indexName);
 
-        MappingMetadata mapping = client.indices()
-            .getMapping(new GetMappingsRequest().indices("restored_" + indexName), RequestOptions.DEFAULT)
-            .mappings()
-            .get("restored_" + indexName);
-        logger.info("mapping for {}: {}", mapping.type(), mapping.source().string());
-        Map<String, Object> root = mapping.sourceAsMap();
-        assertThat(root, hasKey("_meta"));
-        assertThat(root.get("_meta"), instanceOf(Map.class));
+        String restoredIndex = "restored_" + indexName;
+        RestClient llClient = client.getLowLevelClient();
+        var response = responseAsMap(llClient.performRequest(new Request("GET", "/" + restoredIndex + "/_mapping")));
+        Map<?, ?> mapping = ObjectPath.evaluate(response, restoredIndex + ".mappings");
+        logger.info("mapping for {}: {}", restoredIndex, mapping);
+        assertThat(mapping, hasKey("_meta"));
+        assertThat(mapping.get("_meta"), instanceOf(Map.class));
         @SuppressWarnings("unchecked")
-        Map<String, Object> meta = (Map<String, Object>) root.get("_meta");
+        Map<String, Object> meta = (Map<String, Object>) mapping.get("_meta");
         assertThat(meta, hasKey("legacy_mappings"));
         assertThat(meta.get("legacy_mappings"), instanceOf(Map.class));
         @SuppressWarnings("unchecked")
@@ -453,9 +448,10 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
             mappingBuilder.startObject().startObject("properties");
             mappingBuilder.startObject("val").field("type", "long").endObject();
             mappingBuilder.endObject().endObject();
-            assertTrue(
-                client.indices().putMapping(new PutMappingRequest(index).source(mappingBuilder), RequestOptions.DEFAULT).isAcknowledged()
-            );
+            Request putMappingRequest = new Request("PUT", "/" + index + "/_mapping");
+            putMappingRequest.setEntity(new StringEntity(Strings.toString(mappingBuilder), ContentType.APPLICATION_JSON));
+            Response response = client.getLowLevelClient().performRequest(putMappingRequest);
+            assertTrue(AcknowledgedResponse.fromXContent(responseAsParser(response)).isAcknowledged());
 
             // search using reverse sort on val
             searchResponse = client.search(
@@ -495,5 +491,11 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
 
     private int getIdAsNumeric(String id) {
         return Integer.parseInt(id.substring("testdoc".length()));
+    }
+
+    static ShardsAcknowledgedResponse closeIndex(RestClient client, String index) throws IOException {
+        Request request = new Request("POST", "/" + index + "/_close");
+        Response response = client.performRequest(request);
+        return ShardsAcknowledgedResponse.fromXContent(responseAsParser(response));
     }
 }

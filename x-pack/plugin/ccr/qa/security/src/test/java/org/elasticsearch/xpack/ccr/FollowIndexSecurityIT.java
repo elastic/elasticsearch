@@ -53,8 +53,8 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
         final String unallowedIndex = "unallowed-index";
         if ("leader".equals(targetCluster)) {
             logger.info("Running against leader cluster");
-            createIndex(allowedIndex, Settings.EMPTY);
-            createIndex(unallowedIndex, Settings.EMPTY);
+            createIndex(adminClient(), allowedIndex, Settings.EMPTY);
+            createIndex(adminClient(), unallowedIndex, Settings.EMPTY);
             for (int i = 0; i < numDocs; i++) {
                 logger.info("Indexing doc [{}]", i);
                 index(allowedIndex, Integer.toString(i), "field", i);
@@ -63,7 +63,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
                 logger.info("Indexing doc [{}]", i);
                 index(unallowedIndex, Integer.toString(i), "field", i);
             }
-            refresh(allowedIndex);
+            refresh(adminClient(), allowedIndex);
             verifyDocuments(allowedIndex, numDocs, "*:*");
         } else {
             followIndex("leader_cluster", allowedIndex, allowedIndex);
@@ -195,7 +195,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
         if ("leader".equals(targetCluster)) {
             logger.info("running against leader cluster");
             final Settings indexSettings = Settings.builder().put("index.number_of_replicas", 0).put("index.number_of_shards", 1).build();
-            createIndex(forgetLeader, indexSettings);
+            createIndex(adminClient(), forgetLeader, indexSettings);
         } else {
             logger.info("running against follower cluster");
             followIndex(client(), "leader_cluster", forgetLeader, forgetFollower);
@@ -249,7 +249,7 @@ public class FollowIndexSecurityIT extends ESCCRRestTestCase {
                 .put("index.number_of_shards", 1)
                 .put("index.soft_deletes.enabled", true)
                 .build();
-            createIndex(cleanLeader, indexSettings);
+            createIndex(adminClient(), cleanLeader, indexSettings);
         } else {
             logger.info("running against follower cluster");
             followIndex(client(), "leader_cluster", cleanLeader, cleanFollower);

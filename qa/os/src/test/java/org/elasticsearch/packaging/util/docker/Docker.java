@@ -758,4 +758,14 @@ public class Docker {
                     && json.get("log.logger").textValue().equals("org.elasticsearch.node.Node")
             )), 60, TimeUnit.SECONDS);
     }
+
+    /**
+     * Runs a readiness probe on a given port
+     * @param port
+     * @return the ready status
+     */
+    public static boolean readinessProbe(int port) {
+        Shell.Result result = dockerShell.runIgnoreExitCode("nc -z localhost " + port);
+        return result.exitCode() == 0;
+    }
 }

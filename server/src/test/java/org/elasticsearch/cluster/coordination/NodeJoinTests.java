@@ -8,7 +8,6 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
@@ -72,7 +71,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "TODO")
 public class NodeJoinTests extends ESTestCase {
 
     private static ThreadPool threadPool;
@@ -95,8 +93,14 @@ public class NodeJoinTests extends ESTestCase {
 
     @After
     public void tearDown() throws Exception {
-        super.tearDown();
+        masterService.stop();
+        coordinator.stop();
+        if (deterministicTaskQueue != null) {
+            deterministicTaskQueue.runAllRunnableTasks();
+        }
         masterService.close();
+        coordinator.close();
+        super.tearDown();
     }
 
     private static ClusterState initialState(DiscoveryNode localNode, long term, long version, VotingConfiguration config) {

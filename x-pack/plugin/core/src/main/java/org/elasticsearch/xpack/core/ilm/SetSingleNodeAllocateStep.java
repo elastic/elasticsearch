@@ -163,16 +163,8 @@ public class SetSingleNodeAllocateStep extends AsyncActionStep {
                 for (String nodeId : dataNodeIds) {
                     if (nodeStatsMap.get(nodeId) != null) {
                         FsInfo.Path totalFsInfo = nodeStatsMap.get(nodeId).getFs().getTotal();
-                        long nodeTotalBytes = totalFsInfo.getTotal().getBytes();
                         long nodeAvailableBytes = totalFsInfo.getAvailable().getBytes();
-                        long freeBytesThresholdLow;
-                        if (diskThresholdSettings.getFreeDiskThresholdLow() != 0) {
-                            freeBytesThresholdLow = (long) Math.ceil(
-                                nodeTotalBytes * diskThresholdSettings.getFreeDiskThresholdLow() * 0.01
-                            );
-                        } else {
-                            freeBytesThresholdLow = diskThresholdSettings.getFreeBytesThresholdLow().getBytes();
-                        }
+                        long freeBytesThresholdLow = diskThresholdSettings.getFreeBytesThresholdLow(totalFsInfo.getTotal()).getBytes();
                         // we should make sure that allocating one copy of the index's primary shards to that node doesn't put the node
                         // above the low watermark, if not, the new shrunken index may not be initialized successfully
                         long shardsOnCurrentNodeStorageBytes = 0;

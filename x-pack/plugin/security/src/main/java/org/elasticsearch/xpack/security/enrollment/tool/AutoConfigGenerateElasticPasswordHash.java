@@ -42,10 +42,6 @@ public class AutoConfigGenerateElasticPasswordHash extends KeyStoreAwareCommand 
         super("Generates a password hash for for the elastic user and stores it in elasticsearch.keystore");
     }
 
-    public static void main(String[] args) throws Exception {
-        exit(new AutoConfigGenerateElasticPasswordHash().main(args, Terminal.DEFAULT));
-    }
-
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         final Hasher hasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(env.settings()));

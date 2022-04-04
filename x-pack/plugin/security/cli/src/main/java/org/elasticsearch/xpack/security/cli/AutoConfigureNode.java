@@ -154,11 +154,6 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         this(reconfigure, CommandLineHttpClient::new);
     }
 
-    // TODO: remove this once postinst is converted
-    public static void main(String[] args) throws Exception {
-        exit(new AutoConfigureNode(false).main(args, Terminal.DEFAULT));
-    }
-
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         final boolean inEnrollmentMode = options.has(enrollmentTokenParam);

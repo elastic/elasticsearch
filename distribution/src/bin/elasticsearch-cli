@@ -20,9 +20,11 @@ if [[ "$ES_BUNDLED_JDK" == "false" ]]; then
   echo "warning: no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release" >&2
 fi
 
-SCRIPTNAME=$(basename "$0")
-# temporary hack to force these into the launcher, but do we want to pollute env?
-export LAUNCHER_TOOLNAME=${SCRIPTNAME#"elasticsearch-"}
+if [[ -z "$LAUNCHER_TOOLNAME" ]]; then
+  SCRIPTNAME=$(basename "$0")
+  # temporary hack to force these into the launcher, but do we want to pollute env?
+  export LAUNCHER_TOOLNAME=${SCRIPTNAME#"elasticsearch-"}
+fi
 export LAUNCHER_LIBS
 
 # TODO: move this to launcher
@@ -97,6 +99,7 @@ fi
 exec \
     "$JAVA" \
     $LAUNCHER_JAVA_OPTS \
+    -Dcli.toolname="$LAUNCHER_TOOLNAME"
     -Des.path.home="$ES_HOME" \
     -Des.path.conf="$ES_PATH_CONF" \
     -Des.distribution.flavor="$ES_DISTRIBUTION_FLAVOR" \

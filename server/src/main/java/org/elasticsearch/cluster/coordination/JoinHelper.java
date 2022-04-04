@@ -280,7 +280,7 @@ public class JoinHelper {
                     // fast enough and will be kicked out of the cluster for lagging, which can happen repeatedly and be a little
                     // disruptive. To avoid this we send the join from the applier thread which ensures that it's not busy doing something
                     // else.
-                    pendingJoinInfo.message = "waiting for local cluster applier";
+                    pendingJoinInfo.message = PENDING_JOIN_WAITING_APPLIER;
                     clusterApplier.onNewClusterState(
                         "joining " + destination.descriptionWithoutAttributes(),
                         () -> null,
@@ -500,6 +500,7 @@ public class JoinHelper {
 
     static final String PENDING_JOIN_INITIALIZING = "initializing";
     static final String PENDING_JOIN_CONNECTING = "waiting to connect";
+    static final String PENDING_JOIN_WAITING_APPLIER = "waiting for local cluster applier";
     static final String PENDING_JOIN_WAITING_RESPONSE = "waiting for response";
     static final String PENDING_JOIN_WAITING_STATE = "waiting to receive cluster state";
     static final String PENDING_JOIN_CONNECT_FAILED = "failed to connect";

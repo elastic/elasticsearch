@@ -1,6 +1,6 @@
 #!/bin/bash
 
-export LAUNCHER_JAVA_OPTS="--add-opens java.base/sun.security.provider=ALL-UNNAMED"
-export LAUNCHER_LIBS=lib/tools/plugin-cli
-export LAUNCHER_TOOLNAME=plugin
-exec "`dirname "$0"`"/elasticsearch-cli "$@"
+LAUNCHER_JAVA_OPTS="--add-opens java.base/sun.security.provider=ALL-UNNAMED"
+LAUNCHER_LIBS=lib/tools/plugin-cli
+LAUNCHER_TOOLNAME=plugin
+source "`dirname "$0"`"/elasticsearch-cli

@@ -37,6 +37,8 @@ cd $ES_HOME
 if [ ! -z "$ES_JAVA_HOME" ]; then
   JAVA="$ES_JAVA_HOME/bin/java"
   JAVA_TYPE="ES_JAVA_HOME"
+
+  "$JAVA" -cp "$ES_HOME/tools/java_version_checker/*" org.elasticsearch.tools.java_version_checker.JavaVersionChecker
 else
   # use the bundled JDK (default)
   if [ "$(uname -s)" = "Darwin" ]; then
@@ -69,6 +71,10 @@ ES_DISTRIBUTION_FLAVOR=@es.distribution.flavor@
 ES_DISTRIBUTION_TYPE=@es.distribution.type@
 ES_BUNDLED_JDK=@es.bundled_jdk@
 LAUNCHER_CLASSPATH=$ES_HOME/lib/*:$ES_HOME/lib/launcher/*
+
+# temporary hack to force these into the launcher, but do we want to pollute env?
+export LAUNCHER_TOOLNAME
+export LAUNCHER_LIBS
 
 exec \
     "$JAVA" \

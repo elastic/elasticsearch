@@ -6,12 +6,23 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.launcher;
+package org.elasticsearch.tools.java_version_checker;
 
+import java.util.Arrays;
 import java.util.Locale;
 
-class Launcher {
+/**
+ * Java 7 compatible main which exits with an error.
+ */
+final class JavaVersionChecker {
+
+    private JavaVersionChecker() {}
+
     public static void main(String[] args) {
+        // no leniency!
+        if (args.length != 0) {
+            throw new IllegalArgumentException("expected zero arguments but was " + Arrays.toString(args));
+        }
         final String message = String.format(
             Locale.ROOT,
             "The minimum required Java version is 17; your Java version %s from [%s] does not meet that requirement.",

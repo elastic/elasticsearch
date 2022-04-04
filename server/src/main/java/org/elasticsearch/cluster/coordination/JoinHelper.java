@@ -298,7 +298,6 @@ public class JoinHelper {
                                 attempt.logNow();
                                 lastFailedJoinAttempt.set(attempt);
                                 unregisterAndReleaseConnection(destination, connectionReference);
-                                pendingJoinInfo.message = PENDING_JOIN_FAILED;
                             }
                         }
                     );

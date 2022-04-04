@@ -30,7 +30,6 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -228,7 +227,6 @@ public class JoinValidationServiceTests extends ESTestCase {
         }
     }
 
-    @TestLogging(reason = "nocommit", value = "org.elasticsearch:TRACE")
     public void testJoinValidationRejectsUnreadableClusterState() {
 
         class BadCustom implements SimpleDiffable<ClusterState.Custom>, ClusterState.Custom {

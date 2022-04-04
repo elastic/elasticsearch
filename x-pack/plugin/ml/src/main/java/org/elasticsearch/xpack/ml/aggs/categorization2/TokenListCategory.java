@@ -19,7 +19,10 @@ import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.apache.lucene.util.RamUsageEstimator.sizeOfCollection;
+import static org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
+import static org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF;
+import static org.apache.lucene.util.RamUsageEstimator.alignObjectSize;
+import static org.apache.lucene.util.RamUsageEstimator.shallowSizeOf;
 
 /**
  * Port of the C++ class <a href="https://github.com/elastic/ml-cpp/blob/main/include/model/CTokenListCategory.h">
@@ -105,6 +108,8 @@ public class TokenListCategory implements Accountable {
      */
     private List<InternalAggregations> subAggs = List.of();
 
+    private long cachedListSizeInBytes;
+
     /**
      * Create a new category.
      * @param id Locally unique category ID. This will not be unique across the cluster, but may assist an owning container class in
@@ -162,6 +167,7 @@ public class TokenListCategory implements Accountable {
                 + baseUnfilteredLength
                 + ", for a category with a single match";
         this.numMatches = numMatches;
+        cacheListSize();
     }
 
     public TokenListCategory(int id, SerializableTokenListCategory serializable, CategorizationBytesRefHash bytesRefHash) {
@@ -190,6 +196,7 @@ public class TokenListCategory implements Accountable {
         this.commonUniqueTokenWeight = commonUniqueTokenIds.stream().mapToInt(TokenAndWeight::getWeight).sum();
         this.origUniqueTokenWeight = serializable.origUniqueTokenWeight;
         this.numMatches = serializable.numMatches;
+        cacheListSize();
     }
 
     public void addString(
@@ -250,6 +257,7 @@ public class TokenListCategory implements Accountable {
      */
     private void updateCommonUniqueTokenIds(List<TokenAndWeight> newUniqueTokenIds) {
 
+        boolean changed = false;
         int commonIndex = 0;
         int newIndex = 0;
 
@@ -258,6 +266,7 @@ public class TokenListCategory implements Accountable {
             if (newIndex >= newUniqueTokenIds.size() || commonTokenAndWeight.getTokenId() < newUniqueTokenIds.get(newIndex).getTokenId()) {
                 commonUniqueTokenWeight -= commonTokenAndWeight.getWeight();
                 commonUniqueTokenIds.remove(commonIndex);
+                changed = true;
             } else {
                 TokenAndWeight newTokenAndWeight = newUniqueTokenIds.get(newIndex);
                 if (commonTokenAndWeight.getTokenId() == newTokenAndWeight.getTokenId()) {
@@ -266,10 +275,14 @@ public class TokenListCategory implements Accountable {
                     } else {
                         commonUniqueTokenWeight -= commonTokenAndWeight.getWeight();
                         commonUniqueTokenIds.remove(commonIndex);
+                        changed = true;
                     }
                 }
                 ++newIndex;
             }
+        }
+        if (changed) {
+            cacheListSize();
         }
     }
 
@@ -556,19 +569,24 @@ public class TokenListCategory implements Accountable {
 
     /**
      * @param uniqueTokenIds <em>Must</em> be sorted!
+     * @return Is every common unique token for this category present with the same weight in the supplied {@code uniqueTokenIds}?
      */
     public boolean isMissingCommonTokenWeightZero(List<TokenAndWeight> uniqueTokenIds) {
 
+        int uniqueTokenIdsSize = uniqueTokenIds.size();
         int testIndex = 0;
         for (TokenAndWeight commonTokenAndWeight : commonUniqueTokenIds) {
-            while (testIndex < uniqueTokenIds.size() && uniqueTokenIds.get(testIndex).getTokenId() < commonTokenAndWeight.getTokenId()) {
-                ++testIndex;
-            }
-            if (testIndex >= uniqueTokenIds.size()) {
+            if (testIndex >= uniqueTokenIdsSize) {
                 return false;
             }
-            if (uniqueTokenIds.get(testIndex).getTokenId() != commonTokenAndWeight.getTokenId()
-                || uniqueTokenIds.get(testIndex).getWeight() != commonTokenAndWeight.getWeight()) {
+            TokenAndWeight testTokenAndWeight;
+            while ((testTokenAndWeight = uniqueTokenIds.get(testIndex)).getTokenId() < commonTokenAndWeight.getTokenId()) {
+                if (++testIndex >= uniqueTokenIdsSize) {
+                    return false;
+                }
+            }
+            if (testTokenAndWeight.getTokenId() != commonTokenAndWeight.getTokenId()
+                || testTokenAndWeight.getWeight() != commonTokenAndWeight.getWeight()) {
                 return false;
             }
             ++testIndex;
@@ -604,8 +622,19 @@ public class TokenListCategory implements Accountable {
 
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE + sizeOfCollection(baseWeightedTokenIds) + sizeOfCollection(commonUniqueTokenIds);
+        // It's too expensive to calculate this using Lucene's RamUsageEstimator.sizeOfCollection() method, which
+        // is very slow. Therefore, we cache the variable part of the calculation.
+        return SHALLOW_SIZE + cachedListSizeInBytes;
         // TODO: should subAggs be included, or are nested aggregations accounted for separately?
+    }
+
+    private void cacheListSize() {
+        // This is the equivalent of adding up the results of Lucene's RamUsageEstimator.sizeOfCollection()
+        // method called for baseWeightedTokenIds and commonUniqueTokenIds.
+        cachedListSizeInBytes = alignObjectSize(
+            shallowSizeOf(baseWeightedTokenIds) + shallowSizeOf(commonUniqueTokenIds) + 2L * NUM_BYTES_ARRAY_HEADER + (baseWeightedTokenIds
+                .size() + commonUniqueTokenIds.size()) * (TokenAndWeight.SHALLOW_SIZE + NUM_BYTES_OBJECT_REF)
+        );
     }
 
     @Override

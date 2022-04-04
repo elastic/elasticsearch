@@ -25,15 +25,16 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.PriorityQueue;
+import java.util.SortedMap;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
 
-import static org.apache.lucene.util.RamUsageEstimator.sizeOfCollection;
+import static org.apache.lucene.util.RamUsageEstimator.shallowSizeOf;
 import static org.elasticsearch.xpack.ml.aggs.categorization2.CategorizeTextAggregationBuilder.MAX_MAX_MATCHED_TOKENS;
 
 /**
  * Port of the C++ class <a href="https://github.com/elastic/ml-cpp/blob/main/include/model/CTokenListDataCategorizerBase.h">
  * <code>CTokenListDataCategorizerBase</code></a> and parts of its base class and derived class.
+ * This class is <em>not</em> thread safe, and each instance of it must only be used from one thread.
  */
 public class TokenListCategorizer implements Accountable {
 
@@ -64,6 +65,8 @@ public class TokenListCategorizer implements Accountable {
      * possible.
      */
     private final List<TokenListCategory> categoriesByNumMatches;
+    private long categoriesByNumMatchesShallowSize;
+    private long categoriesByNumMatchesCategoriesSize;
 
     public TokenListCategorizer(
         CategorizationBytesRefHash bytesRefHash,
@@ -80,6 +83,7 @@ public class TokenListCategorizer implements Accountable {
         this.lowerThreshold = threshold;
         this.upperThreshold = (1.0f + threshold) / 2.0f;
         this.categoriesByNumMatches = new ArrayList<>();
+        this.categoriesByNumMatchesShallowSize = shallowSizeOf(categoriesByNumMatches);
     }
 
     public TokenListCategory computeCategory(TokenStream ts, int unfilteredStringLen, long numDocs) throws IOException {
@@ -109,13 +113,24 @@ public class TokenListCategorizer implements Accountable {
     public synchronized TokenListCategory computeCategory(List<TokenAndWeight> weightedTokenIds, int unfilteredStringLen, long numDocs) {
 
         // First set up the data structures based on the weighted tokenized string.
-        List<TokenAndWeight> workTokenUniqueIds = weightedTokenIds.stream()
-            .collect(Collectors.groupingBy(TokenAndWeight::getTokenId, TreeMap::new, Collectors.summingInt(TokenAndWeight::getWeight)))
-            .entrySet()
-            .stream()
-            .map(entry -> new TokenAndWeight(entry.getKey(), entry.getValue()))
-            .collect(Collectors.toList());
-        int workWeight = weightedTokenIds.stream().mapToInt(TokenAndWeight::getWeight).sum();
+        // Although this can be done using stream() and collect() with a grouping
+        // collector, profiling shows it's faster to use a handcrafted loop.
+        int workWeight = 0;
+        SortedMap<Integer, TokenAndWeight> groupingMap = new TreeMap<>();
+        for (TokenAndWeight weightedTokenId : weightedTokenIds) {
+            int tokenId = weightedTokenId.getTokenId();
+            int weight = weightedTokenId.getWeight();
+            workWeight += weight;
+            // There's a tradeoff here: the map value duplicates the map key. But
+            // this means that in the case where a token only occurs once we can
+            // reuse the original TokenAndWeight object instead of creating a new
+            // one. The downside is that if a token occurs many times we repeatedly
+            // create new objects here. But experience suggests that tokens that
+            // only occur once generally outnumber repeated tokens, so it's faster
+            // on balance.
+            groupingMap.compute(tokenId, (k, v) -> ((v == null) ? weightedTokenId : new TokenAndWeight(tokenId, v.getWeight() + weight)));
+        }
+        List<TokenAndWeight> workTokenUniqueIds = new ArrayList<>(groupingMap.values());
 
         return computeCategory(weightedTokenIds, workTokenUniqueIds, workWeight, unfilteredStringLen, unfilteredStringLen, numDocs);
     }
@@ -223,12 +238,16 @@ public class TokenListCategorizer implements Accountable {
             numDocs
         );
         categoriesByNumMatches.add(newCategory);
+        categoriesByNumMatchesShallowSize = shallowSizeOf(categoriesByNumMatches);
+        categoriesByNumMatchesCategoriesSize += newCategory.ramBytesUsed();
         return repositionCategory(newCategory, newIndex);
     }
 
     @Override
     public long ramBytesUsed() {
-        return SHALLOW_SIZE + sizeOfCollection(categoriesByNumMatches);
+        // It's too expensive to calculate this on the fly. Lucene's RamUsageEstimator.sizeOfCollection()
+        // method is very slow. Therefore, we have to maintain running counts of the memory usage.
+        return SHALLOW_SIZE + categoriesByNumMatchesShallowSize + categoriesByNumMatchesCategoriesSize;
     }
 
     public int getCategoryCount() {
@@ -243,7 +262,9 @@ public class TokenListCategorizer implements Accountable {
         int matchIndex
     ) {
         TokenListCategory category = categoriesByNumMatches.get(matchIndex);
+        long previousSize = category.ramBytesUsed();
         category.addString(unfilteredLength, weightedTokenIds, uniqueTokenIds, numDocs);
+        categoriesByNumMatchesCategoriesSize += (category.ramBytesUsed() - previousSize);
         if (numDocs == 1) {
             // If we're just incrementing a count by 1 (likely during initial per-shard categorization),
             // then we can keep the list sorted with a single swap operation instead of a full sort

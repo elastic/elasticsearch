@@ -6,14 +6,9 @@
  * Side Public License, v 1.
  */
 
-apply plugin: 'elasticsearch.build'
+package org.elasticsearch.cluster.coordination;
 
-archivesBaseName = 'elasticsearch-geoip-cli'
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.core.TimeValue;
 
-dependencies {
-  compileOnly project(":server")
-  compileOnly project(":libs:elasticsearch-cli")
-  compileOnly project(":libs:elasticsearch-x-content")
-  testImplementation project(":test:framework")
-  testImplementation "org.apache.commons:commons-compress:1.21"
-}
+public record JoinStatus(DiscoveryNode remoteNode, long term, String message, TimeValue age) {}

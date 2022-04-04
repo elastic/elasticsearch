@@ -21,10 +21,14 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Properties;
 import java.util.ServiceLoader;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -41,9 +45,13 @@ class Launcher {
 
     // TODO: don't throw, catch this and give a nice error message
     public static void main(String[] args) throws Exception {
+        // TODO: change signature of Command to take in sysprops and env
+        Map<String, String> sysprops = convertPropertiesToMap(System.getProperties());
+        Map<String, String> env = new HashMap<>(System.getenv());
+
         Path homeDir = Paths.get("").toAbsolutePath();
-        String toolname = System.getenv("LAUNCHER_TOOLNAME");
-        String libs = System.getenv("LAUNCHER_LIBS");
+        String toolname = env.get("LAUNCHER_TOOLNAME");
+        String libs = env.get("LAUNCHER_LIBS");
 
         System.out.println("Running ES cli");
         System.out.println("ES_HOME=" + homeDir);
@@ -60,6 +68,11 @@ class Launcher {
             .findFirst().orElseThrow();
         Command toolCommand = tool.create();
         System.exit(toolCommand.main(args, Terminal.DEFAULT));
+    }
+
+    private static Map<String, String> convertPropertiesToMap(Properties properties) {
+        return properties.entrySet().stream().collect(
+            Collectors.toMap(e -> e.getKey().toString(), e -> e.getValue().toString()));
     }
 
     private static ClassLoader loadJars(List<Path> dirs) throws IOException {

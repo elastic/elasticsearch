@@ -55,7 +55,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Function;
-
 import javax.net.ssl.SSLException;
 
 import static java.util.Arrays.asList;
@@ -122,10 +121,6 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
 
     protected InteractiveSetup newInteractiveSetup() {
         return new InteractiveSetup();
-    }
-
-    public static void main(String[] args) throws Exception {
-        exit(new SetupPasswordTool().main(args, Terminal.DEFAULT));
     }
 
     // Visible for testing

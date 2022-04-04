@@ -145,10 +145,6 @@ public class CertificateTool extends LoggingAwareMultiCommand {
         }
     }
 
-    public static void main(String[] args) throws Exception {
-        exit(new CertificateTool().main(args, Terminal.DEFAULT));
-    }
-
     CertificateTool() {
         super(DESCRIPTION);
         subcommands.put("csr", new SigningRequestCommand());

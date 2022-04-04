@@ -159,10 +159,6 @@ public class CertificateGenerateTool extends EnvironmentAwareCommand {
             .withOptionalArg();
     }
 
-    public static void main(String[] args) throws Exception {
-        exit(new CertificateGenerateTool().main(args, Terminal.DEFAULT));
-    }
-
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         final boolean csrOnly = options.has(csrSpec);

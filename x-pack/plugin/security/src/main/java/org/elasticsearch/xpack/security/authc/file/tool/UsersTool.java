@@ -45,10 +45,6 @@ import java.util.stream.Collectors;
 
 public class UsersTool extends LoggingAwareMultiCommand {
 
-    public static void main(String[] args) throws Exception {
-        exit(new UsersTool().main(args, Terminal.DEFAULT));
-    }
-
     UsersTool() {
         super("Manages elasticsearch file users");
         subcommands.put("useradd", newAddUserCommand());

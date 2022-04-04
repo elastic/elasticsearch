@@ -46,10 +46,6 @@ public class ResetPasswordTool extends BaseRunAsSuperuserCommand {
         this(CommandLineHttpClient::new, environment -> KeyStoreWrapper.load(environment.configFile()));
     }
 
-    public static void main(String[] args) throws Exception {
-        exit(new ResetPasswordTool().main(args, Terminal.DEFAULT));
-    }
-
     protected ResetPasswordTool(
         Function<Environment, CommandLineHttpClient> clientFunction,
         CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction

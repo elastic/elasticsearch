@@ -49,14 +49,6 @@ public class SystemKeyTool extends EnvironmentAwareCommand {
         PosixFilePermission.OWNER_WRITE
     );
 
-    public static void main(String[] args) throws Exception {
-        final SystemKeyTool tool = new SystemKeyTool();
-        int status = main(tool, args, Terminal.DEFAULT);
-        if (status != ExitCodes.OK) {
-            exit(status);
-        }
-    }
-
     static int main(SystemKeyTool tool, String[] args, Terminal terminal) throws Exception {
         return tool.main(args, terminal);
     }

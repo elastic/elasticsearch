@@ -90,10 +90,6 @@ public class SamlMetadataCommand extends KeyStoreAwareCommand {
     private final CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction;
     private KeyStoreWrapper keyStoreWrapper;
 
-    public static void main(String[] args) throws Exception {
-        exit(new SamlMetadataCommand().main(args, Terminal.DEFAULT));
-    }
-
     public SamlMetadataCommand() {
         this((environment) -> {
             KeyStoreWrapper ksWrapper = KeyStoreWrapper.load(environment.configFile());

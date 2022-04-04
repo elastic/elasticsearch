@@ -55,10 +55,6 @@ public class CreateEnrollmentTokenTool extends BaseRunAsSuperuserCommand {
             .required();
     }
 
-    public static void main(String[] args) throws Exception {
-        exit(new CreateEnrollmentTokenTool().main(args, Terminal.DEFAULT));
-    }
-
     @Override
     protected void validate(Terminal terminal, OptionSet options, Environment env) throws Exception {
         if (XPackSettings.ENROLLMENT_ENABLED.get(env.settings()) == false) {

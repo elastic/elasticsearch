@@ -59,13 +59,19 @@ class Launcher {
         System.out.println("libs: " + libs);
         System.out.println("args: " + Arrays.asList(args));
 
-        List<Path> libsToLoad = Stream.of(libs.split(",")).map(homeDir::resolve).toList();
-
-        ClassLoader cliLoader = loadJars(libsToLoad);
+        final ClassLoader cliLoader;
+        if (libs != null) {
+            List<Path> libsToLoad = Stream.of(libs.split(",")).map(homeDir::resolve).toList();
+            cliLoader = loadJars(libsToLoad);
+        } else {
+            cliLoader = ClassLoader.getSystemClassLoader();
+        }
         ServiceLoader<ToolProvider> toolFinder = ServiceLoader.load(ToolProvider.class, cliLoader);
+        // TODO: assert only one tool is found?
         ToolProvider tool = StreamSupport.stream(toolFinder.spliterator(), false)
             .filter(p -> p.name().equals(toolname))
-            .findFirst().orElseThrow();
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("ToolProvider [" + toolname + "] not found"));
         Command toolCommand = tool.create();
         System.exit(toolCommand.main(args, Terminal.DEFAULT));
     }

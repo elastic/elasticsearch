@@ -7,7 +7,6 @@
  */
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.cli.LoggingAwareMultiCommand;
 
 /**
@@ -15,13 +14,8 @@ import org.elasticsearch.common.cli.LoggingAwareMultiCommand;
  */
 public class ShardToolCli extends LoggingAwareMultiCommand {
 
-    private ShardToolCli() {
+    ShardToolCli() {
         super("A CLI tool to remove corrupted parts of unrecoverable shards");
         subcommands.put("remove-corrupted-data", new RemoveCorruptedShardDataCommand());
     }
-
-    public static void main(String[] args) throws Exception {
-        exit(new ShardToolCli().main(args, Terminal.DEFAULT));
-    }
-
 }

@@ -218,7 +218,7 @@ public class NodeEnvironmentIT extends ESIntegTestCase {
         }
 
         // simulate a frozen node with a shared cache file
-        if (randomBoolean()) {
+        if (rarely()) {
             final Path randomDataPath = randomFrom(dataPaths);
             final Path sharedCache = randomDataPath.resolve("nodes").resolve("0").resolve(SEARCHABLE_SHARED_CACHE_FILE);
             Files.createFile(sharedCache);

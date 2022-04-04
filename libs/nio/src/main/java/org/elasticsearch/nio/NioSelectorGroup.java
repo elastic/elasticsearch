@@ -19,7 +19,6 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -136,15 +135,14 @@ public class NioSelectorGroup implements NioGroup {
     @Override
     public void close() throws IOException {
         if (isOpen.compareAndSet(true, false)) {
-            List<NioSelector> toClose = Stream.concat(dedicatedAcceptors.stream(), selectors.stream()).collect(Collectors.toList());
             List<IOException> closingExceptions = new ArrayList<>();
-            for (NioSelector selector : toClose) {
+            Stream.concat(dedicatedAcceptors.stream(), selectors.stream()).forEach(selector -> {
                 try {
                     selector.close();
                 } catch (IOException e) {
                     closingExceptions.add(e);
                 }
-            }
+            });
             ExceptionsHelper.rethrowAndSuppress(closingExceptions);
         }
     }

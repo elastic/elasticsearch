@@ -273,7 +273,7 @@ public final class DestinationIndex {
         assert getIndexResponse.indices().length == 1;
 
         // Fetch mappings from destination index
-        Map<String, Object> destMappingsAsMap = getIndexResponse.mappings().valuesIt().next().sourceAsMap();
+        Map<String, Object> destMappingsAsMap = getIndexResponse.mappings().values().iterator().next().sourceAsMap();
         Map<String, Object> destPropertiesAsMap = (Map<String, Object>) destMappingsAsMap.getOrDefault(PROPERTIES, Collections.emptyMap());
 
         // Verify that the results field does not exist in the dest index

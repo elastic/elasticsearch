@@ -69,14 +69,19 @@ public class GceInstancesServiceImpl implements GceInstancesService {
             try {
                 // hack around code messiness in GCE code
                 // TODO: get this fixed
-                InstanceList instanceList = Access.doPrivilegedIOException(() -> {
-                    Compute.Instances.List list = client().instances().list(project, zoneId);
-                    return list.execute();
+                return Access.doPrivilegedIOException(() -> {
+                    String nextPageToken = null;
+                    List<Instance> zoneInstances = new ArrayList<>();
+                    do {
+                        Compute.Instances.List list = client().instances().list(project, zoneId).setPageToken(nextPageToken);
+                        InstanceList instanceList = list.execute();
+                        nextPageToken = instanceList.getNextPageToken();
+                        if (instanceList.isEmpty() == false && instanceList.getItems() != null) {
+                            zoneInstances.addAll(instanceList.getItems());
+                        }
+                    } while (nextPageToken != null);
+                    return zoneInstances;
                 });
-                // assist type inference
-                return instanceList.isEmpty() || instanceList.getItems() == null
-                    ? Collections.<Instance>emptyList()
-                    : instanceList.getItems();
             } catch (IOException e) {
                 logger.warn((Supplier<?>) () -> new ParameterizedMessage("Problem fetching instance list for zone {}", zoneId), e);
                 logger.debug("Full exception:", e);

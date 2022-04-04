@@ -27,8 +27,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
-import org.elasticsearch.test.AbstractDiffableWireSerializationTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.SimpleDiffableWireSerializationTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -47,7 +47,7 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
-public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireSerializationTestCase<Custom> {
+public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSerializationTestCase<Custom> {
 
     @Override
     protected Custom createTestInstance() {
@@ -72,10 +72,7 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
         long startTime = randomLong();
         long repositoryStateId = randomLong();
         ImmutableOpenMap.Builder<ShardId, SnapshotsInProgress.ShardSnapshotStatus> builder = ImmutableOpenMap.builder();
-        final List<Index> esIndices = indices.keySet()
-            .stream()
-            .map(i -> new Index(i, randomAlphaOfLength(10)))
-            .collect(Collectors.toList());
+        final List<Index> esIndices = indices.keySet().stream().map(i -> new Index(i, randomAlphaOfLength(10))).toList();
         List<String> dataStreams = Arrays.asList(generateRandomStringArray(10, 10, false));
         for (Index idx : esIndices) {
             int shardsCount = randomIntBetween(1, 10);
@@ -230,8 +227,7 @@ public class SnapshotsInProgressSerializationTests extends AbstractDiffableWireS
                 );
             }
             case 2 -> {
-                List<String> dataStreams = Stream.concat(entry.dataStreams().stream(), Stream.of(randomAlphaOfLength(10)))
-                    .collect(Collectors.toList());
+                List<String> dataStreams = Stream.concat(entry.dataStreams().stream(), Stream.of(randomAlphaOfLength(10))).toList();
                 return new Entry(
                     entry.snapshot(),
                     entry.includeGlobalState(),

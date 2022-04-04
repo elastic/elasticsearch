@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -263,7 +264,10 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
         Map<String, String> validAttributes = new HashMap<>();
         for (int i = 0; i < numAttrs; i++) {
             validAttributes.put(
-                randomValueOtherThanMany(validAttributes::containsKey, () -> randomAlphaOfLengthBetween(1, 20)),
+                randomValueOtherThanMany(
+                    attr -> validAttributes.containsKey(attr) || DiscoveryNodeRole.roleNames().contains(attr),
+                    () -> randomAlphaOfLengthBetween(1, 20)
+                ),
                 randomAlphaOfLengthBetween(1, 20)
             );
         }

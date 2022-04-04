@@ -142,7 +142,7 @@ public class PreviewDataFrameAnalyticsAction extends ActionType<PreviewDataFrame
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeCollection(featureValues, StreamOutput::writeMap);
+            out.writeCollection(featureValues, StreamOutput::writeGenericMap);
         }
 
         @Override

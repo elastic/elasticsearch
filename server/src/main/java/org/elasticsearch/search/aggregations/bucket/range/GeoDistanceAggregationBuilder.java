@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -192,7 +193,7 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
                 } else if (TO_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     to = parser.doubleValue();
                 } else {
-                    XContentParserUtils.throwUnknownField(currentFieldName, parser.getTokenLocation());
+                    XContentParserUtils.throwUnknownField(currentFieldName, parser);
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 if (KEY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -202,7 +203,7 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
                 } else if (TO_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     toAsStr = parser.text();
                 } else {
-                    XContentParserUtils.throwUnknownField(currentFieldName, parser.getTokenLocation());
+                    XContentParserUtils.throwUnknownField(currentFieldName, parser);
                 }
             } else if (token == XContentParser.Token.VALUE_NULL) {
                 if (FROM_FIELD.match(currentFieldName, parser.getDeprecationHandler())
@@ -210,10 +211,10 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
                     || KEY_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     // ignore null value
                 } else {
-                    XContentParserUtils.throwUnknownField(currentFieldName, parser.getTokenLocation());
+                    XContentParserUtils.throwUnknownField(currentFieldName, parser);
                 }
             } else {
-                XContentParserUtils.throwUnknownToken(token, parser.getTokenLocation());
+                XContentParserUtils.throwUnknownToken(token, parser);
             }
         }
         if (fromAsStr != null || toAsStr != null) {
@@ -263,6 +264,11 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
         keyed = in.readBoolean();
         distanceType = GeoDistance.readFromStream(in);
         unit = DistanceUnit.readFromStream(in);
+    }
+
+    @Override
+    public boolean supportsSampling() {
+        return true;
     }
 
     // for parsing
@@ -496,6 +502,11 @@ public class GeoDistanceAggregationBuilder extends ValuesSourceAggregationBuilde
             && Objects.equals(keyed, other.keyed)
             && Objects.equals(distanceType, other.distanceType)
             && Objects.equals(unit, other.unit);
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 
 }

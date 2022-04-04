@@ -153,8 +153,8 @@ public class RestSqlCancellationIT extends AbstractSqlBlockingIntegTestCase {
 
         assertBusy(() -> {
             for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
-                if (transportService.getLocalNode().getId().equals(blockedTaskInfo.getTaskId().getNodeId())) {
-                    Task task = transportService.getTaskManager().getTask(blockedTaskInfo.getId());
+                if (transportService.getLocalNode().getId().equals(blockedTaskInfo.taskId().getNodeId())) {
+                    Task task = transportService.getTaskManager().getTask(blockedTaskInfo.id());
                     if (task != null) {
                         assertThat(task, instanceOf(SqlQueryTask.class));
                         SqlQueryTask sqlSearchTask = (SqlQueryTask) task;

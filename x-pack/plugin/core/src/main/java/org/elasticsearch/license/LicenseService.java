@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -25,6 +26,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
@@ -74,7 +76,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
 
     public static final Setting<List<License.LicenseType>> ALLOWED_LICENSE_TYPES_SETTING = Setting.listSetting(
         "xpack.license.upload.types",
-        ALLOWABLE_UPLOAD_TYPES.stream().map(License.LicenseType::getTypeName).collect(Collectors.toUnmodifiableList()),
+        ALLOWABLE_UPLOAD_TYPES.stream().map(License.LicenseType::getTypeName).toList(),
         License.LicenseType::parse,
         LicenseService::validateUploadTypesSetting,
         Setting.Property.NodeScope
@@ -303,9 +305,14 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                         return ClusterState.builder(currentState).metadata(mdBuilder).build();
                     }
                 },
-                ClusterStateTaskExecutor.unbatched()
+                newExecutor()
             );
         }
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 
     private static boolean licenseIsCompatible(License license, Version version) {
@@ -370,7 +377,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
             "delete license",
             listener
         );
-        clusterService.submitStateUpdateTask(task.getDescription(), task, ClusterStateTaskExecutor.unbatched());
+        clusterService.submitStateUpdateTask(task.getDescription(), task, newExecutor());
     }
 
     public License getLicense() {
@@ -394,7 +401,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
             );
         }
         StartTrialClusterTask task = new StartTrialClusterTask(logger, clusterService.getClusterName().value(), clock, request, listener);
-        clusterService.submitStateUpdateTask(StartTrialClusterTask.TASK_SOURCE, task, ClusterStateTaskExecutor.unbatched());
+        clusterService.submitStateUpdateTask(StartTrialClusterTask.TASK_SOURCE, task, newExecutor());
     }
 
     void startBasicLicense(PostStartBasicRequest request, final ActionListener<PostStartBasicResponse> listener) {
@@ -406,7 +413,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
             "start basic license",
             listener
         );
-        clusterService.submitStateUpdateTask(task.getDescription(), task, ClusterStateTaskExecutor.unbatched());
+        clusterService.submitStateUpdateTask(task.getDescription(), task, newExecutor());
     }
 
     /**
@@ -419,7 +426,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         clusterService.submitStateUpdateTask(
             StartupSelfGeneratedLicenseTask.TASK_SOURCE,
             new StartupSelfGeneratedLicenseTask(settings, clock, clusterService),
-            ClusterStateTaskExecutor.unbatched()
+            newExecutor()
         );
     }
 
@@ -635,7 +642,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     }
 
     private static List<License.LicenseType> getAllowableUploadTypes() {
-        return Stream.of(License.LicenseType.values()).filter(t -> t != License.LicenseType.BASIC).collect(Collectors.toUnmodifiableList());
+        return Stream.of(License.LicenseType.values()).filter(t -> t != License.LicenseType.BASIC).toList();
     }
 
     private static void validateUploadTypesSetting(List<License.LicenseType> value) {

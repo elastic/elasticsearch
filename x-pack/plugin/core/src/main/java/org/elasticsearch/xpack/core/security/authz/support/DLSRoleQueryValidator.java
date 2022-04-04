@@ -27,6 +27,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -78,10 +79,7 @@ public final class DLSRoleQueryValidator {
     }
 
     private static boolean isTemplateQuery(BytesReference query, NamedXContentRegistry xContentRegistry) throws IOException {
-        try (
-            XContentParser parser = XContentType.JSON.xContent()
-                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, query.utf8ToString())
-        ) {
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(parserConfig(xContentRegistry), query.utf8ToString())) {
             return isTemplateQuery(parser);
         }
     }
@@ -111,10 +109,7 @@ public final class DLSRoleQueryValidator {
     }
 
     public static boolean hasStoredScript(BytesReference query, NamedXContentRegistry xContentRegistry) throws IOException {
-        try (
-            XContentParser parser = XContentType.JSON.xContent()
-                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, query.utf8ToString())
-        ) {
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(parserConfig(xContentRegistry), query.utf8ToString())) {
             if (false == isTemplateQuery(parser)) {
                 return false;
             }
@@ -161,16 +156,17 @@ public final class DLSRoleQueryValidator {
     @Nullable
     public static QueryBuilder evaluateAndVerifyRoleQuery(String query, NamedXContentRegistry xContentRegistry) throws IOException {
         if (query != null) {
-            try (
-                XContentParser parser = XContentFactory.xContent(query)
-                    .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, query)
-            ) {
+            try (XContentParser parser = XContentFactory.xContent(query).createParser(parserConfig(xContentRegistry), query)) {
                 QueryBuilder queryBuilder = AbstractQueryBuilder.parseInnerQueryBuilder(parser);
                 verifyRoleQuery(queryBuilder);
                 return queryBuilder;
             }
         }
         return null;
+    }
+
+    private static XContentParserConfiguration parserConfig(NamedXContentRegistry xContentRegistry) {
+        return XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry).withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
     }
 
     /**

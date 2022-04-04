@@ -53,7 +53,7 @@ import static org.opensaml.saml.saml2.core.NameIDType.TRANSIENT;
  */
 public class SuccessfulAuthenticationResponseMessageBuilder {
 
-    private final Logger logger = LogManager.getLogger();
+    private final Logger logger = LogManager.getLogger(SuccessfulAuthenticationResponseMessageBuilder.class);
 
     private final Clock clock;
     private final SamlIdentityProvider idp;

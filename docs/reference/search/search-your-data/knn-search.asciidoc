@@ -46,15 +46,13 @@ based on a similarity metric, the better its match.
 vector function
 
 In most cases, you'll want to use approximate kNN. Approximate kNN offers lower
-latency and better support for large datasets at the cost of slower indexing and
-reduced accuracy. However, you can configure this method for higher accuracy in
-exchange for slower searches.
+latency at the cost of slower indexing and imperfect accuracy.
 
 Exact, brute-force kNN guarantees accurate results but doesn't scale well with
-large, unfiltered datasets. With this approach, a `script_score` query must scan
-each matched document to compute the vector function, which can result in slow
-search speeds. However, you can improve latency by using the <<query-dsl,Query
-DSL>> to limit the number of matched documents passed to the function. If you
+large datasets. With this approach, a `script_score` query must scan each
+matching document to compute the vector function, which can result in slow
+search speeds. However, you can improve latency by using a <<query-dsl,query>>
+to limit the number of matching documents passed to the function. If you
 filter your data to a small subset of documents, you can get good search
 performance using this approach.
 
@@ -77,8 +75,6 @@ requires the following mapping options:
 score documents based on similarity between the query and document vector. For a
 list of available metrics, see the <<dense-vector-similarity,`similarity`>>
 parameter documentation.
-
-include::{es-repo-dir}/mapping/types/dense-vector.asciidoc[tag=dense-vector-indexing-speed]
 
 [source,console]
 ----
@@ -156,12 +152,29 @@ most similar results from each shard. The search then merges the results from
 each shard to return the global top `k` nearest neighbors.
 
 You can increase `num_candidates` for more accurate results at the cost of
-slower search speeds. A search with a high number of `num_candidates` considers
-more candidates from each shard. This takes more time, but the search has a
-higher probability of finding the true `k` top nearest neighbors.
+slower search speeds. A search with a high value for `num_candidates`
+considers more candidates from each shard. This takes more time, but the
+search has a higher probability of finding the true `k` top nearest neighbors.
 
 Similarly, you can decrease `num_candidates` for faster searches with
 potentially less accurate results.
+
+[discrete]
+[[knn-indexing-considerations]]
+==== Indexing considerations
+
+{es} shards are composed of segments, which are internal storage elements in the
+index. For approximate kNN search, {es} stores the dense vector values of each
+segment as an https://arxiv.org/abs/1603.09320[HNSW graph]. Indexing vectors for
+approximate kNN search can take substantial time because of how expensive it is
+to build these graphs. You may need to increase the client request timeout for
+index and bulk requests.
+
+<<indices-forcemerge,Force merging>> the index to a single segment can improve
+kNN search latency. With only one segment, the search needs to check a single,
+all-inclusive HNSW graph. When there are multiple segments, kNN search must
+check several smaller HNSW graphs as it searches each segment after another.
+You should only force merge an index if it is no longer being written to.
 
 [discrete]
 [[approximate-knn-limitations]]

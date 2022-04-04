@@ -84,7 +84,7 @@ public class RetryFailedAllocationTests extends ESAllocationTestCase {
             false,
             true
         );
-        clusterState = result.getClusterState();
+        clusterState = result.clusterState();
 
         assertEquals(ShardRoutingState.INITIALIZING, getReplica().state());
         clusterState = startShardsAndReroute(strategy, clusterState, getReplica());

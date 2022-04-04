@@ -133,7 +133,7 @@ public class UpdateRollupIndexPolicyStepTests extends AbstractStepTestCase<Updat
             .numberOfShards(randomIntBetween(1, 5))
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
-        String policyName = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+        String policyName = indexMetadata.getLifecyclePolicyName();
         String indexName = indexMetadata.getIndex().getName();
         UpdateRollupIndexPolicyStep step = createRandomInstance();
         step.performAction(indexMetadata, emptyClusterState(), null, new ActionListener<>() {

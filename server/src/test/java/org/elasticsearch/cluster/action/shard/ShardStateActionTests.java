@@ -173,8 +173,8 @@ public class ShardStateActionTests extends ESTestCase {
         assertThat(capturedRequests[0].request(), is(instanceOf(ShardStateAction.FailedShardEntry.class)));
         ShardStateAction.FailedShardEntry shardEntry = (ShardStateAction.FailedShardEntry) capturedRequests[0].request();
         // for the right shard
-        assertEquals(shardEntry.shardId, shardRouting.shardId());
-        assertEquals(shardEntry.allocationId, shardRouting.allocationId().getId());
+        assertEquals(shardEntry.getShardId(), shardRouting.shardId());
+        assertEquals(shardEntry.getAllocationId(), shardRouting.allocationId().getId());
         // sent to the master
         assertEquals(clusterService.state().nodes().getMasterNode().getId(), capturedRequests[0].node().getId());
 
@@ -513,7 +513,7 @@ public class ShardStateActionTests extends ESTestCase {
     private void setUpMasterRetryVerification(int numberOfRetries, AtomicInteger retries, CountDownLatch latch, LongConsumer retryLoop) {
         shardStateAction.setOnBeforeWaitForNewMasterAndRetry(() -> {
             DiscoveryNodes.Builder masterBuilder = DiscoveryNodes.builder(clusterService.state().nodes());
-            masterBuilder.masterNodeId(clusterService.state().nodes().getMasterNodes().iterator().next().value.getId());
+            masterBuilder.masterNodeId(clusterService.state().nodes().getMasterNodes().values().iterator().next().getId());
             setState(clusterService, ClusterState.builder(clusterService.state()).nodes(masterBuilder));
         });
 
@@ -555,8 +555,8 @@ public class ShardStateActionTests extends ESTestCase {
         try (StreamInput in = serialize(failedShardEntry, version).streamInput()) {
             in.setVersion(version);
             final FailedShardEntry deserialized = new FailedShardEntry(in);
-            assertThat(deserialized.shardId, equalTo(shardId));
-            assertThat(deserialized.allocationId, equalTo(allocationId));
+            assertThat(deserialized.getShardId(), equalTo(shardId));
+            assertThat(deserialized.getAllocationId(), equalTo(allocationId));
             assertThat(deserialized.primaryTerm, equalTo(primaryTerm));
             assertThat(deserialized.message, equalTo(message));
             if (failure != null) {

@@ -1,0 +1,18 @@
+---
+"cluster health basic test":
+  - skip:
+      version: "- 8.1.99"
+      reason: "health was only added in 8.2.0"
+
+  - do:
+      _internal.health: {}
+
+  - is_true: cluster_name
+  - match:   { status: "green" }
+  - match:   { components.cluster_coordination.status: "green" }
+  - match:   { components.cluster_coordination.indicators.instance_has_master.status: "green" }
+  - match:   { components.cluster_coordination.indicators.instance_has_master.summary: "Health coordinating instance has a master node." }
+  - is_true: components.cluster_coordination.indicators.instance_has_master.details.coordinating_node.node_id
+  - is_true: components.cluster_coordination.indicators.instance_has_master.details.coordinating_node.name
+  - is_true: components.cluster_coordination.indicators.instance_has_master.details.master_node.node_id
+  - is_true: components.cluster_coordination.indicators.instance_has_master.details.master_node.name

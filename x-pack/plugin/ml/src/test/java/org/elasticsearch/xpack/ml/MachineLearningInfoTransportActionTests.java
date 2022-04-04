@@ -378,20 +378,32 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
                                         5,
                                         42.0,
                                         0,
+                                        1,
+                                        2,
+                                        3,
                                         Instant.now(),
                                         Instant.now(),
                                         randomIntBetween(1, 16),
-                                        randomIntBetween(1, 16)
+                                        randomIntBetween(1, 16),
+                                        1L,
+                                        2L,
+                                        33.0
                                     ),
                                     AllocationStats.NodeStats.forStartedState(
                                         new DiscoveryNode("bar", new TransportAddress(TransportAddress.META_ADDRESS, 3), Version.CURRENT),
                                         4,
                                         50.0,
                                         0,
+                                        1,
+                                        2,
+                                        3,
                                         Instant.now(),
                                         Instant.now(),
                                         randomIntBetween(1, 16),
-                                        randomIntBetween(1, 16)
+                                        randomIntBetween(1, 16),
+                                        2L,
+                                        4L,
+                                        34.0
                                     )
                                 )
                             ).setState(AllocationState.STARTED).setAllocationStatus(new AllocationStatus(2, 2))
@@ -485,6 +497,7 @@ public class MachineLearningInfoTransportActionTests extends ESTestCase {
             assertThat(source.getValue("jobs.opened.forecasts.total"), equalTo(11));
             assertThat(source.getValue("jobs.opened.forecasts.forecasted_jobs"), equalTo(2));
 
+            // TODO error_count here???
             assertThat(source.getValue("inference.trained_models._all.count"), equalTo(4));
             assertThat(source.getValue("inference.trained_models.model_size_bytes.min"), equalTo(100.0));
             assertThat(source.getValue("inference.trained_models.model_size_bytes.max"), equalTo(300.0));

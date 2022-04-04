@@ -19,6 +19,8 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
+import org.elasticsearch.action.datastreams.CreateDataStreamAction;
+import org.elasticsearch.action.datastreams.MigrateToDataStreamAction;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.support.GroupedActionListener;
@@ -40,8 +42,6 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.core.MigrateToDataStreamAction;
-import org.elasticsearch.xpack.core.action.CreateDataStreamAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
@@ -62,6 +62,7 @@ import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.IndexAuth
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.RequestInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
+import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
@@ -129,7 +130,8 @@ public class AuthorizationService {
     private final Set<RequestInterceptor> requestInterceptors;
     private final XPackLicenseState licenseState;
     private final OperatorPrivilegesService operatorPrivilegesService;
-    private final LoadAuthorizedIndicesTimeChecker.Factory authzIndicesTimerFactory;
+    private final RestrictedIndices restrictedIndices;
+
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
 
@@ -145,23 +147,28 @@ public class AuthorizationService {
         Set<RequestInterceptor> requestInterceptors,
         XPackLicenseState licenseState,
         IndexNameExpressionResolver resolver,
-        OperatorPrivilegesService operatorPrivilegesService
+        OperatorPrivilegesService operatorPrivilegesService,
+        RestrictedIndices restrictedIndices
     ) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
+        this.restrictedIndices = restrictedIndices;
         this.indicesAndAliasesResolver = new IndicesAndAliasesResolver(settings, clusterService, resolver);
         this.authcFailureHandler = authcFailureHandler;
         this.threadContext = threadPool.getThreadContext();
         this.anonymousUser = anonymousUser;
         this.isAnonymousEnabled = AnonymousUser.isAnonymousEnabled(settings);
         this.anonymousAuthzExceptionEnabled = ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING.get(settings);
-        this.rbacEngine = new RBACEngine(settings, rolesStore);
+        this.rbacEngine = new RBACEngine(
+            settings,
+            rolesStore,
+            new LoadAuthorizedIndicesTimeChecker.Factory(logger, settings, clusterService.getClusterSettings())
+        );
         this.authorizationEngine = authorizationEngine == null ? this.rbacEngine : authorizationEngine;
         this.requestInterceptors = requestInterceptors;
         this.settings = settings;
         this.licenseState = licenseState;
         this.operatorPrivilegesService = operatorPrivilegesService;
-        this.authzIndicesTimerFactory = new LoadAuthorizedIndicesTimeChecker.Factory(logger, settings, clusterService.getClusterSettings());
     }
 
     public void checkPrivileges(
@@ -404,24 +411,15 @@ public class AuthorizationService {
             }, clusterAuthzListener::onFailure));
         } else if (isIndexAction(action)) {
             final Metadata metadata = clusterService.state().metadata();
-            final AsyncSupplier<Set<String>> authorizedIndicesSupplier = new CachingAsyncSupplier<>(authzIndicesListener -> {
-                Consumer<Collection<String>> timeChecker = authzIndicesTimerFactory.newTimer(requestInfo);
-                authzEngine.loadAuthorizedIndices(
-                    requestInfo,
-                    authzInfo,
-                    metadata.getIndicesLookup(),
-                    authzIndicesListener.map(authzIndices -> {
-                        timeChecker.accept(authzIndices);
-                        return authzIndices;
-                    })
-                );
-            });
             final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier = new CachingAsyncSupplier<>(resolvedIndicesListener -> {
-                final ResolvedIndices resolvedIndices = indicesAndAliasesResolver.tryResolveWithoutWildcards(action, request);
+                final ResolvedIndices resolvedIndices = IndicesAndAliasesResolver.tryResolveWithoutWildcards(action, request);
                 if (resolvedIndices != null) {
                     resolvedIndicesListener.onResponse(resolvedIndices);
                 } else {
-                    authorizedIndicesSupplier.getAsync(
+                    authzEngine.loadAuthorizedIndices(
+                        requestInfo,
+                        authzInfo,
+                        metadata.getIndicesLookup(),
                         ActionListener.wrap(
                             authorizedIndices -> resolvedIndicesListener.onResponse(
                                 indicesAndAliasesResolver.resolve(action, request, metadata, authorizedIndices)
@@ -706,7 +704,7 @@ public class AuthorizationService {
             for (BulkItemRequest item : request.items()) {
                 final String itemAction = getAction(item);
                 String resolvedIndex = resolvedIndexNames.computeIfAbsent(item.index(), key -> {
-                    final ResolvedIndices resolvedIndices = indicesAndAliasesResolver.resolveIndicesAndAliasesWithoutWildcards(
+                    final ResolvedIndices resolvedIndices = IndicesAndAliasesResolver.resolveIndicesAndAliasesWithoutWildcards(
                         itemAction,
                         item.request()
                     );
@@ -779,7 +777,10 @@ public class AuthorizationService {
                                     authentication,
                                     itemAction,
                                     request,
-                                    AuthorizationEngine.IndexAuthorizationResult.getFailureDescription(List.of(resolvedIndex)),
+                                    AuthorizationEngine.IndexAuthorizationResult.getFailureDescription(
+                                        List.of(resolvedIndex),
+                                        restrictedIndices
+                                    ),
                                     null
                                 )
                             );
@@ -885,7 +886,7 @@ public class AuthorizationService {
             userText = userText + " run as [" + authentication.getUser().principal() + "]";
         }
         // check for authentication by API key
-        if (authentication.isAuthenticatedWithApiKey()) {
+        if (authentication.isAuthenticatedAsApiKey()) {
             final String apiKeyId = (String) authentication.getMetadata().get(AuthenticationField.API_KEY_ID_KEY);
             assert apiKeyId != null : "api key id must be present in the metadata";
             userText = "API key id [" + apiKeyId + "] of " + userText;
@@ -966,7 +967,7 @@ public class AuthorizationService {
                     failureConsumer.accept(e);
                 }
             } else {
-                handleFailure(result.isAuditable(), result.getFailureContext(), null);
+                handleFailure(result.isAuditable(), result.getFailureContext(restrictedIndices), null);
             }
         }
 

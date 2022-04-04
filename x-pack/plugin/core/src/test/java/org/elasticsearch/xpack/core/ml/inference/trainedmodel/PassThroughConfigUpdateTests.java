@@ -31,7 +31,7 @@ public class PassThroughConfigUpdateTests extends AbstractBWCSerializationTestCa
     public void testFromMap() {
         PassThroughConfigUpdate expected = new PassThroughConfigUpdate(
             "ml-results",
-            new BertTokenizationUpdate(Tokenization.Truncate.FIRST)
+            new BertTokenizationUpdate(Tokenization.Truncate.FIRST, null)
         );
         Map<String, Object> config = new HashMap<>() {
             {
@@ -70,7 +70,7 @@ public class PassThroughConfigUpdateTests extends AbstractBWCSerializationTestCa
             new PassThroughConfig(originalConfig.getVocabularyConfig(), tokenization, originalConfig.getResultsField()),
             equalTo(
                 new PassThroughConfigUpdate.Builder().setTokenizationUpdate(
-                    createTokenizationUpdate(originalConfig.getTokenization(), truncate)
+                    createTokenizationUpdate(originalConfig.getTokenization(), truncate, null)
                 ).build().apply(originalConfig)
             )
         );
@@ -93,7 +93,7 @@ public class PassThroughConfigUpdateTests extends AbstractBWCSerializationTestCa
             builder.setResultsField(randomAlphaOfLength(8));
         }
         if (randomBoolean()) {
-            builder.setTokenizationUpdate(new BertTokenizationUpdate(randomFrom(Tokenization.Truncate.values())));
+            builder.setTokenizationUpdate(new BertTokenizationUpdate(randomFrom(Tokenization.Truncate.values()), null));
         }
         return builder.build();
     }

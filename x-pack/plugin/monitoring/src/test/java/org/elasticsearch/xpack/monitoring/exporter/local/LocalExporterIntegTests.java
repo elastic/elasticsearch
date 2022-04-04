@@ -234,7 +234,7 @@ public class LocalExporterIntegTests extends LocalExporterIntegTestCase {
                     assertTrue(bucket.getDocCount() >= 1L);
 
                     Max subAggregation = bucket.getAggregations().get("agg_last_time_collected");
-                    ZonedDateTime lastCollection = Instant.ofEpochMilli(Math.round(subAggregation.getValue())).atZone(ZoneOffset.UTC);
+                    ZonedDateTime lastCollection = Instant.ofEpochMilli(Math.round(subAggregation.value())).atZone(ZoneOffset.UTC);
                     assertTrue(lastCollection.plusSeconds(elapsedInSeconds).isBefore(ZonedDateTime.now(ZoneOffset.UTC)));
                 }
             } else {

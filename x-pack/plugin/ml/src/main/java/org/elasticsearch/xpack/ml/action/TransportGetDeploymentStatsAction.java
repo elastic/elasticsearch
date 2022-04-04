@@ -143,7 +143,6 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
             ClusterState latestState = clusterService.state();
             Set<String> nodesShuttingDown = TransportStartTrainedModelDeploymentAction.nodesShuttingDown(latestState);
             List<DiscoveryNode> nodes = latestState.getNodes()
-                .getAllNodes()
                 .stream()
                 .filter(d -> nodesShuttingDown.contains(d.getId()) == false)
                 .filter(StartTrainedModelDeploymentAction.TaskParams::mayAllocateToNode)
@@ -293,17 +292,23 @@ public class TransportGetDeploymentStatsAction extends TransportTasksAction<
         List<AllocationStats.NodeStats> nodeStats = new ArrayList<>();
 
         if (stats.isPresent()) {
+            var presentValue = stats.get();
             nodeStats.add(
                 AllocationStats.NodeStats.forStartedState(
                     clusterService.localNode(),
-                    stats.get().timingStats().getCount(),
-                    // avoid reporting the average time as 0 if count < 1
-                    (stats.get().timingStats().getCount() > 0) ? stats.get().timingStats().getAverage() : null,
-                    stats.get().pendingCount(),
-                    stats.get().lastUsed(),
-                    stats.get().startTime(),
-                    stats.get().inferenceThreads(),
-                    stats.get().modelThreads()
+                    presentValue.timingStats().getCount(),
+                    presentValue.timingStats().getAverage(),
+                    presentValue.pendingCount(),
+                    presentValue.errorCount(),
+                    presentValue.rejectedExecutionCount(),
+                    presentValue.timeoutCount(),
+                    presentValue.lastUsed(),
+                    presentValue.startTime(),
+                    presentValue.inferenceThreads(),
+                    presentValue.modelThreads(),
+                    presentValue.peakThroughput(),
+                    presentValue.throughputLastPeriod(),
+                    presentValue.avgInferenceTimeLastPeriod()
                 )
             );
         } else {

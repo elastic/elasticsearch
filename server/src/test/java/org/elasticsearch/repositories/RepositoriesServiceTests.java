@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -31,6 +30,7 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
@@ -44,6 +44,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -65,7 +66,9 @@ public class RepositoriesServiceTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
         final TransportService transportService = new TransportService(
             Settings.EMPTY,
             mock(Transport.class),
@@ -93,7 +96,8 @@ public class RepositoriesServiceTests extends ESTestCase {
             transportService,
             typesRegistry,
             typesRegistry,
-            threadPool
+            threadPool,
+            List.of()
         );
         repositoriesService.start();
     }
@@ -135,7 +139,7 @@ public class RepositoriesServiceTests extends ESTestCase {
     public void testRegisterRejectsInvalidRepositoryNames() {
         assertThrowsOnRegister("");
         assertThrowsOnRegister("contains#InvalidCharacter");
-        for (char c : Strings.INVALID_FILENAME_CHARS) {
+        for (char c : Arrays.asList('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',')) {
             assertThrowsOnRegister("contains" + c + "InvalidCharacters");
         }
     }

@@ -132,8 +132,8 @@ public class RestEqlCancellationIT extends AbstractEqlBlockingIntegTestCase {
 
         assertBusy(() -> {
             for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
-                if (transportService.getLocalNode().getId().equals(blockedTaskInfo.getTaskId().getNodeId())) {
-                    Task task = transportService.getTaskManager().getTask(blockedTaskInfo.getId());
+                if (transportService.getLocalNode().getId().equals(blockedTaskInfo.taskId().getNodeId())) {
+                    Task task = transportService.getTaskManager().getTask(blockedTaskInfo.id());
                     if (task != null) {
                         assertThat(task, instanceOf(EqlSearchTask.class));
                         EqlSearchTask eqlSearchTask = (EqlSearchTask) task;

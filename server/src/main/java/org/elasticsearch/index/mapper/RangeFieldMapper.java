@@ -81,7 +81,9 @@ public class RangeFieldMapper extends FieldMapper {
             false,
             () -> Locale.ROOT,
             (n, c, o) -> LocaleUtils.parse(o.toString()),
-            m -> toType(m).locale
+            m -> toType(m).locale,
+            (xContentBuilder, n, v) -> xContentBuilder.field(n, v.toString()),
+            Objects::toString
         );
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 

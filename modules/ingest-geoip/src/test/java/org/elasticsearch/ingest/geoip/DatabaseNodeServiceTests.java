@@ -11,7 +11,7 @@ package org.elasticsearch.ingest.geoip;
 import com.maxmind.db.InvalidDatabaseException;
 
 import org.apache.lucene.search.TotalHits;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.search.SearchRequest;

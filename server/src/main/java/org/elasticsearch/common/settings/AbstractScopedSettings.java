@@ -15,6 +15,7 @@ import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
 
 import java.util.ArrayList;
@@ -347,7 +348,7 @@ public abstract class AbstractScopedSettings {
                     SettingUpdater affixUpdaterA = setting.newAffixUpdater((k, v) -> namespaces.add(k), logger, (a, b) -> {});
                     affixUpdaterA.apply(current, previous);
                 }
-                Map<String, Settings> namespaceToSettings = new HashMap<>(namespaces.size());
+                Map<String, Settings> namespaceToSettings = Maps.newMapWithExpectedSize(namespaces.size());
                 for (String namespace : namespaces) {
                     Set<String> concreteSettings = new HashSet<>(settings.size());
                     for (Setting.AffixSetting<?> setting : settings) {
@@ -552,7 +553,7 @@ public abstract class AbstractScopedSettings {
                 msgPrefix = "unknown secure setting";
             }
             String msg = msgPrefix + " [" + key + "]";
-            List<String> keys = scoredKeys.stream().map((a) -> a.v2()).collect(Collectors.toList());
+            List<String> keys = scoredKeys.stream().map((a) -> a.v2()).toList();
             if (keys.isEmpty() == false) {
                 msg += " did you mean " + (keys.size() == 1 ? "[" + keys.get(0) + "]" : "any of " + keys.toString()) + "?";
             } else {

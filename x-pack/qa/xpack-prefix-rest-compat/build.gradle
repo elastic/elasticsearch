@@ -6,6 +6,8 @@
  * Side Public License, v 1.
  */
 
+
+import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.rest.CopyRestTestsTask
@@ -94,9 +96,7 @@ testClusters.configureEach {
   extraConfigFile nodeCert.name, nodeCert
   extraConfigFile serviceTokens.name, serviceTokens
 
-  if (BuildParams.isSnapshotBuild() == false) {
-    systemProperty 'es.index_mode_feature_flag_registered', 'true'
-  }
+  requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
 }
 
 // transform (again) the (already) transformed x-pack compatibility tests to test the xpack prefixes

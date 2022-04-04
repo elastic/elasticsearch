@@ -91,12 +91,12 @@ public class CopyExecutionStateStepTests extends AbstractStepTestCase<CopyExecut
             .getLifecycleExecutionState();
 
         StepKey targetNextStepKey = step.getTargetNextStepKey();
-        assertEquals(newIndexData.getLifecycleDate(), oldIndexData.getLifecycleDate());
-        assertEquals(newIndexData.getPhase(), targetNextStepKey.getPhase());
-        assertEquals(newIndexData.getAction(), targetNextStepKey.getAction());
-        assertEquals(newIndexData.getStep(), targetNextStepKey.getName());
-        assertEquals(newIndexData.getSnapshotRepository(), oldIndexData.getSnapshotRepository());
-        assertEquals(newIndexData.getSnapshotName(), oldIndexData.getSnapshotName());
+        assertEquals(newIndexData.lifecycleDate(), oldIndexData.lifecycleDate());
+        assertEquals(newIndexData.phase(), targetNextStepKey.getPhase());
+        assertEquals(newIndexData.action(), targetNextStepKey.getAction());
+        assertEquals(newIndexData.step(), targetNextStepKey.getName());
+        assertEquals(newIndexData.snapshotRepository(), oldIndexData.snapshotRepository());
+        assertEquals(newIndexData.snapshotName(), oldIndexData.snapshotName());
     }
 
     public void testAllStateCopied() {

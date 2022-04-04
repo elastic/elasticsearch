@@ -27,6 +27,7 @@ import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.ssl.SslDiagnostics;
 import org.elasticsearch.common.ssl.SslKeyConfig;
 import org.elasticsearch.common.ssl.SslTrustConfig;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -353,7 +354,7 @@ public class SSLService {
      *
      * @param sslConfiguration the configuration to check
      */
-    public boolean isConfigurationValidForServerUsage(SslConfiguration sslConfiguration) {
+    public static boolean isConfigurationValidForServerUsage(SslConfiguration sslConfiguration) {
         Objects.requireNonNull(sslConfiguration, "SslConfiguration cannot be null");
         return sslConfiguration.keyConfig().hasKeyMaterial();
     }
@@ -361,7 +362,7 @@ public class SSLService {
     /**
      * Indicates whether client authentication is enabled for a particular configuration
      */
-    public boolean isSSLClientAuthEnabled(SslConfiguration sslConfiguration) {
+    public static boolean isSSLClientAuthEnabled(SslConfiguration sslConfiguration) {
         Objects.requireNonNull(sslConfiguration, "SslConfiguration cannot be null");
         return sslConfiguration.clientAuth().enabled();
     }
@@ -515,7 +516,7 @@ public class SSLService {
                     .filter(e -> e.getValue().equals(configuration))
                     .limit(2) // we only need to distinguishing between 0/1/many
                     .map(Entry::getKey)
-                    .collect(Collectors.toUnmodifiableList());
+                    .toList();
                 final String name = switch (names.size()) {
                     case 0 -> "(unknown)";
                     case 1 -> names.get(0);
@@ -534,7 +535,7 @@ public class SSLService {
 
     private static Map<String, SslConfiguration> getSSLConfigurations(Environment env, Settings settings) {
         final Map<String, Settings> sslSettingsMap = getSSLSettingsMap(settings);
-        final Map<String, SslConfiguration> sslConfigurationMap = new HashMap<>(sslSettingsMap.size());
+        final Map<String, SslConfiguration> sslConfigurationMap = Maps.newMapWithExpectedSize(sslSettingsMap.size());
         sslSettingsMap.forEach((key, sslSettings) -> {
             if (key.endsWith(".")) {
                 // Drop trailing '.' so that any exception messages are consistent
@@ -596,7 +597,7 @@ public class SSLService {
      * Parses the settings to load all SslConfiguration objects that will be used.
      */
     Map<SslConfiguration, SSLContextHolder> loadSslConfigurations(Map<String, SslConfiguration> sslConfigurationMap) {
-        final Map<SslConfiguration, SSLContextHolder> sslContextHolders = new HashMap<>(sslConfigurationMap.size());
+        final Map<SslConfiguration, SSLContextHolder> sslContextHolders = Maps.newMapWithExpectedSize(sslConfigurationMap.size());
         sslConfigurationMap.forEach((key, sslConfiguration) -> {
             try {
                 sslContextHolders.computeIfAbsent(sslConfiguration, this::createSslContext);
@@ -636,11 +637,7 @@ public class SSLService {
                 );
             }
         } else if (settings.hasValue(enabledSetting) == false) {
-            final List<String> sslSettingNames = settings.keySet()
-                .stream()
-                .filter(s -> s.startsWith(prefix))
-                .sorted()
-                .collect(Collectors.toUnmodifiableList());
+            final List<String> sslSettingNames = settings.keySet().stream().filter(s -> s.startsWith(prefix)).sorted().toList();
             if (sslSettingNames.isEmpty() == false) {
                 throw new ElasticsearchSecurityException(
                     "invalid configuration for "

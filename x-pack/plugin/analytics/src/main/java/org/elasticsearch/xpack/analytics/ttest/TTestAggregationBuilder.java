@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.analytics.ttest;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -110,6 +111,11 @@ public class TTestAggregationBuilder extends MultiValuesSourceAggregationBuilder
     }
 
     @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
     public BucketCardinality bucketCardinality() {
         return BucketCardinality.NONE;
     }
@@ -171,5 +177,10 @@ public class TTestAggregationBuilder extends MultiValuesSourceAggregationBuilder
     @Override
     public String getType() {
         return NAME;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_7_8_0;
     }
 }

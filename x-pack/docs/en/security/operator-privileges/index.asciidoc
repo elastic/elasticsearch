@@ -11,14 +11,18 @@ this environment. However, in more managed environments, such as
 {ess-trial}[{ess}], there is a distinction between the operator of the cluster
 infrastructure and the administrator of the cluster. 
 
-Operator privileges limit some functionality to operator users only. Operator
-users are just regular Elasticsearch users with access to specific
+Operator privileges limit some functionality to operator users _only_. Operator
+users are just regular {es} users with access to specific
 <<operator-only-functionality,operator-only functionality>>. These
 privileges are not available to cluster administrators, even if they log in as
 a highly privileged user such as the `elastic` user or another user with the
-superuser role. By limiting system access, operator privileges enhance the
-Elasticsearch security model while safeguarding user capabilities.
+`superuser` role. By limiting system access, operator privileges enhance the
+{es} security model while safeguarding user capabilities.
 
+Operator privileges are enabled on {ecloud}, which means that some 
+infrastructure management functionality is restricted and cannot be accessed by
+your administrative users. This capability protects your cluster from unintended 
+infrastructure changes.
 
 include::configure-operator-privileges.asciidoc[]
 

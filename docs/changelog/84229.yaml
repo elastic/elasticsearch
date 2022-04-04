@@ -1,0 +1,6 @@
+pr: 84229
+summary: Normalise polygons only when necessary
+area: Geo
+type: enhancement
+issues:
+ - 35349

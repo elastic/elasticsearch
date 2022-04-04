@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.suggest.phrase;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.search.suggest.AbstractSuggestionBuilderTestCase;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
@@ -102,7 +103,9 @@ public class PhraseSuggestionBuilderTests extends AbstractSuggestionBuilderTestC
             }
             case 9 -> builder.forceUnigrams(builder.forceUnigrams() == null ? randomBoolean() : builder.forceUnigrams() == false);
             case 10 -> {
-                Map<String, Object> collateParams = builder.collateParams() == null ? new HashMap<>(1) : builder.collateParams();
+                Map<String, Object> collateParams = builder.collateParams() == null
+                    ? Maps.newMapWithExpectedSize(1)
+                    : builder.collateParams();
                 collateParams.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
                 builder.collateParams(collateParams);
             }

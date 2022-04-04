@@ -32,7 +32,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 /**
  * Tracks shard operation permits. Each operation on the shard obtains a permit. When we need to block operations (e.g., to transition
@@ -299,10 +298,7 @@ final class IndexShardOperationPermits implements Closeable {
      *         when the permit was acquired plus a stack traces that was captured when the permit was request.
      */
     List<String> getActiveOperations() {
-        return issuedPermits.values()
-            .stream()
-            .map(t -> t.v1() + "\n" + ExceptionsHelper.formatStackTrace(t.v2()))
-            .collect(Collectors.toList());
+        return issuedPermits.values().stream().map(t -> t.v1() + "\n" + ExceptionsHelper.formatStackTrace(t.v2())).toList();
     }
 
     private static class DelayedOperation {

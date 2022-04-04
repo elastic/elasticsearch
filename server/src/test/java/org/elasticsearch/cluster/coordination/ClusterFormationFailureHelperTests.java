@@ -769,11 +769,7 @@ public class ClusterFormationFailureHelperTests extends ESTestCase {
             "other-non-master",
             buildNewFakeTransportAddress(),
             emptyMap(),
-            new HashSet<>(
-                randomSubsetOf(DiscoveryNodeRole.roles()).stream()
-                    .filter(r -> r != DiscoveryNodeRole.MASTER_ROLE)
-                    .collect(Collectors.toList())
-            ),
+            new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles()).stream().filter(r -> r != DiscoveryNodeRole.MASTER_ROLE).toList()),
             Version.CURRENT
         );
 

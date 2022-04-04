@@ -8,10 +8,6 @@
 
 package org.elasticsearch.common.util;
 
-import com.carrotsearch.hppc.LongLongHashMap;
-import com.carrotsearch.hppc.LongLongMap;
-import com.carrotsearch.hppc.cursors.LongLongCursor;
-
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -19,7 +15,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 
@@ -34,13 +29,13 @@ public class LongHashTests extends ESTestCase {
         return new LongHash(randomIntBetween(0, 100), maxLoadFactor, mockBigArrays());
     }
 
-    public void testDuell() {
+    public void testDuel() {
         try (LongHash hash = randomHash()) {
             final Long[] values = new Long[randomIntBetween(1, 100000)];
             for (int i = 0; i < values.length; ++i) {
                 values[i] = randomLong();
             }
-            final LongLongMap valueToId = new LongLongHashMap();
+            final Map<Long, Integer> valueToId = new HashMap<>();
             final long[] idToValue = new long[values.length];
             final int iters = randomInt(1000000);
             for (int i = 0; i < iters; ++i) {
@@ -55,9 +50,8 @@ public class LongHashTests extends ESTestCase {
             }
 
             assertEquals(valueToId.size(), hash.size());
-            for (Iterator<LongLongCursor> iterator = valueToId.iterator(); iterator.hasNext();) {
-                final LongLongCursor next = iterator.next();
-                assertEquals(next.value, hash.find(next.key));
+            for (var entry : valueToId.entrySet()) {
+                assertEquals(entry.getValue().longValue(), hash.find(entry.getKey()));
             }
 
             for (long i = 0; i < hash.capacity(); ++i) {

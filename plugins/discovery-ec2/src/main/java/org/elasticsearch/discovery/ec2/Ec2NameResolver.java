@@ -25,6 +25,8 @@ import java.net.URL;
 import java.net.URLConnection;
 import java.nio.charset.StandardCharsets;
 
+import static org.elasticsearch.discovery.ec2.AwsEc2Utils.X_AWS_EC_2_METADATA_TOKEN;
+
 /**
  * Resolves certain ec2 related 'meta' hostnames into an actual hostname
  * obtained from ec2 meta-data.
@@ -81,11 +83,15 @@ class Ec2NameResolver implements CustomNameResolver {
     public InetAddress[] resolve(Ec2HostnameType type) throws IOException {
         InputStream in = null;
         String metadataUrl = EC2MetadataUtils.getHostAddressForEC2MetadataService() + "/latest/meta-data/" + type.ec2Name;
+        String metadataTokenUrl = EC2MetadataUtils.getHostAddressForEC2MetadataService() + "/latest/api/token";
         try {
             URL url = new URL(metadataUrl);
             logger.debug("obtaining ec2 hostname from ec2 meta-data url {}", url);
             URLConnection urlConnection = SocketAccess.doPrivilegedIOException(url::openConnection);
             urlConnection.setConnectTimeout(2000);
+            AwsEc2Utils.getMetadataToken(metadataTokenUrl)
+                .ifPresent(token -> urlConnection.setRequestProperty(X_AWS_EC_2_METADATA_TOKEN, token));
+
             in = SocketAccess.doPrivilegedIOException(urlConnection::getInputStream);
             BufferedReader urlReader = new BufferedReader(new InputStreamReader(in, StandardCharsets.UTF_8));
 

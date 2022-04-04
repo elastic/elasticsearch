@@ -18,6 +18,9 @@ setup:
 
 ---
 "Get all aliases via /_alias":
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/83256"
 
   - do:
       indices.create:
@@ -79,6 +82,10 @@ setup:
 
 ---
 "Get aliases via /_all/_alias/":
+  - skip:
+      version: "all"
+      reason: "AwaitsFix https://github.com/elastic/elasticsearch/issues/83256"
+
   - do:
       indices.create:
         index: myindex

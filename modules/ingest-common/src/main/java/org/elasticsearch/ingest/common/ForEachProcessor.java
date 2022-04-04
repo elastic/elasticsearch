@@ -9,6 +9,7 @@
 package org.elasticsearch.ingest.common;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -65,7 +66,7 @@ public final class ForEachProcessor extends AbstractProcessor implements Wrappin
             }
         } else if (o instanceof Map<?, ?> map) {
             List<?> keys = new ArrayList<>(map.keySet());
-            innerExecuteMap(0, new HashMap<Object, Object>(map), keys, new HashMap<>(map.size()), ingestDocument, handler);
+            innerExecuteMap(0, new HashMap<Object, Object>(map), keys, Maps.newMapWithExpectedSize(map.size()), ingestDocument, handler);
         } else if (o instanceof List<?> list) {
             innerExecuteList(0, new ArrayList<>(list), new ArrayList<>(list.size()), ingestDocument, handler);
         } else {

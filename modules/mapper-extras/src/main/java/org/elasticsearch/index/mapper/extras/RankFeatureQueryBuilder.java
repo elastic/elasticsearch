@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper.extras;
 import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -31,6 +32,7 @@ import java.util.Objects;
  * Query to run on a [rank_feature] field.
  */
 public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeatureQueryBuilder> {
+    private static final ScoreFunction DEFAULT_SCORE_FUNCTION = new ScoreFunction.Saturation();
 
     /**
      * Scoring function for a [rank_feature] field.
@@ -308,7 +310,7 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
         if (numNonNulls > 1) {
             throw new IllegalArgumentException("Can only specify one of [log], [saturation], [sigmoid] and [linear]");
         } else if (numNonNulls == 0) {
-            query = new RankFeatureQueryBuilder(field, new ScoreFunction.Saturation());
+            query = new RankFeatureQueryBuilder(field, DEFAULT_SCORE_FUNCTION);
         } else {
             ScoreFunction scoreFunction = (ScoreFunction) Arrays.stream(args, 3, args.length).filter(Objects::nonNull).findAny().get();
             query = new RankFeatureQueryBuilder(field, scoreFunction);
@@ -367,8 +369,10 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(getName());
         builder.field("field", field);
-        scoreFunction.doXContent(builder);
-        printBoostAndQueryName(builder);
+        if (false == scoreFunction.equals(DEFAULT_SCORE_FUNCTION)) {
+            scoreFunction.doXContent(builder);
+        }
+        boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
 
@@ -408,4 +412,8 @@ public final class RankFeatureQueryBuilder extends AbstractQueryBuilder<RankFeat
         return Objects.hash(field, scoreFunction);
     }
 
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
+    }
 }

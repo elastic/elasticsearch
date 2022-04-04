@@ -230,7 +230,7 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
             }
         };
 
-        ActionTestUtils.execute(transportAction, task, request.request(), new ActionListenerAdapter());
+        ActionTestUtils.execute(transportAction, task, request.request(), ActionListener.noop());
         assertTrue(shardActionInvoked.get());
     }
 
@@ -263,7 +263,7 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
             }
         };
 
-        ActionTestUtils.execute(transportAction, task, request.request(), new ActionListenerAdapter());
+        ActionTestUtils.execute(transportAction, task, request.request(), ActionListener.noop());
         assertTrue(shardActionInvoked.get());
     }
 
@@ -290,12 +290,4 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
         }
     }
 
-    static class ActionListenerAdapter implements ActionListener<MultiTermVectorsResponse> {
-
-        @Override
-        public void onResponse(MultiTermVectorsResponse response) {}
-
-        @Override
-        public void onFailure(Exception e) {}
-    }
 }

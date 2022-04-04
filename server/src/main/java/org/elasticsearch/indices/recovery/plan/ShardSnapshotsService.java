@@ -85,7 +85,7 @@ public class ShardSnapshotsService {
             .stream()
             .filter(repositoryMetadata -> BlobStoreRepository.USE_FOR_PEER_RECOVERY_SETTING.get(repositoryMetadata.settings()))
             .map(RepositoryMetadata::name)
-            .collect(Collectors.toList());
+            .toList();
 
         if (repositories.isEmpty() || masterSupportsFetchingLatestSnapshots() == false) {
             logger.debug(

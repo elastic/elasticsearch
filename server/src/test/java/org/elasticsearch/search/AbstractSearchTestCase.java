@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.plugins.Plugin;
@@ -87,10 +88,10 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
 
     public static Map<String, Object> randomRuntimeMappings() {
         int count = between(1, 100);
-        Map<String, Object> runtimeFields = new HashMap<>(count);
+        Map<String, Object> runtimeFields = Maps.newMapWithExpectedSize(count);
         while (runtimeFields.size() < count) {
             int size = between(1, 10);
-            Map<String, Object> config = new HashMap<>(size);
+            Map<String, Object> config = Maps.newMapWithExpectedSize(size);
             while (config.size() < size) {
                 config.put(randomAlphaOfLength(5), randomAlphaOfLength(5));
             }

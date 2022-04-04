@@ -89,6 +89,7 @@ public class BasicDistributedJobsIT extends BaseMlIntegTestCase {
         awaitJobOpenedAndAssigned(job.getId(), null);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/82591")
     public void testFailOverBasics_withDataFeeder() throws Exception {
         internalCluster().ensureAtLeastNumDataNodes(4);
         ensureStableCluster(4);

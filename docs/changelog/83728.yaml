@@ -1,0 +1,5 @@
+pr: 83728
+summary: Security global privilege for updating profile data of applications
+area: Authorization
+type: enhancement
+issues: []

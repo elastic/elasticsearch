@@ -10,6 +10,7 @@ package org.elasticsearch.index.shard;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.util.Strings;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
@@ -22,7 +23,6 @@ import java.nio.file.FileStore;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
@@ -238,7 +238,7 @@ public final class ShardPath {
                 Map<NodeEnvironment.NodePath, Long> pathToShardCount = env.shardCountPerPath(shardId.getIndex());
 
                 // Compute how much space there is on each path
-                final Map<NodeEnvironment.NodePath, BigInteger> pathsToSpace = new HashMap<>(paths.length);
+                final Map<NodeEnvironment.NodePath, BigInteger> pathsToSpace = Maps.newMapWithExpectedSize(paths.length);
                 for (NodeEnvironment.NodePath nodePath : paths) {
                     FileStore fileStore = nodePath.fileStore;
                     BigInteger usableBytes = BigInteger.valueOf(fileStore.getUsableSpace());

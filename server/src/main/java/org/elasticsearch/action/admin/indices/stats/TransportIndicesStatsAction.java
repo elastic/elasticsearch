@@ -12,6 +12,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
+import org.elasticsearch.action.support.StatsRequestLimiter;
 import org.elasticsearch.action.support.broadcast.node.TransportBroadcastByNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -40,6 +41,7 @@ import java.util.List;
 public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<IndicesStatsRequest, IndicesStatsResponse, ShardStats> {
 
     private final IndicesService indicesService;
+    private final StatsRequestLimiter statsRequestLimiter;
 
     @Inject
     public TransportIndicesStatsAction(
@@ -47,7 +49,8 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
         TransportService transportService,
         IndicesService indicesService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        StatsRequestLimiter statsRequestLimiter
     ) {
         super(
             IndicesStatsAction.NAME,
@@ -59,6 +62,7 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
             ThreadPool.Names.MANAGEMENT
         );
         this.indicesService = indicesService;
+        this.statsRequestLimiter = statsRequestLimiter;
     }
 
     /**
@@ -143,5 +147,10 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
                 retentionLeaseStats
             );
         });
+    }
+
+    @Override
+    protected void doExecute(Task task, IndicesStatsRequest request, ActionListener<IndicesStatsResponse> listener) {
+        statsRequestLimiter.tryToExecute(task, request, listener, super::doExecute);
     }
 }

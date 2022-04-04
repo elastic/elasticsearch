@@ -8,9 +8,10 @@
 
 package org.elasticsearch.search;
 
-import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.plugins.SearchPlugin;
@@ -32,9 +33,16 @@ import org.elasticsearch.xcontent.ToXContentFragment;
  *
  * @see SearchExtSpec
  */
-public abstract class SearchExtBuilder implements NamedWriteable, ToXContentFragment {
+public abstract class SearchExtBuilder implements VersionedNamedWriteable, ToXContentFragment {
 
+    @Override
     public abstract int hashCode();
 
+    @Override
     public abstract boolean equals(Object obj);
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
+    }
 }

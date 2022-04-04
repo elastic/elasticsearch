@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.versionfield;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.script.field.DocValuesField;
+import org.elasticsearch.script.field.AbstractScriptFieldFactory;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
+import org.elasticsearch.script.field.Field;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -19,7 +21,11 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
 
-public class VersionStringDocValuesField implements DocValuesField<Version>, ScriptDocValues.Supplier<String> {
+public class VersionStringDocValuesField extends AbstractScriptFieldFactory<Version>
+    implements
+        Field<Version>,
+        DocValuesScriptFieldFactory,
+        ScriptDocValues.Supplier<String> {
 
     protected final SortedSetDocValues input;
     protected final String name;
@@ -62,7 +68,7 @@ public class VersionStringDocValuesField implements DocValuesField<Version>, Scr
     }
 
     @Override
-    public ScriptDocValues<?> getScriptDocValues() {
+    public ScriptDocValues<?> toScriptDocValues() {
         if (versionScriptDocValues == null) {
             versionScriptDocValues = new VersionScriptDocValues(this);
         }

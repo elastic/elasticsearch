@@ -38,7 +38,7 @@ public interface InternalFactory<T> {
         }
 
         @Override
-        public T get(Errors errors, InternalContext context, Dependency<?> dependency) throws ErrorsException {
+        public T get(Errors errors, InternalContext context, Dependency<?> dependency) {
             return object;
         }
 

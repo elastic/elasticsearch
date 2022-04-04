@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher.test;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -28,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.XPackLicenseState;
@@ -42,8 +42,6 @@ import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xpack.core.XPackSettings;
-import org.elasticsearch.xpack.core.action.DeleteDataStreamAction;
-import org.elasticsearch.xpack.core.action.GetDataStreamAction;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.core.watcher.WatcherField;
 import org.elasticsearch.xpack.core.watcher.WatcherState;
@@ -57,7 +55,6 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStats
 import org.elasticsearch.xpack.core.watcher.transport.actions.stats.WatcherStatsResponse;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
-import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.elasticsearch.xpack.watcher.ClockHolder;
 import org.elasticsearch.xpack.watcher.notification.email.Authentication;
@@ -88,7 +85,6 @@ import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFutureThrows;
 import static org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME;
 import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
@@ -209,12 +205,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         // Otherwise ESIntegTestCase test cluster's wipe cluster logic that deletes all indices may fail,
         // because it attempts to remove the write index of an existing data stream.
         waitNoPendingTasksOnAll();
-        String[] dataStreamsToDelete = { HistoryStoreField.DATA_STREAM };
-        client().execute(DeleteDataStreamAction.INSTANCE, new DeleteDataStreamAction.Request(dataStreamsToDelete));
-        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(dataStreamsToDelete);
-        assertBusy(
-            () -> assertFutureThrows(client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest), ResourceNotFoundException.class)
-        );
     }
 
     /**
@@ -306,9 +296,9 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         if (watchesIsAlias) {
             GetAliasesResponse aliasesResponse = client().admin().indices().prepareGetAliases(originalIndexOrAlias).get();
             assertEquals(1, aliasesResponse.getAliases().size());
-            aliasesResponse.getAliases().forEach((aliasRecord) -> {
-                assertEquals(1, aliasRecord.value.size());
-                originalIndex.set(aliasRecord.key);
+            aliasesResponse.getAliases().entrySet().forEach((aliasRecord) -> {
+                assertEquals(1, aliasRecord.getValue().size());
+                originalIndex.set(aliasRecord.getKey());
             });
         }
         client().admin().indices().prepareDelete(originalIndex.get()).get();

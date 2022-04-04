@@ -47,13 +47,6 @@ downloaded from the Elastic Docker Registry.
 +
 {ref}/docker.html[Install {es} with Docker]
 
-`brew`::
-
-Formulae are available from the Elastic Homebrew tap for installing
-{es} on macOS with the Homebrew package manager.
-+
-{ref}/brew.html[Install {es} on macOS with Homebrew]
-
 include::install/targz.asciidoc[]
 
 include::install/zip-windows.asciidoc[]
@@ -63,5 +56,3 @@ include::install/deb.asciidoc[]
 include::install/rpm.asciidoc[]
 
 include::install/docker.asciidoc[]
-
-include::install/brew.asciidoc[]

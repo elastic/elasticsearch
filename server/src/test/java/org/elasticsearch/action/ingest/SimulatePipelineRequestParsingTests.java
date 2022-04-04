@@ -94,10 +94,10 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
             ingestService,
             RestApiVersion.current()
         );
-        assertThat(actualRequest.isVerbose(), equalTo(false));
-        assertThat(actualRequest.getDocuments().size(), equalTo(numDocs));
+        assertThat(actualRequest.verbose(), equalTo(false));
+        assertThat(actualRequest.documents().size(), equalTo(numDocs));
         Iterator<Map<String, Object>> expectedDocsIterator = expectedDocs.iterator();
-        for (IngestDocument ingestDocument : actualRequest.getDocuments()) {
+        for (IngestDocument ingestDocument : actualRequest.documents()) {
             Map<String, Object> expectedDocument = expectedDocsIterator.next();
             Map<IngestDocument.Metadata, Object> metadataMap = ingestDocument.extractMetadata();
             assertThat(metadataMap.get(INDEX), equalTo(expectedDocument.get(INDEX.getFieldName())));
@@ -105,9 +105,9 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
             assertThat(ingestDocument.getSourceAndMetadata(), equalTo(expectedDocument.get(Fields.SOURCE)));
         }
 
-        assertThat(actualRequest.getPipeline().getId(), equalTo(SIMULATED_PIPELINE_ID));
-        assertThat(actualRequest.getPipeline().getDescription(), nullValue());
-        assertThat(actualRequest.getPipeline().getProcessors().size(), equalTo(1));
+        assertThat(actualRequest.pipeline().getId(), equalTo(SIMULATED_PIPELINE_ID));
+        assertThat(actualRequest.pipeline().getDescription(), nullValue());
+        assertThat(actualRequest.pipeline().getProcessors().size(), equalTo(1));
     }
 
     public void testParseWithProvidedPipeline() throws Exception {
@@ -190,10 +190,10 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
             ingestService,
             RestApiVersion.current()
         );
-        assertThat(actualRequest.isVerbose(), equalTo(false));
-        assertThat(actualRequest.getDocuments().size(), equalTo(numDocs));
+        assertThat(actualRequest.verbose(), equalTo(false));
+        assertThat(actualRequest.documents().size(), equalTo(numDocs));
         Iterator<Map<String, Object>> expectedDocsIterator = expectedDocs.iterator();
-        for (IngestDocument ingestDocument : actualRequest.getDocuments()) {
+        for (IngestDocument ingestDocument : actualRequest.documents()) {
             Map<String, Object> expectedDocument = expectedDocsIterator.next();
             Map<IngestDocument.Metadata, Object> metadataMap = ingestDocument.extractMetadata();
             assertThat(metadataMap.get(INDEX), equalTo(expectedDocument.get(INDEX.getFieldName())));
@@ -206,9 +206,9 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
             assertThat(ingestDocument.getSourceAndMetadata(), equalTo(expectedDocument.get(Fields.SOURCE)));
         }
 
-        assertThat(actualRequest.getPipeline().getId(), equalTo(SIMULATED_PIPELINE_ID));
-        assertThat(actualRequest.getPipeline().getDescription(), nullValue());
-        assertThat(actualRequest.getPipeline().getProcessors().size(), equalTo(numProcessors));
+        assertThat(actualRequest.pipeline().getId(), equalTo(SIMULATED_PIPELINE_ID));
+        assertThat(actualRequest.pipeline().getDescription(), nullValue());
+        assertThat(actualRequest.pipeline().getProcessors().size(), equalTo(numProcessors));
     }
 
     public void testNullPipelineId() {
@@ -343,10 +343,10 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
             ingestService,
             RestApiVersion.V_7
         );
-        assertThat(actualRequest.isVerbose(), equalTo(false));
-        assertThat(actualRequest.getDocuments().size(), equalTo(numDocs));
+        assertThat(actualRequest.verbose(), equalTo(false));
+        assertThat(actualRequest.documents().size(), equalTo(numDocs));
         Iterator<Map<String, Object>> expectedDocsIterator = expectedDocs.iterator();
-        for (IngestDocument ingestDocument : actualRequest.getDocuments()) {
+        for (IngestDocument ingestDocument : actualRequest.documents()) {
             Map<String, Object> expectedDocument = expectedDocsIterator.next();
             Map<IngestDocument.Metadata, Object> metadataMap = ingestDocument.extractMetadata();
             assertThat(metadataMap.get(INDEX), equalTo(expectedDocument.get(INDEX.getFieldName())));
@@ -356,9 +356,9 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
             assertThat(metadataMap.get(VERSION_TYPE), equalTo(expectedDocument.get(VERSION_TYPE.getFieldName())));
             assertThat(ingestDocument.getSourceAndMetadata(), equalTo(expectedDocument.get(Fields.SOURCE)));
         }
-        assertThat(actualRequest.getPipeline().getId(), equalTo(SIMULATED_PIPELINE_ID));
-        assertThat(actualRequest.getPipeline().getDescription(), nullValue());
-        assertThat(actualRequest.getPipeline().getProcessors().size(), equalTo(numProcessors));
+        assertThat(actualRequest.pipeline().getId(), equalTo(SIMULATED_PIPELINE_ID));
+        assertThat(actualRequest.pipeline().getDescription(), nullValue());
+        assertThat(actualRequest.pipeline().getProcessors().size(), equalTo(numProcessors));
 
         assertCriticalWarnings("[types removal] specifying _type in pipeline simulation requests is deprecated");
 

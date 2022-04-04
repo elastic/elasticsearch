@@ -190,14 +190,14 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         AbstractSnapshotIntegTestCase.awaitClusterState(logger, state -> {
             boolean firstIndexSuccessfullySnapshot = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
                 .asStream()
-                .flatMap(s -> s.shards().stream())
+                .flatMap(s -> s.shards().entrySet().stream())
                 .allMatch(
                     e -> e.getKey().getIndexName().equals("test-index-1") == false
                         || e.getValue().state() == SnapshotsInProgress.ShardState.SUCCESS
                 );
             boolean secondIndexIsBlocked = state.custom(SnapshotsInProgress.TYPE, SnapshotsInProgress.EMPTY)
                 .asStream()
-                .flatMap(s -> s.shards().stream())
+                .flatMap(s -> s.shards().entrySet().stream())
                 .filter(e -> e.getKey().getIndexName().equals("test-index-2"))
                 .map(e -> e.getValue().state())
                 .collect(Collectors.groupingBy(e -> e, Collectors.counting()))

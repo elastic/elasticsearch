@@ -40,7 +40,7 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Map;
 
-import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.setupTestDependenciesDefaults;
+import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.setupYamlRestTestDependenciesDefaults;
 
 /**
  * Apply this plugin to run the YAML based REST tests from a prior major version against this version's cluster.
@@ -81,7 +81,8 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
 
         // copy compatible rest specs
         Configuration bwcMinorConfig = project.getConfigurations().create(BWC_MINOR_CONFIG_NAME);
-        Dependency bwcMinor = project.getDependencies().project(Map.of("path", ":distribution:bwc:staged", "configuration", "checkout"));
+        Dependency bwcMinor = project.getDependencies()
+            .project(Map.of("path", ":distribution:bwc:maintenance", "configuration", "checkout"));
         project.getDependencies().add(bwcMinorConfig.getName(), bwcMinor);
 
         Provider<CopyRestApiTask> copyCompatYamlSpecTask = project.getTasks()
@@ -214,7 +215,7 @@ public class YamlRestCompatTestPlugin implements Plugin<Project> {
             testTask.onlyIf(t -> isEnabled(project));
         });
 
-        setupTestDependenciesDefaults(project, yamlCompatTestSourceSet);
+        setupYamlRestTestDependenciesDefaults(project, yamlCompatTestSourceSet);
 
         // setup IDE
         GradleUtils.setupIdeForTestSourceSet(project, yamlCompatTestSourceSet);

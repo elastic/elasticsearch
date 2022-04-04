@@ -11,9 +11,9 @@ package org.elasticsearch.search.suggest;
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -29,7 +29,7 @@ import java.util.Objects;
 /**
  * Base class for the different suggestion implementations.
  */
-public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implements NamedWriteable, ToXContentFragment {
+public abstract class SuggestionBuilder<T extends SuggestionBuilder<T>> implements VersionedNamedWriteable, ToXContentFragment {
 
     protected final String field;
     protected String text;

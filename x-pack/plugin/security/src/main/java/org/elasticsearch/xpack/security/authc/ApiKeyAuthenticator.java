@@ -49,7 +49,7 @@ class ApiKeyAuthenticator implements Authenticator {
         ApiKeyCredentials apiKeyCredentials = (ApiKeyCredentials) authenticationToken;
         apiKeyService.tryAuthenticate(context.getThreadContext(), apiKeyCredentials, ActionListener.wrap(authResult -> {
             if (authResult.isAuthenticated()) {
-                final Authentication authentication = apiKeyService.createApiKeyAuthentication(authResult, nodeName);
+                final Authentication authentication = Authentication.newApiKeyAuthentication(authResult, nodeName);
                 listener.onResponse(AuthenticationResult.success(authentication));
             } else if (authResult.getStatus() == AuthenticationResult.Status.TERMINATE) {
                 Exception e = (authResult.getException() != null)

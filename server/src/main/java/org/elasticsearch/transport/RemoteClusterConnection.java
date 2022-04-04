@@ -197,7 +197,7 @@ final class RemoteClusterConnection implements Closeable {
     }
 
     private static ConnectionManager createConnectionManager(ConnectionProfile connectionProfile, TransportService transportService) {
-        return new ClusterConnectionManager(connectionProfile, transportService.transport);
+        return new ClusterConnectionManager(connectionProfile, transportService.transport, transportService.threadPool.getThreadContext());
     }
 
     ConnectionManager getConnectionManager() {

@@ -49,7 +49,7 @@ public class BuildTests extends ESTestCase {
             Build.CURRENT.isSnapshot(),
             Math.abs(randomInt()) + "." + Math.abs(randomInt()) + "." + Math.abs(randomInt())
         );
-        assertTrue(build.getQualifiedVersion(), build.isProductionRelease());
+        assertTrue(build.qualifiedVersion(), build.isProductionRelease());
 
         assertFalse(
             new Build(
@@ -77,14 +77,7 @@ public class BuildTests extends ESTestCase {
     public void testEqualsAndHashCode() {
         Build build = Build.CURRENT;
 
-        Build another = new Build(
-            build.flavor(),
-            build.type(),
-            build.hash(),
-            build.date(),
-            build.isSnapshot(),
-            build.getQualifiedVersion()
-        );
+        Build another = new Build(build.flavor(), build.type(), build.hash(), build.date(), build.isSnapshot(), build.qualifiedVersion());
         assertEquals(build, another);
         assertEquals(build.hashCode(), another.hashCode());
 
@@ -98,7 +91,7 @@ public class BuildTests extends ESTestCase {
             build.hash(),
             build.date(),
             build.isSnapshot(),
-            build.getQualifiedVersion()
+            build.qualifiedVersion()
         );
         assertNotEquals(build, differentFlavor);
 
@@ -112,7 +105,7 @@ public class BuildTests extends ESTestCase {
             build.hash(),
             build.date(),
             build.isSnapshot(),
-            build.getQualifiedVersion()
+            build.qualifiedVersion()
         );
         assertNotEquals(build, differentType);
 
@@ -122,7 +115,7 @@ public class BuildTests extends ESTestCase {
             randomAlphaOfLengthBetween(3, 10),
             build.date(),
             build.isSnapshot(),
-            build.getQualifiedVersion()
+            build.qualifiedVersion()
         );
         assertNotEquals(build, differentHash);
 
@@ -132,7 +125,7 @@ public class BuildTests extends ESTestCase {
             build.hash(),
             "1970-01-01",
             build.isSnapshot(),
-            build.getQualifiedVersion()
+            build.qualifiedVersion()
         );
         assertNotEquals(build, differentDate);
 
@@ -142,7 +135,7 @@ public class BuildTests extends ESTestCase {
             build.hash(),
             build.date(),
             build.isSnapshot() == false,
-            build.getQualifiedVersion()
+            build.qualifiedVersion()
         );
         assertNotEquals(build, differentSnapshot);
 
@@ -208,7 +201,7 @@ public class BuildTests extends ESTestCase {
                                 b.build.hash(),
                                 b.build.date(),
                                 b.build.isSnapshot(),
-                                b.build.getQualifiedVersion()
+                                b.build.qualifiedVersion()
                             )
                         );
                     case 2:
@@ -219,7 +212,7 @@ public class BuildTests extends ESTestCase {
                                 b.build.hash(),
                                 b.build.date(),
                                 b.build.isSnapshot(),
-                                b.build.getQualifiedVersion()
+                                b.build.qualifiedVersion()
                             )
                         );
                     case 3:
@@ -230,7 +223,7 @@ public class BuildTests extends ESTestCase {
                                 randomStringExcept(b.build.hash()),
                                 b.build.date(),
                                 b.build.isSnapshot(),
-                                b.build.getQualifiedVersion()
+                                b.build.qualifiedVersion()
                             )
                         );
                     case 4:
@@ -241,7 +234,7 @@ public class BuildTests extends ESTestCase {
                                 b.build.hash(),
                                 randomStringExcept(b.build.date()),
                                 b.build.isSnapshot(),
-                                b.build.getQualifiedVersion()
+                                b.build.qualifiedVersion()
                             )
                         );
                     case 5:
@@ -252,7 +245,7 @@ public class BuildTests extends ESTestCase {
                                 b.build.hash(),
                                 b.build.date(),
                                 b.build.isSnapshot() == false,
-                                b.build.getQualifiedVersion()
+                                b.build.qualifiedVersion()
                             )
                         );
                     case 6:
@@ -263,7 +256,7 @@ public class BuildTests extends ESTestCase {
                                 b.build.hash(),
                                 b.build.date(),
                                 b.build.isSnapshot(),
-                                randomStringExcept(b.build.getQualifiedVersion())
+                                randomStringExcept(b.build.qualifiedVersion())
                             )
                         );
                 }

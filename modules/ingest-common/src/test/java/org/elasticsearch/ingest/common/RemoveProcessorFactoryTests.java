@@ -37,7 +37,17 @@ public class RemoveProcessorFactoryTests extends ESTestCase {
         String processorTag = randomAlphaOfLength(10);
         RemoveProcessor removeProcessor = factory.create(null, processorTag, null, config);
         assertThat(removeProcessor.getTag(), equalTo(processorTag));
-        assertThat(removeProcessor.getFields().get(0).newInstance(Collections.emptyMap()).execute(), equalTo("field1"));
+        assertThat(removeProcessor.getFieldsToRemove().get(0).newInstance(Collections.emptyMap()).execute(), equalTo("field1"));
+    }
+
+    public void testCreateKeepField() throws Exception {
+        Map<String, Object> config = new HashMap<>();
+        config.put("keep", Arrays.asList("field1", "field2"));
+        String processorTag = randomAlphaOfLength(10);
+        RemoveProcessor removeProcessor = factory.create(null, processorTag, null, config);
+        assertThat(removeProcessor.getTag(), equalTo(processorTag));
+        assertThat(removeProcessor.getFieldsToKeep().get(0).newInstance(Collections.emptyMap()).execute(), equalTo("field1"));
+        assertThat(removeProcessor.getFieldsToKeep().get(1).newInstance(Collections.emptyMap()).execute(), equalTo("field2"));
     }
 
     public void testCreateMultipleFields() throws Exception {
@@ -47,7 +57,7 @@ public class RemoveProcessorFactoryTests extends ESTestCase {
         RemoveProcessor removeProcessor = factory.create(null, processorTag, null, config);
         assertThat(removeProcessor.getTag(), equalTo(processorTag));
         assertThat(
-            removeProcessor.getFields()
+            removeProcessor.getFieldsToRemove()
                 .stream()
                 .map(template -> template.newInstance(Collections.emptyMap()).execute())
                 .collect(Collectors.toList()),
@@ -61,7 +71,19 @@ public class RemoveProcessorFactoryTests extends ESTestCase {
             factory.create(null, null, null, config);
             fail("factory create should have failed");
         } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), equalTo("[field] required property is missing"));
+            assertThat(e.getMessage(), equalTo("[keep] or [field] must be specified"));
+        }
+    }
+
+    public void testCreateTooManyFields() throws Exception {
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "field1");
+        config.put("keep", "field2");
+        try {
+            factory.create(null, null, null, config);
+            fail("factory create should have failed");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), equalTo("[keep] and [field] cannot both be used in the same processor"));
         }
     }
 

@@ -253,7 +253,7 @@ public class IndexShardIT extends ESSingleNodeTestCase {
         InternalClusterInfoService clusterInfoService = (InternalClusterInfoService) getInstanceFromNode(ClusterInfoService.class);
         ClusterInfoServiceUtils.refresh(clusterInfoService);
         ClusterState state = getInstanceFromNode(ClusterService.class).state();
-        ShardRouting shardRouting = state.getRoutingTable().index("test").getShards().get(0).primaryShard();
+        ShardRouting shardRouting = state.getRoutingTable().index("test").shard(0).primaryShard();
         Long test = clusterInfoService.getClusterInfo().getShardSize(shardRouting);
         assertNotNull(test);
         assertTrue(test > 0);

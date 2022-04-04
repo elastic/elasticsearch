@@ -9,6 +9,7 @@
 package org.elasticsearch.painless.lookup;
 
 import org.elasticsearch.bootstrap.BootstrapInfo;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.painless.Def;
 import org.elasticsearch.painless.MethodWriter;
 import org.elasticsearch.painless.WriterConstants;
@@ -2016,7 +2017,7 @@ public final class PainlessLookupBuilder {
         generateRuntimeMethods();
         cacheRuntimeHandles();
 
-        Map<Class<?>, PainlessClass> classesToPainlessClasses = new HashMap<>(classesToPainlessClassBuilders.size());
+        Map<Class<?>, PainlessClass> classesToPainlessClasses = Maps.newMapWithExpectedSize(classesToPainlessClassBuilders.size());
 
         for (Map.Entry<Class<?>, PainlessClassBuilder> painlessClassBuilderEntry : classesToPainlessClassBuilders.entrySet()) {
             classesToPainlessClasses.put(painlessClassBuilderEntry.getKey(), painlessClassBuilderEntry.getValue().build());

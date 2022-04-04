@@ -30,7 +30,7 @@ setup:
   - do:
       index:
         index: futest
-        id: 2
+        id: "2"
         body:
           name: moose.jpg
           vector: [ -0.5, 100.0, -13, 14.8, -156.0 ]
@@ -38,7 +38,7 @@ setup:
   - do:
       index:
         index: futest
-        id: 3
+        id: "3"
         body:
           name: rabbit.jpg
           vector: [ 0.5, 111.3, -13.0, 14.8, -156.0 ]

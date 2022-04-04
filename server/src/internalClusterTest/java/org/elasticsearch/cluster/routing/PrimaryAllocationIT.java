@@ -225,8 +225,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
                 .getState()
                 .getRoutingTable()
                 .index("test")
-                .getShards()
-                .get(0)
+                .shard(0)
                 .primaryShard()
                 .unassignedInfo()
                 .getReason(),
@@ -257,8 +256,7 @@ public class PrimaryAllocationIT extends ESIntegTestCase {
                 .getState()
                 .getRoutingTable()
                 .index("test")
-                .getShards()
-                .get(0)
+                .shard(0)
                 .primaryShard()
                 .unassignedInfo()
                 .getReason(),

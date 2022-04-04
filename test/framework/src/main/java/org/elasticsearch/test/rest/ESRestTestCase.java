@@ -401,6 +401,7 @@ public abstract class ESRestTestCase extends ESTestCase {
     public final void cleanUpCluster() throws Exception {
         if (preserveClusterUponCompletion() == false) {
             ensureNoInitializingShards();
+            waitForPendingTasks();
             wipeCluster();
             waitForClusterStateUpdatesToFinish();
             checkForUnexpectedlyRecreatedObjects();
@@ -437,6 +438,16 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     protected static RestClient adminClient() {
         return adminClient;
+    }
+
+    /**
+     * Wait for outstanding tasks to complete. The default admin client is used to check the outstanding tasks and this is done using
+     * {@link ESTestCase#assertBusy(CheckedRunnable)} to give a chance to any outstanding tasks to complete.
+     *
+     * @throws Exception if an exception is thrown while checking the outstanding tasks
+     */
+    public static void waitForPendingTasks() throws Exception {
+        waitForPendingTasks(adminClient());
     }
 
     /**

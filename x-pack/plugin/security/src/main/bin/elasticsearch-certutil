@@ -5,7 +5,6 @@
 # 2.0; you may not use this file except in compliance with the Elastic License
 # 2.0.
 
-LAUNCHER_TOOLNAME=certutil \
-  LAUNCHER_LIBS="modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli" \
-  "`dirname "$0"`"/elasticsearch-cli \
-  "$@"
+export LAUNCHER_TOOLNAME=certutil
+export LAUNCHER_LIBS="modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli"
+exec "`dirname "$0"`"/elasticsearch-cli "$@"

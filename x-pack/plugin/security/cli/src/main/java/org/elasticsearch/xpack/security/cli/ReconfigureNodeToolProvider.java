@@ -18,6 +18,6 @@ public class ReconfigureNodeToolProvider implements ToolProvider {
 
     @Override
     public Command create() {
-        return new AutoConfigureNode();
+        return new AutoConfigureNode(true);
     }
 }

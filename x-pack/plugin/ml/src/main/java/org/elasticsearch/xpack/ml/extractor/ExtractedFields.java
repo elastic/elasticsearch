@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.ml.extractor;
 
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.mapper.BooleanFieldMapper;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.core.ml.utils.MlStrings;
@@ -262,7 +263,15 @@ public class ExtractedFields {
         public Object[] value(SearchHit hit) {
             Object[] value = field.value(hit);
             if (value != null) {
-                return Arrays.stream(value).map(v -> Boolean.TRUE.equals(v) ? trueValue : falseValue).toArray();
+                return Arrays.stream(value).map(v -> {
+                    boolean asBoolean;
+                    if (v instanceof Boolean vBoolean) {
+                        asBoolean = vBoolean;
+                    } else {
+                        asBoolean = Booleans.parseBoolean(v.toString());
+                    }
+                    return asBoolean ? trueValue : falseValue;
+                }).toArray();
             }
             return new Object[0];
         }

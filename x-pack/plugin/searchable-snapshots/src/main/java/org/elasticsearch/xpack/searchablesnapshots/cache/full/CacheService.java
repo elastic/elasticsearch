@@ -130,7 +130,8 @@ public class CacheService extends AbstractLifecycleComponent {
     private final ThreadPool threadPool;
     private final ConcurrentLinkedQueue<CacheFileEvent> cacheFilesEventsQueue;
     private final CacheFile.ModificationListener cacheFilesListener;
-    private final Map<Path, Long> cacheSyncExceptionsLogs;
+    private final Map<Path, Long> cacheFilesSyncExceptionsLogs;
+    private final Map<Path, Long> cacheDirsSyncExceptionsLogs;
     private final AtomicLong numberOfCacheFilesEvents;
     private final CacheSynchronizationTask cacheSyncTask;
     private final TimeValue cacheSyncStopTimeout;
@@ -166,7 +167,8 @@ public class CacheService extends AbstractLifecycleComponent {
         this.numberOfCacheFilesEvents = new AtomicLong();
         this.cacheFilesEventsQueue = new ConcurrentLinkedQueue<>();
         this.cacheFilesListener = new CacheFileModificationListener();
-        this.cacheSyncExceptionsLogs = new HashMap<>();
+        this.cacheFilesSyncExceptionsLogs = new HashMap<>();
+        this.cacheDirsSyncExceptionsLogs = new HashMap<>();
         final ClusterSettings clusterSettings = clusterService.getClusterSettings();
         this.maxCacheFilesToSyncAtOnce = SNAPSHOT_CACHE_MAX_FILES_TO_SYNC_AT_ONCE_SETTING.get(settings);
         clusterSettings.addSettingsUpdateConsumer(SNAPSHOT_CACHE_MAX_FILES_TO_SYNC_AT_ONCE_SETTING, this::setMaxCacheFilesToSyncAtOnce);
@@ -216,7 +218,8 @@ public class CacheService extends AbstractLifecycleComponent {
                 } catch (Exception e) {
                     logger.warn("failed to close persistent cache", e);
                 } finally {
-                    cacheSyncExceptionsLogs.clear();
+                    cacheFilesSyncExceptionsLogs.clear();
+                    cacheDirsSyncExceptionsLogs.clear();
                     if (acquired) {
                         cacheSyncLock.unlock();
                     }
@@ -533,9 +536,10 @@ public class CacheService extends AbstractLifecycleComponent {
             final long startTimeNanos = threadPool.relativeTimeInNanos();
             final long maxCacheFilesToSync = Math.min(numberOfCacheFilesEvents.get(), this.maxCacheFilesToSyncAtOnce);
 
-            if (cacheSyncExceptionsLogs.isEmpty() == false) {
-                long expiredTimeNanos = Math.min(0L, startTimeNanos - TimeUnit.MINUTES.toNanos(10L));
-                cacheSyncExceptionsLogs.values().removeIf(lastLogTimeNanos -> expiredTimeNanos >= lastLogTimeNanos);
+            if (cacheFilesSyncExceptionsLogs.isEmpty() == false || cacheDirsSyncExceptionsLogs.isEmpty() == false) {
+                final long expiredTimeNanos = Math.min(0L, startTimeNanos - TimeUnit.MINUTES.toNanos(10L));
+                cacheFilesSyncExceptionsLogs.values().removeIf(lastLogTimeNanos -> expiredTimeNanos >= lastLogTimeNanos);
+                cacheDirsSyncExceptionsLogs.values().removeIf(lastLogTimeNanos -> expiredTimeNanos >= lastLogTimeNanos);
             }
 
             long updates = 0L;
@@ -581,7 +585,7 @@ public class CacheService extends AbstractLifecycleComponent {
                                         cacheDirs.add(cacheDir);
                                         shouldPersist = true;
                                     } catch (Exception e) {
-                                        if (cacheSyncExceptionsLogs.putIfAbsent(cacheDir, startTimeNanos) == null) {
+                                        if (cacheDirsSyncExceptionsLogs.putIfAbsent(cacheDir, startTimeNanos) == null) {
                                             logger.warn(
                                                 () -> new ParameterizedMessage("failed to synchronize cache directory [{}]", cacheDir),
                                                 e
@@ -600,7 +604,7 @@ public class CacheService extends AbstractLifecycleComponent {
                         default -> throw new IllegalArgumentException("Unknown cache file event [" + event + ']');
                     }
                 } catch (Exception e) {
-                    if (cacheSyncExceptionsLogs.putIfAbsent(cacheDir, startTimeNanos) == null) {
+                    if (cacheFilesSyncExceptionsLogs.putIfAbsent(cacheDir, startTimeNanos) == null) {
                         logger.warn(
                             () -> new ParameterizedMessage(
                                 "failed to process [{}] for cache file [{}]",

@@ -1146,9 +1146,9 @@ public abstract class EngineTestCase extends ESTestCase {
 
             } else {
                 Engine.DeleteResult result = replicaEngine.delete((Engine.Delete) op);
-                // Replicas don't really care about the "found" status of documents. This allows us to ignore the case where a document was found
-                // in the live version maps in a delete state and return true for the found flag in favor of code simplicity. This check is
-                // just to signal a regression so a decision can be made if it's intentional.
+                // Replicas don't really care about the "found" status of documents. This allows us to ignore the case where a document was
+                // found in the live version maps in a delete state and return true for the found flag in favor of code simplicity. This
+                // check is just to signal a regression so a decision can be made if it's intentional.
                 assertThat(result.isFound(), equalTo(firstOp == false));
                 assertThat(result.getVersion(), equalTo(op.version()));
                 assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));

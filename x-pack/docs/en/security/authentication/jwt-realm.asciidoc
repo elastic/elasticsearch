@@ -36,7 +36,7 @@ xpack.security.authc.realms.jwt.jwt1:
 ------------------------------------------------------------
 <1> The realm `order` controls the order in which the configured realms are checked
     when authenticating a user.
-<2> The `client_authentication.type` setting is described below in <<client-authentication>>
+<2> The `client_authentication.type` setting is described below in <<jwt-client-authentication>>
 <3> The `allowed_issuer` and `allowed_audiences` settings are described below in
     <<jwt-validation>>
 <4> The `allowed_signature_algorithms` and `pkc_jwkset_path` settings are
@@ -75,7 +75,7 @@ When a JWT realm is used for authentication into {es}, a distinction is made bet
 _client_ that is connecting to {es}, and the _end-user_ on whose behalf the request should execute.
 The JWT identifies the user, but a separate credential must be used to authenticate the client itself.
 
-See <<client-authentication>> and <<jwt-validation>>.
+See <<jwt-client-authentication>> and <<jwt-validation>>.
 
 [[jwt-client-authentication]]
 ==== Client authentication
@@ -102,7 +102,7 @@ WARNING: Disabling client authentication is possible, but strongly discouraged.
 ==== JWT validation
 
 JWT is one of two credentials required by JWT realms.
-See <<client-authentication>> for the other credential.
+See <<jwt-client-authentication>> for the other credential.
 
 The supported JWT encoding is JSON Web Signature (JWS).
 See <<jws-header-validation>> and <<jws-signature-validation>>.

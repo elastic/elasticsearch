@@ -189,6 +189,11 @@ public class JoinValidationService {
             logger.error("unexpectedly failed to process queue item", e);
             assert false : e;
         }
+
+        @Override
+        public String toString() {
+            return "process next task of join validation service";
+        }
     };
 
     private void processNextItem() {
@@ -271,7 +276,17 @@ public class JoinValidationService {
                 )
             );
             if (cachedBytes == null) {
-                transportService.getThreadPool().schedule(() -> execute(cacheClearer), cacheTimeout, ThreadPool.Names.CLUSTER_COORDINATION);
+                transportService.getThreadPool().schedule(new Runnable() {
+                    @Override
+                    public void run() {
+                        execute(cacheClearer);
+                    }
+
+                    @Override
+                    public String toString() {
+                        return cacheClearer + " after timeout";
+                    }
+                }, cacheTimeout, ThreadPool.Names.CLUSTER_COORDINATION);
             }
         }
 

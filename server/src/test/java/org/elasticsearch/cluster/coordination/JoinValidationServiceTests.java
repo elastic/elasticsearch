@@ -11,26 +11,38 @@ package org.elasticsearch.cluster.coordination;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.SimpleDiffable;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.Lifecycle;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.CloseableConnection;
+import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -43,7 +55,11 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
+
 public class JoinValidationServiceTests extends ESTestCase {
+
     public void testConcurrentBehaviour() throws Exception {
         final var releasables = new ArrayList<Releasable>();
         try {
@@ -210,5 +226,195 @@ public class JoinValidationServiceTests extends ESTestCase {
             Collections.reverse(releasables);
             Releasables.close(releasables);
         }
+    }
+
+    @TestLogging(reason = "nocommit", value = "org.elasticsearch:TRACE")
+    public void testJoinValidationRejectsUnreadableClusterState() {
+
+        class BadCustom implements SimpleDiffable<ClusterState.Custom>, ClusterState.Custom {
+
+            @Override
+            public XContentBuilder toXContent(XContentBuilder builder, Params params) {
+                return builder;
+            }
+
+            @Override
+            public String getWriteableName() {
+                return "deliberately-unknown";
+            }
+
+            @Override
+            public Version getMinimalSupportedVersion() {
+                return Version.CURRENT;
+            }
+
+            @Override
+            public void writeTo(StreamOutput out) {}
+        }
+
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT).putCustom("test", new BadCustom()).build();
+
+        final var joiningNode = new DiscoveryNode("joining", buildNewFakeTransportAddress(), Version.CURRENT);
+        final var joiningNodeTransport = new MockTransport();
+        final var joiningNodeTransportService = joiningNodeTransport.createTransportService(
+            Settings.EMPTY,
+            deterministicTaskQueue.getThreadPool(),
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> joiningNode,
+            null,
+            Collections.emptySet()
+        );
+        new JoinValidationService(Settings.EMPTY, joiningNodeTransportService, () -> clusterState, List.of()); // registers request handler
+        joiningNodeTransportService.start();
+        joiningNodeTransportService.acceptIncomingRequests();
+
+        final var masterNode = new DiscoveryNode("node0", buildNewFakeTransportAddress(), Version.CURRENT);
+        final var masterTransport = new MockTransport() {
+            @Override
+            protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
+                assertSame(node, joiningNode);
+                assertEquals(JoinValidationService.JOIN_VALIDATE_ACTION_NAME, action);
+
+                final var listener = new ActionListener<TransportResponse>() {
+                    @Override
+                    public void onResponse(TransportResponse transportResponse) {
+                        fail("should not succeed");
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        handleError(requestId, new RemoteTransportException(node.getName(), node.getAddress(), action, e));
+                    }
+                };
+
+                try (var out = new BytesStreamOutput()) {
+                    request.writeTo(out);
+                    out.flush();
+                    final var handler = joiningNodeTransport.getRequestHandlers().getHandler(action);
+                    handler.processMessageReceived(
+                        handler.newRequest(new NamedWriteableAwareStreamInput(out.bytes().streamInput(), writeableRegistry())),
+                        new TestTransportChannel(listener)
+                    );
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                }
+            }
+        };
+        final var masterTransportService = masterTransport.createTransportService(
+            Settings.EMPTY,
+            deterministicTaskQueue.getThreadPool(),
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> masterNode,
+            null,
+            Collections.emptySet()
+        );
+        final var joinValidationService = new JoinValidationService(Settings.EMPTY, masterTransportService, () -> clusterState, List.of());
+        masterTransportService.start();
+        masterTransportService.acceptIncomingRequests();
+
+        try {
+            final var future = new PlainActionFuture<TransportResponse.Empty>();
+            joinValidationService.validateJoin(joiningNode, future);
+            assertFalse(future.isDone());
+            deterministicTaskQueue.runAllTasks();
+            assertTrue(future.isDone());
+            assertThat(
+                expectThrows(IllegalArgumentException.class, future::actionGet).getMessage(),
+                allOf(containsString("Unknown NamedWriteable"), containsString("deliberately-unknown"))
+            );
+        } finally {
+            joinValidationService.stop();
+            masterTransportService.close();
+            joiningNodeTransportService.close();
+        }
+    }
+
+    public void testJoinValidationRejectsMismatchedClusterUUID() {
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+        final var mockTransport = new MockTransport();
+        final var localNode = new DiscoveryNode("node0", buildNewFakeTransportAddress(), Version.CURRENT);
+
+        final var localClusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().generateClusterUuidIfNeeded().clusterUUIDCommitted(true))
+            .build();
+
+        final var transportService = mockTransport.createTransportService(
+            Settings.EMPTY,
+            deterministicTaskQueue.getThreadPool(),
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            ignored -> localNode,
+            null,
+            Set.of()
+        );
+
+        final var dataPath = "/my/data/path";
+        final var settings = Settings.builder().put(Environment.PATH_DATA_SETTING.getKey(), dataPath).build();
+        new JoinValidationService(settings, transportService, () -> localClusterState, List.of()); // registers request handler
+        transportService.start();
+        transportService.acceptIncomingRequests();
+
+        final var otherClusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(Metadata.builder().generateClusterUuidIfNeeded())
+            .build();
+
+        final var future = new PlainActionFuture<TransportResponse.Empty>();
+        transportService.sendRequest(
+            localNode,
+            JoinValidationService.JOIN_VALIDATE_ACTION_NAME,
+            new ValidateJoinRequest(otherClusterState),
+            new ActionListenerResponseHandler<>(future, in -> TransportResponse.Empty.INSTANCE)
+        );
+        deterministicTaskQueue.runAllTasks();
+
+        assertThat(
+            expectThrows(CoordinationStateRejectedException.class, future::actionGet).getMessage(),
+            allOf(
+                containsString("This node previously joined a cluster with UUID"),
+                containsString("and is now trying to join a different cluster"),
+                containsString(localClusterState.metadata().clusterUUID()),
+                containsString(otherClusterState.metadata().clusterUUID()),
+                containsString("data path [" + dataPath + "]")
+            )
+        );
+    }
+
+    public void testJoinValidationRunsJoinValidators() {
+        final var deterministicTaskQueue = new DeterministicTaskQueue();
+        final var mockTransport = new MockTransport();
+        final var localNode = new DiscoveryNode("node0", buildNewFakeTransportAddress(), Version.CURRENT);
+        final var localClusterState = ClusterState.builder(ClusterName.DEFAULT).build();
+
+        final var transportService = mockTransport.createTransportService(
+            Settings.EMPTY,
+            deterministicTaskQueue.getThreadPool(),
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            ignored -> localNode,
+            null,
+            Set.of()
+        );
+
+        final var stateForValidation = ClusterState.builder(ClusterName.DEFAULT).build();
+        new JoinValidationService(Settings.EMPTY, transportService, () -> localClusterState, List.of((node, state) -> {
+            assertSame(node, localNode);
+            assertSame(state, stateForValidation);
+            throw new IllegalStateException("simulated validation failure");
+        })); // registers request handler
+        transportService.start();
+        transportService.acceptIncomingRequests();
+
+        final var future = new PlainActionFuture<TransportResponse.Empty>();
+        transportService.sendRequest(
+            localNode,
+            JoinValidationService.JOIN_VALIDATE_ACTION_NAME,
+            new ValidateJoinRequest(stateForValidation),
+            new ActionListenerResponseHandler<>(future, in -> TransportResponse.Empty.INSTANCE)
+        );
+        deterministicTaskQueue.runAllTasks();
+
+        assertThat(
+            expectThrows(IllegalStateException.class, future::actionGet).getMessage(),
+            allOf(containsString("simulated validation failure"))
+        );
     }
 }

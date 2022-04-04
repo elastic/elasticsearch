@@ -56,9 +56,6 @@ public class ValidateJoinRequest extends TransportRequest {
             in.setVersion(version);
             try (StreamInput input = in) {
                 return ClusterState.readFrom(input, null);
-            } catch (Exception e) {
-                assert false : e;
-                throw e;
             }
         } finally {
             IOUtils.close(in);

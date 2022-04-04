@@ -8,8 +8,6 @@
 
 package org.elasticsearch.common.lucene;
 
-import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
@@ -18,13 +16,9 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.StoredFieldsReader;
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.document.NumericDocValuesField;
-import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ConcurrentMergeScheduler;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.FieldInfo;
-import org.apache.lucene.index.FieldInfos;
-import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.FilterCodecReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.FilterLeafReader;
@@ -34,22 +28,13 @@ import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.LeafMetaData;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.NoMergeScheduler;
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.SegmentReader;
-import org.apache.lucene.index.SortedDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.index.StoredFieldVisitor;
-import org.apache.lucene.index.Terms;
-import org.apache.lucene.index.VectorValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.FieldDoc;
@@ -118,18 +103,6 @@ public class Lucene {
     public static final TopDocs EMPTY_TOP_DOCS = new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), EMPTY_SCORE_DOCS);
 
     private Lucene() {}
-
-    public static Version parseVersion(@Nullable String version, Version defaultVersion, Logger logger) {
-        if (version == null) {
-            return defaultVersion;
-        }
-        try {
-            return Version.parse(version);
-        } catch (ParseException e) {
-            logger.warn(() -> new ParameterizedMessage("no version match {}, default to {}", version, defaultVersion), e);
-            return defaultVersion;
-        }
-    }
 
     /**
      * Reads the segments infos, failing if it fails to load
@@ -584,8 +557,7 @@ public class Lucene {
             newSortField.setMissingValue(sortField.getMissingValue());
             return newSortField;
         } else if (sortField.getClass() == ShardDocSortField.class) {
-            SortField newSortField = new SortField(sortField.getField(), SortField.Type.LONG, sortField.getReverse());
-            return newSortField;
+            return new SortField(sortField.getField(), SortField.Type.LONG, sortField.getReverse());
         } else {
             return sortField;
         }
@@ -669,34 +641,6 @@ public class Lucene {
     }
 
     /**
-     * Wait for an index to exist for up to {@code timeLimitMillis}. Returns
-     * true if the index eventually exists, false if not.
-     *
-     * Will retry the directory every second for at least {@code timeLimitMillis}
-     */
-    public static boolean waitForIndex(final Directory directory, final long timeLimitMillis) throws IOException {
-        final long DELAY = 1000;
-        long waited = 0;
-        try {
-            while (true) {
-                if (waited >= timeLimitMillis) {
-                    break;
-                }
-                if (indexExists(directory)) {
-                    return true;
-                }
-                Thread.sleep(DELAY);
-                waited += DELAY;
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return false;
-        }
-        // one more try after all retries
-        return indexExists(directory);
-    }
-
-    /**
      * Returns {@code true} iff the given exception or
      * one of it's causes is an instance of {@link CorruptIndexException},
      * {@link IndexFormatTooOldException}, or {@link IndexFormatTooNewException} otherwise {@code false}.
@@ -743,7 +687,7 @@ public class Lucene {
     }
 
     private static final class CommitPoint extends IndexCommit {
-        private String segmentsFileName;
+        private final String segmentsFileName;
         private final Collection<String> files;
         private final Directory dir;
         private final long generation;
@@ -996,96 +940,6 @@ public class Lucene {
      */
     public static NumericDocValuesField newSoftDeletesField() {
         return new NumericDocValuesField(SOFT_DELETES_FIELD, 1);
-    }
-
-    /**
-     * Returns an empty leaf reader with the given max docs. The reader will be fully deleted.
-     */
-    public static LeafReader emptyReader(final int maxDoc) {
-        return new LeafReader() {
-            final Bits liveDocs = new Bits.MatchNoBits(maxDoc);
-
-            public Terms terms(String field) {
-                return null;
-            }
-
-            public NumericDocValues getNumericDocValues(String field) {
-                return null;
-            }
-
-            public BinaryDocValues getBinaryDocValues(String field) {
-                return null;
-            }
-
-            public SortedDocValues getSortedDocValues(String field) {
-                return null;
-            }
-
-            public SortedNumericDocValues getSortedNumericDocValues(String field) {
-                return null;
-            }
-
-            public SortedSetDocValues getSortedSetDocValues(String field) {
-                return null;
-            }
-
-            public NumericDocValues getNormValues(String field) {
-                return null;
-            }
-
-            @Override
-            public VectorValues getVectorValues(String field) {
-                return null;
-            }
-
-            @Override
-            public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs, int visitedLimit) {
-                return null;
-            }
-
-            public FieldInfos getFieldInfos() {
-                return new FieldInfos(new FieldInfo[0]);
-            }
-
-            public Bits getLiveDocs() {
-                return this.liveDocs;
-            }
-
-            public PointValues getPointValues(String fieldName) {
-                return null;
-            }
-
-            public void checkIntegrity() {}
-
-            @Override
-            public Fields getTermVectors(int docID) throws IOException {
-                return null;
-            }
-
-            public int numDocs() {
-                return 0;
-            }
-
-            public int maxDoc() {
-                return maxDoc;
-            }
-
-            public void document(int docID, StoredFieldVisitor visitor) {}
-
-            protected void doClose() {}
-
-            public LeafMetaData getMetaData() {
-                return new LeafMetaData(Version.LATEST.major, Version.LATEST, null);
-            }
-
-            public CacheHelper getCoreCacheHelper() {
-                return null;
-            }
-
-            public CacheHelper getReaderCacheHelper() {
-                return null;
-            }
-        };
     }
 
     /**

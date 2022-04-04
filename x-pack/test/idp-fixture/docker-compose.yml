@@ -8,7 +8,7 @@ services:
       - cluster.name=elasticsearch-node
       - bootstrap.memory_lock=true
       - network.publish_host=127.0.0.1
-      - "ES_JAVA_OPTS=-Xms512m -Xmx512m -Des.jwt_realm_feature_flag_enabled=true"
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
       - path.repo=/tmp/es-repo
       - node.attr.testattr=test
       - cluster.routing.allocation.disk.watermark.low=1b

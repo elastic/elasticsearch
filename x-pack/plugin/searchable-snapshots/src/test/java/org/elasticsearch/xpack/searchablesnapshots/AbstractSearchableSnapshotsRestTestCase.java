@@ -533,11 +533,6 @@ public abstract class AbstractSearchableSnapshotsRestTestCase extends ESRestTest
         );
     }
 
-    protected static void deleteIndex(String index) throws IOException {
-        final Response response = client().performRequest(new Request("DELETE", "/" + index));
-        assertAcked("Fail to delete index [" + index + ']', response);
-    }
-
     private static void assertAcked(String message, Response response) throws IOException {
         final int responseStatusCode = response.getStatusLine().getStatusCode();
         assertThat(

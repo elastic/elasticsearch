@@ -94,9 +94,13 @@ public class JsonXContentParser extends AbstractXContentParser {
 
     @Override
     public String text() throws IOException {
-        if (currentToken().isValue()) {
-            return parser.getText();
+        if (currentToken().isValue() == false) {
+            throwOnNoText();
         }
+        return parser.getText();
+    }
+
+    private void throwOnNoText() {
         throw new IllegalStateException("Can't get text on a " + currentToken() + " at " + getTokenLocation());
     }
 
@@ -254,7 +258,7 @@ public class JsonXContentParser extends AbstractXContentParser {
         IOUtils.closeWhileHandlingException(parser);
     }
 
-    private NumberType convertNumberType(JsonParser.NumberType numberType) {
+    private static NumberType convertNumberType(JsonParser.NumberType numberType) {
         return switch (numberType) {
             case INT -> NumberType.INT;
             case BIG_INTEGER -> NumberType.BIG_INTEGER;
@@ -269,31 +273,23 @@ public class JsonXContentParser extends AbstractXContentParser {
         if (token == null) {
             return null;
         }
-        switch (token) {
-            case FIELD_NAME:
-                return Token.FIELD_NAME;
-            case VALUE_FALSE:
-            case VALUE_TRUE:
-                return Token.VALUE_BOOLEAN;
-            case VALUE_STRING:
-                return Token.VALUE_STRING;
-            case VALUE_NUMBER_INT:
-            case VALUE_NUMBER_FLOAT:
-                return Token.VALUE_NUMBER;
-            case VALUE_NULL:
-                return Token.VALUE_NULL;
-            case START_OBJECT:
-                return Token.START_OBJECT;
-            case END_OBJECT:
-                return Token.END_OBJECT;
-            case START_ARRAY:
-                return Token.START_ARRAY;
-            case END_ARRAY:
-                return Token.END_ARRAY;
-            case VALUE_EMBEDDED_OBJECT:
-                return Token.VALUE_EMBEDDED_OBJECT;
-        }
-        throw new IllegalStateException("No matching token for json_token [" + token + "]");
+        return switch (token) {
+            case START_OBJECT -> Token.START_OBJECT;
+            case END_OBJECT -> Token.END_OBJECT;
+            case START_ARRAY -> Token.START_ARRAY;
+            case END_ARRAY -> Token.END_ARRAY;
+            case FIELD_NAME -> Token.FIELD_NAME;
+            case VALUE_EMBEDDED_OBJECT -> Token.VALUE_EMBEDDED_OBJECT;
+            case VALUE_STRING -> Token.VALUE_STRING;
+            case VALUE_NUMBER_INT, VALUE_NUMBER_FLOAT -> Token.VALUE_NUMBER;
+            case VALUE_FALSE, VALUE_TRUE -> Token.VALUE_BOOLEAN;
+            case VALUE_NULL -> Token.VALUE_NULL;
+            default -> throw unknownTokenException(token);
+        };
+    }
+
+    private static IllegalStateException unknownTokenException(JsonToken token) {
+        return new IllegalStateException("No matching token for json_token [" + token + "]");
     }
 
     @Override

@@ -8,8 +8,6 @@
 
 package org.elasticsearch.index.engine;
 
-import com.carrotsearch.hppc.LongArrayList;
-
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.index.seqno.RetentionLeases;
@@ -50,7 +48,7 @@ public class CombinedDeletionPolicyTests extends ESTestCase {
         TranslogDeletionPolicy translogPolicy = new TranslogDeletionPolicy();
         CombinedDeletionPolicy indexPolicy = newCombinedDeletionPolicy(translogPolicy, softDeletesPolicy, globalCheckpoint);
 
-        final LongArrayList maxSeqNoList = new LongArrayList();
+        final List<Long> maxSeqNoList = new ArrayList<>();
         final List<IndexCommit> commitList = new ArrayList<>();
         int totalCommits = between(2, 20);
         long lastMaxSeqNo = 0;

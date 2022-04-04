@@ -1736,5 +1736,4 @@ public abstract class ESTestCase extends LuceneTestCase {
         assumeTrue("Skipping test as it is waiting on a Lucene fix: " + message, currentVersionHasFix);
         fail("Remove call of skipTestWaitingForLuceneFix in " + RandomizedTest.getContext().getTargetMethod());
     }
-
 }

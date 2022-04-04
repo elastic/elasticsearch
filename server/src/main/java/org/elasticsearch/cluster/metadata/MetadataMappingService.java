@@ -123,7 +123,7 @@ public class MetadataMappingService {
             }
         }
 
-        private ClusterState applyRequest(
+        private static ClusterState applyRequest(
             ClusterState currentState,
             PutMappingClusterStateUpdateRequest request,
             Map<Index, MapperService> indexMapperServices

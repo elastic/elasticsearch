@@ -1,13 +1,14 @@
 [[node-left]]
 
 [discrete]
-==== NODE_LEFT
+==== Primary shards are unassigned and data loss is likely.
 
 [discrete]
 ===== Description
-No allocation decider has information about why the shard is not allocated, but the unassigned info reason is `NODE_LEFT` and the
-`last_allocation_status` is `no_valid_shard_copy`. Data has been lost.
+Some indices have unassigned primary shards because there are no copies of the shards found on the nodes currently in the cluster. Data has
+been lost.
 
 [discrete]
 ===== Solution
+If there are nodes down that can be brought up, start them. The missing shards might be on them. Otherwise
 <<snapshots-restore-snapshot, Restore your data from a snapshot>>.

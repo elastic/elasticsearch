@@ -1,7 +1,7 @@
 [[data-tier-allocation-decider]]
 
 [discrete]
-==== Data tier allocation decider
+==== Primary or replica shards are unassigned.
 
 [discrete]
 ===== Description

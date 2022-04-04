@@ -37,6 +37,7 @@ import java.nio.file.Path;
 import java.time.Clock;
 import java.time.LocalDate;
 import java.time.ZoneOffset;
+import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -114,6 +115,31 @@ public class LicenseServiceTests extends ESTestCase {
         assertRegisterDisallowedLicenseType(settings, notAllowed);
     }
 
+    /**
+     * Tests that the license overrides from {@link LicenseOverrides} are applied when an override is present for a license's ID.
+     */
+    public void testLicenseExpiryDateOverride() throws IOException {
+        UUID licenseId = UUID.fromString("12345678-abcd-0000-0000-000000000000"); // Special test UUID
+        License.LicenseType type = randomFrom(License.LicenseType.values());
+        License testLicense = buildLicense(licenseId, type, TimeValue.timeValueDays(randomIntBetween(1, 100)).millis());
+
+        assertThat(LicenseService.getExpiryDate(testLicense), equalTo(new Date(42000L).getTime()));
+    }
+
+    /**
+     * Tests that a license with an overridden expiry date that's in the past is expired.
+     */
+    public void testLicenseWithOverridenExpiryInPastIsExpired() throws IOException {
+        UUID licenseId = UUID.fromString("12345678-abcd-0000-0000-000000000000"); // Special test UUID
+        License.LicenseType type = randomFrom(LicenseService.ALLOWABLE_UPLOAD_TYPES);
+        License testLicense = sign(buildLicense(licenseId, type, TimeValue.timeValueDays(randomIntBetween(1, 100)).millis()));
+
+        tryRegisterLicense(Settings.EMPTY, testLicense, future -> {
+            PutLicenseResponse response = future.actionGet();
+            assertThat(response.status(), equalTo(LicensesStatus.EXPIRED));
+        });
+    }
+
     private void assertRegisterValidLicense(Settings baseSettings, License.LicenseType licenseType) throws IOException {
         tryRegisterLicense(baseSettings, licenseType, future -> assertThat(future.actionGet().status(), equalTo(LicensesStatus.VALID)));
     }
@@ -135,6 +161,11 @@ public class LicenseServiceTests extends ESTestCase {
         License.LicenseType licenseType,
         Consumer<PlainActionFuture<PutLicenseResponse>> assertion
     ) throws IOException {
+        tryRegisterLicense(baseSettings, sign(buildLicense(licenseType, TimeValue.timeValueDays(randomLongBetween(1, 1000)))), assertion);
+    }
+
+    private void tryRegisterLicense(Settings baseSettings, License license, Consumer<PlainActionFuture<PutLicenseResponse>> assertion)
+        throws IOException {
         final Settings settings = Settings.builder()
             .put(baseSettings)
             .put("path.home", createTempDir())
@@ -163,7 +194,7 @@ public class LicenseServiceTests extends ESTestCase {
         );
 
         final PutLicenseRequest request = new PutLicenseRequest();
-        request.license(spec(licenseType, TimeValue.timeValueDays(randomLongBetween(1, 1000))), XContentType.JSON);
+        request.license(toSpec(license), XContentType.JSON);
         final PlainActionFuture<PutLicenseResponse> future = new PlainActionFuture<>();
         service.registerLicense(request, future);
 
@@ -180,11 +211,6 @@ public class LicenseServiceTests extends ESTestCase {
 
             assertion.accept(future);
         }
-    }
-
-    private BytesReference spec(License.LicenseType type, TimeValue expires) throws IOException {
-        final License signed = sign(buildLicense(type, expires));
-        return toSpec(signed);
     }
 
     private BytesReference toSpec(License license) throws IOException {
@@ -207,10 +233,14 @@ public class LicenseServiceTests extends ESTestCase {
     }
 
     private License buildLicense(License.LicenseType type, TimeValue expires) {
+        return buildLicense(new UUID(randomLong(), randomLong()), type, expires.millis());
+    }
+
+    private License buildLicense(UUID licenseId, License.LicenseType type, long expires) {
         return License.builder()
-            .uid(new UUID(randomLong(), randomLong()).toString())
+            .uid(licenseId.toString())
             .type(type)
-            .expiryDate(System.currentTimeMillis() + expires.millis())
+            .expiryDate(System.currentTimeMillis() + expires)
             .issuer(randomAlphaOfLengthBetween(5, 60))
             .issuedTo(randomAlphaOfLengthBetween(5, 60))
             .issueDate(System.currentTimeMillis() - TimeUnit.MINUTES.toMillis(randomLongBetween(1, 5000)))

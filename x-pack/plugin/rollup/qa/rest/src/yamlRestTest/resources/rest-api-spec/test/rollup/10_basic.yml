@@ -103,8 +103,8 @@ setup:
         body:
           sort: [ "_tsid", "@timestamp" ]
 
-  - length: { hits.hits: 4  }
-  - match:  { hits.hits.0._source._doc_count: 2}
+  - length: { hits.hits: 4 }
+  - match:  { hits.hits.0._source._doc_count: 2 }
   - match:  { hits.hits.0._source.k8s\.pod\.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
   - match:  { hits.hits.0._source.metricset: pod }
   - match:  { hits.hits.0._source.@timestamp: 2021-04-28T18:00:00.000Z }
@@ -127,3 +127,35 @@ setup:
   # TODO: Fix copying the number of shards from the source index
   # - match: { rollup-test.settings.index.number_of_replicas: "0" }
 
+---
+"Rollup non-existing index":
+  - skip:
+      version: " - 8.1.99"
+      reason: tsdb rollups added in 8.2.0
+  - do:
+      catch: /no such index \[non-existing-index\]/
+      rollup.rollup:
+        index: non-existing-index
+        rollup_index: rollup-test
+        body:  >
+          {
+            "groups" : {
+              "date_histogram": {
+                "field": "@timestamp",
+                "fixed_interval": "1h"
+              },
+              "terms": {
+                "fields": ["k8s.pod.uid", "metricset"]
+              }
+            },
+            "metrics": [
+              {
+                "field": "k8s.pod.network.tx",
+                "metrics": ["min", "max", "sum", "value_count", "avg"]
+              },
+              {
+                "field": "k8s.pod.network.rx",
+                "metrics": ["min", "max", "sum", "value_count", "avg"]
+              }
+            ]
+          }

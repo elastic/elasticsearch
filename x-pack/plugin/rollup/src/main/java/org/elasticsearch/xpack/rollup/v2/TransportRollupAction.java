@@ -115,11 +115,11 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) throws IOException {
-        String originalIndexName = request.getSourceIndex();
+        String sourceIndexName = request.getSourceIndex();
 
         final String rollupIndexName;
         if (request.getRollupIndex() == null) {
-            rollupIndexName = "rollup-" + originalIndexName + "-" + UUIDs.randomBase64UUID(Randomness.get());
+            rollupIndexName = "rollup-" + sourceIndexName + "-" + UUIDs.randomBase64UUID(Randomness.get());
         } else {
             rollupIndexName = request.getRollupIndex();
         }
@@ -134,10 +134,10 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             return;
         }
 
-        FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest().indices(originalIndexName)
+        FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest().indices(sourceIndexName)
             .fields(request.getRollupConfig().getAllFields().toArray(new String[0]));
         fieldCapsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
-        IndexMetadata originalIndexMetadata = state.getMetadata().index(originalIndexName);
+        IndexMetadata sourceIndexMetadata = state.getMetadata().index(sourceIndexName);
 
         CreateIndexClusterStateUpdateRequest createIndexClusterStateUpdateRequest = new CreateIndexClusterStateUpdateRequest(
             "rollup",
@@ -166,7 +166,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             RollupActionRequestValidationException validationException = new RollupActionRequestValidationException();
             if (fieldCapsResponse.get().size() == 0) {
                 validationException.addValidationError(
-                    "Could not find any fields in the index [" + originalIndexName + "] that were configured in job"
+                    "Could not find any fields in the index [" + sourceIndexName + "] that were configured in job"
                 );
                 listener.onFailure(validationException);
                 return;
@@ -185,7 +185,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                         currentState,
                         createIndexClusterStateUpdateRequest,
                         true,
-                        (builder, indexMetadata) -> builder.put(copyIndexMetadata(originalIndexMetadata, indexMetadata))
+                        (builder, indexMetadata) -> builder.put(copyIndexMetadata(sourceIndexMetadata, indexMetadata))
                     );
                 }
 
@@ -201,34 +201,34 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                                     client.admin().indices().resizeIndex(resizeRequest, ActionListener.wrap(resizeResponse -> {
                                         if (resizeResponse.isAcknowledged()) {
                                             // 6.
-                                            publishMetadata(originalIndexName, tmpIndexName, rollupIndexName, listener);
+                                            publishMetadata(sourceIndexName, tmpIndexName, rollupIndexName, listener);
                                         } else {
                                             deleteTmpIndex(
-                                                originalIndexName,
+                                                sourceIndexName,
                                                 tmpIndexName,
                                                 listener,
                                                 new ElasticsearchException("Unable to resize temp rollup index [" + tmpIndexName + "]")
                                             );
                                         }
-                                    }, e -> deleteTmpIndex(originalIndexName, tmpIndexName, listener, e)));
+                                    }, e -> deleteTmpIndex(sourceIndexName, tmpIndexName, listener, e)));
                                 } else {
                                     deleteTmpIndex(
-                                        originalIndexName,
+                                        sourceIndexName,
                                         tmpIndexName,
                                         listener,
                                         new ElasticsearchException("Unable to update settings of temp rollup index [" + tmpIndexName + "]")
                                     );
                                 }
-                            }, e -> deleteTmpIndex(originalIndexName, tmpIndexName, listener, e)));
+                            }, e -> deleteTmpIndex(sourceIndexName, tmpIndexName, listener, e)));
                         } else {
                             deleteTmpIndex(
-                                originalIndexName,
+                                sourceIndexName,
                                 tmpIndexName,
                                 listener,
                                 new ElasticsearchException("Unable to index into temp rollup index [" + tmpIndexName + "]")
                             );
                         }
-                    }, e -> deleteTmpIndex(originalIndexName, tmpIndexName, listener, e)));
+                    }, e -> deleteTmpIndex(sourceIndexName, tmpIndexName, listener, e)));
                 }
 
                 @Override

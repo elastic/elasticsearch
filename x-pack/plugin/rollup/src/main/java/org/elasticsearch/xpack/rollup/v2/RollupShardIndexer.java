@@ -403,11 +403,15 @@ class RollupShardIndexer {
             }
 
             for (MetricFieldProducer fieldProducer : metricFields.values()) {
-                Map<String, Object> map = new HashMap<>();
+                Map<String, Object> metricValues = new HashMap<>();
                 for (MetricFieldProducer.Metric metric : fieldProducer.metrics()) {
-                    map.put(metric.name, metric.get());
+                    if (metric.get() != null) {
+                        metricValues.put(metric.name, metric.get());
+                    }
                 }
-                doc.put(fieldProducer.field(), map);
+                if (metricValues.isEmpty() == false){
+                    doc.put(fieldProducer.field(), metricValues);
+                }
             }
 
             return doc;

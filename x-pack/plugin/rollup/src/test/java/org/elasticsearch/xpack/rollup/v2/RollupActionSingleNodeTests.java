@@ -220,6 +220,29 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         assertRollupIndex(config, sourceIndex, rollupIndex);
     }
 
+    public void testSparseMetrics() throws IOException {
+        RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig(FIELD_TIMESTAMP);
+        SourceSupplier sourceSupplier = () -> {
+            XContentBuilder builder = XContentFactory.jsonBuilder()
+                .startObject()
+                .field(FIELD_TIMESTAMP, randomDateForInterval(dateHistogramGroupConfig.getInterval()))
+                .field(FIELD_CATEGORICAL_1, randomAlphaOfLength(1));
+
+            if (randomBoolean()) {
+                builder.field(FIELD_NUMERIC_1, randomDouble());
+            }
+
+            return builder.endObject();
+        };
+        RollupActionConfig config = new RollupActionConfig(
+            new RollupActionGroupConfig(dateHistogramGroupConfig, null, ROLLUP_TERMS_CONFIG),
+            Collections.singletonList(new MetricConfig(FIELD_NUMERIC_1, List.of("max", "min")))
+        );
+        bulkIndex(sourceSupplier);
+        rollup(sourceIndex, rollupIndex, config);
+        assertRollupIndex(config, sourceIndex, rollupIndex);
+    }
+
     public void testSumValueCountMetric() throws IOException {
         RollupActionDateHistogramGroupConfig dateHistogramGroupConfig = randomRollupActionDateHistogramGroupConfig(FIELD_TIMESTAMP);
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()

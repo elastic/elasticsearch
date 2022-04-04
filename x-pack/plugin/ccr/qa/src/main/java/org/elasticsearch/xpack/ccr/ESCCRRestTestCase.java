@@ -26,9 +26,11 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.rest.action.search.RestSearchAction.TOTAL_HITS_AS_INT_PARAM;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -271,7 +273,7 @@ public class ESCCRRestTestCase extends ESRestTestCase {
         });
     }
 
-    protected int countCcrNodeTasks() throws IOException {
+    protected Set<CcrNodeTask> getCcrNodeTasks() throws IOException {
         final Request request = new Request("GET", "/_tasks");
         request.addParameter("detailed", "true");
         Map<String, Object> rsp1 = toMap(adminClient().performRequest(request));
@@ -279,16 +281,26 @@ public class ESCCRRestTestCase extends ESRestTestCase {
         assertThat(nodes.size(), equalTo(1));
         Map<?, ?> node = (Map<?, ?>) nodes.values().iterator().next();
         Map<?, ?> nodeTasks = (Map<?, ?>) node.get("tasks");
-        int numNodeTasks = 0;
+        var ccrNodeTasks = new HashSet<CcrNodeTask>();
         for (Map.Entry<?, ?> entry : nodeTasks.entrySet()) {
             Map<?, ?> nodeTask = (Map<?, ?>) entry.getValue();
             String action = (String) nodeTask.get("action");
             if (action.startsWith("xpack/ccr/shard_follow_task")) {
-                numNodeTasks++;
+                var status = (Map<?, ?>) nodeTask.get("status");
+                ccrNodeTasks.add(
+                    new CcrNodeTask(
+                        (String) status.get("remote_cluster"),
+                        (String) status.get("leader_index"),
+                        (String) status.get("follower_index"),
+                        (Integer) status.get("shard_id")
+                    )
+                );
             }
         }
-        return numNodeTasks;
+        return ccrNodeTasks;
     }
+
+    protected record CcrNodeTask(String remoteCluster, String leaderIndex, String followerIndex, int shardId) {}
 
     protected static void createIndex(String name, Settings settings) throws IOException {
         createIndex(name, settings, "");

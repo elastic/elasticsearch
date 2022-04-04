@@ -28,3 +28,7 @@ if (BuildParams.isSnapshotBuild() == false) {
     systemProperty 'es.index_mode_feature_flag_registered', 'true'
   }
 }
+
+tasks.named("yamlRestTestV7CompatTest").configure {
+  systemProperty 'tests.rest.blacklist', 'match_only_text/10_basic/Wildcard highlighting'
+}

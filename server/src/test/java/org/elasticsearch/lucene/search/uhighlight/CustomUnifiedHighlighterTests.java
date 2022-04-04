@@ -187,7 +187,7 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
 
     public void testMultiPhrasePrefixQuery() throws Exception {
         final String[] inputs = { "The quick brown fox." };
-        final String[] outputs = { "The <b>quick</b> <b>brown</b> <b>fox</b>." };
+        final String[] outputs = { "The <b>quick brown fox</b>." };
         MultiPhrasePrefixQuery query = new MultiPhrasePrefixQuery("text");
         query.add(new Term("text", "quick"));
         query.add(new Term("text", "brown"));
@@ -265,6 +265,11 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
             outputs
         );
 
+        String[] phraseOutputs = {
+            "<b>Fun  fun fun</b>",
+            "<b>fun  fun  </b>",
+            "<b>fun  fun  fun</b>",
+            "<b>fun  fun</b>" };
         query = new PhraseQuery.Builder().add(new Term("text", "fun")).add(new Term("text", "fun")).build();
         assertHighlightOneDoc(
             "text",
@@ -274,7 +279,7 @@ public class CustomUnifiedHighlighterTests extends ESTestCase {
             Locale.ROOT,
             BoundedBreakIteratorScanner.getSentence(Locale.ROOT, 10),
             0,
-            outputs
+            phraseOutputs
         );
     }
 

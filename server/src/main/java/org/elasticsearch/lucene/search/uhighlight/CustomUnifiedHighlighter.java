@@ -178,6 +178,9 @@ public class CustomUnifiedHighlighter extends UnifiedHighlighter {
         Predicate<String> fieldMatcher = getFieldMatcher(field);
         BytesRef[] terms = filterExtractedTerms(fieldMatcher, allTerms);
         Set<HighlightFlag> highlightFlags = getFlags(field);
+        if (query instanceof ESToParentBlockJoinQuery) {
+            highlightFlags.remove(HighlightFlag.WEIGHT_MATCHES);    // nested queries don't support weight_matches impl
+        }
         PhraseHelper phraseHelper = getPhraseHelper(field, query, highlightFlags);
         LabelledCharArrayMatcher[] automata = getAutomata(field, query, highlightFlags);
         UHComponents components = new UHComponents(field, fieldMatcher, query, terms, phraseHelper, automata, false, highlightFlags);

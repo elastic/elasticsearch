@@ -16,6 +16,7 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.analysis.MockTokenizer;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -2296,7 +2297,7 @@ public class HighlighterSearchIT extends ESIntegTestCase {
             "field2",
             0,
             1,
-            equalTo("The <xxx>quick</xxx> <xxx>brown</xxx> fox jumps over the lazy quick dog")
+            equalTo("The <xxx>quick brown</xxx> fox jumps over the lazy quick dog")
         );
 
         // lets fall back to the standard highlighter then, what people would do to highlight query matches
@@ -3397,6 +3398,9 @@ public class HighlighterSearchIT extends ESIntegTestCase {
     }
 
     public void testHighlightQueryRewriteDatesWithNow() throws Exception {
+        assumeTrue(
+            "Fixed in lucene 9.2",
+            Version.CURRENT.luceneVersion.onOrAfter(org.apache.lucene.util.Version.fromBits(9, 2, 0)));
         assertAcked(
             client().admin()
                 .indices()

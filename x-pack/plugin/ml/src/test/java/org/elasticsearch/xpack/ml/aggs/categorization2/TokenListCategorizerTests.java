@@ -7,11 +7,39 @@
 
 package org.elasticsearch.xpack.ml.aggs.categorization2;
 
+import org.apache.lucene.analysis.TokenStream;
+import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.TestEnvironment;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
+import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
+import org.junit.Before;
+
 import java.io.IOException;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class TokenListCategorizerTests extends CategorizationTestCase {
+
+    private AnalysisRegistry analysisRegistry;
+
+    public static AnalysisRegistry buildTestAnalysisRegistry(Environment environment) throws Exception {
+        CommonAnalysisPlugin commonAnalysisPlugin = new CommonAnalysisPlugin();
+        MachineLearning ml = new MachineLearning(environment.settings());
+        return new AnalysisModule(environment, List.of(commonAnalysisPlugin, ml)).getAnalysisRegistry();
+    }
+
+    @Before
+    public void setup() throws Exception {
+        Settings settings = Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir()).build();
+        Environment environment = TestEnvironment.newEnvironment(settings);
+        analysisRegistry = buildTestAnalysisRegistry(environment);
+    }
 
     public void testMinMatchingWeights() {
         assertThat(TokenListCategorizer.minMatchingWeight(0, 0.7f), equalTo(0));
@@ -43,9 +71,9 @@ public class TokenListCategorizerTests extends CategorizationTestCase {
 
     public void testWeightCalculator() throws IOException {
 
-        CategorizationPartOfSpeechDictionary partOfSpeechDictionary = CategorizationPartOfSpeechDictionary.getInstance();
-
-        TokenListCategorizer.WeightCalculator weightCalculator = new TokenListCategorizer.WeightCalculator(partOfSpeechDictionary);
+        TokenListCategorizer.WeightCalculator weightCalculator = new TokenListCategorizer.WeightCalculator(
+            CategorizationPartOfSpeechDictionary.getInstance()
+        );
 
         assertThat(weightCalculator.calculateWeight("Info"), equalTo(3)); // dictionary word, not verb, not 3rd in a row
         assertThat(weightCalculator.calculateWeight("my_host"), equalTo(1)); // not dictionary word
@@ -61,5 +89,142 @@ public class TokenListCategorizerTests extends CategorizationTestCase {
         assertThat(weightCalculator.calculateWeight("my_service"), equalTo(1)); // not dictionary word
         assertThat(weightCalculator.calculateWeight("is"), equalTo(3)); // dictionary word, not verb, not 3rd in a row
         assertThat(weightCalculator.calculateWeight("starting"), equalTo(6)); // dictionary word, verb, not 3rd in a row
+    }
+
+    public void testApacheData() throws IOException {
+        CategorizationAnalyzerConfig defaultConfig = CategorizationAnalyzerConfig.buildDefaultCategorizationAnalyzer(null);
+        try (CategorizationAnalyzer categorizationAnalyzer = new CategorizationAnalyzer(analysisRegistry, defaultConfig)) {
+
+            TokenListCategorizer categorizer = new TokenListCategorizer(
+                bytesRefHash,
+                CategorizationPartOfSpeechDictionary.getInstance(),
+                0.7f
+            );
+
+            assertThat(
+                computeCategory(
+                    categorizationAnalyzer,
+                    categorizer,
+                    "Aug 29, 2019 2:02:51 PM org.apache.coyote.http11.Http11BaseProtocol destroy"
+                ).getId(),
+                equalTo(0)
+            );
+            assertThat(categorizer.ramBytesUsed(), equalTo(categorizer.ramBytesUsedSlow()));
+
+            assertThat(
+                computeCategory(
+                    categorizationAnalyzer,
+                    categorizer,
+                    "Aug 29, 2019 2:02:51 PM org.apache.coyote.http11.Http11BaseProtocol init"
+                ).getId(),
+                equalTo(1)
+            );
+            assertThat(categorizer.ramBytesUsed(), equalTo(categorizer.ramBytesUsedSlow()));
+
+            assertThat(
+                computeCategory(
+                    categorizationAnalyzer,
+                    categorizer,
+                    "Aug 29, 2019 2:02:51 PM org.apache.coyote.http11.Http11BaseProtocol start"
+                ).getId(),
+                equalTo(2)
+            );
+            assertThat(categorizer.ramBytesUsed(), equalTo(categorizer.ramBytesUsedSlow()));
+
+            assertThat(
+                computeCategory(
+                    categorizationAnalyzer,
+                    categorizer,
+                    "Aug 29, 2019 2:02:51 PM org.apache.coyote.http11.Http11BaseProtocol stop"
+                ).getId(),
+                equalTo(3)
+            );
+            assertThat(categorizer.ramBytesUsed(), equalTo(categorizer.ramBytesUsedSlow()));
+        }
+    }
+
+    public void testVmwareData() throws IOException {
+        CategorizationAnalyzerConfig defaultConfig = CategorizationAnalyzerConfig.buildDefaultCategorizationAnalyzer(null);
+        try (CategorizationAnalyzer categorizationAnalyzer = new CategorizationAnalyzer(analysisRegistry, defaultConfig)) {
+
+            TokenListCategorizer categorizer = new TokenListCategorizer(
+                bytesRefHash,
+                CategorizationPartOfSpeechDictionary.getInstance(),
+                0.7f
+            );
+
+            assertThat(
+                computeCategory(
+                    categorizationAnalyzer,
+                    categorizer,
+                    "Apr  5 14:53:44 host.acme.com "
+                        + "Vpxa: [49EC0B90 verbose 'VpxaHalCnxHostagent' opID=WFU-ddeadb59] [WaitForUpdatesDone] Received callback"
+                ).getId(),
+                equalTo(0)
+            );
+            assertThat(categorizer.ramBytesUsed(), equalTo(categorizer.ramBytesUsedSlow()));
+
+            assertThat(
+                computeCategory(
+                    categorizationAnalyzer,
+                    categorizer,
+                    "Apr  5 14:53:44 host.acme.com "
+                        + "Vpxa: [49EC0B90 verbose 'Default' opID=WFU-ddeadb59] [VpxaHalVmHostagent] 11: GuestInfo changed 'guest.disk"
+                ).getId(),
+                equalTo(1)
+            );
+            assertThat(categorizer.ramBytesUsed(), equalTo(categorizer.ramBytesUsedSlow()));
+
+            assertThat(
+                computeCategory(
+                    categorizationAnalyzer,
+                    categorizer,
+                    "Apr  5 14:53:44 host.acme.com "
+                        + "Vpxa: [49EC0B90 verbose 'VpxaHalCnxHostagent' opID=WFU-ddeadb59] [WaitForUpdatesDone] Completed callback"
+                ).getId(),
+                equalTo(2)
+            );
+            assertThat(categorizer.ramBytesUsed(), equalTo(categorizer.ramBytesUsedSlow()));
+
+            assertThat(
+                computeCategory(
+                    categorizationAnalyzer,
+                    categorizer,
+                    "Apr  5 14:53:44 host.acme.com "
+                        + "Vpxa: [49EC0B90 verbose 'VpxaHalCnxHostagent' opID=WFU-35689729] [WaitForUpdatesDone] Received callback"
+                ).getId(),
+                equalTo(0)
+            );
+            assertThat(categorizer.ramBytesUsed(), equalTo(categorizer.ramBytesUsedSlow()));
+
+            assertThat(
+                computeCategory(
+                    categorizationAnalyzer,
+                    categorizer,
+                    "Apr  5 14:53:44 host.acme.com "
+                        + "Vpxa: [49EC0B90 verbose 'Default' opID=WFU-35689729] [VpxaHalVmHostagent] 15: GuestInfo changed 'guest.disk"
+                ).getId(),
+                equalTo(1)
+            );
+            assertThat(categorizer.ramBytesUsed(), equalTo(categorizer.ramBytesUsedSlow()));
+
+            assertThat(
+                computeCategory(
+                    categorizationAnalyzer,
+                    categorizer,
+                    "Apr  5 14:53:44 host.acme.com "
+                        + "Vpxa: [49EC0B90 verbose 'VpxaHalCnxHostagent' opID=WFU-35689729] [WaitForUpdatesDone] Completed callback"
+                ).getId(),
+                equalTo(2)
+            );
+            assertThat(categorizer.ramBytesUsed(), equalTo(categorizer.ramBytesUsedSlow()));
+        }
+    }
+
+    TokenListCategory computeCategory(CategorizationAnalyzer categorizationAnalyzer, TokenListCategorizer categorizer, String message)
+        throws IOException {
+        try (TokenStream ts = categorizationAnalyzer.tokenStream("message", message)) {
+            return categorizer.computeCategory(ts, message.length(), 1);
+        }
     }
 }

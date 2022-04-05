@@ -23,6 +23,7 @@ import static org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
 import static org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF;
 import static org.apache.lucene.util.RamUsageEstimator.alignObjectSize;
 import static org.apache.lucene.util.RamUsageEstimator.shallowSizeOf;
+import static org.apache.lucene.util.RamUsageEstimator.sizeOfCollection;
 
 /**
  * Port of the C++ class <a href="https://github.com/elastic/ml-cpp/blob/main/include/model/CTokenListCategory.h">
@@ -108,7 +109,7 @@ public class TokenListCategory implements Accountable {
      */
     private List<InternalAggregations> subAggs = List.of();
 
-    private long cachedListSizeInBytes;
+    private long cachedSizeInBytes;
 
     /**
      * Create a new category.
@@ -167,7 +168,7 @@ public class TokenListCategory implements Accountable {
                 + baseUnfilteredLength
                 + ", for a category with a single match";
         this.numMatches = numMatches;
-        cacheListSize();
+        cacheRamUsage();
     }
 
     public TokenListCategory(int id, SerializableTokenListCategory serializable, CategorizationBytesRefHash bytesRefHash) {
@@ -196,7 +197,7 @@ public class TokenListCategory implements Accountable {
         this.commonUniqueTokenWeight = commonUniqueTokenIds.stream().mapToInt(TokenAndWeight::getWeight).sum();
         this.origUniqueTokenWeight = serializable.origUniqueTokenWeight;
         this.numMatches = serializable.numMatches;
-        cacheListSize();
+        cacheRamUsage();
     }
 
     public void addString(
@@ -282,7 +283,7 @@ public class TokenListCategory implements Accountable {
             }
         }
         if (changed) {
-            cacheListSize();
+            cacheRamUsage();
         }
     }
 
@@ -622,19 +623,30 @@ public class TokenListCategory implements Accountable {
 
     @Override
     public long ramBytesUsed() {
-        // It's too expensive to calculate this using Lucene's RamUsageEstimator.sizeOfCollection() method, which
-        // is very slow. Therefore, we cache the variable part of the calculation.
-        return SHALLOW_SIZE + cachedListSizeInBytes;
+        // It's too expensive to calculate this on-the-fly using Lucene's RamUsageEstimator method, which
+        // is very slow. Therefore, we cache the result of the calculation.
+        return cachedSizeInBytes;
+    }
+
+    // For testing - should return the same value as the method above, just more slowly.
+    long ramBytesUsedSlow() {
+        return SHALLOW_SIZE + sizeOfCollection(baseWeightedTokenIds) + sizeOfCollection(commonUniqueTokenIds);
         // TODO: should subAggs be included, or are nested aggregations accounted for separately?
     }
 
-    private void cacheListSize() {
-        // This is the equivalent of adding up the results of Lucene's RamUsageEstimator.sizeOfCollection()
-        // method called for baseWeightedTokenIds and commonUniqueTokenIds.
-        cachedListSizeInBytes = alignObjectSize(
-            shallowSizeOf(baseWeightedTokenIds) + shallowSizeOf(commonUniqueTokenIds) + 2L * NUM_BYTES_ARRAY_HEADER + (baseWeightedTokenIds
-                .size() + commonUniqueTokenIds.size()) * (TokenAndWeight.SHALLOW_SIZE + NUM_BYTES_OBJECT_REF)
-        );
+    private void cacheRamUsage() {
+        cachedSizeInBytes = SHALLOW_SIZE
+            // This is the equivalent of adding up the results of Lucene's RamUsageEstimator.sizeOfCollection()
+            // method called for baseWeightedTokenIds and commonUniqueTokenIds, but taking advantage of the fact
+            // that TokenAndWeight objects have fixed size.
+            + alignObjectSize(
+                shallowSizeOf(baseWeightedTokenIds) + NUM_BYTES_ARRAY_HEADER + baseWeightedTokenIds.size() * (TokenAndWeight.SHALLOW_SIZE
+                    + NUM_BYTES_OBJECT_REF)
+            ) + alignObjectSize(
+                shallowSizeOf(commonUniqueTokenIds) + NUM_BYTES_ARRAY_HEADER + commonUniqueTokenIds.size() * (TokenAndWeight.SHALLOW_SIZE
+                    + NUM_BYTES_OBJECT_REF)
+            );
+        // TODO: should subAggs be included, or are nested aggregations accounted for separately?
     }
 
     @Override

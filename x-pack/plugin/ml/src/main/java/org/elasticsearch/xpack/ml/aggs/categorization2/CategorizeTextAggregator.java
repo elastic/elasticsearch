@@ -148,12 +148,7 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
                 categorizers = bigArrays().grow(categorizers, owningBucketOrd + 1);
                 TokenListCategorizer categorizer = categorizers.get(owningBucketOrd);
                 if (categorizer == null) {
-                    categorizer = new TokenListCategorizer(
-                        /* maxUniqueTokens, maxMatchTokens,*/
-                        bytesRefHash,
-                        partOfSpeechDictionary,
-                        (float) similarityThreshold / 100.0f
-                    );
+                    categorizer = new TokenListCategorizer(bytesRefHash, partOfSpeechDictionary, (float) similarityThreshold / 100.0f);
                     addRequestCircuitBreakerBytes(categorizer.ramBytesUsed());
                     categorizers.set(owningBucketOrd, categorizer);
                 }
@@ -189,9 +184,7 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
                     return;
                 }
                 long sizeDiff = categorizer.ramBytesUsed() - previousSize;
-                if (sizeDiff > 0) {
-                    addRequestCircuitBreakerBytes(sizeDiff);
-                }
+                addRequestCircuitBreakerBytes(sizeDiff);
                 long bucketOrd = bucketOrds.add(owningBucketOrd, category.getId());
                 if (bucketOrd < 0) { // already seen
                     collectExistingBucket(sub, doc, -1 - bucketOrd);

@@ -68,6 +68,7 @@ public class TokenListCategoryTests extends CategorizationTestCase {
         assertThat(category.getMaxUnfilteredStringLength(), equalTo(Math.max(baseString.length(), newString.length())));
         assertThat(category.getOrderedCommonTokenBeginIndex(), equalTo(0));
         assertThat(category.getOrderedCommonTokenEndIndex(), equalTo(6));
+        assertThat(category.ramBytesUsed(), equalTo(category.ramBytesUsedSlow()));
     }
 
     public void testCommonTokensDifferentOrder() {
@@ -108,6 +109,7 @@ public class TokenListCategoryTests extends CategorizationTestCase {
         assertThat(category.getMaxUnfilteredStringLength(), equalTo(Math.max(baseString.length(), newString1.length())));
         assertThat(category.getOrderedCommonTokenBeginIndex(), equalTo(1));
         assertThat(category.getOrderedCommonTokenEndIndex(), equalTo(6));
+        assertThat(category.ramBytesUsed(), equalTo(category.ramBytesUsedSlow()));
 
         String newString2 = "nice seashells can be found near the seashore";
         List<TokenAndWeight> newTokenIds2 = List.of(
@@ -140,6 +142,7 @@ public class TokenListCategoryTests extends CategorizationTestCase {
         // too much complexity outside of the unit test.)
         assertThat(category.getOrderedCommonTokenBeginIndex(), equalTo(2));
         assertThat(category.getOrderedCommonTokenEndIndex(), equalTo(6));
+        assertThat(category.ramBytesUsed(), equalTo(category.ramBytesUsedSlow()));
 
         String newString3 = "the rock";
         List<TokenAndWeight> newTokenIds3 = List.of(tw("the", 2), tw("rock", 2));
@@ -159,6 +162,7 @@ public class TokenListCategoryTests extends CategorizationTestCase {
         // and it's in position 4.
         assertThat(category.getOrderedCommonTokenBeginIndex(), equalTo(4));
         assertThat(category.getOrderedCommonTokenEndIndex(), equalTo(5));
+        assertThat(category.ramBytesUsed(), equalTo(category.ramBytesUsedSlow()));
     }
 
     public void testRoundTripBetweenNodes() {
@@ -178,7 +182,6 @@ public class TokenListCategoryTests extends CategorizationTestCase {
                 new BytesRefHash(2048, BigArrays.NON_RECYCLING_INSTANCE)
             )
         ) {
-
             // By deserializing in the opposite order we'll make node2BytesRefHash give different IDs to bytesRefHash for the same token
             TokenListCategory node2Category2 = new TokenListCategory(2, node1SerializableCategory2, node2BytesRefHash);
             TokenListCategory node2Category1 = new TokenListCategory(1, node1SerializableCategory1, node2BytesRefHash);
@@ -196,7 +199,11 @@ public class TokenListCategoryTests extends CategorizationTestCase {
         TokenListCategory node1RoundTrippedCategory2 = new TokenListCategory(2, node2SerializableCategory2, bytesRefHash);
 
         assertThat(node1RoundTrippedCategory1, equalTo(node1Category1));
+        assertThat(node1RoundTrippedCategory1.ramBytesUsed(), equalTo(node1Category1.ramBytesUsed()));
+        assertThat(node1RoundTrippedCategory1.ramBytesUsed(), equalTo(node1RoundTrippedCategory1.ramBytesUsedSlow()));
         assertThat(node1RoundTrippedCategory2, equalTo(node1Category2));
+        assertThat(node1RoundTrippedCategory2.ramBytesUsed(), equalTo(node1Category2.ramBytesUsed()));
+        assertThat(node1RoundTrippedCategory2.ramBytesUsed(), equalTo(node1RoundTrippedCategory2.ramBytesUsedSlow()));
     }
 
     public static TokenListCategory createTestInstance(CategorizationBytesRefHash bytesRefHash, int id) {

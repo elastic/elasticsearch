@@ -28,12 +28,15 @@ import java.util.PriorityQueue;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
+import static org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
+import static org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF;
+import static org.apache.lucene.util.RamUsageEstimator.alignObjectSize;
 import static org.apache.lucene.util.RamUsageEstimator.shallowSizeOf;
+import static org.apache.lucene.util.RamUsageEstimator.sizeOfCollection;
 
 /**
  * Port of the C++ class <a href="https://github.com/elastic/ml-cpp/blob/main/include/model/CTokenListDataCategorizerBase.h">
  * <code>CTokenListDataCategorizerBase</code></a> and parts of its base class and derived class.
- * This class is <em>not</em> thread safe, and each instance of it must only be used from one thread.
  */
 public class TokenListCategorizer implements Accountable {
 
@@ -65,8 +68,8 @@ public class TokenListCategorizer implements Accountable {
      * possible.
      */
     private final List<TokenListCategory> categoriesByNumMatches;
-    private long categoriesByNumMatchesShallowSize;
-    private long categoriesByNumMatchesCategoriesSize;
+    private long cachedSizeInBytes;
+    private long categoriesByNumMatchesContentsSize;
 
     public TokenListCategorizer(
         CategorizationBytesRefHash bytesRefHash,
@@ -83,7 +86,7 @@ public class TokenListCategorizer implements Accountable {
         this.lowerThreshold = threshold;
         this.upperThreshold = (1.0f + threshold) / 2.0f;
         this.categoriesByNumMatches = new ArrayList<>();
-        this.categoriesByNumMatchesShallowSize = shallowSizeOf(categoriesByNumMatches);
+        cacheRamUsage(0);
     }
 
     public TokenListCategory computeCategory(TokenStream ts, int unfilteredStringLen, long numDocs) throws IOException {
@@ -238,8 +241,7 @@ public class TokenListCategorizer implements Accountable {
             numDocs
         );
         categoriesByNumMatches.add(newCategory);
-        categoriesByNumMatchesShallowSize = shallowSizeOf(categoriesByNumMatches);
-        categoriesByNumMatchesCategoriesSize += newCategory.ramBytesUsed();
+        cacheRamUsage(newCategory.ramBytesUsed());
         return repositionCategory(newCategory, newIndex);
     }
 
@@ -247,7 +249,24 @@ public class TokenListCategorizer implements Accountable {
     public long ramBytesUsed() {
         // It's too expensive to calculate this on the fly. Lucene's RamUsageEstimator.sizeOfCollection()
         // method is very slow. Therefore, we have to maintain running counts of the memory usage.
-        return SHALLOW_SIZE + categoriesByNumMatchesShallowSize + categoriesByNumMatchesCategoriesSize;
+        return cachedSizeInBytes;
+    }
+
+    // For testing - should return the same value as the method above, just more slowly.
+    long ramBytesUsedSlow() {
+        return SHALLOW_SIZE + sizeOfCollection(categoriesByNumMatches);
+    }
+
+    private synchronized void cacheRamUsage(long contentsSizeDiff) {
+        categoriesByNumMatchesContentsSize += contentsSizeDiff;
+        cachedSizeInBytes = SHALLOW_SIZE
+            // This is the equivalent of adding up the results of Lucene's RamUsageEstimator.sizeOfCollection()
+            // method called for categoriesByNumMatches, getting the size of the contained objects from a different
+            // variable.
+            + alignObjectSize(
+                shallowSizeOf(categoriesByNumMatches) + NUM_BYTES_ARRAY_HEADER + categoriesByNumMatches.size() * NUM_BYTES_OBJECT_REF
+                    + categoriesByNumMatchesContentsSize
+            );
     }
 
     public int getCategoryCount() {
@@ -264,7 +283,7 @@ public class TokenListCategorizer implements Accountable {
         TokenListCategory category = categoriesByNumMatches.get(matchIndex);
         long previousSize = category.ramBytesUsed();
         category.addString(unfilteredLength, weightedTokenIds, uniqueTokenIds, numDocs);
-        categoriesByNumMatchesCategoriesSize += (category.ramBytesUsed() - previousSize);
+        cacheRamUsage(category.ramBytesUsed() - previousSize);
         if (numDocs == 1) {
             // If we're just incrementing a count by 1 (likely during initial per-shard categorization),
             // then we can keep the list sorted with a single swap operation instead of a full sort

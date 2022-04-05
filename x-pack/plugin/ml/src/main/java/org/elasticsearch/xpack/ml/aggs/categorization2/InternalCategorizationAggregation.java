@@ -263,8 +263,6 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
     public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         try (CategorizationBytesRefHash hash = new CategorizationBytesRefHash(new BytesRefHash(1L, reduceContext.bigArrays()))) {
             TokenListCategorizer categorizer = new TokenListCategorizer(
-                /*maxUniqueTokens,
-                maxMatchTokens,*/
                 hash,
                 null, // part-of-speech dictionary is not needed for the reduce phase as weights are already decided
                 (float) similarityThreshold / 100.0f

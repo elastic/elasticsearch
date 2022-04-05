@@ -1292,12 +1292,11 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
             false,
             null
         );
-        docValuesFieldExistsTestCase(
-            new ExistsQueryBuilder("f"),
-            ft,
-            true,
-            i -> { return numberType.createFields("f", i, true, true, false); }
-        );
+        docValuesFieldExistsTestCase(new ExistsQueryBuilder("f"), ft, true, i -> {
+            final List<IndexableField> fields = new ArrayList<>();
+            numberType.createFields(fields::add, "f", i, true, true, false);
+            return fields;
+        });
     }
 
     public void testDocValuesFieldExistsForNumberWithoutData() throws IOException {

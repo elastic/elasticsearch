@@ -12,7 +12,6 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.TestUtil;
@@ -34,9 +33,7 @@ public class HalfFloatFielddataTests extends ESTestCase {
         // we need the default codec to check for singletons
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null).setCodec(TestUtil.getDefaultCodec()));
         Document doc = new Document();
-        for (IndexableField f : NumberFieldMapper.NumberType.HALF_FLOAT.createFields("half_float", 3f, false, true, false)) {
-            doc.add(f);
-        }
+        NumberFieldMapper.NumberType.HALF_FLOAT.createFields(doc::add, "half_float", 3f, false, true, false);
         w.addDocument(doc);
         final DirectoryReader dirReader = DirectoryReader.open(w);
         LeafReader reader = getOnlyLeafReader(dirReader);
@@ -56,12 +53,8 @@ public class HalfFloatFielddataTests extends ESTestCase {
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(null));
         Document doc = new Document();
-        for (IndexableField f : NumberFieldMapper.NumberType.HALF_FLOAT.createFields("half_float", 3f, false, true, false)) {
-            doc.add(f);
-        }
-        for (IndexableField f : NumberFieldMapper.NumberType.HALF_FLOAT.createFields("half_float", 2f, false, true, false)) {
-            doc.add(f);
-        }
+        NumberFieldMapper.NumberType.HALF_FLOAT.createFields(doc::add, "half_float", 3f, false, true, false);
+        NumberFieldMapper.NumberType.HALF_FLOAT.createFields(doc::add, "half_float", 2f, false, true, false);
         w.addDocument(doc);
         final DirectoryReader dirReader = DirectoryReader.open(w);
         LeafReader reader = getOnlyLeafReader(dirReader);

@@ -298,10 +298,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
             document.add(new TextField(entry.getKey(), value, Field.Store.NO));
         }
         for (Integer intValue : intValues) {
-            List<Field> numberFields = NumberFieldMapper.NumberType.INTEGER.createFields("int_field", intValue, true, true, false);
-            for (Field numberField : numberFields) {
-                document.add(numberField);
-            }
+            NumberFieldMapper.NumberType.INTEGER.createFields(document::add, "int_field", intValue, true, true, false);
         }
         MemoryIndex memoryIndex = MemoryIndex.fromDocument(document, new WhitespaceAnalyzer());
         duelRun(queryStore, memoryIndex, shardSearcher);
@@ -422,16 +419,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         }
 
         for (int[] range : ranges) {
-            List<Field> numberFields = NumberFieldMapper.NumberType.INTEGER.createFields(
-                "int_field",
-                between(range[0], range[1]),
-                true,
-                true,
-                false
-            );
-            for (Field numberField : numberFields) {
-                document.add(numberField);
-            }
+            NumberFieldMapper.NumberType.INTEGER.createFields(document::add, "int_field", between(range[0], range[1]), true, true, false);
             logger.info("Test with document: {}" + document);
             MemoryIndex memoryIndex = MemoryIndex.fromDocument(document, new WhitespaceAnalyzer());
             duelRun(queryStore, memoryIndex, shardSearcher);

@@ -63,7 +63,13 @@ public class TransportXPackInfoAction extends HandledTransportAction<XPackInfoRe
                         mode = License.OperationMode.PLATINUM;
                     }
                 }
-                licenseInfo = new LicenseInfo(license.uid(), type, mode.description(), LicenseService.status(license), LicenseService.getExpiryDate(license));
+                licenseInfo = new LicenseInfo(
+                    license.uid(),
+                    type,
+                    mode.description(),
+                    LicenseService.status(license),
+                    LicenseService.getExpiryDate(license)
+                );
             }
         }
 

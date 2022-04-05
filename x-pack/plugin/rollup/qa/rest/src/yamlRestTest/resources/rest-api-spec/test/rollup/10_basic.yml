@@ -1,7 +1,7 @@
 setup:
   - skip:
-      version: " - 8.1.99"
-      reason: tsdb indexing changed in 8.2.0
+      version: " - 8.2.99"
+      reason: tsdb indexing changed in 8.3.0
 
   - do:
       indices.create:
@@ -67,8 +67,8 @@ setup:
 ---
 "Rollup index":
   - skip:
-      version: " - 8.1.99"
-      reason: tsdb rollups added in 8.2.0
+      version: " - 8.2.99"
+      reason: tsdb rollups added in 8.3.0
   - do:
       rollup.rollup:
         index: test
@@ -113,8 +113,8 @@ setup:
 ---
 "Rollup non-existing index":
   - skip:
-      version: " - 8.1.99"
-      reason: tsdb rollups added in 8.2.0
+      version: " - 8.2.99"
+      reason: tsdb rollups added in 8.3.0
   - do:
       catch: /Source index \[non-existing-index\] not found/
       rollup.rollup:

@@ -25,7 +25,7 @@ public class RollupFeatureSetUsage extends XPackFeatureSet.Usage {
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_8_2_0;
+        return Version.V_8_3_0;
     }
 
 }

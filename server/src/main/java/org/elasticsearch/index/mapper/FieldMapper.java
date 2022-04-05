@@ -232,10 +232,9 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
         // TODO: multi fields are really just copy fields, we just need to expose "sub fields" or something that can be part
         // of the mappings
-        if (multiFields.mappers.length == 0) {
-            return;
+        if (multiFields.mappers.length != 0) {
+            doParseMultiFields(context);
         }
-        doParseMultiFields(context);
     }
 
     private void doParseMultiFields(DocumentParserContext context) throws IOException {
@@ -462,9 +461,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
     public static final class MultiFields implements Iterable<FieldMapper>, ToXContent {
 
-        private static final FieldMapper[] EMPTY_MAPPERS = new FieldMapper[0];
-
-        private static final MultiFields EMPTY = new MultiFields(Map.of());
+        private static final MultiFields EMPTY = new MultiFields(new FieldMapper[0]);
 
         public static MultiFields empty() {
             return EMPTY;
@@ -502,12 +499,11 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 if (mapperBuilders.isEmpty()) {
                     return empty();
                 } else {
-                    Map<String, FieldMapper> mappers = new HashMap<>();
+                    FieldMapper[] mappers = new FieldMapper[mapperBuilders.size()];
                     context = context.createChildContext(mainFieldBuilder.name());
+                    int i = 0;
                     for (Map.Entry<String, Function<MapperBuilderContext, FieldMapper>> entry : this.mapperBuilders.entrySet()) {
-                        String key = entry.getKey();
-                        FieldMapper mapper = entry.getValue().apply(context);
-                        mappers.put(key, mapper);
+                        mappers[i++] = entry.getValue().apply(context);
                     }
                     return new MultiFields(mappers);
                 }
@@ -516,8 +512,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         private final FieldMapper[] mappers;
 
-        private MultiFields(Map<String, FieldMapper> mappers) {
-            this.mappers = mappers.values().toArray(EMPTY_MAPPERS);
+        private MultiFields(FieldMapper[] mappers) {
+            this.mappers = mappers;
             // sort for consistent iteration order + serialization
             Arrays.sort(this.mappers, Comparator.comparing(FieldMapper::name));
         }

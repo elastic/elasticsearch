@@ -31,7 +31,6 @@ import org.elasticsearch.xpack.ml.aggs.categorization2.InternalCategorizationAgg
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 
 import java.io.IOException;
-import java.io.InputStream;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -39,8 +38,6 @@ import java.util.Map;
 import java.util.Optional;
 
 public class CategorizeTextAggregator extends DeferableBucketAggregator {
-
-    static final String DICTIONARY_FILE_PATH = "/org/elasticsearch/xpack/ml/aggs/categorization2/ml-en.dict";
 
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
     private final SourceLookup sourceLookup;
@@ -96,9 +93,7 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
         this.bucketCountThresholds = bucketCountThresholds;
         this.bytesRefHash = new CategorizationBytesRefHash(new BytesRefHash(2048, bigArrays()));
         // TODO: make it possible to choose a language instead of or as well as English for the part-of-speech dictionary
-        try (InputStream is = CategorizationPartOfSpeechDictionary.class.getResourceAsStream(DICTIONARY_FILE_PATH)) {
-            this.partOfSpeechDictionary = new CategorizationPartOfSpeechDictionary(is);
-        }
+        this.partOfSpeechDictionary = CategorizationPartOfSpeechDictionary.getInstance();
     }
 
     @Override

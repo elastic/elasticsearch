@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ml.aggs.categorization2;
 
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -26,7 +25,6 @@ import java.util.Map;
 public class CategorizeTextAggregatorFactory extends AggregatorFactory {
 
     private final MappedFieldType fieldType;
-    private final String indexedFieldName;
     private final int similarityThreshold;
     private final CategorizationAnalyzerConfig categorizationAnalyzerConfig;
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
@@ -44,11 +42,6 @@ public class CategorizeTextAggregatorFactory extends AggregatorFactory {
     ) throws IOException {
         super(name, context, parent, subFactoriesBuilder, metadata);
         this.fieldType = context.getFieldType(fieldName);
-        if (fieldType != null) {
-            this.indexedFieldName = fieldType.name();
-        } else {
-            this.indexedFieldName = null;
-        }
         this.similarityThreshold = similarityThreshold;
         this.categorizationAnalyzerConfig = categorizationAnalyzerConfig;
         this.bucketCountThresholds = bucketCountThresholds;
@@ -76,19 +69,6 @@ public class CategorizeTextAggregatorFactory extends AggregatorFactory {
         if (fieldType == null) {
             return createUnmapped(parent, metadata);
         }
-        // TODO add support for Keyword && KeywordScriptFieldType
-        if (fieldType.getTextSearchInfo() == TextSearchInfo.NONE
-            || fieldType.getTextSearchInfo() == TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS) {
-            throw new IllegalArgumentException(
-                "categorize_text agg ["
-                    + name
-                    + "] only works on analyzable text fields. Cannot aggregate field type ["
-                    + fieldType.name()
-                    + "] via ["
-                    + fieldType.getClass().getSimpleName()
-                    + "]"
-            );
-        }
         TermsAggregator.BucketCountThresholds bucketCountThresholds = new TermsAggregator.BucketCountThresholds(this.bucketCountThresholds);
         if (bucketCountThresholds.getShardSize() == CategorizeTextAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {
             // The user has not made a shardSize selection. Use default
@@ -104,7 +84,7 @@ public class CategorizeTextAggregatorFactory extends AggregatorFactory {
             factories,
             context,
             parent,
-            indexedFieldName,
+            fieldType.name(),
             fieldType,
             bucketCountThresholds,
             similarityThreshold,

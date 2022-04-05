@@ -25,6 +25,8 @@ import java.util.stream.Stream;
  */
 public class CategorizationPartOfSpeechDictionary {
 
+    static final String DICTIONARY_FILE_PATH = "/org/elasticsearch/xpack/ml/aggs/categorization2/ml-en.dict";
+
     static final String PART_OF_SPEECH_SEPARATOR = "@";
 
     public enum PartOfSpeech {
@@ -70,6 +72,12 @@ public class CategorizationPartOfSpeechDictionary {
             return pos;
         }
     }
+
+    /**
+     * Lazy loaded singleton instance to avoid loading the dictionary repeatedly.
+     */
+    private static CategorizationPartOfSpeechDictionary instance;
+    private static final Object INIT_LOCK = new Object();
 
     /**
      * Keys are lower case.
@@ -121,5 +129,19 @@ public class CategorizationPartOfSpeechDictionary {
      */
     public boolean isInDictionary(CharSequence word) {
         return getPartOfSpeech(word) != PartOfSpeech.NOT_IN_DICTIONARY;
+    }
+
+    public static CategorizationPartOfSpeechDictionary getInstance() throws IOException {
+        if (instance != null) {
+            return instance;
+        }
+        synchronized (INIT_LOCK) {
+            if (instance == null) {
+                try (InputStream is = CategorizationPartOfSpeechDictionary.class.getResourceAsStream(DICTIONARY_FILE_PATH)) {
+                    instance = new CategorizationPartOfSpeechDictionary(is);
+                }
+            }
+            return instance;
+        }
     }
 }

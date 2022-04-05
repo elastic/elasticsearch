@@ -11,7 +11,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ml.aggs.categorization2.CategorizationPartOfSpeechDictionary.PartOfSpeech;
 
 import java.io.IOException;
-import java.io.InputStream;
 
 import static org.hamcrest.Matchers.is;
 
@@ -19,12 +18,7 @@ public class CategorizationPartOfSpeechDictionaryTests extends ESTestCase {
 
     public void testPartOfSpeech() throws IOException {
 
-        CategorizationPartOfSpeechDictionary partOfSpeechDictionary;
-        try (
-            InputStream is = CategorizationPartOfSpeechDictionary.class.getResourceAsStream(CategorizeTextAggregator.DICTIONARY_FILE_PATH)
-        ) {
-            partOfSpeechDictionary = new CategorizationPartOfSpeechDictionary(is);
-        }
+        CategorizationPartOfSpeechDictionary partOfSpeechDictionary = CategorizationPartOfSpeechDictionary.getInstance();
 
         assertThat(partOfSpeechDictionary.isInDictionary("hello"), is(true));
         assertThat(partOfSpeechDictionary.isInDictionary("Hello"), is(true));

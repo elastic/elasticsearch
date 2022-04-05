@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ml.aggs.categorization2;
 
 import java.io.IOException;
-import java.io.InputStream;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -44,12 +43,7 @@ public class TokenListCategorizerTests extends CategorizationTestCase {
 
     public void testWeightCalculator() throws IOException {
 
-        CategorizationPartOfSpeechDictionary partOfSpeechDictionary;
-        try (
-            InputStream is = CategorizationPartOfSpeechDictionary.class.getResourceAsStream(CategorizeTextAggregator.DICTIONARY_FILE_PATH)
-        ) {
-            partOfSpeechDictionary = new CategorizationPartOfSpeechDictionary(is);
-        }
+        CategorizationPartOfSpeechDictionary partOfSpeechDictionary = CategorizationPartOfSpeechDictionary.getInstance();
 
         TokenListCategorizer.WeightCalculator weightCalculator = new TokenListCategorizer.WeightCalculator(partOfSpeechDictionary);
 

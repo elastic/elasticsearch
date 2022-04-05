@@ -14,7 +14,6 @@ import org.apache.lucene.document.IntPoint;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
-import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.sandbox.search.IndexSortSortedNumericDocValuesRangeQuery;
@@ -64,7 +63,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiFunction;
-import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -350,7 +348,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             public void createFields(
-                Consumer<IndexableField> consumer,
+                LuceneDocument document,
                 String name,
                 Number value,
                 boolean indexed,
@@ -359,13 +357,13 @@ public class NumberFieldMapper extends FieldMapper {
             ) {
                 final float f = value.floatValue();
                 if (indexed) {
-                    consumer.accept(new HalfFloatPoint(name, f));
+                    document.add(new HalfFloatPoint(name, f));
                 }
                 if (docValued) {
-                    consumer.accept(new SortedNumericDocValuesField(name, HalfFloatPoint.halfFloatToSortableShort(f)));
+                    document.add(new SortedNumericDocValuesField(name, HalfFloatPoint.halfFloatToSortableShort(f)));
                 }
                 if (stored) {
-                    consumer.accept(new StoredField(name, f));
+                    document.add(new StoredField(name, f));
                 }
             }
 
@@ -486,7 +484,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             public void createFields(
-                Consumer<IndexableField> consumer,
+                LuceneDocument document,
                 String name,
                 Number value,
                 boolean indexed,
@@ -495,13 +493,13 @@ public class NumberFieldMapper extends FieldMapper {
             ) {
                 final float f = value.floatValue();
                 if (indexed) {
-                    consumer.accept(new FloatPoint(name, f));
+                    document.add(new FloatPoint(name, f));
                 }
                 if (docValued) {
-                    consumer.accept(new SortedNumericDocValuesField(name, NumericUtils.floatToSortableInt(f)));
+                    document.add(new SortedNumericDocValuesField(name, NumericUtils.floatToSortableInt(f)));
                 }
                 if (stored) {
-                    consumer.accept(new StoredField(name, f));
+                    document.add(new StoredField(name, f));
                 }
             }
 
@@ -600,7 +598,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             public void createFields(
-                Consumer<IndexableField> consumer,
+                LuceneDocument document,
                 String name,
                 Number value,
                 boolean indexed,
@@ -609,13 +607,13 @@ public class NumberFieldMapper extends FieldMapper {
             ) {
                 final double d = value.doubleValue();
                 if (indexed) {
-                    consumer.accept(new DoublePoint(name, d));
+                    document.add(new DoublePoint(name, d));
                 }
                 if (docValued) {
-                    consumer.accept(new SortedNumericDocValuesField(name, NumericUtils.doubleToSortableLong(d)));
+                    document.add(new SortedNumericDocValuesField(name, NumericUtils.doubleToSortableLong(d)));
                 }
                 if (stored) {
-                    consumer.accept(new StoredField(name, d));
+                    document.add(new StoredField(name, d));
                 }
             }
 
@@ -693,14 +691,14 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             public void createFields(
-                Consumer<IndexableField> consumer,
+                LuceneDocument document,
                 String name,
                 Number value,
                 boolean indexed,
                 boolean docValued,
                 boolean stored
             ) {
-                INTEGER.createFields(consumer, name, value, indexed, docValued, stored);
+                INTEGER.createFields(document, name, value, indexed, docValued, stored);
             }
 
             @Override
@@ -768,14 +766,14 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             public void createFields(
-                Consumer<IndexableField> consumer,
+                LuceneDocument document,
                 String name,
                 Number value,
                 boolean indexed,
                 boolean docValued,
                 boolean stored
             ) {
-                INTEGER.createFields(consumer, name, value, indexed, docValued, stored);
+                INTEGER.createFields(document, name, value, indexed, docValued, stored);
             }
 
             @Override
@@ -906,7 +904,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             public void createFields(
-                Consumer<IndexableField> consumer,
+                LuceneDocument document,
                 String name,
                 Number value,
                 boolean indexed,
@@ -915,13 +913,13 @@ public class NumberFieldMapper extends FieldMapper {
             ) {
                 final int i = value.intValue();
                 if (indexed) {
-                    consumer.accept(new IntPoint(name, i));
+                    document.add(new IntPoint(name, i));
                 }
                 if (docValued) {
-                    consumer.accept(new SortedNumericDocValuesField(name, i));
+                    document.add(new SortedNumericDocValuesField(name, i));
                 }
                 if (stored) {
-                    consumer.accept(new StoredField(name, i));
+                    document.add(new StoredField(name, i));
                 }
             }
 
@@ -1018,7 +1016,7 @@ public class NumberFieldMapper extends FieldMapper {
 
             @Override
             public void createFields(
-                Consumer<IndexableField> consumer,
+                LuceneDocument document,
                 String name,
                 Number value,
                 boolean indexed,
@@ -1027,13 +1025,13 @@ public class NumberFieldMapper extends FieldMapper {
             ) {
                 final long l = value.longValue();
                 if (indexed) {
-                    consumer.accept(new LongPoint(name, l));
+                    document.add(new LongPoint(name, l));
                 }
                 if (docValued) {
-                    consumer.accept(new SortedNumericDocValuesField(name, l));
+                    document.add(new SortedNumericDocValuesField(name, l));
                 }
                 if (stored) {
-                    consumer.accept(new StoredField(name, l));
+                    document.add(new StoredField(name, l));
                 }
             }
 
@@ -1089,7 +1087,7 @@ public class NumberFieldMapper extends FieldMapper {
         public abstract Number parsePoint(byte[] value);
 
         public abstract void createFields(
-            Consumer<IndexableField> document,
+            LuceneDocument document,
             String name,
             Number value,
             boolean indexed,
@@ -1552,7 +1550,7 @@ public class NumberFieldMapper extends FieldMapper {
         if (dimension && numericValue != null) {
             context.getDimensions().addLong(fieldType().name(), numericValue.longValue());
         }
-        fieldType().type.createFields(context.doc()::add, fieldType().name(), numericValue, indexed, hasDocValues, stored);
+        fieldType().type.createFields(context.doc(), fieldType().name(), numericValue, indexed, hasDocValues, stored);
 
         if (hasDocValues == false && (stored || indexed)) {
             context.addToFieldNames(fieldType().name());

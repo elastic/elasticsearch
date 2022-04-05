@@ -292,13 +292,13 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         // Disable query cache, because ControlQuery cannot be cached...
         shardSearcher.setQueryCache(null);
 
-        Document document = new Document();
+        LuceneDocument document = new LuceneDocument();
         for (Map.Entry<String, List<String>> entry : stringContent.entrySet()) {
             String value = entry.getValue().stream().collect(Collectors.joining(" "));
             document.add(new TextField(entry.getKey(), value, Field.Store.NO));
         }
         for (Integer intValue : intValues) {
-            NumberFieldMapper.NumberType.INTEGER.createFields(document::add, "int_field", intValue, true, true, false);
+            NumberFieldMapper.NumberType.INTEGER.createFields(document, "int_field", intValue, true, true, false);
         }
         MemoryIndex memoryIndex = MemoryIndex.fromDocument(document, new WhitespaceAnalyzer());
         duelRun(queryStore, memoryIndex, shardSearcher);
@@ -410,7 +410,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         // Disable query cache, because ControlQuery cannot be cached...
         shardSearcher.setQueryCache(null);
 
-        Document document = new Document();
+        LuceneDocument document = new LuceneDocument();
         for (String value : stringValues) {
             document.add(new TextField("string_field", value, Field.Store.NO));
             logger.info("Test with document: {}" + document);
@@ -419,7 +419,7 @@ public class CandidateQueryTests extends ESSingleNodeTestCase {
         }
 
         for (int[] range : ranges) {
-            NumberFieldMapper.NumberType.INTEGER.createFields(document::add, "int_field", between(range[0], range[1]), true, true, false);
+            NumberFieldMapper.NumberType.INTEGER.createFields(document, "int_field", between(range[0], range[1]), true, true, false);
             logger.info("Test with document: {}" + document);
             MemoryIndex memoryIndex = MemoryIndex.fromDocument(document, new WhitespaceAnalyzer());
             duelRun(queryStore, memoryIndex, shardSearcher);

@@ -450,7 +450,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         }
         long scaledValue = Math.round(doubleValue * scalingFactor);
 
-        NumberFieldMapper.NumberType.LONG.createFields(context.doc()::add, fieldType().name(), scaledValue, indexed, hasDocValues, stored);
+        NumberFieldMapper.NumberType.LONG.createFields(context.doc(), fieldType().name(), scaledValue, indexed, hasDocValues, stored);
 
         if (hasDocValues == false && (indexed || stored)) {
             context.addToFieldNames(fieldType().name());

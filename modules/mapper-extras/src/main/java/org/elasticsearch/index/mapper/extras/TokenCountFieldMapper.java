@@ -167,7 +167,7 @@ public class TokenCountFieldMapper extends FieldMapper {
             tokenCount = countPositions(analyzer, name(), value, enablePositionIncrements);
         }
 
-        NumberFieldMapper.NumberType.INTEGER.createFields(context.doc()::add, fieldType().name(), tokenCount, index, hasDocValues, store);
+        NumberFieldMapper.NumberType.INTEGER.createFields(context.doc(), fieldType().name(), tokenCount, index, hasDocValues, store);
     }
 
     /**

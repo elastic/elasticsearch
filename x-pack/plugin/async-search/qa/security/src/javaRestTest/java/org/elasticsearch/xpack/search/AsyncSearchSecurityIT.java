@@ -204,13 +204,14 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
         try {
             final Request request = new Request("POST", "/_async_search");
             setRunAsHeader(request, authorizedUser);
-            request.addParameter("wait_for_completion_timeout", "true");
             request.addParameter("keep_on_completion", "true");
+            String badIndexName;
             if (randomBoolean()) {
-                request.addParameter("index", "index-" + authorizedUser);
+                badIndexName = "index-" + authorizedUser + "-2";
             } else {
-                request.addParameter("index", "*");
+                badIndexName = "*";
             }
+            request.addParameter("index", badIndexName);
             final XContentBuilder requestBody = JsonXContent.contentBuilder()
                 .startObject()
                 .startObject("pit")
@@ -223,7 +224,7 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
             assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(400));
             assertThat(
                 exc.getMessage(),
-                containsString("[indices] cannot be used with point in time. Do not specify any index with point in time.")
+                containsString("Provided indices [" + badIndexName + "] are not supported by the given pit")
             );
         } finally {
             closePointInTime(pitId, authorizedUser);

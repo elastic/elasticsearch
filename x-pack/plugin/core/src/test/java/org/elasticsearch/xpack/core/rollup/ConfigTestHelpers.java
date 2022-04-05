@@ -74,8 +74,6 @@ public class ConfigTestHelpers {
         return new GroupConfig(dateHistogram, histogram, terms);
     }
 
-
-
     public static DateHistogramGroupConfig randomDateHistogramGroupConfig(final Random random) {
         return randomDateHistogramGroupConfigWithField(random, randomField(random));
     }

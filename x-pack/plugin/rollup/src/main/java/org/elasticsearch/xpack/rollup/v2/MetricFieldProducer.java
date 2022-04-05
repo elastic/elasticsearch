@@ -7,7 +7,8 @@
 
 package org.elasticsearch.xpack.rollup.v2;
 
-import org.elasticsearch.xpack.core.rollup.job.MetricConfig;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -130,43 +131,25 @@ record MetricFieldProducer(String field, List<Metric> metrics) {
         }
     }
 
-    static Map<String, MetricFieldProducer> buildMetrics(List<MetricConfig> metricsConfigs) {
+    static Map<String, MetricFieldProducer> buildMetrics(SearchExecutionContext context, String[] metricFields) {
         final Map<String, MetricFieldProducer> fields = new LinkedHashMap<>();
-        if (metricsConfigs != null) {
-            for (MetricConfig metricConfig : metricsConfigs) {
-                final List<String> normalizedMetrics = normalizeMetrics(metricConfig.getMetrics());
-                final List<Metric> list = new ArrayList<>();
-                if (normalizedMetrics.isEmpty() == false) {
-                    for (String metricName : normalizedMetrics) {
-                        switch (metricName) {
-                            case "min" -> list.add(new Min());
-                            case "max" -> list.add(new Max());
-                            case "sum" -> list.add(new Sum());
-                            case "value_count" -> list.add(new ValueCount());
-                            default -> throw new IllegalArgumentException("Unsupported metric type [" + metricName + "]");
-                        }
-                    }
-                    fields.put(
-                        metricConfig.getField(),
-                        new MetricFieldProducer(metricConfig.getField(), Collections.unmodifiableList(list))
-                    );
+
+        for (String field : metricFields) {
+            MappedFieldType fieldType = context.getFieldType(field);
+            assert fieldType.getMetricType() != null;
+
+            final List<Metric> list = new ArrayList<>();
+            for (String metricName : fieldType.getMetricType().supportedAggs()) {
+                switch (metricName) {
+                    case "min" -> list.add(new Min());
+                    case "max" -> list.add(new Max());
+                    case "sum" -> list.add(new Sum());
+                    case "value_count" -> list.add(new ValueCount());
+                    default -> throw new IllegalArgumentException("Unsupported metric type [" + metricName + "]");
                 }
             }
+            fields.put(field, new MetricFieldProducer(field, Collections.unmodifiableList(list)));
         }
         return Collections.unmodifiableMap(fields);
-    }
-
-    static List<String> normalizeMetrics(List<String> metrics) {
-        List<String> newMetrics = new ArrayList<>(metrics);
-        // avg = sum + value_count
-        if (newMetrics.remove(MetricConfig.AVG.getPreferredName())) {
-            if (newMetrics.contains(MetricConfig.VALUE_COUNT.getPreferredName()) == false) {
-                newMetrics.add(MetricConfig.VALUE_COUNT.getPreferredName());
-            }
-            if (newMetrics.contains(MetricConfig.SUM.getPreferredName()) == false) {
-                newMetrics.add(MetricConfig.SUM.getPreferredName());
-            }
-        }
-        return newMetrics;
     }
 }

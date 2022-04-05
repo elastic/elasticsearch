@@ -148,56 +148,54 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         MappingMetadata sourceIndexMapping = sourceIndexMetadata.mapping();
         sourceIndexMapping.getSourceAsMap();
 
-        RollupIndexerAction.Request rollupIndexerRequest = new RollupIndexerAction.Request(request);
         ResizeRequest resizeRequest = new ResizeRequest(request.getRollupIndex(), tmpIndexName);
         resizeRequest.setResizeType(ResizeType.CLONE);
         resizeRequest.getTargetIndexRequest().settings(VISIBLE_INDEX_SETTINGS);
         UpdateSettingsRequest updateSettingsReq = new UpdateSettingsRequest(WRITE_BLOCKED_SETTINGS, tmpIndexName);
 
         // 1. Extract rollup config from source index field caps
-        // 2. Create hidden temporary index
-        // 3. run rollup indexer
-        // 4. make temp index read-only
-        // 5. shrink index
-        // 6. publish rollup metadata and add rollup index to datastream
-        // 7. delete temporary index
-        // at any point if there is an issue, then cleanup temp index
+        // 2. Create a hidden temporary index
+        // 3. Run rollup indexer
+        // 4. Make temp index read-only
+        // 5. Shrink index
+        // 6. Publish rollup metadata and add rollup index to datastream
+        // 7. Delete temporary rollup index
+        // At any point if there is an issue, then cleanup temp index
 
-        // 1.
+        // 1. Extract rollup config from source index field caps
         client.fieldCaps(fieldCapsRequest, ActionListener.wrap(fieldCapsResponse -> {
-            Map<String, FieldCapabilities> dimensions = new HashMap<>();
-            Map<String, FieldCapabilities> metrics = new HashMap<>();
+            final Map<String, FieldCapabilities> dimensionFieldCaps = new HashMap<>();
+            final Map<String, FieldCapabilities> metricFieldCaps = new HashMap<>();
+            /*
+             * Rollup runs on a single index and we do not expect multiple mappings for the same
+             * field. So, it is safe to select the first and only value of the FieldCapsResponse
+             * by running: e.getValue().values().iterator().next()
+             */
             for (Map.Entry<String, Map<String, FieldCapabilities>> e : fieldCapsResponse.get().entrySet()) {
                 String field = e.getKey();
                 FieldCapabilities fieldCaps = e.getValue().values().iterator().next();
                 if (fieldCaps.isDimension()) {
-                    dimensions.put(field, fieldCaps);
+                    dimensionFieldCaps.put(field, fieldCaps);
                 } else if (e.getValue().values().iterator().next().getMetricType() != null) {
-                    metrics.put(field, fieldCaps);
+                    metricFieldCaps.put(field, fieldCaps);
                 }
             }
 
             RollupActionRequestValidationException validationException = new RollupActionRequestValidationException();
-            if (dimensions.isEmpty()) {
+            if (dimensionFieldCaps.isEmpty()) {
                 validationException.addValidationError("Index [" + sourceIndexName + "] does not contain any dimension fields");
             }
-            if (metrics.isEmpty()) {
+            if (metricFieldCaps.isEmpty()) {
                 validationException.addValidationError("Index [" + sourceIndexName + "] does not contain any metric fields");
             }
 
             final XContentBuilder mapping;
             try {
-                mapping = createRollupIndexMapping(request.getRollupConfig(), dimensions, metrics, validationException);
+                mapping = createRollupIndexMapping(request.getRollupConfig(), dimensionFieldCaps, metricFieldCaps);
             } catch (IOException e) {
                 listener.onFailure(e);
                 return;
             }
-
-            if (validationException.validationErrors().isEmpty() == false) {
-                listener.onFailure(validationException);
-                return;
-            }
-
             CreateIndexClusterStateUpdateRequest createIndexClusterStateUpdateRequest = new CreateIndexClusterStateUpdateRequest(
                 "rollup",
                 tmpIndexName,
@@ -205,7 +203,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             ).settings(MetadataRolloverService.HIDDEN_INDEX_SETTINGS)
                 .mappings(XContentHelper.convertToJson(BytesReference.bytes(mapping), false, XContentType.JSON));
 
-            // 2.
+            // 2. Create hidden temporary index
             clusterService.submitStateUpdateTask("create-rollup-index", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
@@ -218,8 +216,13 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 }
 
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                    // index created
-                    // 3.
+                    // 3. Temporary rollup index created. Run rollup indexer
+                    RollupIndexerAction.Request rollupIndexerRequest = new RollupIndexerAction.Request(
+                        request,
+                        dimensionFieldCaps.keySet().toArray(new String[0]),
+                        metricFieldCaps.keySet().toArray(new String[0])
+                    );
+
                     client.execute(RollupIndexerAction.INSTANCE, rollupIndexerRequest, ActionListener.wrap(indexerResp -> {
                         if (indexerResp.isCreated()) {
                             // 4.
@@ -278,19 +281,17 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
      * rollup configuration.
      *
      * @param config the rollup configuration
-     * @param dimensions a map with the field name as key and the fields caps response as value
+     * @param dimensionFieldCaps a map with the field name as key and the fields caps response as value
      *                  for the dimension fields of the source index
-     * @param metrics a map with the field name as key and the fields caps response as value
+     * @param metricFieldCaps a map with the field name as key and the fields caps response as value
      *                for the metric fields of the source index
-     * @param validationException validation exception is updated when an error happens
      *
      * @return the mapping of the rollup index
      */
     public static XContentBuilder createRollupIndexMapping(
-        RollupActionConfig config,
-        Map<String, FieldCapabilities> dimensions,
-        Map<String, FieldCapabilities> metrics,
-        RollupActionRequestValidationException validationException
+        final RollupActionConfig config,
+        final Map<String, FieldCapabilities> dimensionFieldCaps,
+        final Map<String, FieldCapabilities> metricFieldCaps
     ) throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
         builder = getDynamicTemplates(builder);
@@ -310,17 +311,18 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             .endObject()
             .endObject();
 
-        for (Map.Entry<String, FieldCapabilities> e : dimensions.entrySet()) {
+        for (Map.Entry<String, FieldCapabilities> e : dimensionFieldCaps.entrySet()) {
             builder.startObject(e.getKey())
                 .field("type", e.getValue().getType())
                 .field(TimeSeriesParams.TIME_SERIES_DIMENSION_PARAM, true)
                 .endObject();
         }
 
-        for (Map.Entry<String, FieldCapabilities> e : metrics.entrySet()) {
+        for (Map.Entry<String, FieldCapabilities> e : metricFieldCaps.entrySet()) {
             TimeSeriesParams.MetricType metricType = e.getValue().getMetricType();
 
             List<String> aggs = List.of(metricType.supportedAggs());
+            // We choose value_count as the default metric for no special reason
             String defaultMetric = aggs.contains("value_count") ? "value_count" : aggs.get(0);
             builder.startObject(e.getKey())
                 .field("type", AggregateDoubleMetricFieldMapper.CONTENT_TYPE)

@@ -124,8 +124,10 @@ public class TransportRollupIndexerAction extends TransportBroadcastAction<
             client,
             indexService,
             request.shardId(),
+            tmpIndexName,
             request.getRollupConfig(),
-            tmpIndexName
+            request.getDimensionFields(),
+            request.getMetricFields()
         );
         indexer.execute();
         return new RollupIndexerAction.ShardResponse(request.shardId());

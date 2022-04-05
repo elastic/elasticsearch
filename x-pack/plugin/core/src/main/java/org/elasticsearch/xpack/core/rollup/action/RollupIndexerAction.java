@@ -40,9 +40,17 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
 
     public static class Request extends BroadcastRequest<Request> implements IndicesRequest, ToXContentObject {
         private RollupAction.Request rollupRequest;
+        private String[] dimensionFields;
+        private String[] metricFields;
 
-        public Request(RollupAction.Request rollupRequest) {
+        public Request(
+            RollupAction.Request rollupRequest,
+            final String[] dimensionFields,
+            final String[] metricFields
+        ) {
             this.rollupRequest = rollupRequest;
+            this.dimensionFields = dimensionFields;
+            this.metricFields = metricFields;
         }
 
         public Request() {}
@@ -50,6 +58,8 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
         public Request(StreamInput in) throws IOException {
             super(in);
             this.rollupRequest = new RollupAction.Request(in);
+            this.dimensionFields = in.readStringArray();
+            this.metricFields = in.readStringArray();
         }
 
         @Override
@@ -66,6 +76,14 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
             return rollupRequest;
         }
 
+        public String[] getDimensionFields() {
+            return this.dimensionFields;
+        }
+
+        public String[] getMetricFields() {
+            return this.metricFields;
+        }
+
         @Override
         public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
             return new RollupTask(id, type, action, parentTaskId, rollupRequest.getRollupIndex(), rollupRequest.getRollupConfig(), headers);
@@ -75,6 +93,8 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             rollupRequest.writeTo(out);
+            out.writeStringArray(dimensionFields);
+            out.writeStringArray(metricFields);
         }
 
         @Override
@@ -178,6 +198,14 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
 
         public RollupActionConfig getRollupConfig() {
             return request.getRollupRequest().getRollupConfig();
+        }
+
+        public String[] getDimensionFields() {
+            return request.getDimensionFields();
+        }
+
+        public String[] getMetricFields() {
+            return request.getMetricFields();
         }
 
         @Override

@@ -19,6 +19,7 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
+import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.WriteRequest;
@@ -35,6 +36,8 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
@@ -42,7 +45,6 @@ import org.elasticsearch.search.aggregations.bucket.composite.DateHistogramValue
 import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
-import org.elasticsearch.search.aggregations.metrics.AvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
@@ -55,7 +57,6 @@ import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
 import org.elasticsearch.xpack.core.rollup.action.RollupAction;
-import org.elasticsearch.xpack.core.rollup.job.TermsGroupConfig;
 import org.elasticsearch.xpack.rollup.Rollup;
 import org.junit.Before;
 
@@ -64,11 +65,11 @@ import java.time.Instant;
 import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.containsString;
@@ -79,19 +80,18 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
 
     private static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
     public static final String FIELD_TIMESTAMP = "@timestamp";
-    public static final String FIELD_CATEGORICAL_1 = "categorical_1";
+    public static final String FIELD_DIMENSION_1 = "dimension_kw";
+    public static final String FIELD_DIMENSION_2 = "dimension_long";
     public static final String FIELD_NUMERIC_1 = "numeric_1";
     public static final String FIELD_NUMERIC_2 = "numeric_2";
 
-    public static final int MAX_DIMS = 4;
-
-    public static final TermsGroupConfig ROLLUP_TERMS_CONFIG = new TermsGroupConfig(FIELD_CATEGORICAL_1);
+    public static final int MAX_DIM_VALUES = 5;
     public static final long MAX_NUM_BUCKETS = 10;
 
     private String sourceIndex, rollupIndex;
     private long startTime;
     private int docCount;
-    private Map<String, List<String>> dimensions;
+    private List<String> dimensionValues;
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
@@ -109,17 +109,12 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         sourceIndex = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         rollupIndex = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
         startTime = randomLongBetween(946769284000L, 1607470084000L); // random date between 2000-2020
-        docCount = 5000; // randomIntBetween(10, 2500);
+        docCount = 5000; // randomIntBetween(10, 9000);
 
-        // Create dimensions
-        dimensions = new HashMap<>(MAX_DIMS);
-        for (int i = 0; i < randomIntBetween(1, MAX_DIMS); i++) {
-            List<String> l = new ArrayList<>(MAX_DIMS);
-            String key = "dim-" + i;
-            for (int j = 0; j < randomIntBetween(1, MAX_DIMS); j++) {
-                l.add(key + "-" + j);
-            }
-            dimensions.put(key, l);
+        // Values for keyword dimensions
+        dimensionValues = new ArrayList<>(MAX_DIM_VALUES);
+        for (int j = 0; j < randomIntBetween(1, MAX_DIM_VALUES); j++) {
+            dimensionValues.add(randomAlphaOfLength(6));
         }
 
         client().admin()
@@ -129,7 +124,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
                 Settings.builder()
                     .put("index.number_of_shards", randomIntBetween(1, 4))
                     .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
-                    .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_CATEGORICAL_1))
+                    .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_1))
                     .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), Instant.ofEpochMilli(startTime).toString())
                     .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2106-01-08T23:40:53.384Z")
                     .build()
@@ -137,14 +132,53 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             .setMapping(
                 FIELD_TIMESTAMP,
                 "type=date",
-                FIELD_CATEGORICAL_1,
+                FIELD_DIMENSION_1,
                 "type=keyword,time_series_dimension=true",
+                FIELD_DIMENSION_2,
+                "type=long,time_series_dimension=true",
                 FIELD_NUMERIC_1,
-                "type=double,time_series_metric=gauge",
+                "type=long,time_series_metric=gauge",
                 FIELD_NUMERIC_2,
-                "type=float,time_series_metric=gauge"
+                "type=double,time_series_metric=counter"
             )
             .get();
+    }
+
+    public void testRollupIndex() throws IOException {
+        RollupActionConfig config = new RollupActionConfig(randomInterval(), null);
+        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
+            .startObject()
+            .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
+            .field(FIELD_DIMENSION_1, randomFrom(dimensionValues))
+            .field(FIELD_DIMENSION_2, randomIntBetween(1, 10))
+            .field(FIELD_NUMERIC_1, randomInt())
+            .field(FIELD_NUMERIC_2, randomInt() * randomDouble())
+            .endObject();
+        bulkIndex(sourceSupplier);
+        rollup(sourceIndex, rollupIndex, config);
+        assertRollupIndex(config, sourceIndex, rollupIndex);
+    }
+
+    public void testRollupSparseMetrics() throws IOException {
+        RollupActionConfig config = new RollupActionConfig(randomInterval(), null);
+        SourceSupplier sourceSupplier = () -> {
+            XContentBuilder builder = XContentFactory.jsonBuilder()
+                .startObject()
+                .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
+                .field(FIELD_DIMENSION_1, randomFrom(dimensionValues))
+                .field(FIELD_DIMENSION_2, randomIntBetween(0, 10));
+            if (randomBoolean()) {
+                builder.field(FIELD_NUMERIC_1, randomInt());
+            }
+
+            if (randomBoolean()) {
+                builder.field(FIELD_NUMERIC_2, randomDouble());
+            }
+            return builder.endObject();
+        };
+        bulkIndex(sourceSupplier);
+        rollup(sourceIndex, rollupIndex, config);
+        assertRollupIndex(config, sourceIndex, rollupIndex);
     }
 
     public void testCannotRollupToExistingIndex() throws Exception {
@@ -152,7 +186,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
             .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
-            .field(FIELD_CATEGORICAL_1, randomAlphaOfLength(1))
+            .field(FIELD_DIMENSION_1, randomAlphaOfLength(1))
             .field(FIELD_NUMERIC_1, randomDouble())
             .endObject();
         bulkIndex(sourceSupplier);
@@ -174,7 +208,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
             .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
-            .field(FIELD_CATEGORICAL_1, randomAlphaOfLength(1))
+            .field(FIELD_DIMENSION_1, randomAlphaOfLength(1))
             .field(FIELD_NUMERIC_1, randomDouble())
             .endObject();
         bulkIndex(sourceSupplier);
@@ -186,78 +220,6 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         assertThat(exception.getMessage(), containsString(".rolluptmp-" + rollupIndex));
     }
 
-    public void testMinMaxMetrics() throws IOException {
-        RollupActionConfig config = new RollupActionConfig(randomInterval(), null);
-        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
-            .startObject()
-            .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
-            .field(FIELD_CATEGORICAL_1, randomAlphaOfLength(1))
-            .field(FIELD_NUMERIC_1, randomDouble())
-            .endObject();
-        bulkIndex(sourceSupplier);
-        rollup(sourceIndex, rollupIndex, config);
-        assertRollupIndex(config, sourceIndex, rollupIndex);
-    }
-
-    public void testSparseMetrics() throws IOException {
-        RollupActionConfig config = new RollupActionConfig(randomInterval(), null);
-        SourceSupplier sourceSupplier = () -> {
-            XContentBuilder builder = XContentFactory.jsonBuilder()
-                .startObject()
-                .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
-                .field(FIELD_CATEGORICAL_1, randomAlphaOfLength(1));
-
-            if (randomBoolean()) {
-                builder.field(FIELD_NUMERIC_1, randomDouble());
-            }
-            return builder.endObject();
-        };
-        bulkIndex(sourceSupplier);
-        rollup(sourceIndex, rollupIndex, config);
-        assertRollupIndex(config, sourceIndex, rollupIndex);
-    }
-
-    public void testSumValueCountMetric() throws IOException {
-        RollupActionConfig config = new RollupActionConfig(randomInterval(), null);
-        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
-            .startObject()
-            .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
-            .field(FIELD_CATEGORICAL_1, randomAlphaOfLength(1))
-            .field(FIELD_NUMERIC_1, randomInt())
-            .field("_doc_count", randomIntBetween(1, 10))
-            .endObject();
-        bulkIndex(sourceSupplier);
-        rollup(sourceIndex, rollupIndex, config);
-        assertRollupIndex(config, sourceIndex, rollupIndex);
-    }
-
-    public void testAvgMetric() throws IOException {
-        RollupActionConfig config = new RollupActionConfig(randomInterval(), null);
-        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
-            .startObject()
-            .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
-            .field(FIELD_CATEGORICAL_1, randomAlphaOfLength(1))
-            // Use integers to ensure that avg is comparable between rollup and original
-            .field(FIELD_NUMERIC_1, randomInt())
-            .endObject();
-        bulkIndex(sourceSupplier);
-        rollup(sourceIndex, rollupIndex, config);
-        assertRollupIndex(config, sourceIndex, rollupIndex);
-    }
-
-    public void testAllMetrics() throws IOException {
-        RollupActionConfig config = new RollupActionConfig(randomInterval(), null);
-        SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
-            .startObject()
-            .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
-            .field(FIELD_CATEGORICAL_1, randomAlphaOfLength(1))
-            .field(FIELD_NUMERIC_1, randomInt())
-            .endObject();
-        bulkIndex(sourceSupplier);
-        rollup(sourceIndex, rollupIndex, config);
-        assertRollupIndex(config, sourceIndex, rollupIndex);
-    }
-
     @LuceneTestCase.AwaitsFix(bugUrl = "TODO")
     public void testRollupDatastream() throws Exception {
         RollupActionConfig config = new RollupActionConfig(randomInterval(), null);
@@ -266,7 +228,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
             .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
-            .field(FIELD_CATEGORICAL_1, randomAlphaOfLength(1))
+            .field(FIELD_DIMENSION_1, randomAlphaOfLength(1))
             .field(FIELD_NUMERIC_1, randomDouble())
             .endObject();
         bulkIndex(dataStreamName, sourceSupplier);
@@ -337,7 +299,15 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
 
     @SuppressWarnings("unchecked")
     private void assertRollupIndex(RollupActionConfig config, String sourceIndex, String rollupIndex) {
-        final CompositeAggregationBuilder aggregation = buildCompositeAggs("resp", config);
+        // Retrieve field information for the metric fields
+        FieldCapabilitiesResponse fieldCapsResponse = client().prepareFieldCaps(sourceIndex).setFields("*").get();
+        Map<String, TimeSeriesParams.MetricType> metricFields = fieldCapsResponse.get()
+            .entrySet()
+            .stream()
+            .filter(e -> e.getValue().values().iterator().next().getMetricType() != null)
+            .collect(Collectors.toMap(e -> e.getKey(), e -> e.getValue().values().iterator().next().getMetricType()));
+
+        final CompositeAggregationBuilder aggregation = buildCompositeAggs("resp", config, metricFields);
         long numBuckets = 0;
         InternalComposite origResp = client().prepareSearch(sourceIndex).addAggregation(aggregation).get().getAggregations().get("resp");
         InternalComposite rollupResp = client().prepareSearch(rollupIndex).addAggregation(aggregation).get().getAggregations().get("resp");
@@ -363,7 +333,20 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             indexSettingsResp.getSetting(sourceIndex, "index.provided_name"),
             indexSettingsResp.getSetting(rollupIndex, "index.rollup.source.name")
         );
-        assertEquals("time_series", indexSettingsResp.getSetting(rollupIndex, "index.mode"));
+        assertEquals(indexSettingsResp.getSetting(sourceIndex, "index.mode"), indexSettingsResp.getSetting(rollupIndex, "index.mode"));
+        assertEquals(
+            indexSettingsResp.getSetting(sourceIndex, "time_series.start_time"),
+            indexSettingsResp.getSetting(rollupIndex, "time_series.start_time")
+        );
+        assertEquals(
+            indexSettingsResp.getSetting(sourceIndex, "time_series.end_time"),
+            indexSettingsResp.getSetting(rollupIndex, "time_series.end_time")
+        );
+        assertEquals(
+            indexSettingsResp.getSetting(sourceIndex, "index.routing_path"),
+            indexSettingsResp.getSetting(rollupIndex, "index.routing_path")
+        );
+        assertEquals("true", indexSettingsResp.getSetting(rollupIndex, "index.blocks.write"));
 
         // Assert field mappings
         Map<String, Map<String, Object>> mappings = (Map<String, Map<String, Object>>) indexSettingsResp.getMappings()
@@ -375,27 +358,11 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         Map<String, Object> dateTimeMeta = (Map<String, Object>) mappings.get(config.getTimestampField()).get("meta");
         assertEquals(config.getTimeZone(), dateTimeMeta.get("time_zone"));
         assertEquals(config.getInterval().toString(), dateTimeMeta.get(config.getIntervalType()));
-        //
-        // for (MetricConfig metricsConfig : config.getMetricsConfig()) {
-        // assertEquals("aggregate_metric_double", mappings.get(metricsConfig.getField()).get("type"));
-        // List<String> supportedMetrics = (List<String>) mappings.get(metricsConfig.getField()).get("metrics");
-        // for (String m : metricsConfig.getMetrics()) {
-        // if ("avg".equals(m)) {
-        // assertTrue(supportedMetrics.contains("sum") && supportedMetrics.contains("value_count"));
-        // } else {
-        // assertTrue(supportedMetrics.contains(m));
-        // }
-        // }
-        // }
-        //
-        //
-        //
-        // TermsGroupConfig termsConfig = config.getGroupConfig().getTerms();
-        // if (termsConfig != null) {
-        // for (String field : termsConfig.getFields()) {
-        // assertTrue(mappings.containsKey(field));
-        // }
-        // }
+
+        metricFields.forEach((field, metricType) -> {
+            assertEquals("aggregate_metric_double", mappings.get(field).get("type"));
+            assertEquals(metricType.toString(), mappings.get(field).get("time_series_metric"));
+        });
 
         // Assert that temporary index was removed
         expectThrows(
@@ -404,12 +371,16 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         );
     }
 
-    private CompositeAggregationBuilder buildCompositeAggs(String name, RollupActionConfig config) {
+    private CompositeAggregationBuilder buildCompositeAggs(
+        String name,
+        RollupActionConfig config,
+        Map<String, TimeSeriesParams.MetricType> metricFields
+    ) {
         List<CompositeValuesSourceBuilder<?>> sources = new ArrayList<>();
-        // For time series indices, we use the _tsid field
-        sources.add(new TermsValuesSourceBuilder("tsid").field("_tsid"));
+        // For time series indices, we use the _tsid field for the terms aggregation
+        sources.add(new TermsValuesSourceBuilder("tsid").field(TimeSeriesIdFieldMapper.NAME));
 
-        DateHistogramValuesSourceBuilder dateHisto = new DateHistogramValuesSourceBuilder("date_histo");
+        DateHistogramValuesSourceBuilder dateHisto = new DateHistogramValuesSourceBuilder(config.getTimestampField());
         dateHisto.field(config.getTimestampField());
         if (config.getTimeZone() != null) {
             dateHisto.timeZone(ZoneId.of(config.getTimeZone()));
@@ -418,21 +389,19 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         sources.add(dateHisto);
 
         final CompositeAggregationBuilder composite = new CompositeAggregationBuilder(name, sources).size(10);
-
-        final List<String> supportedAggs = List.of("min", "max", "sum", "value_count", "avg");
-
-        String fieldname = "extractMetricField";
-        for (String metricName : supportedAggs) {
-            switch (metricName) {
-                case "min" -> composite.subAggregation(new MinAggregationBuilder(metricName).field(fieldname));
-                case "max" -> composite.subAggregation(new MaxAggregationBuilder(metricName).field(fieldname));
-                case "sum" -> composite.subAggregation(new SumAggregationBuilder(metricName).field(fieldname));
-                case "value_count" -> composite.subAggregation(new ValueCountAggregationBuilder(metricName).field(fieldname));
-                case "avg" -> composite.subAggregation(new AvgAggregationBuilder(metricName).field(fieldname));
-                default -> throw new IllegalArgumentException("Unsupported metric type [" + metricName + "]");
+        metricFields.forEach((fieldname, metricType) -> {
+            for (String agg : metricType.supportedAggs()) {
+                switch (agg) {
+                    case "min" -> composite.subAggregation(new MinAggregationBuilder(fieldname + "_" + agg).field(fieldname));
+                    case "max" -> composite.subAggregation(new MaxAggregationBuilder(fieldname + "_" + agg).field(fieldname));
+                    case "sum" -> composite.subAggregation(new SumAggregationBuilder(fieldname + "_" + agg).field(fieldname));
+                    case "value_count" -> composite.subAggregation(
+                        new ValueCountAggregationBuilder(fieldname + "_" + agg).field(fieldname)
+                    );
+                    default -> throw new IllegalArgumentException("Unsupported metric type [" + agg + "]");
+                }
             }
-        }
-
+        });
         return composite;
     }
 
@@ -445,7 +414,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.getDefault());
         Template idxTemplate = new Template(null, new CompressedXContent("""
             {"properties":{"%s":{"type":"date"}, "%s":{"type":"keyword"}}}
-            """.formatted(FIELD_TIMESTAMP, FIELD_CATEGORICAL_1)), null);
+            """.formatted(FIELD_TIMESTAMP, FIELD_DIMENSION_1)), null);
         ComposableIndexTemplate template = new ComposableIndexTemplate(
             List.of(dataStreamName + "*"),
             idxTemplate,

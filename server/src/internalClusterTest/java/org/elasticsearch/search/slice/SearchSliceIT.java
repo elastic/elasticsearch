@@ -226,7 +226,8 @@ public class SearchSliceIT extends ESIntegTestCase {
         for (int id = 0; id < numSlice; id++) {
             int numSliceResults = 0;
 
-            SearchRequestBuilder request = client().prepareSearch("test").setPreference(null)
+            SearchRequestBuilder request = client().prepareSearch("test")
+                .setPreference(null)
                 .slice(new SliceBuilder(sliceField, id, numSlice))
                 .setPointInTime(new PointInTimeBuilder(pointInTimeId))
                 .addSort(SortBuilders.fieldSort(sortField))

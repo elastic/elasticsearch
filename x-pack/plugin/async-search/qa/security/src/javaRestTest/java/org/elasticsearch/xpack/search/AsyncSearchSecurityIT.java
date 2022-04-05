@@ -222,10 +222,7 @@ public class AsyncSearchSecurityIT extends ESRestTestCase {
             request.setJsonEntity(Strings.toString(requestBody));
             final ResponseException exc = expectThrows(ResponseException.class, () -> client().performRequest(request));
             assertThat(exc.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-            assertThat(
-                exc.getMessage(),
-                containsString("Provided indices [" + badIndexName + "] are not supported by the given pit")
-            );
+            assertThat(exc.getMessage(), containsString("Provided indices [" + badIndexName + "] are not supported by the given pit"));
         } finally {
             closePointInTime(pitId, authorizedUser);
         }

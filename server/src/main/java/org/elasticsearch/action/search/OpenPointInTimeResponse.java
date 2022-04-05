@@ -25,39 +25,50 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 
 public final class OpenPointInTimeResponse extends ActionResponse implements ToXContentObject {
     private static final ParseField ID = new ParseField("id");
+    private static final ParseField MACAROON = new ParseField("macaroon");
 
     private static final ConstructingObjectParser<OpenPointInTimeResponse, Void> PARSER;
 
     static {
-        PARSER = new ConstructingObjectParser<>("open_point_in_time", true, a -> new OpenPointInTimeResponse((String) a[0]));
+        PARSER = new ConstructingObjectParser<>("open_point_in_time", true, a -> new OpenPointInTimeResponse((String) a[0], (String) a[1]));
         PARSER.declareField(constructorArg(), (parser, context) -> parser.text(), ID, ObjectParser.ValueType.STRING);
+        PARSER.declareStringOrNull(constructorArg(), MACAROON);
     }
     private final String pointInTimeId;
+    private final String macaroon;
 
-    public OpenPointInTimeResponse(String pointInTimeId) {
+    public OpenPointInTimeResponse(String pointInTimeId, String macaroon) {
         this.pointInTimeId = Objects.requireNonNull(pointInTimeId, "Point in time parameter must be not null");
+        this.macaroon = macaroon;
     }
 
     public OpenPointInTimeResponse(StreamInput in) throws IOException {
         super(in);
         pointInTimeId = in.readString();
+        macaroon = in.readOptionalString();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(pointInTimeId);
+        out.writeOptionalString(macaroon);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(ID.getPreferredName(), pointInTimeId);
+        builder.field(MACAROON.getPreferredName(), macaroon);
         builder.endObject();
         return builder;
     }
 
     public String getPointInTimeId() {
         return pointInTimeId;
+    }
+
+    public String getMacaroon() {
+        return macaroon;
     }
 
     public static OpenPointInTimeResponse fromXContent(XContentParser parser) throws IOException {

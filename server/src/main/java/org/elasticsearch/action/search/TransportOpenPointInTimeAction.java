@@ -33,6 +33,7 @@ import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenPointInTimeRequest, OpenPointInTimeResponse> {
     public static final String OPEN_SHARD_READER_CONTEXT_NAME = "indices:data/read/open_reader_context";
@@ -40,6 +41,7 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
     private final TransportSearchAction transportSearchAction;
     private final TransportService transportService;
     private final SearchService searchService;
+    private final MacaroonService macaroonService;
 
     @Inject
     public TransportOpenPointInTimeAction(
@@ -64,6 +66,8 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             false,
             TransportOpenPointInTimeAction.ShardOpenReaderResponse::new
         );
+        // TODO inject
+        this.macaroonService = new MacaroonService();
     }
 
     @Override
@@ -95,7 +99,11 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             },
             listener.map(r -> {
                 assert r.pointInTimeId() != null : r;
-                return new OpenPointInTimeResponse(r.pointInTimeId());
+                // TODO this certainly doesn't belong here
+                String macaroon = request.macaroon()
+                    ? macaroonService.createMacaroon(Arrays.asList(request.indices()), r.pointInTimeId())
+                    : null;
+                return new OpenPointInTimeResponse(r.pointInTimeId(), macaroon);
             })
         );
     }

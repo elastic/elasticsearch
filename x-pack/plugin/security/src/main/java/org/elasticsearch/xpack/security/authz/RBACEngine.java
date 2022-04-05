@@ -132,6 +132,9 @@ public class RBACEngine implements AuthorizationEngine {
     @Override
     public void resolveAuthorizationInfo(RequestInfo requestInfo, ActionListener<AuthorizationInfo> listener) {
         final Authentication authentication = requestInfo.getAuthentication();
+        if (authentication.getMetadata().containsKey("macaroon")) {
+            // get additional role descriptors from macaroon?
+        }
         rolesStore.getRoles(
             authentication,
             ActionListener.wrap(

@@ -34,6 +34,7 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
     private String routing;
     @Nullable
     private String preference;
+    private boolean macaroon = false;
 
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosed();
 
@@ -48,6 +49,7 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
         this.keepAlive = in.readTimeValue();
         this.routing = in.readOptionalString();
         this.preference = in.readOptionalString();
+        this.macaroon = in.readBoolean();
     }
 
     @Override
@@ -58,6 +60,7 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
         out.writeTimeValue(keepAlive);
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
+        out.writeBoolean(macaroon);
     }
 
     @Override
@@ -103,6 +106,15 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
     public OpenPointInTimeRequest keepAlive(TimeValue keepAlive) {
         this.keepAlive = Objects.requireNonNull(keepAlive, "[keep_alive] parameter must be non null");
         return this;
+    }
+
+    public OpenPointInTimeRequest macaroon(Boolean macaroon) {
+        this.macaroon = macaroon;
+        return this;
+    }
+
+    public Boolean macaroon() {
+        return macaroon;
     }
 
     public String routing() {

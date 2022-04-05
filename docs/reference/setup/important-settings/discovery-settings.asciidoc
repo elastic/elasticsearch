@@ -3,7 +3,7 @@
 ==== Discovery and cluster formation settings
 
 Configure two important discovery and cluster formation settings before going
-to production so that nodes in the cluster can discover each other and elect a
+to production so that nodes in the cluster can discover each other and select a
 master node.
 
 [discrete]

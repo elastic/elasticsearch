@@ -27,8 +27,6 @@ public abstract class Command implements Closeable {
     /** A description of the command, used in the help output. */
     protected final String description;
 
-    private final Runnable beforeMain;
-
     /** The option parser for this command. */
     protected final OptionParser parser = new OptionParser();
 
@@ -39,13 +37,11 @@ public abstract class Command implements Closeable {
 
     /**
      * Construct the command with the specified command description and runnable to execute before main is invoked.
+     *  @param description the command description
      *
-     * @param description the command description
-     * @param beforeMain the before-main runnable
      */
-    public Command(final String description, final Runnable beforeMain) {
+    public Command(final String description) {
         this.description = description;
-        this.beforeMain = beforeMain;
     }
 
     private Thread shutdownHookThread;
@@ -70,8 +66,6 @@ public abstract class Command implements Closeable {
             });
             Runtime.getRuntime().addShutdownHook(shutdownHookThread);
         }
-
-        beforeMain.run();
 
         try {
             mainWithoutErrorHandling(args, terminal);

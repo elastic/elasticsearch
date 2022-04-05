@@ -15,7 +15,7 @@ import org.elasticsearch.cli.MultiCommand;
 public class ShardToolCli extends MultiCommand {
 
     ShardToolCli() {
-        super("A CLI tool to remove corrupted parts of unrecoverable shards", () -> {});
+        super("A CLI tool to remove corrupted parts of unrecoverable shards");
         subcommands.put("remove-corrupted-data", new RemoveCorruptedShardDataCommand());
     }
 }

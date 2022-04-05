@@ -38,7 +38,7 @@ public class CronEvalTool extends Command {
     private final OptionSpec<Void> detailOption;
 
     CronEvalTool() {
-        super("Validates and evaluates a cron expression", () -> {});
+        super("Validates and evaluates a cron expression");
         this.countOption = parser.acceptsAll(Arrays.asList("c", "count"), "The number of future times this expression will be triggered")
             .withRequiredArg()
             .ofType(Integer.class)

@@ -8,14 +8,13 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.cli.MultiCommand;
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.env.NodeRepurposeCommand;
 import org.elasticsearch.env.OverrideNodeVersionCommand;
 
 public class NodeToolCli extends MultiCommand {
 
     public NodeToolCli() {
-        super("A CLI tool to do unsafe cluster and index manipulations on current node", () -> {});
+        super("A CLI tool to do unsafe cluster and index manipulations on current node");
         subcommands.put("repurpose", new NodeRepurposeCommand());
         subcommands.put("unsafe-bootstrap", new UnsafeBootstrapMasterCommand());
         subcommands.put("detach-cluster", new DetachClusterCommand());

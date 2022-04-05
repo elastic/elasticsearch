@@ -145,7 +145,7 @@ public class CertificateTool extends MultiCommand {
     }
 
     CertificateTool() {
-        super(DESCRIPTION, () -> {});
+        super(DESCRIPTION);
         subcommands.put("csr", new SigningRequestCommand());
         subcommands.put("cert", new GenerateCertificateCommand());
         subcommands.put("ca", new CertificateAuthorityCommand());

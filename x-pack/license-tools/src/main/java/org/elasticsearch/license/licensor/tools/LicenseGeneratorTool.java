@@ -36,7 +36,7 @@ public class LicenseGeneratorTool extends Command {
     private final OptionSpec<String> licenseFileOption;
 
     public LicenseGeneratorTool() {
-        super("Generates signed elasticsearch license(s) for a given license spec(s)", () -> {});
+        super("Generates signed elasticsearch license(s) for a given license spec(s)");
         publicKeyPathOption = parser.accepts("publicKeyPath", "path to public key file").withRequiredArg().required();
         privateKeyPathOption = parser.accepts("privateKeyPath", "path to private key file").withRequiredArg().required();
         // TODO: with jopt-simple 5.0, we can make these requiredUnless each other

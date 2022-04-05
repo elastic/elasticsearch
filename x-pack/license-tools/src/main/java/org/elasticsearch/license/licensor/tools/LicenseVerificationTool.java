@@ -36,7 +36,7 @@ public class LicenseVerificationTool extends Command {
     private final OptionSpec<String> licenseFileOption;
 
     public LicenseVerificationTool() {
-        super("Generates signed elasticsearch license(s) for a given license spec(s)", () -> {});
+        super("Generates signed elasticsearch license(s) for a given license spec(s)");
         publicKeyPathOption = parser.accepts("publicKeyPath", "path to public key file").withRequiredArg().required();
         // TODO: with jopt-simple 5.0, we can make these requiredUnless each other
         // which is effectively "one must be present"

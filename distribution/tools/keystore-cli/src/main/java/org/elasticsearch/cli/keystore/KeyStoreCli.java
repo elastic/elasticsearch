@@ -16,7 +16,7 @@ import org.elasticsearch.cli.MultiCommand;
 class KeyStoreCli extends MultiCommand {
 
     KeyStoreCli() {
-        super("A tool for managing settings stored in the elasticsearch keystore", () -> {});
+        super("A tool for managing settings stored in the elasticsearch keystore");
         subcommands.put("create", new CreateKeyStoreCommand());
         subcommands.put("list", new ListKeyStoreCommand());
         subcommands.put("show", new ShowKeyStoreCommand());

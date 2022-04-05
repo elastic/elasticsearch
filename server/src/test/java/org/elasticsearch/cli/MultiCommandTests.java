@@ -30,7 +30,7 @@ public class MultiCommandTests extends CommandTestCase {
         final AtomicBoolean closed = new AtomicBoolean();
 
         DummyMultiCommand() {
-            super("A dummy multi command", () -> {});
+            super("A dummy multi command");
         }
 
         @Override
@@ -51,7 +51,7 @@ public class MultiCommandTests extends CommandTestCase {
         }
 
         DummySubCommand(final boolean throwsExceptionOnClose) {
-            super("A dummy subcommand", () -> {});
+            super("A dummy subcommand");
             this.throwsExceptionOnClose = throwsExceptionOnClose;
         }
 
@@ -198,7 +198,7 @@ public class MultiCommandTests extends CommandTestCase {
 
     static class ErrorHandlingMultiCommand extends MultiCommand {
         ErrorHandlingMultiCommand() {
-            super("error catching", () -> {});
+            super("error catching");
         }
 
         @Override
@@ -209,7 +209,7 @@ public class MultiCommandTests extends CommandTestCase {
 
     static class ErrorThrowingSubCommand extends Command {
         ErrorThrowingSubCommand() {
-            super("error throwing", () -> {});
+            super("error throwing");
         }
 
         @Override

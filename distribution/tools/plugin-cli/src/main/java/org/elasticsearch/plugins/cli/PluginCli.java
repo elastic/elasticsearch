@@ -10,7 +10,6 @@ package org.elasticsearch.plugins.cli;
 
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.MultiCommand;
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
@@ -25,7 +24,7 @@ class PluginCli extends MultiCommand {
     private final Collection<Command> commands;
 
     PluginCli() {
-        super("A tool for managing installed elasticsearch plugins", () -> {});
+        super("A tool for managing installed elasticsearch plugins");
         subcommands.put("list", new ListPluginsCommand());
         subcommands.put("install", new InstallPluginCommand());
         subcommands.put("remove", new RemovePluginCommand());

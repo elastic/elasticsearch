@@ -34,7 +34,7 @@ import java.util.function.Predicate;
 public class FileTokensTool extends MultiCommand {
 
     public FileTokensTool() {
-        super("Manages elasticsearch service account file-tokens", () -> {});
+        super("Manages elasticsearch service account file-tokens");
         subcommands.put("create", newCreateFileTokenCommand());
         subcommands.put("delete", newDeleteFileTokenCommand());
         subcommands.put("list", newListFileTokenCommand());

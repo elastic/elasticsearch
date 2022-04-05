@@ -108,7 +108,7 @@ public class SetupPasswordTool extends MultiCommand {
         Function<Environment, CommandLineHttpClient> clientFunction,
         CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction
     ) {
-        super("Sets the passwords for reserved users", () -> {});
+        super("Sets the passwords for reserved users");
         subcommands.put("auto", newAutoSetup());
         subcommands.put("interactive", newInteractiveSetup());
         this.clientFunction = clientFunction;

@@ -30,7 +30,7 @@ public class KeyPairGeneratorTool extends Command {
     private final OptionSpec<String> privateKeyPathOption;
 
     public KeyPairGeneratorTool() {
-        super("Generates a key pair with RSA 2048-bit security", () -> {});
+        super("Generates a key pair with RSA 2048-bit security");
         // TODO: in jopt-simple 5.0 we can use a PathConverter to take Path instead of File
         this.publicKeyPathOption = parser.accepts("publicKeyPath", "public key path").withRequiredArg().required();
         this.privateKeyPathOption = parser.accepts("privateKeyPath", "private key path").withRequiredArg().required();

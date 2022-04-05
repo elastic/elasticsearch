@@ -46,7 +46,7 @@ import java.util.stream.Collectors;
 public class UsersTool extends MultiCommand {
 
     UsersTool() {
-        super("Manages elasticsearch file users", () -> {});
+        super("Manages elasticsearch file users");
         subcommands.put("useradd", newAddUserCommand());
         subcommands.put("userdel", newDeleteUserCommand());
         subcommands.put("passwd", newPasswordCommand());

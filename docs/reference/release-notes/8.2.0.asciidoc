@@ -5,6 +5,10 @@ coming[8.2.0]
 
 Also see <<breaking-changes-8.2,Breaking changes in 8.2>>.
 
+[[breaking-8.2.0]]
+[float]
+=== Breaking changes
+
 [[bug-8.2.0]]
 [float]
 === Bug fixes

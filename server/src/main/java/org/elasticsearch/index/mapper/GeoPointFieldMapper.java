@@ -49,6 +49,9 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.invoke.MethodHandle;
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.MethodType;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
@@ -208,18 +211,58 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             .init(this);
     }
 
+    private static final MethodHandles.Lookup LOOKUP = MethodHandles.lookup();
+    private static final MethodType METHOD_TYPE = MethodType.methodType(void.class, DocumentParserContext.class, GeoPoint.class);
+
+    private final MethodHandle indexMh = indexMh();
+
+    private MethodHandle indexMh() {
+        try {
+            MethodHandle chain = LOOKUP.findVirtual(GeoPointFieldMapper.class, "nop", METHOD_TYPE);
+            if (fieldType().isIndexed()) {
+                chain = MethodHandles.foldArguments(LOOKUP.findVirtual(GeoPointFieldMapper.class, "addLatLon", METHOD_TYPE), chain);
+            }
+            if (fieldType().hasDocValues()) {
+                chain = MethodHandles.foldArguments(
+                    LOOKUP.findVirtual(GeoPointFieldMapper.class, "addLatLonDocValues", METHOD_TYPE),
+                    chain
+                );
+            } else if (fieldType().isStored() || fieldType().isIndexed()) {
+                chain = MethodHandles.foldArguments(LOOKUP.findVirtual(GeoPointFieldMapper.class, "addToFieldNames", METHOD_TYPE), chain);
+            }
+            if (fieldType().isStored()) {
+                chain = MethodHandles.foldArguments(LOOKUP.findVirtual(GeoPointFieldMapper.class, "addStoredField", METHOD_TYPE), chain);
+            }
+            return chain.bindTo(this);
+        } catch (Exception e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    private void addStoredField(DocumentParserContext context, GeoPoint geometry) {
+        context.doc().add(new StoredField(fieldType().name(), geometry.toString()));
+    }
+
+    private void addToFieldNames(DocumentParserContext context, GeoPoint geometry) {
+        context.addToFieldNames(fieldType().name());
+    }
+
+    private void addLatLon(DocumentParserContext context, GeoPoint geometry) {
+        context.doc().add(new LatLonPoint(fieldType().name(), geometry.lat(), geometry.lon()));
+    }
+
+    private void addLatLonDocValues(DocumentParserContext context, GeoPoint geometry) {
+        context.doc().add(new LatLonDocValuesField(fieldType().name(), geometry.lat(), geometry.lon()));
+    }
+
+    private void nop(DocumentParserContext context, GeoPoint geometry) {}
+
     @Override
     protected void index(DocumentParserContext context, GeoPoint geometry) throws IOException {
-        if (fieldType().isIndexed()) {
-            context.doc().add(new LatLonPoint(fieldType().name(), geometry.lat(), geometry.lon()));
-        }
-        if (fieldType().hasDocValues()) {
-            context.doc().add(new LatLonDocValuesField(fieldType().name(), geometry.lat(), geometry.lon()));
-        } else if (fieldType().isStored() || fieldType().isIndexed()) {
-            context.addToFieldNames(fieldType().name());
-        }
-        if (fieldType().isStored()) {
-            context.doc().add(new StoredField(fieldType().name(), geometry.toString()));
+        try {
+            indexMh.invokeExact(context, geometry);
+        } catch (Throwable e) {
+            throw new RuntimeException(e);
         }
         // TODO phase out geohash (which is currently used in the CompletionSuggester)
         // we only expose the geohash value and disallow advancing tokens, hence we can reuse the same parser throughout multiple sub-fields

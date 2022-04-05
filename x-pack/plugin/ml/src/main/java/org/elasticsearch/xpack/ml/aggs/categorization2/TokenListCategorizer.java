@@ -13,7 +13,6 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -31,7 +30,7 @@ import java.util.TreeMap;
 import static org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
 import static org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF;
 import static org.apache.lucene.util.RamUsageEstimator.alignObjectSize;
-import static org.apache.lucene.util.RamUsageEstimator.shallowSizeOf;
+import static org.apache.lucene.util.RamUsageEstimator.shallowSizeOfInstance;
 import static org.apache.lucene.util.RamUsageEstimator.sizeOfCollection;
 
 /**
@@ -41,7 +40,8 @@ import static org.apache.lucene.util.RamUsageEstimator.sizeOfCollection;
 public class TokenListCategorizer implements Accountable {
 
     public static final int MAX_TOKENS = 100;
-    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TokenListCategorizer.class);
+    private static final long SHALLOW_SIZE = shallowSizeOfInstance(TokenListCategorizer.class);
+    private static final long SHALLOW_SIZE_OF_ARRAY_LIST = shallowSizeOfInstance(ArrayList.class);
     private static final float EPSILON = 0.000001f;
     private static final Logger logger = LogManager.getLogger(TokenListCategorizer.class);
 
@@ -264,7 +264,7 @@ public class TokenListCategorizer implements Accountable {
             // method called for categoriesByNumMatches, getting the size of the contained objects from a different
             // variable.
             + alignObjectSize(
-                shallowSizeOf(categoriesByNumMatches) + NUM_BYTES_ARRAY_HEADER + categoriesByNumMatches.size() * NUM_BYTES_OBJECT_REF
+                SHALLOW_SIZE_OF_ARRAY_LIST + NUM_BYTES_ARRAY_HEADER + categoriesByNumMatches.size() * NUM_BYTES_OBJECT_REF
                     + categoriesByNumMatchesContentsSize
             );
     }

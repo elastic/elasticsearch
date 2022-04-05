@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ml.aggs.categorization2;
 
 import org.apache.lucene.util.Accountable;
-import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 
@@ -22,7 +21,7 @@ import java.util.stream.IntStream;
 import static org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_ARRAY_HEADER;
 import static org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF;
 import static org.apache.lucene.util.RamUsageEstimator.alignObjectSize;
-import static org.apache.lucene.util.RamUsageEstimator.shallowSizeOf;
+import static org.apache.lucene.util.RamUsageEstimator.shallowSizeOfInstance;
 import static org.apache.lucene.util.RamUsageEstimator.sizeOfCollection;
 
 /**
@@ -31,7 +30,8 @@ import static org.apache.lucene.util.RamUsageEstimator.sizeOfCollection;
  */
 public class TokenListCategory implements Accountable {
 
-    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TokenListCategory.class);
+    private static final long SHALLOW_SIZE = shallowSizeOfInstance(TokenListCategory.class);
+    private static final long SHALLOW_SIZE_OF_ARRAY_LIST = shallowSizeOfInstance(ArrayList.class);
 
     /**
      * ID that's locally unique for a given {@link TokenListCategorizer}.
@@ -640,10 +640,10 @@ public class TokenListCategory implements Accountable {
             // method called for baseWeightedTokenIds and commonUniqueTokenIds, but taking advantage of the fact
             // that TokenAndWeight objects have fixed size.
             + alignObjectSize(
-                shallowSizeOf(baseWeightedTokenIds) + NUM_BYTES_ARRAY_HEADER + baseWeightedTokenIds.size() * (TokenAndWeight.SHALLOW_SIZE
+                SHALLOW_SIZE_OF_ARRAY_LIST + NUM_BYTES_ARRAY_HEADER + baseWeightedTokenIds.size() * (TokenAndWeight.SHALLOW_SIZE
                     + NUM_BYTES_OBJECT_REF)
             ) + alignObjectSize(
-                shallowSizeOf(commonUniqueTokenIds) + NUM_BYTES_ARRAY_HEADER + commonUniqueTokenIds.size() * (TokenAndWeight.SHALLOW_SIZE
+                SHALLOW_SIZE_OF_ARRAY_LIST + NUM_BYTES_ARRAY_HEADER + commonUniqueTokenIds.size() * (TokenAndWeight.SHALLOW_SIZE
                     + NUM_BYTES_OBJECT_REF)
             );
         // TODO: should subAggs be included, or are nested aggregations accounted for separately?
@@ -697,7 +697,7 @@ public class TokenListCategory implements Accountable {
 
     public static class TokenAndWeight implements Comparable<TokenAndWeight>, Accountable {
 
-        private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TokenAndWeight.class);
+        private static final long SHALLOW_SIZE = shallowSizeOfInstance(TokenAndWeight.class);
 
         private final int tokenId;
         private final int weight;

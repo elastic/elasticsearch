@@ -1,0 +1,5 @@
+pr: 85708
+summary: "TSDB: Implement downsampling on time-series indices (WIP)"
+area: "TSDB, Rollup"
+type: feature
+issues: []

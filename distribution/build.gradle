@@ -230,7 +230,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
    *             Properties to expand when copying packaging files             *
    *****************************************************************************/
   configurations {
-    ['libs', 'libsLauncher', 'libsLaunchers', 'libsVersionChecker', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole'].each {
+    ['libs', 'libsLauncher', 'libsLaunchers', 'libsVersionChecker', 'libsServerCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole'].each {
       create(it) {
         canBeConsumed = false
         canBeResolved = true
@@ -250,6 +250,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
   dependencies {
     libs project(':server')
 
+    libsServerCli project(':distribution:tools:server-cli')
     libsLauncher project(':distribution:tools:launcher')
     libsVersionChecker project(':distribution:tools:java-version-checker')
     libsLaunchers project(':distribution:tools:launchers')
@@ -277,6 +278,9 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
         }
         into('launchers') {
           from(configurations.libsLaunchers)
+        }
+        into('tools/server-cli') {
+          from(configurations.libsServerCli)
         }
         into('tools/geoip-cli') {
           from(configurations.libsGeoIpCli)

@@ -29,7 +29,6 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 
 import static org.apache.lucene.util.RamUsageEstimator.shallowSizeOf;
-import static org.elasticsearch.xpack.ml.aggs.categorization2.CategorizeTextAggregationBuilder.MAX_MAX_MATCHED_TOKENS;
 
 /**
  * Port of the C++ class <a href="https://github.com/elastic/ml-cpp/blob/main/include/model/CTokenListDataCategorizerBase.h">
@@ -38,6 +37,7 @@ import static org.elasticsearch.xpack.ml.aggs.categorization2.CategorizeTextAggr
  */
 public class TokenListCategorizer implements Accountable {
 
+    public static final int MAX_TOKENS = 100;
     private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(TokenListCategorizer.class);
     private static final float EPSILON = 0.000001f;
     private static final Logger logger = LogManager.getLogger(TokenListCategorizer.class);
@@ -97,8 +97,8 @@ public class TokenListCategorizer implements Accountable {
         CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
         ts.reset();
         WeightCalculator weightCalculator = new WeightCalculator(partOfSpeechDictionary);
-        // Only categorize the first MAX_MAX_MATCHED_TOKENS tokens
-        while (ts.incrementToken() && weightedTokenIds.size() < MAX_MAX_MATCHED_TOKENS) {
+        // Only categorize the first MAX_TOKENS tokens
+        while (ts.incrementToken() && weightedTokenIds.size() < MAX_TOKENS) {
             if (termAtt.length() > 0) {
                 int weight = weightCalculator.calculateWeight(termAtt);
                 weightedTokenIds.add(new TokenAndWeight(bytesRefHash.put(new BytesRef(termAtt)), weight));

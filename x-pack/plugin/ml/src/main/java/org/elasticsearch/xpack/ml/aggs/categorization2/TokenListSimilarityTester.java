@@ -76,7 +76,8 @@ public class TokenListSimilarityTester {
             currentCol[0] = prevCol[0] + firstCost;
 
             for (int downMinusOne = 0; downMinusOne < secondLen; ++downMinusOne) {
-                int secondCost = second.get(downMinusOne).getWeight();
+                TokenAndWeight secondTokenAndWeight = second.get(downMinusOne);
+                int secondCost = secondTokenAndWeight.getWeight();
 
                 // There are 3 options, and due to the possible differences
                 // in the weightings, we must always evaluate all 3:
@@ -94,7 +95,7 @@ public class TokenListSimilarityTester {
                 // OR
                 // No extra cost in the case where the corresponding
                 // elements are equal.
-                int option3 = prevCol[downMinusOne] + ((firstTokenAndWeight.getTokenId() == second.get(downMinusOne).getTokenId())
+                int option3 = prevCol[downMinusOne] + ((firstTokenAndWeight.getTokenId() == secondTokenAndWeight.getTokenId())
                     ? 0
                     : Math.max(firstCost, secondCost));
 

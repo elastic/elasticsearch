@@ -179,9 +179,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
     }
 
     private final List<Bucket> buckets;
-    private final int maxUniqueTokens;
     private final int similarityThreshold;
-    private final int maxMatchTokens;
     private final int requiredSize;
     private final long minDocCount;
 
@@ -189,28 +187,22 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
         String name,
         int requiredSize,
         long minDocCount,
-        int maxUniqueTokens,
-        int maxMatchTokens,
         int similarityThreshold,
         Map<String, Object> metadata
     ) {
-        this(name, requiredSize, minDocCount, maxUniqueTokens, maxMatchTokens, similarityThreshold, metadata, new ArrayList<>());
+        this(name, requiredSize, minDocCount, similarityThreshold, metadata, new ArrayList<>());
     }
 
     protected InternalCategorizationAggregation(
         String name,
         int requiredSize,
         long minDocCount,
-        int maxUniqueTokens,
-        int maxMatchTokens,
         int similarityThreshold,
         Map<String, Object> metadata,
         List<Bucket> buckets
     ) {
         super(name, metadata);
         this.buckets = buckets;
-        this.maxUniqueTokens = maxUniqueTokens;
-        this.maxMatchTokens = maxMatchTokens;
         this.similarityThreshold = similarityThreshold;
         this.minDocCount = minDocCount;
         this.requiredSize = requiredSize;
@@ -218,8 +210,6 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
 
     public InternalCategorizationAggregation(StreamInput in) throws IOException {
         super(in);
-        this.maxUniqueTokens = in.readVInt();
-        this.maxMatchTokens = in.readVInt();
         this.similarityThreshold = in.readVInt();
         this.buckets = in.readList(Bucket::new);
         this.requiredSize = readSize(in);
@@ -228,8 +218,6 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeVInt(maxUniqueTokens);
-        out.writeVInt(maxMatchTokens);
         out.writeVInt(similarityThreshold);
         out.writeList(buckets);
         writeSize(requiredSize, out);
@@ -248,16 +236,7 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
 
     @Override
     public InternalCategorizationAggregation create(List<Bucket> buckets) {
-        return new InternalCategorizationAggregation(
-            name,
-            requiredSize,
-            minDocCount,
-            maxUniqueTokens,
-            maxMatchTokens,
-            similarityThreshold,
-            super.metadata,
-            buckets
-        );
+        return new InternalCategorizationAggregation(name, requiredSize, minDocCount, similarityThreshold, super.metadata, buckets);
     }
 
     @Override
@@ -314,8 +293,6 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
                 name,
                 requiredSize,
                 minDocCount,
-                maxUniqueTokens,
-                maxMatchTokens,
                 similarityThreshold,
                 metadata,
                 Arrays.asList(mergedBuckets)
@@ -323,16 +300,8 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
         }
     }
 
-    public int getMaxUniqueTokens() {
-        return maxUniqueTokens;
-    }
-
     public int getSimilarityThreshold() {
         return similarityThreshold;
-    }
-
-    public int getMaxMatchTokens() {
-        return maxMatchTokens;
     }
 
     public int getRequiredSize() {

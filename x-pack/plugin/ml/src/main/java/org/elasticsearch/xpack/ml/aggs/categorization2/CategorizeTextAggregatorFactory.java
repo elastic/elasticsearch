@@ -27,8 +27,6 @@ public class CategorizeTextAggregatorFactory extends AggregatorFactory {
 
     private final MappedFieldType fieldType;
     private final String indexedFieldName;
-    private final int maxUniqueTokens;
-    private final int maxMatchTokens;
     private final int similarityThreshold;
     private final CategorizationAnalyzerConfig categorizationAnalyzerConfig;
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
@@ -36,8 +34,6 @@ public class CategorizeTextAggregatorFactory extends AggregatorFactory {
     public CategorizeTextAggregatorFactory(
         String name,
         String fieldName,
-        int maxUniqueTokens,
-        int maxMatchTokens,
         int similarityThreshold,
         TermsAggregator.BucketCountThresholds bucketCountThresholds,
         CategorizationAnalyzerConfig categorizationAnalyzerConfig,
@@ -53,8 +49,6 @@ public class CategorizeTextAggregatorFactory extends AggregatorFactory {
         } else {
             this.indexedFieldName = null;
         }
-        this.maxUniqueTokens = maxUniqueTokens;
-        this.maxMatchTokens = maxMatchTokens;
         this.similarityThreshold = similarityThreshold;
         this.categorizationAnalyzerConfig = categorizationAnalyzerConfig;
         this.bucketCountThresholds = bucketCountThresholds;
@@ -65,8 +59,6 @@ public class CategorizeTextAggregatorFactory extends AggregatorFactory {
             name,
             bucketCountThresholds.getRequiredSize(),
             bucketCountThresholds.getMinDocCount(),
-            maxUniqueTokens,
-            maxMatchTokens,
             similarityThreshold,
             metadata
         );
@@ -115,8 +107,6 @@ public class CategorizeTextAggregatorFactory extends AggregatorFactory {
             indexedFieldName,
             fieldType,
             bucketCountThresholds,
-            maxUniqueTokens,
-            maxMatchTokens,
             similarityThreshold,
             categorizationAnalyzerConfig,
             metadata

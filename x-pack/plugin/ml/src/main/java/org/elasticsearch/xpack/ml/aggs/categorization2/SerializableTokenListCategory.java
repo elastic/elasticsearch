@@ -30,6 +30,7 @@ import java.util.Objects;
 public class SerializableTokenListCategory implements Writeable {
 
     /**
+     * This controls the length of the key we generate. We don't want an enormous terms list if categorizing a very long message.
      * Matches the value used in <a href="https://github.com/elastic/ml-cpp/blob/main/lib/model/CTokenListReverseSearchCreator.cc">
      * <code>CTokenListReverseSearchCreator</code></a> in the C++ code.
      */

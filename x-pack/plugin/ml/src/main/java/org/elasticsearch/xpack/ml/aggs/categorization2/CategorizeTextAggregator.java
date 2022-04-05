@@ -48,8 +48,6 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
     private final CategorizationAnalyzer analyzer;
     private final String sourceFieldName;
     private ObjectArray<TokenListCategorizer> categorizers;
-    private final int maxUniqueTokens;
-    private final int maxMatchTokens;
     private final int similarityThreshold;
     private final LongKeyedBucketOrds bucketOrds;
     private final CategorizationBytesRefHash bytesRefHash;
@@ -63,8 +61,6 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
         String sourceFieldName,
         MappedFieldType fieldType,
         TermsAggregator.BucketCountThresholds bucketCountThresholds,
-        int maxUniqueTokens,
-        int maxMatchTokens,
         int similarityThreshold,
         CategorizationAnalyzerConfig categorizationAnalyzerConfig,
         Map<String, Object> metadata
@@ -95,8 +91,6 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
             );
         }
         this.categorizers = bigArrays().newObjectArray(1);
-        this.maxUniqueTokens = maxUniqueTokens;
-        this.maxMatchTokens = maxMatchTokens;
         this.similarityThreshold = similarityThreshold;
         this.bucketOrds = LongKeyedBucketOrds.build(bigArrays(), CardinalityUpperBound.MANY);
         this.bucketCountThresholds = bucketCountThresholds;
@@ -132,8 +126,6 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
                 name,
                 bucketCountThresholds.getRequiredSize(),
                 bucketCountThresholds.getMinDocCount(),
-                maxUniqueTokens,
-                maxMatchTokens,
                 similarityThreshold,
                 metadata(),
                 Arrays.asList(topBucketsPerOrd[ordIdx])
@@ -148,8 +140,6 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
             name,
             bucketCountThresholds.getRequiredSize(),
             bucketCountThresholds.getMinDocCount(),
-            maxUniqueTokens,
-            maxMatchTokens,
             similarityThreshold,
             metadata()
         );

@@ -49,10 +49,6 @@ public class SystemKeyTool extends EnvironmentAwareCommand {
         PosixFilePermission.OWNER_WRITE
     );
 
-    static int main(SystemKeyTool tool, String[] args, Terminal terminal) throws Exception {
-        return tool.main(args, terminal);
-    }
-
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         final Path keyPath;

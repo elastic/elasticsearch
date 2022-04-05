@@ -32,10 +32,6 @@ class PluginCli extends MultiCommand {
         commands = Collections.unmodifiableCollection(subcommands.values());
     }
 
-    public static void main(String[] args) throws Exception {
-        exit(new PluginCli().main(args, Terminal.DEFAULT));
-    }
-
     @Override
     public void close() throws IOException {
         IOUtils.close(commands);

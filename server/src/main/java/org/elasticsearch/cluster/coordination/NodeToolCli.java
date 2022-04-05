@@ -23,9 +23,4 @@ public class NodeToolCli extends MultiCommand {
         subcommands.put("remove-settings", new RemoveSettingsCommand());
         subcommands.put("remove-customs", new RemoveCustomsCommand());
     }
-
-    public static void main(String[] args) throws Exception {
-        exit(new NodeToolCli().main(args, Terminal.DEFAULT));
-    }
-
 }

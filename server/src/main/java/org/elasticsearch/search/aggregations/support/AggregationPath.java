@@ -50,6 +50,16 @@ import java.util.Objects;
  *         {@code agg1>agg2>agg3.avg} - where agg1 and agg2 are both single-bucket aggs and agg3 is a multi-value metrics agg (eg stats,
  *                                  extended_stats, etc...). In this case, the order will be based on the avg value of {@code agg3}.
  *     </li>
+ *     <li>
+ *         {@code agg1["foo"]>agg2>agg3.avg} - where agg1 is multi-bucket, and the path expects a bucket "foo",
+ *                                              agg2 are both single-bucket aggs and agg3 is a multi-value metrics agg
+ *                                              (eg stats, extended_stats, etc...).
+ *                                              In this case, the order will be based on the avg value of {@code agg3}.
+ *     </li>
+ *     <li>
+ *         {@code agg1["foo"]._count} - where agg1 is multi-bucket, and the path expects a bucket "foo".
+ *                                      This would extract the doc_count for that specific bucket.
+ *     </li>
  * </ul>
  *
  */
@@ -64,47 +74,65 @@ public class AggregationPath {
         for (int i = 0; i < elements.length; i++) {
             String element = elements[i];
             if (i == elements.length - 1) {
-                int index = element.lastIndexOf('[');
-                if (index >= 0) {
-                    if (index == 0 || index > element.length() - 3) {
+                int keyIndex = element.lastIndexOf('[');
+                int metricIndex = element.lastIndexOf('.');
+                if (keyIndex >= 0) {
+                    if (keyIndex == 0 || keyIndex > element.length() - 3) {
                         throw new AggregationExecutionException("Invalid path element [" + element + "] in path [" + path + "]");
                     }
-                    if (element.charAt(element.length() - 1) != ']') {
+                    int endKeyIndex = element.lastIndexOf(']');
+                    if (endKeyIndex < keyIndex) {
                         throw new AggregationExecutionException("Invalid path element [" + element + "] in path [" + path + "]");
                     }
-                    tokens.add(new PathElement(element, element.substring(0, index), element.substring(index + 1, element.length() - 1)));
+                    if (metricIndex < 0 && endKeyIndex != element.length() - 1) {
+                        throw new AggregationExecutionException("Invalid path element [" + element + "] in path [" + path + "]");
+                    }
+                    tokens.add(
+                        new PathElement(
+                            element,
+                            element.substring(0, keyIndex),
+                            element.substring(keyIndex + 1, endKeyIndex),
+                            // Aggs and metrics can have `.` in the name, so only count as a metric in a bucket if after the brackets
+                            metricIndex < endKeyIndex ? null : element.substring(metricIndex + 1)
+                        )
+                    );
                     continue;
                 }
-                index = element.lastIndexOf('.');
-                if (index < 0) {
-                    tokens.add(new PathElement(element, element, null));
+                if (metricIndex < 0) {
+                    tokens.add(new PathElement(element, element, null, null));
                     continue;
                 }
-                if (index == 0 || index > element.length() - 2) {
+                if (metricIndex == 0 || metricIndex > element.length() - 2) {
                     throw new AggregationExecutionException("Invalid path element [" + element + "] in path [" + path + "]");
                 }
-                tuple = split(element, index, tuple);
-                tokens.add(new PathElement(element, tuple[0], tuple[1]));
-
+                tuple = split(element, metricIndex, tuple);
+                tokens.add(new PathElement(element, tuple[0], null, tuple[1]));
             } else {
-                int index = element.lastIndexOf('[');
-                if (index >= 0) {
-                    if (index == 0 || index > element.length() - 3) {
+                int keyIndex = element.lastIndexOf('[');
+                if (keyIndex >= 0) {
+                    if (keyIndex == 0 || keyIndex > element.length() - 3) {
                         throw new AggregationExecutionException("Invalid path element [" + element + "] in path [" + path + "]");
                     }
                     if (element.charAt(element.length() - 1) != ']') {
                         throw new AggregationExecutionException("Invalid path element [" + element + "] in path [" + path + "]");
                     }
-                    tokens.add(new PathElement(element, element.substring(0, index), element.substring(index + 1, element.length() - 1)));
+                    tokens.add(
+                        new PathElement(
+                            element,
+                            element.substring(0, keyIndex),
+                            element.substring(keyIndex + 1, element.length() - 1),
+                            null
+                        )
+                    );
                     continue;
                 }
-                tokens.add(new PathElement(element, element, null));
+                tokens.add(new PathElement(element, element, null, null));
             }
         }
         return new AggregationPath(tokens);
     }
 
-    public record PathElement(String fullName, String name, String key) {
+    public record PathElement(String fullName, String name, String key, String metric) {
 
         @Override
         public boolean equals(Object o) {
@@ -112,13 +140,14 @@ public class AggregationPath {
             if (o == null || getClass() != o.getClass()) return false;
 
             PathElement token = (PathElement) o;
-            return Objects.equals(key, token.key) && Objects.equals(name, token.name);
+            return Objects.equals(key, token.key) && Objects.equals(name, token.name) && Objects.equals(metric, token.metric);
         }
 
         @Override
         public int hashCode() {
             int result = name.hashCode();
             result = 31 * result + (key != null ? key.hashCode() : 0);
+            result = 31 * result + (metric != null ? metric.hashCode() : 0);
             return result;
         }
 
@@ -156,6 +185,9 @@ public class AggregationPath {
             stringPathElements.add(pathElement.name);
             if (pathElement.key != null) {
                 stringPathElements.add(pathElement.key);
+            }
+            if (pathElement.metric != null) {
+                stringPathElements.add(pathElement.metric);
             }
         }
         return stringPathElements;

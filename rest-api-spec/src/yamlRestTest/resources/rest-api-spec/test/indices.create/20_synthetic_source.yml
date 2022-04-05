@@ -1,7 +1,7 @@
 invalid:
   - skip:
-      version: " - 8.1.99"
-      reason: introduced in 8.2.0
+      version: " - 8.2.99"
+      reason: introduced in 8.3.0
 
   - do:
       catch: bad_request
@@ -19,8 +19,8 @@ invalid:
 ---
 nested is disabled:
   - skip:
-      version: " - 8.1.99"
-      reason: introduced in 8.2.0
+      version: " - 8.2.99"
+      reason: introduced in 8.3.0
 
   - do:
       catch: bad_request

@@ -938,6 +938,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 searchRequest.indices(),
                 searchRequest.preference()
             );
+            if (searchRequest.indices().length == 0) {
+                searchRequest.indices(searchContext.getActualIndices());
+            }
         } else {
             final Index[] indices = resolveLocalIndices(localIndices, clusterState, timeProvider);
             Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(
@@ -1408,6 +1411,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         String preference
     ) {
         Set<String> indices = new HashSet<>(Arrays.stream(indicesArray).toList());
+        boolean shouldFilterIndices = indices.equals(new HashSet<>(Arrays.stream(searchContext.getActualIndices()).toList())) == false;
         Set<Integer> shardIds = getShardIdsFromPreferenceString(preference);
 
         final List<SearchShardIterator> iterators = new ArrayList<>(searchContext.shards().size());
@@ -1441,7 +1445,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     new String[] { shardId.getIndexName() },
                     originalIndices.indicesOptions()
                 );
-                boolean passesIndexCheck = indices.isEmpty() || indices.contains(shardId.getIndexName());
+                boolean passesIndexCheck = shouldFilterIndices == false || passesIndexCheck(shardId.getIndexName(), indices);
                 boolean passesShardCheck = shardIds.isEmpty() || shardIds.contains(shardId.id());
                 if (passesIndexCheck && passesShardCheck) {
                     iterators.add(
@@ -1454,10 +1458,26 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                             keepAlive
                         )
                     );
+                } else {
+                    throw new IllegalArgumentException(
+                        "Got indices: " + indices + " and shards: " + shardIds + " but actual was " + shardId.getIndex()
+                    );
                 }
             }
         }
         return iterators;
+    }
+
+    private static boolean passesIndexCheck(String indexNameFromPit, Set<String> indexNamesFromRequest) {
+        if (indexNamesFromRequest.contains(indexNameFromPit)) {
+            return true;
+        }
+        for (String indexNameFromRequest : indexNamesFromRequest) {
+            if (indexNameFromPit.startsWith(".ds-" + indexNameFromRequest)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static Set<Integer> getShardIdsFromPreferenceString(String preference) {

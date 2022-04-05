@@ -48,91 +48,48 @@ import org.openjdk.jmh.annotations.Warmup;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.URISyntaxException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.Random;
 import java.util.concurrent.TimeUnit;
 
 @Fork(value = 1) // jvmArgs = { "-XX:+PrintCompilation", "-XX:+UnlockDiagnosticVMOptions", "-XX:+PrintInlining" })
 @Warmup(iterations = 5)
-@Measurement(iterations = 15)
+@Measurement(iterations = 5)
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @State(Scope.Benchmark)
-public class KeywordFieldMapperBenchmark {
+public class BeatsMapperBenchmark {
 
     private MapperService mapperService;
-
-    private SourceToParse sourceToParse;
+    private SourceToParse[] sources;
+    private Random random;
 
     @Setup
-    public void setUp() {
-        this.mapperService = createMapperService("""
-            {
-              "_doc": {
-                "dynamic": false,
-                "properties": {
-                  "host": {
-                    "type": "keyword",
-                    "store": true
-                  },
-                  "name": {
-                    "type": "keyword"
-                  },
-                  "type": {
-                    "type": "keyword",
-                    "normalizer": "lowercase"
-                  },
-                  "uuid": {
-                    "type": "keyword",
-                    "doc_values": false
-                  },
-                  "version": {
-                    "type": "keyword"
-                  },
-                  "extra_field": {
-                    "type": "keyword"
-                  },
-                  "extra_field_text": {
-                    "type": "text",
-                    "fields": {
-                      "keyword": {
-                        "type": "keyword",
-                        "ignore_above": 1024
-                      }
-                    }
-                  },
-                  "nested_object": {
-                    "properties": {
-                      "keyword_nested": {
-                        "type": "keyword"
-                      },
-                      "text_nested": {
-                        "type": "text"
-                      },
-                      "number_nested": {
-                        "type": "long"
-                      }
-                    }
-                  }
-                }
-              }
-            }
-                       \s""");
-        this.sourceToParse = new SourceToParse(UUIDs.randomBase64UUID(), new BytesArray("""
-            {
-              "host": "some_value",
-              "name": "some_other_thing",
-              "type": "some_type_thing",
-              "uuid": "some_keyword_uuid",
-              "version": "some_version",
-              "extra_field_text": "bla bla text",
-              "nested_object" : {
-                "keyword_nested": "some random nested keyword",
-                "text_nested": "some random nested text",
-                "number_nested": 123234234
-              }
-            }"""), XContentType.JSON);
+    public void setUp() throws IOException, URISyntaxException {
+        this.mapperService = createMapperService(readSampleMapping());
+        this.sources = readSampleDocuments();
+        this.random = new Random();
+    }
+
+    private static String readSampleMapping() throws IOException, URISyntaxException {
+        return Files.readString(pathToResource("filebeat-mapping-8.1.2.json"));
+    }
+
+    private static SourceToParse[] readSampleDocuments() throws IOException, URISyntaxException {
+        return Files.readAllLines(pathToResource("sample_documents.json"))
+            .stream()
+            .map(source -> new SourceToParse(UUIDs.randomBase64UUID(), new BytesArray(source), XContentType.JSON))
+            .toArray(SourceToParse[]::new);
+    }
+
+    private static Path pathToResource(String path) throws URISyntaxException {
+        return Paths.get(BeatsMapperBenchmark.class.getResource(path).toURI());
     }
 
     private static MapperService createMapperService(String mappings) {
@@ -140,6 +97,7 @@ public class KeywordFieldMapperBenchmark {
             .put("index.number_of_replicas", 0)
             .put("index.number_of_shards", 1)
             .put("index.version.created", Version.CURRENT)
+            .put("index.mapping.total_fields.limit", 10000)
             .build();
         IndexMetadata meta = IndexMetadata.builder("index").settings(settings).build();
         IndexSettings indexSettings = new IndexSettings(meta, settings);
@@ -177,6 +135,7 @@ public class KeywordFieldMapperBenchmark {
 
     @Benchmark
     public List<LuceneDocument> benchmarkParseKeywordFields() {
-        return mapperService.documentMapper().parse(sourceToParse).docs();
+        var source = sources[random.nextInt(sources.length)];
+        return mapperService.documentMapper().parse(source).docs();
     }
 }

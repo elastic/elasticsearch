@@ -66,6 +66,7 @@ public class LicenseInstallationIT extends ESRestTestCase {
     /**
      * Tests that we can install a valid, signed license via the REST API.
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/85698")
     public void testInstallLicense() throws Exception {
         long futureExpiryDate = System.currentTimeMillis() + TimeValue.timeValueDays(randomIntBetween(1, 1000)).millis();
         License signedLicense = generateRandomLicense(UUID.randomUUID().toString(), futureExpiryDate);

@@ -3,6 +3,19 @@
 setlocal enabledelayedexpansion
 setlocal enableextensions
 
+rem START OF NEW SCRIPT
+
+set LAUNCHER_TOOLNAME=server
+set LAUNCHER_LIBS=lib/tools/server-cli
+call "%~dp0elasticsearch-cli.bat" ^
+  %%* ^
+  || goto exit
+
+exit /b 1
+
+rem END OF NEW SCRIPT
+
+
 SET params='%*'
 SET checkpassword=Y
 SET enrolltocluster=N

@@ -15,6 +15,13 @@ for %%I in ("%ES_HOME%..") do set ES_HOME=%%~dpfI
 
 cd /d "%ES_HOME%"
 
+@source.path.env@
+
+if not exist %ES_PATH_CONF% (
+  echo "ES_PATH_CONF must be set to the configuration path"
+  exit /b 1
+)
+
 rem now set the path to java, pass "nojava" arg to skip setting ES_JAVA_HOME and JAVA
 if "%1" == "nojava" (
    exit /b

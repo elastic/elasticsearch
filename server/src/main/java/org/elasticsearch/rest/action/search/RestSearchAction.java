@@ -331,20 +331,11 @@ public class RestSearchAction extends BaseRestHandler {
     static void preparePointInTime(SearchRequest request, RestRequest restRequest, NamedWriteableRegistry namedWriteableRegistry) {
         assert request.pointInTimeBuilder() != null;
         ActionRequestValidationException validationException = null;
-        if (request.indices().length > 0) {
-            validationException = addValidationError(
-                "[indices] cannot be used with point in time. Do " + "not specify any index with point in time.",
-                validationException
-            );
-        }
         if (request.indicesOptions().equals(DEFAULT_INDICES_OPTIONS) == false) {
             validationException = addValidationError("[indicesOptions] cannot be used with point in time", validationException);
         }
         if (request.routing() != null) {
             validationException = addValidationError("[routing] cannot be used with point in time", validationException);
-        }
-        if (request.preference() != null) {
-            validationException = addValidationError("[preference] cannot be used with point in time", validationException);
         }
         if (restRequest.paramAsBoolean("ccs_minimize_roundtrips", false)) {
             validationException = addValidationError("[ccs_minimize_roundtrips] cannot be used with point in time", validationException);
@@ -365,7 +356,16 @@ public class RestSearchAction extends BaseRestHandler {
         );
         request.indicesOptions(stricterIndicesOptions);
         final SearchContextId searchContextId = request.pointInTimeBuilder().getSearchContextId(namedWriteableRegistry);
-        request.indices(searchContextId.getActualIndices());
+        String[] searchContextIndices = searchContextId.getActualIndices();
+        if (request.indices().length == 0) {
+            request.indices(searchContextId.getActualIndices());
+        } else {
+            if (Arrays.asList(searchContextIndices).containsAll(Arrays.asList(request.indices())) == false) {
+                throw new IllegalArgumentException(
+                    "Provided indices " + Arrays.toString(request.indices()) + " are not supported by the given pit"
+                );
+            }
+        }
     }
 
     /**

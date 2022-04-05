@@ -28,6 +28,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.OperationRouting;
+import org.elasticsearch.cluster.routing.Preference;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -933,7 +934,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 searchRequest.getLocalClusterAlias(),
                 searchContext,
                 searchRequest.pointInTimeBuilder().getKeepAlive(),
-                searchRequest.allowPartialSearchResults()
+                searchRequest.allowPartialSearchResults(),
+                searchRequest.indices(),
+                searchRequest.preference()
             );
         } else {
             final Index[] indices = resolveLocalIndices(localIndices, clusterState, timeProvider);
@@ -1400,8 +1403,13 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         String localClusterAlias,
         SearchContextId searchContext,
         TimeValue keepAlive,
-        boolean allowPartialSearchResults
+        boolean allowPartialSearchResults,
+        String[] indicesArray,
+        String preference
     ) {
+        Set<String> indices = new HashSet<>(Arrays.stream(indicesArray).toList());
+        Set<Integer> shardIds = getShardIdsFromPreferenceString(preference);
+
         final List<SearchShardIterator> iterators = new ArrayList<>(searchContext.shards().size());
         for (Map.Entry<ShardId, SearchContextIdForNode> entry : searchContext.shards().entrySet()) {
             final SearchContextIdForNode perNode = entry.getValue();
@@ -1433,11 +1441,43 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     new String[] { shardId.getIndexName() },
                     originalIndices.indicesOptions()
                 );
-                iterators.add(
-                    new SearchShardIterator(localClusterAlias, shardId, targetNodes, finalIndices, perNode.getSearchContextId(), keepAlive)
-                );
+                boolean passesIndexCheck = indices.isEmpty() || indices.contains(shardId.getIndexName());
+                boolean passesShardCheck = shardIds.isEmpty() || shardIds.contains(shardId.id());
+                if (passesIndexCheck && passesShardCheck) {
+                    iterators.add(
+                        new SearchShardIterator(
+                            localClusterAlias,
+                            shardId,
+                            targetNodes,
+                            finalIndices,
+                            perNode.getSearchContextId(),
+                            keepAlive
+                        )
+                    );
+                }
             }
         }
         return iterators;
+    }
+
+    private static Set<Integer> getShardIdsFromPreferenceString(String preference) {
+        Set<Integer> shardIds = new HashSet<>();
+        if (preference != null && preference.charAt(0) == '_') {
+            Preference preferenceType = Preference.parse(preference);
+            if (preferenceType == Preference.SHARDS) {
+                int index = preference.indexOf('|');
+                String shards;
+                if (index == -1) {
+                    shards = preference.substring(Preference.SHARDS.type().length() + 1);
+                } else {
+                    shards = preference.substring(Preference.SHARDS.type().length() + 1, index);
+                }
+                String[] ids = Strings.splitStringByCommaToArray(shards);
+                shardIds.addAll(Arrays.stream(ids).map(Integer::valueOf).toList());
+            } else {
+                throw new IllegalArgumentException("Only the _shards preference type is supported in a pit request");
+            }
+        }
+        return shardIds;
     }
 }

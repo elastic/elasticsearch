@@ -1308,7 +1308,9 @@ public class TransportSearchActionTests extends ESTestCase {
             null,
             new SearchContextId(contexts, aliasFilterMap),
             keepAlive,
-            randomBoolean()
+            randomBoolean(),
+            indices,
+            null
         );
         shardIterators.sort(Comparator.comparing(SearchShardIterator::shardId));
         assertThat(shardIterators, hasSize(numberOfShards));
@@ -1338,6 +1340,7 @@ public class TransportSearchActionTests extends ESTestCase {
 
         // Fails when some indices don't exist and `allowPartialSearchResults` is false.
         ShardId anotherShardId = new ShardId(new Index("another-index", IndexMetadata.INDEX_UUID_NA_VALUE), randomIntBetween(0, 10));
+        String[] anotherIndices = new String[] { "another-index" };
         contexts.put(
             anotherShardId,
             new SearchContextIdForNode(
@@ -1353,7 +1356,9 @@ public class TransportSearchActionTests extends ESTestCase {
                 null,
                 new SearchContextId(contexts, aliasFilterMap),
                 keepAlive,
-                false
+                false,
+                anotherIndices,
+                null
             );
         });
         assertThat(error.getIndex().getName(), equalTo("another-index"));
@@ -1364,10 +1369,39 @@ public class TransportSearchActionTests extends ESTestCase {
             null,
             new SearchContextId(contexts, aliasFilterMap),
             keepAlive,
-            true
+            true,
+            anotherIndices,
+            null
         ).stream().filter(si -> si.shardId().equals(anotherShardId)).findFirst();
         assertTrue(anotherShardIterator.isPresent());
         assertThat(anotherShardIterator.get().getTargetNodeIds(), hasSize(1));
+
+        Optional<SearchShardIterator> nonexistentShardPreferenceShardIterator = TransportSearchAction
+            .getLocalLocalShardsIteratorFromPointInTime(
+                clusterState,
+                OriginalIndices.NONE,
+                null,
+                new SearchContextId(contexts, aliasFilterMap),
+                keepAlive,
+                true,
+                anotherIndices,
+                "_shards:99"
+            ).stream().filter(si -> si.shardId().equals(anotherShardId)).findFirst();
+        assertFalse(nonexistentShardPreferenceShardIterator.isPresent());
+
+        Optional<SearchShardIterator> existentShardPreferenceShardIterator = TransportSearchAction
+            .getLocalLocalShardsIteratorFromPointInTime(
+                clusterState,
+                OriginalIndices.NONE,
+                null,
+                new SearchContextId(contexts, aliasFilterMap),
+                keepAlive,
+                true,
+                anotherIndices,
+                "_shards:" + anotherShardId.getId()
+            ).stream().filter(si -> si.shardId().equals(anotherShardId)).findFirst();
+        assertTrue(existentShardPreferenceShardIterator.isPresent());
+        assertThat(existentShardPreferenceShardIterator.get().getTargetNodeIds(), hasSize(1));
     }
 
     public void testCCSCompatibilityCheck() throws Exception {

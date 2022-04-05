@@ -6,11 +6,11 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.tools.launchers;
+package org.elasticsearch.server.cli;
 
-import org.yaml.snakeyaml.Yaml;
-import org.yaml.snakeyaml.constructor.SafeConstructor;
-import org.yaml.snakeyaml.error.YAMLException;
+import org.elasticsearch.cli.UserException;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.yaml.YamlXContent;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -27,9 +27,9 @@ import java.util.function.Function;
 
 import static java.lang.Math.max;
 import static java.lang.Math.min;
-import static org.elasticsearch.tools.launchers.JvmOption.isInitialHeapSpecified;
-import static org.elasticsearch.tools.launchers.JvmOption.isMaxHeapSpecified;
-import static org.elasticsearch.tools.launchers.JvmOption.isMinHeapSpecified;
+import static org.elasticsearch.server.cli.JvmOption.isInitialHeapSpecified;
+import static org.elasticsearch.server.cli.JvmOption.isMaxHeapSpecified;
+import static org.elasticsearch.server.cli.JvmOption.isMinHeapSpecified;
 
 /**
  * Determines optimal default heap settings based on available system memory and assigned node roles.
@@ -56,7 +56,7 @@ public final class MachineDependentHeap {
      * @return final heap options, or an empty collection if user provided heap options are to be used
      * @throws IOException if unable to load elasticsearch.yml
      */
-    public List<String> determineHeapSettings(Path configDir, List<String> userDefinedJvmOptions) throws IOException, InterruptedException {
+    public List<String> determineHeapSettings(Path configDir, List<String> userDefinedJvmOptions) throws UserException, IOException {
         // TODO: this could be more efficient, to only parse final options once
         final Map<String, JvmOption> finalJvmOptions = JvmOption.findFinalOptions(userDefinedJvmOptions);
         if (isMaxHeapSpecified(finalJvmOptions) || isMinHeapSpecified(finalJvmOptions) || isInitialHeapSpecified(finalJvmOptions)) {
@@ -102,16 +102,17 @@ public final class MachineDependentHeap {
 
         @SuppressWarnings("unchecked")
         public static MachineNodeRole parse(InputStream config) {
-            Yaml yaml = new Yaml(new SafeConstructor());
+
             Map<String, Object> root;
             try {
-                root = yaml.load(config);
-            } catch (YAMLException | ClassCastException ex) {
+                var parser = YamlXContent.yamlXContent.createParser(XContentParserConfiguration.EMPTY, config);
+                root = parser.map();
+            } catch (IOException | ClassCastException ex) {
                 // Strangely formatted config, so just return defaults and let startup settings validation catch the problem
                 return MachineNodeRole.UNKNOWN;
             }
 
-            if (root != null) {
+            if (root.isEmpty() == false) {
                 Map<String, Object> map = flatten(root, null);
 
                 if (hasLegacySettings(map.keySet())) {

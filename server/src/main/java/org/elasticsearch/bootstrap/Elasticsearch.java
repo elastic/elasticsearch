@@ -33,27 +33,7 @@ import java.util.Locale;
 /**
  * This class starts elasticsearch.
  */
-class Elasticsearch extends EnvironmentAwareCommand {
-
-    private final OptionSpecBuilder versionOption;
-    private final OptionSpecBuilder daemonizeOption;
-    private final OptionSpec<Path> pidfileOption;
-    private final OptionSpecBuilder quietOption;
-
-    // visible for testing
-    Elasticsearch() {
-        super("Starts Elasticsearch", () -> {}); // we configure logging later so we override the base class from configuring logging
-        versionOption = parser.acceptsAll(Arrays.asList("V", "version"), "Prints Elasticsearch version information and exits");
-        daemonizeOption = parser.acceptsAll(Arrays.asList("d", "daemonize"), "Starts Elasticsearch in the background")
-            .availableUnless(versionOption);
-        pidfileOption = parser.acceptsAll(Arrays.asList("p", "pidfile"), "Creates a pid file in the specified path on start")
-            .availableUnless(versionOption)
-            .withRequiredArg()
-            .withValuesConvertedBy(new PathConverter());
-        quietOption = parser.acceptsAll(Arrays.asList("q", "quiet"), "Turns off standard output/error streams logging in console")
-            .availableUnless(versionOption)
-            .availableUnless(daemonizeOption);
-    }
+class Elasticsearch {
 
     /**
      * Main entry point for starting elasticsearch
@@ -77,11 +57,7 @@ class Elasticsearch extends EnvironmentAwareCommand {
         });
         LogConfigurator.registerErrorListener();
         final Elasticsearch elasticsearch = new Elasticsearch();
-        int status = main(args, elasticsearch, Terminal.DEFAULT);
-        if (status != ExitCodes.OK) {
-            printLogsSuggestion();
-            exit(status);
-        }
+        System.out.println("RUNNING ELASTICSEARCH");
     }
 
     /**
@@ -118,48 +94,6 @@ class Elasticsearch extends EnvironmentAwareCommand {
         }
     }
 
-    static int main(final String[] args, final Elasticsearch elasticsearch, final Terminal terminal) throws Exception {
-        return elasticsearch.main(args, terminal);
-    }
-
-    @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env) throws UserException {
-        if (options.nonOptionArguments().isEmpty() == false) {
-            throw new UserException(ExitCodes.USAGE, "Positional arguments not allowed, found " + options.nonOptionArguments());
-        }
-        if (options.has(versionOption)) {
-            final String versionOutput = String.format(
-                Locale.ROOT,
-                "Version: %s, Build: %s/%s/%s/%s, JVM: %s",
-                Build.CURRENT.qualifiedVersion(),
-                Build.CURRENT.flavor().displayName(),
-                Build.CURRENT.type().displayName(),
-                Build.CURRENT.hash(),
-                Build.CURRENT.date(),
-                JvmInfo.jvmInfo().version()
-            );
-            terminal.println(versionOutput);
-            return;
-        }
-
-        final boolean daemonize = options.has(daemonizeOption);
-        final Path pidFile = pidfileOption.value(options);
-        final boolean quiet = options.has(quietOption);
-
-        // a misconfigured java.io.tmpdir can cause hard-to-diagnose problems later, so reject it immediately
-        try {
-            env.validateTmpFile();
-        } catch (IOException e) {
-            throw new UserException(ExitCodes.CONFIG, e.getMessage());
-        }
-
-        try {
-            init(daemonize, pidFile, quiet, env);
-        } catch (NodeValidationException e) {
-            throw new UserException(ExitCodes.CONFIG, e.getMessage());
-        }
-    }
-
     void init(final boolean daemonize, final Path pidFile, final boolean quiet, Environment initialEnv) throws NodeValidationException,
         UserException {
         try {
@@ -170,18 +104,4 @@ class Elasticsearch extends EnvironmentAwareCommand {
             throw new StartupException(e);
         }
     }
-
-    /**
-     * Required method that's called by Apache Commons procrun when
-     * running as a service on Windows, when the service is stopped.
-     *
-     * http://commons.apache.org/proper/commons-daemon/procrun.html
-     *
-     * NOTE: If this method is renamed and/or moved, make sure to
-     * update elasticsearch-service.bat!
-     */
-    static void close(String[] args) throws IOException {
-        Bootstrap.stop();
-    }
-
 }

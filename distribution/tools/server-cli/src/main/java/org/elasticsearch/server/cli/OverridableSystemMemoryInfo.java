@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.tools.launchers;
+package org.elasticsearch.server.cli;
 
 import java.util.List;
 import java.util.Objects;

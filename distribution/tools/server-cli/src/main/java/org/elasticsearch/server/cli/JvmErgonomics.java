@@ -6,7 +6,9 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.tools.launchers;
+package org.elasticsearch.server.cli;
+
+import org.elasticsearch.cli.UserException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -31,7 +33,7 @@ final class JvmErgonomics {
      * @param userDefinedJvmOptions A list of JVM options that have been defined by the user.
      * @return A list of additional JVM options to set.
      */
-    static List<String> choose(final List<String> userDefinedJvmOptions) throws InterruptedException, IOException {
+    static List<String> choose(final List<String> userDefinedJvmOptions) throws UserException, IOException {
         final List<String> ergonomicChoices = new ArrayList<>();
         final Map<String, JvmOption> finalJvmOptions = JvmOption.findFinalOptions(userDefinedJvmOptions);
         final long heapSize = JvmOption.extractMaxHeapSize(finalJvmOptions);

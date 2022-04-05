@@ -1,13 +1,5 @@
 #!/bin/bash
 
-LAUNCHER_TOOLNAME=server
-LAUNCHER_LIBS=lib/tools/server-cli
-source "`dirname "$0"`"/elasticsearch-cli
-
-# NOT REACHABLE, TODO remove
-exit 1
-
- # END OF NEW SCRIPT
 
 CHECK_KEYSTORE=true
 ATTEMPT_SECURITY_AUTO_CONFIG=true

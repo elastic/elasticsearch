@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.tools.launchers;
+package org.elasticsearch.server.cli;
 
 /**
  * Determines available system memory that could be allocated for Elasticsearch, to include JVM heap and other native processes.

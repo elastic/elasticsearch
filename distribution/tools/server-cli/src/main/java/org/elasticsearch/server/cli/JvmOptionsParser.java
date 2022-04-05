@@ -6,13 +6,17 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.tools.launchers;
+package org.elasticsearch.server.cli;
+
+import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.UserException;
 
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -59,36 +63,22 @@ final class JvmOptionsParser {
 
     }
 
-    /**
-     * The main entry point. The exit code is 0 if the JVM options were successfully parsed, otherwise the exit code is 1. If an improperly
-     * formatted line is discovered, the line is output to standard error.
-     *
-     * @param args the args to the program which should consist of a single option, the path to ES_PATH_CONF
-     */
-    public static void main(final String[] args) throws InterruptedException, IOException {
-        if (args.length != 2) {
-            throw new IllegalArgumentException(
-                "Expected two arguments specifying path to ES_PATH_CONF and plugins directory, but was " + Arrays.toString(args)
-            );
-        }
-
+    static List<String> determine(Path configDir, Path pluginsDir, Path tmpDir, String envOptions) throws UserException {
         final JvmOptionsParser parser = new JvmOptionsParser();
 
         final Map<String, String> substitutions = new HashMap<>();
-        substitutions.put("ES_TMPDIR", System.getenv("ES_TMPDIR"));
-        final String environmentPathConf = System.getenv("ES_PATH_CONF");
-        if (environmentPathConf != null) {
-            substitutions.put("ES_PATH_CONF", environmentPathConf);
-        }
+        substitutions.put("ES_TMPDIR", tmpDir.toString());
+        substitutions.put("ES_PATH_CONF", configDir.toString());
 
         try {
-            final List<String> jvmOptions = parser.jvmOptions(
-                Paths.get(args[0]),
-                Paths.get(args[1]),
-                System.getenv("ES_JAVA_OPTS"),
+            return parser.jvmOptions(
+                configDir,
+                pluginsDir,
+                envOptions,
                 substitutions
             );
-            Launchers.outPrintln(String.join(" ", jvmOptions));
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         } catch (final JvmOptionsFileParserException e) {
             final String errorMessage = String.format(
                 Locale.ROOT,
@@ -97,7 +87,7 @@ final class JvmOptionsParser {
                 e.invalidLines().size() == 1 ? "" : "s",
                 e.jvmOptionsFile()
             );
-            Launchers.errPrintln(errorMessage);
+            StringBuilder msg = new StringBuilder(errorMessage);
             int count = 0;
             for (final Map.Entry<Integer, String> entry : e.invalidLines().entrySet()) {
                 count++;
@@ -109,16 +99,15 @@ final class JvmOptionsParser {
                     entry.getKey(),
                     entry.getValue()
                 );
-                Launchers.errPrintln(message);
+                msg.append(System.lineSeparator());
+                msg.append(message);
             }
-            Launchers.exit(1);
+            throw new UserException(ExitCodes.CONFIG, msg.toString());
         }
-
-        Launchers.exit(0);
     }
 
     private List<String> jvmOptions(final Path config, Path plugins, final String esJavaOpts, final Map<String, String> substitutions)
-        throws InterruptedException, IOException, JvmOptionsFileParserException {
+        throws UserException, IOException, JvmOptionsFileParserException {
 
         final List<String> jvmOptions = readJvmOptionsFiles(config);
 

@@ -29,21 +29,23 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 /**
- * This class represents a repository that could not be initialized due to unknown type.
- * This could happen when a user creates a snapshot repository using a type from a plugin and then removes the plugin.
+ * Represents a repository that exists in the cluster state but could not be instantiated on a node, typically due to invalid configuration.
  */
-public class UnknownTypeRepository extends AbstractLifecycleComponent implements Repository {
+public class InvalidRepository extends AbstractLifecycleComponent implements Repository {
 
     private final RepositoryMetadata repositoryMetadata;
+    private final RepositoryException creationException;
 
-    public UnknownTypeRepository(RepositoryMetadata repositoryMetadata) {
+    public InvalidRepository(RepositoryMetadata repositoryMetadata, RepositoryException creationException) {
         this.repositoryMetadata = repositoryMetadata;
+        this.creationException = creationException;
     }
 
-    private RepositoryException createUnknownTypeException() {
+    private RepositoryException createCreationException() {
         return new RepositoryException(
             repositoryMetadata.name(),
-            "repository type [" + repositoryMetadata.type() + "] is unknown; ensure that all required plugins are installed on this node"
+            "repository type [" + repositoryMetadata.type() + "] failed to create on current node",
+            creationException
         );
     }
 
@@ -54,27 +56,27 @@ public class UnknownTypeRepository extends AbstractLifecycleComponent implements
 
     @Override
     public void getSnapshotInfo(GetSnapshotInfoContext context) {
-        throw createUnknownTypeException();
+        throw createCreationException();
     }
 
     @Override
     public Metadata getSnapshotGlobalMetadata(SnapshotId snapshotId) {
-        throw createUnknownTypeException();
+        throw createCreationException();
     }
 
     @Override
     public IndexMetadata getSnapshotIndexMetaData(RepositoryData repositoryData, SnapshotId snapshotId, IndexId index) throws IOException {
-        throw createUnknownTypeException();
+        throw createCreationException();
     }
 
     @Override
     public void getRepositoryData(ActionListener<RepositoryData> listener) {
-        listener.onFailure(createUnknownTypeException());
+        listener.onFailure(createCreationException());
     }
 
     @Override
     public void finalizeSnapshot(FinalizeSnapshotContext finalizeSnapshotContext) {
-        finalizeSnapshotContext.onFailure(createUnknownTypeException());
+        finalizeSnapshotContext.onFailure(createCreationException());
     }
 
     @Override
@@ -84,32 +86,32 @@ public class UnknownTypeRepository extends AbstractLifecycleComponent implements
         Version repositoryMetaVersion,
         ActionListener<RepositoryData> listener
     ) {
-        listener.onFailure(createUnknownTypeException());
+        listener.onFailure(createCreationException());
     }
 
     @Override
     public long getSnapshotThrottleTimeInNanos() {
-        throw createUnknownTypeException();
+        throw createCreationException();
     }
 
     @Override
     public long getRestoreThrottleTimeInNanos() {
-        throw createUnknownTypeException();
+        throw createCreationException();
     }
 
     @Override
     public String startVerification() {
-        throw createUnknownTypeException();
+        throw createCreationException();
     }
 
     @Override
     public void endVerification(String verificationToken) {
-        throw createUnknownTypeException();
+        throw createCreationException();
     }
 
     @Override
     public void verify(String verificationToken, DiscoveryNode localNode) {
-        throw createUnknownTypeException();
+        throw createCreationException();
     }
 
     @Override
@@ -120,7 +122,7 @@ public class UnknownTypeRepository extends AbstractLifecycleComponent implements
 
     @Override
     public void snapshotShard(SnapshotShardContext snapshotShardContext) {
-        snapshotShardContext.onFailure(createUnknownTypeException());
+        snapshotShardContext.onFailure(createCreationException());
     }
 
     @Override
@@ -132,12 +134,12 @@ public class UnknownTypeRepository extends AbstractLifecycleComponent implements
         RecoveryState recoveryState,
         ActionListener<Void> listener
     ) {
-        listener.onFailure(createUnknownTypeException());
+        listener.onFailure(createCreationException());
     }
 
     @Override
     public IndexShardSnapshotStatus getShardSnapshotStatus(SnapshotId snapshotId, IndexId indexId, ShardId shardId) {
-        throw createUnknownTypeException();
+        throw createCreationException();
     }
 
     @Override
@@ -151,7 +153,7 @@ public class UnknownTypeRepository extends AbstractLifecycleComponent implements
         String source,
         Consumer<Exception> onFailure
     ) {
-        onFailure.accept(createUnknownTypeException());
+        onFailure.accept(createCreationException());
     }
 
     @Override
@@ -162,7 +164,7 @@ public class UnknownTypeRepository extends AbstractLifecycleComponent implements
         ShardGeneration shardGeneration,
         ActionListener<ShardSnapshotResult> listener
     ) {
-        listener.onFailure(createUnknownTypeException());
+        listener.onFailure(createCreationException());
     }
 
     @Override

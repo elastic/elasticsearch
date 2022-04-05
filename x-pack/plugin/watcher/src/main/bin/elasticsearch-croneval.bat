@@ -8,8 +8,9 @@ rem 2.0.
 setlocal enabledelayedexpansion
 setlocal enableextensions
 
-set ES_MAIN_CLASS=org.elasticsearch.xpack.watcher.trigger.schedule.tool.CronEvalTool
-set ES_ADDITIONAL_SOURCES=x-pack-env;x-pack-watcher-env
+set SCRIPT_NAME=%~n0
+set LAUNCHER_TOOLNAME=%SCRIPT_NAME:elasticsearch-=%
+set LAUNCHER_LIBS=modules/x-pack-core,modules/x-pack-watcher
 call "%~dp0elasticsearch-cli.bat" ^
   %%* ^
   || goto exit

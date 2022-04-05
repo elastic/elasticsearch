@@ -17,25 +17,6 @@ rem now set the classpath
 set ES_CLASSPATH=!ES_HOME!\lib\*
 set LAUNCHERS_CLASSPATH=!ES_CLASSPATH!;!ES_HOME!\lib\launchers\*
 
-set HOSTNAME=%COMPUTERNAME%
-
-if not defined ES_PATH_CONF (
-  set ES_PATH_CONF=!ES_HOME!\config
-)
-
-rem now make ES_PATH_CONF absolute
-for %%I in ("%ES_PATH_CONF%..") do set ES_PATH_CONF=%%~dpfI
-
-set ES_DISTRIBUTION_FLAVOR=@es.distribution.flavor@
-set ES_DISTRIBUTION_TYPE=@es.distribution.type@
-set ES_BUNDLED_JDK=@es.bundled_jdk@
-
-if "%ES_BUNDLED_JDK%" == "false" (
-  echo "warning: no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release" >&2
-)
-
-cd /d "%ES_HOME%"
-
 rem now set the path to java, pass "nojava" arg to skip setting ES_JAVA_HOME and JAVA
 if "%1" == "nojava" (
    exit /b
@@ -77,6 +58,4 @@ if defined JAVA_OPTS (
   echo pass JVM parameters via ES_JAVA_OPTS
 )
 
-rem check the Java version
-%JAVA% -cp "%LAUNCHERS_CLASSPATH%" "org.elasticsearch.tools.java_version_checker.JavaVersionChecker" || exit /b 1
-
+cd %ES_HOME%

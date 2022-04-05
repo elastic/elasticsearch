@@ -8,8 +8,9 @@ rem 2.0.
 setlocal enabledelayedexpansion
 setlocal enableextensions
 
-set ES_MAIN_CLASS=org.elasticsearch.xpack.security.crypto.tool.SystemKeyTool
-set ES_ADDITIONAL_SOURCES=x-pack-env;x-pack-security-env
+set SCRIPT_NAME=%~n0
+set LAUNCHER_TOOLNAME=%SCRIPT_NAME:elasticsearch-=%
+set LAUNCHER_LIBS=modules/x-pack-core,modules/x-pack-security
 call "%~dp0elasticsearch-cli.bat" ^
   %%* ^
   || goto exit

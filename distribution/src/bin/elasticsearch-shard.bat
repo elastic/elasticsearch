@@ -3,7 +3,8 @@
 setlocal enabledelayedexpansion
 setlocal enableextensions
 
-set ES_MAIN_CLASS=org.elasticsearch.index.shard.ShardToolCli
+set SCRIPT_NAME=%~n0
+set LAUNCHER_TOOLNAME=%SCRIPT_NAME:elasticsearch-=%
 call "%~dp0elasticsearch-cli.bat" ^
   %%* ^
   || goto exit

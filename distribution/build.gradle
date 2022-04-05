@@ -492,6 +492,7 @@ subprojects {
       'source.path.env': [
         'deb': 'source /etc/default/elasticsearch',
         'rpm': 'source /etc/sysconfig/elasticsearch',
+        'zip': 'if not defined ES_PATH_CONF set ES_PATH_CONF=!ES_HOME!\\config',
         'def': 'if [ -z "$ES_PATH_CONF" ]; then ES_PATH_CONF="$ES_HOME"/config; fi',
       ],
       'path.logs': [

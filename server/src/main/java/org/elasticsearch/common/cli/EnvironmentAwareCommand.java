@@ -39,7 +39,7 @@ public abstract class EnvironmentAwareCommand extends Command {
      * @param description the command description
      */
     public EnvironmentAwareCommand(final String description) {
-        this(description, CommandLoggingConfigurator::configureLoggingWithoutConfig);
+        this(description, () -> {});
     }
 
     /**

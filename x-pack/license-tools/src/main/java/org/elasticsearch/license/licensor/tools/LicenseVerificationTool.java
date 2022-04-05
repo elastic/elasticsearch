@@ -9,12 +9,12 @@ package org.elasticsearch.license.licensor.tools;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
+import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.cli.LoggingAwareCommand;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.license.CryptUtils;
@@ -29,14 +29,14 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-public class LicenseVerificationTool extends LoggingAwareCommand {
+public class LicenseVerificationTool extends Command {
 
     private final OptionSpec<String> publicKeyPathOption;
     private final OptionSpec<String> licenseOption;
     private final OptionSpec<String> licenseFileOption;
 
     public LicenseVerificationTool() {
-        super("Generates signed elasticsearch license(s) for a given license spec(s)");
+        super("Generates signed elasticsearch license(s) for a given license spec(s)", () -> {});
         publicKeyPathOption = parser.accepts("publicKeyPath", "path to public key file").withRequiredArg().required();
         // TODO: with jopt-simple 5.0, we can make these requiredUnless each other
         // which is effectively "one must be present"

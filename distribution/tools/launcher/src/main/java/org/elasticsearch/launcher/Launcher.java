@@ -8,9 +8,12 @@
 
 package org.elasticsearch.launcher;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.ToolProvider;
+import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
 import java.net.MalformedURLException;
@@ -45,6 +48,8 @@ class Launcher {
 
     // TODO: don't throw, catch this and give a nice error message
     public static void main(String[] args) throws Exception {
+        configureLoggingWithoutConfig();
+
         // TODO: change signature of Command to take in sysprops and env
         Map<String, String> sysprops = convertPropertiesToMap(System.getProperties());
         Map<String, String> env = new HashMap<>(System.getenv());
@@ -89,5 +94,16 @@ class Launcher {
             }
         }
         return URLClassLoader.newInstance(urls.toArray(URL[]::new));
+    }
+
+    /**
+     * Configures logging without Elasticsearch configuration files based on the system property "es.logger.level" only. As such, any
+     * logging will be written to the console.
+     */
+    public static void configureLoggingWithoutConfig() {
+        // initialize default for es.logger.level because we will not read the log4j2.properties
+        final String loggerLevel = System.getProperty("es.logger.level", Level.INFO.name());
+        final Settings settings = Settings.builder().put("logger.level", loggerLevel).build();
+        LogConfigurator.configureWithoutConfig(settings);
     }
 }

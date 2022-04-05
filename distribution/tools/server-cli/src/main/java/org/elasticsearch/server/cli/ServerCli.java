@@ -15,10 +15,12 @@ import joptsimple.OptionSpecBuilder;
 import joptsimple.util.PathConverter;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.bootstrap.ServerArgs;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
+import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.PathUtils;
@@ -26,6 +28,9 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.NodeValidationException;
 
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
@@ -126,6 +131,9 @@ class ServerCli extends EnvironmentAwareCommand {
         else:  attempt auto configure, exit on codes not in [80, 73, 78]
         */
 
+        // TODO: this settings is wrong, needs to account for docker stuff through env and also auto enrollment, needs to be late binding
+        ServerArgs serverArgs = new ServerArgs(daemonize, pidFile, env.settings());
+
         List<String> jvmOptions = JvmOptionsParser.determine(env.configFile(), env.pluginsFile(), tempDir, envVars.get("ES_JAVA_OPTS"));
         jvmOptions.add("-Des.path.conf=" + env.configFile());
         jvmOptions.add("-Des.distribution.flavor=" + System.getProperty("es.distribution.flavor"));
@@ -163,8 +171,12 @@ class ServerCli extends EnvironmentAwareCommand {
         ProcessBuilder builder = new ProcessBuilder(command);
         builder.environment().putAll(envVars);
         builder.inheritIO();
+        builder.redirectInput(ProcessBuilder.Redirect.PIPE);
         try {
             Process process = builder.start();
+            try (var out = new OutputStreamStreamOutput(process.getOutputStream())) {
+                serverArgs.writeTo(out);
+            }
             // TODO: handle daemonize flag
             int code = process.waitFor();
             System.out.println("exited: " + code);

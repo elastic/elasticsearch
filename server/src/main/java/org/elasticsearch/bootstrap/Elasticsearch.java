@@ -8,27 +8,16 @@
 
 package org.elasticsearch.bootstrap;
 
-import joptsimple.OptionSet;
-import joptsimple.OptionSpec;
-import joptsimple.OptionSpecBuilder;
-import joptsimple.util.PathConverter;
-
-import org.elasticsearch.Build;
-import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.cli.EnvironmentAwareCommand;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.NodeValidationException;
 
-import java.io.IOException;
 import java.nio.file.Path;
 import java.security.Permission;
 import java.security.Security;
-import java.util.Arrays;
-import java.util.Locale;
 
 /**
  * This class starts elasticsearch.
@@ -56,8 +45,15 @@ class Elasticsearch {
 
         });
         LogConfigurator.registerErrorListener();
+        final ServerArgs serverArgs;
+        try (var in = new InputStreamStreamInput(System.in)) {
+            serverArgs = new ServerArgs(in);
+        }
+
         final Elasticsearch elasticsearch = new Elasticsearch();
         System.out.println("RUNNING ELASTICSEARCH");
+        System.out.println(serverArgs);
+        elasticsearch.init(serverArgs.daemonize(), serverArgs.pidFile(), false, new Environment(serverArgs.nodeSettings(), serverArgs.configDir()));
     }
 
     /**

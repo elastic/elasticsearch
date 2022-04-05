@@ -9,9 +9,8 @@
 package org.elasticsearch.plugins.cli;
 
 import org.elasticsearch.cli.Command;
+import org.elasticsearch.cli.MultiCommand;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cli.ToolProvider;
-import org.elasticsearch.common.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.IOException;
@@ -21,12 +20,12 @@ import java.util.Collections;
 /**
  * A cli tool for adding, removing and listing plugins for elasticsearch.
  */
-class PluginCli extends LoggingAwareMultiCommand {
+class PluginCli extends MultiCommand {
 
     private final Collection<Command> commands;
 
     PluginCli() {
-        super("A tool for managing installed elasticsearch plugins");
+        super("A tool for managing installed elasticsearch plugins", () -> {});
         subcommands.put("list", new ListPluginsCommand());
         subcommands.put("install", new InstallPluginCommand());
         subcommands.put("remove", new RemovePluginCommand());

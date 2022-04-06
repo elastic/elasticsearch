@@ -14,7 +14,6 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
@@ -25,6 +24,7 @@ import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.sort.SortOrder;
@@ -72,13 +72,18 @@ public class TimeSeriesIndexSearcher {
             if (++seen % CHECK_CANCELLED_SCORER_INTERVAL == 0) {
                 checkCancelled();
             }
-            LeafBucketCollector leafCollector = bucketCollector.getLeafCollector(leaf);
             Scorer scorer = weight.scorer(leaf);
             if (scorer != null) {
-                LeafWalker leafWalker = new LeafWalker(leaf, scorer, leafCollector);
+                LeafWalker leafWalker = new LeafWalker(leaf, scorer, bucketCollector, leaf);
                 if (leafWalker.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                     leafWalkers.add(leafWalker);
                 }
+            } else {
+                // Even though we will not walk through this aggregation as a part of normal processing
+                // this is needed to trigger actions in some bucketCollectors that bypass the normal iteration logic
+                // for example, global aggregator triggers a separate iterator that ignores the query but still needs
+                // to know all leaves
+                bucketCollector.getLeafCollector(new AggregationExecutionContext(leaf, null));
             }
         }
 
@@ -163,7 +168,7 @@ public class TimeSeriesIndexSearcher {
     }
 
     private static class LeafWalker {
-        private final LeafCollector collector;
+        private final LeafBucketCollector collector;
         private final Bits liveDocs;
         private final DocIdSetIterator iterator;
         private final SortedDocValues tsids;
@@ -173,8 +178,9 @@ public class TimeSeriesIndexSearcher {
         int tsidOrd;
         long timestamp;
 
-        LeafWalker(LeafReaderContext context, Scorer scorer, LeafCollector collector) throws IOException {
-            this.collector = collector;
+        LeafWalker(LeafReaderContext context, Scorer scorer, BucketCollector bucketCollector, LeafReaderContext leaf) throws IOException {
+            AggregationExecutionContext aggCtx = new AggregationExecutionContext(leaf, scratch::get);
+            this.collector = bucketCollector.getLeafCollector(aggCtx);
             liveDocs = context.reader().getLiveDocs();
             this.collector.setScorer(scorer);
             iterator = scorer.iterator();

@@ -23,6 +23,7 @@ import org.elasticsearch.action.get.MultiGetAction;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClosePointInTimeAction;
+import org.elasticsearch.action.search.MacaroonService;
 import org.elasticsearch.action.search.MultiSearchAction;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollAction;
@@ -119,6 +120,7 @@ public class RBACEngine implements AuthorizationEngine {
     private final CompositeRolesStore rolesStore;
     private final FieldPermissionsCache fieldPermissionsCache;
     private final LoadAuthorizedIndicesTimeChecker.Factory authzIndicesTimerFactory;
+    private final MacaroonService macaroonService;
 
     public RBACEngine(
         Settings settings,
@@ -128,6 +130,8 @@ public class RBACEngine implements AuthorizationEngine {
         this.rolesStore = rolesStore;
         this.fieldPermissionsCache = new FieldPermissionsCache(settings);
         this.authzIndicesTimerFactory = authzIndicesTimerFactory;
+        // TODO inject
+        this.macaroonService = new MacaroonService();
     }
 
     @Override
@@ -135,7 +139,18 @@ public class RBACEngine implements AuthorizationEngine {
         final Authentication authentication = requestInfo.getAuthentication();
         TransportRequest request = requestInfo.getRequest();
         if (isSearchRequestWithMacaroon(request)) {
-            getRolesFromMacaroon((SearchRequest) request);
+            logger.info("Search request with macaroon [{}]", ((SearchRequest) request).macaroon());
+            if (((SearchRequest) request).pointInTimeBuilder() == null) {
+                listener.onResponse(new RBACAuthorizationInfo(Role.EMPTY, Role.EMPTY));
+                return;
+            }
+            String pointInTimeId = ((SearchRequest) request).pointInTimeBuilder().getEncodedId();
+            boolean isValid = macaroonService.isMacaroonValid(((SearchRequest) request).macaroon(), pointInTimeId);
+            logger.info("Macaroon is valid [{}]", isValid);
+            if (isValid == false) {
+                listener.onResponse(new RBACAuthorizationInfo(Role.EMPTY, Role.EMPTY));
+                return;
+            }
         }
         rolesStore.getRoles(
             authentication,
@@ -144,10 +159,6 @@ public class RBACEngine implements AuthorizationEngine {
                 listener::onFailure
             )
         );
-    }
-
-    private void getRolesFromMacaroon(SearchRequest request) {
-        logger.info("Search request with macaroon [{}]", request.macaroon());
     }
 
     private static boolean isSearchRequestWithMacaroon(TransportRequest request) {

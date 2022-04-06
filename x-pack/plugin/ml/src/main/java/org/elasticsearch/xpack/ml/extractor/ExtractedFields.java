@@ -265,8 +265,8 @@ public class ExtractedFields {
             if (value != null) {
                 return Arrays.stream(value).map(v -> {
                     boolean asBoolean;
-                    if (v instanceof Boolean vBoolean) {
-                        asBoolean = vBoolean;
+                    if (v instanceof Boolean) {
+                        asBoolean = (boolean) v;
                     } else {
                         asBoolean = Booleans.parseBoolean(v.toString());
                     }

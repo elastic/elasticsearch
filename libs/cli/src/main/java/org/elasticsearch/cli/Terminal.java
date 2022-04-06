@@ -54,10 +54,19 @@ public abstract class Terminal {
     /** The current verbosity for the terminal, defaulting to {@link Verbosity#NORMAL}. */
     private Verbosity currentVerbosity = Verbosity.NORMAL;
 
+    private final BufferedReader reader;
+
+    private final PrintWriter outWriter;
+
+    private final PrintWriter errWriter;
+
     /** The newline used when calling println. */
     private final String lineSeparator;
 
-    protected Terminal(String lineSeparator) {
+    protected Terminal(Reader reader, PrintWriter outWriter, PrintWriter errWriter, String lineSeparator) {
+        this.reader = reader == null ? null : new BufferedReader(reader);
+        this.outWriter = outWriter;
+        this.errWriter = errWriter;
         this.lineSeparator = lineSeparator;
     }
 
@@ -67,35 +76,48 @@ public abstract class Terminal {
     }
 
     /** Reads clear text from the terminal input. See {@link Console#readLine()}. */
-    public abstract String readText(String prompt);
+    public String readText(String prompt) {
+        errWriter.print(prompt); // prompts should go to standard error to avoid mixing with list output
+        try {
+            final String line = reader.readLine();
+            if (line == null) {
+                throw new IllegalStateException("unable to read from standard input; is standard input open and a tty attached?");
+            }
+            return line;
+        } catch (IOException ioe) {
+            throw new RuntimeException(ioe);
+        }
+    }
 
     /** Reads password text from the terminal input. See {@link Console#readPassword()}}. */
-    public abstract char[] readSecret(String prompt);
+    public char[] readSecret(String prompt) {
+        return readText(prompt).toCharArray();
+    }
 
     /** Read password text form terminal input up to a maximum length. */
-    public char[] readSecret(String prompt, int maxLength) {
-        char[] result = readSecret(prompt);
-        if (result.length > maxLength) {
-            Arrays.fill(result, '\0');
-            throw new IllegalStateException("Secret exceeded maximum length of " + maxLength);
-        }
-        return result;
+    public char[] readSecret(String text, int maxLength) {
+        errWriter.println(text);
+        return readLineToCharArray(reader, maxLength);
+    }
+
+    /** Returns the separate used for a new line when writing to either output or error writers. */
+    public String getLineSeparator() {
+        return lineSeparator;
     }
 
     /** Returns a Writer which can be used to write to the terminal directly using standard output. */
-    public abstract PrintWriter getWriter();
-
-    /**
-     * Returns an OutputStream which can be used to write to the terminal directly using standard output.
-     * May return {@code null} if this Terminal is not capable of binary output
-      */
-    @Nullable
-    public abstract OutputStream getOutputStream();
+    public PrintWriter getWriter() {
+        return outWriter;
+    }
 
     /** Returns a Writer which can be used to write to the terminal directly using standard error. */
     public PrintWriter getErrorWriter() {
-        return ERROR_WRITER;
+        return errWriter;
     }
+
+    /** Returns an OutputStream for writing bytes directly, or null if not supported */
+    @Nullable
+    public abstract OutputStream getOutputStream();
 
     /** Prints a line to the terminal at {@link Verbosity#NORMAL} verbosity level. */
     public final void println(CharSequence msg) {
@@ -202,8 +224,8 @@ public abstract class Terminal {
     }
 
     public void flush() {
-        this.getWriter().flush();
-        this.getErrorWriter().flush();
+        outWriter.flush();
+        errWriter.flush();
     }
 
     /**
@@ -221,16 +243,11 @@ public abstract class Terminal {
         private static final Console CONSOLE = System.console();
 
         ConsoleTerminal() {
-            super(System.lineSeparator());
+            super(CONSOLE.reader(), CONSOLE.writer(), ERROR_WRITER, System.lineSeparator());
         }
 
         static boolean isSupported() {
             return CONSOLE != null;
-        }
-
-        @Override
-        public PrintWriter getWriter() {
-            return CONSOLE.writer();
         }
 
         @Override
@@ -252,61 +269,24 @@ public abstract class Terminal {
     /** visible for testing */
     static class SystemTerminal extends Terminal {
 
-        private static final PrintWriter WRITER = newWriter();
-
-        private BufferedReader reader;
-
         SystemTerminal() {
-            super(System.lineSeparator());
+            super(newReader(), newWriter(), ERROR_WRITER, System.lineSeparator());
+        }
+
+        @SuppressForbidden(reason = "Writing to System.out")
+        @Override
+        public OutputStream getOutputStream() {
+            return System.out;
+        }
+
+        @SuppressForbidden(reason = "Reader for System.in")
+        private static Reader newReader() {
+            return new InputStreamReader(System.in);
         }
 
         @SuppressForbidden(reason = "Writer for System.out")
         private static PrintWriter newWriter() {
             return new PrintWriter(System.out);
-        }
-
-        /** visible for testing */
-        BufferedReader getReader() {
-            if (reader == null) {
-                reader = new BufferedReader(new InputStreamReader(System.in, Charset.defaultCharset()));
-            }
-            return reader;
-        }
-
-        @Override
-        public PrintWriter getWriter() {
-            return WRITER;
-        }
-
-        @Override
-        @SuppressForbidden(reason = "Use system.out in CLI framework")
-        public OutputStream getOutputStream() {
-            return System.out;
-        }
-
-        @Override
-        public String readText(String text) {
-            getErrorWriter().print(text); // prompts should go to standard error to avoid mixing with list output
-            try {
-                final String line = getReader().readLine();
-                if (line == null) {
-                    throw new IllegalStateException("unable to read from standard input; is standard input open and a tty attached?");
-                }
-                return line;
-            } catch (IOException ioe) {
-                throw new RuntimeException(ioe);
-            }
-        }
-
-        @Override
-        public char[] readSecret(String text) {
-            return readText(text).toCharArray();
-        }
-
-        @Override
-        public char[] readSecret(String text, int maxLength) {
-            getErrorWriter().println(text);
-            return readLineToCharArray(getReader(), maxLength);
         }
     }
 }

@@ -37,15 +37,6 @@ import java.util.stream.StreamSupport;
 
 class Launcher {
 
-    private static Function<Path, URL> MAP_PATH_TO_URL = p -> {
-        try {
-            return p.toUri().toURL();
-        } catch (MalformedURLException e) {
-            throw new AssertionError(e);
-        }
-    };
-    private static Predicate<Path> JAR_PREDICATE = p -> p.getFileName().toString().endsWith(".jar");
-
     // TODO: don't throw, catch this and give a nice error message
     public static void main(String[] args) throws Exception {
         configureLoggingWithoutConfig();
@@ -64,20 +55,7 @@ class Launcher {
         System.out.println("libs: " + libs);
         System.out.println("args: " + Arrays.asList(args));
 
-        final ClassLoader cliLoader;
-        if (libs != null) {
-            List<Path> libsToLoad = Stream.of(libs.split(",")).map(homeDir::resolve).toList();
-            cliLoader = loadJars(libsToLoad);
-        } else {
-            cliLoader = ClassLoader.getSystemClassLoader();
-        }
-        ServiceLoader<ToolProvider> toolFinder = ServiceLoader.load(ToolProvider.class, cliLoader);
-        // TODO: assert only one tool is found?
-        ToolProvider tool = StreamSupport.stream(toolFinder.spliterator(), false)
-            .filter(p -> p.name().equals(toolname))
-            .findFirst()
-            .orElseThrow(() -> new AssertionError("ToolProvider [" + toolname + "] not found"));
-        Command toolCommand = tool.create();
+        Command toolCommand = ToolProvider.loadTool(toolname, libs).create();
         System.exit(toolCommand.main(args, Terminal.DEFAULT));
     }
 
@@ -86,21 +64,11 @@ class Launcher {
             Collectors.toMap(e -> e.getKey().toString(), e -> e.getValue().toString()));
     }
 
-    private static ClassLoader loadJars(List<Path> dirs) throws IOException {
-        final List<URL> urls = new ArrayList<>();
-        for (var dir : dirs) {
-            try (Stream<Path> jarFiles = Files.list(dir)) {
-                jarFiles.filter(JAR_PREDICATE).map(MAP_PATH_TO_URL).forEach(urls::add);
-            }
-        }
-        return URLClassLoader.newInstance(urls.toArray(URL[]::new));
-    }
-
     /**
      * Configures logging without Elasticsearch configuration files based on the system property "es.logger.level" only. As such, any
      * logging will be written to the console.
      */
-    public static void configureLoggingWithoutConfig() {
+    private static void configureLoggingWithoutConfig() {
         // initialize default for es.logger.level because we will not read the log4j2.properties
         final String loggerLevel = System.getProperty("es.logger.level", Level.INFO.name());
         final Settings settings = Settings.builder().put("logger.level", loggerLevel).build();

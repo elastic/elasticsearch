@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.tools.launchers;
+package org.elasticsearch.server.cli;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -159,7 +159,7 @@ public class JvmErgonomicsTests extends LaunchersTestCase {
             "8G",
             Long.toString((8L << 30) / 2)
         );
-        final String heapSize = randomFrom(heapMaxDirectMemorySize.keySet().toArray(String[]::new));
+        final String heapSize = RandomizedTest.randomFrom(heapMaxDirectMemorySize.keySet().toArray(String[]::new));
         assertThat(
             JvmErgonomics.choose(Arrays.asList("-Xms" + heapSize, "-Xmx" + heapSize)),
             hasItem("-XX:MaxDirectMemorySize=" + heapMaxDirectMemorySize.get(heapSize))

@@ -102,13 +102,6 @@ public class TerminalTests extends ESTestCase {
         );
     }
 
-    public void testTerminalReusesBufferedReaders() throws Exception {
-        Terminal.SystemTerminal terminal = new Terminal.SystemTerminal();
-        BufferedReader reader1 = terminal.getReader();
-        BufferedReader reader2 = terminal.getReader();
-        assertSame("System terminal should not create multiple buffered readers", reader1, reader2);
-    }
-
     private void assertPrinted(MockTerminal logTerminal, Terminal.Verbosity verbosity, String text) throws Exception {
         logTerminal.println(verbosity, text);
         String output = logTerminal.getOutput();

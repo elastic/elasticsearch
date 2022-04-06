@@ -24,6 +24,7 @@ import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.search.ClearScrollAction;
 import org.elasticsearch.action.search.ClosePointInTimeAction;
 import org.elasticsearch.action.search.MultiSearchAction;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchScrollAction;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.SearchTransportService;
@@ -132,8 +133,9 @@ public class RBACEngine implements AuthorizationEngine {
     @Override
     public void resolveAuthorizationInfo(RequestInfo requestInfo, ActionListener<AuthorizationInfo> listener) {
         final Authentication authentication = requestInfo.getAuthentication();
-        if (authentication.getMetadata().containsKey("macaroon")) {
-            // get additional role descriptors from macaroon?
+        TransportRequest request = requestInfo.getRequest();
+        if (isSearchRequestWithMacaroon(request)) {
+            getRolesFromMacaroon((SearchRequest) request);
         }
         rolesStore.getRoles(
             authentication,
@@ -142,6 +144,14 @@ public class RBACEngine implements AuthorizationEngine {
                 listener::onFailure
             )
         );
+    }
+
+    private void getRolesFromMacaroon(SearchRequest request) {
+        logger.info("Search request with macaroon [{}]", request.macaroon());
+    }
+
+    private static boolean isSearchRequestWithMacaroon(TransportRequest request) {
+        return request instanceof SearchRequest && ((SearchRequest) request).macaroon() != null;
     }
 
     @Override

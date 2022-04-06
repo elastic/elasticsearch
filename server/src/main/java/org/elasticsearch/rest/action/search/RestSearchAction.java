@@ -200,12 +200,12 @@ public class RestSearchAction extends BaseRestHandler {
 
         checkRestTotalHits(request, searchRequest);
 
+        String macaroon = searchRequest.source().getMacaroon();
+        if (macaroon != null) {
+            searchRequest.macaroon(macaroon);
+        }
         if (searchRequest.pointInTimeBuilder() != null) {
             preparePointInTime(searchRequest, request, namedWriteableRegistry);
-            String macaroon = request.param("macaroon");
-            if (macaroon != null) {
-                searchRequest.macaroon(macaroon);
-            }
         } else {
             searchRequest.setCcsMinimizeRoundtrips(
                 request.paramAsBoolean("ccs_minimize_roundtrips", searchRequest.isCcsMinimizeRoundtrips())

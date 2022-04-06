@@ -91,6 +91,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     public static final ParseField IGNORE_FAILURE_FIELD = new ParseField("ignore_failure");
     public static final ParseField SORT_FIELD = new ParseField("sort");
     public static final ParseField TRACK_SCORES_FIELD = new ParseField("track_scores");
+    public static final ParseField MACAROON_FIELD = new ParseField("macaroon");
     public static final ParseField TRACK_TOTAL_HITS_FIELD = new ParseField("track_total_hits");
     public static final ParseField INDICES_BOOST_FIELD = new ParseField("indices_boost");
     public static final ParseField AGGREGATIONS_FIELD = new ParseField("aggregations");
@@ -148,6 +149,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
     private List<SortBuilder<?>> sorts;
 
     private boolean trackScores = false;
+
+    @Nullable
+    private String macaroon;
 
     private Integer trackTotalHitsUpTo;
 
@@ -1155,6 +1159,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
                     seqNoAndPrimaryTerm = parser.booleanValue();
                 } else if (EXPLAIN_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     explain = parser.booleanValue();
+                } else if (MACAROON_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    macaroon = parser.text();
                 } else if (TRACK_SCORES_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     trackScores = parser.booleanValue();
                 } else if (TRACK_TOTAL_HITS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -1496,6 +1502,14 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         innerToXContent(builder, params);
         builder.endObject();
         return builder;
+    }
+
+    public String getMacaroon() {
+        return macaroon;
+    }
+
+    public void setMacaroon(String macaroon) {
+        this.macaroon = macaroon;
     }
 
     public static class IndexBoost implements Writeable, ToXContentObject {

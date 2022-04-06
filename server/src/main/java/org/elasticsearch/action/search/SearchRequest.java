@@ -204,6 +204,7 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         this.maxConcurrentShardRequests = searchRequest.maxConcurrentShardRequests;
         this.preference = searchRequest.preference;
         this.preFilterShardSize = searchRequest.preFilterShardSize;
+        this.macaroon = searchRequest.macaroon;
         this.requestCache = searchRequest.requestCache;
         this.routing = searchRequest.routing;
         this.scroll = searchRequest.scroll;

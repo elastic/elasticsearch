@@ -39,10 +39,7 @@ public class RollupActionConfigTests extends AbstractSerializingTestCase<RollupA
     }
 
     public void testEmptyFixedInterval() {
-        Exception e = expectThrows(
-            IllegalArgumentException.class,
-            () -> new RollupActionConfig(null, randomBoolean() ? timezone : null)
-        );
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new RollupActionConfig(null, randomBoolean() ? timezone : null));
         assertThat(e.getMessage(), equalTo("Parameter [fixed_interval] is required."));
     }
 

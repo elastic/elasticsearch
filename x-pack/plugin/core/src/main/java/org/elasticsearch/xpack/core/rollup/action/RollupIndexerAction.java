@@ -43,11 +43,7 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
         private String[] dimensionFields;
         private String[] metricFields;
 
-        public Request(
-            RollupAction.Request rollupRequest,
-            final String[] dimensionFields,
-            final String[] metricFields
-        ) {
+        public Request(RollupAction.Request rollupRequest, final String[] dimensionFields, final String[] metricFields) {
             this.rollupRequest = rollupRequest;
             this.dimensionFields = dimensionFields;
             this.metricFields = metricFields;

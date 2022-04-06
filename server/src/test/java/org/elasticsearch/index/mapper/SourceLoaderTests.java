@@ -36,6 +36,14 @@ public class SourceLoaderTests extends MapperServiceTestCase {
         );
     }
 
+    public void testDotsInFieldName() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(
+            syntheticSourceMapping(b -> { b.startObject("foo.bar.baz").field("type", "keyword").endObject(); })
+        );
+        assertThat(syntheticSource(mapper, b -> b.field("foo.bar.baz", "aaa")), equalTo("""
+            {"foo":{"bar":{"baz":"aaa"}}}"""));
+    }
+
     public void testSorted() throws IOException {
         DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
             b.startObject("foo").field("type", "keyword").endObject();
@@ -47,5 +55,23 @@ public class SourceLoaderTests extends MapperServiceTestCase {
             equalTo("""
                 {"bar":"the quick","baz":"brown fox jumped","foo":"over the lazy dog"}""")
         );
+    }
+
+    public void testArraysPushedToLeaves() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+            b.startObject("o").startObject("properties");
+            b.startObject("foo").field("type", "keyword").endObject();
+            b.startObject("bar").field("type", "keyword").endObject();
+            b.endObject().endObject();
+        }));
+        assertThat(syntheticSource(mapper, b -> {
+            b.startArray("o");
+            b.startObject().field("foo", "a").endObject();
+            b.startObject().field("bar", "b").endObject();
+            b.startObject().field("bar", "c").field("foo", "d").endObject();
+            b.startObject().startArray("bar").value("e").value("f").endArray().endObject();
+            b.endArray();
+        }), equalTo("""
+            {"o":{"bar":["b","c","e","f"],"foo":["a","d"]}}"""));
     }
 }

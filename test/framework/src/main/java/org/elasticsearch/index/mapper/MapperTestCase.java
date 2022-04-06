@@ -802,7 +802,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public static record SyntheticSourceExample(Object inputValue, Object result, CheckedConsumer<XContentBuilder, IOException> mapping) {}
 
-    protected SyntheticSourceExample syntheticSourceExample() throws IOException {
+    protected SyntheticSourceExample syntheticSourceExample() throws IOException {  // NOCOMMIT make abstract
         assumeTrue("not supported", false);
         return null;
     }
@@ -840,7 +840,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public static record SyntheticSourceInvalidExample(Matcher<String> error, CheckedConsumer<XContentBuilder, IOException> mapping) {}
 
-    protected List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException {
+    protected List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException {   // NOCOMMIT make abstract
         assumeTrue("not supported", false);
         return null;
     }

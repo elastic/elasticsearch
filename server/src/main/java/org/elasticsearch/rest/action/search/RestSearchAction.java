@@ -202,6 +202,9 @@ public class RestSearchAction extends BaseRestHandler {
 
         if (searchRequest.pointInTimeBuilder() != null) {
             preparePointInTime(searchRequest, request, namedWriteableRegistry);
+            if (request.hasParam("macaroon")) {
+                searchRequest.macaroon(request.param("macaroon"));
+            }
         } else {
             searchRequest.setCcsMinimizeRoundtrips(
                 request.paramAsBoolean("ccs_minimize_roundtrips", searchRequest.isCcsMinimizeRoundtrips())

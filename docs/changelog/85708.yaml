@@ -1,5 +1,5 @@
 pr: 85708
 summary: "TSDB: Implement downsampling on time-series indices"
-area: "TSDB, Rollup"
+area: "TSDB"
 type: feature
 issues: []

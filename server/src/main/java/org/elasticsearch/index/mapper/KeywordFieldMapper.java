@@ -1009,6 +1009,11 @@ public final class KeywordFieldMapper extends FieldMapper {
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares ignore_above"
             );
         }
+        if (copyTo.copyToFields().isEmpty() != true) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+            );
+        }
         return new BytesSyntheticFieldLoader(name(), simpleName) {
             @Override
             protected void loadNextValue(XContentBuilder b, BytesRef value) throws IOException {

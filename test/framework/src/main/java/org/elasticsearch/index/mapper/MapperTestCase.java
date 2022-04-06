@@ -57,6 +57,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -817,7 +818,19 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
     }
 
     public final void testSyntheticSourceInvalid() throws IOException {
-        for (SyntheticSourceInvalidExample example : syntheticSourceInvalidExamples()) {
+        List<SyntheticSourceInvalidExample> examples = new ArrayList<>(syntheticSourceInvalidExamples());
+        examples.add(
+            new SyntheticSourceInvalidExample(
+                matchesPattern("field \\[field] of type \\[.+] doesn't support synthetic source because it declares copy_to"),
+                b -> {
+                    syntheticSourceExample().mapping().accept(b);
+                    b.field("copy_to", "bar");
+                }
+            )
+        );
+        for (
+
+        SyntheticSourceInvalidExample example : examples) {
             Exception e = expectThrows(IllegalArgumentException.class, () -> createDocumentMapper(syntheticSourceMapping(b -> {
                 b.startObject("field");
                 example.mapping.accept(b);

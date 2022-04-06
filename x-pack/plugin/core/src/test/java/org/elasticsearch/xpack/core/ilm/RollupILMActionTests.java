@@ -7,9 +7,11 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
+import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfigTests;
 
@@ -79,7 +81,11 @@ public class RollupILMActionTests extends AbstractActionTestCase<RollupILMAction
         String newRollupPolicy = rollupILMAction.rollupPolicy();
         switch (randomIntBetween(0, 1)) {
             case 0 -> {
-                newConfig = new RollupActionConfig(rollupILMAction.config().getInterval(), rollupILMAction.config().getTimeZone());
+                DateHistogramInterval fixedInterval = ConfigTestHelpers.randomInterval();
+                while (fixedInterval.equals(rollupILMAction.config().getFixedInterval())) {
+                    fixedInterval = ConfigTestHelpers.randomInterval();
+                }
+                newConfig = new RollupActionConfig(fixedInterval, rollupILMAction.config().getTimeZone());
             }
             case 1 -> newRollupPolicy = randomAlphaOfLength(3);
             default -> throw new IllegalStateException("unreachable branch");

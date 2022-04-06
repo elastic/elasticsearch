@@ -82,4 +82,7 @@ else
   XSHARE="-Xshare:auto"
 fi
 
+# TODO: move this into Launcher
+export HOSTNAME
+
 cd "$ES_HOME"

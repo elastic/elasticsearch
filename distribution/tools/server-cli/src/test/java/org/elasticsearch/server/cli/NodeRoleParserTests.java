@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.tools.launchers;
+package org.elasticsearch.server.cli;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -14,10 +14,10 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.function.Consumer;
 
-import static org.elasticsearch.tools.launchers.MachineDependentHeap.MachineNodeRole.DATA;
-import static org.elasticsearch.tools.launchers.MachineDependentHeap.MachineNodeRole.MASTER_ONLY;
-import static org.elasticsearch.tools.launchers.MachineDependentHeap.MachineNodeRole.ML_ONLY;
-import static org.elasticsearch.tools.launchers.MachineDependentHeap.MachineNodeRole.UNKNOWN;
+import static org.elasticsearch.server.cli.MachineDependentHeap.MachineNodeRole.DATA;
+import static org.elasticsearch.server.cli.MachineDependentHeap.MachineNodeRole.MASTER_ONLY;
+import static org.elasticsearch.server.cli.MachineDependentHeap.MachineNodeRole.ML_ONLY;
+import static org.elasticsearch.server.cli.MachineDependentHeap.MachineNodeRole.UNKNOWN;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.equalTo;
 import static org.junit.Assert.assertThat;

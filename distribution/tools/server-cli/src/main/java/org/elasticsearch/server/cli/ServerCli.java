@@ -16,8 +16,10 @@ import joptsimple.util.PathConverter;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.bootstrap.ServerArgs;
+import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.ToolProvider;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
@@ -50,7 +52,7 @@ class ServerCli extends EnvironmentAwareCommand {
 
     // visible for testing
     ServerCli() {
-        super("Starts Elasticsearch", () -> {}); // we configure logging later so we override the base class from configuring logging
+        super("Starts Elasticsearch"); // we configure logging later so we override the base class from configuring logging
         versionOption = parser.acceptsAll(Arrays.asList("V", "version"), "Prints Elasticsearch version information and exits");
         daemonizeOption = parser.acceptsAll(Arrays.asList("d", "daemonize"), "Starts Elasticsearch in the background")
             .availableUnless(versionOption);
@@ -86,7 +88,7 @@ class ServerCli extends EnvironmentAwareCommand {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env) throws UserException {
+    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         if (options.nonOptionArguments().isEmpty() == false) {
             throw new UserException(ExitCodes.USAGE, "Positional arguments not allowed, found " + options.nonOptionArguments());
         }
@@ -111,28 +113,44 @@ class ServerCli extends EnvironmentAwareCommand {
 
         Map<String, String> envVars = new HashMap<>(System.getenv());
         Path tempDir = TempDirectory.initialize(envVars);
-        SecureString keystorePassword = null;
+        final SecureString keystorePassword;
         try {
             KeyStoreWrapper keystore = KeyStoreWrapper.load(KeyStoreWrapper.keystorePath(env.configFile()));
             if (keystore != null && keystore.hasPassword()) {
                 keystorePassword = new SecureString(terminal.readSecret(KeyStoreWrapper.PROMPT, KeyStoreWrapper.MAX_PASSPHRASE_LENGTH));
+            } else {
+                keystorePassword = new SecureString(new char[0]);
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
 
-
+        KeystorePasswordTerminal autoConfigTerminal = new KeystorePasswordTerminal(terminal, keystorePassword);
+        Command autoConfigNode;
+        try {
+            autoConfigNode = ToolProvider.loadTool("auto-configure-node", "modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli").create();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
         if (options.has(enrollmentTokenOption)) {
             final String enrollmentToken = enrollmentTokenOption.value(options);
-
+            // TODO: add -E params
+            int ret = autoConfigNode.main(new String[] { enrollmentTokenOption.options().get(0), enrollmentToken}, autoConfigTerminal);
+            if (ret != 0) {
+                throw new UserException(ret, "Auto security enrollment failed");
+            }
+        } else {
+            // TODO: add -E params
+            int ret = autoConfigNode.main(new String[0], autoConfigTerminal);
+            switch (ret) {
+                case ExitCodes.OK, ExitCodes.CANT_CREATE, ExitCodes.CONFIG, ExitCodes.NOOP: break;
+                default: throw new UserException(ret, "Auto security enrollment failed");
+            }
         }
-        /*
-        if enrollment-token: auto configure node
-        else:  attempt auto configure, exit on codes not in [80, 73, 78]
-        */
 
-        // TODO: this settings is wrong, needs to account for docker stuff through env and also auto enrollment, needs to be late binding
-        ServerArgs serverArgs = new ServerArgs(daemonize, pidFile, env.settings());
+        // reload settings now that auto configuration has occurred
+        env = createEnv(options);
+        ServerArgs serverArgs = new ServerArgs(daemonize, pidFile, env.settings(), env.configFile());
 
         List<String> jvmOptions = JvmOptionsParser.determine(env.configFile(), env.pluginsFile(), tempDir, envVars.get("ES_JAVA_OPTS"));
         jvmOptions.add("-Des.path.conf=" + env.configFile());

@@ -6,9 +6,9 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.tools.launchers;
+package org.elasticsearch.server.cli;
 
-import org.elasticsearch.tools.launchers.SystemMemoryInfo.SystemMemoryInfoException;
+import org.elasticsearch.server.cli.SystemMemoryInfo.SystemMemoryInfoException;
 
 import java.util.List;
 

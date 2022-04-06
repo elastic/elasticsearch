@@ -202,7 +202,6 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         List<Event> events = sequences.stream().flatMap(s -> s.events().stream()).toList();
         assertEvents(events);
         List<Object> keys = sequences.stream().flatMap(s -> s.joinKeys().stream()).toList();
-        assertEvents(events);
         assertJoinKeys(keys);
     }
 

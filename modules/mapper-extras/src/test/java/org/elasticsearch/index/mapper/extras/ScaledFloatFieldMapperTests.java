@@ -354,7 +354,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceExample syntheticSourceExample() throws IOException {
-        double scalingFactor = 10;
+        double scalingFactor = randomDoubleBetween(0, Double.MAX_VALUE, false);
         CheckedConsumer<XContentBuilder, IOException> mapping = b -> b.field("type", "scaled_float").field("scaling_factor", scalingFactor);
         if (randomBoolean()) {
             float f = randomFloat();
@@ -366,7 +366,7 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
     }
 
     private double round(float f, double scalingFactor) {
-        long encoded = Math.round(f * scalingFactor);
+        long encoded = Math.round(Double.parseDouble(Float.toString(f)) * scalingFactor);
         double inverseScalingFactor = 1 / scalingFactor;
         return encoded * inverseScalingFactor;
     }

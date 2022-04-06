@@ -46,6 +46,9 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
     // Open a searcher over a set of leaves
     // Collection should be in order
 
+    private static final int THREADS = 5;
+    private static final int DOCS_PER_THREAD = 500;
+
     public void testCollectInOrderAcrossSegments() throws IOException, InterruptedException {
 
         Directory dir = newDirectory();
@@ -53,19 +56,18 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
         iwc.setIndexSort(
             new Sort(
                 new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING),
-                new SortField(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, SortField.Type.LONG)
+                new SortField(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, SortField.Type.LONG, true)
             )
         );
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         AtomicInteger clock = new AtomicInteger(0);
 
-        final int THREADS = 5;
         ExecutorService indexer = Executors.newFixedThreadPool(THREADS);
         for (int i = 0; i < THREADS; i++) {
             indexer.submit(() -> {
                 Document doc = new Document();
-                for (int j = 0; j < 500; j++) {
+                for (int j = 0; j < DOCS_PER_THREAD; j++) {
                     String tsid = "tsid" + randomIntBetween(0, 30);
                     long time = clock.addAndGet(randomIntBetween(0, 10));
                     doc.clear();
@@ -90,8 +92,8 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
 
         BucketCollector collector = new BucketCollector() {
 
-            BytesRef currentTSID = null;
-            long currentTimestamp = 0;
+            BytesRef previousTSID = null;
+            long previousTimestamp = 0;
             long total = 0;
 
             @Override
@@ -107,16 +109,18 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
                     public void collect(int doc, long owningBucketOrd) throws IOException {
                         assertTrue(tsid.advanceExact(doc));
                         assertTrue(timestamp.advanceExact(doc));
-                        BytesRef latestTSID = tsid.lookupOrd(tsid.ordValue());
-                        long latestTimestamp = timestamp.longValue();
-                        if (currentTSID != null) {
-                            assertTrue(currentTSID + "->" + latestTSID.utf8ToString(), latestTSID.compareTo(currentTSID) >= 0);
-                            if (latestTSID.equals(currentTSID)) {
-                                assertTrue(currentTimestamp + "->" + latestTimestamp, latestTimestamp >= currentTimestamp);
+                        BytesRef currentTSID = tsid.lookupOrd(tsid.ordValue());
+                        assertEquals(aggCtx.getTsid(), currentTSID);
+                        long currentTimestamp = timestamp.longValue();
+                        logger.info("{} -> {} / {} -> {}", previousTSID, currentTSID, previousTimestamp, currentTimestamp);
+                        if (previousTSID != null) {
+                            assertTrue(previousTSID + "->" + currentTSID.utf8ToString(), currentTSID.compareTo(previousTSID) >= 0);
+                            if (currentTSID.equals(previousTSID)) {
+                                assertTrue(previousTimestamp + "->" + currentTimestamp, currentTimestamp <= previousTimestamp);
                             }
                         }
-                        currentTimestamp = latestTimestamp;
-                        currentTSID = BytesRef.deepCopyOf(latestTSID);
+                        previousTimestamp = currentTimestamp;
+                        previousTSID = BytesRef.deepCopyOf(currentTSID);
                         total++;
                     }
                 };
@@ -129,7 +133,7 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
 
             @Override
             public void postCollection() throws IOException {
-                assertEquals(2500, total);
+                assertEquals(THREADS * DOCS_PER_THREAD, total);
             }
 
             @Override

@@ -57,6 +57,21 @@ public class AggregationPath {
 
     private static final String AGG_DELIM = ">";
 
+    public static boolean pathElementContainsBucketKey(AggregationPath.PathElement pathElement) {
+        return pathElement != null && pathElement.key() != null && pathElement.key().startsWith("'") && pathElement.key().endsWith("'");
+    }
+
+    public static List<String> pathElementsAsStringList(List<PathElement> pathElements) {
+        List<String> stringPathElements = new ArrayList<>();
+        for (PathElement pathElement : pathElements) {
+            stringPathElements.add(pathElement.name);
+            if (pathElement.key != null) {
+                stringPathElements.add(pathElement.key);
+            }
+        }
+        return stringPathElements;
+    }
+
     public static AggregationPath parse(String path) {
         String[] elements = Strings.tokenizeToStringArray(path, AGG_DELIM);
         List<PathElement> tokens = new ArrayList<>(elements.length);
@@ -151,14 +166,7 @@ public class AggregationPath {
     }
 
     public List<String> getPathElementsAsStringList() {
-        List<String> stringPathElements = new ArrayList<>();
-        for (PathElement pathElement : this.pathElements) {
-            stringPathElements.add(pathElement.name);
-            if (pathElement.key != null) {
-                stringPathElements.add(pathElement.key);
-            }
-        }
-        return stringPathElements;
+        return pathElementsAsStringList(this.pathElements);
     }
 
     /**

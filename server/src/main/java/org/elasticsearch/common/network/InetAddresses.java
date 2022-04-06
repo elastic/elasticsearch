@@ -109,7 +109,7 @@ public class InetAddresses {
                 if (next > 255 /* octet is outside a byte range */ || (digits > 1 && bytes[octet] == 0) /* octet contains leading 0 */) {
                     return null;
                 }
-                bytes[octet] = (byte)next;
+                bytes[octet] = (byte) next;
             } else {
                 return null;
             }

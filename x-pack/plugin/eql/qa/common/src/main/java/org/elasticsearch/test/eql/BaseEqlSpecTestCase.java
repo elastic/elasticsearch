@@ -32,8 +32,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.StringJoiner;
 
-import static java.util.stream.Collectors.toList;
-
 @SuppressWarnings("removal")
 public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestCase {
 
@@ -201,9 +199,9 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
     }
 
     protected void assertSequences(List<Sequence> sequences) {
-        List<Event> events = sequences.stream().flatMap(s -> s.events().stream()).collect(toList());
+        List<Event> events = sequences.stream().flatMap(s -> s.events().stream()).toList();
         assertEvents(events);
-        List<Object> keys = sequences.stream().flatMap(s -> s.joinKeys().stream()).collect(toList());
+        List<Object> keys = sequences.stream().flatMap(s -> s.joinKeys().stream()).toList();
         assertEvents(events);
         assertJoinKeys(keys);
     }

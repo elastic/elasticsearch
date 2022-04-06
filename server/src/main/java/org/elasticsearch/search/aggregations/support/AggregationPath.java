@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * A path that can be used to sort/order buckets (in some multi-bucket aggregations, e.g. terms &amp; histogram) based on
@@ -230,7 +231,7 @@ public class AggregationPath {
     }
 
     public BucketComparator bucketComparator(Aggregator root, SortOrder order) {
-        return resolveAggregator(root).bucketComparator(lastPathElement().key, order);
+        return resolveAggregator(root).bucketComparator(Optional.ofNullable(lastPathElement().key).orElse(lastPathElement().metric), order);
     }
 
     private static String[] split(String toSplit, int index, String[] result) {

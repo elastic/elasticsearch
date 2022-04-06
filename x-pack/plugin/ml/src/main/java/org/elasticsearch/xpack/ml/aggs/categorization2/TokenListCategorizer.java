@@ -19,6 +19,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.xpack.ml.aggs.categorization2.TokenListCategory.TokenAndWeight;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -103,8 +104,15 @@ public class TokenListCategorizer implements Accountable {
         // Only categorize the first MAX_TOKENS tokens
         while (ts.incrementToken() && weightedTokenIds.size() < MAX_TOKENS) {
             if (termAtt.length() > 0) {
-                int weight = weightCalculator.calculateWeight(termAtt);
-                weightedTokenIds.add(new TokenAndWeight(bytesRefHash.put(new BytesRef(termAtt)), weight));
+                // Convert the CharSequence to a String. Although this seems wasteful it's not because:
+                // 1. The weight calculator will check if it's in the dictionary, which likely involves converting to a string
+                // because that's the most efficient way to convert it to lower case.
+                // 2. We need it in UTF-8 format for the BytesRef, and Java is faster than Lucene at converting UTF-16 to UTF-8.
+                // Given the combination of these things it's most efficient to convert to a String immediately and get the UTF-8
+                // from that.
+                String term = termAtt.toString();
+                int weight = weightCalculator.calculateWeight(term);
+                weightedTokenIds.add(new TokenAndWeight(bytesRefHash.put(new BytesRef(term.getBytes(StandardCharsets.UTF_8))), weight));
             }
         }
         if (weightedTokenIds.isEmpty()) {
@@ -410,7 +418,7 @@ public class TokenListCategorizer implements Accountable {
          * prefers verbs to nouns, and prefers long uninterrupted sequences of dictionary words over short
          * sequences.
          */
-        int calculateWeight(CharSequence term) {
+        int calculateWeight(String term) {
             if (term.length() < MIN_DICTIONARY_LENGTH) {
                 consecutiveHighWeights = 0;
                 return 1;

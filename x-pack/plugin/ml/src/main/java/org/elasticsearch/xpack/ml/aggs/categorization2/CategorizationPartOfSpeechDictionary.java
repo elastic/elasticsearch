@@ -83,9 +83,11 @@ public class CategorizationPartOfSpeechDictionary {
      * Keys are lower case.
      */
     private final Map<String, PartOfSpeech> partOfSpeechDictionary = new HashMap<>();
+    private final int maxDictionaryWordLength;
 
     CategorizationPartOfSpeechDictionary(InputStream is) throws IOException {
 
+        int maxLength = 0;
         BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8));
         String line;
         while ((line = reader.readLine()) != null) {
@@ -109,8 +111,11 @@ public class CategorizationPartOfSpeechDictionary {
                     "Unexpected format in line [" + line + "]: nothing following [" + PART_OF_SPEECH_SEPARATOR + "] separator"
                 );
             }
-            partOfSpeechDictionary.put(split[0].toLowerCase(Locale.ROOT), PartOfSpeech.fromCode(split[1].charAt(0)));
+            String lowerCaseWord = split[0].toLowerCase(Locale.ROOT);
+            partOfSpeechDictionary.put(lowerCaseWord, PartOfSpeech.fromCode(split[1].charAt(0)));
+            maxLength = Math.max(maxLength, lowerCaseWord.length());
         }
+        maxDictionaryWordLength = maxLength;
     }
 
     // TODO: now we have this in Java, perform this operation in Java for anomaly detection categorization instead of in C++.
@@ -120,21 +125,20 @@ public class CategorizationPartOfSpeechDictionary {
      * @return Which part of speech does the supplied word represent? {@link PartOfSpeech#NOT_IN_DICTIONARY} is returned
      *         for words that aren't in the dictionary at all.
      */
-    public PartOfSpeech getPartOfSpeech(CharSequence word) {
-        // TODO: This is slower than it could be because it creates a new string for every lookup.
-        // It would be faster to use a case insensitive hash function and equals instead, but this
-        // is not trivial in Java. (There are examples online but the simple ones are naive and call
-        // toLowerCase in the hash function, which squanders the possible performance gain.) It IS
-        // trivial to use a case insensitive TreeMap, so it would be interesting to see if TreeMap
-        // is fast enough at the scale of the dictionary to outperform a HashMap plus string creation.
-        // Or if not then we should create an efficient case insensitive hash map.
-        return partOfSpeechDictionary.getOrDefault(word.toString().toLowerCase(Locale.ROOT), PartOfSpeech.NOT_IN_DICTIONARY);
+    public PartOfSpeech getPartOfSpeech(String word) {
+        if (word.length() > maxDictionaryWordLength) {
+            return PartOfSpeech.NOT_IN_DICTIONARY;
+        }
+        // This is quite slow as it creates a new string for every lookup. However, experiments show
+        // that trying to do case-insensitive comparisons instead of creating a lower case string is
+        // even slower.
+        return partOfSpeechDictionary.getOrDefault(word.toLowerCase(Locale.ROOT), PartOfSpeech.NOT_IN_DICTIONARY);
     }
 
     /**
      * @return Is the supplied word in the dictionary?
      */
-    public boolean isInDictionary(CharSequence word) {
+    public boolean isInDictionary(String word) {
         return getPartOfSpeech(word) != PartOfSpeech.NOT_IN_DICTIONARY;
     }
 

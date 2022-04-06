@@ -137,21 +137,6 @@ public class RBACEngine implements AuthorizationEngine {
     @Override
     public void resolveAuthorizationInfo(RequestInfo requestInfo, ActionListener<AuthorizationInfo> listener) {
         final Authentication authentication = requestInfo.getAuthentication();
-        TransportRequest request = requestInfo.getRequest();
-        if (isSearchRequestWithMacaroon(request)) {
-            logger.info("Search request with macaroon [{}]", ((SearchRequest) request).macaroon());
-            if (((SearchRequest) request).pointInTimeBuilder() == null) {
-                listener.onResponse(new RBACAuthorizationInfo(Role.EMPTY, Role.EMPTY));
-                return;
-            }
-            String pointInTimeId = ((SearchRequest) request).pointInTimeBuilder().getEncodedId();
-            boolean isValid = macaroonService.isMacaroonValid(((SearchRequest) request).macaroon(), pointInTimeId);
-            logger.info("Macaroon is valid [{}]", isValid);
-            if (isValid == false) {
-                listener.onResponse(new RBACAuthorizationInfo(Role.EMPTY, Role.EMPTY));
-                return;
-            }
-        }
         rolesStore.getRoles(
             authentication,
             ActionListener.wrap(
@@ -285,6 +270,7 @@ public class RBACEngine implements AuthorizationEngine {
     ) {
         final String action = requestInfo.getAction();
         final TransportRequest request = requestInfo.getRequest();
+
         if (TransportActionProxy.isProxyAction(action) || shouldAuthorizeIndexActionNameOnly(action, request)) {
             // we've already validated that the request is a proxy request so we can skip that but we still
             // need to validate that the action is allowed and then move on
@@ -356,6 +342,8 @@ public class RBACEngine implements AuthorizationEngine {
             listener.onResponse(
                 new IndexAuthorizationResult(true, requestInfo.getOriginatingAuthorizationContext().getIndicesAccessControl())
             );
+        } else if (isSearchRequestWithMacaroon(request)) {
+            authorizeSearchRequestWithMacaroon(listener, (SearchRequest) request);
         } else if (request instanceof IndicesRequest.Replaceable && ((IndicesRequest.Replaceable) request).allowsRemoteIndices()) {
             // remote indices are allowed
             indicesAsyncSupplier.getAsync(ActionListener.wrap(resolvedIndices -> {
@@ -410,6 +398,19 @@ public class RBACEngine implements AuthorizationEngine {
                 listener.onFailure(e);
             }
         }
+    }
+
+    private void authorizeSearchRequestWithMacaroon(ActionListener<IndexAuthorizationResult> listener, SearchRequest searchRequest) {
+        String macaroon = searchRequest.macaroon();
+        logger.info("Authorizing search request with macaroon [{}]", macaroon);
+        if (searchRequest.pointInTimeBuilder() == null) {
+            listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.DENIED));
+            return;
+        }
+        String pointInTimeId = searchRequest.pointInTimeBuilder().getEncodedId();
+        boolean isValid = macaroonService.isMacaroonValid(macaroon, pointInTimeId);
+        logger.info("Macaroon for [{}] is valid [{}]", pointInTimeId, isValid);
+        listener.onResponse(new IndexAuthorizationResult(true, isValid ? IndicesAccessControl.allowAll() : IndicesAccessControl.DENIED));
     }
 
     private static boolean isChildActionAuthorizedByParent(RequestInfo requestInfo, AuthorizationInfo authorizationInfo) {

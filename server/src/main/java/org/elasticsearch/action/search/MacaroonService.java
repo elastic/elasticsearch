@@ -10,15 +10,11 @@ package org.elasticsearch.action.search;
 
 import com.github.nitram509.jmacaroons.Macaroon;
 import com.github.nitram509.jmacaroons.MacaroonsBuilder;
-
 import com.github.nitram509.jmacaroons.MacaroonsVerifier;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.StringHelper;
-import org.elasticsearch.common.Strings;
-
-import java.util.Collection;
 
 public class MacaroonService {
     private static final Logger logger = LogManager.getLogger(MacaroonService.class);
@@ -32,10 +28,9 @@ public class MacaroonService {
         location = "elasticsearch";
     }
 
-    public String createMacaroon(Collection<String> indexNames, String pointInTimeId) {
-        logger.info("Creating macaroon for [{}] and [{}]", indexNames, pointInTimeId);
-        return new MacaroonsBuilder(location, macKey, generateId()).add_first_party_caveat(indexNamesCaveat(indexNames))
-            .add_first_party_caveat(pointInTimeIdCaveat(pointInTimeId))
+    public String createMacaroon(String pointInTimeId) {
+        logger.info("Creating macaroon for PIT [{}]", pointInTimeId);
+        return new MacaroonsBuilder(location, macKey, generateId()).add_first_party_caveat(pointInTimeIdCaveat(pointInTimeId))
             .getMacaroon()
             .serialize();
     }
@@ -45,20 +40,15 @@ public class MacaroonService {
     }
 
     public boolean isMacaroonValid(String macaroonPayload, String pointInTimeId) {
-        Macaroon macaroon = MacaroonsBuilder.deserialize(macaroonPayload);
-        MacaroonsVerifier verifier = new MacaroonsVerifier(macaroon);
-        verifier.satisfyExact(pointInTimeIdCaveat(pointInTimeId));
-        verifier.satisfyGeneral(this::satisfyIndexNamesCaveat);
-        return verifier.isValid(macKey);
-    }
-
-    private boolean satisfyIndexNamesCaveat(String caveat) {
-        // this is bad -> nothing prevents users from adding more index_names caveats
-        return caveat.startsWith("index_names = ");
-    }
-
-    private String indexNamesCaveat(Collection<String> indexNames) {
-        return "index_names = [%s]".formatted(Strings.collectionToCommaDelimitedString(indexNames));
+        try {
+            final Macaroon macaroon = MacaroonsBuilder.deserialize(macaroonPayload);
+            final MacaroonsVerifier verifier = new MacaroonsVerifier(macaroon);
+            verifier.satisfyExact(pointInTimeIdCaveat(pointInTimeId));
+            return verifier.isValid(macKey);
+        } catch (Exception e) {
+            logger.warn("Failed to handle macaroon", e);
+            return false;
+        }
     }
 
     private String generateId() {

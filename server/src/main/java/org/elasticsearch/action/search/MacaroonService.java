@@ -20,17 +20,14 @@ public class MacaroonService {
     private static final Logger logger = LogManager.getLogger(MacaroonService.class);
 
     private final String macKey;
-    private final String location;
 
     public MacaroonService() {
-        // TODO from settings
         macKey = "key";
-        location = "elasticsearch";
     }
 
     public String createMacaroon(String pointInTimeId) {
         logger.info("Creating macaroon for PIT [{}]", pointInTimeId);
-        return new MacaroonsBuilder(location, macKey, generateId()).add_first_party_caveat(pointInTimeIdCaveat(pointInTimeId))
+        return new MacaroonsBuilder("", macKey, generateId()).add_first_party_caveat(pointInTimeIdCaveat(pointInTimeId))
             .getMacaroon()
             .serialize();
     }
@@ -52,7 +49,6 @@ public class MacaroonService {
     }
 
     private String generateId() {
-        // quick and dirty
         return StringHelper.idToString(StringHelper.randomId());
     }
 }

@@ -65,7 +65,6 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
             false,
             TransportOpenPointInTimeAction.ShardOpenReaderResponse::new
         );
-        // TODO inject
         this.macaroonService = new MacaroonService();
     }
 
@@ -97,10 +96,11 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 );
             },
             listener.map(r -> {
-                assert r.pointInTimeId() != null : r;
-                // TODO this certainly doesn't belong here
-                String macaroon = request.macaroon() ? macaroonService.createMacaroon(r.pointInTimeId()) : null;
-                return new OpenPointInTimeResponse(r.pointInTimeId(), macaroon);
+                String pointInTimeId = r.pointInTimeId();
+                assert pointInTimeId != null : r;
+                // this certainly doesn't belong here
+                String macaroon = request.macaroon() ? macaroonService.createMacaroon(pointInTimeId) : null;
+                return new OpenPointInTimeResponse(pointInTimeId, macaroon);
             })
         );
     }

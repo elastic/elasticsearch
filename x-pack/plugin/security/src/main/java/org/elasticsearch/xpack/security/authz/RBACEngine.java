@@ -130,7 +130,6 @@ public class RBACEngine implements AuthorizationEngine {
         this.rolesStore = rolesStore;
         this.fieldPermissionsCache = new FieldPermissionsCache(settings);
         this.authzIndicesTimerFactory = authzIndicesTimerFactory;
-        // TODO inject
         this.macaroonService = new MacaroonService();
     }
 
@@ -407,9 +406,15 @@ public class RBACEngine implements AuthorizationEngine {
             listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.DENIED));
             return;
         }
+
+        // TODO is this the correct place to get this?
         String pointInTimeId = searchRequest.pointInTimeBuilder().getEncodedId();
+
         boolean isValid = macaroonService.isMacaroonValid(macaroon, pointInTimeId);
+
         logger.info("Macaroon for [{}] is valid [{}]", pointInTimeId, isValid);
+
+        // TODO don't allowAll, probably
         listener.onResponse(new IndexAuthorizationResult(true, isValid ? IndicesAccessControl.allowAll() : IndicesAccessControl.DENIED));
     }
 

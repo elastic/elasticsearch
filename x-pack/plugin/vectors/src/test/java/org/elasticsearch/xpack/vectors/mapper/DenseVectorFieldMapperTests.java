@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.vectors.DenseVectorPlugin;
 import org.elasticsearch.xpack.vectors.mapper.DenseVectorFieldMapper.DenseVectorFieldType;
 import org.elasticsearch.xpack.vectors.mapper.DenseVectorFieldMapper.VectorSimilarity;
 import org.elasticsearch.xpack.vectors.query.KnnVectorFieldExistsQuery;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -475,5 +476,15 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
             + efConstruction
             + ")";
         assertEquals(expectedString, knnVectorsFormat.toString());
+    }
+
+    @Override
+    protected SyntheticSourceExample syntheticSourceExample() throws IOException {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException {
+        throw new AssumptionViolatedException("not supported");
     }
 }

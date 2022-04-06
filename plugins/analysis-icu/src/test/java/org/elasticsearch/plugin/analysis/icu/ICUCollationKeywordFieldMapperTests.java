@@ -29,6 +29,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -299,5 +300,15 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
          * docvalue_fields loads garbage bytes.
          */
         return null;
+    }
+
+    @Override
+    protected SyntheticSourceExample syntheticSourceExample() throws IOException {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException {
+        throw new AssumptionViolatedException("not supported");
     }
 }

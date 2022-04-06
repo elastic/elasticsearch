@@ -20,6 +20,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -175,5 +176,15 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
     @Override
     protected boolean allowsNullValues() {
         return false;       // TODO should this allow null values?
+    }
+
+    @Override
+    protected SyntheticSourceExample syntheticSourceExample() throws IOException {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException {
+        throw new AssumptionViolatedException("not supported");
     }
 }

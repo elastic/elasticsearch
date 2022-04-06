@@ -802,10 +802,10 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public static record SyntheticSourceExample(Object inputValue, Object result, CheckedConsumer<XContentBuilder, IOException> mapping) {}
 
-    protected SyntheticSourceExample syntheticSourceExample() throws IOException {  // NOCOMMIT make abstract
-        assumeTrue("not supported", false);
-        return null;
-    }
+    /**
+     * Examples that should work when source is generated from doc values.
+     */
+    protected abstract SyntheticSourceExample syntheticSourceExample() throws IOException;
 
     public final void testSyntheticEmptyList() throws IOException {
         SyntheticSourceExample syntheticSourceExample = syntheticSourceExample();
@@ -840,8 +840,9 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
 
     public static record SyntheticSourceInvalidExample(Matcher<String> error, CheckedConsumer<XContentBuilder, IOException> mapping) {}
 
-    protected List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException {   // NOCOMMIT make abstract
-        assumeTrue("not supported", false);
-        return null;
-    }
+    /**
+     * Examples of mappings that should be rejected when source is configured to
+     * be loaded from doc values.
+     */
+    protected abstract List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException;
 }

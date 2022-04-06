@@ -16,8 +16,10 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.CoreMatchers;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -440,5 +442,15 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
                 equalTo("Failed to parse mapping: Field [ignore_malformed] cannot be set in conjunction with field [script]")
             );
         }
+    }
+
+    @Override
+    protected SyntheticSourceExample syntheticSourceExample() throws IOException {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException {
+        throw new AssumptionViolatedException("not supported");
     }
 }

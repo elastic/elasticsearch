@@ -54,6 +54,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.QueryStringQueryParser;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -792,5 +793,15 @@ public class SearchAsYouTypeFieldMapperTests extends MapperTestCase {
     protected Object generateRandomInputValue(MappedFieldType ft) {
         assumeFalse("We don't have doc values or fielddata", true);
         return null;
+    }
+
+    @Override
+    protected SyntheticSourceExample syntheticSourceExample() throws IOException {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException {
+        throw new AssumptionViolatedException("not supported");
     }
 }

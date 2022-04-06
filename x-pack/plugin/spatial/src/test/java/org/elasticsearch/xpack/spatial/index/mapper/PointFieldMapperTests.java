@@ -15,8 +15,10 @@ import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -239,5 +241,15 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
     protected Object generateRandomInputValue(MappedFieldType ft) {
         assumeFalse("Test implemented in a follow up", true);
         return null;
+    }
+
+    @Override
+    protected SyntheticSourceExample syntheticSourceExample() throws IOException {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException {
+        throw new AssumptionViolatedException("not supported");
     }
 }

@@ -9,8 +9,10 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
+import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -52,5 +54,15 @@ public class DateRangeFieldMapperTests extends RangeFieldMapperTests {
             () -> createMapperService(fieldMapping(b -> b.field("type", "date_range").array("format", "test_format")))
         );
         assertThat(e.getMessage(), containsString("Invalid format: [[test_format]]: Unknown pattern letter: t"));
+    }
+
+    @Override
+    protected SyntheticSourceExample syntheticSourceExample() throws IOException {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException {
+        throw new AssumptionViolatedException("not supported");
     }
 }

@@ -69,6 +69,7 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.wildcard.Wildcard;
 import org.elasticsearch.xpack.wildcard.mapper.WildcardFieldMapper.Builder;
+import org.junit.AssumptionViolatedException;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -77,6 +78,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
+import java.util.List;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyMap;
@@ -1203,5 +1205,15 @@ public class WildcardFieldMapperTests extends MapperTestCase {
     @Override
     protected boolean dedupAfterFetch() {
         return true;
+    }
+
+    @Override
+    protected SyntheticSourceExample syntheticSourceExample() throws IOException {
+        throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException {
+        throw new AssumptionViolatedException("not supported");
     }
 }

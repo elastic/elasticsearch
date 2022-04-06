@@ -117,10 +117,17 @@ public class CategorizationPartOfSpeechDictionary {
     // (It could maybe be incorporated into the categorization analyzer and then shared between aggregation and anomaly detection.)
     /**
      * Find the part of speech (noun, verb, adjective, etc.) for a supplied word.
-     * @return Which part of speech does the supplied word represent? <code>NOT_IN_DICTIONARY</code> is returned
+     * @return Which part of speech does the supplied word represent? {@link PartOfSpeech#NOT_IN_DICTIONARY} is returned
      *         for words that aren't in the dictionary at all.
      */
     public PartOfSpeech getPartOfSpeech(CharSequence word) {
+        // TODO: This is slower than it could be because it creates a new string for every lookup.
+        // It would be faster to use a case insensitive hash function and equals instead, but this
+        // is not trivial in Java. (There are examples online but the simple ones are naive and call
+        // toLowerCase in the hash function, which squanders the possible performance gain.) It IS
+        // trivial to use a case insensitive TreeMap, so it would be interesting to see if TreeMap
+        // is fast enough at the scale of the dictionary to outperform a HashMap plus string creation.
+        // Or if not then we should create an efficient case insensitive hash map.
         return partOfSpeechDictionary.getOrDefault(word.toString().toLowerCase(Locale.ROOT), PartOfSpeech.NOT_IN_DICTIONARY);
     }
 

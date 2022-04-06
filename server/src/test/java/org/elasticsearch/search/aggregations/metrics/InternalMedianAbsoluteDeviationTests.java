@@ -10,12 +10,15 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class InternalMedianAbsoluteDeviationTests extends InternalAggregationTestCase<InternalMedianAbsoluteDeviation> {
 
@@ -45,6 +48,20 @@ public class InternalMedianAbsoluteDeviationTests extends InternalAggregationTes
             assertEquals(expectedValuesSketch.quantile(0), reduced.getValuesSketch().quantile(0), 0d);
             assertEquals(expectedValuesSketch.quantile(1), reduced.getValuesSketch().quantile(1), 0d);
         }
+    }
+
+    @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
+    protected void assertSampled(
+        InternalMedianAbsoluteDeviation sampled,
+        InternalMedianAbsoluteDeviation reduced,
+        SamplingContext samplingContext
+    ) {
+        assertThat(sampled.getMedianAbsoluteDeviation(), equalTo(reduced.getMedianAbsoluteDeviation()));
     }
 
     @Override

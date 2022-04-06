@@ -134,7 +134,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         ClusterStateResponse stateResponse = client().admin().cluster().prepareState().execute().actionGet();
         assertThat(stateResponse.getState().metadata().index("test").getState(), equalTo(IndexMetadata.State.OPEN));
-        assertThat(stateResponse.getState().routingTable().index("test").shards().size(), equalTo(test.numPrimaries));
+        assertThat(stateResponse.getState().routingTable().index("test").size(), equalTo(test.numPrimaries));
         assertThat(
             stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(),
             equalTo(test.totalNumShards)
@@ -174,7 +174,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         stateResponse = client().admin().cluster().prepareState().execute().actionGet();
         assertThat(stateResponse.getState().metadata().index("test").getState(), equalTo(IndexMetadata.State.OPEN));
-        assertThat(stateResponse.getState().routingTable().index("test").shards().size(), equalTo(test.numPrimaries));
+        assertThat(stateResponse.getState().routingTable().index("test").size(), equalTo(test.numPrimaries));
         assertThat(
             stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(),
             equalTo(test.totalNumShards)
@@ -215,7 +215,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
         stateResponse = client().admin().cluster().prepareState().execute().actionGet();
         assertThat(stateResponse.getState().metadata().index("test").getState(), equalTo(IndexMetadata.State.OPEN));
-        assertThat(stateResponse.getState().routingTable().index("test").shards().size(), equalTo(test.numPrimaries));
+        assertThat(stateResponse.getState().routingTable().index("test").size(), equalTo(test.numPrimaries));
         assertThat(
             stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(),
             equalTo(test.totalNumShards)
@@ -433,7 +433,8 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
             final RoutingTable routingTable = client().admin().cluster().prepareState().get().getState().routingTable();
             final IndexRoutingTable indexRoutingTable = routingTable.index("test");
             assertNotNull(indexRoutingTable);
-            for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
+            for (int i = 0; i < indexRoutingTable.size(); i++) {
+                IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
                 assertTrue(shardRoutingTable.primaryShard().unassigned());
                 assertEquals(
                     UnassignedInfo.AllocationStatus.DECIDERS_NO,
@@ -505,7 +506,8 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
             final RoutingTable routingTable = client().admin().cluster().prepareState().get().getState().routingTable();
             final IndexRoutingTable indexRoutingTable = routingTable.index("test");
             assertNotNull(indexRoutingTable);
-            for (IndexShardRoutingTable shardRoutingTable : indexRoutingTable) {
+            for (int i = 0; i < indexRoutingTable.size(); i++) {
+                IndexShardRoutingTable shardRoutingTable = indexRoutingTable.shard(i);
                 assertTrue(shardRoutingTable.primaryShard().unassigned());
                 assertEquals(
                     UnassignedInfo.AllocationStatus.DECIDERS_NO,

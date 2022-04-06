@@ -9,12 +9,12 @@
 package org.elasticsearch.search.fetch.subphase.highlight;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder.BoundaryScannerType;
 
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.LinkedHashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
@@ -30,7 +30,7 @@ public class SearchHighlightContext {
 
     public SearchHighlightContext(Collection<Field> fields, boolean globalForceSource) {
         assert fields != null;
-        this.fields = new LinkedHashMap<>(fields.size());
+        this.fields = Maps.newLinkedHashMapWithExpectedSize(fields.size());
         for (Field field : fields) {
             this.fields.put(field.field, field);
         }

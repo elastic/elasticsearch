@@ -125,9 +125,7 @@ final class JvmOptionsParser {
         final List<String> jvmOptions = readJvmOptionsFiles(config);
 
         if (esJavaOpts != null) {
-            jvmOptions.addAll(
-                Arrays.stream(esJavaOpts.split("\\s+")).filter(Predicate.not(String::isBlank)).collect(Collectors.toUnmodifiableList())
-            );
+            jvmOptions.addAll(Arrays.stream(esJavaOpts.split("\\s+")).filter(Predicate.not(String::isBlank)).toList());
         }
 
         final List<String> substitutedJvmOptions = substitutePlaceholders(jvmOptions, Collections.unmodifiableMap(substitutions));
@@ -241,31 +239,31 @@ final class JvmOptionsParser {
      *     </li>
      * </ul>
      *
-     * For example, if the specified Java major version is 8, the following JVM options will be accepted:
+     * For example, if the specified Java major version is 17, the following JVM options will be accepted:
      * <ul>
      *     <li>
      *         {@code -XX:+PrintGCDateStamps}
      *     </li>
      *     <li>
-     *         {@code 8:-XX:+PrintGCDateStamps}
+     *         {@code 17:-XX:+PrintGCDateStamps}
      *     </li>
      *     <li>
-     *         {@code 8-:-XX:+PrintGCDateStamps}
+     *         {@code 17-:-XX:+PrintGCDateStamps}
      *     </li>
      *     <li>
-     *         {@code 7-8:-XX:+PrintGCDateStamps}
+     *         {@code 17-18:-XX:+PrintGCDateStamps}
      *     </li>
      * </ul>
      * and the following JVM options will not be accepted:
      * <ul>
      *     <li>
-     *         {@code 9:-Xlog:age*=trace,gc*,safepoint:file=logs/gc.log:utctime,pid,tags:filecount=32,filesize=64m}
+     *         {@code 18:-Xlog:age*=trace,gc*,safepoint:file=logs/gc.log:utctime,pid,tags:filecount=32,filesize=64m}
      *     </li>
      *     <li>
-     *         {@code 9-:-Xlog:age*=trace,gc*,safepoint:file=logs/gc.log:utctime,pid,tags:filecount=32,filesize=64m}
+     *         {@code 18-:-Xlog:age*=trace,gc*,safepoint:file=logs/gc.log:utctime,pid,tags:filecount=32,filesize=64m}
      *     </li>
      *     <li>
-     *         {@code 9-10:-Xlog:age*=trace,gc*,safepoint:file=logs/gc.log:utctime,pid,tags:filecount=32,filesize=64m}
+     *         {@code 18-19:-Xlog:age*=trace,gc*,safepoint:file=logs/gc.log:utctime,pid,tags:filecount=32,filesize=64m}
      *     </li>
      * </ul>
      *

@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.sql.cli.command.CliCommands;
 import org.elasticsearch.xpack.sql.cli.command.CliSession;
 import org.elasticsearch.xpack.sql.cli.command.FetchSeparatorCliCommand;
 import org.elasticsearch.xpack.sql.cli.command.FetchSizeCliCommand;
+import org.elasticsearch.xpack.sql.cli.command.LenientCliCommand;
 import org.elasticsearch.xpack.sql.cli.command.PrintLogoCommand;
 import org.elasticsearch.xpack.sql.cli.command.ServerInfoCliCommand;
 import org.elasticsearch.xpack.sql.cli.command.ServerQueryCliCommand;
@@ -128,6 +129,7 @@ public class Cli extends Command {
             new PrintLogoCommand(),
             new ClearScreenCliCommand(),
             new FetchSizeCliCommand(),
+            new LenientCliCommand(),
             new FetchSeparatorCliCommand(),
             new ServerInfoCliCommand(),
             new ServerQueryCliCommand()
@@ -136,7 +138,7 @@ public class Cli extends Command {
             ConnectionBuilder connectionBuilder = new ConnectionBuilder(cliTerminal);
             ConnectionConfiguration con = connectionBuilder.buildConnection(uri, keystoreLocation, binary);
             CliSession cliSession = new CliSession(new HttpClient(con));
-            cliSession.setDebug(debug);
+            cliSession.cfg().setDebug(debug);
             if (checkConnection) {
                 checkConnection(cliSession, cliTerminal, con);
             }
@@ -150,7 +152,7 @@ public class Cli extends Command {
         try {
             cliSession.checkConnection();
         } catch (ClientException ex) {
-            if (cliSession.isDebug()) {
+            if (cliSession.cfg().isDebug()) {
                 cliTerminal.error("Client Exception", ex.getMessage());
                 cliTerminal.println();
                 cliTerminal.printStackTrace(ex);

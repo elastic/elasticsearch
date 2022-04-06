@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 
-import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isSearchableSnapshotStore;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory.unwrapDirectory;
@@ -89,8 +88,8 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
     @Override
     public void beforeIndexRemoved(IndexService indexService, IndexRemovalReason reason) {
         if (shouldEvictCacheFiles(reason)) {
-            final IndexSettings indexSettings = indexService.getIndexSettings();
-            if (isSearchableSnapshotStore(indexSettings.getSettings())) {
+            if (indexService.getMetadata().isSearchableSnapshot()) {
+                final IndexSettings indexSettings = indexService.getIndexSettings();
                 for (IndexShard indexShard : indexService) {
                     final ShardId shardId = indexShard.shardId();
 

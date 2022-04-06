@@ -1,0 +1,7 @@
+pr: 83833
+summary: Fix issues with format=txt when paging through result sets and in mixed node environments
+area: SQL
+type: bug
+issues:
+ - 83581
+ - 83788

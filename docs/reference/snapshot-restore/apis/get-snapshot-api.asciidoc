@@ -18,10 +18,24 @@ PUT /_snapshot/my_repository
 }
 
 PUT /_snapshot/my_repository/my_snapshot?wait_for_completion=true
+{
+  "indices":"-*"
+}
 
 PUT /_snapshot/my_repository/snapshot_1?wait_for_completion=true
+{
+  "indices":"-*"
+}
+
 PUT /_snapshot/my_repository/snapshot_2?wait_for_completion=true
+{
+  "indices":"-*"
+}
+
 PUT /_snapshot/my_repository/snapshot_3?wait_for_completion=true
+{
+  "indices":"-*"
+}
 ----
 // TESTSETUP
 ////

@@ -28,9 +28,9 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -815,25 +815,39 @@ public class NumberFieldTypeTests extends FieldTypeTestCase {
     }
 
     public void testFetchSourceValue() throws IOException {
-        MappedFieldType mapper = new NumberFieldMapper.Builder("field", NumberType.INTEGER, ScriptCompiler.NONE, false, true).build(
-            MapperBuilderContext.ROOT
-        ).fieldType();
+        MappedFieldType mapper = new NumberFieldMapper.Builder(
+            "field",
+            NumberType.INTEGER,
+            ScriptCompiler.NONE,
+            false,
+            true,
+            Version.CURRENT
+        ).build(MapperBuilderContext.ROOT).fieldType();
         assertEquals(List.of(3), fetchSourceValue(mapper, 3.14));
         assertEquals(List.of(42), fetchSourceValue(mapper, "42.9"));
         assertEquals(List.of(3, 42), fetchSourceValues(mapper, 3.14, "foo", "42.9"));
 
-        MappedFieldType nullValueMapper = new NumberFieldMapper.Builder("field", NumberType.FLOAT, ScriptCompiler.NONE, false, true)
-            .nullValue(2.71f)
-            .build(MapperBuilderContext.ROOT)
-            .fieldType();
+        MappedFieldType nullValueMapper = new NumberFieldMapper.Builder(
+            "field",
+            NumberType.FLOAT,
+            ScriptCompiler.NONE,
+            false,
+            true,
+            Version.CURRENT
+        ).nullValue(2.71f).build(MapperBuilderContext.ROOT).fieldType();
         assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, ""));
         assertEquals(List.of(2.71f), fetchSourceValue(nullValueMapper, null));
     }
 
     public void testFetchHalfFloatFromSource() throws IOException {
-        MappedFieldType mapper = new NumberFieldMapper.Builder("field", NumberType.HALF_FLOAT, ScriptCompiler.NONE, false, true).build(
-            MapperBuilderContext.ROOT
-        ).fieldType();
+        MappedFieldType mapper = new NumberFieldMapper.Builder(
+            "field",
+            NumberType.HALF_FLOAT,
+            ScriptCompiler.NONE,
+            false,
+            true,
+            Version.CURRENT
+        ).build(MapperBuilderContext.ROOT).fieldType();
         /*
          * Half float loses a fair bit of precision compared to float but
          * we still do floating point comparisons. The "funny" trailing

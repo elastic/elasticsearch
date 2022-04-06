@@ -18,8 +18,9 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause.Occur;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -27,6 +28,7 @@ import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -34,7 +36,6 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.mapper.CustomTermFreqField;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.mapper.DocCountFieldMapper;
@@ -45,6 +46,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
@@ -62,9 +64,9 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator.KeyedFilter;
 import org.elasticsearch.search.aggregations.bucket.nested.NestedAggregatorTests;
-import org.elasticsearch.search.aggregations.metrics.InternalMax;
-import org.elasticsearch.search.aggregations.metrics.InternalSum;
+import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -469,7 +471,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         AggregationBuilder builder = new FiltersAggregationBuilder("test", new KeyedFilter("q1", new MatchAllQueryBuilder()));
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
             for (int i = 0; i < 10; i++) {
-                iw.addDocument(List.of(new CustomTermFreqField(DocCountFieldMapper.NAME, DocCountFieldMapper.NAME, i + 1)));
+                iw.addDocument(List.of(DocCountFieldMapper.field(i + 1)));
             }
         };
         debugTestCase(
@@ -500,6 +502,54 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                     )
                 );
             }
+        );
+    }
+
+    /**
+     * When there is more than one filter and the docs use the {@code _doc_count} field
+     * we disable filter-by-filter mode because decoding the {@code _doc_count} is so
+     * expensive.
+     */
+    public void testTwoTermsWithDocCount() throws IOException {
+        AggregationBuilder builder = new FiltersAggregationBuilder(
+            "test",
+            new KeyedFilter("q0", new TermQueryBuilder("a", "0")),
+            new KeyedFilter("q1", new TermQueryBuilder("a", "1"))
+        );
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            for (int i = 0; i < 10; i++) {
+                iw.addDocument(
+                    List.of(
+                        new Field("a", Integer.toString(i % 2), KeywordFieldMapper.Defaults.FIELD_TYPE),
+                        DocCountFieldMapper.field(i + 1)
+                    )
+                );
+            }
+        };
+        debugTestCase(
+            builder,
+            new MatchAllDocsQuery(),
+            buildIndex,
+            (InternalFilters filters, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                assertThat(filters.getBuckets(), hasSize(2));
+                assertThat(filters.getBucketByKey("q0").getDocCount(), equalTo(25L));
+                assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(30L));
+
+                assertThat(impl, equalTo(FiltersAggregator.Compatible.class));
+                assertMap(
+                    debug,
+                    matchesMap().entry(
+                        "test",
+                        matchesMap().entry(
+                            "filters",
+                            matchesList().item(
+                                matchesMap().entry("results_from_metadata", 0).entry("query", "a:0").entry("specialized_for", "term")
+                            ).item(matchesMap().entry("results_from_metadata", 0).entry("query", "a:1").entry("specialized_for", "term"))
+                        )
+                    )
+                );
+            },
+            new KeywordFieldType("a")
         );
     }
 
@@ -543,9 +593,10 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                     new AggregationReduceContext.ForFinal(
                         context.bigArrays(),
                         getMockScriptService(),
+                        () -> false,
+                        builder,
                         b -> {},
-                        PipelineTree.EMPTY,
-                        () -> false
+                        PipelineTree.EMPTY
                     )
                 );
                 InternalFilters filters = (InternalFilters) result;
@@ -774,6 +825,189 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         );
     }
 
+    public void testBoolThenDateTopLevel() throws IOException {
+        MappedFieldType ft = new DateFieldMapper.DateFieldType("test");
+        FieldNamesFieldMapper.FieldNamesFieldType fnft = FieldNamesFieldMapper.FieldNamesFieldType.get(false);
+
+        String start = "2010-01-02T00:00:00.000Z";
+        String middle = "2010-01-02T00:00:05.000Z";
+        String mostly = "2010-01-02T00:00:09.000Z";
+        String end = "2010-01-02T00:00:10.000Z";
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            long date = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(start);
+            long endDate = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(end);
+            while (date < endDate) {
+                iw.addDocument(List.of(new LongPoint("test", date), new SortedNumericDocValuesField("test", date)));
+                date += 100;
+            }
+        };
+
+        AggregationBuilder builder = new FiltersAggregationBuilder(
+            "test",
+            new KeyedFilter("q1", new RangeQueryBuilder("test").from(start).to(middle))
+        );
+        debugTestCase(
+            builder,
+            new BooleanQuery.Builder().add(
+                LongPoint.newRangeQuery(
+                    "test",
+                    DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(start),
+                    DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(mostly)
+                ),
+                Occur.FILTER
+            ).build(),
+            buildIndex,
+            (InternalFilters filters, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                assertThat(filters.getBuckets(), hasSize(1));
+                assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(51L));
+
+                assertThat(impl, equalTo(FilterByFilterAggregator.class));
+                assertMap(
+                    debug,
+                    matchesMap().entry(
+                        "test",
+                        matchesMap().entry("segments_with_doc_count_field", 0)
+                            .entry("segments_with_deleted_docs", 0)
+                            .entry("segments_collected", 0)
+                            .entry("segments_counted", greaterThanOrEqualTo(1))
+                            .entry(
+                                "filters",
+                                matchesList().item(
+                                    matchesMap().entry(
+                                        "query",
+                                        "MergedPointRange[+test:[1262390400000 TO 1262390405000] +test:[1262390400000 TO 1262390409000]]"
+                                    )
+                                )
+                            )
+                    )
+                );
+            },
+            ft,
+            fnft
+        );
+    }
+
+    public void testBoolThenDateFilter() throws IOException {
+        MappedFieldType ft = new DateFieldMapper.DateFieldType("test");
+        FieldNamesFieldMapper.FieldNamesFieldType fnft = FieldNamesFieldMapper.FieldNamesFieldType.get(false);
+
+        String start = "2010-01-02T00:00:00.000Z";
+        String middle = "2010-01-02T00:00:05.000Z";
+        String mostly = "2010-01-02T00:00:09.000Z";
+        String end = "2010-01-02T00:00:10.000Z";
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            long date = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(start);
+            long endDate = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(end);
+            while (date < endDate) {
+                iw.addDocument(List.of(new LongPoint("test", date), new SortedNumericDocValuesField("test", date)));
+                date += 100;
+            }
+        };
+
+        AggregationBuilder builder = new FiltersAggregationBuilder(
+            "test",
+            new KeyedFilter("q1", new BoolQueryBuilder().filter(new RangeQueryBuilder("test").from(start).to(middle)))
+        );
+        debugTestCase(
+            builder,
+            LongPoint.newRangeQuery(
+                "test",
+                DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(start),
+                DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(mostly)
+            ),
+            buildIndex,
+            (InternalFilters filters, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                assertThat(filters.getBuckets(), hasSize(1));
+                assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(51L));
+
+                assertThat(impl, equalTo(FilterByFilterAggregator.class));
+                assertMap(
+                    debug,
+                    matchesMap().entry(
+                        "test",
+                        matchesMap().entry("segments_with_doc_count_field", 0)
+                            .entry("segments_with_deleted_docs", 0)
+                            .entry("segments_collected", 0)
+                            .entry("segments_counted", greaterThanOrEqualTo(1))
+                            .entry(
+                                "filters",
+                                matchesList().item(
+                                    matchesMap().entry(
+                                        "query",
+                                        "MergedPointRange[+test:[1262390400000 TO 1262390405000] +test:[1262390400000 TO 1262390409000]]"
+                                    )
+                                )
+                            )
+                    )
+                );
+            },
+            ft,
+            fnft
+        );
+    }
+
+    public void testBoolWithMatchAllThenDateFilter() throws IOException {
+        MappedFieldType ft = new DateFieldMapper.DateFieldType("test");
+        FieldNamesFieldMapper.FieldNamesFieldType fnft = FieldNamesFieldMapper.FieldNamesFieldType.get(false);
+
+        String start = "2010-01-02T00:00:00.000Z";
+        String middle = "2010-01-02T00:00:05.000Z";
+        String mostly = "2010-01-02T00:00:09.000Z";
+        String end = "2010-01-02T00:00:10.000Z";
+        CheckedConsumer<RandomIndexWriter, IOException> buildIndex = iw -> {
+            long date = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(start);
+            long endDate = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(end);
+            while (date < endDate) {
+                iw.addDocument(List.of(new LongPoint("test", date), new SortedNumericDocValuesField("test", date)));
+                date += 100;
+            }
+        };
+
+        AggregationBuilder builder = new FiltersAggregationBuilder(
+            "test",
+            new KeyedFilter("q1", new RangeQueryBuilder("test").from(start).to(middle))
+        );
+        debugTestCase(
+            builder,
+            new BooleanQuery.Builder().add(
+                LongPoint.newRangeQuery(
+                    "test",
+                    DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(start),
+                    DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(mostly)
+                ),
+                Occur.FILTER
+            ).add(new MatchAllDocsQuery(), Occur.FILTER).build(),
+            buildIndex,
+            (InternalFilters filters, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
+                assertThat(filters.getBuckets(), hasSize(1));
+                assertThat(filters.getBucketByKey("q1").getDocCount(), equalTo(51L));
+
+                assertThat(impl, equalTo(FilterByFilterAggregator.class));
+                assertMap(
+                    debug,
+                    matchesMap().entry(
+                        "test",
+                        matchesMap().entry("segments_with_doc_count_field", 0)
+                            .entry("segments_with_deleted_docs", 0)
+                            .entry("segments_collected", 0)
+                            .entry("segments_counted", greaterThanOrEqualTo(1))
+                            .entry(
+                                "filters",
+                                matchesList().item(
+                                    matchesMap().entry(
+                                        "query",
+                                        "MergedPointRange[+test:[1262390400000 TO 1262390405000] +test:[1262390400000 TO 1262390409000]]"
+                                    )
+                                )
+                            )
+                    )
+                );
+            },
+            ft,
+            fnft
+        );
+    }
+
     public void testSubAggs() throws IOException {
         MappedFieldType dateFt = new DateFieldMapper.DateFieldType(
             "test",
@@ -826,17 +1060,17 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
 
                 InternalFilters.InternalBucket b = filters.getBucketByKey("q1");
                 assertThat(b.getDocCount(), equalTo(1L));
-                InternalMax max = b.getAggregations().get("m");
-                assertThat(max.getValue(), equalTo(100.0));
-                InternalSum sum = b.getAggregations().get("s");
-                assertThat(sum.getValue(), equalTo(100.0));
+                Max max = b.getAggregations().get("m");
+                assertThat(max.value(), equalTo(100.0));
+                Sum sum = b.getAggregations().get("s");
+                assertThat(sum.value(), equalTo(100.0));
 
                 b = filters.getBucketByKey("q2");
                 assertThat(b.getDocCount(), equalTo(2L));
                 max = b.getAggregations().get("m");
-                assertThat(max.getValue(), equalTo(10.0));
+                assertThat(max.value(), equalTo(10.0));
                 sum = b.getAggregations().get("s");
-                assertThat(sum.getValue(), equalTo(15.0));
+                assertThat(sum.value(), equalTo(15.0));
 
                 assertThat(impl, equalTo(FilterByFilterAggregator.class));
                 assertMap(
@@ -901,17 +1135,17 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
 
                 InternalFilters.InternalBucket b = filters.getBucketByKey("q1");
                 assertThat(b.getDocCount(), equalTo(3334L));
-                InternalMax max = b.getAggregations().get("m");
-                assertThat(max.getValue(), equalTo(9999.0));
-                InternalSum sum = b.getAggregations().get("s");
-                assertThat(sum.getValue(), equalTo(16668333.0));
+                Max max = b.getAggregations().get("m");
+                assertThat(max.value(), equalTo(9999.0));
+                Sum sum = b.getAggregations().get("s");
+                assertThat(sum.value(), equalTo(16668333.0));
 
                 b = filters.getBucketByKey("q2");
                 assertThat(b.getDocCount(), equalTo(6666L));
                 max = b.getAggregations().get("m");
-                assertThat(max.getValue(), equalTo(9998.0));
+                assertThat(max.value(), equalTo(9998.0));
                 sum = b.getAggregations().get("s");
-                assertThat(sum.getValue(), equalTo(33326667.0));
+                assertThat(sum.value(), equalTo(33326667.0));
 
                 assertThat(impl, equalTo(FilterByFilterAggregator.class));
                 assertMap(
@@ -979,17 +1213,17 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
                 assertThat(filters.getBuckets(), hasSize(buckets.size()));
                 InternalFilters.InternalBucket b = filters.getBucketByKey("2010-01-01 to 2010-01-31");
                 assertThat(b.getDocCount(), equalTo(3334L));
-                InternalMax max = b.getAggregations().get("m");
-                assertThat(max.getValue(), equalTo(9999.0));
-                InternalSum sum = b.getAggregations().get("s");
-                assertThat(sum.getValue(), equalTo(16668333.0));
+                Max max = b.getAggregations().get("m");
+                assertThat(max.value(), equalTo(9999.0));
+                Sum sum = b.getAggregations().get("s");
+                assertThat(sum.value(), equalTo(16668333.0));
 
                 b = filters.getBucketByKey("2019-12-10 to 2020-01-09");
                 assertThat(b.getDocCount(), equalTo(6666L));
                 max = b.getAggregations().get("m");
-                assertThat(max.getValue(), equalTo(9998.0));
+                assertThat(max.value(), equalTo(9998.0));
                 sum = b.getAggregations().get("s");
-                assertThat(sum.getValue(), equalTo(33326667.0));
+                assertThat(sum.value(), equalTo(33326667.0));
 
                 assertThat(impl, equalTo(FilterByFilterAggregator.class));
                 assertMap(
@@ -1107,7 +1341,13 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         FieldNamesFieldMapper.FieldNamesFieldType fnft = FieldNamesFieldMapper.FieldNamesFieldType.get(true);
         debugTestCase(builder, new MatchAllDocsQuery(), iw -> {
             for (int i = 0; i < 10; i++) {
-                iw.addDocument(buildDocWithField.apply(i));
+                iw.addDocuments(
+                    List.of(
+                        buildDocWithField.apply(i),
+                        // Create a document without the field to prevent DocValueFieldExists from being rewritten to MatchAll
+                        List.of()
+                    )
+                );
             }
         }, (InternalFilters result, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
             assertThat(result.getBuckets(), hasSize(1));

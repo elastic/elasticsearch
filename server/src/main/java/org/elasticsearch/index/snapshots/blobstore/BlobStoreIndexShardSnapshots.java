@@ -11,7 +11,6 @@ package org.elasticsearch.index.snapshots.blobstore;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -143,12 +142,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
     static final class Fields {
         static final String FILES = "files";
         static final String SNAPSHOTS = "snapshots";
-    }
-
-    static final class ParseFields {
-        static final ParseField FILES = new ParseField("files");
-        static final ParseField SHARD_STATE_ID = new ParseField("shard_state_id");
-        static final ParseField SNAPSHOTS = new ParseField("snapshots");
+        static final String SHARD_STATE_ID = "shard_state_id";
     }
 
     /**
@@ -221,7 +215,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
             }
             builder.endArray();
             if (snapshot.shardStateIdentifier() != null) {
-                builder.field(ParseFields.SHARD_STATE_ID.getPreferredName(), snapshot.shardStateIdentifier());
+                builder.field(Fields.SHARD_STATE_ID, snapshot.shardStateIdentifier());
             }
             builder.endObject();
         }
@@ -243,16 +237,16 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
             String currentFieldName = parser.currentName();
             token = parser.nextToken();
             if (token == XContentParser.Token.START_ARRAY) {
-                if (ParseFields.FILES.match(currentFieldName, parser.getDeprecationHandler()) == false) {
-                    XContentParserUtils.throwUnknownField(currentFieldName, parser.getTokenLocation());
+                if (Fields.FILES.equals(currentFieldName) == false) {
+                    XContentParserUtils.throwUnknownField(currentFieldName, parser);
                 }
                 while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                     FileInfo fileInfo = FileInfo.fromXContent(parser);
                     files.put(fileInfo.name(), fileInfo);
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (ParseFields.SNAPSHOTS.match(currentFieldName, parser.getDeprecationHandler()) == false) {
-                    XContentParserUtils.throwUnknownField(currentFieldName, parser.getTokenLocation());
+                if (Fields.SNAPSHOTS.equals(currentFieldName) == false) {
+                    XContentParserUtils.throwUnknownField(currentFieldName, parser);
                 }
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, parser);
@@ -261,10 +255,9 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             currentFieldName = parser.currentName();
-                            if (ParseFields.FILES.match(currentFieldName, parser.getDeprecationHandler())
-                                && parser.nextToken() == XContentParser.Token.START_ARRAY) {
+                            if (Fields.FILES.equals(currentFieldName) && parser.nextToken() == XContentParser.Token.START_ARRAY) {
                                 snapshotsMap.put(snapshot, XContentParserUtils.parseList(parser, XContentParser::text));
-                            } else if (ParseFields.SHARD_STATE_ID.match(currentFieldName, parser.getDeprecationHandler())) {
+                            } else if (Fields.SHARD_STATE_ID.equals(currentFieldName)) {
                                 parser.nextToken();
                                 historyUUIDs.put(snapshot, parser.text());
                             }
@@ -272,7 +265,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
                     }
                 }
             } else {
-                XContentParserUtils.throwUnknownToken(token, parser.getTokenLocation());
+                XContentParserUtils.throwUnknownToken(token, parser);
             }
         }
 

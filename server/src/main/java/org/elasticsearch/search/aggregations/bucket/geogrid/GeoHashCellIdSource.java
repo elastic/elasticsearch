@@ -85,7 +85,7 @@ public class GeoHashCellIdSource extends ValuesSource.Numeric {
         @Override
         protected int advanceValue(org.elasticsearch.common.geo.GeoPoint target, int valuesIdx) {
             final String hash = Geohash.stringEncode(target.getLon(), target.getLat(), precision);
-            if (validHash(hash)) {
+            if (validPoint(target.getLon(), target.getLat()) || validHash(hash)) {
                 values[valuesIdx] = Geohash.longEncode(hash);
                 return valuesIdx + 1;
             }
@@ -93,13 +93,37 @@ public class GeoHashCellIdSource extends ValuesSource.Numeric {
         }
 
         private boolean validHash(String hash) {
-            final Rectangle rectangle = Geohash.toBoundingBox(hash);
+            final Rectangle rect = Geohash.toBoundingBox(hash);
+            // hashes should not cross in theory the dateline but due to precision
+            // errors and normalization computing the hash, it might happen that they actually
+            // crosses the dateline.
+            if (rect.getMaxX() < rect.getMinX()) {
+                return intersects(-180, rect.getMaxX(), rect.getMinY(), rect.getMaxY())
+                    || intersects(rect.getMinX(), 180, rect.getMinY(), rect.getMaxY());
+            } else {
+                return intersects(rect.getMinX(), rect.getMaxX(), rect.getMinY(), rect.getMaxY());
+            }
+        }
+
+        private boolean intersects(double minX, double maxX, double minY, double maxY) {
             // touching hashes are excluded
-            if (bbox.top() > rectangle.getMinY() && bbox.bottom() < rectangle.getMaxY()) {
+            if (bbox.top() > minY && bbox.bottom() < maxY) {
                 if (crossesDateline) {
-                    return bbox.left() < rectangle.getMaxX() || bbox.right() > rectangle.getMinX();
+                    return bbox.left() < maxX || bbox.right() > minX;
                 } else {
-                    return bbox.left() < rectangle.getMaxX() && bbox.right() > rectangle.getMinX();
+                    return bbox.left() < maxX && bbox.right() > minX;
+                }
+            }
+            return false;
+        }
+
+        private boolean validPoint(double x, double y) {
+            if (bbox.top() > y && bbox.bottom() < y) {
+                boolean crossesDateline = bbox.left() > bbox.right();
+                if (crossesDateline) {
+                    return bbox.left() < x || bbox.right() > x;
+                } else {
+                    return bbox.left() < x && bbox.right() > x;
                 }
             }
             return false;

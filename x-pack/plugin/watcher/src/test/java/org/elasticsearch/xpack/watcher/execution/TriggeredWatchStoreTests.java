@@ -378,7 +378,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         final Index otherIndex = metadataBuilder.get("whatever").getIndex();
         IndexRoutingTable.Builder otherIndexRoutingTableBuilder = IndexRoutingTable.builder(otherIndex);
         otherIndexRoutingTableBuilder.addIndexShard(
-            new IndexShardRoutingTable.Builder(new ShardId(index, 0)).addShard(
+            new IndexShardRoutingTable.Builder(new ShardId(otherIndex, 0)).addShard(
                 TestShardRouting.newShardRouting("whatever", 0, "_node_id", null, true, ShardRoutingState.STARTED)
             ).build()
         );
@@ -388,7 +388,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         ClusterState cs = csBuilder.build();
 
         IllegalStateException e = expectThrows(IllegalStateException.class, () -> TriggeredWatchStore.validate(cs));
-        assertThat(e.getMessage(), is("Alias [.triggered_watches] points to more than one index"));
+        assertThat(e.getMessage(), is("Alias [.triggered_watches] points to 2 indices, and does not have a designated write index"));
     }
 
     // this is a special condition that could lead to an NPE in earlier versions

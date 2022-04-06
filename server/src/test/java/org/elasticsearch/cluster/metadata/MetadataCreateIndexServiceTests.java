@@ -35,7 +35,6 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
@@ -96,6 +95,7 @@ import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.pars
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.resolveAndValidateAliases;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
@@ -109,11 +109,9 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
     private CreateIndexClusterStateUpdateRequest request;
     private SearchExecutionContext searchExecutionContext;
-    private IndexNameExpressionResolver indexNameExpressionResolver;
 
     @Before
     public void setupCreateIndexRequestAndAliasValidator() {
-        indexNameExpressionResolver = new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY), EmptySystemIndices.INSTANCE);
         request = new CreateIndexClusterStateUpdateRequest("create index", "test", "test");
         Settings indexSettings = Settings.builder()
             .put(SETTING_VERSION_CREATED, Version.CURRENT)
@@ -594,10 +592,10 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         }));
     }
 
-    private void validateIndexName(MetadataCreateIndexService metadataCreateIndexService, String indexName, String errorMessage) {
+    private static void validateIndexName(MetadataCreateIndexService metadataCreateIndexService, String indexName, String errorMessage) {
         InvalidIndexNameException e = expectThrows(
             InvalidIndexNameException.class,
-            () -> metadataCreateIndexService.validateIndexName(
+            () -> MetadataCreateIndexService.validateIndexName(
                 indexName,
                 ClusterState.builder(ClusterName.CLUSTER_NAME_SETTING.getDefault(Settings.EMPTY)).build()
             )
@@ -741,7 +739,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 Metadata.builder().build(),
                 xContentRegistry(),
                 searchExecutionContext,
-                indexNameExpressionResolver::resolveDateMathExpression,
+                IndexNameExpressionResolver::resolveDateMathExpression,
                 m -> false
             )
         );
@@ -759,7 +757,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             Metadata.builder().build(),
             xContentRegistry(),
             searchExecutionContext,
-            indexNameExpressionResolver::resolveDateMathExpression,
+            IndexNameExpressionResolver::resolveDateMathExpression,
             m -> false
         );
 
@@ -793,7 +791,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             Metadata.builder().build(),
             xContentRegistry(),
             searchExecutionContext,
-            indexNameExpressionResolver::resolveDateMathExpression,
+            IndexNameExpressionResolver::resolveDateMathExpression,
             m -> false
         );
 
@@ -889,7 +887,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             Metadata.builder().build(),
             xContentRegistry(),
             searchExecutionContext,
-            indexNameExpressionResolver::resolveDateMathExpression,
+            IndexNameExpressionResolver::resolveDateMathExpression,
             m -> false
         );
 
@@ -930,7 +928,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             Metadata.builder().build(),
             xContentRegistry(),
             searchExecutionContext,
-            indexNameExpressionResolver::resolveDateMathExpression,
+            IndexNameExpressionResolver::resolveDateMathExpression,
             m -> false
         );
 
@@ -1022,6 +1020,14 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertThat(updatedClusterState.blocks().getIndexBlockWithId("test", INDEX_READ_ONLY_BLOCK.id()), is(INDEX_READ_ONLY_BLOCK));
         assertThat(updatedClusterState.routingTable().index("test"), is(notNullValue()));
         assertThat(allocationRerouted.get(), is(true));
+
+        Metadata metadata = updatedClusterState.metadata();
+        IndexAbstraction alias = metadata.getIndicesLookup().get("alias1");
+        assertNotNull(alias);
+        assertThat(alias.getType(), equalTo(IndexAbstraction.Type.ALIAS));
+        Index index = metadata.index("test").getIndex();
+        assertThat(alias.getIndices(), contains(index));
+        assertThat(metadata.aliasedIndices("alias1"), contains(index));
     }
 
     public void testClusterStateCreateIndexWithMetadataTransaction() {
@@ -1046,7 +1052,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
 
         // adds alias from new index to existing index
         BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer = (builder, indexMetadata) -> {
-            AliasMetadata newAlias = indexMetadata.getAliases().iterator().next().value;
+            AliasMetadata newAlias = indexMetadata.getAliases().values().iterator().next();
             IndexMetadata myIndex = builder.get("my-index");
             builder.put(IndexMetadata.builder(myIndex).putAlias(AliasMetadata.builder(newAlias.getAlias()).build()));
         };
@@ -1122,7 +1128,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         IndexMetadata indexMetadata = buildIndexMetadata("test", aliases, () -> null, indexSettings, 4, sourceIndexMetadata, false);
 
         assertThat(indexMetadata.getAliases().size(), is(1));
-        assertThat(indexMetadata.getAliases().keys().iterator().next().value, is("alias1"));
+        assertThat(indexMetadata.getAliases().keySet().iterator().next(), is("alias1"));
         assertThat("The source index primary term must be used", indexMetadata.primaryTerm(0), is(3L));
     }
 

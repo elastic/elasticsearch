@@ -137,7 +137,7 @@ teardown:
         transform_id: "simple-remote-transform"
         body: >
           {
-            "source": { "index": ["my_remote_cluster:remote_test_index", "my_remote_cluster:remote_test_index_2"] }
+            "source": { "index": ["my_remote_cluster:remote_test_index*"] }
           }
   - do:
       headers: { Authorization: "Basic am9lOnRyYW5zZm9ybS1wYXNzd29yZA==" }
@@ -146,7 +146,8 @@ teardown:
   - match: { count: 1 }
   - match: { transforms.0.id: "simple-remote-transform" }
   - match: { transforms.0.state: "stopped" }
-  # we added test_index_2, which has 2 more docs:
+  # the source now includes test_index_2, which has 2 more docs
+  # note that test_index_3 fits the wildcard pattern, but is not authorized, this test should not return a count of 4 as this would mean broken access control
   - match: { transforms.0.checkpointing.operations_behind: 2 }
 
   - do:
@@ -155,7 +156,7 @@ teardown:
         transform_id: "simple-remote-transform"
 
   - do:
-      catch: /Cannot preview transform \[simple-remote-transform\] because user bob lacks all the required permissions for indices. \[my_remote_cluster:remote_test_index, my_remote_cluster:remote_test_index_2, simple-remote-transform\]/
+      catch: /Cannot preview transform \[simple-remote-transform\] because user bob lacks all the required permissions for indices. \[my_remote_cluster:remote_test_index\*, simple-remote-transform\]/
       headers: { Authorization: "Basic Ym9iOnRyYW5zZm9ybS1wYXNzd29yZA==" }  # This is bob
       transform.preview_transform:
         transform_id: "simple-remote-transform"

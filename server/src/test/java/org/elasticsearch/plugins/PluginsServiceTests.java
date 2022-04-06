@@ -9,8 +9,8 @@
 package org.elasticsearch.plugins;
 
 import org.apache.logging.log4j.Level;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.Constants;
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
@@ -1014,7 +1014,7 @@ public class PluginsServiceTests extends ESTestCase {
             "desc",
             "1.0",
             Version.CURRENT,
-            "1000000.0",
+            "1000",
             "FakePlugin",
             Collections.emptyList(),
             false,

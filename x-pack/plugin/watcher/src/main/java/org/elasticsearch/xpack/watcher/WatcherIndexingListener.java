@@ -222,7 +222,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
                     checkWatchIndexHasChanged(metadata, event);
                 }
             } catch (IllegalStateException e) {
-                logger.error("error loading watches index: [{}]", e.getMessage());
+                logger.error("error loading watches index", e);
                 configuration = INACTIVE;
             }
         }
@@ -338,14 +338,14 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
 
             // find all allocation ids for this shard id in the cluster state
             List<String> allocationIds = routingTable.shard(shardId.getId())
-                .getActiveShards()
+                .activeShards()
                 .stream()
                 .map(ShardRouting::allocationId)
                 .map(AllocationId::getId)
-                .collect(Collectors.toList());
+                .sorted()
+                .toList();
 
             // sort the list so it is stable
-            Collections.sort(allocationIds);
 
             String allocationId = shardRouting.allocationId().getId();
             int idx = allocationIds.indexOf(allocationId);

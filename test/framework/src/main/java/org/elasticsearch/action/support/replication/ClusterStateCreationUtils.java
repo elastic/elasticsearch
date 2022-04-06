@@ -312,9 +312,12 @@ public class ClusterStateCreationUtils {
         for (int i = 0; i < numberOfDataNodes + 1; i++) {
             final DiscoveryNode node = newNode(i);
             discoBuilder = discoBuilder.add(node);
+            if (i == 0) {
+                discoBuilder.localNodeId(node.getId());
+            } else if (i == numberOfDataNodes) {
+                discoBuilder.masterNodeId(node.getId());
+            }
         }
-        discoBuilder.localNodeId(newNode(0).getId());
-        discoBuilder.masterNodeId(newNode(numberOfDataNodes + 1).getId());
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
         state.nodes(discoBuilder);
         Builder routingTableBuilder = RoutingTable.builder();
@@ -399,8 +402,12 @@ public class ClusterStateCreationUtils {
      */
     public static ClusterState stateWithNoShard() {
         DiscoveryNodes.Builder discoBuilder = DiscoveryNodes.builder();
-        discoBuilder.localNodeId(newNode(0).getId());
-        discoBuilder.masterNodeId(newNode(1).getId());
+        final DiscoveryNode localNode = newNode(0);
+        discoBuilder.add(localNode);
+        discoBuilder.localNodeId(localNode.getId());
+        final DiscoveryNode masterNode = newNode(1);
+        discoBuilder.add(masterNode);
+        discoBuilder.masterNodeId(masterNode.getId());
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
         state.nodes(discoBuilder);
         state.metadata(Metadata.builder().generateClusterUuidIfNeeded());
@@ -423,6 +430,7 @@ public class ClusterStateCreationUtils {
         }
         if (masterNode != null) {
             discoBuilder.masterNodeId(masterNode.getId());
+            discoBuilder.add(masterNode);
         }
         discoBuilder.localNodeId(localNode.getId());
 

@@ -1,0 +1,280 @@
+setup:
+  - skip:
+      version: " - 8.1.99"
+      reason: bug fixed in 8.2.0
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_replicas: 0
+          mappings:
+            properties:
+              timestamp:
+                type: date
+              uuid:
+                type: keyword
+              name:
+                type: keyword
+              metric:
+                type: long
+              version:
+                type: keyword
+  - do:
+      bulk:
+        index: test
+        refresh: true
+        body:
+          - '{ "index": {} }'
+          - '{ "timestamp": "2021-10-01", "metric": 1, "name": "first", "uuid": "0002", "version": "v1" }'
+          - '{ "index": {} }'
+          - '{ "timestamp": "2021-10-02", "metric": 2, "name": "first", "uuid": "0002", "version": "v1" }'
+          - '{ "index": {} }'
+          - '{ "timestamp": "2021-10-01", "metric": 1, "name": "second", "uuid": "0001", "version": "v1" }'
+          - '{ "index": {} }'
+          - '{ "timestamp": "2021-10-02", "metric": 3, "name": "second", "uuid": "0001", "version": "v1" }'
+          - '{ "index": {} }'
+          - '{ "timestamp": "2021-10-01", "metric": 1, "name": "third", "uuid": "0003", "version": "v1" }'
+          - '{ "index": {} }'
+          - '{ "timestamp": "2021-10-02", "metric": 1, "name": "third", "uuid": "0003", "version": "v1" }'
+
+---
+"sort on top metrics keyword same version":
+  - skip:
+      version: " - 8.1.99"
+      reason: bug fixed in 8.2.0
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            hits:
+              terms:
+                field: uuid
+                order:
+                  hit.version: desc
+              aggs:
+                hit:
+                  top_metrics:
+                    sort:
+                      timestamp: desc
+                    metrics:
+                      - { field: metric }
+                      - { field: name }
+                      - { field: version }
+
+  - match: { hits.total.value: 6 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.hits.buckets: 3 }
+  - match: { aggregations.hits.buckets.2.doc_count: 2 }
+  - match: { aggregations.hits.buckets.2.key: "0003" }
+  - length: { aggregations.hits.buckets.2.hit.top: 1 }
+  - match: { aggregations.hits.buckets.2.hit.top.0.metrics.metric: 1 }
+  - match: { aggregations.hits.buckets.2.hit.top.0.metrics.name: "third" }
+  - match: { aggregations.hits.buckets.0.doc_count: 2 }
+  - match: { aggregations.hits.buckets.0.key: "0001" }
+  - length: { aggregations.hits.buckets.0.hit.top: 1 }
+  - match: { aggregations.hits.buckets.0.hit.top.0.metrics.metric: 3 }
+  - match: { aggregations.hits.buckets.0.hit.top.0.metrics.name: "second" }
+  - match: { aggregations.hits.buckets.1.doc_count: 2 }
+  - match: { aggregations.hits.buckets.1.key: "0002" }
+  - length: { aggregations.hits.buckets.1.hit.top: 1 }
+  - match: { aggregations.hits.buckets.1.hit.top.0.metrics.metric: 2 }
+  - match: { aggregations.hits.buckets.1.hit.top.0.metrics.name: "first" }
+
+---
+"sort on top metrics keyword desc":
+  - skip:
+      version: " - 8.1.99"
+      reason: bug fixed in 8.2.0
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            hits:
+              terms:
+                field: uuid
+                order:
+                  hit.name: desc
+              aggs:
+                hit:
+                  top_metrics:
+                    sort:
+                      timestamp: desc
+                    metrics:
+                      - { field: metric }
+                      - { field: name }
+
+  - match: { hits.total.value: 6 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.hits.buckets: 3 }
+  - match: { aggregations.hits.buckets.0.doc_count: 2 }
+  - match: { aggregations.hits.buckets.0.key: "0003" }
+  - length: { aggregations.hits.buckets.0.hit.top: 1 }
+  - match: { aggregations.hits.buckets.0.hit.top.0.metrics.metric: 1 }
+  - match: { aggregations.hits.buckets.0.hit.top.0.metrics.name: "third" }
+  - match: { aggregations.hits.buckets.1.doc_count: 2 }
+  - match: { aggregations.hits.buckets.1.key: "0001" }
+  - length: { aggregations.hits.buckets.1.hit.top: 1 }
+  - match: { aggregations.hits.buckets.1.hit.top.0.metrics.metric: 3 }
+  - match: { aggregations.hits.buckets.1.hit.top.0.metrics.name: "second" }
+  - match: { aggregations.hits.buckets.2.doc_count: 2 }
+  - match: { aggregations.hits.buckets.2.key: "0002" }
+  - length: { aggregations.hits.buckets.2.hit.top: 1 }
+  - match: { aggregations.hits.buckets.2.hit.top.0.metrics.metric: 2 }
+  - match: { aggregations.hits.buckets.2.hit.top.0.metrics.name: "first" }
+
+---
+"sort on top metrics keyword asc":
+  - skip:
+      version: " - 8.1.99"
+      reason: bug fixed in 8.2.0
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            hits:
+              terms:
+                field: uuid
+                order:
+                  hit.name: asc
+              aggs:
+                hit:
+                  top_metrics:
+                    sort:
+                      timestamp: desc
+                    metrics:
+                      - { field: metric }
+                      - { field: name }
+
+  - match: { hits.total.value: 6 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.hits.buckets: 3 }
+  - match: { aggregations.hits.buckets.2.doc_count: 2 }
+  - match: { aggregations.hits.buckets.2.key: "0003" }
+  - length: { aggregations.hits.buckets.2.hit.top: 1 }
+  - match: { aggregations.hits.buckets.2.hit.top.0.metrics.metric: 1 }
+  - match: { aggregations.hits.buckets.2.hit.top.0.metrics.name: "third" }
+  - match: { aggregations.hits.buckets.1.doc_count: 2 }
+  - match: { aggregations.hits.buckets.1.key: "0001" }
+  - length: { aggregations.hits.buckets.1.hit.top: 1 }
+  - match: { aggregations.hits.buckets.1.hit.top.0.metrics.metric: 3 }
+  - match: { aggregations.hits.buckets.1.hit.top.0.metrics.name: "second" }
+  - match: { aggregations.hits.buckets.0.doc_count: 2 }
+  - match: { aggregations.hits.buckets.0.key: "0002" }
+  - length: { aggregations.hits.buckets.0.hit.top: 1 }
+  - match: { aggregations.hits.buckets.0.hit.top.0.metrics.metric: 2 }
+  - match: { aggregations.hits.buckets.0.hit.top.0.metrics.name: "first" }
+
+---
+"sort on top metrics numeric desc":
+  - skip:
+      version: " - 8.1.99"
+      reason: bug fixed in 8.2.0
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            hits:
+              terms:
+                field: uuid
+                order:
+                  hit.metric: desc
+              aggs:
+                hit:
+                  top_metrics:
+                    sort:
+                      timestamp: desc
+                    metrics:
+                      - { field: metric }
+                      - { field: name }
+
+  - match: { hits.total.value: 6 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.hits.buckets: 3 }
+  - match: { aggregations.hits.buckets.2.doc_count: 2 }
+  - match: { aggregations.hits.buckets.2.key: "0003" }
+  - length: { aggregations.hits.buckets.2.hit.top: 1 }
+  - match: { aggregations.hits.buckets.2.hit.top.0.metrics.metric: 1 }
+  - match: { aggregations.hits.buckets.2.hit.top.0.metrics.name: "third" }
+  - match: { aggregations.hits.buckets.0.doc_count: 2 }
+  - match: { aggregations.hits.buckets.0.key: "0001" }
+  - length: { aggregations.hits.buckets.0.hit.top: 1 }
+  - match: { aggregations.hits.buckets.0.hit.top.0.metrics.metric: 3 }
+  - match: { aggregations.hits.buckets.0.hit.top.0.metrics.name: "second" }
+  - match: { aggregations.hits.buckets.1.doc_count: 2 }
+  - match: { aggregations.hits.buckets.1.key: "0002" }
+  - length: { aggregations.hits.buckets.1.hit.top: 1 }
+  - match: { aggregations.hits.buckets.1.hit.top.0.metrics.metric: 2 }
+  - match: { aggregations.hits.buckets.1.hit.top.0.metrics.name: "first" }
+
+---
+"sort on top metrics numeric asc":
+  - skip:
+      version: " - 8.1.99"
+      reason: bug fixed in 8.2.0
+  - do:
+      search:
+        body:
+          size: 0
+          aggs:
+            hits:
+              terms:
+                field: uuid
+                order:
+                  hit.metric: asc
+              aggs:
+                hit:
+                  top_metrics:
+                    sort:
+                      timestamp: desc
+                    metrics:
+                      - { field: metric }
+                      - { field: name }
+
+  - match: { hits.total.value: 6 }
+  - match: { hits.total.relation: "eq" }
+  - length: { aggregations.hits.buckets: 3 }
+  - match: { aggregations.hits.buckets.0.doc_count: 2 }
+  - match: { aggregations.hits.buckets.0.key: "0003" }
+  - length: { aggregations.hits.buckets.0.hit.top: 1 }
+  - match: { aggregations.hits.buckets.0.hit.top.0.metrics.metric: 1 }
+  - match: { aggregations.hits.buckets.0.hit.top.0.metrics.name: "third" }
+  - match: { aggregations.hits.buckets.2.doc_count: 2 }
+  - match: { aggregations.hits.buckets.2.key: "0001" }
+  - length: { aggregations.hits.buckets.2.hit.top: 1 }
+  - match: { aggregations.hits.buckets.2.hit.top.0.metrics.metric: 3 }
+  - match: { aggregations.hits.buckets.2.hit.top.0.metrics.name: "second" }
+  - match: { aggregations.hits.buckets.1.doc_count: 2 }
+  - match: { aggregations.hits.buckets.1.key: "0002" }
+  - length: { aggregations.hits.buckets.1.hit.top: 1 }
+  - match: { aggregations.hits.buckets.1.hit.top.0.metrics.metric: 2 }
+  - match: { aggregations.hits.buckets.1.hit.top.0.metrics.name: "first" }
+
+---
+"sort on top metrics non-existing field":
+  - skip:
+      version: " - 8.1.99"
+      reason: bug fixed in 8.2.0
+  - do:
+      catch: /unknown metric \[unknown\]/
+      search:
+        body:
+          size: 0
+          aggs:
+            hits:
+              terms:
+                field: uuid
+                order:
+                  hit.unknown: desc
+              aggs:
+                hit:
+                  top_metrics:
+                    sort:
+                      timestamp: desc
+                    metrics:
+                      - { field: metric }
+                      - { field: name }

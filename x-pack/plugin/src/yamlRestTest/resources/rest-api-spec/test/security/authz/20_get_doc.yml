@@ -126,7 +126,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       get:
-        id: 1
+        id: "1"
         index: only_read
 
   - match: { _index: only_read }
@@ -136,7 +136,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       get:
-        id: 4
+        id: "4"
         index: read_write
   - match: { _index: read_write }
   - match: { _id: "4" }
@@ -145,7 +145,7 @@ teardown:
   - do:
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       get:
-        id: 5
+        id: "5"
         index: everything
   - match: { _index: everything }
   - match: { _id: "5" }
@@ -206,14 +206,14 @@ teardown:
       catch: forbidden
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       get:
-        id: 2
+        id: "2"
         index: only_index
 
   - do:
       catch: forbidden
       headers: { Authorization: "Basic dGVzdF91c2VyOngtcGFjay10ZXN0LXBhc3N3b3Jk" } # test_user
       get:
-        id: 3
+        id: "3"
         index: only_delete
 
   - do:

@@ -55,7 +55,7 @@ class OAuth2TokenAuthenticator implements Authenticator {
         }, e -> {
             logger.debug(new ParameterizedMessage("Failed to validate token authentication for request [{}]", context.getRequest()), e);
             if (e instanceof ElasticsearchSecurityException
-                && false == tokenService.isExpiredTokenException((ElasticsearchSecurityException) e)) {
+                && false == TokenService.isExpiredTokenException((ElasticsearchSecurityException) e)) {
                 // intentionally ignore the returned exception; we call this primarily
                 // for the auditing as we already have a purpose built exception
                 context.getRequest().tamperedRequest();

@@ -12,7 +12,7 @@ apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.test-with-dependencies'
 
 dependencies {
-  testImplementation "com.fasterxml.jackson.core:jackson-databind:2.10.4"
+  testImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
   testImplementation project(':plugins:transport-nio') // for http
 }
 

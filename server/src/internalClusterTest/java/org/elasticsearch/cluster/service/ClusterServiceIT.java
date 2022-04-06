@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -42,6 +41,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
 
         final AtomicBoolean allNodesAcked = new AtomicBoolean(false);
+        final AtomicBoolean ackFailure = new AtomicBoolean(false);
         final AtomicBoolean ackTimeout = new AtomicBoolean(false);
         final AtomicBoolean onFailure = new AtomicBoolean(false);
         final AtomicBoolean executed = new AtomicBoolean(false);
@@ -56,8 +56,14 @@ public class ClusterServiceIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public void onAllNodesAcked(@Nullable Exception e) {
+                public void onAllNodesAcked() {
                     allNodesAcked.set(true);
+                    latch.countDown();
+                }
+
+                @Override
+                public void onAckFailure(Exception e) {
+                    ackFailure.set(true);
                     latch.countDown();
                 }
 
@@ -92,6 +98,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         assertThat(latch.await(1, TimeUnit.SECONDS), equalTo(true));
 
         assertThat(allNodesAcked.get(), equalTo(true));
+        assertThat(ackFailure.get(), equalTo(false));
         assertThat(ackTimeout.get(), equalTo(false));
         assertThat(executed.get(), equalTo(true));
         assertThat(onFailure.get(), equalTo(false));
@@ -104,6 +111,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
 
         final AtomicBoolean allNodesAcked = new AtomicBoolean(false);
+        final AtomicBoolean ackFailure = new AtomicBoolean(false);
         final AtomicBoolean ackTimeout = new AtomicBoolean(false);
         final AtomicBoolean onFailure = new AtomicBoolean(false);
         final AtomicBoolean executed = new AtomicBoolean(false);
@@ -113,8 +121,14 @@ public class ClusterServiceIT extends ESIntegTestCase {
             "test",
             new AckedClusterStateUpdateTask(MasterServiceTests.ackedRequest(TEN_SECONDS, TEN_SECONDS), null) {
                 @Override
-                public void onAllNodesAcked(@Nullable Exception e) {
+                public void onAllNodesAcked() {
                     allNodesAcked.set(true);
+                    latch.countDown();
+                }
+
+                @Override
+                public void onAckFailure(Exception e) {
+                    ackFailure.set(true);
                     latch.countDown();
                 }
 
@@ -149,6 +163,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         assertThat(latch.await(1, TimeUnit.SECONDS), equalTo(true));
 
         assertThat(allNodesAcked.get(), equalTo(true));
+        assertThat(ackFailure.get(), equalTo(false));
         assertThat(ackTimeout.get(), equalTo(false));
         assertThat(executed.get(), equalTo(true));
         assertThat(onFailure.get(), equalTo(false));
@@ -161,6 +176,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
 
         final AtomicBoolean allNodesAcked = new AtomicBoolean(false);
+        final AtomicBoolean ackFailure = new AtomicBoolean(false);
         final AtomicBoolean ackTimeout = new AtomicBoolean(false);
         final AtomicBoolean onFailure = new AtomicBoolean(false);
         final AtomicBoolean executed = new AtomicBoolean(false);
@@ -175,8 +191,14 @@ public class ClusterServiceIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public void onAllNodesAcked(@Nullable Exception e) {
+                public void onAllNodesAcked() {
                     allNodesAcked.set(true);
+                    latch.countDown();
+                }
+
+                @Override
+                public void onAckFailure(Exception e) {
+                    ackFailure.set(true);
                     latch.countDown();
                 }
 
@@ -209,6 +231,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         assertThat(latch.await(1, TimeUnit.SECONDS), equalTo(true));
 
         assertThat(allNodesAcked.get(), equalTo(true));
+        assertThat(ackFailure.get(), equalTo(false));
         assertThat(ackTimeout.get(), equalTo(false));
         assertThat(executed.get(), equalTo(true));
         assertThat(onFailure.get(), equalTo(false));
@@ -219,6 +242,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
 
         final AtomicBoolean allNodesAcked = new AtomicBoolean(false);
+        final AtomicBoolean ackFailure = new AtomicBoolean(false);
         final AtomicBoolean ackTimeout = new AtomicBoolean(false);
         final AtomicBoolean onFailure = new AtomicBoolean(false);
         final AtomicBoolean executed = new AtomicBoolean(false);
@@ -233,8 +257,14 @@ public class ClusterServiceIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public void onAllNodesAcked(@Nullable Exception e) {
+                public void onAllNodesAcked() {
                     allNodesAcked.set(true);
+                    latch.countDown();
+                }
+
+                @Override
+                public void onAckFailure(Exception e) {
+                    ackFailure.set(true);
                     latch.countDown();
                 }
 
@@ -269,6 +299,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         assertThat(latch.await(1, TimeUnit.SECONDS), equalTo(true));
 
         assertThat(allNodesAcked.get(), equalTo(false));
+        assertThat(ackFailure.get(), equalTo(false));
         assertThat(ackTimeout.get(), equalTo(true));
         assertThat(executed.get(), equalTo(true));
         assertThat(onFailure.get(), equalTo(false));

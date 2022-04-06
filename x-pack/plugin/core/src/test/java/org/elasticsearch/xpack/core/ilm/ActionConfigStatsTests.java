@@ -38,6 +38,9 @@ public class ActionConfigStatsTests extends AbstractWireSerializingTestCase<Acti
             builder.setRolloverMaxDocs(randomLongBetween(0, Long.MAX_VALUE));
         }
         if (randomBoolean()) {
+            builder.setRolloverMaxPrimaryShardDocs(randomLongBetween(0, Long.MAX_VALUE));
+        }
+        if (randomBoolean()) {
             ByteSizeValue randomByteSize = ByteSizeValue.ofBytes(randomLongBetween(0, 1024L * 1024L * 1024L * 50L));
             builder.setRolloverMaxPrimaryShardSize(randomByteSize);
         }
@@ -99,6 +102,7 @@ public class ActionConfigStatsTests extends AbstractWireSerializingTestCase<Acti
             case 8 -> builder.setShrinkNumberOfShards(
                 randomValueOtherThan(instance.getShrinkNumberOfShards(), () -> randomIntBetween(0, 50))
             );
+            case 9 -> builder.setRolloverMaxPrimaryShardDocs(randomLongBetween(0, Long.MAX_VALUE));
             default -> throw new IllegalStateException("Illegal randomization branch");
         }
         return builder.build();

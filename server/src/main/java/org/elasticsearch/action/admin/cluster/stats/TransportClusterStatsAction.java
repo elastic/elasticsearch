@@ -18,6 +18,7 @@ import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.StatsRequestLimiter;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -29,6 +30,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.CancellableSingleObjectCache;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
@@ -69,8 +71,9 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     private final NodeService nodeService;
     private final IndicesService indicesService;
 
-    private final MetadataStatsCache<MappingStats> mappingStatsCache = new MetadataStatsCache<>(MappingStats::of);
-    private final MetadataStatsCache<AnalysisStats> analysisStatsCache = new MetadataStatsCache<>(AnalysisStats::of);
+    private final MetadataStatsCache<MappingStats> mappingStatsCache;
+    private final MetadataStatsCache<AnalysisStats> analysisStatsCache;
+    private final StatsRequestLimiter statsRequestLimiter;
 
     @Inject
     public TransportClusterStatsAction(
@@ -79,7 +82,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         TransportService transportService,
         NodeService nodeService,
         IndicesService indicesService,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        StatsRequestLimiter statsRequestLimiter
     ) {
         super(
             ClusterStatsAction.NAME,
@@ -95,6 +99,9 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         );
         this.nodeService = nodeService;
         this.indicesService = indicesService;
+        this.mappingStatsCache = new MetadataStatsCache<>(threadPool.getThreadContext(), MappingStats::of);
+        this.analysisStatsCache = new MetadataStatsCache<>(threadPool.getThreadContext(), AnalysisStats::of);
+        this.statsRequestLimiter = statsRequestLimiter;
     }
 
     @Override
@@ -180,6 +187,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             true,
             false,
             false,
+            false,
             false
         );
         List<ShardStats> shardsStats = new ArrayList<>();
@@ -230,6 +238,11 @@ public class TransportClusterStatsAction extends TransportNodesAction<
 
     }
 
+    @Override
+    protected void doExecute(Task task, ClusterStatsRequest request, ActionListener<ClusterStatsResponse> listener) {
+        statsRequestLimiter.tryToExecute(task, request, listener, super::doExecute);
+    }
+
     public static class ClusterStatsNodeRequest extends TransportRequest {
 
         ClusterStatsRequest request;
@@ -258,7 +271,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     private static class MetadataStatsCache<T> extends CancellableSingleObjectCache<Metadata, Long, T> {
         private final BiFunction<Metadata, Runnable, T> function;
 
-        MetadataStatsCache(BiFunction<Metadata, Runnable, T> function) {
+        MetadataStatsCache(ThreadContext threadContext, BiFunction<Metadata, Runnable, T> function) {
+            super(threadContext);
             this.function = function;
         }
 

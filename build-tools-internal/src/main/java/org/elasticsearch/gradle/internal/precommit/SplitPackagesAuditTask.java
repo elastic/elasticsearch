@@ -10,9 +10,9 @@ package org.elasticsearch.gradle.internal.precommit;
 
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
-import org.gradle.api.Project;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileCollection;
+import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
@@ -52,6 +52,8 @@ import java.util.stream.Collectors;
 
 import javax.inject.Inject;
 
+import static org.elasticsearch.gradle.util.GradleUtils.projectPath;
+
 /**
  * Checks for split packages with dependencies. These are not allowed in a future modularized world.
  */
@@ -64,36 +66,27 @@ public class SplitPackagesAuditTask extends DefaultTask {
     private final SetProperty<File> srcDirs;
     private final SetProperty<String> ignoreClasses;
     private final RegularFileProperty markerFile;
+    private Map<File, String> projectBuildDirs;
 
     @Inject
-    public SplitPackagesAuditTask(WorkerExecutor workerExecutor, ObjectFactory objectFactory) {
+    public SplitPackagesAuditTask(WorkerExecutor workerExecutor, ObjectFactory objectFactory, ProjectLayout projectLayout) {
         this.workerExecutor = workerExecutor;
         this.srcDirs = objectFactory.setProperty(File.class);
         this.ignoreClasses = objectFactory.setProperty(String.class);
         this.markerFile = objectFactory.fileProperty();
-
-        this.markerFile.set(getProject().getLayout().getBuildDirectory().file("markers/" + this.getName() + ".marker"));
+        this.markerFile.set(projectLayout.getBuildDirectory().file("markers/" + this.getName() + ".marker"));
     }
 
     @TaskAction
     public void auditSplitPackages() {
         workerExecutor.noIsolation().submit(SplitPackagesAuditAction.class, params -> {
-            params.getProjectPath().set(getProject().getPath());
-            params.getProjectBuildDirs().set(getProjectBuildDirs());
+            params.getProjectPath().set(projectPath(getPath()));
+            params.getProjectBuildDirs().set(projectBuildDirs);
             params.getClasspath().from(classpath);
             params.getSrcDirs().set(srcDirs);
             params.getIgnoreClasses().set(ignoreClasses);
             params.getMarkerFile().set(markerFile);
         });
-    }
-
-    private Map<File, String> getProjectBuildDirs() {
-        // while this is done in every project, it should be cheap to calculate
-        Map<File, String> buildDirs = new HashMap<>();
-        for (Project project : getProject().getRootProject().getAllprojects()) {
-            buildDirs.put(project.getBuildDir(), project.getPath());
-        }
-        return buildDirs;
     }
 
     @CompileClasspath
@@ -129,6 +122,10 @@ public class SplitPackagesAuditTask extends DefaultTask {
     @OutputFile
     public RegularFileProperty getMarkerFile() {
         return markerFile;
+    }
+
+    public void setProjectBuildDirs(Map<File, String> projectBuildDirs) {
+        this.projectBuildDirs = projectBuildDirs;
     }
 
     public abstract static class SplitPackagesAuditAction implements WorkAction<Parameters> {

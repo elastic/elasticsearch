@@ -195,7 +195,7 @@ public class GoogleCloudStorageService {
         } else {
             String defaultProjectId = null;
             try {
-                defaultProjectId = ServiceOptions.getDefaultProjectId();
+                defaultProjectId = SocketAccess.doPrivilegedIOException(ServiceOptions::getDefaultProjectId);
                 if (defaultProjectId != null) {
                     storageOptionsBuilder.setProjectId(defaultProjectId);
                 }
@@ -219,7 +219,7 @@ public class GoogleCloudStorageService {
         }
         if (gcsClientSettings.getCredential() == null) {
             try {
-                storageOptionsBuilder.setCredentials(GoogleCredentials.getApplicationDefault());
+                storageOptionsBuilder.setCredentials(SocketAccess.doPrivilegedIOException(GoogleCredentials::getApplicationDefault));
             } catch (Exception e) {
                 logger.warn("failed to load Application Default Credentials", e);
             }

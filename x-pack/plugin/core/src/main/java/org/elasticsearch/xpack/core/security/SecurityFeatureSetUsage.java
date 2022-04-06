@@ -30,6 +30,7 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
     private static final String ANONYMOUS_XFIELD = "anonymous";
     private static final String FIPS_140_XFIELD = "fips_140";
     private static final String OPERATOR_PRIVILEGES_XFIELD = XPackField.OPERATOR_PRIVILEGES;
+    private static final String DOMAINS_XFIELD = "domains";
 
     private Map<String, Object> realmsUsage;
     private Map<String, Object> rolesStoreUsage;
@@ -42,6 +43,7 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
     private Map<String, Object> roleMappingStoreUsage;
     private Map<String, Object> fips140Usage;
     private Map<String, Object> operatorPrivilegesUsage;
+    private Map<String, Object> domainsUsage;
 
     public SecurityFeatureSetUsage(StreamInput in) throws IOException {
         super(in);
@@ -62,6 +64,9 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
         if (in.getVersion().onOrAfter(Version.V_7_11_0)) {
             operatorPrivilegesUsage = in.readMap();
         }
+        if (in.getVersion().onOrAfter(Version.V_8_2_0)) {
+            domainsUsage = in.readMap();
+        }
     }
 
     public SecurityFeatureSetUsage(
@@ -76,7 +81,8 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
         Map<String, Object> tokenServiceUsage,
         Map<String, Object> apiKeyServiceUsage,
         Map<String, Object> fips140Usage,
-        Map<String, Object> operatorPrivilegesUsage
+        Map<String, Object> operatorPrivilegesUsage,
+        Map<String, Object> domainsUsage
     ) {
         super(XPackField.SECURITY, true, enabled);
         this.realmsUsage = realmsUsage;
@@ -90,6 +96,7 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
         this.anonymousUsage = anonymousUsage;
         this.fips140Usage = fips140Usage;
         this.operatorPrivilegesUsage = operatorPrivilegesUsage;
+        this.domainsUsage = domainsUsage;
     }
 
     @Override
@@ -100,22 +107,25 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeMap(realmsUsage);
-        out.writeMap(rolesStoreUsage);
-        out.writeMap(sslUsage);
+        out.writeGenericMap(realmsUsage);
+        out.writeGenericMap(rolesStoreUsage);
+        out.writeGenericMap(sslUsage);
         if (out.getVersion().onOrAfter(Version.V_7_2_0)) {
-            out.writeMap(tokenServiceUsage);
-            out.writeMap(apiKeyServiceUsage);
+            out.writeGenericMap(tokenServiceUsage);
+            out.writeGenericMap(apiKeyServiceUsage);
         }
-        out.writeMap(auditUsage);
-        out.writeMap(ipFilterUsage);
-        out.writeMap(anonymousUsage);
-        out.writeMap(roleMappingStoreUsage);
+        out.writeGenericMap(auditUsage);
+        out.writeGenericMap(ipFilterUsage);
+        out.writeGenericMap(anonymousUsage);
+        out.writeGenericMap(roleMappingStoreUsage);
         if (out.getVersion().onOrAfter(Version.V_7_5_0)) {
-            out.writeMap(fips140Usage);
+            out.writeGenericMap(fips140Usage);
         }
         if (out.getVersion().onOrAfter(Version.V_7_11_0)) {
-            out.writeMap(operatorPrivilegesUsage);
+            out.writeGenericMap(operatorPrivilegesUsage);
+        }
+        if (out.getVersion().onOrAfter(Version.V_8_2_0)) {
+            out.writeGenericMap(domainsUsage);
         }
     }
 
@@ -134,6 +144,9 @@ public class SecurityFeatureSetUsage extends XPackFeatureSet.Usage {
             builder.field(ANONYMOUS_XFIELD, anonymousUsage);
             builder.field(FIPS_140_XFIELD, fips140Usage);
             builder.field(OPERATOR_PRIVILEGES_XFIELD, operatorPrivilegesUsage);
+            if (domainsUsage != null && false == domainsUsage.isEmpty()) {
+                builder.field(DOMAINS_XFIELD, domainsUsage);
+            }
         } else if (sslUsage.isEmpty() == false) {
             // A trial (or basic) license can have SSL without security.
             // This is because security defaults to disabled on that license, but that dynamic-default does not disable SSL.

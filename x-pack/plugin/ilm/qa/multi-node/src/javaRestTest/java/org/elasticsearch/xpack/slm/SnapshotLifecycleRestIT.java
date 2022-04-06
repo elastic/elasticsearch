@@ -25,11 +25,10 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xcontent.DeprecationHandler;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
@@ -108,7 +107,6 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         final String policyName = "full-policy";
         final String repoId = "full-policy-repo";
         int docCount = randomIntBetween(10, 50);
-        List<IndexRequestBuilder> indexReqs = new ArrayList<>();
         for (int i = 0; i < docCount; i++) {
             index(client(), indexName, "" + i, "foo", "bar");
         }
@@ -605,8 +603,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
             Response executeRepsonse = client().performRequest(new Request("GET", path));
             try (
                 XContentParser parser = JsonXContent.jsonXContent.createParser(
-                    NamedXContentRegistry.EMPTY,
-                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    XContentParserConfiguration.EMPTY,
                     EntityUtils.toByteArray(executeRepsonse.getEntity())
                 )
             ) {
@@ -626,8 +623,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
             Response executeRepsonse = client().performRequest(new Request("POST", "/_slm/policy/" + policyId + "/_execute"));
             try (
                 XContentParser parser = JsonXContent.jsonXContent.createParser(
-                    NamedXContentRegistry.EMPTY,
-                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    XContentParserConfiguration.EMPTY,
                     EntityUtils.toByteArray(executeRepsonse.getEntity())
                 )
             ) {

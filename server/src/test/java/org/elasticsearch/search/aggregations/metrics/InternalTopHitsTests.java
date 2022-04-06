@@ -25,7 +25,9 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.NotEqualMessageBuilder;
@@ -53,6 +55,8 @@ import static java.lang.Math.max;
 import static java.lang.Math.min;
 import static java.util.Comparator.comparing;
 import static java.util.stream.Collectors.toList;
+import static org.hamcrest.Matchers.equalTo;
+import static org.mockito.Mockito.mock;
 
 public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTopHits> {
     @Override
@@ -71,7 +75,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
     }
 
     @Override
-    protected List<InternalTopHits> randomResultsToReduce(String name, int size) {
+    protected BuilderAndToReduce<InternalTopHits> randomResultsToReduce(String name, int size) {
         /*
          * Make sure all scores are unique so we can get
          * deterministic test results.
@@ -96,7 +100,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         } else {
             supplier = () -> createTestInstanceSortedScore(name, requestedSize, null, scoreSupplier);
         }
-        return Stream.generate(supplier).limit(size).collect(toList());
+        return new BuilderAndToReduce<>(mock(AggregationBuilder.class), Stream.generate(supplier).limit(size).collect(toList()));
     }
 
     private InternalTopHits createTestInstanceSortedByFields(
@@ -269,6 +273,16 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         assertEqualsWithErrorMessageFromXContent(expectedHits, actualHits);
     }
 
+    @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
+    protected void assertSampled(InternalTopHits sampled, InternalTopHits reduced, SamplingContext samplingContext) {
+        assertThat(sampled.getHits(), equalTo(reduced.getHits()));
+    }
+
     /**
      * Assert that two objects are equals, calling {@link ToXContent#toXContent(XContentBuilder, ToXContent.Params)} to print out their
      * differences if they aren't equal.
@@ -321,7 +335,7 @@ public class InternalTopHitsTests extends InternalAggregationTestCase<InternalTo
         FieldComparator[] comparators = new FieldComparator[sortFields.length];
         for (int i = 0; i < sortFields.length; i++) {
             // Values passed to getComparator shouldn't matter
-            comparators[i] = sortFields[i].getComparator(0, 0);
+            comparators[i] = sortFields[i].getComparator(0, false);
         }
         return (lhs, rhs) -> {
             FieldDoc l = (FieldDoc) lhs;

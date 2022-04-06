@@ -196,14 +196,7 @@ public class XContentHelper {
      * error.
      */
     public static Map<String, Object> convertToMap(XContent xContent, String string, boolean ordered) throws ElasticsearchParseException {
-        // It is safe to use EMPTY here because this never uses namedObject
-        try (
-            XContentParser parser = xContent.createParser(
-                NamedXContentRegistry.EMPTY,
-                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                string
-            )
-        ) {
+        try (XContentParser parser = xContent.createParser(XContentParserConfiguration.EMPTY, string)) {
             return ordered ? parser.mapOrdered() : parser.map();
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse content to map", e);
@@ -232,7 +225,9 @@ public class XContentHelper {
         @Nullable Set<String> include,
         @Nullable Set<String> exclude
     ) throws ElasticsearchParseException {
-        try (XContentParser parser = xContent.createParser(XContentParserConfiguration.EMPTY.withFiltering(include, exclude), input)) {
+        try (
+            XContentParser parser = xContent.createParser(XContentParserConfiguration.EMPTY.withFiltering(include, exclude, false), input)
+        ) {
             return ordered ? parser.mapOrdered() : parser.map();
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse content to map", e);
@@ -266,7 +261,7 @@ public class XContentHelper {
     ) throws ElasticsearchParseException {
         try (
             XContentParser parser = xContent.createParser(
-                XContentParserConfiguration.EMPTY.withFiltering(include, exclude),
+                XContentParserConfiguration.EMPTY.withFiltering(include, exclude, false),
                 bytes,
                 offset,
                 length

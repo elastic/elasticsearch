@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ql.expression.gen.script;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
 
 import java.util.ArrayList;
@@ -61,7 +62,7 @@ public class Params {
     // return only the vars (as parameter for a script)
     // agg refs are returned separately to be provided as bucket_paths
     Map<String, Object> asParams() {
-        Map<String, Object> map = new LinkedHashMap<>(params.size());
+        Map<String, Object> map = Maps.newLinkedHashMapWithExpectedSize(params.size());
 
         int count = 0;
 

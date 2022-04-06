@@ -7,15 +7,12 @@
 
 package org.elasticsearch.xpack.core.ilm;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
@@ -106,14 +103,14 @@ class WaitForIndexColorStep extends ClusterStateWaitStep {
         return true;
     }
 
-    private Result waitForRed(IndexRoutingTable indexRoutingTable) {
+    private static Result waitForRed(IndexRoutingTable indexRoutingTable) {
         if (indexRoutingTable == null) {
             return new Result(true, new Info("index is red"));
         }
         return new Result(false, new Info("index is not red"));
     }
 
-    private Result waitForYellow(IndexRoutingTable indexRoutingTable) {
+    private static Result waitForYellow(IndexRoutingTable indexRoutingTable) {
         if (indexRoutingTable == null) {
             return new Result(false, new Info("index is red; no indexRoutingTable"));
         }
@@ -126,14 +123,14 @@ class WaitForIndexColorStep extends ClusterStateWaitStep {
         }
     }
 
-    private Result waitForGreen(IndexRoutingTable indexRoutingTable) {
+    private static Result waitForGreen(IndexRoutingTable indexRoutingTable) {
         if (indexRoutingTable == null) {
             return new Result(false, new Info("index is red; no indexRoutingTable"));
         }
 
         if (indexRoutingTable.allPrimaryShardsActive()) {
-            for (ObjectCursor<IndexShardRoutingTable> shardRouting : indexRoutingTable.getShards().values()) {
-                boolean replicaIndexIsGreen = shardRouting.value.replicaShards().stream().allMatch(ShardRouting::active);
+            for (int i = 0; i < indexRoutingTable.size(); i++) {
+                boolean replicaIndexIsGreen = indexRoutingTable.shard(i).replicaShards().stream().allMatch(ShardRouting::active);
                 if (replicaIndexIsGreen == false) {
                     return new Result(false, new Info("index is yellow; not all replica shards are active"));
                 }

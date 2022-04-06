@@ -327,6 +327,18 @@ public class AggregatorFactories {
             return false;
         }
 
+        /**
+         * Return true if any of the factories can build a time-series aggregation that requires an in-order execution
+         */
+        public boolean isInSortOrderExecutionRequired() {
+            for (AggregationBuilder builder : aggregationBuilders) {
+                if (builder.isInSortOrderExecutionRequired()) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
         public Builder addAggregator(AggregationBuilder factory) {
             if (names.add(factory.name) == false) {
                 throw new IllegalArgumentException("Two sibling aggregations cannot have the same name: [" + factory.name + "]");
@@ -394,7 +406,7 @@ public class AggregatorFactories {
             return new AggregatorFactories(context, aggFactories);
         }
 
-        private List<PipelineAggregationBuilder> resolvePipelineAggregatorOrder(
+        private static List<PipelineAggregationBuilder> resolvePipelineAggregatorOrder(
             Collection<PipelineAggregationBuilder> pipelineAggregatorBuilders,
             Collection<AggregationBuilder> aggregationBuilders
         ) {
@@ -423,7 +435,7 @@ public class AggregatorFactories {
             return orderedPipelineAggregatorrs;
         }
 
-        private void resolvePipelineAggregatorOrder(
+        private static void resolvePipelineAggregatorOrder(
             Map<String, AggregationBuilder> aggBuildersMap,
             Map<String, PipelineAggregationBuilder> pipelineAggregatorBuildersMap,
             List<PipelineAggregationBuilder> orderedPipelineAggregators,

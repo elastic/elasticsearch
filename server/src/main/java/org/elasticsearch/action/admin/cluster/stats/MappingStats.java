@@ -25,7 +25,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -48,85 +48,87 @@ public final class MappingStats implements ToXContentFragment, Writeable {
         Map<String, FieldStats> fieldTypes = new HashMap<>();
         Set<String> concreteFieldNames = new HashSet<>();
         Map<String, RuntimeFieldStats> runtimeFieldTypes = new HashMap<>();
+        final Map<MappingMetadata, Integer> mappingCounts = new IdentityHashMap<>(metadata.getMappingsByHash().size());
         for (IndexMetadata indexMetadata : metadata) {
-            ensureNotCancelled.run();
             if (indexMetadata.isSystem()) {
                 // Don't include system indices in statistics about mappings,
                 // we care about the user's indices.
                 continue;
             }
+            AnalysisStats.countMapping(mappingCounts, indexMetadata);
+        }
+        for (Map.Entry<MappingMetadata, Integer> mappingAndCount : mappingCounts.entrySet()) {
+            ensureNotCancelled.run();
             Set<String> indexFieldTypes = new HashSet<>();
             Set<String> indexRuntimeFieldTypes = new HashSet<>();
-            MappingMetadata mappingMetadata = indexMetadata.mapping();
-            if (mappingMetadata != null) {
-                final Map<String, Object> map = mappingMetadata.getSourceAsMap();
-                MappingVisitor.visitMapping(map, (field, fieldMapping) -> {
-                    concreteFieldNames.add(field);
-                    String type = null;
-                    Object typeO = fieldMapping.get("type");
-                    if (typeO != null) {
-                        type = typeO.toString();
-                    } else if (fieldMapping.containsKey("properties")) {
-                        type = "object";
-                    }
-                    if (type != null) {
-                        FieldStats stats = fieldTypes.computeIfAbsent(type, FieldStats::new);
-                        stats.count++;
-                        if (indexFieldTypes.add(type)) {
-                            stats.indexCount++;
-                        }
-                        Object scriptObject = fieldMapping.get("script");
-                        if (scriptObject instanceof Map<?, ?> script) {
-                            Object sourceObject = script.get("source");
-                            stats.scriptCount++;
-                            updateScriptParams(sourceObject, stats.fieldScriptStats);
-                            Object langObject = script.get("lang");
-                            if (langObject != null) {
-                                stats.scriptLangs.add(langObject.toString());
-                            }
-                        }
-                    }
-                });
-
-                MappingVisitor.visitRuntimeMapping(map, (field, fieldMapping) -> {
-                    Object typeObject = fieldMapping.get("type");
-                    if (typeObject == null) {
-                        return;
-                    }
-                    String type = typeObject.toString();
-                    RuntimeFieldStats stats = runtimeFieldTypes.computeIfAbsent(type, RuntimeFieldStats::new);
-                    stats.count++;
-                    if (indexRuntimeFieldTypes.add(type)) {
-                        stats.indexCount++;
-                    }
-                    if (concreteFieldNames.contains(field)) {
-                        stats.shadowedCount++;
+            final int count = mappingAndCount.getValue();
+            final Map<String, Object> map = mappingAndCount.getKey().getSourceAsMap();
+            MappingVisitor.visitMapping(map, (field, fieldMapping) -> {
+                concreteFieldNames.add(field);
+                String type = null;
+                Object typeO = fieldMapping.get("type");
+                if (typeO != null) {
+                    type = typeO.toString();
+                } else if (fieldMapping.containsKey("properties")) {
+                    type = "object";
+                }
+                if (type != null) {
+                    FieldStats stats = fieldTypes.computeIfAbsent(type, FieldStats::new);
+                    stats.count += count;
+                    if (indexFieldTypes.add(type)) {
+                        stats.indexCount += count;
                     }
                     Object scriptObject = fieldMapping.get("script");
-                    if (scriptObject == null) {
-                        stats.scriptLessCount++;
-                    } else if (scriptObject instanceof Map<?, ?> script) {
+                    if (scriptObject instanceof Map<?, ?> script) {
                         Object sourceObject = script.get("source");
-                        updateScriptParams(sourceObject, stats.fieldScriptStats);
+                        stats.scriptCount += count;
+                        updateScriptParams(sourceObject, stats.fieldScriptStats, count);
                         Object langObject = script.get("lang");
                         if (langObject != null) {
                             stats.scriptLangs.add(langObject.toString());
                         }
                     }
-                });
-            }
+                }
+            });
+
+            MappingVisitor.visitRuntimeMapping(map, (field, fieldMapping) -> {
+                Object typeObject = fieldMapping.get("type");
+                if (typeObject == null) {
+                    return;
+                }
+                String type = typeObject.toString();
+                RuntimeFieldStats stats = runtimeFieldTypes.computeIfAbsent(type, RuntimeFieldStats::new);
+                stats.count += count;
+                if (indexRuntimeFieldTypes.add(type)) {
+                    stats.indexCount += count;
+                }
+                if (concreteFieldNames.contains(field)) {
+                    stats.shadowedCount += count;
+                }
+                Object scriptObject = fieldMapping.get("script");
+                if (scriptObject == null) {
+                    stats.scriptLessCount += count;
+                } else if (scriptObject instanceof Map<?, ?> script) {
+                    Object sourceObject = script.get("source");
+                    updateScriptParams(sourceObject, stats.fieldScriptStats, count);
+                    Object langObject = script.get("lang");
+                    if (langObject != null) {
+                        stats.scriptLangs.add(langObject.toString());
+                    }
+                }
+            });
         }
         return new MappingStats(fieldTypes.values(), runtimeFieldTypes.values());
     }
 
-    private static void updateScriptParams(Object scriptSourceObject, FieldScriptStats scriptStats) {
+    private static void updateScriptParams(Object scriptSourceObject, FieldScriptStats scriptStats, int multiplier) {
         if (scriptSourceObject != null) {
             String scriptSource = scriptSourceObject.toString();
             int chars = scriptSource.length();
             long lines = scriptSource.lines().count();
             int docUsages = countOccurrences(scriptSource, DOC_PATTERN);
             int sourceUsages = countOccurrences(scriptSource, SOURCE_PATTERN);
-            scriptStats.update(chars, lines, sourceUsages, docUsages);
+            scriptStats.update(chars, lines, sourceUsages, docUsages, multiplier);
         }
     }
 
@@ -139,21 +141,21 @@ public final class MappingStats implements ToXContentFragment, Writeable {
         return occurrences;
     }
 
-    private final Set<FieldStats> fieldTypeStats;
-    private final Set<RuntimeFieldStats> runtimeFieldStats;
+    private final List<FieldStats> fieldTypeStats;
+    private final List<RuntimeFieldStats> runtimeFieldStats;
 
     MappingStats(Collection<FieldStats> fieldTypeStats, Collection<RuntimeFieldStats> runtimeFieldStats) {
         List<FieldStats> stats = new ArrayList<>(fieldTypeStats);
         stats.sort(Comparator.comparing(IndexFeatureStats::getName));
-        this.fieldTypeStats = Collections.unmodifiableSet(new LinkedHashSet<>(stats));
+        this.fieldTypeStats = Collections.unmodifiableList(stats);
         List<RuntimeFieldStats> runtimeStats = new ArrayList<>(runtimeFieldStats);
         runtimeStats.sort(Comparator.comparing(RuntimeFieldStats::type));
-        this.runtimeFieldStats = Collections.unmodifiableSet(new LinkedHashSet<>(runtimeStats));
+        this.runtimeFieldStats = Collections.unmodifiableList(runtimeStats);
     }
 
     MappingStats(StreamInput in) throws IOException {
-        fieldTypeStats = Collections.unmodifiableSet(new LinkedHashSet<>(in.readList(FieldStats::new)));
-        runtimeFieldStats = Collections.unmodifiableSet(new LinkedHashSet<>(in.readList(RuntimeFieldStats::new)));
+        fieldTypeStats = Collections.unmodifiableList(in.readList(FieldStats::new));
+        runtimeFieldStats = Collections.unmodifiableList(in.readList(RuntimeFieldStats::new));
     }
 
     @Override
@@ -165,14 +167,14 @@ public final class MappingStats implements ToXContentFragment, Writeable {
     /**
      * Return stats about field types.
      */
-    public Set<FieldStats> getFieldTypeStats() {
+    public List<FieldStats> getFieldTypeStats() {
         return fieldTypeStats;
     }
 
     /**
      * Return stats about runtime field types.
      */
-    public Set<RuntimeFieldStats> getRuntimeFieldStats() {
+    public List<RuntimeFieldStats> getRuntimeFieldStats() {
         return runtimeFieldStats;
     }
 

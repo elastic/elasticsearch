@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -21,7 +22,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class PutPrivilegesResponseTests extends ESTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/82831")
     public void testSerialization() throws IOException {
         final int applicationCount = randomInt(3);
         final Map<String, List<String>> map = Maps.newMapWithExpectedSize(applicationCount);
@@ -35,7 +35,16 @@ public class PutPrivilegesResponseTests extends ESTestCase {
         output.flush();
         final PutPrivilegesResponse copy = new PutPrivilegesResponse(output.bytes().streamInput());
         assertThat(copy.created(), equalTo(original.created()));
-        assertThat(Strings.toString(copy), equalTo(Strings.toString(original)));
+        assertJsonEquals(Strings.toString(copy), Strings.toString(original));
+    }
+
+    private void assertJsonEquals(String actual, String expected) throws IOException {
+        try (
+            var actualParser = createParser(JsonXContent.jsonXContent, actual);
+            var expectedParser = createParser(JsonXContent.jsonXContent, expected)
+        ) {
+            assertThat(actualParser.mapOrdered(), equalTo(expectedParser.mapOrdered()));
+        }
     }
 
 }

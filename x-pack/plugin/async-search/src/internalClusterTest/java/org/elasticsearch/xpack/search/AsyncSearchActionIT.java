@@ -9,17 +9,21 @@ package org.elasticsearch.xpack.search;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.DummyQueryBuilder;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.InternalTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
-import org.elasticsearch.search.aggregations.metrics.InternalMax;
-import org.elasticsearch.search.aggregations.metrics.InternalMin;
+import org.elasticsearch.search.aggregations.metrics.Max;
+import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase.SuiteScopeTestCase;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -89,6 +93,14 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         indexRandom(true, true, reqs);
     }
 
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(SearchService.CCS_VERSION_CHECK_SETTING.getKey(), "true")
+            .build();
+    }
+
     public void testMaxMinAggregation() throws Exception {
         int step = numShards > 2 ? randomIntBetween(2, numShards) : 2;
         int numFailures = randomBoolean() ? randomIntBetween(0, numShards) : 0;
@@ -103,10 +115,10 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
                     assertNotNull(response.getSearchResponse().getAggregations());
                     assertNotNull(response.getSearchResponse().getAggregations().get("max"));
                     assertNotNull(response.getSearchResponse().getAggregations().get("min"));
-                    InternalMax max = response.getSearchResponse().getAggregations().get("max");
-                    InternalMin min = response.getSearchResponse().getAggregations().get("min");
-                    assertThat((float) min.getValue(), greaterThanOrEqualTo(minMetric));
-                    assertThat((float) max.getValue(), lessThanOrEqualTo(maxMetric));
+                    Max max = response.getSearchResponse().getAggregations().get("max");
+                    Min min = response.getSearchResponse().getAggregations().get("min");
+                    assertThat((float) min.value(), greaterThanOrEqualTo(minMetric));
+                    assertThat((float) max.value(), lessThanOrEqualTo(maxMetric));
                 }
             }
             if (numFailures == numShards) {
@@ -116,14 +128,14 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
                 assertNotNull(response.getSearchResponse().getAggregations());
                 assertNotNull(response.getSearchResponse().getAggregations().get("max"));
                 assertNotNull(response.getSearchResponse().getAggregations().get("min"));
-                InternalMax max = response.getSearchResponse().getAggregations().get("max");
-                InternalMin min = response.getSearchResponse().getAggregations().get("min");
+                Max max = response.getSearchResponse().getAggregations().get("max");
+                Min min = response.getSearchResponse().getAggregations().get("min");
                 if (numFailures == 0) {
-                    assertThat((float) min.getValue(), equalTo(minMetric));
-                    assertThat((float) max.getValue(), equalTo(maxMetric));
+                    assertThat((float) min.value(), equalTo(minMetric));
+                    assertThat((float) max.value(), equalTo(maxMetric));
                 } else {
-                    assertThat((float) min.getValue(), greaterThanOrEqualTo(minMetric));
-                    assertThat((float) max.getValue(), lessThanOrEqualTo(maxMetric));
+                    assertThat((float) min.value(), greaterThanOrEqualTo(minMetric));
+                    assertThat((float) max.value(), lessThanOrEqualTo(maxMetric));
                 }
             }
             deleteAsyncSearch(response.getId());
@@ -379,16 +391,18 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         assertThat(response.getSearchResponse().getSuccessfulShards(), equalTo(numShards));
         assertThat(response.getSearchResponse().getFailedShards(), equalTo(0));
         assertThat(response.getExpirationTime(), greaterThan(now));
+
+        final String searchId = response.getId();
         long expirationTime = response.getExpirationTime();
 
-        response = getAsyncSearch(response.getId());
+        response = getAsyncSearch(searchId);
         assertNotNull(response.getSearchResponse());
         assertFalse(response.isRunning());
         assertThat(response.getSearchResponse().getTotalShards(), equalTo(numShards));
         assertThat(response.getSearchResponse().getSuccessfulShards(), equalTo(numShards));
         assertThat(response.getSearchResponse().getFailedShards(), equalTo(0));
 
-        response = getAsyncSearch(response.getId(), TimeValue.timeValueDays(10));
+        response = getAsyncSearch(searchId, TimeValue.timeValueDays(10));
         assertThat(response.getExpirationTime(), greaterThan(expirationTime));
 
         assertFalse(response.isRunning());
@@ -396,10 +410,20 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         assertThat(response.getSearchResponse().getSuccessfulShards(), equalTo(numShards));
         assertThat(response.getSearchResponse().getFailedShards(), equalTo(0));
 
-        response = getAsyncSearch(response.getId(), TimeValue.timeValueMillis(1));
-        assertThat(response.getExpirationTime(), lessThan(expirationTime));
-        ensureTaskNotRunning(response.getId());
-        ensureTaskRemoval(response.getId());
+        try {
+            AsyncSearchResponse finalResponse = getAsyncSearch(searchId, TimeValue.timeValueMillis(1));
+            assertThat(finalResponse.getExpirationTime(), lessThan(expirationTime));
+        } catch (ExecutionException e) {
+            // The 'get async search' method first updates the expiration time, then gets the response. So the
+            // maintenance service might remove the document right after it's updated, which means the get request
+            // fails with a 'not found' error. For now we allow this behavior, since it will be very rare in practice.
+            if (ExceptionsHelper.unwrap(e, ResourceNotFoundException.class) == null) {
+                throw e;
+            }
+        }
+
+        ensureTaskNotRunning(searchId);
+        ensureTaskRemoval(searchId);
     }
 
     public void testRemoveAsyncIndex() throws Exception {
@@ -506,5 +530,20 @@ public class AsyncSearchActionIT extends AsyncSearchIntegTestCase {
         updateSettingsRequest = new ClusterUpdateSettingsRequest();
         updateSettingsRequest.persistentSettings(Settings.builder().put("search.max_async_search_response_size", (String) null));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
+    }
+
+    public void testCCSCheckCompatibility() throws Exception {
+        SubmitAsyncSearchRequest request = new SubmitAsyncSearchRequest(new SearchSourceBuilder().query(new DummyQueryBuilder() {
+            @Override
+            public Version getMinimalSupportedVersion() {
+                return Version.CURRENT;
+            }
+        }), indexName);
+
+        AsyncSearchResponse response = submitAsyncSearch(request);
+        assertFalse(response.isRunning());
+        Exception failure = response.getFailure();
+        assertThat(failure.getMessage(), containsString("error while executing search"));
+        assertThat(failure.getCause().getMessage(), containsString("the 'search.check_ccs_compatibility' setting is enabled"));
     }
 }

@@ -110,10 +110,10 @@ public class ClusterStateWaitUntilThresholdStep extends ClusterStateWaitStep {
     }
 
     static boolean waitedMoreThanThresholdLevel(@Nullable TimeValue retryThreshold, LifecycleExecutionState lifecycleState, Clock clock) {
-        assert lifecycleState.getStepTime() != null : "lifecycle state [" + lifecycleState + "] does not have the step time set";
+        assert lifecycleState.stepTime() != null : "lifecycle state [" + lifecycleState + "] does not have the step time set";
         if (retryThreshold != null) {
             // return true if the threshold was surpassed and false otherwise
-            return (lifecycleState.getStepTime() + retryThreshold.millis()) < clock.millis();
+            return (lifecycleState.stepTime() + retryThreshold.millis()) < clock.millis();
         }
         return false;
     }

@@ -24,7 +24,7 @@
   - do:
       index:
           index: test
-          id: 1
+          id: "1"
           body:
             field:
               input: [ "Foo Fighters" ]

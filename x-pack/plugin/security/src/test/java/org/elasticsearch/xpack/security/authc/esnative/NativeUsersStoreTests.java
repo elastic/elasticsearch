@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheRequest
 import org.elasticsearch.xpack.core.security.action.realm.ClearRealmCacheResponse;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
-import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.user.APMSystemUser;
 import org.elasticsearch.xpack.core.security.user.BeatsSystemUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
@@ -42,6 +41,7 @@ import org.elasticsearch.xpack.core.security.user.LogstashSystemUser;
 import org.elasticsearch.xpack.core.security.user.RemoteMonitoringUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import org.junit.Before;
 import org.mockito.Mockito;
 
@@ -138,7 +138,7 @@ public class NativeUsersStoreTests extends ESTestCase {
         values.put(PASSWORD_FIELD, BLANK_PASSWORD);
 
         final GetResult result = new GetResult(
-            RestrictedIndicesNames.SECURITY_MAIN_ALIAS,
+            SecuritySystemIndices.SECURITY_MAIN_ALIAS,
             NativeUsersStore.getIdForUser(NativeUsersStore.RESERVED_USER_TYPE, randomAlphaOfLength(12)),
             0,
             1,
@@ -210,7 +210,7 @@ public class NativeUsersStoreTests extends ESTestCase {
         nativeUsersStore.verifyPassword(username, password, future);
 
         final GetResult getResult = new GetResult(
-            RestrictedIndicesNames.SECURITY_MAIN_ALIAS,
+            SecuritySystemIndices.SECURITY_MAIN_ALIAS,
             NativeUsersStore.getIdForUser(NativeUsersStore.USER_DOC_TYPE, username),
             UNASSIGNED_SEQ_NO,
             0,
@@ -253,7 +253,7 @@ public class NativeUsersStoreTests extends ESTestCase {
 
         Tuple<IndexRequest, ActionListener<?>> createElasticUserRequest = findRequest(IndexRequest.class);
         assertThat(createElasticUserRequest.v1().opType(), is(DocWriteRequest.OpType.CREATE));
-        assertThat(createElasticUserRequest.v1().index(), is(RestrictedIndicesNames.SECURITY_MAIN_ALIAS));
+        assertThat(createElasticUserRequest.v1().index(), is(SecuritySystemIndices.SECURITY_MAIN_ALIAS));
         assertThat(createElasticUserRequest.v1().id(), is(NativeUsersStore.getIdForUser(NativeUsersStore.RESERVED_USER_TYPE, "elastic")));
         assertThat(createElasticUserRequest.v1().getRefreshPolicy(), is(WriteRequest.RefreshPolicy.IMMEDIATE));
 
@@ -301,7 +301,7 @@ public class NativeUsersStoreTests extends ESTestCase {
         values.put(User.Fields.TYPE.getPreferredName(), NativeUsersStore.USER_DOC_TYPE);
         final BytesReference source = BytesReference.bytes(jsonBuilder().map(values));
         final GetResult getResult = new GetResult(
-            RestrictedIndicesNames.SECURITY_MAIN_ALIAS,
+            SecuritySystemIndices.SECURITY_MAIN_ALIAS,
             NativeUsersStore.getIdForUser(NativeUsersStore.USER_DOC_TYPE, username),
             0,
             1,

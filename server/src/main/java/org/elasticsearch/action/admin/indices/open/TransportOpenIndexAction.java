@@ -92,7 +92,7 @@ public class TransportOpenIndexAction extends TransportMasterNodeAction<OpenInde
             .indices(concreteIndices)
             .waitForActiveShards(request.waitForActiveShards());
 
-        indexStateService.openIndex(updateRequest, new ActionListener<>() {
+        indexStateService.openIndices(updateRequest, new ActionListener<>() {
 
             @Override
             public void onResponse(ShardsAcknowledgedResponse response) {

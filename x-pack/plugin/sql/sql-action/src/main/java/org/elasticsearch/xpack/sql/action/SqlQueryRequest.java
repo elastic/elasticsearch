@@ -11,6 +11,8 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.tasks.Task;
@@ -18,6 +20,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.sql.proto.CoreProtocol;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlTypedParamValue;
 
@@ -53,11 +56,21 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
     static final ParseField KEEP_ON_COMPLETION = new ParseField(KEEP_ON_COMPLETION_NAME);
     static final ParseField KEEP_ALIVE = new ParseField(KEEP_ALIVE_NAME);
 
+    private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(SqlQueryRequest.class);
+
+    private static final String INDEX_INCLUDE_FROZEN_DEPRECATION_MESSAGE = "["
+        + CoreProtocol.INDEX_INCLUDE_FROZEN_NAME
+        + "] parameter is deprecated because frozen indices have been deprecated. "
+        + "Consider cold or frozen tiers in place of frozen indices.";
+
     static {
         PARSER.declareString(SqlQueryRequest::cursor, CURSOR);
         PARSER.declareBoolean(SqlQueryRequest::columnar, COLUMNAR);
         PARSER.declareBoolean(SqlQueryRequest::fieldMultiValueLeniency, FIELD_MULTI_VALUE_LENIENCY);
-        PARSER.declareBoolean(SqlQueryRequest::indexIncludeFrozen, INDEX_INCLUDE_FROZEN);
+        PARSER.declareBoolean((r, v) -> {
+            DEPRECATION_LOGGER.warn(DeprecationCategory.API, "sql_index_include_frozen", INDEX_INCLUDE_FROZEN_DEPRECATION_MESSAGE);
+            r.indexIncludeFrozen(v);
+        }, INDEX_INCLUDE_FROZEN);
         PARSER.declareBoolean(SqlQueryRequest::binaryCommunication, BINARY_COMMUNICATION);
         PARSER.declareField(
             SqlQueryRequest::waitForCompletionTimeout,

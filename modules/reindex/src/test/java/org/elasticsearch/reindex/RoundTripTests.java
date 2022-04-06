@@ -12,9 +12,11 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
@@ -34,7 +36,7 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.apache.lucene.util.TestUtil.randomSimpleString;
+import static org.apache.lucene.tests.util.TestUtil.randomSimpleString;
 import static org.elasticsearch.core.TimeValue.parseTimeValue;
 
 /**
@@ -50,7 +52,7 @@ public class RoundTripTests extends ESTestCase {
             int port = between(1, Integer.MAX_VALUE);
             BytesReference query = new BytesArray("{\"match_all\":{}}");
             String username = randomBoolean() ? randomAlphaOfLength(5) : null;
-            String password = username != null && randomBoolean() ? randomAlphaOfLength(5) : null;
+            SecureString password = username != null && randomBoolean() ? new SecureString(randomAlphaOfLength(5).toCharArray()) : null;
             int headersCount = randomBoolean() ? 0 : between(1, 10);
             Map<String, String> headers = Maps.newMapWithExpectedSize(headersCount);
             while (headers.size() < headersCount) {
@@ -192,7 +194,7 @@ public class RoundTripTests extends ESTestCase {
         example.writeTo(out);
         StreamInput in = out.bytes().streamInput();
         in.setVersion(version);
-        return in;
+        return new NamedWriteableAwareStreamInput(in, writableRegistry());
     }
 
     private Script randomScript() {

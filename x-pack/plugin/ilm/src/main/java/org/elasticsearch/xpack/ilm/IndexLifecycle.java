@@ -26,9 +26,11 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
@@ -107,6 +109,7 @@ import org.elasticsearch.xpack.ilm.history.ILMHistoryStore;
 import org.elasticsearch.xpack.ilm.history.ILMHistoryTemplateRegistry;
 import org.elasticsearch.xpack.slm.SLMInfoTransportAction;
 import org.elasticsearch.xpack.slm.SLMUsageTransportAction;
+import org.elasticsearch.xpack.slm.SlmHealthIndicatorService;
 import org.elasticsearch.xpack.slm.SnapshotLifecycleService;
 import org.elasticsearch.xpack.slm.SnapshotLifecycleTask;
 import org.elasticsearch.xpack.slm.SnapshotRetentionService;
@@ -144,7 +147,7 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
 
-public class IndexLifecycle extends Plugin implements ActionPlugin {
+public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin {
 
     public static final List<NamedXContentRegistry.Entry> NAMED_X_CONTENT_ENTRIES = xContentEntries();
 
@@ -153,6 +156,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
     private final SetOnce<SnapshotLifecycleService> snapshotLifecycleService = new SetOnce<>();
     private final SetOnce<SnapshotRetentionService> snapshotRetentionService = new SetOnce<>();
     private final SetOnce<SnapshotHistoryStore> snapshotHistoryStore = new SetOnce<>();
+    private final SetOnce<IlmHealthIndicatorService> ilmHealthIndicatorService = new SetOnce<>();
+    private final SetOnce<SlmHealthIndicatorService> slmHealthIndicatorService = new SetOnce<>();
     private final Settings settings;
 
     public IndexLifecycle(Settings settings) {
@@ -264,7 +269,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
         );
         snapshotRetentionService.get().init(clusterService);
         components.addAll(Arrays.asList(snapshotLifecycleService.get(), snapshotHistoryStore.get(), snapshotRetentionService.get()));
-
+        ilmHealthIndicatorService.set(new IlmHealthIndicatorService(clusterService));
+        slmHealthIndicatorService.set(new SlmHealthIndicatorService(clusterService));
         return components;
     }
 
@@ -412,6 +418,11 @@ public class IndexLifecycle extends Plugin implements ActionPlugin {
             )
         );
         return actions;
+    }
+
+    @Override
+    public Collection<HealthIndicatorService> getHealthIndicatorServices() {
+        return List.of(ilmHealthIndicatorService.get(), slmHealthIndicatorService.get());
     }
 
     @Override

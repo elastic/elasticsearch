@@ -52,11 +52,12 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserRequestBuilder;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequestBuilder;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
+import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.Role;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
-import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.support.Automatons;
+import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
@@ -82,8 +83,8 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDI
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
-import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7;
-import static org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames.SECURITY_MAIN_ALIAS;
+import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
+import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
@@ -97,6 +98,7 @@ import static org.mockito.Mockito.mock;
  */
 public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
 
+    private static final RestrictedIndices EMPTY_RESTRICTED_INDICES = new RestrictedIndices(Automatons.EMPTY);
     private static boolean anonymousEnabled;
     private static Hasher hasher;
 
@@ -420,7 +422,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             assertTrue("test_role does not exist!", getRolesResponse.hasRoles());
             assertTrue(
                 "any cluster permission should be authorized",
-                Role.builder(getRolesResponse.roles()[0], null, Automatons.EMPTY)
+                Role.builder(getRolesResponse.roles()[0], null, EMPTY_RESTRICTED_INDICES)
                     .build()
                     .cluster()
                     .check("cluster:admin/foo", request, authentication)
@@ -441,7 +443,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
 
             assertFalse(
                 "no cluster permission should be authorized",
-                Role.builder(getRolesResponse.roles()[0], null, Automatons.EMPTY)
+                Role.builder(getRolesResponse.roles()[0], null, EMPTY_RESTRICTED_INDICES)
                     .build()
                     .cluster()
                     .check("cluster:admin/bar", request, authentication)
@@ -511,7 +513,7 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
             .setFeatureStates(SECURITY_FEATURE_NAME)
             .get();
         assertThat(response.status(), equalTo(RestStatus.OK));
-        assertThat(response.getRestoreInfo().indices(), contains(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7));
+        assertThat(response.getRestoreInfo().indices(), contains(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7));
         // the realm cache should clear itself but we don't wish to race it
         new ClearRealmCacheRequestBuilder(client()).get();
         // users and roles are retrievable
@@ -681,10 +683,10 @@ public class NativeRealmIntegTests extends NativeRealmIntegTestCase {
         IndicesStatsResponse response = client().admin().indices().prepareStats("foo", SECURITY_MAIN_ALIAS).get();
         assertThat(response.getFailedShards(), is(0));
         assertThat(response.getIndices().size(), is(2));
-        assertThat(response.getIndices().get(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7), notNullValue());
+        assertThat(response.getIndices().get(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7), notNullValue());
         assertThat(
-            response.getIndices().get(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7).getIndex(),
-            is(RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7)
+            response.getIndices().get(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7).getIndex(),
+            is(TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7)
         );
     }
 

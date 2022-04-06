@@ -10,6 +10,7 @@ package org.elasticsearch.test.test;
 
 import junit.framework.AssertionFailedError;
 
+import org.apache.lucene.util.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.test.ESTestCase;
@@ -17,6 +18,7 @@ import org.elasticsearch.test.RandomObjects;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -30,6 +32,7 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
@@ -202,5 +205,21 @@ public class ESTestCaseTests extends ESTestCase {
         String formatted = formatter.formatMillis(randomLongBetween(0, 2_000_000_000_000L));
         String formattedAgain = formatter.formatMillis(formatter.parseMillis(formatted));
         assertThat(formattedAgain, equalTo(formatted));
+    }
+
+    public void testSkipTestWaitingForLuceneFix() {
+        // skip test when Lucene fix has not been integrated yet
+        AssumptionViolatedException ave = expectThrows(
+            AssumptionViolatedException.class,
+            () -> skipTestWaitingForLuceneFix(Version.fromBits(99, 0, 0), "extra message")
+        );
+        assertThat(ave.getMessage(), containsString("Skipping test as it is waiting on a Lucene fix: extra message"));
+
+        // fail test when it still calls skipTestWaitingForLuceneFix() after Lucene fix has been integrated
+        AssertionError ae = expectThrows(
+            AssertionError.class,
+            () -> skipTestWaitingForLuceneFix(Version.fromBits(1, 0, 0), "extra message")
+        );
+        assertThat(ae.getMessage(), containsString("Remove call of skipTestWaitingForLuceneFix"));
     }
 }

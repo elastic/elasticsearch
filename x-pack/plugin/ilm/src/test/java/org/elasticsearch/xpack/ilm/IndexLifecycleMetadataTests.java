@@ -15,7 +15,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.test.AbstractDiffableSerializationTestCase;
+import org.elasticsearch.test.SimpleDiffableSerializationTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -55,7 +55,7 @@ import java.util.TreeMap;
 import static org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils.newTestLifecyclePolicy;
 import static org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils.randomTimeseriesLifecyclePolicy;
 
-public class IndexLifecycleMetadataTests extends AbstractDiffableSerializationTestCase<Metadata.Custom> {
+public class IndexLifecycleMetadataTests extends SimpleDiffableSerializationTestCase<Custom> {
 
     @Override
     protected IndexLifecycleMetadata createTestInstance() {

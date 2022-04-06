@@ -353,7 +353,7 @@ public class PersistentCache implements Closeable {
     }
 
     /**
-     * Creates a new {@link CacheIndexWriter} for the specified data path. The is a single instance per data path.
+     * Creates a new {@link CacheIndexWriter} for the specified data path. There is a single instance per data path.
      *
      * @param nodePath the data path
      * @return a new {@link CacheIndexWriter} instance

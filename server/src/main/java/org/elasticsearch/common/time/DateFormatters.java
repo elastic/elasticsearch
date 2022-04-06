@@ -9,8 +9,6 @@
 package org.elasticsearch.common.time;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.time.Instant;
@@ -43,13 +41,6 @@ import static java.time.temporal.ChronoField.NANO_OF_SECOND;
 import static java.time.temporal.ChronoField.SECOND_OF_MINUTE;
 
 public class DateFormatters {
-    // DateFormatters is being used even before the logging is initialized.
-    // If LogManager.getLogger is called before logging config is loaded
-    // it results in errors sent to status logger and startup to fail.
-    // Hence a lazy initialization.
-    private static final LazyInitializable<DeprecationLogger, RuntimeException> deprecationLogger = new LazyInitializable<>(
-        () -> DeprecationLogger.getLogger(FormatNames.class)
-    );
 
     public static final WeekFields WEEK_FIELDS_ROOT = WeekFields.of(Locale.ROOT);
 

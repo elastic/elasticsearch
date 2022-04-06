@@ -284,4 +284,9 @@ public class MatchPhrasePrefixQueryBuilder extends AbstractQueryBuilder<MatchPhr
         matchQuery.zeroTermsQuery(zeroTermsQuery);
         return matchQuery;
     }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
+    }
 }

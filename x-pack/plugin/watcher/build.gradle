@@ -26,7 +26,7 @@ dependencies {
 
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(xpackModule('ilm'))
-  testImplementation project(xpackModule('data-streams'))
+  testImplementation project(':modules:data-streams')
   testImplementation project(':modules:lang-mustache')
 
   // watcher deps

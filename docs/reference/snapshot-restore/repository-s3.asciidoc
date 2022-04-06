@@ -1,5 +1,5 @@
 [[repository-s3]]
-=== S3 Repository
+=== S3 repository
 
 You can use AWS S3 as a repository for {ref}/modules-snapshots.html[Snapshot/Restore].
 
@@ -7,7 +7,7 @@ You can use AWS S3 as a repository for {ref}/modules-snapshots.html[Snapshot/Res
 https://www.elastic.co/cloud/.*
 
 [[repository-s3-usage]]
-==== Getting Started
+==== Getting started
 
 To register an S3 repository, specify the type as `s3` when creating
 the repository. The repository defaults to using
@@ -30,7 +30,7 @@ PUT _snapshot/my_s3_repository
 
 
 [[repository-s3-client]]
-==== Client Settings
+==== Client settings
 
 The client that you use to connect to S3 has a number of settings available.
 The settings have the form `s3.client.CLIENT_NAME.SETTING_NAME`. By default,
@@ -207,8 +207,13 @@ the `repository-s3` type allows you to use these systems in place of AWS S3.
 To do so, you should set the `s3.client.CLIENT_NAME.endpoint` setting to the
 system's endpoint. This setting accepts IP addresses and hostnames and may
 include a port. For example, the endpoint may be `172.17.0.2` or
-`172.17.0.2:9000`. You may also need to set `s3.client.CLIENT_NAME.protocol` to
-`http` if the endpoint does not support HTTPS.
+`172.17.0.2:9000`.
+
+By default {es} communicates with your storage system using HTTPS, and
+validates the repository's certificate chain using the JVM-wide truststore.
+Ensure that the JVM-wide truststore includes an entry for your repository. If
+you wish to use unsecured HTTP communication instead of HTTPS, set
+`s3.client.CLIENT_NAME.protocol` to `http`.
 
 https://minio.io[MinIO] is an example of a storage system that provides an
 S3-compatible API. The `repository-s3` type allows {es} to work with
@@ -216,14 +221,14 @@ MinIO-backed repositories as well as repositories stored on AWS S3. Other
 S3-compatible storage systems may also work with {es}, but these are not
 covered by the {es} test suite.
 
-Note that some storage systems claim to be S3-compatible without correctly
-supporting the full S3 API. The `repository-s3` type requires full
+Note that some storage systems claim to be S3-compatible but do not faithfully
+emulate S3's behaviour in full. The `repository-s3` type requires full
 compatibility with S3. In particular it must support the same set of API
-endpoints, return the same errors in case of failures, and offer a consistency
-model no weaker than S3's when accessed concurrently by multiple nodes.
-Incompatible error codes and consistency models may be particularly hard to
-track down since errors and consistency failures are usually rare and hard to
-reproduce.
+endpoints, return the same errors in case of failures, and offer consistency
+and performance at least as good as S3 even when accessed concurrently by
+multiple nodes. Incompatible error codes, consistency or performance may be
+particularly hard to track down since errors, consistency failures, and
+performance issues are usually rare and hard to reproduce.
 
 You can perform some basic checks of the suitability of your storage system
 using the {ref}/repo-analysis-api.html[repository analysis API]. If this API
@@ -233,7 +238,7 @@ use as a snapshot repository. You will need to work with the supplier of your
 storage system to address any incompatibilities you encounter.
 
 [[repository-s3-repository]]
-==== Repository Settings
+==== Repository settings
 
 The `s3` repository type supports a number of settings to customize how data is
 stored in S3. These can be specified when creating the repository. For example:
@@ -271,6 +276,10 @@ bucket naming rules].
     Specifies the path to the repository data within its bucket. Defaults to an
     empty string, meaning that the repository is at the root of the bucket. The
     value of this setting should not start or end with a `/`.
++
+NOTE: Don't set `base_path` when configuring a snapshot repository for {ECE}.
+{ECE} automatically generates the `base_path` for each deployment so that
+multiple deployments may share the same bucket.
 
 `chunk_size`::
 
@@ -359,7 +368,7 @@ This sets up a repository that uses all client settings from the client
 `my.s3.endpoint` by the repository settings.
 
 [[repository-s3-permissions]]
-===== Recommended S3 Permissions
+===== Recommended S3 permissions
 
 In order to restrict the Elasticsearch snapshot process to the minimum required
 resources, we recommend using Amazon IAM in conjunction with pre-existing S3
@@ -480,7 +489,7 @@ reach a certain age.
 
 [[repository-s3-aws-vpc]]
 [discrete]
-==== AWS VPC Bandwidth Settings
+==== AWS VPC bandwidth settings
 
 AWS instances resolve S3 endpoints to a public IP. If the Elasticsearch
 instances reside in a private subnet in an AWS VPC then all traffic to S3 will

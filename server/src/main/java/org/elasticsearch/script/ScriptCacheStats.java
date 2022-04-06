@@ -19,7 +19,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 // This class is deprecated in favor of ScriptStats and ScriptContextStats
 public class ScriptCacheStats implements Writeable, ToXContentFragment {
@@ -64,7 +63,7 @@ public class ScriptCacheStats implements Writeable, ToXContentFragment {
 
         out.writeBoolean(true);
         out.writeInt(context.size());
-        for (String name : context.keySet().stream().sorted().collect(Collectors.toList())) {
+        for (String name : context.keySet().stream().sorted().toList()) {
             out.writeString(name);
             context.get(name).writeTo(out);
         }
@@ -89,7 +88,7 @@ public class ScriptCacheStats implements Writeable, ToXContentFragment {
         builder.endObject();
 
         builder.startArray(Fields.CONTEXTS);
-        for (String name : context.keySet().stream().sorted().collect(Collectors.toList())) {
+        for (String name : context.keySet().stream().sorted().toList()) {
             ScriptStats stats = context.get(name);
             builder.startObject();
             builder.field(Fields.CONTEXT, name);

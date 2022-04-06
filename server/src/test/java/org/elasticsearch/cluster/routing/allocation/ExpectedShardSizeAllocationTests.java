@@ -129,8 +129,8 @@ public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
             false,
             false
         );
-        assertThat(commandsResult.getClusterState(), not(equalTo(clusterState)));
-        clusterState = commandsResult.getClusterState();
+        assertThat(commandsResult.clusterState(), not(equalTo(clusterState)));
+        clusterState = commandsResult.clusterState();
         assertEquals(clusterState.getRoutingNodes().node(existingNodeId).iterator().next().state(), ShardRoutingState.RELOCATING);
         assertEquals(clusterState.getRoutingNodes().node(toNodeId).iterator().next().state(), ShardRoutingState.INITIALIZING);
 

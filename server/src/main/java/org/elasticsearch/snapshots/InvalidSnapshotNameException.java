@@ -30,5 +30,4 @@ public class InvalidSnapshotNameException extends SnapshotException {
     public RestStatus status() {
         return RestStatus.BAD_REQUEST;
     }
-
 }

@@ -66,11 +66,11 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
     }
 
     @After
-    public void shutdownThreadPool() throws Exception {
+    public void shutdownThreadPool() {
         terminate(threadPool);
     }
 
-    public void testNoDelayedUnassigned() throws Exception {
+    public void testNoDelayedUnassigned() {
         Metadata metadata = Metadata.builder()
             .put(
                 IndexMetadata.builder("test")
@@ -130,7 +130,14 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
             .routingTable(RoutingTable.builder().addAsNew(metadata.index("test")).build())
             .build();
         clusterState = ClusterState.builder(clusterState)
-            .nodes(DiscoveryNodes.builder().add(newNode("node1")).add(newNode("node2")).localNodeId("node1").masterNodeId("node1"))
+            .nodes(
+                DiscoveryNodes.builder()
+                    .add(newNode("node0", singleton(DiscoveryNodeRole.MASTER_ROLE)))
+                    .localNodeId("node0")
+                    .masterNodeId("node0")
+                    .add(newNode("node1"))
+                    .add(newNode("node2"))
+            )
             .build();
         final long baseTimestampNanos = System.nanoTime();
         allocationService.setNanoTimeOverride(baseTimestampNanos);
@@ -398,7 +405,7 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
         verifyNoMoreInteractions(clusterService);
     }
 
-    public void testDelayedUnassignedScheduleRerouteRescheduledOnShorterDelay() throws Exception {
+    public void testDelayedUnassignedScheduleRerouteRescheduledOnShorterDelay() {
         TimeValue delaySetting = timeValueSeconds(30);
         TimeValue shorterDelaySetting = timeValueMillis(100);
         Metadata metadata = Metadata.builder()
@@ -424,12 +431,13 @@ public class DelayedAllocationServiceTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
             .nodes(
                 DiscoveryNodes.builder()
+                    .add(newNode("node0", singleton(DiscoveryNodeRole.MASTER_ROLE)))
+                    .localNodeId("node0")
+                    .masterNodeId("node0")
                     .add(newNode("node1"))
                     .add(newNode("node2"))
                     .add(newNode("node3"))
                     .add(newNode("node4"))
-                    .localNodeId("node1")
-                    .masterNodeId("node1")
             )
             .build();
         final long nodeLeftTimestampNanos = System.nanoTime();

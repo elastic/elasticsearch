@@ -8,10 +8,10 @@
 package org.elasticsearch.xpack.autoscaling;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.NamedDiff;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -169,7 +169,7 @@ public class AutoscalingMetadata implements Metadata.Custom {
         }
 
         static Diff<AutoscalingPolicyMetadata> readFrom(final StreamInput in) throws IOException {
-            return AbstractDiffable.readDiffFrom(AutoscalingPolicyMetadata::new, in);
+            return SimpleDiffable.readDiffFrom(AutoscalingPolicyMetadata::new, in);
         }
 
         @Override

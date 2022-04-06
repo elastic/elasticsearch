@@ -12,6 +12,7 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -38,7 +39,7 @@ import java.util.function.BiConsumer;
 public class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
 
     private static final Logger LOGGER = LogManager.getLogger(JsonDataToProcessWriter.class);
-    private final NamedXContentRegistry xContentRegistry;
+    private final XContentParserConfiguration parserConfig;
 
     public JsonDataToProcessWriter(
         boolean includeControlField,
@@ -50,7 +51,8 @@ public class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
         NamedXContentRegistry xContentRegistry
     ) {
         super(includeControlField, includeTokensField, autodetectProcess, dataDescription, analysisConfig, dataCountsReporter, LOGGER);
-        this.xContentRegistry = xContentRegistry;
+        this.parserConfig = XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry)
+            .withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
     }
 
     /**
@@ -82,10 +84,7 @@ public class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
     }
 
     private void writeJsonXContent(CategorizationAnalyzer categorizationAnalyzer, InputStream inputStream) throws IOException {
-        try (
-            XContentParser parser = XContentFactory.xContent(XContentType.JSON)
-                .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, inputStream)
-        ) {
+        try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, inputStream)) {
             writeJson(categorizationAnalyzer, parser);
         }
     }
@@ -96,10 +95,7 @@ public class JsonDataToProcessWriter extends AbstractDataToProcessWriter {
             if (nextObject.length == 0) {
                 break;
             }
-            try (
-                XContentParser parser = XContentFactory.xContent(XContentType.SMILE)
-                    .createParser(xContentRegistry, LoggingDeprecationHandler.INSTANCE, nextObject)
-            ) {
+            try (XContentParser parser = XContentFactory.xContent(XContentType.SMILE).createParser(parserConfig, nextObject)) {
                 writeJson(categorizationAnalyzer, parser);
             }
         }

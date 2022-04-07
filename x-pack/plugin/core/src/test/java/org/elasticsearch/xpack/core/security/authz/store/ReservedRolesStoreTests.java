@@ -612,7 +612,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         });
 
         // read-only indices for APM telemetry
-        Arrays.asList("apm-*").forEach((index) -> {
+        Arrays.asList("apm-*", "traces-apm*", "metrics-apm*", "logs-apm*").forEach((index) -> {
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:foo").test(mockIndexAbstraction(index)), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher("indices:bar").test(mockIndexAbstraction(index)), is(false));
             assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(mockIndexAbstraction(index)), is(false));

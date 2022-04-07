@@ -26,4 +26,20 @@ public class MacaroonTests extends ESTestCase {
         MacaroonsVerifier verifier = new MacaroonsVerifier(macaroon);
         assertThat(verifier.isValid(secretKey), is(true));
     }
+
+    public void testAddCaveatFromSerialized() {
+        String caveat = "{\"query\": {\"match\": \"bar\"}}";
+        Macaroon m = MacaroonsBuilder.modify(
+            MacaroonsBuilder.deserialize(
+                "MDAwZmxvY2F0aW9uIC8KMDAxMWlkZW50aWZpZXIgMQowMDJmc2lnbmF0dXJlIFFLoPFQySWx54WFgbZblBo84k_XZxAHUE5bATxeHJT1Cg"
+            )
+        ).add_first_party_caveat(caveat).getMacaroon();
+        System.out.println(m.serialize());
+    }
+
+    public void testAddCaveat() {
+        String caveat = "{\"query\": {\"match\": \"bar\"}}";
+        Macaroon m = new MacaroonsBuilder("", "key", "123").add_first_party_caveat(caveat).getMacaroon();
+        System.out.println(m.serialize());
+    }
 }

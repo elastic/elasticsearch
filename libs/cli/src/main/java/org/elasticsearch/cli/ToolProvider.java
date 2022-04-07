@@ -47,7 +47,10 @@ public interface ToolProvider {
         return StreamSupport.stream(toolFinder.spliterator(), false)
             .filter(p -> p.name().equals(toolname))
             .findFirst()
-            .orElseThrow(() -> new AssertionError("ToolProvider [" + toolname + "] not found"));
+            .orElseThrow(() -> {
+                var names = StreamSupport.stream(toolFinder.spliterator(), false).map(ToolProvider::name).toList();
+                return new AssertionError("ToolProvider [" + toolname + "] not found, available names are " + names);
+            });
     }
 
     private static ClassLoader loadJars(List<Path> dirs) throws IOException {

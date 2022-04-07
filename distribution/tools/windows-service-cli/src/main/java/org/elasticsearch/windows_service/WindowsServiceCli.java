@@ -135,7 +135,7 @@ class WindowsServiceCli extends MultiCommand {
     private static final Command managerCommand = new ProcrunCommand("Starts the Elasticsearch Windows Service manager", "manage") {
         @Override
         protected String getExecutable() {
-            return "elasticsearch-service-mgr";
+            return "elasticsearch-service-mgr.exe";
         }
         @Override
         protected String getSuccessMessage(String serviceId) {

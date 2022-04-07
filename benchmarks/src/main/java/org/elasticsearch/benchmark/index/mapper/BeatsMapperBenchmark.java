@@ -70,15 +70,15 @@ public class BeatsMapperBenchmark {
     @Param({ "1600172297" })
     private long seed;
 
+    private Random random;
     private MapperService mapperService;
     private SourceToParse[] sources;
-    private Random random;
 
     @Setup
     public void setUp() throws IOException, URISyntaxException {
-        this.mapperService = createMapperService(readSampleMapping());
-        this.sources = readSampleDocuments();
         this.random = new Random(seed);
+        this.mapperService = createMapperService(readSampleMapping());
+        this.sources = generateRandomDocuments(10_000);
     }
 
     private static String readSampleMapping() throws IOException, URISyntaxException {
@@ -92,16 +92,28 @@ public class BeatsMapperBenchmark {
             .toArray(SourceToParse[]::new);
     }
 
-    private SourceToParse generateSampleDocument() {
+    private SourceToParse[] generateRandomDocuments(int count) {
+        var docs = new SourceToParse[count];
+        for (int i = 0; i < count; i++) {
+            docs[i] = generateRandomDocument();
+        }
+        return docs;
+    }
+
+    private SourceToParse generateRandomDocument() {
         return new SourceToParse(
             UUIDs.randomBase64UUID(),
             new BytesArray(
-                "{"
-                    + "    \"@timestamp\": " + System.currentTimeMillis() + ","
-                    + "    \"client.ip\": \"" + randomIp() + "\","
-                    + "    \"http.request.method\": \"" + randomFrom("GET", "POST") + "\","
-                    + "    \"url.path\": \"" + randomString(1024) + "\","
-                    + "    \"http.response.status_code\": " + randomFrom(200, 204, 300, 404, 500)
+                "{    \"@timestamp\": "
+                    + System.currentTimeMillis()
+                    + ",    \"client.ip\": \""
+                    + randomIp()
+                    + "\",    \"http.request.method\": \""
+                    + randomFrom("GET", "POST")
+                    + "\",    \"url.path\": \""
+                    + randomString(1024)
+                    + "\",    \"http.response.status_code\": "
+                    + randomFrom(200, 204, 300, 404, 500)
                     + "}"
             ),
             XContentType.JSON
@@ -172,6 +184,6 @@ public class BeatsMapperBenchmark {
 
     @Benchmark
     public List<LuceneDocument> benchmarkParseKeywordFields() {
-        return mapperService.documentMapper().parse(generateSampleDocument()).docs();
+        return mapperService.documentMapper().parse(randomFrom(sources)).docs();
     }
 }

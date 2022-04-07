@@ -72,17 +72,7 @@ class ServerCli extends EnvironmentAwareCommand {
             throw new UserException(ExitCodes.USAGE, "Positional arguments not allowed, found " + options.nonOptionArguments());
         }
         if (options.has(versionOption)) {
-            final String versionOutput = String.format(
-                Locale.ROOT,
-                "Version: %s, Build: %s/%s/%s/%s, JVM: %s",
-                Build.CURRENT.qualifiedVersion(),
-                Build.CURRENT.flavor().displayName(),
-                Build.CURRENT.type().displayName(),
-                Build.CURRENT.hash(),
-                Build.CURRENT.date(),
-                JvmInfo.jvmInfo().version()
-            );
-            terminal.println(versionOutput);
+            printVersion(terminal);
             return;
         }
 
@@ -92,45 +82,12 @@ class ServerCli extends EnvironmentAwareCommand {
 
         Map<String, String> envVars = new HashMap<>(System.getenv());
         Path tempDir = TempDirectory.initialize(envVars);
-        final SecureString keystorePassword;
-        try {
-            KeyStoreWrapper keystore = KeyStoreWrapper.load(KeyStoreWrapper.keystorePath(env.configFile()));
-            if (keystore != null && keystore.hasPassword()) {
-                keystorePassword = new SecureString(terminal.readSecret(KeyStoreWrapper.PROMPT, KeyStoreWrapper.MAX_PASSPHRASE_LENGTH));
-            } else {
-                keystorePassword = new SecureString(new char[0]);
-            }
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+        final SecureString keystorePassword = getKeystorePassword(env.configFile(), terminal);
+        autoConfigureSecurity(terminal, options, keystorePassword);
 
-        KeystorePasswordTerminal autoConfigTerminal = new KeystorePasswordTerminal(terminal, keystorePassword);
-        Command autoConfigNode;
-        try {
-            String autoConfigLibs = "modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli";
-            autoConfigNode = ToolProvider.loadTool("auto-configure-node", autoConfigLibs).create();
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-        if (options.has(enrollmentTokenOption)) {
-            final String enrollmentToken = enrollmentTokenOption.value(options);
-            // TODO: add -E params
-            int ret = autoConfigNode.main(new String[] { enrollmentTokenOption.options().get(0), enrollmentToken}, autoConfigTerminal);
-            if (ret != 0) {
-                throw new UserException(ret, "Auto security enrollment failed");
-            }
-        } else {
-            // TODO: add -E params
-            int ret = autoConfigNode.main(new String[0], autoConfigTerminal);
-            switch (ret) {
-                case ExitCodes.OK, ExitCodes.CANT_CREATE, ExitCodes.CONFIG, ExitCodes.NOOP: break;
-                default: throw new UserException(ret, "Auto security enrollment failed");
-            }
-        }
-
-
-        // reload settings now that auto configuration has occurred
+        // reload settings since auto security might have changed them
         env = createEnv(options);
+        // TODO: add keystore password to server args
         ServerArgs serverArgs = new ServerArgs(daemonize, pidFile, env.settings(), env.configFile());
 
         List<String> jvmOptions = JvmOptionsParser.determine(env.configFile(), env.pluginsFile(), tempDir, envVars.get("ES_JAVA_OPTS"));
@@ -139,31 +96,14 @@ class ServerCli extends EnvironmentAwareCommand {
         jvmOptions.add("-Des.distribution.type=" + System.getProperty("es.distribution.type"));
         jvmOptions.add("-Des.bundled_jdk=" + System.getProperty("es.bundled_jdk"));
 
-        /*
-        create process
-        - set command
-          1. figure out java path
-          2. add jvm options
-          3. add classpath
-          4. add main class
-          5. add args
-        - set env
-        - set redirects
-
-        launch java process
-        if (daemon) exit (TODO: wait until server is started)
-        wait on process
-
-         */
-        String esHome = System.getProperty("es.path.home");
+        Path esHome = PathUtils.get(System.getProperty("es.path.home"));
         Path javaHome = PathUtils.get(System.getProperty("java.home"));
         List<String> command = new ArrayList<>();
         // TODO: fix this so it works on windows
         command.add(javaHome.resolve("bin").resolve("java").toString());
         command.addAll(jvmOptions);
         command.add("-cp");
-        // TODO: fix this to work on windows
-        command.add(esHome + "/lib/*");
+        command.add(esHome.resolve("lib").resolve("*").toString());
         command.add("org.elasticsearch.bootstrap.Elasticsearch");
         System.out.println("command: " + command);
 
@@ -230,5 +170,58 @@ class ServerCli extends EnvironmentAwareCommand {
         } catch (NodeValidationException e) {
             throw new UserException(ExitCodes.CONFIG, e.getMessage());
         }*/
+    }
+
+    private void printVersion(Terminal terminal) {
+        final String versionOutput = String.format(
+            Locale.ROOT,
+            "Version: %s, Build: %s/%s/%s/%s, JVM: %s",
+            Build.CURRENT.qualifiedVersion(),
+            Build.CURRENT.flavor().displayName(),
+            Build.CURRENT.type().displayName(),
+            Build.CURRENT.hash(),
+            Build.CURRENT.date(),
+            JvmInfo.jvmInfo().version()
+        );
+        terminal.println(versionOutput);
+    }
+
+    private SecureString getKeystorePassword(Path configDir, Terminal terminal) {
+        try {
+            KeyStoreWrapper keystore = KeyStoreWrapper.load(KeyStoreWrapper.keystorePath(configDir));
+            if (keystore != null && keystore.hasPassword()) {
+                return new SecureString(terminal.readSecret(KeyStoreWrapper.PROMPT, KeyStoreWrapper.MAX_PASSPHRASE_LENGTH));
+            } else {
+                return new SecureString(new char[0]);
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+    }
+
+    private void autoConfigureSecurity(Terminal terminal, OptionSet options, SecureString keystorePassword) throws UserException {
+        KeystorePasswordTerminal autoConfigTerminal = new KeystorePasswordTerminal(terminal, keystorePassword);
+        Command autoConfigNode;
+        try {
+            String autoConfigLibs = "modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli";
+            autoConfigNode = ToolProvider.loadTool("auto-configure-node", autoConfigLibs).create();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
+        if (options.has(enrollmentTokenOption)) {
+            final String enrollmentToken = enrollmentTokenOption.value(options);
+            // TODO: add -E params
+            int ret = autoConfigNode.main(new String[] { enrollmentTokenOption.options().get(0), enrollmentToken}, autoConfigTerminal);
+            if (ret != 0) {
+                throw new UserException(ret, "Auto security enrollment failed");
+            }
+        } else {
+            // TODO: add -E params
+            int ret = autoConfigNode.main(new String[0], autoConfigTerminal);
+            switch (ret) {
+                case ExitCodes.OK, ExitCodes.CANT_CREATE, ExitCodes.CONFIG, ExitCodes.NOOP: break;
+                default: throw new UserException(ret, "Auto security enrollment failed");
+            }
+        }
     }
 }

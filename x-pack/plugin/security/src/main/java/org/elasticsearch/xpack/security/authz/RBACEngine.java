@@ -37,8 +37,12 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.async.DeleteAsyncResultAction;
 import org.elasticsearch.xpack.core.eql.EqlAsyncActionNames;
 import org.elasticsearch.xpack.core.search.action.GetAsyncSearchAction;
@@ -80,6 +84,7 @@ import org.elasticsearch.xpack.core.sql.SqlAsyncActionNames;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -146,7 +151,7 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     private static boolean isSearchRequestWithMacaroon(TransportRequest request) {
-        return request instanceof SearchRequest && ((SearchRequest) request).macaroon() != null;
+        return request instanceof SearchRequest && ((SearchRequest) request).source().macaroon() != null;
     }
 
     @Override
@@ -400,7 +405,7 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     private void authorizeSearchRequestWithMacaroon(ActionListener<IndexAuthorizationResult> listener, SearchRequest searchRequest) {
-        String macaroon = searchRequest.macaroon();
+        String macaroon = searchRequest.source().macaroon();
         logger.info("Authorizing search request with macaroon [{}]", macaroon);
         if (searchRequest.pointInTimeBuilder() == null) {
             listener.onResponse(new IndexAuthorizationResult(true, IndicesAccessControl.DENIED));
@@ -409,7 +414,7 @@ public class RBACEngine implements AuthorizationEngine {
 
         String pointInTimeId = searchRequest.pointInTimeBuilder().getEncodedId();
 
-        boolean isValid = macaroonService.isMacaroonValid(macaroon, pointInTimeId);
+        boolean isValid = macaroonService.isMacaroonValid(macaroon, pointInTimeId, searchRequest.source().query());
 
         logger.info("Macaroon for [{}] is valid [{}]", pointInTimeId, isValid);
 

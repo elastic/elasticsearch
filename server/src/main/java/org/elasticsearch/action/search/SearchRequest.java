@@ -102,9 +102,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
 
     private TimeValue waitForCheckpointsTimeout = TimeValue.timeValueSeconds(30);
 
-    @Nullable
-    private String macaroon;
-
     public SearchRequest() {
         this((Version) null);
     }
@@ -204,7 +201,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         this.maxConcurrentShardRequests = searchRequest.maxConcurrentShardRequests;
         this.preference = searchRequest.preference;
         this.preFilterShardSize = searchRequest.preFilterShardSize;
-        this.macaroon = searchRequest.macaroon;
         this.requestCache = searchRequest.requestCache;
         this.routing = searchRequest.routing;
         this.scroll = searchRequest.scroll;
@@ -230,7 +226,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         indices = in.readStringArray();
         routing = in.readOptionalString();
         preference = in.readOptionalString();
-        macaroon = in.readOptionalString();
         scroll = in.readOptionalWriteable(Scroll::new);
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
         if (in.getVersion().before(Version.V_8_0_0)) {
@@ -275,7 +270,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         out.writeStringArray(indices);
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
-        out.writeOptionalString(macaroon);
         out.writeOptionalWriteable(scroll);
         out.writeOptionalWriteable(source);
         if (out.getVersion().before(Version.V_8_0_0)) {
@@ -429,15 +423,6 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         validateIndices(indices);
         this.indices = indices;
         return this;
-    }
-
-    public SearchRequest macaroon(String macaroon) {
-        this.macaroon = macaroon;
-        return this;
-    }
-
-    public String macaroon() {
-        return macaroon;
     }
 
     private static void validateIndices(String... indices) {

@@ -200,10 +200,6 @@ public class RestSearchAction extends BaseRestHandler {
 
         checkRestTotalHits(request, searchRequest);
 
-        String macaroon = searchRequest.source().getMacaroon();
-        if (macaroon != null) {
-            searchRequest.macaroon(macaroon);
-        }
         if (searchRequest.pointInTimeBuilder() != null) {
             preparePointInTime(searchRequest, request, namedWriteableRegistry);
         } else {

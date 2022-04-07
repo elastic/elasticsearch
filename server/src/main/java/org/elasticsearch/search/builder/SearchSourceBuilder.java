@@ -242,6 +242,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         seqNoAndPrimaryTerm = in.readOptionalBoolean();
         extBuilders = in.readNamedWriteableList(SearchExtBuilder.class);
         profile = in.readBoolean();
+        macaroon = in.readOptionalString();
         searchAfterBuilder = in.readOptionalWriteable(SearchAfterBuilder::new);
         sliceBuilder = in.readOptionalWriteable(SliceBuilder::new);
         collapse = in.readOptionalWriteable(CollapseBuilder::new);
@@ -305,6 +306,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         out.writeOptionalBoolean(seqNoAndPrimaryTerm);
         out.writeNamedWriteableList(extBuilders);
         out.writeBoolean(profile);
+        out.writeOptionalString(macaroon);
         out.writeOptionalWriteable(searchAfterBuilder);
         out.writeOptionalWriteable(sliceBuilder);
         out.writeOptionalWriteable(collapse);
@@ -1504,11 +1506,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         return builder;
     }
 
-    public String getMacaroon() {
+    public String macaroon() {
         return macaroon;
     }
 
-    public void setMacaroon(String macaroon) {
+    public void macaroon(String macaroon) {
         this.macaroon = macaroon;
     }
 

@@ -292,11 +292,11 @@ public final class MappingLookup {
 
     private void checkFieldNameLengthLimit(long limit) {
         Stream.concat(objectMappers.values().stream(), fieldMappers.values().stream()).forEach(mapper -> {
-                String name = mapper.simpleName();
-                if (name.length() > limit) {
-                    throw new IllegalArgumentException("Field name [" + name + "] is longer than the limit of [" + limit + "] characters");
-                }
-            });
+            String name = mapper.simpleName();
+            if (name.length() > limit) {
+                throw new IllegalArgumentException("Field name [" + name + "] is longer than the limit of [" + limit + "] characters");
+            }
+        });
     }
 
     private void checkNestedLimit(long limit) {

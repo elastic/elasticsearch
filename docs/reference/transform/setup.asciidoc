@@ -24,7 +24,7 @@ To use {transforms}, you must have:
 [[transform-privileges]]
 == Security privileges
 
-Assigning security privileges affects how users access {transforms}. Consider 
+Assigning security privileges affects how users access {transforms}. Consider
 the two main categories:
 
 * *<<transform-es-security-privileges>>*: uses an {es} client, cURL, or {kib}
@@ -42,7 +42,8 @@ To _manage_ {transforms}, you must meet all of the following requirements:
 * `transform_admin` built-in role or `manage_transform` cluster privileges,
 * `read` and `view_index_metadata` index privileges on source indices, and
 * `create_index`, `index`, `manage`, and `read` index privileges on destination
-indices
+indices. If a `retention_policy` is configured, `delete` index privilege is
+also required on the destination index.
 
 To view only the configuration and status of {transforms}, you must have:
 
@@ -68,7 +69,8 @@ views already exist for your destination indices),
 * data views for your source indices,
 * `read` and `view_index_metadata` index privileges on source indices, and
 * `create_index`, `index`, `manage`, and `read` index privileges on destination
-indices 
+indices. Additionally, when using a `retention_policy`, `delete` index privilege is required
+on destination indices.
 * `read_pipeline` cluster privileges, if the {transform} uses an ingest pipeline
 
 Within a {kib} space, for read-only access to {transforms}, you must meet all of
@@ -81,7 +83,7 @@ the following requirements:
 for at least one feature in the space,
 * data views for your source and destination indices, and
 * `read`, and `view_index_metadata` index privileges on source indices and
-destination indices 
+destination indices
 
 For more information and {kib} security features, see
 {kibana-ref}/kibana-role-management.html[{kib} role management] and
@@ -92,9 +94,9 @@ For more information and {kib} security features, see
 [[transform-kib-spaces]]
 == {kib} spaces
 
-{kibana-ref}/xpack-spaces.html[Spaces] enable you to organize your source and 
-destination indices and other saved objects in {kib} and to see only the objects 
-that belong to your space. However, this limited scope does not apply to 
+{kibana-ref}/xpack-spaces.html[Spaces] enable you to organize your source and
+destination indices and other saved objects in {kib} and to see only the objects
+that belong to your space. However, this limited scope does not apply to
 {transforms}; they are visible in all spaces.
 
 To successfully create {transforms} in {kib}, you must be logged into a space

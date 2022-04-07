@@ -24,7 +24,7 @@ brew install elastic/tap/elasticsearch-full
 ==== Directory layout for Homebrew installs
 
 When you install {es} with `brew install` the config files, logs,
-and data directory are stored in the following locations.
+and data directory are stored in the following locations (you can alternatively find these locations by running `brew info elasticsearch-full`).
 
 [cols="<h,<,<m,<m",options="header",]
 |=======================================================================

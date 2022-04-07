@@ -74,11 +74,11 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
             if (subpaths.length == 1 && field.endsWith(".") == false) {
                 return;
             }
+            XContentLocation location = delegate.getTokenLocation();
             Token token = delegate.nextToken();
             if (token == Token.END_OBJECT || token == Token.END_ARRAY) {
                 throw new IllegalStateException("Expecting START_OBJECT or START_ARRAY or VALUE but got [" + token + "]");
             } else {
-                var location = delegate.getTokenLocation();
                 var parser = (token == Token.START_OBJECT || token == Token.START_ARRAY)
                     ? new XContentSubParser(delegate)
                     : new SingletonValueXContentParser(delegate);

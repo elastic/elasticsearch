@@ -46,6 +46,7 @@ public class WatchStoreUtilsTests extends ESTestCase {
             dataStreamName,
             DataStreamTestHelper.newInstance(
                 dataStreamName,
+                new DataStream.TimestampField(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD),
                 indexNames.stream().map(indexName -> new Index(indexName, IndexMetadata.INDEX_UUID_NA_VALUE)).collect(Collectors.toList())
             )
         );

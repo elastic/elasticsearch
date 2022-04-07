@@ -286,6 +286,11 @@ public class JarHell {
                         + " !!!!!!!!!"
                 );
             } else {
+                if (clazz.startsWith("com.microsoft.schemas") ||
+                    clazz.startsWith("org.openxmlformats.schemas") ||
+                    clazz.startsWith("schemaorg_apache_xmlbeans")) {
+                    return; // TODO - fr.opensagres uses ooxml-schemas, poi uses poi-ooxml-schemas,
+                }
                 throw new IllegalStateException(
                     "jar hell!"
                         + System.lineSeparator()

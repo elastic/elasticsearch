@@ -85,19 +85,21 @@ dependencies {
   // transitives for thumbnails4j
   api ("co.elastic.thumbnails4j:thumbnails4j-core:${versions.thumbnails4j}")
   api ("com.github.virtuald:curvesapi:1.06")
-  api ("org.jvnet.staxex:stax-ex:1.8.1")
-  api ("com.sun.xml.fastinfoset:FastInfoset:1.2.16")
   api ("fr.opensagres.xdocreport:fr.opensagres.xdocreport.converter.docx.xwpf:2.0.2")
   api ("fr.opensagres.xdocreport:fr.opensagres.xdocreport.converter:2.0.2")
   api ("fr.opensagres.xdocreport:fr.opensagres.xdocreport.core:2.0.2")
   api ("fr.opensagres.xdocreport:fr.opensagres.poi.xwpf.converter.pdf:2.0.2")
+  api ("fr.opensagres.xdocreport:fr.opensagres.poi.xwpf.converter.core:2.0.2")
+  api ("org.apache.poi:ooxml-schemas:1.4")
   api ("fr.opensagres.xdocreport:fr.opensagres.xdocreport.itext.extension:2.0.2")
   api ("fr.opensagres.xdocreport:fr.opensagres.poi.xwpf.converter.xhtml:2.0.2")
-  api ("com.sun.istack:istack-commons-runtime:3.0.8")
-  api ("jakarta.xml.bind:jakarta.xml.bind-api:2.3.2")
-  api ("jakarta.activation:jakarta.activation-api:1.2.1")
-  api ("org.glassfish.jaxb:jaxb-runtime:2.3.2")
-  api ("org.glassfish.jaxb:txw2:2.3.2")
+  implementation ("jakarta.xml.bind:jakarta.xml.bind-api:2.3.2")
+  implementation ("jakarta.activation:jakarta.activation-api:1.2.1")
+  implementation ("org.glassfish.jaxb:jaxb-runtime:2.3.2")
+  implementation ("org.glassfish.jaxb:txw2:2.3.2")
+  implementation ("com.sun.istack:istack-commons-runtime:3.0.8")
+  implementation ("org.jvnet.staxex:stax-ex:1.8.1")
+  implementation ("com.sun.xml.fastinfoset:FastInfoset:1.2.16")
 }
 
 restResources {

@@ -33,7 +33,7 @@ public class MacaroonService {
     }
 
     private String pointInTimeIdCaveat(String pointInTimeId) {
-        return "pid_id = [%s]".formatted(pointInTimeId);
+        return "pit_id = [%s]".formatted(pointInTimeId);
     }
 
     public boolean isMacaroonValid(String macaroonPayload, String pointInTimeId) {

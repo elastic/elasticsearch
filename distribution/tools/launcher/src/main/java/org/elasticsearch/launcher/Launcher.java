@@ -37,6 +37,8 @@ import java.util.stream.StreamSupport;
 
 class Launcher {
 
+    private static volatile Command command;
+
     // TODO: don't throw, catch this and give a nice error message
     public static void main(String[] args) throws Exception {
         configureLoggingWithoutConfig();
@@ -55,8 +57,8 @@ class Launcher {
         System.out.println("libs: " + libs);
         System.out.println("args: " + Arrays.asList(args));
 
-        Command toolCommand = ToolProvider.loadTool(toolname, libs).create();
-        System.exit(toolCommand.main(args, Terminal.DEFAULT));
+        command = ToolProvider.loadTool(toolname, libs).create();
+        System.exit(command.main(args, Terminal.DEFAULT));
     }
 
     private static Map<String, String> convertPropertiesToMap(Properties properties) {
@@ -73,5 +75,18 @@ class Launcher {
         final String loggerLevel = System.getProperty("es.logger.level", Level.INFO.name());
         final Settings settings = Settings.builder().put("logger.level", loggerLevel).build();
         LogConfigurator.configureWithoutConfig(settings);
+    }
+
+    /**
+     * Required method that's called by Apache Commons procrun when
+     * running as a service on Windows, when the service is stopped.
+     *
+     * http://commons.apache.org/proper/commons-daemon/procrun.html
+     *
+     * NOTE: If this method is renamed and/or moved, make sure to
+     * update elasticsearch-service.bat!
+     */
+    static void close(String[] args) throws IOException {
+        command.close();
     }
 }

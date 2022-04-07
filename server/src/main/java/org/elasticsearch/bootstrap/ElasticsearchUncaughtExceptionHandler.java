@@ -54,21 +54,21 @@ class ElasticsearchUncaughtExceptionHandler implements Thread.UncaughtExceptionH
     void onFatalUncaught(final String threadName, final Throwable t) {
         final String message = "fatal error in thread [" + threadName + "], exiting";
         logger.error(message, t);
-        Terminal.DEFAULT.errorPrintln(message);
+        /*Terminal.DEFAULT.errorPrintln(message);
         t.printStackTrace(Terminal.DEFAULT.getErrorWriter());
         // Without a final flush, the stacktrace may not be shown before ES exits
-        Terminal.DEFAULT.flush();
+        Terminal.DEFAULT.flush();*/
 
-        Elasticsearch.printLogsSuggestion();
+        //Elasticsearch.printLogsSuggestion();
     }
 
     void onNonFatalUncaught(final String threadName, final Throwable t) {
         final String message = "uncaught exception in thread [" + threadName + "]";
         logger.error(message, t);
-        Terminal.DEFAULT.errorPrintln(message);
+        /*Terminal.DEFAULT.errorPrintln(message);
         t.printStackTrace(Terminal.DEFAULT.getErrorWriter());
         // Without a final flush, the stacktrace may not be shown if ES goes on to exit
-        Terminal.DEFAULT.flush();
+        Terminal.DEFAULT.flush();*/
     }
 
     void halt(int status) {

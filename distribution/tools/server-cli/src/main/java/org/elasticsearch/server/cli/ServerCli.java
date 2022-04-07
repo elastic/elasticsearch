@@ -9,7 +9,6 @@
 package org.elasticsearch.server.cli;
 
 import joptsimple.OptionSet;
-
 import joptsimple.OptionSpec;
 import joptsimple.OptionSpecBuilder;
 import joptsimple.util.PathConverter;
@@ -28,12 +27,11 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
-import org.elasticsearch.node.NodeValidationException;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
-import java.io.BufferedWriter;
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -66,25 +64,6 @@ class ServerCli extends EnvironmentAwareCommand {
         enrollmentTokenOption = parser.accepts("enrollment-token", "An existing enrollment token for securely joining a cluster")
             .availableUnless(versionOption)
             .withRequiredArg();
-    }
-
-    /**
-     * Prints a message directing the user to look at the logs. A message is only printed if
-     * logging has been configured.
-     */
-    static void printLogsSuggestion() {
-        final String basePath = System.getProperty("es.logs.base_path");
-        // It's possible to fail before logging has been configured, in which case there's no point
-        // suggesting that the user look in the log file.
-        if (basePath != null) {
-            Terminal.DEFAULT.errorPrintln(
-                "ERROR: Elasticsearch did not exit normally - check the logs at "
-                    + basePath
-                    + System.getProperty("file.separator")
-                    + System.getProperty("es.logs.cluster_name")
-                    + ".log"
-            );
-        }
     }
 
     @Override
@@ -128,7 +107,8 @@ class ServerCli extends EnvironmentAwareCommand {
         KeystorePasswordTerminal autoConfigTerminal = new KeystorePasswordTerminal(terminal, keystorePassword);
         Command autoConfigNode;
         try {
-            autoConfigNode = ToolProvider.loadTool("auto-configure-node", "modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli").create();
+            String autoConfigLibs = "modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli";
+            autoConfigNode = ToolProvider.loadTool("auto-configure-node", autoConfigLibs).create();
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
@@ -147,6 +127,7 @@ class ServerCli extends EnvironmentAwareCommand {
                 default: throw new UserException(ret, "Auto security enrollment failed");
             }
         }
+
 
         // reload settings now that auto configuration has occurred
         env = createEnv(options);
@@ -188,23 +169,54 @@ class ServerCli extends EnvironmentAwareCommand {
 
         ProcessBuilder builder = new ProcessBuilder(command);
         builder.environment().putAll(envVars);
-        builder.inheritIO();
-        builder.redirectInput(ProcessBuilder.Redirect.PIPE);
+        builder.redirectOutput(ProcessBuilder.Redirect.INHERIT);
+
         try {
-            Process process = builder.start();
+            final Process process = builder.start();
             try (var out = new OutputStreamStreamOutput(process.getOutputStream())) {
                 serverArgs.writeTo(out);
             }
-            // TODO: handle daemonize flag
+            String userExceptionMsg = null;
+            boolean ready = false;
+            InputStream err = process.getErrorStream();
+            BufferedReader reader = new BufferedReader(new InputStreamReader(err));
+            try {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (line.isEmpty() == false && line.charAt(0) == '\24') {
+                        userExceptionMsg = line.substring(1);
+                    } else if (line.isEmpty() == false && line.charAt(0) == '\21') {
+                        ready = true;
+                        break;
+                    } else {
+                        terminal.getErrorWriter().println(line);
+                    }
+                }
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+
+            if (ready && daemonize) {
+                process.getOutputStream().close();
+                process.getErrorStream().close();
+                process.getInputStream().close();
+                return;
+            }
+
             int code = process.waitFor();
+            terminal.flush();
             System.out.println("exited: " + code);
-            System.exit(code);
+            if (code != ExitCodes.OK) {
+                throw new UserException(code, userExceptionMsg);
+            }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         } catch (InterruptedException e) {
             throw new UserException(ExitCodes.IO_ERROR, "Interrupted while waiting for Elasticsearch process");
         }
 
+
+        // TODO: add ctrl-c handler so we can wait for subprocess
         // TODO: check the java.io.tmpdir
         // a misconfigured java.io.tmpdir can cause hard-to-diagnose problems later, so reject it immediately
         /*try {
@@ -218,18 +230,5 @@ class ServerCli extends EnvironmentAwareCommand {
         } catch (NodeValidationException e) {
             throw new UserException(ExitCodes.CONFIG, e.getMessage());
         }*/
-    }
-
-    /**
-     * Required method that's called by Apache Commons procrun when
-     * running as a service on Windows, when the service is stopped.
-     *
-     * http://commons.apache.org/proper/commons-daemon/procrun.html
-     *
-     * NOTE: If this method is renamed and/or moved, make sure to
-     * update elasticsearch-service.bat!
-     */
-    static void close(String[] args) throws IOException {
-        //Bootstrap.stop();
     }
 }

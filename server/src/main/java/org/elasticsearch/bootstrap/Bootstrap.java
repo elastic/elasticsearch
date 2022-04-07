@@ -8,6 +8,7 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.core.Appender;
@@ -44,7 +45,9 @@ import org.elasticsearch.node.NodeValidationException;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.PrintStream;
+import java.io.PrintWriter;
 import java.io.UnsupportedEncodingException;
 import java.net.URISyntaxException;
 import java.nio.file.Path;
@@ -323,16 +326,6 @@ final class Bootstrap {
         }
 
         try {
-            final boolean closeStandardStreams = (foreground == false) || quiet;
-            if (closeStandardStreams) {
-                final Logger rootLogger = LogManager.getRootLogger();
-                final Appender maybeConsoleAppender = Loggers.findAppender(rootLogger, ConsoleAppender.class);
-                if (maybeConsoleAppender != null) {
-                    Loggers.removeAppender(rootLogger, maybeConsoleAppender);
-                }
-                sysOutCloser.run();
-            }
-
             // fail if somebody replaced the lucene jars
             checkLucene();
 
@@ -372,6 +365,14 @@ final class Bootstrap {
             // `--quiet`, not `-d`, so we want users to be able to see
             // startup errors via journalctl.
             if (foreground == false) {
+                System.err.println("CLOSING STREAMS");
+                final Logger rootLogger = LogManager.getRootLogger();
+                rootLogger.log(Level.INFO, "CLOSING STREAMS");
+                final Appender maybeConsoleAppender = Loggers.findAppender(rootLogger, ConsoleAppender.class);
+                if (maybeConsoleAppender != null) {
+                    Loggers.removeAppender(rootLogger, maybeConsoleAppender);
+                }
+                sysOutCloser.run();
                 sysErrorCloser.run();
             }
 
@@ -428,7 +429,11 @@ final class Bootstrap {
 
     @SuppressForbidden(reason = "System#err")
     private static Runnable getSysErrorCloser() {
-        return System.err::close;
+        final PrintStream err = System.err;
+        return () -> {
+            err.println('\21');
+            err.close();
+        };
     }
 
     private static void checkLucene() {

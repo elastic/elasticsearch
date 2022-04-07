@@ -8,13 +8,14 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.NodeValidationException;
 
+import java.io.PrintStream;
 import java.nio.file.Path;
 import java.security.Permission;
 import java.security.Security;
@@ -46,26 +47,44 @@ class Elasticsearch {
         });
         LogConfigurator.registerErrorListener();
         final ServerArgs serverArgs;
-        try (var in = new InputStreamStreamInput(System.in)) {
-            serverArgs = new ServerArgs(in);
-        }
+        var in = new InputStreamStreamInput(System.in);
+        serverArgs = new ServerArgs(in);
 
         final Elasticsearch elasticsearch = new Elasticsearch();
         System.out.println("RUNNING ELASTICSEARCH");
         System.out.println(serverArgs);
-        elasticsearch.init(serverArgs.daemonize(), serverArgs.pidFile(), false, new Environment(serverArgs.nodeSettings(), serverArgs.configDir()));
+        PrintStream err = System.err;
+        int exitCode = 0;
+        try {
+            elasticsearch.init(serverArgs.daemonize(),
+                serverArgs.pidFile(),
+                false,
+                new Environment(serverArgs.nodeSettings(), serverArgs.configDir()));
+        } catch (NodeValidationException e) {
+            exitCode = ExitCodes.CONFIG;
+            err.print('\24');
+            err.println(e.getMessage());
+        } catch (UserException e) {
+            exitCode = e.exitCode;
+            err.print('\24');
+            err.println(e.getMessage());
+        }
+        if (exitCode != ExitCodes.OK) {
+            printLogsSuggestion(err);
+            System.exit(exitCode);
+        }
     }
 
     /**
      * Prints a message directing the user to look at the logs. A message is only printed if
      * logging has been configured.
      */
-    static void printLogsSuggestion() {
+    static void printLogsSuggestion(PrintStream err) {
         final String basePath = System.getProperty("es.logs.base_path");
         // It's possible to fail before logging has been configured, in which case there's no point
         // suggesting that the user look in the log file.
         if (basePath != null) {
-            Terminal.DEFAULT.errorPrintln(
+            err.println(
                 "ERROR: Elasticsearch did not exit normally - check the logs at "
                     + basePath
                     + System.getProperty("file.separator")

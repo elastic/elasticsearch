@@ -74,14 +74,15 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
             if (subpaths.length == 1 && field.endsWith(".") == false) {
                 return;
             }
-            XContentLocation location = delegate.getTokenLocation();
             Token token = delegate.nextToken();
-            if (token == Token.START_OBJECT || token == Token.START_ARRAY) {
-                parsers.push(new DotExpandingXContentParser(new XContentSubParser(delegate), delegate, subpaths, location));
-            } else if (token == Token.END_OBJECT || token == Token.END_ARRAY) {
+            if (token == Token.END_OBJECT || token == Token.END_ARRAY) {
                 throw new IllegalStateException("Expecting START_OBJECT or START_ARRAY or VALUE but got [" + token + "]");
             } else {
-                parsers.push(new DotExpandingXContentParser(new SingletonValueXContentParser(delegate), delegate, subpaths, location));
+                var location = delegate.getTokenLocation();
+                var parser = (token == Token.START_OBJECT || token == Token.START_ARRAY)
+                    ? new XContentSubParser(delegate)
+                    : new SingletonValueXContentParser(delegate);
+                parsers.push(new DotExpandingXContentParser(parser, delegate, subpaths, location));
             }
         }
 

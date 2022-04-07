@@ -12,6 +12,7 @@ import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.TimeSeriesAggregationAggregationBuilder;
 import org.elasticsearch.xpack.aggregatemetric.aggregations.support.AggregateMetricsValuesSourceType;
 
 /**
@@ -60,6 +61,15 @@ public class AggregateMetricsAggregatorsRegistrar {
             ValueCountAggregationBuilder.REGISTRY_KEY,
             AggregateMetricsValuesSourceType.AGGREGATE_METRIC,
             AggregateMetricBackedValueCountAggregator::new,
+            true
+        );
+    }
+
+    public static void registerTimeSeriesAggregationAggregator(ValuesSourceRegistry.Builder builder) {
+        builder.register(
+            TimeSeriesAggregationAggregationBuilder.REGISTRY_KEY,
+            AggregateMetricsValuesSourceType.AGGREGATE_METRIC,
+            AggregateMetricTimeSeriesAggregationAggregator::new,
             true
         );
     }

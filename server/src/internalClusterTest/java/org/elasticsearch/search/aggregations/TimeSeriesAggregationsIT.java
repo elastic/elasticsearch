@@ -50,6 +50,7 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.stats;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.timeSeries;
+import static org.elasticsearch.search.aggregations.AggregationBuilders.timeSeriesAggregation;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.topHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
@@ -71,7 +72,7 @@ public class TimeSeriesAggregationsIT extends ESIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        int numberOfIndices = randomIntBetween(1, 3);
+        int numberOfIndices = 1; //randomIntBetween(1, 3);
         numberOfDimensions = randomIntBetween(1, 5);
         numberOfMetrics = randomIntBetween(1, 10);
         String[] routingKeys = randomSubsetOf(
@@ -168,6 +169,37 @@ public class TimeSeriesAggregationsIT extends ESIntegTestCase {
             docs.add(client().prepareIndex("index" + findIndex(timestamp)).setOpType(DocWriteRequest.OpType.CREATE).setSource(docSource));
         }
         indexRandom(true, false, docs);
+    }
+
+    public void testTimeSeriesAggregations() {
+        SearchResponse response = client().prepareSearch("index")
+            .setSize(0)
+            .addAggregation(
+                timeSeriesAggregation("by_ts").field("metric_0")
+                    .group(List.of("dim_0"))
+                    .aggregator("sum")
+                    .interval(DateHistogramInterval.minutes(10))
+                    .downsampleFunction("avg")
+                    .size(1)
+            )
+            .get();
+        assertSearchResponse(response);
+        if (response != null) {
+            System.out.println(response);
+            return;
+        }
+        Aggregations aggregations = response.getAggregations();
+        assertNotNull(aggregations);
+        TimeSeries timeSeries = aggregations.get("by_ts");
+        assertThat(
+            timeSeries.getBuckets().stream().map(MultiBucketsAggregation.Bucket::getKey).collect(Collectors.toSet()),
+            equalTo(data.keySet())
+        );
+        for (TimeSeries.Bucket bucket : timeSeries.getBuckets()) {
+            @SuppressWarnings("unchecked")
+            Map<String, String> key = (Map<String, String>) bucket.getKey();
+            assertThat((long) data.get(key).size(), equalTo(bucket.getDocCount()));
+        }
     }
 
     public void testStandAloneTimeSeriesAgg() {

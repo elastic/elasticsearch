@@ -215,6 +215,8 @@ import org.elasticsearch.search.aggregations.pipeline.SumBucketPipelineAggregati
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.timeseries.InternalTimeSeries;
 import org.elasticsearch.search.aggregations.timeseries.TimeSeriesAggregationBuilder;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.InternalTimeSeriesAggregation;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.TimeSeriesAggregationAggregationBuilder;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.ExplainPhase;
@@ -662,6 +664,16 @@ public class SearchModule {
                     TimeSeriesAggregationBuilder::new,
                     TimeSeriesAggregationBuilder.PARSER
                 ).addResultReader(InternalTimeSeries::new),
+                builder
+            );
+
+            registerAggregation(
+                new AggregationSpec(
+                    TimeSeriesAggregationAggregationBuilder.NAME,
+                    TimeSeriesAggregationAggregationBuilder::new,
+                    TimeSeriesAggregationAggregationBuilder.PARSER
+                ).addResultReader(InternalTimeSeriesAggregation::new)
+                    .setAggregatorRegistrar(TimeSeriesAggregationAggregationBuilder::registerAggregators),
                 builder
             );
         }

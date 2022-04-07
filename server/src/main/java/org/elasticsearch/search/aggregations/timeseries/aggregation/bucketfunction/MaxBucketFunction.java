@@ -1,0 +1,56 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+package org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunction;
+
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.DoubleArray;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
+
+import java.util.Map;
+
+public class MaxBucketFunction implements AggregatorBucketFunction<Double> {
+    private final BigArrays bigArrays;
+    private DoubleArray value;
+
+    public MaxBucketFunction(BigArrays bigArrays) {
+        this.bigArrays = bigArrays;
+        value = bigArrays.newDoubleArray(1, true);
+        value.fill(0, value.size(), Double.NEGATIVE_INFINITY);
+    }
+
+    @Override
+    public String name() {
+        return MaxAggregationBuilder.NAME;
+    }
+
+    @Override
+    public void collect(Double number, long bucket) {
+        if (bucket >= value.size()) {
+            long from = value.size();
+            value = bigArrays.grow(value, bucket + 1);
+            value.fill(from, value.size(), Double.NEGATIVE_INFINITY);
+        }
+
+        double current = value.get(bucket);
+        value.set(bucket, Math.max(current, number));
+    }
+
+    @Override
+    public InternalAggregation getAggregation(long bucket, DocValueFormat formatter, Map<String, Object> metadata) {
+        return new org.elasticsearch.search.aggregations.metrics.Max(name(), value.get(bucket), formatter, metadata);
+    }
+
+    @Override
+    public void close() {
+        Releasables.close(value);
+    }
+}

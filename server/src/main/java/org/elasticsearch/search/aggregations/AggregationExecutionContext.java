@@ -23,11 +23,17 @@ import java.io.IOException;
 public class AggregationExecutionContext {
 
     private final CheckedSupplier<BytesRef, IOException> tsidProvider;
+    private CheckedSupplier<Long, IOException> timestampProvider;
     private final LeafReaderContext leafReaderContext;
 
-    public AggregationExecutionContext(LeafReaderContext leafReaderContext, CheckedSupplier<BytesRef, IOException> tsidProvider) {
+    public AggregationExecutionContext(
+        LeafReaderContext leafReaderContext,
+        CheckedSupplier<BytesRef, IOException> tsidProvider,
+        CheckedSupplier<Long, IOException> timestampProvider
+    ) {
         this.leafReaderContext = leafReaderContext;
         this.tsidProvider = tsidProvider;
+        this.timestampProvider = timestampProvider;
     }
 
     public LeafReaderContext getLeafReaderContext() {
@@ -36,5 +42,9 @@ public class AggregationExecutionContext {
 
     public BytesRef getTsid() throws IOException {
         return tsidProvider != null ? tsidProvider.get() : null;
+    }
+
+    public Long getTimestamp() throws IOException {
+        return timestampProvider.get();
     }
 }

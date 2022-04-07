@@ -1,0 +1,412 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+package org.elasticsearch.search.aggregations.timeseries.aggregation;
+
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.common.Rounding;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.TimestampBounds;
+import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
+import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
+import org.elasticsearch.search.aggregations.AggregatorFactories;
+import org.elasticsearch.search.aggregations.BucketOrder;
+import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.InternalOrder;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
+import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
+import org.elasticsearch.search.aggregations.bucket.terms.BucketPriorityQueue;
+import org.elasticsearch.search.aggregations.bucket.terms.BytesKeyedBucketOrds;
+import org.elasticsearch.search.aggregations.bucket.terms.LongKeyedBucketOrds;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.TimeSeriesAggregation.Function;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunction.AggregatorBucketFunction;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunction.TSIDBucketFunction;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.function.AggregatorFunction;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.function.LastFunction;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
+
+import static org.elasticsearch.search.DocValueFormat.TIME_SERIES_ID;
+import static org.elasticsearch.search.aggregations.InternalOrder.isKeyOrder;
+
+public class TimeSeriesAggregationAggregator extends BucketsAggregator {
+    private static final Logger logger = LogManager.getLogger(TimeSeriesAggregationAggregator.class);
+
+    protected BytesKeyedBucketOrds bucketOrds;
+    private LongKeyedBucketOrds timestampOrds;
+    private ValuesSource.Numeric valuesSource;
+    private Map<Long, Map<Long, InternalAggregation>> groupBucketValues; // TODO replace map
+    private Map<Long, AggregatorBucketFunction> aggregatorCollectors; // TODO replace map
+
+    private boolean keyed;
+
+    private Set<String> group;
+    private Set<String> without;
+    private long interval;
+    private long offset;
+    private TimeSeriesAggregation.Aggregator aggregator;
+    private long downsampleRange;
+    protected TimeSeriesAggregation.Function downsampleFunction;
+    private BucketOrder order;
+    private TermsAggregator.BucketCountThresholds bucketCountThresholds;
+    protected Comparator<InternalTimeSeriesAggregation.InternalBucket> partiallyBuiltBucketComparator;
+    protected DocValueFormat format;
+    private TimestampBounds timestampBounds;
+
+    private BytesRef preTsid;
+    private long preBucketOrdinal;
+    private long preRounding = -1;
+    private Rounding.Prepared rounding;
+    private boolean needGroupBy;
+    private Map<Long, AggregatorFunction> timeBucketMetrics; // TODO replace map
+
+    @SuppressWarnings("unchecked")
+    public TimeSeriesAggregationAggregator(
+        String name,
+        AggregatorFactories factories,
+        boolean keyed,
+        List<String> group,
+        List<String> without,
+        DateHistogramInterval interval,
+        DateHistogramInterval offset,
+        String aggregator,
+        DateHistogramInterval downsampleRange,
+        String downsampleFunction,
+        TermsAggregator.BucketCountThresholds bucketCountThresholds,
+        BucketOrder order,
+        ValuesSourceConfig valuesSourceConfig,
+        AggregationContext context,
+        org.elasticsearch.search.aggregations.Aggregator parent,
+        CardinalityUpperBound bucketCardinality,
+        Map<String, Object> metadata
+    ) throws IOException {
+        super(name, factories, context, parent, bucketCardinality, metadata);
+        this.keyed = keyed;
+        this.group = group != null ? Sets.newHashSet(group) : Set.of();
+        this.without = without != null ? Sets.newHashSet(without) : Set.of();
+        this.needGroupBy = this.group.size() > 0 || this.without.size() > 0;
+
+        this.interval = interval != null ? interval.estimateMillis() : -1;
+        if (this.interval <= 0) {
+            throw new IllegalArgumentException("time_series_aggregation invalid interval [" + interval + "]");
+        }
+        this.rounding = Rounding.builder(new TimeValue(this.interval)).build().prepareForUnknown();
+        this.offset = offset != null ? offset.estimateMillis() : -1;
+        this.aggregator = aggregator != null ? TimeSeriesAggregation.Aggregator.resolve(aggregator) : null;
+        this.downsampleRange = downsampleRange != null ? downsampleRange.estimateMillis() : -1;
+        this.downsampleFunction = downsampleFunction != null ? TimeSeriesAggregation.Function.resolve(downsampleFunction) : Function.last;
+        if (this.downsampleRange <= 0) {
+            this.downsampleRange = this.interval;
+        }
+        this.bucketCountThresholds = bucketCountThresholds;
+        this.order = order == null ? BucketOrder.key(true) : order;
+        this.partiallyBuiltBucketComparator = order.partiallyBuiltBucketComparator(b -> b.bucketOrd, this);
+        this.bucketOrds = BytesKeyedBucketOrds.build(bigArrays(), bucketCardinality);
+        this.timestampOrds = LongKeyedBucketOrds.build(bigArrays(), CardinalityUpperBound.MANY);
+        if (valuesSourceConfig != null) {
+            this.valuesSource = valuesSourceConfig.hasValues() ? (ValuesSource.Numeric) valuesSourceConfig.getValuesSource() : null;
+            this.format = valuesSourceConfig.format();
+        } else {
+            this.valuesSource = null;
+            this.format = null;
+        }
+        this.timestampBounds = context.getIndexSettings().getTimestampBounds();
+
+        if (needGroupBy && this.aggregator == null) {
+            throw new IllegalArgumentException("time_series_aggregation invalid aggregator [" + aggregator + "]");
+        }
+
+        groupBucketValues = new LinkedHashMap<>();
+        aggregatorCollectors = new HashMap<>();
+    }
+
+    @Override
+    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        InternalTimeSeriesAggregation.InternalBucket[][] allBucketsPerOrd =
+            new InternalTimeSeriesAggregation.InternalBucket[owningBucketOrds.length][];
+        long[] otherDocCounts = new long[owningBucketOrds.length];
+        for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
+            BytesRef spareKey = new BytesRef();
+            BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
+            long bucketsInOrd = bucketOrds.bucketsInOrd(owningBucketOrds[ordIdx]);
+            int size = (int) Math.min(bucketsInOrd, bucketCountThresholds.getShardSize());
+            PriorityQueue<InternalTimeSeriesAggregation.InternalBucket> ordered = new BucketPriorityQueue<>(
+                size,
+                partiallyBuiltBucketComparator
+            );
+            while (ordsEnum.next()) {
+                long docCount = bucketDocCount(ordsEnum.ord());
+                otherDocCounts[ordIdx] += docCount;
+                if (docCount < bucketCountThresholds.getShardMinDocCount()) {
+                    continue;
+                }
+                ordsEnum.readValue(spareKey);
+                long ord = ordsEnum.ord();
+                InternalTimeSeriesAggregation.InternalBucket bucket = new InternalTimeSeriesAggregation.InternalBucket(
+                    TimeSeriesIdFieldMapper.decodeTsid(spareKey),
+                    docCount,
+                    new HashMap<>(),
+                    null,
+                    keyed,
+                    false,
+                    0
+                );
+                bucket.bucketOrd = ord;
+                ordered.insertWithOverflow(bucket);
+            }
+
+            // Get the top buckets
+            InternalTimeSeriesAggregation.InternalBucket[] bucketsForOrd = new InternalTimeSeriesAggregation.InternalBucket[ordered.size()];
+            allBucketsPerOrd[ordIdx] = bucketsForOrd;
+            for (int b = ordered.size() - 1; b >= 0; --b) {
+                InternalTimeSeriesAggregation.InternalBucket bucket = ordered.pop();
+                long ord = bucket.bucketOrd;
+                Map<Long, InternalAggregation> values = new LinkedHashMap<>();
+                if (needGroupBy) {
+                    AggregatorBucketFunction aggregatorBucketFunction = aggregatorCollectors.get(ord);
+                    LongKeyedBucketOrds.BucketOrdsEnum timeOrdsEnum = timestampOrds.ordsEnum(ord);
+                    while (timeOrdsEnum.next()) {
+                        values.put(timeOrdsEnum.value(), aggregatorBucketFunction.getAggregation(timeOrdsEnum.ord(), format, metadata()));
+                    }
+                } else {
+                    values = groupBucketValues.get(ord);
+                }
+                bucket.timeBucketValues = values;
+                allBucketsPerOrd[ordIdx][b] = bucket;
+                otherDocCounts[ordIdx] -= allBucketsPerOrd[ordIdx][b].getDocCount();
+            }
+        }
+
+        buildSubAggsForAllBuckets(allBucketsPerOrd, b -> b.bucketOrd, (b, a) -> b.aggregations = a);
+
+        InternalAggregation[] result = new InternalAggregation[owningBucketOrds.length];
+        for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
+            result[ordIdx] = buildResult(otherDocCounts[ordIdx], allBucketsPerOrd[ordIdx]);
+        }
+        return result;
+    }
+
+    @Override
+    public InternalAggregation buildEmptyAggregation() {
+        return new InternalTimeSeriesAggregation(
+            name,
+            order,
+            order,
+            bucketCountThresholds.getRequiredSize(),
+            bucketCountThresholds.getMinDocCount(),
+            bucketCountThresholds.getShardSize(),
+            false,
+            0,
+            new ArrayList<>(),
+            false,
+            0,
+            metadata()
+        );
+    }
+
+    @Override
+    protected void doClose() {
+        Releasables.close(bucketOrds);
+        Releasables.close(timestampOrds);
+        aggregatorCollectors.forEach((k, v) -> { v.close(); });
+    }
+
+    public class Collector extends LeafBucketCollectorBase {
+        final SortedNumericDoubleValues values;
+        final AggregationExecutionContext aggCtx;
+        final LeafBucketCollector sub;
+        final CheckedConsumer<Integer, IOException> consumer;
+
+        public Collector(
+            LeafBucketCollector sub,
+            SortedNumericDoubleValues values,
+            AggregationExecutionContext aggCtx,
+            CheckedConsumer<Integer, IOException> consumer
+        ) {
+            super(sub, values);
+            this.sub = sub;
+            this.values = values;
+            this.aggCtx = aggCtx;
+            this.consumer = consumer;
+        }
+
+        @Override
+        public void collect(int doc, long bucket) throws IOException {
+            BytesRef newTsid = aggCtx.getTsid();
+
+            if (preTsid == null) {
+                reset(newTsid, bucket);
+            } else if (false == preTsid.equals(newTsid)) {
+                collectTimeSeriesValues(preBucketOrdinal);
+                reset(newTsid, bucket);
+            }
+
+            if (preRounding < 0 || aggCtx.getTimestamp() <= preRounding - interval) {
+                preRounding = rounding.nextRoundingValue(aggCtx.getTimestamp());
+            }
+            consumer.accept(doc);
+            collectBucket(sub, doc, preBucketOrdinal);
+        }
+
+        private void reset(BytesRef tsid, long bucket) {
+            timeBucketMetrics = new LinkedHashMap<>();
+            preTsid = BytesRef.deepCopyOf(tsid);
+            preRounding = -1;
+
+            BytesRef bucketValue = needGroupBy ? packKey(preTsid) : preTsid;
+            long bucketOrdinal = bucketOrds.add(bucket, bucketValue);
+            if (bucketOrdinal < 0) { // already seen
+                bucketOrdinal = -1 - bucketOrdinal;
+                grow(bucketOrdinal + 1);
+            }
+            preBucketOrdinal = bucketOrdinal;
+        }
+    }
+
+    @Override
+    protected LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector sub) throws IOException {
+        // TODO: remove this method in a follow up PR
+        throw new UnsupportedOperationException("Shouldn't be here");
+    }
+
+    protected AggregatorFunction getAggregatorFunction() throws IOException {
+        AggregatorFunction function = timeBucketMetrics.get(preRounding);
+        if (function == null) {
+            function = TimeSeriesAggregations.getAggregatorFunction(downsampleFunction);
+            timeBucketMetrics.put(preRounding, function);
+        }
+        return function;
+    }
+
+    protected LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector sub, AggregationExecutionContext aggCtx)
+        throws IOException {
+        if (valuesSource == null) {
+            return LeafBucketCollector.NO_OP_COLLECTOR;
+        }
+        final SortedNumericDoubleValues values = valuesSource.doubleValues(context);
+        return new Collector(sub, values, aggCtx, (doc) -> {
+            if (values.advanceExact(doc)) {
+                final int valuesCount = values.docValueCount();
+                for (int i = 0; i < valuesCount; i++) {
+                    double value = values.nextValue();
+                    AggregatorFunction function = getAggregatorFunction();
+                    if (function instanceof LastFunction last) {
+                        last.collectExact(value, aggCtx.getTimestamp());
+                    } else {
+                        function.collect(value);
+                    }
+                }
+            }
+        });
+    }
+
+    @Override
+    protected void doPostCollection() throws IOException {
+        if (timeBucketMetrics != null && timeBucketMetrics.size() > 0) {
+            collectTimeSeriesValues(preBucketOrdinal);
+        }
+    }
+
+    InternalTimeSeriesAggregation buildResult(long otherDocCount, InternalTimeSeriesAggregation.InternalBucket[] topBuckets) {
+        final BucketOrder reduceOrder;
+        if (isKeyOrder(order) == false) {
+            reduceOrder = InternalOrder.key(true);
+            Arrays.sort(topBuckets, reduceOrder.comparator());
+        } else {
+            reduceOrder = order;
+        }
+        return new InternalTimeSeriesAggregation(
+            name,
+            reduceOrder,
+            order,
+            bucketCountThresholds.getRequiredSize(),
+            bucketCountThresholds.getMinDocCount(),
+            bucketCountThresholds.getShardSize(),
+            false,
+            otherDocCount,
+            List.of(topBuckets),
+            keyed,
+            0,
+            metadata()
+        );
+    }
+
+    private BytesRef packKey(BytesRef tsid) {
+        Map<String, Object> tsidMap = TimeSeriesIdFieldMapper.decodeTsid(tsid);
+        Map<String, Object> groupMap = new LinkedHashMap<>();
+        tsidMap.forEach((key, value) -> {
+            if (group.size() > 0) {
+                if (group.contains(key) && !without.contains(key)) {
+                    groupMap.put(key, value);
+                }
+            } else {
+                if (!without.contains(key)) {
+                    groupMap.put(key, value);
+                }
+            }
+        });
+        return TIME_SERIES_ID.parseBytesRef(groupMap);
+    }
+
+    public void collectTimeSeriesValues(long bucketOrd) throws IOException {
+        if (needGroupBy) {
+            AggregatorBucketFunction aggregatorBucketFunction = aggregatorCollectors.get(bucketOrd);
+            if (aggregatorBucketFunction == null) {
+                AggregatorBucketFunction internal = TimeSeriesAggregations.getAggregatorBucketFunction(aggregator, bigArrays());
+                aggregatorBucketFunction = new TSIDBucketFunction(internal);
+                aggregatorCollectors.put(bucketOrd, aggregatorBucketFunction);
+            }
+
+            for (Entry<Long, AggregatorFunction> entry : timeBucketMetrics.entrySet()) {
+                Long timestamp = entry.getKey();
+                AggregatorFunction value = entry.getValue();
+                long ord = timestampOrds.add(bucketOrd, timestamp);
+                if (ord < 0) { // already seen
+                    ord = -1 - ord;
+                }
+                if (timestamp - interval <= timestampBounds.startTime() || timestamp > timestampBounds.endTime()) {
+                    aggregatorBucketFunction.collect(
+                        new TSIDBucketFunction.TSIDValue(preTsid, value.getAggregation(format, metadata()), true),
+                        ord
+                    );
+                } else {
+                    aggregatorBucketFunction.collect(new TSIDBucketFunction.TSIDValue(preTsid, value.get(), false), ord);
+                }
+            }
+        } else {
+            Map<Long, InternalAggregation> tsids = new LinkedHashMap<>();
+            timeBucketMetrics.forEach((k, v) -> { tsids.put(k, v.getAggregation(format, metadata())); });
+            groupBucketValues.put(bucketOrd, tsids);
+        }
+    }
+}

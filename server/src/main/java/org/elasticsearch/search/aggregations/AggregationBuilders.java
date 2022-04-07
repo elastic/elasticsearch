@@ -79,6 +79,7 @@ import org.elasticsearch.search.aggregations.metrics.ValueCount;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.WeightedAvgAggregationBuilder;
 import org.elasticsearch.search.aggregations.timeseries.TimeSeriesAggregationBuilder;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.TimeSeriesAggregationAggregationBuilder;
 
 import java.util.List;
 import java.util.Map;
@@ -373,4 +374,7 @@ public class AggregationBuilders {
         return new TimeSeriesAggregationBuilder(name);
     }
 
+    public static TimeSeriesAggregationAggregationBuilder timeSeriesAggregation(String name) {
+        return new TimeSeriesAggregationAggregationBuilder(name);
+    }
 }

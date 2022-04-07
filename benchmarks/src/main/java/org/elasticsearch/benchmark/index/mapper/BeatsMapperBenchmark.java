@@ -133,6 +133,8 @@ public class BeatsMapperBenchmark {
         return builder.toString();
     }
 
+    @SafeVarargs
+    @SuppressWarnings("varargs")
     private <T> T randomFrom(T... items) {
         return items[random.nextInt(items.length)];
     }

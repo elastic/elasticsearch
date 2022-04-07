@@ -57,7 +57,6 @@ import org.elasticsearch.search.runtime.StringScriptFieldPrefixQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldRegexpQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldTermQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldWildcardQuery;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -66,7 +65,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
@@ -628,10 +626,6 @@ public final class KeywordFieldMapper extends FieldMapper {
             return eagerGlobalOrdinals;
         }
 
-        NamedAnalyzer normalizer() {
-            return normalizer;
-        }
-
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
@@ -657,8 +651,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                     if (keywordValue.length() > ignoreAbove) {
                         return null;
                     }
-
-                    return normalizeValue(normalizer(), name(), keywordValue);
+                    return normalizer == Lucene.KEYWORD_ANALYZER ? keywordValue : normalizeValue(normalizer, name(), keywordValue);
                 }
             };
         }
@@ -825,7 +818,8 @@ public final class KeywordFieldMapper extends FieldMapper {
     private final ScriptCompiler scriptCompiler;
     private final boolean dimension;
     private final Version indexCreatedVersion;
-
+    private final NamedAnalyzer normalizer;
+    private final boolean indexOrStore;
     private final IndexAnalyzers indexAnalyzers;
 
     private KeywordFieldMapper(
@@ -862,6 +856,8 @@ public final class KeywordFieldMapper extends FieldMapper {
         this.scriptCompiler = builder.scriptCompiler;
         this.dimension = builder.dimension.getValue();
         this.indexCreatedVersion = builder.indexCreatedVersion;
+        this.indexOrStore = fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored();
+        this.normalizer = mappedFieldType.normalizer == Lucene.KEYWORD_ANALYZER ? null : mappedFieldType.normalizer;
     }
 
     @Override
@@ -871,15 +867,8 @@ public final class KeywordFieldMapper extends FieldMapper {
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        String value;
-        XContentParser parser = context.parser();
-        if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
-            value = nullValue;
-        } else {
-            value = parser.textOrNull();
-        }
-
-        indexValue(context, value);
+        String value = context.parser().textOrNull();
+        indexValue(context, value == null ? nullValue : value);
     }
 
     @Override
@@ -897,14 +886,17 @@ public final class KeywordFieldMapper extends FieldMapper {
             return;
         }
 
+        final String name = fieldType().name();
         if (value.length() > ignoreAbove) {
-            context.addIgnoredField(name());
+            context.addIgnoredField(name);
             return;
         }
 
-        value = normalizeValue(fieldType().normalizer(), name(), value);
+        if (normalizer != null) {
+            value = normalizeValue(normalizer, name, value);
+        }
         if (dimension) {
-            context.getDimensions().addString(fieldType().name(), value);
+            context.getDimensions().addString(name, value);
         }
 
         // convert to utf8 only once before feeding postings/dv/stored fields
@@ -915,60 +907,73 @@ public final class KeywordFieldMapper extends FieldMapper {
         // workload, which in turn leads to slower merges, as these will potentially have to fall back to MergeStrategy.DOC instead of
         // MergeStrategy.BULK. To avoid this, we do a preflight check here before indexing the document into Lucene.
         if (binaryValue.length > MAX_TERM_LENGTH) {
-            byte[] prefix = new byte[30];
-            System.arraycopy(binaryValue.bytes, binaryValue.offset, prefix, 0, 30);
-            String msg = "Document contains at least one immense term in field=\""
-                + fieldType().name()
-                + "\" (whose "
-                + "UTF8 encoding is longer than the max length "
-                + MAX_TERM_LENGTH
-                + "), all of which were "
-                + "skipped. Please correct the analyzer to not produce such terms. The prefix of the first immense "
-                + "term is: '"
-                + Arrays.toString(prefix)
-                + "...'";
-            throw new IllegalArgumentException(msg);
+            throwOnMaxTermSize(name, binaryValue);
         }
 
-        if (fieldType.indexOptions() != IndexOptions.NONE || fieldType.stored()) {
-            Field field = new KeywordField(fieldType().name(), binaryValue, fieldType);
-            context.doc().add(field);
-
-            if (fieldType().hasDocValues() == false && fieldType.omitNorms()) {
-                context.addToFieldNames(fieldType().name());
+        final LuceneDocument doc = context.doc();
+        if (indexOrStore) {
+            doc.add(new KeywordField(name, binaryValue, fieldType));
+            if (hasDocValues == false && fieldType.omitNorms()) {
+                context.addToFieldNames(name);
             }
         }
-
-        if (fieldType().hasDocValues()) {
-            context.doc().add(new SortedSetDocValuesField(fieldType().name(), binaryValue));
+        if (hasDocValues) {
+            doc.add(new SortedSetDocValuesField(name, binaryValue));
         }
     }
 
+    private static void throwOnMaxTermSize(String name, BytesRef binaryValue) {
+        byte[] prefix = new byte[30];
+        System.arraycopy(binaryValue.bytes, binaryValue.offset, prefix, 0, 30);
+        String msg = "Document contains at least one immense term in field=\""
+            + name
+            + "\" (whose "
+            + "UTF8 encoding is longer than the max length "
+            + MAX_TERM_LENGTH
+            + "), all of which were "
+            + "skipped. Please correct the analyzer to not produce such terms. The prefix of the first immense "
+            + "term is: '"
+            + Arrays.toString(prefix)
+            + "...'";
+        throw new IllegalArgumentException(msg);
+    }
+
     private static String normalizeValue(NamedAnalyzer normalizer, String field, String value) {
-        if (normalizer == Lucene.KEYWORD_ANALYZER) {
-            return value;
-        }
         try (TokenStream ts = normalizer.tokenStream(field, value)) {
             final CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
             ts.reset();
             if (ts.incrementToken() == false) {
-                throw new IllegalStateException(String.format(Locale.ROOT, """
-                    The normalization token stream is expected to produce exactly 1 token, \
-                    but got 0 for analyzer %s and input "%s"
-                    """, normalizer, value));
+                throwOnNoTokens(normalizer, value);
             }
             final String newValue = termAtt.toString();
             if (ts.incrementToken()) {
-                throw new IllegalStateException(String.format(Locale.ROOT, """
-                    The normalization token stream is expected to produce exactly 1 token, \
-                    but got 2+ for analyzer %s and input "%s"
-                    """, normalizer, value));
+                throwOnMoreThanOneToken(normalizer, value);
             }
             ts.end();
             return newValue;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    private static void throwOnNoTokens(NamedAnalyzer normalizer, String value) {
+        throw new IllegalStateException(
+            "The normalization token stream is expected to produce exactly 1 token, but got 0 for analyzer "
+                + normalizer
+                + " and input \""
+                + value
+                + "\"\n"
+        );
+    }
+
+    private static void throwOnMoreThanOneToken(NamedAnalyzer normalizer, String value) {
+        throw new IllegalStateException(
+            "The normalization token stream is expected to produce exactly 1 token, but got 2+ for analyzer "
+                + normalizer
+                + " and input \""
+                + value
+                + "\"\n"
+        );
     }
 
     @Override

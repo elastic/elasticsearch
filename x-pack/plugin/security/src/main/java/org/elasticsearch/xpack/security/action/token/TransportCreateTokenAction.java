@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.security.action.token;
 
+import com.github.nitram509.jmacaroons.Macaroon;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;

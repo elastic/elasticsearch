@@ -34,7 +34,7 @@ dependencies {
   internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
   api 'com.unboundid:unboundid-ldapsdk:6.0.3'
 
-  // macaroons tokens
+  // macaroons security tokens
   api "com.github.nitram509:jmacaroons:${versions.jmacaroons}"
 
   // the following are all SAML dependencies - might as well download the whole internet

@@ -7,6 +7,11 @@
 
 package org.elasticsearch.xpack.security.authc;
 
+import com.github.nitram509.jmacaroons.GeneralSecurityRuntimeException;
+import com.github.nitram509.jmacaroons.Macaroon;
+import com.github.nitram509.jmacaroons.MacaroonsBuilder;
+import com.github.nitram509.jmacaroons.MacaroonsVerifier;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -58,6 +63,7 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -139,7 +145,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-
 import javax.crypto.Cipher;
 import javax.crypto.CipherInputStream;
 import javax.crypto.CipherOutputStream;
@@ -203,6 +208,11 @@ public final class TokenService {
         Property.NodeScope
     );
 
+    public static final Setting<SecureString> TOKEN_MACAROON_KEY = SecureSetting.secureString(
+        "xpack.security.authc.token.macaroon.key",
+        null
+    );
+
     static final String TOKEN_DOC_TYPE = "token";
     private static final int HASHED_TOKEN_LENGTH = 43;
     // UUIDs are 16 bytes encoded base64 without padding, therefore the length is (16 / 3) * 4 + ((16 % 3) * 8 + 5) / 6 chars
@@ -217,6 +227,7 @@ public final class TokenService {
     static final Version VERSION_ACCESS_TOKENS_AS_UUIDS = Version.V_7_2_0;
     static final Version VERSION_MULTIPLE_CONCURRENT_REFRESHES = Version.V_7_2_0;
     static final Version VERSION_CLIENT_AUTH_FOR_REFRESH = Version.V_8_2_0;
+    static final Version VERSION_MACAROON_ACCESS_TOKENS = Version.V_8_3_0;
 
     private static final Logger logger = LogManager.getLogger(TokenService.class);
 
@@ -563,7 +574,37 @@ public final class TokenService {
         try (StreamInput in = new InputStreamStreamInput(Base64.getDecoder().wrap(new ByteArrayInputStream(bytes)), bytes.length)) {
             final Version version = Version.readVersion(in);
             in.setVersion(version);
-            if (version.onOrAfter(VERSION_ACCESS_TOKENS_AS_UUIDS)) {
+            if (version.onOrAfter(VERSION_MACAROON_ACCESS_TOKENS)) {
+                final BytesKey decodedSalt = new BytesKey(in.readByteArray());
+                final BytesKey passphraseHash = new BytesKey(in.readByteArray());
+                final String serializedMacaroon = in.readString();
+                final Macaroon macaroon = MacaroonsBuilder.deserialize(serializedMacaroon);
+                final KeyAndCache keyAndCache = keyCache.get(passphraseHash);
+                if (keyAndCache != null) {
+                    getKeyAsync(decodedSalt, keyAndCache, ActionListener.wrap(decodeKey -> {
+                        if (decodeKey != null) {
+                            try {
+                                if (new MacaroonsVerifier(macaroon).isValid(decodeKey.getEncoded())) {
+                                    final String userTokenId = hashTokenString(macaroon.identifier);
+                                    getUserTokenFromId(userTokenId, version, listener);
+                                } else {
+                                    listener.onResponse(null);
+                                }
+                            } catch (GeneralSecurityRuntimeException e) {
+                                // could happen with a token that is not ours
+                                logger.warn("invalid token", e);
+                                listener.onResponse(null);
+                            }
+                        } else {
+                            // could happen with a token that is not ours
+                            listener.onResponse(null);
+                        }
+                    }, listener::onFailure));
+                } else {
+                    logger.debug(() -> new ParameterizedMessage("invalid key {} key: {}", passphraseHash, keyCache.cache.keySet()));
+                    listener.onResponse(null);
+                }
+            } else if (version.onOrAfter(VERSION_ACCESS_TOKENS_AS_UUIDS)) {
                 // The token was created in a > VERSION_ACCESS_TOKENS_UUIDS cluster
                 if (in.available() < MINIMUM_BYTES) {
                     logger.debug("invalid token, smaller than [{}] bytes", MINIMUM_BYTES);
@@ -1411,7 +1452,7 @@ public final class TokenService {
                                         authentication
                                     )
                                 );
-                            } catch (GeneralSecurityException | IOException e) {
+                            } catch (GeneralSecurityException | IOException | ExecutionException e) {
                                 logger.warn("Could not format stored superseding token values", e);
                                 onFailure.accept(invalidGrantException("could not refresh the requested token"));
                             }
@@ -2043,8 +2084,24 @@ public final class TokenService {
         }
     }
 
-    String prependVersionAndEncodeAccessToken(Version version, String accessToken) throws IOException, GeneralSecurityException {
-        if (version.onOrAfter(VERSION_ACCESS_TOKENS_AS_UUIDS)) {
+    String prependVersionAndEncodeAccessToken(Version version, String accessToken) throws IOException, GeneralSecurityException,
+        ExecutionException {
+        if (version.onOrAfter(VERSION_MACAROON_ACCESS_TOKENS)) {
+            final KeyAndCache keyAndCache = keyCache.activeKeyCache;
+            final String macaroon = new MacaroonsBuilder(clusterService.getNodeName() + "@" + clusterService.getClusterName(),
+                keyAndCache.getOrComputeKey(keyAndCache.getSalt()).getEncoded(),
+                accessToken)
+                .getMacaroon()
+                .serialize();
+            try (BytesStreamOutput out = new BytesStreamOutput()) {
+                out.setVersion(version);
+                Version.writeVersion(version, out);
+                out.writeByteArray(keyAndCache.getSalt().bytes);
+                out.writeByteArray(keyAndCache.getKeyHash().bytes);
+                out.writeString(macaroon);
+                return Base64.getEncoder().encodeToString(out.bytes().toBytesRef().bytes);
+            }
+        } else if (version.onOrAfter(VERSION_ACCESS_TOKENS_AS_UUIDS)) {
             try (BytesStreamOutput out = new BytesStreamOutput(MINIMUM_BASE64_BYTES)) {
                 out.setVersion(version);
                 Version.writeVersion(version, out);

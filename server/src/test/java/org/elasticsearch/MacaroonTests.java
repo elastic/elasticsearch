@@ -36,7 +36,7 @@ public class MacaroonTests extends ESTestCase {
             }""";
         Macaroon m = MacaroonsBuilder.modify(
             MacaroonsBuilder.deserialize(
-                "MDAwZWxvY2F0aW9uIAowMDI5aWRlbnRpZmllciA5NHV0d2F1ZWQ2NGs1czk0Z2VveDdpcnNtCjAxNjBjaWQgcGl0X2lkID0gW2s0X3FBd0lQYlhrdGFXNWtaWGd0TURBd01EQXhGblpMWlV4ZmNsWkhVelpUVEdSVVIxUnZTekpIV21jQUZrVmxXa0pPYURnMlZGVnBkR2xhVURRMU56WjRUa0VBQUFBQUFBQUFBQ3dXUm1reVdqaGhhRWhTWW5WVU4wSnNVVGhvZEZSS2R3QVBiWGt0YVc1a1pYZ3RNREF3TURBeUZtTlNhVVF3TVd3M1ZHdEhUV3R5YW0xSldGVmtZMEVBRmtWbFdrSk9hRGcyVkZWcGRHbGFVRFExTnpaNFRrRUFBQUFBQUFBQUFDMFdSbWt5V2poaGFFaFNZblZVTjBKc1VUaG9kRlJLZHdBQ0ZuWkxaVXhmY2xaSFV6WlRUR1JVUjFSdlN6SkhXbWNBQUJaalVtbEVNREZzTjFSclIwMXJjbXB0U1ZoVlpHTkJBQUE9XQowMDJmc2lnbmF0dXJlIOs6SOXwCg8tMVc-kLyoGyQ7Ou1HAiDskePZcrqgoPyVCg"
+                "MDAwZWxvY2F0aW9uIAowMDI5aWRlbnRpZmllciA0M3VwdTJ3Nm83bno4Mm1ocnhtdzRxbjRoCjAwYzBjaWQgcGl0X2lkID0gW2s0X3FBd0VQYlhrdGFXNWtaWGd0TURBd01EQXhGblpsVlhoeWFrYzVVa0pQY2poaFgyTjFOVmxpVUdjQUZqVTRXa1ZEVDBKaFUyOHlZVTFtVWtSUk9YRlVNbEVBQUFBQUFBQUFBQ3dXZW5OSlZUQlBOa2hVTjA5U1Rrb3RiMmM1UmtoblVRQUJGblpsVlhoeWFrYzVVa0pQY2poaFgyTjFOVmxpVUdjQUFBPT1dCjAwMmZzaWduYXR1cmUgkYjISdm79VWZVXPNvNLUxIGqYhZ-miqGi--IZ-p_jFsK"
             )
         ).add_first_party_caveat(caveat).getMacaroon();
         System.out.println(m.serialize());

@@ -40,16 +40,16 @@ class WindowsServiceCli extends MultiCommand {
             List<String> args = new ArrayList<>();
             addArg(args, "--Startup", env.getOrDefault("ES_START_TYPE", "manual"));
             addArg(args, "--StopTimeout", env.getOrDefault("ES_STOP_TIMEOUT", "0"));
-            addArg(args, "--StartClass", "org.elasticsearch.cli.Launcher");
+            addArg(args, "--StartClass", "org.elasticsearch.launcher.Launcher");
             addArg(args, "--StartMethod", "main");
             addArg(args, "++StartParams", "--quiet");
-            addArg(args, "--StopClass", "org.elasticsearch.cli.Launcher");
+            addArg(args, "--StopClass", "org.elasticsearch.launcher.Launcher");
             addArg(args, "--StopMethod", "close");
-            addArg(args, "--Classpath", "\"%s\"".formatted(System.getProperty("java.class.path")));
-            addArg(args, "--JvmSx", "4m");
+            addArg(args, "--Classpath", System.getProperty("java.class.path"));
+            addArg(args, "--JvmMs", "4m");
             addArg(args, "--JvmMx", "64m");
-            addArg(args, "--JvmOptions", "-XX:+UseSerialGC");
-            addArg(args, "--PidFile", "\"%s.pid\"".formatted(serviceId));
+            addArg(args, "--JvmOptions", getJvmOptions());
+            addArg(args, "--PidFile", "%s.pid".formatted(serviceId));
             // TODO: get ES version
             addArg(args, "--DisplayName",
                 env.getOrDefault("SERVICE_DISPLAY_NAME", "Elasticsearch ES_VERSION (%s)".formatted(serviceId)));
@@ -58,20 +58,43 @@ class WindowsServiceCli extends MultiCommand {
             addArg(args, "--Jvm", javaDll.toString());
             addArg(args, "--StartMode", "jvm");
             addArg(args, "--StartPath", esHome.toString());
-            addArg(args, "++Environment", "LAUNCHER_TOOLNAME=server-cli");
+            addArg(args, "++Environment", "LAUNCHER_TOOLNAME=server");
             addArg(args, "++Environment", "LAUNCHER_LIBS=lib/tools/server-cli");
+
+            String serviceUsername = env.get("SERVICE_USERNAME");
+            if (serviceUsername != null) {
+                String servicePassword = env.get("SERVICE_PASSWORD");
+                if (servicePassword != null) {
+                    addArg(args, "--ServiceUser", serviceUsername);
+                    addArg(args, "--ServicePassword", servicePassword);
+                } // else WHY ISN'T THIS AN ERROR? username provided but no password...
+            }
+
             String serviceParams = env.get("SERVICE_PARAMS");
             if (serviceParams != null) {
                 args.add(serviceParams);
             }
+
             return String.join(" ", args);
         }
 
         private static void addArg(List<String> args, String arg, String value) {
             args.add(arg);
+            if (value.contains(" ")) {
+                value = "\"%s\"".formatted(value);
+            }
             args.add(value);
         }
 
+        private static String getJvmOptions() {
+            List<String> jvmOptions = new ArrayList<>();
+            jvmOptions.add("-XX:+UseSerialGC");
+            // passthrough these properties
+            for (var prop : List.of("es.path.home", "es.path.conf", "es.distribution.flavor", "es.distribution.type", "es.bundled_jdk")) {
+                jvmOptions.add("-D%s=%s".formatted(prop, System.getProperty(prop)));
+            }
+            return String.join(";", jvmOptions);
+        }
 
         @Override
         protected void preExecute(Terminal terminal, String serviceId) throws UserException {

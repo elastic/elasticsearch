@@ -32,7 +32,7 @@ abstract class ProcrunCommand extends Command {
 
     protected ProcrunCommand(String desc, String cmd) {
         super(desc);
-        this.procrun = Paths.get("").resolve("bin").resolve(getExecutable());
+        this.procrun = Paths.get("").resolve("bin").resolve(getExecutable()).toAbsolutePath();
         if (Files.exists(procrun) == false) {
             throw new IllegalStateException("Missing procrun exe: " + procrun);
         }
@@ -46,16 +46,19 @@ abstract class ProcrunCommand extends Command {
     @Override
     protected void execute(Terminal terminal, OptionSet options) throws Exception {
         Map<String, String> env = System.getenv();
-        Path esHome = Paths.get(""); // TODO: this should be passed through execute
+        Path esHome = Paths.get("").toAbsolutePath(); // TODO: this should be passed through execute
         String serviceId = getServiceId(options, env);
         preExecute(terminal, serviceId);
 
         List<String> procrunCmd = new ArrayList<>();
         procrunCmd.add(procrun.toString());
+        procrunCmd.add(cmd);
+        procrunCmd.add(serviceId);
         procrunCmd.add(getLogArgs(serviceId, esHome, env));
         procrunCmd.add(getAdditionalArgs(serviceId, esHome, env));
 
         ProcessBuilder processBuilder = new ProcessBuilder("cmd.exe", "/C", String.join(" ", procrunCmd).trim());
+        processBuilder.inheritIO();
         Process process = processBuilder.start();
         int ret = process.waitFor();
         if (ret != ExitCodes.OK) {

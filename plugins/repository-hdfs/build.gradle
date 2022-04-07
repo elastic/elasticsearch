@@ -48,7 +48,7 @@ dependencies {
     runtimeOnly "org.apache.hadoop:hadoop-client-runtime:${versions.hadoop}"
     implementation "org.apache.hadoop:hadoop-hdfs:${versions.hadoop}"
     api 'com.google.protobuf:protobuf-java:3.4.0'
-    api 'commons-logging:commons-logging:1.1.3'
+    api "commons-logging:commons-logging:${versions.commonslogging}"
     api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
     api 'commons-cli:commons-cli:1.2'
     api "commons-codec:commons-codec:${versions.commonscodec}"

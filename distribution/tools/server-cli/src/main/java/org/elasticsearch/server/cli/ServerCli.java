@@ -92,7 +92,7 @@ class ServerCli extends EnvironmentAwareCommand {
         ServerArgs serverArgs = new ServerArgs(daemonize, pidFile, env.settings(), env.configFile());
 
         List<String> jvmOptions = JvmOptionsParser.determine(env.configFile(), env.pluginsFile(), tempDir, envVars.get("ES_JAVA_OPTS"));
-        jvmOptions.add("-Des.path.conf=" + env.configFile());
+        //jvmOptions.add("-Des.path.conf=" + env.configFile());
         jvmOptions.add("-Des.distribution.flavor=" + System.getProperty("es.distribution.flavor"));
         jvmOptions.add("-Des.distribution.type=" + System.getProperty("es.distribution.type"));
         jvmOptions.add("-Des.bundled_jdk=" + System.getProperty("es.bundled_jdk"));
@@ -128,6 +128,9 @@ class ServerCli extends EnvironmentAwareCommand {
                         userExceptionMsg = line.substring(1);
                     } else if (line.isEmpty() == false && line.charAt(0) == '\21') {
                         ready = true;
+                        // The server closes stderr right after this message, but for some unknown reason
+                        // the pipe closing does not close this end of the pipe, so we must explicitly
+                        // break out of this loop, or we will block forever on the next read.
                         break;
                     } else {
                         terminal.getErrorWriter().println(line);

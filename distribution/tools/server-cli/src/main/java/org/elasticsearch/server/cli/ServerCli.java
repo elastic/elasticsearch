@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
@@ -137,9 +138,7 @@ class ServerCli extends EnvironmentAwareCommand {
             }
 
             if (ready && daemonize) {
-                process.getOutputStream().close();
-                process.getErrorStream().close();
-                process.getInputStream().close();
+                closeStreams(process);
                 return;
             }
 
@@ -172,6 +171,10 @@ class ServerCli extends EnvironmentAwareCommand {
         }*/
     }
 
+    private void closeStreams(Process process) throws IOException {
+        IOUtils.close(process.getOutputStream(), process.getInputStream(), process.getErrorStream());
+    }
+
     private void printVersion(Terminal terminal) {
         final String versionOutput = String.format(
             Locale.ROOT,
@@ -199,25 +202,29 @@ class ServerCli extends EnvironmentAwareCommand {
         }
     }
 
-    private void autoConfigureSecurity(Terminal terminal, OptionSet options, SecureString keystorePassword) throws UserException {
+    private void autoConfigureSecurity(Terminal terminal, OptionSet options, SecureString keystorePassword) throws Exception {
         KeystorePasswordTerminal autoConfigTerminal = new KeystorePasswordTerminal(terminal, keystorePassword);
-        Command autoConfigNode;
-        try {
-            String autoConfigLibs = "modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli";
-            autoConfigNode = ToolProvider.loadTool("auto-configure-node", autoConfigLibs).create();
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+
+        // reconstitute command lines
+        List<?> settingValues = options.asMap().get(settingOption);
+        List<String> args = new ArrayList<>();
+        settingValues.forEach(v -> {
+            args.add("-E");
+            args.add(v.toString());
+        });
+
+        String autoConfigLibs = "modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli";
+        Command autoConfigNode = ToolProvider.loadTool("auto-configure-node", autoConfigLibs).create();
         if (options.has(enrollmentTokenOption)) {
             final String enrollmentToken = enrollmentTokenOption.value(options);
-            // TODO: add -E params
-            int ret = autoConfigNode.main(new String[] { enrollmentTokenOption.options().get(0), enrollmentToken}, autoConfigTerminal);
+            args.add("--enrollment-token");
+            args.add(enrollmentToken);
+            int ret = autoConfigNode.main(args.toArray(new String[0]), autoConfigTerminal);
             if (ret != 0) {
                 throw new UserException(ret, "Auto security enrollment failed");
             }
         } else {
-            // TODO: add -E params
-            int ret = autoConfigNode.main(new String[0], autoConfigTerminal);
+            int ret = autoConfigNode.main(args.toArray(new String[0]), autoConfigTerminal);
             switch (ret) {
                 case ExitCodes.OK, ExitCodes.CANT_CREATE, ExitCodes.CONFIG, ExitCodes.NOOP: break;
                 default: throw new UserException(ret, "Auto security enrollment failed");

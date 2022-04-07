@@ -31,7 +31,7 @@ import java.util.Map;
 /** A cli command which requires an {@link org.elasticsearch.env.Environment} to use current paths and settings. */
 public abstract class EnvironmentAwareCommand extends Command {
 
-    private final OptionSpec<KeyValuePair> settingOption;
+    protected final OptionSpec<KeyValuePair> settingOption;
 
     /**
      * Construct the command with the specified command description. This command will have logging configured without reading Elasticsearch

@@ -8,7 +8,9 @@
 
 package org.elasticsearch.common.util;
 
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
@@ -19,7 +21,12 @@ import org.elasticsearch.core.Releasables;
  *  re-hashing and capacity is always a multiple of 2 for faster identification of buckets.
  *  This class is not thread-safe.
  */
-public abstract class AbstractBytesRefHash extends AbstractHash {
+public abstract class AbstractBytesRefHash extends AbstractHash implements Accountable {
+
+    // base size of the bytes ref hash
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefHash.class)
+        // spare BytesRef
+        + RamUsageEstimator.shallowSizeOfInstance(BytesRef.class);
 
     protected LongArray startOffsets;
     protected ByteArray bytes;
@@ -160,6 +167,12 @@ public abstract class AbstractBytesRefHash extends AbstractHash {
         try (Releasable releasable = Releasables.wrap(bytes, hashes, startOffsets)) {
             super.close();
         }
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return BASE_RAM_BYTES_USED + ids.ramBytesUsed() + startOffsets.ramBytesUsed() + bytes.ramBytesUsed() + hashes.ramBytesUsed()
+            + spare.bytes.length;
     }
 
 }

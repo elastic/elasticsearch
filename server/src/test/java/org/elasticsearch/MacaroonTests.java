@@ -30,15 +30,13 @@ public class MacaroonTests extends ESTestCase {
     public void testAddCaveatFromSerialized() {
         String caveat = """
             {
-               "match" : {
-                 "bar" : {
-                   "query" : "foo"
-                 }
-               }
+               "match": {
+                    "message": "potato"
+                }
             }""";
         Macaroon m = MacaroonsBuilder.modify(
             MacaroonsBuilder.deserialize(
-                "MDAwZWxvY2F0aW9uIAowMDI5aWRlbnRpZmllciBjZmJiZ25kdGFlYmtwMGptcGt1aHUxd3JtCjAxNjBjaWQgcGl0X2lkID0gW2s0X3FBd0lQYlhrdGFXNWtaWGd0TURBd01EQXlGbGxETVdZMVdrMXRWRUZQUzI5T2RtMVpNVGRVT0ZFQUZrbFZibEJaWjI1WlUxcFhOVVl0WlVWRlZtWk5jR2NBQUFBQUFBQUFBQzBXYVdOWVQwNVJjMWhVTUVOSE5VODJjemh0Y21ST1VRQVBiWGt0YVc1a1pYZ3RNREF3TURBeEZtTnNUbVJXV0Y5alUyOXhibU42WW01WFN6ZFhhSGNBRmtsVmJsQlpaMjVaVTFwWE5VWXRaVVZGVm1aTmNHY0FBQUFBQUFBQUFDd1dhV05ZVDA1UmMxaFVNRU5ITlU4MmN6aHRjbVJPVVFBQ0ZsbERNV1kxV2sxdFZFRlBTMjlPZG0xWk1UZFVPRkVBQUJaamJFNWtWbGhmWTFOdmNXNWplbUp1VjBzM1YyaDNBQUE9XQowMDJmc2lnbmF0dXJlIEmljszeq6rm-Y-QscPUeTA4QWBKhfYyA8RnIdWMD7akCg"
+                "MDAwZWxvY2F0aW9uIAowMDI5aWRlbnRpZmllciA5NHV0d2F1ZWQ2NGs1czk0Z2VveDdpcnNtCjAxNjBjaWQgcGl0X2lkID0gW2s0X3FBd0lQYlhrdGFXNWtaWGd0TURBd01EQXhGblpMWlV4ZmNsWkhVelpUVEdSVVIxUnZTekpIV21jQUZrVmxXa0pPYURnMlZGVnBkR2xhVURRMU56WjRUa0VBQUFBQUFBQUFBQ3dXUm1reVdqaGhhRWhTWW5WVU4wSnNVVGhvZEZSS2R3QVBiWGt0YVc1a1pYZ3RNREF3TURBeUZtTlNhVVF3TVd3M1ZHdEhUV3R5YW0xSldGVmtZMEVBRmtWbFdrSk9hRGcyVkZWcGRHbGFVRFExTnpaNFRrRUFBQUFBQUFBQUFDMFdSbWt5V2poaGFFaFNZblZVTjBKc1VUaG9kRlJLZHdBQ0ZuWkxaVXhmY2xaSFV6WlRUR1JVUjFSdlN6SkhXbWNBQUJaalVtbEVNREZzTjFSclIwMXJjbXB0U1ZoVlpHTkJBQUE9XQowMDJmc2lnbmF0dXJlIOs6SOXwCg8tMVc-kLyoGyQ7Ou1HAiDskePZcrqgoPyVCg"
             )
         ).add_first_party_caveat(caveat).getMacaroon();
         System.out.println(m.serialize());

@@ -16,16 +16,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.cluster.ClusterModule;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -37,14 +33,14 @@ import static org.elasticsearch.index.query.AbstractQueryBuilder.parseInnerQuery
 
 public class MacaroonService {
 
+    private static final Logger logger = LogManager.getLogger(MacaroonService.class);
+
     private static final NamedXContentRegistry DEFAULT_NAMED_X_CONTENT_REGISTRY = new NamedXContentRegistry(
         CollectionUtils.concatLists(ClusterModule.getNamedXWriteables(), new SearchModule(Settings.EMPTY, List.of()).getNamedXContents())
     );
     public static final XContentParserConfiguration CONFIG = XContentParserConfiguration.EMPTY.withRegistry(
         DEFAULT_NAMED_X_CONTENT_REGISTRY
     ).withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
-
-    private static final Logger logger = LogManager.getLogger(MacaroonService.class);
 
     private final String macKey;
 
@@ -88,17 +84,6 @@ public class MacaroonService {
                 return false;
             }
         });
-    }
-
-    private String extractQueryIfPresent(QueryBuilder query) {
-        try {
-            XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
-            query.toXContent(builder, ToXContent.EMPTY_PARAMS);
-            return Strings.toString(builder);
-        } catch (IOException e) {
-            logger.warn("Failed extracting query", e);
-            return null;
-        }
     }
 
     private String pointInTimeIdCaveat(String pointInTimeId) {

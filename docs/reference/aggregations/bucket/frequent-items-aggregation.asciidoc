@@ -1,0 +1,39 @@
+[[search-aggregations-bucket-frequent-items-aggregation]]
+=== Frequent items aggregation
+++++
+<titleabbrev>Frequent items</titleabbrev>
+++++
+
+A bucket aggregation which finds frequent item sets. 
+
+==== Syntax
+
+A `frequent_items` aggregation looks like this in isolation:
+
+[source,js]
+--------------------------------------------------
+"frequent_items": {
+  "minimum_set_size": 3,
+  "fields": [
+    {"field": "my_field_1"},
+    {"field": "my_field_2"}
+  ]
+}
+--------------------------------------------------
+// NOTCONSOLE
+
+.`frequent_items` Parameters
+|===
+|Parameter Name |Description |Required |Default Value
+|`field` |(array) Fields to analyze. |Required |
+|`minimum_set_size` | (integer) The minimum size of one item set. |Optional | `1`
+|`minimum_support` | (integer) The minimum support of one item set. |Optional | `0.1`
+|`` | |Optional |
+|`` | |Optional |
+|`` | |Optional |
+|===
+
+[discrete]
+[[-frequent-items-minimum-support]]
+==== Minimum support
+

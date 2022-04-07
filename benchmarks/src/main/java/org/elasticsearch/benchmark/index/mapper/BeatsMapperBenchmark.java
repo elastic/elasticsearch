@@ -106,15 +106,29 @@ public class BeatsMapperBenchmark {
             new BytesArray(
                 "{    \"@timestamp\": "
                     + System.currentTimeMillis()
-                    + ",    \"client.ip\": \""
+                    + ",    \"log.file.path\": \""
+                    + randomFrom("logs-1.log", "logs-2.log", "logs-3.log")
+                    + "\",    \"log.level\": \""
+                    + "INFO"
+                    + "\",    \"log.logger\": \""
+                    + "some.package.for.logging.requests"
+                    + "\",    \"client.ip\": \""
                     + randomIp()
                     + "\",    \"http.request.method\": \""
                     + randomFrom("GET", "POST")
-                    + "\",    \"url.path\": \""
+                    + "\",    \"http.request.id\": \""
+                    + random.nextInt()
+                    + "\",    \"http.request.bytes\": "
+                    + random.nextInt(1024)
+                    + ",    \"url.path\": \""
                     + randomString(1024)
                     + "\",    \"http.response.status_code\": "
                     + randomFrom(200, 204, 300, 404, 500)
-                    + "}"
+                    + ",    \"http.response.bytes\": "
+                    + random.nextInt(1024)
+                    + ",    \"http.response.mime_type\": \""
+                    + randomFrom("application/json", "application/xml")
+                    + "\"}"
             ),
             XContentType.JSON
         );

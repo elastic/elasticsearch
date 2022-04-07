@@ -15,6 +15,10 @@ ES_DISTRIBUTION_TYPE=@es.distribution.type@
 ES_BUNDLED_JDK=@es.bundled_jdk@
 LAUNCHER_CLASSPATH=$ES_HOME/lib/*:$ES_HOME/lib/launcher/*
 
+# use a small heap size for the CLI tools, and thus the serial collector to
+# avoid stealing many CPU cycles; a user can override by setting LAUNCHER_JAVA_OPTS
+LAUNCHER_JAVA_OPTS="-Xms4m -Xmx64m -XX:+UseSerialGC ${LAUNCHER_JAVA_OPTS}"
+
 # TODO: move this to launcher
 if [[ "$ES_BUNDLED_JDK" == "false" ]]; then
   echo "warning: no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release" >&2

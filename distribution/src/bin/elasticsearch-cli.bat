@@ -12,6 +12,10 @@ set ES_DISTRIBUTION_TYPE=@es.distribution.type@
 set ES_BUNDLED_JDK=@es.bundled_jdk@
 set LAUNCHER_CLASSPATH=%ES_HOME%/lib/*;%ES_HOME%/lib/launcher/*
 
+rem use a small heap size for the CLI tools, and thus the serial collector to
+rem avoid stealing many CPU cycles; a user can override by setting LAUNCHER_JAVA_OPTS
+set LAUNCHER_JAVA_OPTS=-Xms4m -Xmx64m -XX:+UseSerialGC %LAUNCHER_JAVA_OPTS%
+
 %JAVA% ^
   %LAUNCHER_JAVA_OPTS% ^
   -Des.path.home="%ES_HOME%" ^

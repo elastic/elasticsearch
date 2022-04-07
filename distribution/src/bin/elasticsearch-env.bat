@@ -17,6 +17,7 @@ rem now set the classpath
 set ES_CLASSPATH=!ES_HOME!\lib\*
 set LAUNCHERS_CLASSPATH=!ES_CLASSPATH!;!ES_HOME!\lib\launchers\*
 
+rem TODO: remove this, no longer needed
 rem now set the path to java, pass "nojava" arg to skip setting ES_JAVA_HOME and JAVA
 if "%1" == "nojava" (
    exit /b
@@ -28,6 +29,9 @@ rem by setting ES_JAVA_HOME=
 if defined ES_JAVA_HOME (
   set JAVA="%ES_JAVA_HOME%\bin\java.exe"
   set JAVA_TYPE=ES_JAVA_HOME
+
+  rem TODO: add version check
+  rem TODO: add dll check
 ) else (
   rem use the bundled JDK (default)
   set JAVA="%ES_HOME%\jdk\bin\java.exe"

@@ -1,1 +1,1 @@
-org.elasticsearch.windows_service.cli.WindowsServiceCliProvider
+org.elasticsearch.windows_service.WindowsServiceCliProvider

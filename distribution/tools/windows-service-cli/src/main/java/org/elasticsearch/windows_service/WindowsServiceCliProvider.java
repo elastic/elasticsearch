@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticserach.windows_service.cli;
+package org.elasticsearch.windows_service;
 
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ToolProvider;

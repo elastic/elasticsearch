@@ -214,7 +214,7 @@ belongs.
     (Optional, object) Multiclass confusion matrix.
 
     `size`::::
-      (Optional, double) Specifies the size of the multi class confusion matrix. 
+      (Optional, double) Specifies the size of the multiclass confusion matrix. 
       Defaults to `10` which results in a matrix of size 10x10.
 
   `precision`:::

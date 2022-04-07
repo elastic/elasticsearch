@@ -36,9 +36,7 @@ public class Iterables {
         @Override
         public Iterator<T> iterator() {
             return Stream.of(inputs)
-                .map(it -> StreamSupport.stream(it.spliterator(), false))
-                .reduce(Stream::concat)
-                .orElseGet(Stream::empty)
+                .flatMap(it -> StreamSupport.stream(it.spliterator(), false))
                 .iterator();
         }
     }

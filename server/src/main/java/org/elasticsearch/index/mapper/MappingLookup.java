@@ -291,10 +291,7 @@ public final class MappingLookup {
     }
 
     private void checkFieldNameLengthLimit(long limit) {
-        Stream.of(objectMappers.values().stream(), fieldMappers.values().stream())
-            .reduce(Stream::concat)
-            .orElseGet(Stream::empty)
-            .forEach(mapper -> {
+        Stream.concat(objectMappers.values().stream(), fieldMappers.values().stream()).forEach(mapper -> {
                 String name = mapper.simpleName();
                 if (name.length() > limit) {
                     throw new IllegalArgumentException("Field name [" + name + "] is longer than the limit of [" + limit + "] characters");

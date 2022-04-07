@@ -212,55 +212,57 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
     }
 
     private static final MethodHandles.Lookup LOOKUP = MethodHandles.lookup();
-    private static final MethodType METHOD_TYPE = MethodType.methodType(void.class, DocumentParserContext.class, GeoPoint.class);
+    private static final MethodType METHOD_TYPE = MethodType.methodType(
+        void.class,
+        DocumentParserContext.class,
+        String.class,
+        GeoPoint.class
+    );
+
+    private static void addStoredField(DocumentParserContext context, String fieldName, GeoPoint geometry) {
+        context.doc().add(new StoredField(fieldName, geometry.toString()));
+    }
+
+    private static void addToFieldNames(DocumentParserContext context, String fieldName, GeoPoint geometry) {
+        context.addToFieldNames(fieldName);
+    }
+
+    private static void addLatLon(DocumentParserContext context, String fieldName, GeoPoint geometry) {
+        context.doc().add(new LatLonPoint(fieldName, geometry.lat(), geometry.lon()));
+    }
+
+    private static void addLatLonDocValues(DocumentParserContext context, String fieldName, GeoPoint geometry) {
+        context.doc().add(new LatLonDocValuesField(fieldName, geometry.lat(), geometry.lon()));
+    }
+
+    private static void nop(DocumentParserContext context, String fieldName, GeoPoint geometry) {}
 
     private final MethodHandle indexMh = indexMh();
 
     private MethodHandle indexMh() {
         try {
-            MethodHandle chain = LOOKUP.findVirtual(GeoPointFieldMapper.class, "nop", METHOD_TYPE);
+            MethodHandle chain = LOOKUP.findStatic(GeoPointFieldMapper.class, "nop", METHOD_TYPE);
             if (fieldType().isIndexed()) {
-                chain = MethodHandles.foldArguments(LOOKUP.findVirtual(GeoPointFieldMapper.class, "addLatLon", METHOD_TYPE), chain);
+                chain = MethodHandles.foldArguments(LOOKUP.findStatic(GeoPointFieldMapper.class, "addLatLon", METHOD_TYPE), chain);
             }
             if (fieldType().hasDocValues()) {
-                chain = MethodHandles.foldArguments(
-                    LOOKUP.findVirtual(GeoPointFieldMapper.class, "addLatLonDocValues", METHOD_TYPE),
-                    chain
-                );
+                chain = MethodHandles.foldArguments(LOOKUP.findStatic(GeoPointFieldMapper.class, "addLatLonDocValues", METHOD_TYPE), chain);
             } else if (fieldType().isStored() || fieldType().isIndexed()) {
-                chain = MethodHandles.foldArguments(LOOKUP.findVirtual(GeoPointFieldMapper.class, "addToFieldNames", METHOD_TYPE), chain);
+                chain = MethodHandles.foldArguments(LOOKUP.findStatic(GeoPointFieldMapper.class, "addToFieldNames", METHOD_TYPE), chain);
             }
             if (fieldType().isStored()) {
-                chain = MethodHandles.foldArguments(LOOKUP.findVirtual(GeoPointFieldMapper.class, "addStoredField", METHOD_TYPE), chain);
+                chain = MethodHandles.foldArguments(LOOKUP.findStatic(GeoPointFieldMapper.class, "addStoredField", METHOD_TYPE), chain);
             }
-            return chain.bindTo(this);
+            return chain;
         } catch (Exception e) {
             throw new RuntimeException(e);
         }
     }
 
-    private void addStoredField(DocumentParserContext context, GeoPoint geometry) {
-        context.doc().add(new StoredField(fieldType().name(), geometry.toString()));
-    }
-
-    private void addToFieldNames(DocumentParserContext context, GeoPoint geometry) {
-        context.addToFieldNames(fieldType().name());
-    }
-
-    private void addLatLon(DocumentParserContext context, GeoPoint geometry) {
-        context.doc().add(new LatLonPoint(fieldType().name(), geometry.lat(), geometry.lon()));
-    }
-
-    private void addLatLonDocValues(DocumentParserContext context, GeoPoint geometry) {
-        context.doc().add(new LatLonDocValuesField(fieldType().name(), geometry.lat(), geometry.lon()));
-    }
-
-    private void nop(DocumentParserContext context, GeoPoint geometry) {}
-
     @Override
     protected void index(DocumentParserContext context, GeoPoint geometry) throws IOException {
         try {
-            indexMh.invokeExact(context, geometry);
+            indexMh.invokeExact(context, fieldType().name(), geometry);
         } catch (Throwable e) {
             throw new RuntimeException(e);
         }

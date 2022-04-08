@@ -12,7 +12,6 @@ import com.carrotsearch.hppc.IntCollection;
 import com.carrotsearch.hppc.IntContainer;
 import com.carrotsearch.hppc.IntObjectAssociativeContainer;
 import com.carrotsearch.hppc.IntObjectHashMap;
-import com.carrotsearch.hppc.IntObjectMap;
 import com.carrotsearch.hppc.ObjectContainer;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
@@ -311,7 +310,7 @@ public final class ImmutableOpenIntMap<VType> implements Map<Integer, VType> {
         return new Builder<>(map);
     }
 
-    public static class Builder<VType> implements IntObjectMap<VType> {
+    public static class Builder<VType> {
 
         private IntObjectHashMap<VType> map;
 
@@ -355,17 +354,14 @@ public final class ImmutableOpenIntMap<VType> implements Map<Integer, VType> {
             return this;
         }
 
-        @Override
         public VType put(int key, VType value) {
             return map.put(key, value);
         }
 
-        @Override
         public VType get(int key) {
             return map.get(key);
         }
 
-        @Override
         public VType getOrDefault(int kType, VType vType) {
             return map.getOrDefault(kType, vType);
         }
@@ -378,112 +374,90 @@ public final class ImmutableOpenIntMap<VType> implements Map<Integer, VType> {
             return this;
         }
 
-        @Override
         public VType remove(int key) {
             return map.remove(key);
         }
 
-        @Override
         public Iterator<IntObjectCursor<VType>> iterator() {
             return map.iterator();
         }
 
-        @Override
         public boolean containsKey(int key) {
             return map.containsKey(key);
         }
 
-        @Override
         public int size() {
             return map.size();
         }
 
-        @Override
         public boolean isEmpty() {
             return map.isEmpty();
         }
 
-        @Override
         public void clear() {
             map.clear();
         }
 
-        @Override
         public int putAll(IntObjectAssociativeContainer<? extends VType> container) {
             return map.putAll(container);
         }
 
-        @Override
         public int putAll(Iterable<? extends IntObjectCursor<? extends VType>> iterable) {
             return map.putAll(iterable);
         }
 
-        @Override
         public int removeAll(IntContainer container) {
             return map.removeAll(container);
         }
 
-        @Override
         public int removeAll(IntPredicate predicate) {
             return map.removeAll(predicate);
         }
 
-        @Override
         public <T extends IntObjectProcedure<? super VType>> T forEach(T procedure) {
             return map.forEach(procedure);
         }
 
-        @Override
         public IntCollection keys() {
             return map.keys();
         }
 
-        @Override
         public ObjectContainer<VType> values() {
             return map.values();
         }
 
-        @Override
         public int removeAll(IntObjectPredicate<? super VType> predicate) {
             return map.removeAll(predicate);
         }
 
-        @Override
         public <T extends IntObjectPredicate<? super VType>> T forEach(T predicate) {
             return map.forEach(predicate);
         }
 
-        @Override
         public int indexOf(int key) {
             return map.indexOf(key);
         }
 
-        @Override
         public boolean indexExists(int index) {
             return map.indexExists(index);
         }
 
-        @Override
         public VType indexGet(int index) {
             return map.indexGet(index);
         }
 
-        @Override
         public VType indexReplace(int index, VType newValue) {
             return map.indexReplace(index, newValue);
         }
 
-        @Override
         public void indexInsert(int index, int key, VType value) {
             map.indexInsert(index, key, value);
         }
 
-        @Override
         public void release() {
             map.release();
         }
 
-        @Override
         public String visualizeKeyDistribution(int characters) {
             return map.visualizeKeyDistribution(characters);
         }

@@ -62,8 +62,6 @@ if defined ES_JAVA_HOME (
   set JAVA_TYPE=bundled JDK
 )
 
-
-
 rem do not let JAVA_TOOL_OPTIONS slip in (as the JVM does by default)
 if defined JAVA_TOOL_OPTIONS (
   echo warning: ignoring JAVA_TOOL_OPTIONS=%JAVA_TOOL_OPTIONS%

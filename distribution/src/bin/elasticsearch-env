@@ -34,12 +34,15 @@ ES_HOME=`dirname "$ES_HOME"`
 
 # now set the classpath
 ES_CLASSPATH="$ES_HOME/lib/*"
-LAUNCHERS_CLASSPATH="$ES_CLASSPATH:$ES_HOME/lib/launchers/*"
+LAUNCHERS_CLASSPATH="$ES_CLASSPATH:$ES_HOME/lib/java-version-checker/*:$ES_HOME/lib/launchers/*"
 
 # now set the path to java
 if [ ! -z "$ES_JAVA_HOME" ]; then
   JAVA="$ES_JAVA_HOME/bin/java"
   JAVA_TYPE="ES_JAVA_HOME"
+
+  # check the user supplied jdk version
+  "$JAVA" -cp "$ES_HOME/lib/java-version-checker/*" org.elasticsearch.tools.java_version_checker.JavaVersionChecker
 else
   # use the bundled JDK (default)
   if [ "$(uname -s)" = "Darwin" ]; then
@@ -79,9 +82,6 @@ if [[ "$("$JAVA" -version 2>/dev/null)" =~ "Unable to map CDS archive" ]]; then
 else
   XSHARE="-Xshare:auto"
 fi
-
-# check the Java version
-"$JAVA" "$XSHARE" -cp "$LAUNCHERS_CLASSPATH" org.elasticsearch.tools.java_version_checker.JavaVersionChecker
 
 export HOSTNAME=$HOSTNAME
 

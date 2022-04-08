@@ -533,7 +533,6 @@ public class JvmInfo implements ReportingService.Info {
         static final String VM_NAME = "vm_name";
         static final String VM_VERSION = "vm_version";
         static final String VM_VENDOR = "vm_vendor";
-        static final String BUNDLED_JDK = "bundled_jdk";
         static final String USING_BUNDLED_JDK = "using_bundled_jdk";
         static final String START_TIME = "start_time";
         static final String START_TIME_IN_MILLIS = "start_time_in_millis";

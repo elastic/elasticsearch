@@ -620,7 +620,6 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
                         "vm_name": "_jvm_vm_name",
                         "vm_version": "_jvm_vm_version",
                         "vm_vendor": "_jvm_vm_vendor",
-                        "bundled_jdk": true,
                         "using_bundled_jdk": true,
                         "count": 1
                       }

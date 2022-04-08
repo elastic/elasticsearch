@@ -1039,10 +1039,6 @@ The full version number includes a plus sign (`+`) followed by the build number.
 (string)
 Vendor of the JVM.
 
-`bundled_jdk`::
-(Boolean)
-If `true`, the JVM includes a bundled Java Development Kit (JDK).
-
 `using_bundled_jdk`::
 (Boolean)
 If `true`, a bundled JDK is in use by JVM.
@@ -1440,7 +1436,6 @@ The API returns the following response:
                "vm_name": "OpenJDK 64-Bit Server VM",
                "vm_version": "12+33",
                "vm_vendor": "Oracle Corporation",
-               "bundled_jdk": true,
                "using_bundled_jdk": true,
                "count": 1
             }

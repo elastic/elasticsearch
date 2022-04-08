@@ -54,7 +54,7 @@ if defined ES_JAVA_HOME (
   )
 
   rem check the user supplied jdk version
-  %JAVA% -cp "%ES_HOME%\lib\java-version-checker\*" "org.elasticsearch.tools.java_version_checker.JavaVersionChecker" || exit /b 1
+  !JAVA! -cp "%ES_HOME%\lib\java-version-checker\*" "org.elasticsearch.tools.java_version_checker.JavaVersionChecker" || exit /b 1
 ) else (
   rem use the bundled JDK (default)
   set JAVA="%ES_HOME%\jdk\bin\java.exe"

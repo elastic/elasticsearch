@@ -49,6 +49,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.invoke.LambdaMetafactory;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.MethodType;
@@ -237,9 +238,14 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
     private static void nop(DocumentParserContext context, String fieldName, GeoPoint geometry) {}
 
-    private final MethodHandle indexMh = indexMh();
+    @FunctionalInterface
+    private interface IndexConsumer {
+        void accept(DocumentParserContext context, String fieldName, GeoPoint geometry);
+    }
 
-    private MethodHandle indexMh() {
+    private final IndexConsumer indexConsumer = indexConsumer();
+
+    private IndexConsumer indexConsumer() {
         try {
             MethodHandle chain = LOOKUP.findStatic(GeoPointFieldMapper.class, "nop", METHOD_TYPE);
             if (fieldType().isIndexed()) {
@@ -253,19 +259,23 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             if (fieldType().isStored()) {
                 chain = MethodHandles.foldArguments(LOOKUP.findStatic(GeoPointFieldMapper.class, "addStoredField", METHOD_TYPE), chain);
             }
-            return chain;
-        } catch (Exception e) {
-            throw new RuntimeException(e);
+            // MethodHandles are slow if they are not static, generate a lambda get it inlined
+            return (IndexConsumer) LambdaMetafactory.metafactory(
+                LOOKUP,
+                "accept",
+                MethodType.methodType(IndexConsumer.class, MethodHandle.class),
+                METHOD_TYPE,
+                MethodHandles.exactInvoker(METHOD_TYPE),
+                METHOD_TYPE
+            ).getTarget().invokeExact(chain);
+        } catch (Throwable t) {
+            throw new RuntimeException(t);
         }
     }
 
     @Override
     protected void index(DocumentParserContext context, GeoPoint geometry) throws IOException {
-        try {
-            indexMh.invokeExact(context, fieldType().name(), geometry);
-        } catch (Throwable e) {
-            throw new RuntimeException(e);
-        }
+        indexConsumer.accept(context, fieldType().name(), geometry);
         // TODO phase out geohash (which is currently used in the CompletionSuggester)
         // we only expose the geohash value and disallow advancing tokens, hence we can reuse the same parser throughout multiple sub-fields
         DocumentParserContext parserContext = context.switchParser(new GeoHashMultiFieldParser(context.parser(), geometry.geohash()));

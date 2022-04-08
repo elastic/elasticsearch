@@ -8,8 +8,6 @@
 
 package org.elasticsearch.tools.launchers;
 
-import org.elasticsearch.tools.java_version_checker.JavaVersion;
-
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -70,7 +68,7 @@ final class SystemJvmOptions {
     }
 
     private static String maybeShowCodeDetailsInExceptionMessages() {
-        if (JavaVersion.majorVersion(JavaVersion.CURRENT) >= 14) {
+        if (Runtime.version().feature() >= 14) {
             return "-XX:+ShowCodeDetailsInExceptionMessages";
         } else {
             return "";

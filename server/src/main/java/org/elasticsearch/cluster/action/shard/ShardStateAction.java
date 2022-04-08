@@ -18,7 +18,6 @@ import org.elasticsearch.action.ResultDeduplicator;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.MasterNodeChangePredicate;
@@ -34,6 +33,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
 import org.elasticsearch.cluster.routing.allocation.StaleShard;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -276,15 +276,13 @@ public class ShardStateAction {
 
     // TODO: Make this a TransportMasterNodeAction and remove duplication of master failover retrying from upstream code
     private static class ShardFailedTransportHandler implements TransportRequestHandler<FailedShardEntry> {
-        private final ClusterService clusterService;
-        private final ShardFailedClusterStateTaskExecutor shardFailedClusterStateTaskExecutor;
+        private final MasterServiceTaskQueue<FailedShardUpdateTask> taskQueue;
 
         ShardFailedTransportHandler(
             ClusterService clusterService,
             ShardFailedClusterStateTaskExecutor shardFailedClusterStateTaskExecutor
         ) {
-            this.clusterService = clusterService;
-            this.shardFailedClusterStateTaskExecutor = shardFailedClusterStateTaskExecutor;
+            taskQueue = clusterService.getTaskQueue(TASK_SOURCE, Priority.HIGH, shardFailedClusterStateTaskExecutor);
         }
 
         private static final String TASK_SOURCE = "shard-failed";
@@ -296,12 +294,7 @@ public class ShardStateAction {
                 request.failure
             );
             var update = new FailedShardUpdateTask(request, new ChannelActionListener<>(channel, TASK_SOURCE, request));
-            clusterService.submitStateUpdateTask(
-                TASK_SOURCE,
-                update,
-                ClusterStateTaskConfig.build(Priority.HIGH),
-                shardFailedClusterStateTaskExecutor
-            );
+            taskQueue.submitTask(TASK_SOURCE, update, null);
         }
     }
 
@@ -600,15 +593,13 @@ public class ShardStateAction {
 
     // TODO: Make this a TransportMasterNodeAction and remove duplication of master failover retrying from upstream code
     private static class ShardStartedTransportHandler implements TransportRequestHandler<StartedShardEntry> {
-        private final ClusterService clusterService;
-        private final ShardStartedClusterStateTaskExecutor shardStartedClusterStateTaskExecutor;
+        private final MasterServiceTaskQueue<StartedShardUpdateTask> taskQueue;
 
         ShardStartedTransportHandler(
             ClusterService clusterService,
             ShardStartedClusterStateTaskExecutor shardStartedClusterStateTaskExecutor
         ) {
-            this.clusterService = clusterService;
-            this.shardStartedClusterStateTaskExecutor = shardStartedClusterStateTaskExecutor;
+            taskQueue = clusterService.getTaskQueue("shard-started", Priority.URGENT, shardStartedClusterStateTaskExecutor);
         }
 
         @Override
@@ -621,13 +612,7 @@ public class ShardStateAction {
             );
 
             var update = new StartedShardUpdateTask(request, listener);
-
-            clusterService.submitStateUpdateTask(
-                "shard-started " + request,
-                update,
-                ClusterStateTaskConfig.build(Priority.URGENT),
-                shardStartedClusterStateTaskExecutor
-            );
+            taskQueue.submitTask("shard-started " + request, update, null);
         }
     }
 

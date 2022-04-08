@@ -67,8 +67,8 @@ import java.util.function.Consumer;
  * across master elections (and therefore is preserved in a rolling restart).
  * <p>
  * Updates are triggered by submitting tasks to the {@link MasterService} on the elected master, typically using a {@link
- * TransportMasterNodeAction} to route a request to the master on which the task is submitted with {@link
- * ClusterService#submitStateUpdateTask}. Submitted tasks have an associated {@link ClusterStateTaskConfig} which defines a priority and a
+ * TransportMasterNodeAction} to route a request to the master on which the task is submitted via a queue obtained with {@link
+ * ClusterService#getTaskQueue}, which has an associated priority. Submitted tasks have an associated
  * timeout. Tasks are processed in priority order, so a flood of higher-priority tasks can starve lower-priority ones from running.
  * Therefore, avoid priorities other than {@link Priority#NORMAL} where possible. Tasks associated with client actions should typically have
  * a timeout, or otherwise be sensitive to client cancellations, to avoid surprises caused by the execution of stale tasks long after they

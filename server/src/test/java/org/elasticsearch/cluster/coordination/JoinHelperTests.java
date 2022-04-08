@@ -18,7 +18,10 @@ import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.Releasable;
@@ -57,6 +60,7 @@ import java.util.stream.Stream;
 import static org.elasticsearch.cluster.coordination.JoinHelper.PENDING_JOIN_WAITING_RESPONSE;
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
+import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.transport.AbstractSimpleTransportTestCase.IGNORE_DESERIALIZATION_ERRORS_SETTING;
 import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
 import static org.hamcrest.Matchers.allOf;
@@ -85,7 +89,7 @@ public class JoinHelperTests extends ESTestCase {
         JoinHelper joinHelper = new JoinHelper(
             Settings.EMPTY,
             null,
-            null,
+            new FakeThreadPoolMasterService("node0", "master", threadPool, deterministicTaskQueue::scheduleNow),
             transportService,
             () -> 0L,
             () -> null,
@@ -235,9 +239,10 @@ public class JoinHelperTests extends ESTestCase {
             .metadata(Metadata.builder().generateClusterUuidIfNeeded().clusterUUIDCommitted(true))
             .build();
 
+        ThreadPool threadPool = deterministicTaskQueue.getThreadPool();
         TransportService transportService = mockTransport.createTransportService(
             Settings.EMPTY,
-            deterministicTaskQueue.getThreadPool(),
+            threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> localNode,
             null,
@@ -247,7 +252,7 @@ public class JoinHelperTests extends ESTestCase {
         new JoinHelper(
             Settings.builder().put(Environment.PATH_DATA_SETTING.getKey(), dataPath).build(),
             null,
-            null,
+            new FakeThreadPoolMasterService("node0", "master", threadPool, deterministicTaskQueue::scheduleNow),
             transportService,
             () -> 0L,
             () -> localClusterState,
@@ -294,19 +299,21 @@ public class JoinHelperTests extends ESTestCase {
         DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
         CapturingTransport capturingTransport = new HandshakingCapturingTransport();
         DiscoveryNode localNode = new DiscoveryNode("node0", buildNewFakeTransportAddress(), Version.CURRENT);
+        ThreadPool threadPool = deterministicTaskQueue.getThreadPool();
         TransportService transportService = capturingTransport.createTransportService(
             Settings.EMPTY,
-            deterministicTaskQueue.getThreadPool(),
+            threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
             x -> localNode,
             null,
             Collections.emptySet()
         );
+        MasterService masterService = new FakeThreadPoolMasterService("node0", "master", threadPool, deterministicTaskQueue::scheduleNow);
         AtomicReference<StatusInfo> nodeHealthServiceStatus = new AtomicReference<>(new StatusInfo(UNHEALTHY, "unhealthy-info"));
         JoinHelper joinHelper = new JoinHelper(
             Settings.EMPTY,
             null,
-            null,
+            masterService,
             transportService,
             () -> 0L,
             () -> null,
@@ -362,17 +369,23 @@ public class JoinHelperTests extends ESTestCase {
             final ThreadPool threadPool = new TestThreadPool("test");
             releasables.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
 
-            final TransportService remoteTransportService = MockTransportService.createNewService(
-                Settings.builder().put(IGNORE_DESERIALIZATION_ERRORS_SETTING.getKey(), true).build(),
-                Version.CURRENT,
-                threadPool
-            );
+            final var settings = Settings.builder()
+                .put(NODE_NAME_SETTING.getKey(), "test")
+                .put(IGNORE_DESERIALIZATION_ERRORS_SETTING.getKey(), true)
+                .build();
+            final TransportService remoteTransportService = MockTransportService.createNewService(settings, Version.CURRENT, threadPool);
             releasables.add(remoteTransportService);
 
+            final var masterService = new MasterService(
+                settings,
+                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+                threadPool
+            );
+
             new JoinHelper(
-                Settings.EMPTY,
+                settings,
                 null,
-                null,
+                masterService,
                 remoteTransportService,
                 () -> 0L,
                 () -> null,
@@ -383,6 +396,11 @@ public class JoinHelperTests extends ESTestCase {
                 () -> { throw new AssertionError(); },
                 new JoinReasonService(() -> 0L)
             );
+
+            masterService.setClusterStatePublisher((event, publishListener, ackListener) -> fail("should not be called"));
+            masterService.setClusterStateSupplier(() -> { throw new AssertionError("should not be called"); });
+            masterService.start();
+            releasables.add(masterService);
 
             remoteTransportService.start();
             remoteTransportService.acceptIncomingRequests();

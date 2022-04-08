@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.coordination.ClusterStatePublisher.AckListener;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -79,11 +80,12 @@ public class FakeThreadPoolMasterService extends MasterService {
                 pendingTasks.add(command);
                 scheduleNextTaskIfNecessary();
             }
-        };
-    }
 
-    public int getFakeMasterServicePendingTaskCount() {
-        return pendingTasks.size();
+            @Override
+            public Pending[] getPending() {
+                return pendingTasks.stream().map(r -> new Pending(r, Priority.NORMAL, 0L, false)).toArray(Pending[]::new);
+            }
+        };
     }
 
     private void scheduleNextTaskIfNecessary() {

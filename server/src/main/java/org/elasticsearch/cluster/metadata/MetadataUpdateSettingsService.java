@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -49,13 +50,11 @@ import static org.elasticsearch.index.IndexSettings.same;
 public class MetadataUpdateSettingsService {
     private static final Logger logger = LogManager.getLogger(MetadataUpdateSettingsService.class);
 
-    private final ClusterService clusterService;
-    private final AllocationService allocationService;
     private final IndexScopedSettings indexScopedSettings;
     private final IndicesService indicesService;
     private final ShardLimitValidator shardLimitValidator;
     private final ThreadPool threadPool;
-    private final ClusterStateTaskExecutor<AckedClusterStateUpdateTask> executor;
+    private final MasterServiceTaskQueue<AckedClusterStateUpdateTask> taskQueue;
 
     public MetadataUpdateSettingsService(
         ClusterService clusterService,
@@ -65,13 +64,11 @@ public class MetadataUpdateSettingsService {
         ShardLimitValidator shardLimitValidator,
         ThreadPool threadPool
     ) {
-        this.clusterService = clusterService;
-        this.allocationService = allocationService;
         this.indexScopedSettings = indexScopedSettings;
         this.indicesService = indicesService;
         this.shardLimitValidator = shardLimitValidator;
         this.threadPool = threadPool;
-        this.executor = (currentState, taskContexts) -> {
+        this.taskQueue = clusterService.getTaskQueue("update-settings", Priority.URGENT, (currentState, taskContexts) -> {
             ClusterState state = currentState;
             for (final var taskContext : taskContexts) {
                 try {
@@ -87,7 +84,7 @@ public class MetadataUpdateSettingsService {
                 state = allocationService.reroute(state, "settings update");
             }
             return state;
-        };
+        });
     }
 
     public void updateSettings(final UpdateSettingsClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {
@@ -263,12 +260,7 @@ public class MetadataUpdateSettingsService {
             }
         };
 
-        clusterService.submitStateUpdateTask(
-            "update-settings " + Arrays.toString(request.indices()),
-            clusterTask,
-            clusterTask,
-            this.executor
-        );
+        taskQueue.submitTask("update-settings " + Arrays.toString(request.indices()), clusterTask, request.masterNodeTimeout());
     }
 
     public static void updateIndexSettings(

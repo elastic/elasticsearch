@@ -34,45 +34,40 @@ public abstract class LocalMasterServiceTask implements ClusterStateTaskListener
     protected void onPublicationComplete() {}
 
     public void submit(MasterService masterService, String source) {
-        masterService.submitStateUpdateTask(
-            source,
-            this,
-            ClusterStateTaskConfig.build(priority),
-            // Uses a new executor each time so that these tasks are not batched, but they never change the cluster state anyway so they
-            // don't trigger the publication process and hence batching isn't really needed.
-            new ClusterStateTaskExecutor<>() {
+        // Uses a new queue each time so that these tasks are not batched, but they never change the cluster state anyway so they
+        // don't trigger the publication process and hence batching isn't really needed.
+        masterService.getTaskQueue("local-master-service-task", priority, new ClusterStateTaskExecutor<LocalMasterServiceTask>() {
 
-                @Override
-                public boolean runOnlyOnMaster() {
-                    return false;
-                }
-
-                @Override
-                public String describeTasks(List<LocalMasterServiceTask> tasks) {
-                    return ""; // only one task in the batch so the source is enough
-                }
-
-                @Override
-                public ClusterState execute(ClusterState currentState, List<TaskContext<LocalMasterServiceTask>> taskContexts)
-                    throws Exception {
-                    final LocalMasterServiceTask thisTask = LocalMasterServiceTask.this;
-                    assert taskContexts.size() == 1 && taskContexts.get(0).getTask() == thisTask
-                        : "expected one-element task list containing current object but was " + taskContexts;
-                    thisTask.execute(currentState);
-                    taskContexts.get(0).success(new ActionListener<>() {
-                        @Override
-                        public void onResponse(ClusterState clusterState) {
-                            onPublicationComplete();
-                        }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            LocalMasterServiceTask.this.onFailure(e);
-                        }
-                    });
-                    return currentState;
-                }
+            @Override
+            public boolean runOnlyOnMaster() {
+                return false;
             }
-        );
+
+            @Override
+            public String describeTasks(List<LocalMasterServiceTask> tasks) {
+                return ""; // only one task in the batch so the source is enough
+            }
+
+            @Override
+            public ClusterState execute(ClusterState currentState, List<TaskContext<LocalMasterServiceTask>> taskContexts)
+                throws Exception {
+                final LocalMasterServiceTask thisTask = LocalMasterServiceTask.this;
+                assert taskContexts.size() == 1 && taskContexts.get(0).getTask() == thisTask
+                    : "expected one-element task list containing current object but was " + taskContexts;
+                thisTask.execute(currentState);
+                taskContexts.get(0).success(new ActionListener<>() {
+                    @Override
+                    public void onResponse(ClusterState clusterState) {
+                        onPublicationComplete();
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        LocalMasterServiceTask.this.onFailure(e);
+                    }
+                });
+                return currentState;
+            }
+        }).submitTask(source, this, null);
     }
 }

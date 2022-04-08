@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
@@ -26,7 +27,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 public class TransportDeleteDesiredNodesAction extends TransportMasterNodeAction<DeleteDesiredNodesAction.Request, ActionResponse.Empty> {
-    private final DesiredNodesClusterStateTaskExecutor taskExecutor;
+    private final MasterServiceTaskQueue<ClusterStateUpdateTask> taskQueue;
 
     @Inject
     public TransportDeleteDesiredNodesAction(
@@ -47,7 +48,7 @@ public class TransportDeleteDesiredNodesAction extends TransportMasterNodeAction
             in -> ActionResponse.Empty.INSTANCE,
             ThreadPool.Names.SAME
         );
-        this.taskExecutor = new DesiredNodesClusterStateTaskExecutor();
+        this.taskQueue = clusterService.getTaskQueue("delete-desired-nodes", Priority.HIGH, new DesiredNodesClusterStateTaskExecutor());
     }
 
     @Override
@@ -57,7 +58,7 @@ public class TransportDeleteDesiredNodesAction extends TransportMasterNodeAction
         ClusterState state,
         ActionListener<ActionResponse.Empty> listener
     ) throws Exception {
-        final var clusterStateUpdateTask = new ClusterStateUpdateTask(Priority.HIGH) {
+        taskQueue.submitTask("delete-desired-nodes", new ClusterStateUpdateTask(Priority.HIGH) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 return currentState.copyAndUpdateMetadata(metadata -> metadata.removeCustom(DesiredNodesMetadata.TYPE));
@@ -72,8 +73,7 @@ public class TransportDeleteDesiredNodesAction extends TransportMasterNodeAction
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 listener.onResponse(ActionResponse.Empty.INSTANCE);
             }
-        };
-        clusterService.submitStateUpdateTask("delete-desired-nodes", clusterStateUpdateTask, clusterStateUpdateTask, taskExecutor);
+        }, null);
     }
 
     @Override

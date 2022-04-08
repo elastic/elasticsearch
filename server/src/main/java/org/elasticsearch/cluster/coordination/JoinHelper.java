@@ -14,13 +14,13 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.coordination.Coordinator.Mode;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -65,12 +65,9 @@ public class JoinHelper {
     public static final String JOIN_VALIDATE_ACTION_NAME = "internal:cluster/coordination/join/validate";
     public static final String JOIN_PING_ACTION_NAME = "internal:cluster/coordination/join/ping";
 
-    private final AllocationService allocationService;
-    private final MasterService masterService;
     private final TransportService transportService;
-    private final JoinTaskExecutor joinTaskExecutor;
+    private final MasterServiceTaskQueue<JoinTask> joinTaskQueue;
     private final LongSupplier currentTermSupplier;
-    private final RerouteService rerouteService;
     private final NodeHealthService nodeHealthService;
     private final JoinReasonService joinReasonService;
 
@@ -92,12 +89,13 @@ public class JoinHelper {
         NodeHealthService nodeHealthService,
         JoinReasonService joinReasonService
     ) {
-        this.allocationService = allocationService;
-        this.masterService = masterService;
+        this.joinTaskQueue = masterService.getTaskQueue(
+            "node-join",
+            Priority.URGENT,
+            new JoinTaskExecutor(allocationService, rerouteService)
+        );
         this.transportService = transportService;
-        this.joinTaskExecutor = new JoinTaskExecutor(allocationService, rerouteService);
         this.currentTermSupplier = currentTermSupplier;
-        this.rerouteService = rerouteService;
         this.nodeHealthService = nodeHealthService;
         this.joinReasonService = joinReasonService;
 
@@ -379,7 +377,7 @@ public class JoinHelper {
                 joinListener,
                 currentTermSupplier.getAsLong()
             );
-            masterService.submitStateUpdateTask("node-join", task, ClusterStateTaskConfig.build(Priority.URGENT), joinTaskExecutor);
+            joinTaskQueue.submitTask("node-join", task, null);
         }
 
         @Override
@@ -441,13 +439,7 @@ public class JoinHelper {
                         listener
                     );
                 }), currentTermSupplier.getAsLong());
-                masterService.submitStateUpdateTask(
-                    "elected-as-master ([" + joinTask.nodeCount() + "] nodes joined)",
-                    joinTask,
-                    ClusterStateTaskConfig.build(Priority.URGENT),
-                    joinTaskExecutor
-
-                );
+                joinTaskQueue.submitTask("elected-as-master ([" + joinTask.nodeCount() + "] nodes joined)", joinTask, null);
             } else {
                 assert newMode == Mode.FOLLOWER : newMode;
                 joinRequestAccumulator.values()

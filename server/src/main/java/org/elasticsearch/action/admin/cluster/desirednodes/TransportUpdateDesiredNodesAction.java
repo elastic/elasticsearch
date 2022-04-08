@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -22,6 +21,7 @@ import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
@@ -34,7 +34,7 @@ import static java.lang.String.format;
 
 public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction<UpdateDesiredNodesRequest, UpdateDesiredNodesResponse> {
     private final DesiredNodesSettingsValidator settingsValidator;
-    private final ClusterStateTaskExecutor<ClusterStateUpdateTask> taskExecutor;
+    private final MasterServiceTaskQueue<ClusterStateUpdateTask> taskQueue;
 
     @Inject
     public TransportUpdateDesiredNodesAction(
@@ -58,7 +58,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
             ThreadPool.Names.SAME
         );
         this.settingsValidator = settingsValidator;
-        this.taskExecutor = new DesiredNodesClusterStateTaskExecutor();
+        this.taskQueue = clusterService.getTaskQueue("delete-desired-nodes", Priority.URGENT, new DesiredNodesClusterStateTaskExecutor());
     }
 
     @Override
@@ -77,7 +77,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
             DesiredNodes proposedDesiredNodes = new DesiredNodes(request.getHistoryID(), request.getVersion(), request.getNodes());
             settingsValidator.validate(proposedDesiredNodes);
 
-            final var clusterStateUpdateTask = new ClusterStateUpdateTask(Priority.URGENT, request.masterNodeTimeout()) {
+            taskQueue.submitTask("update-desired-nodes", new ClusterStateUpdateTask(Priority.URGENT, request.masterNodeTimeout()) {
                 volatile boolean replacedExistingHistoryId = false;
 
                 @Override
@@ -99,8 +99,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     listener.onResponse(new UpdateDesiredNodesResponse(replacedExistingHistoryId));
                 }
-            };
-            clusterService.submitStateUpdateTask("update-desired-nodes", clusterStateUpdateTask, clusterStateUpdateTask, taskExecutor);
+            }, request.masterNodeTimeout());
         } catch (Exception e) {
             listener.onFailure(e);
         }

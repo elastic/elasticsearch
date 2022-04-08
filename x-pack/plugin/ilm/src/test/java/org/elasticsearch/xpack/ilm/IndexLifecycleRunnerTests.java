@@ -20,6 +20,8 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -138,6 +140,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         runner.runPolicyAfterStateChange(policyName, indexMetadata);
 
+        Mockito.verify(clusterService, times(1)).getTaskQueue(anyString(), any(), any());
         Mockito.verifyNoMoreInteractions(clusterService);
     }
 
@@ -156,7 +159,17 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         runner.runPolicyAfterStateChange(policyName, indexMetadata);
         runner.runPeriodicStep(policyName, Metadata.builder().put(indexMetadata, true).build(), indexMetadata);
 
+        Mockito.verify(clusterService, times(1)).getTaskQueue(anyString(), any(), any());
         Mockito.verifyNoMoreInteractions(clusterService);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static MasterServiceTaskQueue<IndexLifecycleClusterStateUpdateTask> newMockTaskQueue(ClusterService clusterService) {
+        final var masterServiceTaskQueue = mock(MasterServiceTaskQueue.class);
+        when(clusterService.<IndexLifecycleClusterStateUpdateTask>getTaskQueue(eq("ilm-runner"), eq(Priority.NORMAL), any())).thenReturn(
+            masterServiceTaskQueue
+        );
+        return masterServiceTaskQueue;
     }
 
     public void testRunPolicyPhaseCompleteWithMoreStepsPolicyStep() {
@@ -165,6 +178,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         PhaseCompleteStep step = new PhaseCompleteStep(new StepKey("cold", "complete", "complete"), stop.getKey());
         PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, step);
         ClusterService clusterService = mock(ClusterService.class);
+        MasterServiceTaskQueue<IndexLifecycleClusterStateUpdateTask> taskQueue = newMockTaskQueue(clusterService);
         IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, historyStore, clusterService, threadPool, () -> 0L);
         IndexMetadata indexMetadata = IndexMetadata.builder("my_index")
             .settings(settings(Version.CURRENT))
@@ -175,7 +189,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         runner.runPolicyAfterStateChange(policyName, indexMetadata);
         runner.runPeriodicStep(policyName, Metadata.builder().put(indexMetadata, true).build(), indexMetadata);
 
-        Mockito.verify(clusterService, times(1)).submitStateUpdateTask(anyString(), any(), any(), any());
+        Mockito.verify(taskQueue, times(1)).submitTask(anyString(), any(), any());
     }
 
     public void testRunPolicyErrorStep() {
@@ -208,6 +222,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
 
         runner.runPolicyAfterStateChange(policyName, indexMetadata);
 
+        Mockito.verify(clusterService).getTaskQueue(anyString(), any(Priority.class), any());
         Mockito.verifyNoMoreInteractions(clusterService);
     }
 
@@ -640,6 +655,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         MockClusterStateActionStep step = new MockClusterStateActionStep(stepKey, null);
         PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, step);
         ClusterService clusterService = mock(ClusterService.class);
+        MasterServiceTaskQueue<IndexLifecycleClusterStateUpdateTask> taskQueue = newMockTaskQueue(clusterService);
         IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, historyStore, clusterService, threadPool, () -> 0L);
         IndexMetadata indexMetadata = IndexMetadata.builder("my_index")
             .settings(settings(Version.CURRENT))
@@ -650,14 +666,15 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         runner.runPolicyAfterStateChange(policyName, indexMetadata);
 
         final ExecuteStepsUpdateTaskMatcher taskMatcher = new ExecuteStepsUpdateTaskMatcher(indexMetadata.getIndex(), policyName, step);
-        Mockito.verify(clusterService, Mockito.times(1))
-            .submitStateUpdateTask(
+        Mockito.verify(taskQueue, Mockito.times(1))
+            .submitTask(
                 Mockito.eq("""
                     ilm-execute-cluster-state-steps [{"phase":"phase","action":"action","name":"cluster_state_action_step"} => null]"""),
                 Mockito.argThat(taskMatcher),
-                eq(IndexLifecycleRunner.ILM_TASK_CONFIG),
-                any()
+                Mockito.eq(null)
             );
+        Mockito.verifyNoMoreInteractions(taskQueue);
+        Mockito.verify(clusterService, Mockito.times(1)).getTaskQueue(any(), any(), any());
         Mockito.verifyNoMoreInteractions(clusterService);
     }
 
@@ -667,6 +684,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         MockClusterStateWaitStep step = new MockClusterStateWaitStep(stepKey, null);
         PolicyStepsRegistry stepRegistry = createOneStepPolicyStepRegistry(policyName, step);
         ClusterService clusterService = mock(ClusterService.class);
+        MasterServiceTaskQueue<IndexLifecycleClusterStateUpdateTask> taskQueue = newMockTaskQueue(clusterService);
         IndexLifecycleRunner runner = new IndexLifecycleRunner(stepRegistry, historyStore, clusterService, threadPool, () -> 0L);
         IndexMetadata indexMetadata = IndexMetadata.builder("my_index")
             .settings(settings(Version.CURRENT))
@@ -677,14 +695,15 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         runner.runPolicyAfterStateChange(policyName, indexMetadata);
 
         final ExecuteStepsUpdateTaskMatcher taskMatcher = new ExecuteStepsUpdateTaskMatcher(indexMetadata.getIndex(), policyName, step);
-        Mockito.verify(clusterService, Mockito.times(1))
-            .submitStateUpdateTask(
+        Mockito.verify(taskQueue, Mockito.times(1))
+            .submitTask(
                 Mockito.eq("""
                     ilm-execute-cluster-state-steps [{"phase":"phase","action":"action","name":"cluster_state_action_step"} => null]"""),
                 Mockito.argThat(taskMatcher),
-                eq(IndexLifecycleRunner.ILM_TASK_CONFIG),
-                any()
+                Mockito.eq(null)
             );
+        Mockito.verifyNoMoreInteractions(taskQueue);
+        Mockito.verify(clusterService, Mockito.times(1)).getTaskQueue(any(), any(), any());
         Mockito.verifyNoMoreInteractions(clusterService);
     }
 
@@ -706,6 +725,7 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         runner.runPolicyAfterStateChange(policyName, indexMetadata);
 
         assertEquals(0, step.getExecuteCount());
+        Mockito.verify(clusterService, Mockito.times(1)).getTaskQueue(any(), any(), any());
         Mockito.verifyNoMoreInteractions(clusterService);
     }
 
@@ -727,12 +747,14 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
         runner.runPolicyAfterStateChange(policyName, indexMetadata);
 
         assertEquals(0, step.getExecuteCount());
+        Mockito.verify(clusterService, Mockito.times(1)).getTaskQueue(any(), any(), any());
         Mockito.verifyNoMoreInteractions(clusterService);
     }
 
     public void testRunPolicyThatDoesntExist() {
         String policyName = "cluster_state_action_policy";
         ClusterService clusterService = mock(ClusterService.class);
+        MasterServiceTaskQueue<IndexLifecycleClusterStateUpdateTask> taskQueue = newMockTaskQueue(clusterService);
         IndexLifecycleRunner runner = new IndexLifecycleRunner(
             new PolicyStepsRegistry(NamedXContentRegistry.EMPTY, null, null),
             historyStore,
@@ -759,13 +781,14 @@ public class IndexLifecycleRunnerTests extends ESTestCase {
                 return builder;
             }
         );
-        Mockito.verify(clusterService, Mockito.times(1))
-            .submitStateUpdateTask(
+        Mockito.verify(taskQueue, Mockito.times(1))
+            .submitTask(
                 Mockito.eq("ilm-set-step-info {policy [cluster_state_action_policy], index [my_index], currentStep [null]}"),
                 Mockito.argThat(taskMatcher),
-                eq(IndexLifecycleRunner.ILM_TASK_CONFIG),
-                any()
+                Mockito.eq(null)
             );
+        Mockito.verifyNoMoreInteractions(taskQueue);
+        Mockito.verify(clusterService, Mockito.times(1)).getTaskQueue(any(), any(), any());
         Mockito.verifyNoMoreInteractions(clusterService);
     }
 

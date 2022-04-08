@@ -48,6 +48,11 @@ if defined ES_JAVA_HOME (
   set JAVA="%ES_JAVA_HOME%\bin\java.exe"
   set JAVA_TYPE=ES_JAVA_HOME
 
+  if not exist !JAVA! (
+    echo "could not find java in !JAVA_TYPE! at !JAVA!" >&2
+    exit /b 1
+  )
+
   rem check the user supplied jdk version
   %JAVA% -cp "%ES_HOME%\lib\java-version-checker\*" "org.elasticsearch.tools.java_version_checker.JavaVersionChecker" || exit /b 1
 ) else (
@@ -57,10 +62,7 @@ if defined ES_JAVA_HOME (
   set JAVA_TYPE=bundled JDK
 )
 
-if not exist !JAVA! (
-  echo "could not find java in !JAVA_TYPE! at !JAVA!" >&2
-  exit /b 1
-)
+
 
 rem do not let JAVA_TOOL_OPTIONS slip in (as the JVM does by default)
 if defined JAVA_TOOL_OPTIONS (

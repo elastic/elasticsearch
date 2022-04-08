@@ -32,6 +32,8 @@ import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.TreeSet;
 import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class Strings {
 
@@ -351,12 +353,13 @@ public class Strings {
         return sb.toString();
     }
 
-    public static final Set<Character> INVALID_FILENAME_CHARS = Set.of('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',');
+    public static final String INVALID_FILENAME_CHARS = "["
+        + Stream.of('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',').map(c -> "'" + c + "'").collect(Collectors.joining(","))
+        + "]";
 
     public static boolean validFileName(String fileName) {
         for (int i = 0; i < fileName.length(); i++) {
-            char c = fileName.charAt(i);
-            if (INVALID_FILENAME_CHARS.contains(c)) {
+            if (isInvalidFileNameCharacter(fileName.charAt(i))) {
                 return false;
             }
         }
@@ -366,11 +369,18 @@ public class Strings {
     public static boolean validFileNameExcludingAstrix(String fileName) {
         for (int i = 0; i < fileName.length(); i++) {
             char c = fileName.charAt(i);
-            if (c != '*' && INVALID_FILENAME_CHARS.contains(c)) {
+            if (c != '*' && isInvalidFileNameCharacter(c)) {
                 return false;
             }
         }
         return true;
+    }
+
+    private static boolean isInvalidFileNameCharacter(char c) {
+        return switch (c) {
+            case '\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',' -> true;
+            default -> false;
+        };
     }
 
     /**

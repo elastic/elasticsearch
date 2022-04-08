@@ -57,7 +57,7 @@ public class TransportDeleteDesiredNodesAction extends TransportMasterNodeAction
         ClusterState state,
         ActionListener<ActionResponse.Empty> listener
     ) throws Exception {
-        clusterService.submitStateUpdateTask("delete-desired-nodes", new ClusterStateUpdateTask(Priority.HIGH) {
+        final var clusterStateUpdateTask = new ClusterStateUpdateTask(Priority.HIGH) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 return currentState.copyAndUpdateMetadata(metadata -> metadata.removeCustom(DesiredNodesMetadata.TYPE));
@@ -72,7 +72,8 @@ public class TransportDeleteDesiredNodesAction extends TransportMasterNodeAction
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 listener.onResponse(ActionResponse.Empty.INSTANCE);
             }
-        }, taskExecutor);
+        };
+        clusterService.submitStateUpdateTask("delete-desired-nodes", clusterStateUpdateTask, clusterStateUpdateTask, taskExecutor);
     }
 
     @Override

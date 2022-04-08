@@ -77,33 +77,30 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
             DesiredNodes proposedDesiredNodes = new DesiredNodes(request.getHistoryID(), request.getVersion(), request.getNodes());
             settingsValidator.validate(proposedDesiredNodes);
 
-            clusterService.submitStateUpdateTask(
-                "update-desired-nodes",
-                new ClusterStateUpdateTask(Priority.URGENT, request.masterNodeTimeout()) {
-                    volatile boolean replacedExistingHistoryId = false;
+            final var clusterStateUpdateTask = new ClusterStateUpdateTask(Priority.URGENT, request.masterNodeTimeout()) {
+                volatile boolean replacedExistingHistoryId = false;
 
-                    @Override
-                    public ClusterState execute(ClusterState currentState) {
-                        final ClusterState updatedState = updateDesiredNodes(currentState, request);
-                        final DesiredNodes previousDesiredNodes = DesiredNodesMetadata.latestFromClusterState(currentState);
-                        final DesiredNodes latestDesiredNodes = DesiredNodesMetadata.latestFromClusterState(updatedState);
-                        replacedExistingHistoryId = previousDesiredNodes != null
-                            && previousDesiredNodes.hasSameHistoryId(latestDesiredNodes) == false;
-                        return updatedState;
-                    }
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    final ClusterState updatedState = updateDesiredNodes(currentState, request);
+                    final DesiredNodes previousDesiredNodes = DesiredNodesMetadata.latestFromClusterState(currentState);
+                    final DesiredNodes latestDesiredNodes = DesiredNodesMetadata.latestFromClusterState(updatedState);
+                    replacedExistingHistoryId = previousDesiredNodes != null
+                        && previousDesiredNodes.hasSameHistoryId(latestDesiredNodes) == false;
+                    return updatedState;
+                }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        listener.onFailure(e);
-                    }
+                @Override
+                public void onFailure(Exception e) {
+                    listener.onFailure(e);
+                }
 
-                    @Override
-                    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                        listener.onResponse(new UpdateDesiredNodesResponse(replacedExistingHistoryId));
-                    }
-                },
-                taskExecutor
-            );
+                @Override
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                    listener.onResponse(new UpdateDesiredNodesResponse(replacedExistingHistoryId));
+                }
+            };
+            clusterService.submitStateUpdateTask("update-desired-nodes", clusterStateUpdateTask, clusterStateUpdateTask, taskExecutor);
         } catch (Exception e) {
             listener.onFailure(e);
         }

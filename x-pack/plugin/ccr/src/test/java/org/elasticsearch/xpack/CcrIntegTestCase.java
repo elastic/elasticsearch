@@ -29,7 +29,6 @@ import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -888,7 +887,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
 
     static void removeCCRRelatedMetadataFromClusterState(ClusterService clusterService) throws Exception {
         CountDownLatch latch = new CountDownLatch(1);
-        clusterService.submitStateUpdateTask("remove-ccr-related-metadata", new ClusterStateUpdateTask() {
+        clusterService.submitUnbatchedStateUpdateTask("remove-ccr-related-metadata", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 AutoFollowMetadata empty = new AutoFollowMetadata(Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
@@ -911,7 +910,7 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 latch.countDown();
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        });
         latch.await();
     }
 

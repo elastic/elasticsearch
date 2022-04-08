@@ -60,7 +60,7 @@ dependencies {
   internalClusterTestImplementation project(path: ':plugins:transport-nio')
 
   yamlRestTestImplementation project(':x-pack:plugin:core')
-
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
 ext.expansions = [

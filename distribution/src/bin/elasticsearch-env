@@ -75,7 +75,7 @@ if [ ! -z "$JAVA_OPTS" ]; then
 fi
 
 # check the Java version
-"$JAVA" "$XSHARE" -cp "$LAUNCHERS_CLASSPATH" org.elasticsearch.tools.java_version_checker.JavaVersionChecker
+"$JAVA" -cp "$LAUNCHERS_CLASSPATH" org.elasticsearch.tools.java_version_checker.JavaVersionChecker
 
 export HOSTNAME=$HOSTNAME
 

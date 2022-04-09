@@ -11,6 +11,9 @@ import com.github.nitram509.jmacaroons.GeneralSecurityRuntimeException;
 import com.github.nitram509.jmacaroons.Macaroon;
 import com.github.nitram509.jmacaroons.MacaroonsVerifier;
 
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.transport.TransportRequest;
+
 public final class MacaroonVerifier {
 
     private final Macaroon macaroon;
@@ -21,7 +24,11 @@ public final class MacaroonVerifier {
         this.key = key;
     }
 
-    public boolean verify() throws GeneralSecurityRuntimeException {
-        return new MacaroonsVerifier(macaroon).isValid(key);
+    public boolean verify(TransportRequest request) throws GeneralSecurityRuntimeException {
+        final MacaroonsVerifier macaroonsVerifier = new MacaroonsVerifier(macaroon);
+        if (request instanceof SearchRequest searchRequest && searchRequest.pointInTimeBuilder() != null) {
+            macaroonsVerifier.satisfyExact("restrict access to PIT " + searchRequest.pointInTimeBuilder().getEncodedId());
+        }
+        return macaroonsVerifier.isValid(key);
     }
 }

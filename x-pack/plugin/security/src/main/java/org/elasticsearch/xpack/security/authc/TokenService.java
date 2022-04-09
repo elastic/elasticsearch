@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.security.authc;
 import com.github.nitram509.jmacaroons.GeneralSecurityRuntimeException;
 import com.github.nitram509.jmacaroons.Macaroon;
 import com.github.nitram509.jmacaroons.MacaroonsBuilder;
-import com.github.nitram509.jmacaroons.MacaroonsVerifier;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

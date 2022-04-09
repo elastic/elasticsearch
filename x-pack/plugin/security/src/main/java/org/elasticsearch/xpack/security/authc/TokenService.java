@@ -146,6 +146,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+
 import javax.crypto.Cipher;
 import javax.crypto.CipherInputStream;
 import javax.crypto.CipherOutputStream;
@@ -587,8 +588,9 @@ public final class TokenService {
                         if (decodeKey != null) {
                             try {
                                 // the macaroon will be verified later because it might contain caveats that need the request context
-                                client.threadPool().getThreadContext().putTransient(MACAROON_VERIFIER_KEY, new MacaroonVerifier(macaroon,
-                                    decodeKey.getEncoded()));
+                                client.threadPool()
+                                    .getThreadContext()
+                                    .putTransient(MACAROON_VERIFIER_KEY, new MacaroonVerifier(macaroon, decodeKey.getEncoded()));
                                 if (new MacaroonsVerifier(macaroon).isValid(decodeKey.getEncoded())) {
                                     final String userTokenId = hashTokenString(macaroon.identifier);
                                     getUserTokenFromId(userTokenId, version, listener);
@@ -2093,11 +2095,11 @@ public final class TokenService {
         ExecutionException {
         if (version.onOrAfter(VERSION_MACAROON_ACCESS_TOKENS)) {
             final KeyAndCache keyAndCache = keyCache.activeKeyCache;
-            final String macaroon = new MacaroonsBuilder(clusterService.getNodeName() + "@" + clusterService.getClusterName(),
+            final String macaroon = new MacaroonsBuilder(
+                clusterService.getNodeName() + "@" + clusterService.getClusterName(),
                 keyAndCache.getOrComputeKey(keyAndCache.getSalt()).getEncoded(),
-                accessToken)
-                .getMacaroon()
-                .serialize();
+                accessToken
+            ).getMacaroon().serialize();
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 out.setVersion(version);
                 Version.writeVersion(version, out);

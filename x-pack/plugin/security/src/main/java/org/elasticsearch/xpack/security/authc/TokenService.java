@@ -229,7 +229,7 @@ public final class TokenService {
     static final Version VERSION_ACCESS_TOKENS_AS_UUIDS = Version.V_7_2_0;
     static final Version VERSION_MULTIPLE_CONCURRENT_REFRESHES = Version.V_7_2_0;
     static final Version VERSION_CLIENT_AUTH_FOR_REFRESH = Version.V_8_2_0;
-    static final Version VERSION_MACAROON_ACCESS_TOKENS = Version.V_8_3_0;
+    public static final Version VERSION_MACAROON_ACCESS_TOKENS = Version.V_8_3_0;
 
     private static final Logger logger = LogManager.getLogger(TokenService.class);
 

@@ -77,8 +77,11 @@ public class FakeThreadPoolMasterService extends MasterService {
 
             @Override
             public void execute(Runnable command) {
-                pendingTasks.add(command);
-                scheduleNextTaskIfNecessary();
+                if (command.toString().equals("awaitsfix thread keepalive") == false) {
+                    // TODO remove this temporary fix
+                    pendingTasks.add(command);
+                    scheduleNextTaskIfNecessary();
+                }
             }
 
             @Override

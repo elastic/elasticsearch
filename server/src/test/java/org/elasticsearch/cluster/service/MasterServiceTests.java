@@ -1559,7 +1559,7 @@ public class MasterServiceTests extends ESTestCase {
 
                 @Override
                 public void onFailure(Exception e) {
-                    fail();
+                    throw new AssertionError(e);
                 }
             };
             masterService.submitUnbatchedStateUpdateTask("starvation-causing task", starvationCausingTask);
@@ -1575,7 +1575,7 @@ public class MasterServiceTests extends ESTestCase {
 
                 @Override
                 public void onFailure(Exception e) {
-                    fail();
+                    throw new AssertionError(e);
                 }
             });
 

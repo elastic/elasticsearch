@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterState.Builder;
 import org.elasticsearch.cluster.ClusterStateAckListener;
@@ -95,6 +96,9 @@ public class MasterService extends AbstractLifecycleComponent {
     protected final ThreadPool threadPool;
 
     private volatile PrioritizedEsThreadPoolExecutor threadPoolExecutor;
+    private final CountedQueue[] queues;
+    private final AtomicInteger totalQueueSize = new AtomicInteger();
+    private volatile Batch currentlyExecutingBatch;
     private final Map<Priority, CountedQueue> queuesByPriority;
 
     private final ClusterStateUpdateStatsTracker clusterStateUpdateStatsTracker = new ClusterStateUpdateStatsTracker();
@@ -110,8 +114,13 @@ public class MasterService extends AbstractLifecycleComponent {
         this.threadPool = threadPool;
 
         final var queuesByPriorityBuilder = new EnumMap<Priority, CountedQueue>(Priority.class);
-        for (final var priority : Priority.values()) {
-            queuesByPriorityBuilder.put(priority, new CountedQueue(priority));
+        final var priorities = Priority.values();
+        queues = new CountedQueue[priorities.length];
+        var queueIndex = 0;
+        for (final var priority : priorities) {
+            final var queue = new CountedQueue(priority);
+            queues[queueIndex++] = queue;
+            queuesByPriorityBuilder.put(priority, queue);
         }
         this.queuesByPriority = Collections.unmodifiableMap(queuesByPriorityBuilder);
         this.unbatchedExecutor = getUnbatchedExecutor();
@@ -488,9 +497,9 @@ public class MasterService extends AbstractLifecycleComponent {
             timeoutCancellable = null;
         }
 
-        queuesByPriority.get(updateTask.priority()).execute(new CountedQueue.Entry() {
+        queuesByPriority.get(updateTask.priority()).execute(new Batch() {
             @Override
-            Stream<PendingClusterTask> getPending(long currentTimeMillis) {
+            public Stream<PendingClusterTask> getPending(long currentTimeMillis) {
                 if (timedOut.get()) {
                     return Stream.of();
                 }
@@ -506,17 +515,12 @@ public class MasterService extends AbstractLifecycleComponent {
             }
 
             @Override
-            int getPendingCount() {
+            public int getPendingCount() {
                 return timedOut.get() ? 0 : 1;
             }
 
             @Override
-            public void onRejection(Exception e) {
-                onFailure(new FailedToCommitClusterStateException("shutting down", e)); // TODO test for this case
-            }
-
-            @Override
-            public void onFailure(Exception e) {
+            public void onRejection(FailedToCommitClusterStateException e) {
                 try {
                     if (acquireForExecution()) {
                         try (var ignored = restorableContext.get()) {
@@ -531,7 +535,7 @@ public class MasterService extends AbstractLifecycleComponent {
             }
 
             @Override
-            protected void doRun() {
+            public void run() {
                 if (acquireForExecution()) {
                     executeAndPublishBatch(unbatchedExecutor, List.of(new ExecutionResult<>(updateTask, restorableContext)), source);
                 }
@@ -553,30 +557,27 @@ public class MasterService extends AbstractLifecycleComponent {
      * Returns the tasks that are pending.
      */
     public List<PendingClusterTask> pendingTasks() {
-        return Arrays.stream(threadPoolExecutor.getPending()).flatMap(pending -> {
-            if (pending.task instanceof CountedQueue.Processor processor) {
-                return processor.getPending(threadPool.relativeTimeInMillis());
-            } else {
-                assert false
-                    : "thread pool executor should only use CountedQueue.Processor but found: " + pending.task.getClass().getName();
-                return Stream.of();
-            }
-        }).toList();
+        final var currentTimeMillis = threadPool.relativeTimeInMillis();
+        return Stream.concat(Stream.ofNullable(currentlyExecutingBatch), Arrays.stream(queues).flatMap(q -> q.queue.stream()))
+            .flatMap(e -> e.getPending(currentTimeMillis))
+            .toList();
     }
 
     /**
      * Returns the number of currently pending tasks.
      */
     public int numberOfPendingTasks() {
-        int result = 0;
-        for (PrioritizedEsThreadPoolExecutor.Pending pending : threadPoolExecutor.getPending()) {
-            if (pending.task instanceof CountedQueue.Processor processor) {
-                result += processor.getPendingCount();
-            } else {
-                result += 1;
+        var result = getPendingCountOrZero(currentlyExecutingBatch); // single volatile read
+        for (final var queue : queues) {
+            for (final var entry : queue.queue) {
+                result += entry.getPendingCount();
             }
         }
         return result;
+    }
+
+    private static int getPendingCountOrZero(@Nullable Batch batch) {
+        return batch == null ? 0 : batch.getPendingCount();
     }
 
     /**
@@ -585,6 +586,7 @@ public class MasterService extends AbstractLifecycleComponent {
      * @return A zero time value if the queue is empty, otherwise the time value oldest task waiting in the queue
      */
     public TimeValue getMaxTaskWaitTime() {
+        // TODO AwaitsFix this doesn't give accurate answers any more
         return threadPoolExecutor.getMaxTaskWaitTime();
     }
 
@@ -1124,122 +1126,132 @@ public class MasterService extends AbstractLifecycleComponent {
         }
     }
 
+    private final Runnable queuesProcessor = new Runnable() {
+        @Override
+        public void run() {
+            assert threadPool.getThreadContext().isSystemContext();
+            assert totalQueueSize.get() > 0;
+            assert currentlyExecutingBatch == null;
+            try {
+                takeNextItem().run();
+            } catch (Exception e) {
+                logger.error("unexpected exception executing queue entry", e);
+                assert false : e;
+            } finally {
+                currentlyExecutingBatch = null;
+                if (totalQueueSize.decrementAndGet() > 0) {
+                    forkQueueProcessor();
+                }
+            }
+        }
+
+        @Override
+        public String toString() {
+            return "master service queue processor";
+        }
+    };
+
+    private Batch takeNextItem() {
+        assert totalQueueSize.get() > 0;
+        assert currentlyExecutingBatch == null;
+        for (final var queue : queues) {
+            var item = queue.queue.poll();
+            if (item != null) {
+                currentlyExecutingBatch = item;
+                return item;
+            }
+        }
+        logger.error("queue processor found no items");
+        assert false : "queue processor found no items";
+        throw new IllegalStateException("queue processor found no items");
+    }
+
+    private void forkQueueProcessor() {
+        try {
+            // TODO explicitly reject if not STARTED here?
+            assert totalQueueSize.get() > 0;
+            final var threadContext = threadPool.getThreadContext();
+            try (var ignored = threadContext.stashContext()) {
+                threadContext.markAsSystemContext();
+                threadPoolExecutor.execute(queuesProcessor);
+            }
+        } catch (Exception e) {
+            assert e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() : e;
+            drainQueueOnRejection(new FailedToCommitClusterStateException("node closed", e));
+        }
+    }
+
+    private void drainQueueOnRejection(FailedToCommitClusterStateException e) {
+        assert totalQueueSize.get() > 0;
+        do {
+            final var nextItem = takeNextItem();
+            try {
+                nextItem.onRejection(e);
+            } catch (Exception e2) {
+                e2.addSuppressed(e);
+                logger.error(new ParameterizedMessage("exception failing item on rejection [{}]", nextItem), e2);
+                assert false : e2;
+            } finally {
+                currentlyExecutingBatch = null;
+            }
+        } while (totalQueueSize.decrementAndGet() > 0);
+    }
+
     /**
      * Queue which tracks the count of items, allowing it to determine (in a threadsafe fashion) the transitions between empty and nonempty,
      * so that it can spawn an action to process its elements if and only if it's needed. This allows it to ensure that there is only ever
-     * at most one active {@link CountedQueue.Processor} for each queue, and that there's always a pending processor if there is work to be
-     * done.
+     * at most one active {@link #queuesProcessor}, and that there's always a pending processor if there is work to be done.
      *
      * There is one of these queues for each priority level.
      */
     private class CountedQueue {
-        private final ConcurrentLinkedQueue<Entry> queue = new ConcurrentLinkedQueue<>();
-        private final AtomicInteger count = new AtomicInteger();
+        private final ConcurrentLinkedQueue<Batch> queue = new ConcurrentLinkedQueue<>();
         private final Priority priority;
-        volatile Entry currentEntry;
 
         CountedQueue(Priority priority) {
             this.priority = priority;
         }
 
-        void execute(Entry runner) {
+        void execute(Batch runner) {
             queue.add(runner);
-            if (count.getAndIncrement() == 0) {
+            if (totalQueueSize.getAndIncrement() == 0) {
                 forkQueueProcessor();
+                // temporary fix to make sure queue remains nonempty until all tasks processed, so that getMaxTaskWaitTime and starvation
+                // logging still work TODO AwaitsFix shouldn't be necessary, get rid of this
+                try {
+                    threadPoolExecutor.execute(new PrioritizedRunnable(Priority.LANGUID) {
+                        @Override
+                        public void run() {}
+
+                        @Override
+                        public String toString() {
+                            return "awaitsfix thread keepalive";
+                        }
+                    });
+                } catch (Exception e) {
+                    // rejected, nbd
+                }
             }
         }
 
         Priority priority() {
             return priority;
         }
+    }
 
-        private void forkQueueProcessor() {
-            try {
-                // TODO explicitly reject if not STARTED here?
-                final var threadContext = threadPool.getThreadContext();
-                try (var ignored = threadContext.stashContext()) {
-                    threadContext.markAsSystemContext(); // TODO test this
-                    threadPoolExecutor.execute(new Processor());
-                }
-            } catch (Exception e) {
-                assert e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() : e;
-                drainQueueOnRejection(new FailedToCommitClusterStateException("shutting down", e)); // TODO test to verify FTCCSE here
-            }
-        }
+    private interface Batch {
+        Stream<PendingClusterTask> getPending(long currentTimeMillis);
 
-        private void drainQueueOnRejection(Exception e) {
-            assert count.get() > 0;
-            do {
-                final var nextItem = queue.poll();
-                assert nextItem != null;
-                try {
-                    nextItem.onRejection(e);
-                } catch (Exception e2) {
-                    e2.addSuppressed(e);
-                    logger.error(new ParameterizedMessage("exception failing item on rejection [{}]", nextItem), e2);
-                    assert false : e2;
-                }
-            } while (count.decrementAndGet() > 0);
-        }
+        int getPendingCount();
 
-        /*
-         * [NOTE Pending tasks exposure]
-         *
-         * The master's pending tasks are exposed in various APIs (e.g. cluster health, cluster pending tasks) which work by iterating over
-         * the queue of {@link MasterService#threadPoolExecutor}, so we must expose the pending tasks info via each entry.
-         *
-         * When all master service activity happens via a {@link CountedQueue}, we will be able to expose the pending tasks by looking at
-         * the queues themselves, and then we can just move to a plain {@link AbstractRunnable} here. TODO do this.
+        void run();
+
+        /**
+         * @param e is a {@link FailedToCommitClusterStateException} to cause things like {@link TransportMasterNodeAction} to retry after
+         *         submitting a task to a master which shut down.
          */
-
-        private abstract static class Entry extends AbstractRunnable {
-            // See [NOTE Pending tasks exposure] above
-            abstract Stream<PendingClusterTask> getPending(long currentTimeMillis);
-
-            // See [NOTE Pending tasks exposure] above
-            abstract int getPendingCount();
-        }
-
-        private class Processor extends PrioritizedRunnable {
-            Processor() {
-                super(priority);
-            }
-
-            @Override
-            public void run() {
-                assert count.get() > 0;
-                assert currentEntry == null;
-                try {
-                    final var nextItem = queue.poll();
-                    assert nextItem != null;
-                    currentEntry = nextItem;
-                    nextItem.run();
-                } finally {
-                    currentEntry = null;
-                    if (count.decrementAndGet() > 0) {
-                        forkQueueProcessor();
-                    }
-                }
-            }
-
-            // See [NOTE Pending tasks exposure] above
-            int getPendingCount() {
-                var result = maybePendingCount(currentEntry); // single volatile read
-                for (final var entry : queue) {
-                    result += entry.getPendingCount();
-                }
-                return result;
-            }
-
-            private static int maybePendingCount(@Nullable Entry entry) {
-                return entry == null ? 0 : entry.getPendingCount();
-            }
-
-            // See [NOTE Pending tasks exposure] above
-            Stream<PendingClusterTask> getPending(long currentTimeMillis) {
-                return Stream.concat(Stream.ofNullable(currentEntry), queue.stream()).flatMap(entry -> entry.getPending(currentTimeMillis));
-            }
-        }
+        // TODO maybe should be a NodeClosedException instead, but this doesn't trigger retries today.
+        void onRejection(FailedToCommitClusterStateException e);
     }
 
     /**
@@ -1296,7 +1308,7 @@ public class MasterService extends AbstractLifecycleComponent {
         private final CountedQueue countedQueue;
         private final ClusterStateTaskExecutor<T> executor;
         private final ThreadPool threadPool;
-        private final CountedQueue.Entry processor = new Processor();
+        private final Batch processor = new Processor();
 
         BatchingTaskQueue(
             String name,
@@ -1368,9 +1380,9 @@ public class MasterService extends AbstractLifecycleComponent {
                 return true;
             }
 
-            void onRejection(Exception e) {
+            void onRejection(FailedToCommitClusterStateException e) {
                 if (acquireForExecution()) {
-                    try {
+                    try (var ignored = storedContextSupplier.get()) { // TODO test for correct context here
                         task.onFailure(e);
                     } catch (Exception e2) {
                         e2.addSuppressed(e);
@@ -1381,25 +1393,19 @@ public class MasterService extends AbstractLifecycleComponent {
             }
         }
 
-        private class Processor extends CountedQueue.Entry {
+        private class Processor implements Batch {
             @Override
-            public void onRejection(Exception e) {
+            public void onRejection(FailedToCommitClusterStateException e) {
                 final var items = queueSize.getAndSet(0);
                 for (int i = 0; i < items; i++) {
                     final var entry = queue.poll();
                     assert entry != null;
-                    entry.onRejection(e);
+                    entry.onRejection(e); // TODO test to verify FTCCSE here
                 }
             }
 
             @Override
-            public void onFailure(Exception e) {
-                logger.error("task execution failed unexpectedly", e);
-                assert false : e;
-            }
-
-            @Override
-            protected void doRun() {
+            public void run() {
                 assert executing.isEmpty() : executing;
                 final var entryCount = queueSize.getAndSet(0);
                 var taskCount = 0;
@@ -1422,9 +1428,6 @@ public class MasterService extends AbstractLifecycleComponent {
                 }
                 try {
                     batchConsumer.runBatch(executor, tasks, buildTasksDescription(taskCount, tasksBySource));
-                } catch (Exception exception) {
-                    logger.error(new ParameterizedMessage("unexpected exception running batch of tasks for queue [{}]", name), exception);
-                    assert false : exception;
                 } finally {
                     assert executing.size() == taskCount;
                     executing.clear();
@@ -1454,8 +1457,18 @@ public class MasterService extends AbstractLifecycleComponent {
             }
 
             @Override
-            Stream<PendingClusterTask> getPending(long currentTimeMillis) {
+            public Stream<PendingClusterTask> getPending(long currentTimeMillis) {
                 return Stream.concat(
+                    executing.stream()
+                        .map(
+                            entry -> new PendingClusterTask(
+                                FAKE_INSERTION_ORDER_TODO,
+                                countedQueue.priority(),
+                                new Text(entry.source()),
+                                currentTimeMillis - FAKE_INSERTION_TIME_TODO,
+                                true
+                            )
+                        ),
                     queue.stream()
                         // TODO test that timed-out entries are not returned
                         .filter(entry -> entry.executed().get() == false)
@@ -1467,22 +1480,12 @@ public class MasterService extends AbstractLifecycleComponent {
                                 currentTimeMillis - FAKE_INSERTION_TIME_TODO,
                                 false
                             )
-                        ),
-                    executing.stream()
-                        .map(
-                            entry -> new PendingClusterTask(
-                                FAKE_INSERTION_ORDER_TODO,
-                                countedQueue.priority(),
-                                new Text(entry.source()),
-                                currentTimeMillis - FAKE_INSERTION_TIME_TODO,
-                                true
-                            )
                         )
                 );
             }
 
             @Override
-            int getPendingCount() {
+            public int getPendingCount() {
                 int count = executing.size();
                 for (final var entry : queue) {
                     if (entry.executed().get() == false) {

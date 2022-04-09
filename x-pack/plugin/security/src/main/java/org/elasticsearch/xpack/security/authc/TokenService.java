@@ -103,6 +103,7 @@ import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContext
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
 import org.elasticsearch.xpack.core.security.authc.support.TokensInvalidationResult;
 import org.elasticsearch.xpack.security.Security;
+import org.elasticsearch.xpack.security.authz.accesscontrol.MacaroonVerifier;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException;
 import org.elasticsearch.xpack.security.support.FeatureNotEnabledException.Feature;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -161,6 +162,7 @@ import static org.elasticsearch.search.SearchService.DEFAULT_KEEPALIVE_SETTING;
 import static org.elasticsearch.threadpool.ThreadPool.Names.GENERIC;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.MACAROON_VERIFIER_KEY;
 
 /**
  * Service responsible for the creation, validation, and other management of {@link UserToken}
@@ -584,6 +586,9 @@ public final class TokenService {
                     getKeyAsync(decodedSalt, keyAndCache, ActionListener.wrap(decodeKey -> {
                         if (decodeKey != null) {
                             try {
+                                // the macaroon will be verified later because it might contain caveats that need the request context
+                                client.threadPool().getThreadContext().putTransient(MACAROON_VERIFIER_KEY, new MacaroonVerifier(macaroon,
+                                    decodeKey.getEncoded()));
                                 if (new MacaroonsVerifier(macaroon).isValid(decodeKey.getEncoded())) {
                                     final String userTokenId = hashTokenString(macaroon.identifier);
                                     getUserTokenFromId(userTokenId, version, listener);

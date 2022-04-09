@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.security.authz;
 
+import com.github.nitram509.jmacaroons.GeneralSecurityRuntimeException;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
@@ -75,6 +77,7 @@ import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
+import org.elasticsearch.xpack.security.authz.accesscontrol.MacaroonVerifier;
 import org.elasticsearch.xpack.security.authz.interceptor.RequestInterceptor;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
@@ -98,6 +101,7 @@ import static org.elasticsearch.xpack.core.security.SecurityField.setting;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ACTION_SCOPE_AUTHORIZATION_KEYS;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_KEY;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_KEY;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.MACAROON_VERIFIER_KEY;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.ORIGINATING_ACTION_KEY;
 import static org.elasticsearch.xpack.core.security.support.Exceptions.authorizationError;
 import static org.elasticsearch.xpack.core.security.user.User.isInternal;
@@ -214,6 +218,7 @@ public class AuthorizationService {
         final TransportRequest originalRequest,
         final ActionListener<Void> listener
     ) {
+        final MacaroonVerifier macaroonVerifier = threadContext.getTransient(MACAROON_VERIFIER_KEY);
 
         final AuthorizationContext enclosingContext = extractAuthorizationContext(threadContext, action);
 
@@ -258,6 +263,16 @@ public class AuthorizationService {
                 final AuthorizationEngine engine = getAuthorizationEngine(authentication);
                 final ActionListener<AuthorizationInfo> authzInfoListener = wrapPreservingContext(ActionListener.wrap(authorizationInfo -> {
                     threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfo);
+                    try {
+                        if (macaroonVerifier != null && false == macaroonVerifier.verify()) {
+                            auditTrailService.get().accessDenied(auditId, authentication, action, unwrappedRequest, authorizationInfo);
+                            listener.onFailure(denialException(authentication, action, unwrappedRequest, null));
+                            return;
+                        }
+                    } catch (GeneralSecurityRuntimeException e) {
+                        listener.onFailure(denialException(authentication, action, unwrappedRequest, e));
+                        return;
+                    }
                     maybeAuthorizeRunAs(requestInfo, auditId, authorizationInfo, listener);
                 }, listener::onFailure), threadContext);
                 engine.resolveAuthorizationInfo(requestInfo, authzInfoListener);

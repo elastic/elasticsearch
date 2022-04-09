@@ -591,12 +591,9 @@ public final class TokenService {
                                 client.threadPool()
                                     .getThreadContext()
                                     .putTransient(MACAROON_VERIFIER_KEY, new MacaroonVerifier(macaroon, decodeKey.getEncoded()));
-                                if (new MacaroonsVerifier(macaroon).isValid(decodeKey.getEncoded())) {
-                                    final String userTokenId = hashTokenString(macaroon.identifier);
-                                    getUserTokenFromId(userTokenId, version, listener);
-                                } else {
-                                    listener.onResponse(null);
-                                }
+                                // verify the access token inside the macaroon
+                                final String userTokenId = hashTokenString(macaroon.identifier);
+                                getUserTokenFromId(userTokenId, version, listener);
                             } catch (GeneralSecurityRuntimeException e) {
                                 // could happen with a token that is not ours
                                 logger.warn("invalid token", e);

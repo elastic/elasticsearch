@@ -482,16 +482,27 @@ public class MasterService extends AbstractLifecycleComponent {
             // TODO needs tests for timeout behaviour
             timeoutCancellable = threadPool.schedule(new AbstractRunnable() {
                 @Override
+                public void onRejection(Exception e) {
+                    assert e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() : e;
+                    completeTask(e);
+                }
+
+                @Override
                 public void onFailure(Exception e) {
-                    if (executed.compareAndSet(false, true)) {
-                        updateTask.onFailure(e);
-                    }
+                    logger.error("unexpected failure executing unbatched update task timeout handler", e);
+                    assert false : e;
+                    completeTask(e);
                 }
 
                 @Override
                 protected void doRun() {
+                    completeTask(new ProcessClusterEventTimeoutException(timeout, source));
+                }
+
+                private void completeTask(Exception e) {
                     if (executed.compareAndSet(false, true)) {
-                        updateTask.onFailure(new ProcessClusterEventTimeoutException(timeout, source));
+                        timedOut.set(true); // TODO test that task is not shown pending on timeout
+                        updateTask.onFailure(e);
                     }
                 }
             }, timeout, ThreadPool.Names.GENERIC);

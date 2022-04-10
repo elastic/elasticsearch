@@ -264,7 +264,7 @@ public class AuthorizationService {
                 final ActionListener<AuthorizationInfo> authzInfoListener = wrapPreservingContext(ActionListener.wrap(authorizationInfo -> {
                     threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfo);
                     try {
-                        if (macaroonVerifier != null && false == macaroonVerifier.verify(unwrappedRequest)) {
+                        if (macaroonVerifier != null && false == macaroonVerifier.verify(action, unwrappedRequest)) {
                             auditTrailService.get().accessDenied(auditId, authentication, action, unwrappedRequest, authorizationInfo);
                             listener.onFailure(denialException(authentication, action, unwrappedRequest, null));
                             return;

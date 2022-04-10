@@ -10,9 +10,13 @@ package org.elasticsearch.xpack.security.authz.accesscontrol;
 import com.github.nitram509.jmacaroons.GeneralSecurityRuntimeException;
 import com.github.nitram509.jmacaroons.Macaroon;
 import com.github.nitram509.jmacaroons.MacaroonsVerifier;
+import com.github.nitram509.jmacaroons.verifier.TimestampCaveatVerifier;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.transport.TransportRequest;
+
+import static org.elasticsearch.xpack.security.authz.accesscontrol.MacaroonUtils.PIT_CAVEAT_KEY;
+import static org.elasticsearch.xpack.security.authz.accesscontrol.MacaroonUtils.READ_ONLY_CAVEAT_KEY;
 
 public final class MacaroonVerifier {
 
@@ -24,10 +28,14 @@ public final class MacaroonVerifier {
         this.key = key;
     }
 
-    public boolean verify(TransportRequest request) throws GeneralSecurityRuntimeException {
+    public boolean verify(String action, TransportRequest request) throws GeneralSecurityRuntimeException {
         final MacaroonsVerifier macaroonsVerifier = new MacaroonsVerifier(macaroon);
+        macaroonsVerifier.satisfyGeneral(new TimestampCaveatVerifier());
+        if (action.startsWith("data:read/")) {
+            macaroonsVerifier.satisfyExact(READ_ONLY_CAVEAT_KEY);
+        }
         if (request instanceof SearchRequest searchRequest && searchRequest.pointInTimeBuilder() != null) {
-            macaroonsVerifier.satisfyExact("restrict access to PIT " + searchRequest.pointInTimeBuilder().getEncodedId());
+            macaroonsVerifier.satisfyExact(PIT_CAVEAT_KEY + " = " + searchRequest.pointInTimeBuilder().getEncodedId());
         }
         return macaroonsVerifier.isValid(key);
     }

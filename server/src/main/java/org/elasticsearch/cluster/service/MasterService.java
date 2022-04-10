@@ -461,6 +461,50 @@ public class MasterService extends AbstractLifecycleComponent {
         return ClusterState.builder(clusterState).incrementVersion();
     }
 
+    private static class TaskTimeoutHandler extends AbstractRunnable {
+
+        private final TimeValue timeout;
+        private final String source;
+        private final AtomicBoolean executed;
+        private final ClusterStateTaskListener listener;
+
+        private TaskTimeoutHandler(TimeValue timeout, String source, AtomicBoolean executed, ClusterStateTaskListener listener) {
+            this.timeout = timeout;
+            this.source = source;
+            this.executed = executed;
+            this.listener = listener;
+        }
+
+        @Override
+        public void onRejection(Exception e) {
+            assert e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() : e;
+            completeTask(e);
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            logger.error("unexpected failure executing task timeout handler", e);
+            assert false : e;
+            completeTask(e);
+        }
+
+        @Override
+        public boolean isForceExecution() {
+            return true;
+        }
+
+        @Override
+        protected void doRun() {
+            completeTask(new ProcessClusterEventTimeoutException(timeout, source));
+        }
+
+        private void completeTask(Exception e) {
+            if (executed.compareAndSet(false, true)) {
+                listener.onFailure(e);
+            }
+        }
+    }
+
     /**
      * Submits an unbatched cluster state update task. This method exists for legacy reasons but is deprecated and forbidden in new
      * production code because unbatched tasks are a source of performance and stability bugs. You should instead implement your update
@@ -480,30 +524,10 @@ public class MasterService extends AbstractLifecycleComponent {
         final var timeout = updateTask.timeout();
         if (timeout != null && timeout.millis() > 0) {
             // TODO needs tests for timeout behaviour
-            timeoutCancellable = threadPool.schedule(new AbstractRunnable() {
+            timeoutCancellable = threadPool.schedule(new TaskTimeoutHandler(timeout, source, executed, updateTask) {
                 @Override
-                public void onRejection(Exception e) {
-                    assert e instanceof EsRejectedExecutionException esre && esre.isExecutorShutdown() : e;
-                    completeTask(e);
-                }
-
-                @Override
-                public void onFailure(Exception e) {
-                    logger.error("unexpected failure executing unbatched update task timeout handler", e);
-                    assert false : e;
-                    completeTask(e);
-                }
-
-                @Override
-                protected void doRun() {
-                    completeTask(new ProcessClusterEventTimeoutException(timeout, source));
-                }
-
-                private void completeTask(Exception e) {
-                    if (executed.compareAndSet(false, true)) {
-                        timedOut.set(true); // TODO test that task is not shown pending on timeout
-                        updateTask.onFailure(e);
-                    }
+                public void onAfter() {
+                    timedOut.set(true); // TODO test that task is not shown pending on timeout
                 }
             }, timeout, ThreadPool.Names.GENERIC);
         } else {
@@ -1356,21 +1380,11 @@ public class MasterService extends AbstractLifecycleComponent {
             final Scheduler.Cancellable timeoutCancellable;
             if (timeout != null && timeout.millis() > 0) {
                 // TODO needs tests for timeout behaviour
-                timeoutCancellable = threadPool.schedule(new AbstractRunnable() {
-                    @Override
-                    public void onFailure(Exception e) {
-                        if (executed.compareAndSet(false, true)) {
-                            task.onFailure(e);
-                        }
-                    }
-
-                    @Override
-                    protected void doRun() {
-                        if (executed.compareAndSet(false, true)) {
-                            task.onFailure(new ProcessClusterEventTimeoutException(timeout, source));
-                        }
-                    }
-                }, timeout, ThreadPool.Names.GENERIC);
+                timeoutCancellable = threadPool.schedule(
+                    new TaskTimeoutHandler(timeout, source, executed, task),
+                    timeout,
+                    ThreadPool.Names.GENERIC
+                );
             } else {
                 timeoutCancellable = null;
             }

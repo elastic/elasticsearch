@@ -519,17 +519,15 @@ public class MasterService extends AbstractLifecycleComponent {
         // TODO reject if not STARTED
         final var restorableContext = threadPool.getThreadContext().newRestorableContext(true);
         final var executed = new AtomicBoolean(false);
-        final var timedOut = new AtomicBoolean(false);
         final Scheduler.Cancellable timeoutCancellable;
         final var timeout = updateTask.timeout();
         if (timeout != null && timeout.millis() > 0) {
             // TODO needs tests for timeout behaviour
-            timeoutCancellable = threadPool.schedule(new TaskTimeoutHandler(timeout, source, executed, updateTask) {
-                @Override
-                public void onAfter() {
-                    timedOut.set(true); // TODO test that task is not shown pending on timeout
-                }
-            }, timeout, ThreadPool.Names.GENERIC);
+            timeoutCancellable = threadPool.schedule(
+                new TaskTimeoutHandler(timeout, source, executed, updateTask),
+                timeout,
+                ThreadPool.Names.GENERIC
+            );
         } else {
             timeoutCancellable = null;
         }
@@ -537,9 +535,12 @@ public class MasterService extends AbstractLifecycleComponent {
         final long insertionTime = threadPool.relativeTimeInMillis();
 
         queuesByPriority.get(updateTask.priority()).execute(new Batch() {
+            private volatile boolean isRunning;
+
             @Override
             public Stream<PendingClusterTask> getPending(long currentTimeMillis) {
-                if (timedOut.get()) {
+                if (isTimedOut()) {
+                    // TODO test that task is not shown pending after timeout
                     return Stream.of();
                 }
                 return Stream.of(
@@ -555,7 +556,12 @@ public class MasterService extends AbstractLifecycleComponent {
 
             @Override
             public int getPendingCount() {
-                return timedOut.get() ? 0 : 1;
+                // TODO test that task is not counted after timeout
+                return isTimedOut() ? 0 : 1;
+            }
+
+            private boolean isTimedOut() {
+                return executed.get() && isRunning == false;
             }
 
             @Override
@@ -575,8 +581,13 @@ public class MasterService extends AbstractLifecycleComponent {
 
             @Override
             public void run() {
-                if (acquireForExecution()) {
-                    executeAndPublishBatch(unbatchedExecutor, List.of(new ExecutionResult<>(updateTask, restorableContext)), source);
+                isRunning = true;
+                try {
+                    if (acquireForExecution()) {
+                        executeAndPublishBatch(unbatchedExecutor, List.of(new ExecutionResult<>(updateTask, restorableContext)), source);
+                    }
+                } finally {
+                    isRunning = false;
                 }
             }
 

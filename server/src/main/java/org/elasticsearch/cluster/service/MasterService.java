@@ -59,6 +59,7 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -100,6 +101,7 @@ public class MasterService extends AbstractLifecycleComponent {
     private final AtomicInteger totalQueueSize = new AtomicInteger();
     private volatile Batch currentlyExecutingBatch;
     private final Map<Priority, CountedQueue> queuesByPriority;
+    private final LongSupplier insertionIndexSupplier = new AtomicLong()::incrementAndGet;
 
     private final ClusterStateUpdateStatsTracker clusterStateUpdateStatsTracker = new ClusterStateUpdateStatsTracker();
 
@@ -496,6 +498,8 @@ public class MasterService extends AbstractLifecycleComponent {
         } else {
             timeoutCancellable = null;
         }
+        final long insertionIndex = insertionIndexSupplier.getAsLong();
+        final long insertionTime = threadPool.relativeTimeInMillis();
 
         queuesByPriority.get(updateTask.priority()).execute(new Batch() {
             @Override
@@ -505,10 +509,10 @@ public class MasterService extends AbstractLifecycleComponent {
                 }
                 return Stream.of(
                     new PendingClusterTask(
-                        FAKE_INSERTION_ORDER_TODO,
+                        insertionIndex, // TODO tests for insertion index of unbatched tasks
                         updateTask.priority(),
                         new Text(source),
-                        System.currentTimeMillis() - FAKE_INSERTION_TIME_TODO,
+                        currentTimeMillis - insertionTime, // TODO tests for insertion time of unbatched tasks
                         executed.get()
                     )
                 );
@@ -1276,7 +1280,14 @@ public class MasterService extends AbstractLifecycleComponent {
         Priority priority,
         ClusterStateTaskExecutor<T> executor
     ) {
-        return new BatchingTaskQueue<>(name, this::executeAndPublishBatch, queuesByPriority.get(priority), executor, threadPool);
+        return new BatchingTaskQueue<>(
+            name,
+            this::executeAndPublishBatch,
+            insertionIndexSupplier,
+            queuesByPriority.get(priority),
+            executor,
+            threadPool
+        );
     }
 
     @FunctionalInterface
@@ -1305,6 +1316,7 @@ public class MasterService extends AbstractLifecycleComponent {
         private final AtomicInteger queueSize = new AtomicInteger();
         private final String name;
         private final BatchConsumer<T> batchConsumer;
+        private final LongSupplier insertionIndexSupplier;
         private final CountedQueue countedQueue;
         private final ClusterStateTaskExecutor<T> executor;
         private final ThreadPool threadPool;
@@ -1313,12 +1325,14 @@ public class MasterService extends AbstractLifecycleComponent {
         BatchingTaskQueue(
             String name,
             BatchConsumer<T> batchConsumer,
+            LongSupplier insertionIndexSupplier,
             CountedQueue countedQueue,
             ClusterStateTaskExecutor<T> executor,
             ThreadPool threadPool
         ) {
             this.name = name;
             this.batchConsumer = batchConsumer;
+            this.insertionIndexSupplier = insertionIndexSupplier;
             this.countedQueue = countedQueue;
             this.executor = executor;
             this.threadPool = threadPool;
@@ -1350,7 +1364,17 @@ public class MasterService extends AbstractLifecycleComponent {
                 timeoutCancellable = null;
             }
 
-            queue.add(new Entry<>(source, task, executed, threadPool.getThreadContext().newRestorableContext(true), timeoutCancellable));
+            queue.add(
+                new Entry<>(
+                    source,
+                    task,
+                    insertionIndexSupplier.getAsLong(),
+                    threadPool.relativeTimeInMillis(),
+                    executed,
+                    threadPool.getThreadContext().newRestorableContext(true),
+                    timeoutCancellable
+                )
+            );
 
             if (queueSize.getAndIncrement() == 0) {
                 countedQueue.execute(processor);
@@ -1365,6 +1389,8 @@ public class MasterService extends AbstractLifecycleComponent {
         private record Entry<T extends ClusterStateTaskListener> (
             String source,
             T task,
+            long insertionIndex,
+            long insertionTimeMillis,
             AtomicBoolean executed,
             Supplier<ThreadContext.StoredContext> storedContextSupplier,
             @Nullable Scheduler.Cancellable timeoutCancellable
@@ -1462,10 +1488,10 @@ public class MasterService extends AbstractLifecycleComponent {
                     executing.stream()
                         .map(
                             entry -> new PendingClusterTask(
-                                FAKE_INSERTION_ORDER_TODO,
+                                entry.insertionIndex(),
                                 countedQueue.priority(),
                                 new Text(entry.source()),
-                                currentTimeMillis - FAKE_INSERTION_TIME_TODO,
+                                currentTimeMillis - entry.insertionTimeMillis(),
                                 true
                             )
                         ),
@@ -1474,10 +1500,10 @@ public class MasterService extends AbstractLifecycleComponent {
                         .filter(entry -> entry.executed().get() == false)
                         .map(
                             entry -> new PendingClusterTask(
-                                FAKE_INSERTION_ORDER_TODO,
+                                entry.insertionIndex(), // TODO tests for insertion indices
                                 countedQueue.priority(),
                                 new Text(entry.source()),
-                                currentTimeMillis - FAKE_INSERTION_TIME_TODO,
+                                currentTimeMillis - entry.insertionTimeMillis(), // TODO tests for insertion times
                                 false
                             )
                         )
@@ -1502,8 +1528,4 @@ public class MasterService extends AbstractLifecycleComponent {
             }
         }
     }
-
-    private static final long FAKE_INSERTION_ORDER_TODO = 0L; // TODO
-    private static final long FAKE_INSERTION_TIME_TODO = 0L; // TODO
-
 }

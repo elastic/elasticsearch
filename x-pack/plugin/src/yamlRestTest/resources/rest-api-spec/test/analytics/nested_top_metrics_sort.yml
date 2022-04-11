@@ -327,8 +327,8 @@ teardown:
 
   - do:
       search:
+        index: test
         body:
-          index: test
           size: 0
           aggs:
             hits:

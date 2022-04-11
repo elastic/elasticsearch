@@ -43,7 +43,6 @@ import org.elasticsearch.client.core.CountRequest;
 import org.elasticsearch.client.core.GetSourceRequest;
 import org.elasticsearch.client.core.MultiTermVectorsRequest;
 import org.elasticsearch.client.core.TermVectorsRequest;
-import org.elasticsearch.client.indices.AnalyzeRequest;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.client.security.RefreshPolicy;
 import org.elasticsearch.client.tasks.TaskId;
@@ -723,18 +722,6 @@ final class RequestConverters {
         request.addParameters(params.asMap());
         request.setEntity(createEntity(putStoredScriptRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
-    }
-
-    static Request analyze(AnalyzeRequest request) throws IOException {
-        EndpointBuilder builder = new EndpointBuilder();
-        String index = request.index();
-        if (index != null) {
-            builder.addPathPart(index);
-        }
-        builder.addPathPartAsIs("_analyze");
-        Request req = new Request(HttpGet.METHOD_NAME, builder.build());
-        req.setEntity(createEntity(request, REQUEST_BODY_CONTENT_TYPE));
-        return req;
     }
 
     static Request termVectors(TermVectorsRequest tvrequest) throws IOException {

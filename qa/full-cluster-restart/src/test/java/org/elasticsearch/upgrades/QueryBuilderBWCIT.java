@@ -8,7 +8,6 @@
 
 package org.elasticsearch.upgrades;
 
-import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
@@ -18,7 +17,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.DisMaxQueryBuilder;
@@ -34,10 +32,8 @@ import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.index.query.functionscore.RandomScoreFunctionBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -217,7 +213,7 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
                     """.formatted(i));
                 Response rsp = client().performRequest(request);
                 assertEquals(200, rsp.getStatusLine().getStatusCode());
-                Map<?, ?> hitRsp = (Map<?, ?>) ((List<?>) ((Map<?, ?>) toMap(rsp).get("hits")).get("hits")).get(0);
+                var hitRsp = (Map<?, ?>) ((List<?>) ((Map<?, ?>) responseAsMap(rsp).get("hits")).get("hits")).get(0);
                 String queryBuilderStr = (String) ((List<?>) ((Map<?, ?>) hitRsp.get("fields")).get("query.query_builder_field")).get(0);
                 byte[] qbSource = Base64.getDecoder().decode(queryBuilderStr);
                 try (InputStream in = new ByteArrayInputStream(qbSource, 0, qbSource.length)) {
@@ -230,13 +226,5 @@ public class QueryBuilderBWCIT extends AbstractFullClusterRestartTestCase {
                 }
             }
         }
-    }
-
-    private static Map<String, Object> toMap(Response response) throws IOException {
-        return toMap(EntityUtils.toString(response.getEntity()));
-    }
-
-    private static Map<String, Object> toMap(String response) throws IOException {
-        return XContentHelper.convertToMap(JsonXContent.jsonXContent, response, false);
     }
 }

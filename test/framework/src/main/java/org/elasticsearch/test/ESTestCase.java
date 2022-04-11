@@ -1673,8 +1673,9 @@ public abstract class ESTestCase extends LuceneTestCase {
         } else {
             // we adjust the gradle worker id with mod so as to not go over the ephemoral port ranges, but gradle continually
             // increases this value, so the mod can eventually become zero, thus we shift on both sides by 1
-            final long workerId = Long.valueOf(workerIdStr);
+            final long workerId = Long.parseLong(workerIdStr);
             assert workerId >= 1 : "Non positive gradle worker id: " + workerIdStr;
+            assert workerId < 223 : "Worker ID overflow: " + workerIdStr;
             startAt = Math.floorMod(workerId - 1, 223) + 1;
         }
         assert startAt >= 0 : "Unexpected test worker Id, resulting port range would be negative";

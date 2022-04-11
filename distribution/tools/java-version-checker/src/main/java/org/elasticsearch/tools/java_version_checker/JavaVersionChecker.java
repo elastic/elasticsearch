@@ -11,7 +11,7 @@ package org.elasticsearch.tools.java_version_checker;
 import java.util.Arrays;
 
 /**
- * Java 17 compatible main which exits with an error.
+ * Java 17 compatible main which just exits without error.
  */
 final class JavaVersionChecker {
 

@@ -527,10 +527,6 @@ subprojects {
         'zip': 'zip'
       ],
 
-      'es.bundled_jdk': [
-        'def': 'true'
-      ],
-
       'license.name': [
         'deb': 'Elastic-License'
       ],

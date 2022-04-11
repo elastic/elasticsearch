@@ -6,7 +6,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Assert;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 public class GoogleCloudStoragePluginTest extends ESTestCase {
 
@@ -26,7 +25,7 @@ public class GoogleCloudStoragePluginTest extends ESTestCase {
                 "gcs.client.*.proxy.host",
                 "gcs.client.*.proxy.port"
             ),
-            settings.stream().map(Setting::getKey).collect(Collectors.toList())
+            settings.stream().map(Setting::getKey).toList()
         );
     }
 }

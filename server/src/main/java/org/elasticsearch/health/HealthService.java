@@ -34,7 +34,10 @@ public class HealthService {
     }
 
     /**
-     *
+     * Returns the list of HealthComponentResults for this cluster. If no componentName is specified, one HealthComponentResult is returned
+     * for each component in the system. If a componentName is given, only the single HealthComponentResult for that component is
+     * returned. If both a componentName and indicatorName are given, the returned HealthComponentResult will only have information about
+     * the given indicatorName.
      * @param componentName If not null, only the component with this name is returned
      * @param indicatorName If not null, the returned component will only have this indicator
      * @param computeDetails Whether to compute the details portion of the component results

@@ -8,6 +8,7 @@
 
 package org.elasticsearch.health;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
@@ -69,6 +70,32 @@ public class HealthServiceTests extends ESTestCase {
         var indicator1 = new HealthIndicatorResult("indicator1", "component1", GREEN, null, null, Collections.emptyList());
         var indicator2 = new HealthIndicatorResult("indicator1", "component1", YELLOW, null, null, Collections.emptyList());
         expectThrows(AssertionError.class, () -> HealthService.createComponentFromIndicators(List.of(indicator1, indicator2), true));
+    }
+
+    public void testMissingComponentOrIndicator() {
+        var indicator1 = new HealthIndicatorResult("indicator1", "component1", GREEN, null, null, null);
+        var indicator2 = new HealthIndicatorResult("indicator2", "component1", YELLOW, null, null, null);
+        var indicator3 = new HealthIndicatorResult("indicator3", "component2", GREEN, null, null, null);
+
+        var service = new HealthService(
+            List.of(
+                createMockHealthIndicatorService(indicator1),
+                createMockHealthIndicatorService(indicator2),
+                createMockHealthIndicatorService(indicator3)
+            )
+        );
+
+        expectThrows(
+            ResourceNotFoundException.class,
+            "Did not find component component99",
+            () -> service.getHealth("component99", null, false)
+        );
+
+        expectThrows(
+            ResourceNotFoundException.class,
+            "Did not find indicator indicator99 in component component1",
+            () -> service.getHealth("component1", "indicator99", false)
+        );
     }
 
     private static HealthIndicatorService createMockHealthIndicatorService(HealthIndicatorResult result) {

@@ -187,16 +187,16 @@ public class GetHealthActionIT extends ESIntegTestCase {
     public void testGetHealth() throws Exception {
 
         var client = client();
-        var indicator1Status = randomFrom(HealthStatus.values());
-        var indicator2Status = randomFrom(HealthStatus.values());
-        var indicator3Status = randomFrom(HealthStatus.values());
+        var ilmIndicatorStatus = randomFrom(HealthStatus.values());
+        var slmIndicatorStatus = randomFrom(HealthStatus.values());
+        var clusterCoordinationIndicatorStatus = randomFrom(HealthStatus.values());
 
         try {
             updateClusterSettings(
                 Settings.builder()
-                    .put(ILM_HEALTH_STATUS_SETTING.getKey(), indicator1Status)
-                    .put(SLM_HEALTH_STATUS_SETTING.getKey(), indicator2Status)
-                    .put(CLUSTER_COORDINATION_HEALTH_STATUS_SETTING.getKey(), indicator3Status)
+                    .put(ILM_HEALTH_STATUS_SETTING.getKey(), ilmIndicatorStatus)
+                    .put(SLM_HEALTH_STATUS_SETTING.getKey(), slmIndicatorStatus)
+                    .put(CLUSTER_COORDINATION_HEALTH_STATUS_SETTING.getKey(), clusterCoordinationIndicatorStatus)
             );
 
             // First, test that we don't request any components or indicators, and get back everything (but no details):
@@ -205,7 +205,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
 
                 assertThat(
                     response.getStatus(),
-                    equalTo(HealthStatus.merge(Stream.of(indicator1Status, indicator2Status, indicator3Status)))
+                    equalTo(HealthStatus.merge(Stream.of(ilmIndicatorStatus, slmIndicatorStatus, clusterCoordinationIndicatorStatus)))
                 );
                 assertThat(response.getClusterName(), equalTo(new ClusterName(cluster().getClusterName())));
                 assertThat(
@@ -213,21 +213,21 @@ public class GetHealthActionIT extends ESIntegTestCase {
                     equalTo(
                         new HealthComponentResult(
                             DATA_COMPONENT_NAME,
-                            HealthStatus.merge(Stream.of(indicator1Status, indicator2Status)),
+                            HealthStatus.merge(Stream.of(ilmIndicatorStatus, slmIndicatorStatus)),
                             List.of(
                                 new HealthIndicatorResult(
                                     ILM_INDICATOR_NAME,
                                     DATA_COMPONENT_NAME,
-                                    indicator1Status,
-                                    "Health is set to [" + indicator1Status + "] by test plugin",
+                                    ilmIndicatorStatus,
+                                    "Health is set to [" + ilmIndicatorStatus + "] by test plugin",
                                     new SimpleHealthIndicatorDetails(Map.of("include_details", false)),
                                     Collections.emptyList()
                                 ),
                                 new HealthIndicatorResult(
                                     SLM_INDICATOR_NAME,
                                     DATA_COMPONENT_NAME,
-                                    indicator2Status,
-                                    "Health is set to [" + indicator2Status + "] by test plugin",
+                                    slmIndicatorStatus,
+                                    "Health is set to [" + slmIndicatorStatus + "] by test plugin",
                                     new SimpleHealthIndicatorDetails(Map.of("include_details", false)),
                                     Collections.emptyList()
                                 )
@@ -240,13 +240,13 @@ public class GetHealthActionIT extends ESIntegTestCase {
                     equalTo(
                         new HealthComponentResult(
                             CLUSTER_COORDINATION_COMPONENT_NAME,
-                            indicator3Status,
+                            clusterCoordinationIndicatorStatus,
                             List.of(
                                 new HealthIndicatorResult(
                                     INSTANCE_HAS_MASTER_INDICATOR_NAME,
                                     CLUSTER_COORDINATION_COMPONENT_NAME,
-                                    indicator3Status,
-                                    "Health is set to [" + indicator3Status + "] by test plugin",
+                                    clusterCoordinationIndicatorStatus,
+                                    "Health is set to [" + clusterCoordinationIndicatorStatus + "] by test plugin",
                                     new SimpleHealthIndicatorDetails(Map.of("include_details", false)),
                                     Collections.emptyList()
                                 )
@@ -274,8 +274,8 @@ public class GetHealthActionIT extends ESIntegTestCase {
                                 new HealthIndicatorResult(
                                     ILM_INDICATOR_NAME,
                                     DATA_COMPONENT_NAME,
-                                    indicator1Status,
-                                    "Health is set to [" + indicator1Status + "] by test plugin",
+                                    ilmIndicatorStatus,
+                                    "Health is set to [" + ilmIndicatorStatus + "] by test plugin",
                                     new SimpleHealthIndicatorDetails(Map.of("include_details", true)),
                                     Collections.emptyList()
                                 )
@@ -296,21 +296,21 @@ public class GetHealthActionIT extends ESIntegTestCase {
                     equalTo(
                         new HealthComponentResult(
                             DATA_COMPONENT_NAME,
-                            HealthStatus.merge(Stream.of(indicator1Status, indicator2Status)),
+                            HealthStatus.merge(Stream.of(ilmIndicatorStatus, slmIndicatorStatus)),
                             List.of(
                                 new HealthIndicatorResult(
                                     ILM_INDICATOR_NAME,
                                     DATA_COMPONENT_NAME,
-                                    indicator1Status,
-                                    "Health is set to [" + indicator1Status + "] by test plugin",
+                                    ilmIndicatorStatus,
+                                    "Health is set to [" + ilmIndicatorStatus + "] by test plugin",
                                     new SimpleHealthIndicatorDetails(Map.of("include_details", true)),
                                     Collections.emptyList()
                                 ),
                                 new HealthIndicatorResult(
                                     SLM_INDICATOR_NAME,
                                     DATA_COMPONENT_NAME,
-                                    indicator2Status,
-                                    "Health is set to [" + indicator2Status + "] by test plugin",
+                                    slmIndicatorStatus,
+                                    "Health is set to [" + slmIndicatorStatus + "] by test plugin",
                                     new SimpleHealthIndicatorDetails(Map.of("include_details", true)),
                                     Collections.emptyList()
                                 )

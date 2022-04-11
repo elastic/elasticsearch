@@ -209,11 +209,6 @@ public final class TokenService {
         Property.NodeScope
     );
 
-    public static final Setting<SecureString> TOKEN_MACAROON_KEY = SecureSetting.secureString(
-        "xpack.security.authc.token.macaroon.key",
-        null
-    );
-
     static final String TOKEN_DOC_TYPE = "token";
     private static final int HASHED_TOKEN_LENGTH = 43;
     // UUIDs are 16 bytes encoded base64 without padding, therefore the length is (16 / 3) * 4 + ((16 % 3) * 8 + 5) / 6 chars

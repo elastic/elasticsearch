@@ -145,7 +145,6 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-
 import javax.crypto.Cipher;
 import javax.crypto.CipherInputStream;
 import javax.crypto.CipherOutputStream;
@@ -385,7 +384,10 @@ public final class TokenService {
             final Authentication tokenAuth = authentication.token().maybeRewriteForOlderVersion(tokenVersion);
             final String storedAccessToken;
             final String storedRefreshToken;
-            if (tokenVersion.onOrAfter(VERSION_HASHED_TOKENS)) {
+            if (tokenVersion.onOrAfter(VERSION_MACAROON_ACCESS_TOKENS)) {
+                storedAccessToken = hashTokenString("access token that is part of a macaroon" + accessToken);
+                storedRefreshToken = (null == refreshToken) ? null : hashTokenString(refreshToken);
+            } else if (tokenVersion.onOrAfter(VERSION_HASHED_TOKENS)) {
                 storedAccessToken = hashTokenString(accessToken);
                 storedRefreshToken = (null == refreshToken) ? null : hashTokenString(refreshToken);
             } else {
@@ -598,7 +600,8 @@ public final class TokenService {
                                     );
                                 }
                                 // verify the access token inside the macaroon
-                                final String userTokenId = hashTokenString(macaroon.identifier);
+                                final String userTokenId = hashTokenString("access token that is part of a macaroon" +
+                                    macaroon.identifier);
                                 getUserTokenFromId(userTokenId, version, listener);
                             } catch (GeneralSecurityRuntimeException e) {
                                 // could happen with a token that is not ours

@@ -7,17 +7,15 @@
 
 package org.elasticsearch.xpack.core.ml.inference.trainedmodel;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -25,35 +23,24 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceCo
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigTestScaffolding.createTokenizationUpdate;
 import static org.hamcrest.Matchers.equalTo;
 
-public class FillMaskConfigUpdateTests extends AbstractBWCSerializationTestCase<FillMaskConfigUpdate> {
+public class FillMaskConfigUpdateTests extends AbstractNlpConfigUpdateTestCase<FillMaskConfigUpdate> {
 
-    public void testFromMap() {
-        FillMaskConfigUpdate expected = new FillMaskConfigUpdate(
-            3,
-            "ml-results",
-            new BertTokenizationUpdate(Tokenization.Truncate.FIRST, null)
-        );
+    @Override
+    Tuple<Map<String, Object>, FillMaskConfigUpdate> fromMapTestInstances(TokenizationUpdate expectedTokenization) {
+        int topClasses = randomIntBetween(1, 10);
+        FillMaskConfigUpdate expected = new FillMaskConfigUpdate(topClasses, "ml-results", expectedTokenization);
         Map<String, Object> config = new HashMap<>() {
             {
                 put(NlpConfig.RESULTS_FIELD.getPreferredName(), "ml-results");
-                put(NlpConfig.NUM_TOP_CLASSES.getPreferredName(), 3);
-                Map<String, Object> truncate = new HashMap<>();
-                truncate.put("truncate", "first");
-                Map<String, Object> bert = new HashMap<>();
-                bert.put("bert", truncate);
-                put("tokenization", bert);
+                put(NlpConfig.NUM_TOP_CLASSES.getPreferredName(), topClasses);
             }
         };
-        var pp = FillMaskConfigUpdate.fromMap(config);
-        assertThat(pp, equalTo(expected));
+        return Tuple.tuple(config, expected);
     }
 
-    public void testFromMapWithUnknownField() {
-        ElasticsearchException ex = expectThrows(
-            ElasticsearchException.class,
-            () -> FillMaskConfigUpdate.fromMap(Collections.singletonMap("some_key", 1))
-        );
-        assertThat(ex.getMessage(), equalTo("Unrecognized fields [some_key]."));
+    @Override
+    FillMaskConfigUpdate fromMap(Map<String, Object> map) {
+        return FillMaskConfigUpdate.fromMap(map);
     }
 
     public void testIsNoop() {

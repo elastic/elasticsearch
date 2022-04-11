@@ -24,7 +24,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.stream.Stream;
 
 /**
  * A (mostly) immutable snapshot of the current mapping of an index with
@@ -291,12 +290,17 @@ public final class MappingLookup {
     }
 
     private void checkFieldNameLengthLimit(long limit) {
-        Stream.concat(objectMappers.values().stream(), fieldMappers.values().stream()).forEach(mapper -> {
+        validateMapperNameIn(objectMappers.values(), limit);
+        validateMapperNameIn(fieldMappers.values(), limit);
+    }
+
+    private static void validateMapperNameIn(Collection<? extends Mapper> mappers, long limit) {
+        for (Mapper mapper : mappers) {
             String name = mapper.simpleName();
             if (name.length() > limit) {
                 throw new IllegalArgumentException("Field name [" + name + "] is longer than the limit of [" + limit + "] characters");
             }
-        });
+        }
     }
 
     private void checkNestedLimit(long limit) {

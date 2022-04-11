@@ -7,6 +7,7 @@
  */
 
 package org.elasticsearch.logging;
+
 public class StandardLevels {
 
     public static final int OFF = 0;

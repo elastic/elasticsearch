@@ -17,9 +17,14 @@ public interface LoggingSupportProvider {
     }
 
     AppenderSupport appenderSupport();
+
     LoggingBootstrapSupport loggingBootstrapSupport();
+
     LogLevelSupport logLevelSupport();
+
     LogManagerFactory logManagerFactory();
+
     MessageFactory messageFactory();
+
     StringBuildersSupport stringBuildersSupport();
 }

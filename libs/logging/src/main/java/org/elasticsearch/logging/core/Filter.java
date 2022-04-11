@@ -11,7 +11,8 @@ package org.elasticsearch.logging.core;
 public interface Filter {
 
     Result filter(LogEvent logEvent);
-    public Filter.Result filterMessage(org.elasticsearch.logging.Message message);
+
+    Filter.Result filterMessage(org.elasticsearch.logging.Message message);
 
     enum Result {
         /**

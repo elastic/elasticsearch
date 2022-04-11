@@ -22,7 +22,6 @@ import org.elasticsearch.logging.core.Appender;
 import org.elasticsearch.logging.core.Filter;
 import org.elasticsearch.logging.core.Layout;
 import org.elasticsearch.logging.core.MockLogAppender;
-import org.elasticsearch.logging.core.RateLimitingFilter;
 import org.elasticsearch.logging.impl.ECSJsonLayout;
 import org.elasticsearch.logging.impl.EcsLayoutImpl;
 import org.elasticsearch.logging.impl.LogEventImpl;
@@ -66,7 +65,7 @@ public class AppenderSupportImpl implements AppenderSupport {
 
     @SuppressWarnings("unchecked")
     private static org.apache.logging.log4j.core.Layout<? extends Serializable> mapLayout(Layout layout) {
-        return (org.apache.logging.log4j.core.Layout<? extends Serializable>)layout; // TODO PG sealed classes maybe...
+        return (org.apache.logging.log4j.core.Layout<? extends Serializable>) layout; // TODO PG sealed classes maybe...
     }
 
     private static org.apache.logging.log4j.core.Filter createLog4jFilter(org.elasticsearch.logging.core.Filter filter) {
@@ -135,10 +134,10 @@ public class AppenderSupportImpl implements AppenderSupport {
         return new EcsLayoutImpl(layout);
     }
 
-//    @Override
-//    public RateLimitingFilter createRateLimitingFilter() {
-//        return new Log4jRateLimitingFilter();
-//    }
+    // @Override
+    // public RateLimitingFilter createRateLimitingFilter() {
+    // return new Log4jRateLimitingFilter();
+    // }
 
     @Override
     public Appender createMockLogAppender(List<MockLogAppender.LoggingExpectation> expectations) throws IllegalAccessException {

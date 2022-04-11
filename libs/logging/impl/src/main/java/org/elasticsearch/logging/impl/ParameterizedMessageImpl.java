@@ -6,7 +6,9 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.logging.impl;import org.apache.logging.log4j.message.ParameterizedMessage;
+package org.elasticsearch.logging.impl;
+
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.logging.Message;
 
 public class ParameterizedMessageImpl extends ParameterizedMessage implements Message {

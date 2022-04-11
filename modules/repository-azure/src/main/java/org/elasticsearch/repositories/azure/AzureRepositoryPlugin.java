@@ -8,8 +8,6 @@
 
 package org.elasticsearch.repositories.azure;
 
-import com.azure.core.util.serializer.JacksonAdapter;
-
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -52,7 +50,7 @@ public class AzureRepositoryPlugin extends Plugin implements RepositoryPlugin, R
     static {
         // Trigger static initialization with the plugin class loader
         // so we have access to the proper xml parser
-       // JacksonAdapter.createDefaultSerializerAdapter();
+        // JacksonAdapter.createDefaultSerializerAdapter();
     }
 
     // protected for testing

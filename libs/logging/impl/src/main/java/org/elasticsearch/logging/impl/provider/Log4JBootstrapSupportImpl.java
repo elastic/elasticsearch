@@ -67,20 +67,17 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Properties;
 import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 import java.util.stream.StreamSupport;
 
 public class Log4JBootstrapSupportImpl implements LoggingBootstrapSupport {
     public Log4JBootstrapSupportImpl() {}
-
 
     /*
      * We want to detect situations where we touch logging before the configuration is loaded. If we do this, Log4j will status log an error
@@ -102,7 +99,7 @@ public class Log4JBootstrapSupportImpl implements LoggingBootstrapSupport {
      * Registers a listener for status logger errors. This listener should be registered as early as possible to ensure that no errors are
      * logged by the status logger before logging is configured.
      */
-    public  void registerErrorListener() {
+    public void registerErrorListener() {
         error.set(false);
         StatusLogger.getLogger().registerListener(ERROR_LISTENER);
     }
@@ -113,7 +110,7 @@ public class Log4JBootstrapSupportImpl implements LoggingBootstrapSupport {
      *
      //* @param settings for configuring logger.level and individual loggers
      */
-    public  void configureWithoutConfig(
+    public void configureWithoutConfig(
         Optional<org.elasticsearch.logging.Level> defaultLogLevel,
         Map<String, org.elasticsearch.logging.Level> logLevelSettingsMap
     ) {
@@ -134,7 +131,7 @@ public class Log4JBootstrapSupportImpl implements LoggingBootstrapSupport {
      *                       directory
      * @throws RuntimeException if there are no log4j2.properties in the specified configs path
      */
-    public  void configure(
+    public void configure(
         String clusterName,
         String nodeName,
         Optional<org.elasticsearch.logging.Level> defaultLogLevel,
@@ -158,7 +155,7 @@ public class Log4JBootstrapSupportImpl implements LoggingBootstrapSupport {
     /**
      * Load logging plugins so we can have {@code node_name} in the pattern.
      */
-    public void loadLog4jPlugins() { //TODO PG when startup problems look here..
+    public void loadLog4jPlugins() { // TODO PG when startup problems look here..
 
         Set<Class<?>> classes = Set.of(
             ClusterIdConverter.class,
@@ -182,8 +179,7 @@ public class Log4JBootstrapSupportImpl implements LoggingBootstrapSupport {
                 newPluginsByCategory.put(categoryLowerCase, list = new ArrayList<>());
             }
             final PluginEntry mainEntry = new PluginEntry();
-            final String mainElementName = plugin.elementType().equals(
-                Plugin.EMPTY) ? plugin.name() : plugin.elementType();
+            final String mainElementName = plugin.elementType().equals(Plugin.EMPTY) ? plugin.name() : plugin.elementType();
             mainEntry.setKey(plugin.name().toLowerCase());
             mainEntry.setName(plugin.name());
             mainEntry.setCategory(plugin.category());
@@ -196,8 +192,7 @@ public class Log4JBootstrapSupportImpl implements LoggingBootstrapSupport {
             if (pluginAliases != null) {
                 for (final String alias : pluginAliases.value()) {
                     final PluginEntry aliasEntry = new PluginEntry();
-                    final String aliasElementName = plugin.elementType().equals(
-                        Plugin.EMPTY) ? alias.trim() : plugin.elementType();
+                    final String aliasElementName = plugin.elementType().equals(Plugin.EMPTY) ? alias.trim() : plugin.elementType();
                     aliasEntry.setKey(alias.trim().toLowerCase());
                     aliasEntry.setName(plugin.name());
                     aliasEntry.setCategory(plugin.category());
@@ -209,30 +204,28 @@ public class Log4JBootstrapSupportImpl implements LoggingBootstrapSupport {
                 }
             }
         }
-        PluginRegistry.getInstance().getPluginsByCategoryByBundleId()
-            .put(1L, newPluginsByCategory);
+        PluginRegistry.getInstance().getPluginsByCategoryByBundleId().put(1L, newPluginsByCategory);
     }
-
 
     /**
      * Sets the node name. This is called before logging is configured if the
      * node name is set in elasticsearch.yml. Otherwise it is called as soon
      * as the node id is available.
      */
-    public  void setNodeName(String nodeName) {
+    public void setNodeName(String nodeName) {
         NodeNamePatternConverter.setNodeName(nodeName);
     }
 
-    public  void init() {
+    public void init() {
         // LogConfigurator
         // Tuple<String,String> nodeAndClusterId();
     }
 
-    public  void shutdown() {
+    public void shutdown() {
         Configurator.shutdown((LoggerContext) LogManager.getContext(false));
     }
 
-    public  final Consumer<LoggingBootstrapSupport.ConsoleAppenderMode> consoleAppender() {
+    public final Consumer<LoggingBootstrapSupport.ConsoleAppenderMode> consoleAppender() {
         return mode -> {
             final Logger rootLogger = LogManager.getRootLogger();
             final Appender maybeConsoleAppender = Loggers.findAppender(rootLogger, ConsoleAppender.class);
@@ -263,7 +256,7 @@ public class Log4JBootstrapSupportImpl implements LoggingBootstrapSupport {
     // }
     // }
 
-    /* TODO PG private */ public  void checkErrorListener() {
+    /* TODO PG private */ public void checkErrorListener() {
         assert errorListenerIsRegistered() : "expected error listener to be registered";
         if (error.get()) {
             throw new IllegalStateException("status logger logged an error before logging was configured");
@@ -274,7 +267,7 @@ public class Log4JBootstrapSupportImpl implements LoggingBootstrapSupport {
         return StreamSupport.stream(StatusLogger.getLogger().getListeners().spliterator(), false).anyMatch(l -> l == ERROR_LISTENER);
     }
 
-    private  void configureImpl(
+    private void configureImpl(
         String clusterName,
         String nodeName,
         Optional<org.elasticsearch.logging.Level> defaultLogLevel,
@@ -352,7 +345,9 @@ public class Log4JBootstrapSupportImpl implements LoggingBootstrapSupport {
         });
 
         if (configurations.isEmpty()) {
-            throw new RuntimeException(/*ExitCodes.CONFIG, */"no log4j2.properties found; tried [" + configsPath + "] and its subdirectories");
+            throw new RuntimeException(/*ExitCodes.CONFIG, */"no log4j2.properties found; tried ["
+                + configsPath
+                + "] and its subdirectories");
         }
 
         context.start(new CompositeConfiguration(configurations));
@@ -379,7 +374,8 @@ public class Log4JBootstrapSupportImpl implements LoggingBootstrapSupport {
     }
 
     private static void configureStatusLogger() {
-        final ConfigurationBuilder<BuiltConfiguration> builder = ConfigurationBuilderFactory.newConfigurationBuilder();// TODO PG plugin loading
+        final ConfigurationBuilder<BuiltConfiguration> builder = ConfigurationBuilderFactory.newConfigurationBuilder();// TODO PG plugin
+                                                                                                                       // loading
         builder.setStatusLevel(Level.ERROR);
         Configurator.initialize(builder.build());
     }
@@ -422,6 +418,5 @@ public class Log4JBootstrapSupportImpl implements LoggingBootstrapSupport {
         System.setProperty("es.logs.cluster_name", clusterName); // ClusterName.CLUSTER_NAME_SETTING.get(settings).value());
         System.setProperty("es.logs.node_name", nodeName); // Node.NODE_NAME_SETTING.get(settings));
     }
-
 
 }

@@ -7,30 +7,26 @@
  */
 
 package org.elasticsearch.logging.impl;/*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
- */
+                                       * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+                                       * or more contributor license agreements. Licensed under the Elastic License
+                                       * 2.0 and the Server Side Public License, v 1; you may not use this file except
+                                       * in compliance with, at your election, the Elastic License 2.0 or the Server
+                                       * Side Public License, v 1.
+                                       */
 
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.Marker;
-import org.apache.logging.log4j.core.Layout;
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.Logger;
 import org.apache.logging.log4j.core.config.Node;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.config.plugins.PluginAttribute;
 import org.apache.logging.log4j.core.config.plugins.PluginFactory;
-import org.apache.logging.log4j.core.config.plugins.processor.PluginEntry;
 import org.apache.logging.log4j.core.filter.AbstractFilter;
 import org.apache.logging.log4j.message.Message;
 import org.elasticsearch.logging.core.Filter;
 import org.elasticsearch.logging.core.RateLimitingFilter;
 import org.elasticsearch.logging.impl.provider.AppenderSupportImpl;
-import org.elasticsearch.logging.impl.provider.Log4JBootstrapSupportImpl;
-
 
 /**
  * A filter used for throttling deprecation logs.
@@ -52,8 +48,10 @@ public class Log4jRateLimitingFilter extends AbstractFilter {
         this(org.apache.logging.log4j.core.Filter.Result.ACCEPT, org.apache.logging.log4j.core.Filter.Result.DENY);
     }
 
-    public Log4jRateLimitingFilter(org.apache.logging.log4j.core.Filter.Result onMatch,
-                                   org.apache.logging.log4j.core.Filter.Result onMismatch) {
+    public Log4jRateLimitingFilter(
+        org.apache.logging.log4j.core.Filter.Result onMatch,
+        org.apache.logging.log4j.core.Filter.Result onMismatch
+    ) {
         super(onMatch, onMismatch);
     }
 
@@ -64,9 +62,6 @@ public class Log4jRateLimitingFilter extends AbstractFilter {
     ) {
         return new Log4jRateLimitingFilter(match, mismatch);
     }
-
-
-
 
     @Override
     public org.apache.logging.log4j.core.Filter.Result filter(LogEvent event) {
@@ -79,6 +74,5 @@ public class Log4jRateLimitingFilter extends AbstractFilter {
         Filter.Result filter1 = rateLimitingFilter.filterMessage(new MessageImpl(msg));
         return AppenderSupportImpl.mapResult(filter1);
     }
-
 
 }

@@ -89,13 +89,13 @@ public final class LoggerImpl implements org.elasticsearch.logging.Logger {
     }
 
     private org.apache.logging.log4j.message.Message mapMessage(Message message) {
-        if(message instanceof MessageImpl messageImpl){
+        if (message instanceof MessageImpl messageImpl) {
             return messageImpl.log4jMessage;
         } else if (message instanceof org.apache.logging.log4j.message.Message log4jMessage) {
             return log4jMessage;
         }
         return new ObjectMessage(message);
-        //TODO PG what about custom user messages?? Maybe we coudl seal Message to only ESMapMessage and MessageImpl?
+        // TODO PG what about custom user messages?? Maybe we coudl seal Message to only ESMapMessage and MessageImpl?
     }
 
     public void debug(Message message) {

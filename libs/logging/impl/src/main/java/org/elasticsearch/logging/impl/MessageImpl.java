@@ -6,7 +6,9 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.logging.impl;import org.elasticsearch.logging.Message;
+package org.elasticsearch.logging.impl;
+
+import org.elasticsearch.logging.Message;
 
 public class MessageImpl implements Message {
     org.apache.logging.log4j.message.Message log4jMessage;

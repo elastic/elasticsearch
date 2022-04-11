@@ -7,6 +7,7 @@
  */
 
 package org.elasticsearch.logging.impl;
+
 import co.elastic.logging.log4j2.EcsLayout;
 
 import org.apache.logging.log4j.core.LogEvent;

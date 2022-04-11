@@ -10,11 +10,9 @@ package org.elasticsearch.logging.impl;
 
 import org.apache.logging.log4j.core.LogEvent;
 import org.apache.logging.log4j.core.config.plugins.Plugin;
-import org.apache.logging.log4j.core.config.plugins.processor.PluginEntry;
 import org.apache.logging.log4j.core.pattern.ConverterKeys;
 import org.apache.logging.log4j.core.pattern.LogEventPatternConverter;
 import org.apache.logging.log4j.core.pattern.PatternConverter;
-import org.elasticsearch.logging.impl.provider.Log4JBootstrapSupportImpl;
 import org.elasticsearch.logging.spi.ServerSupport;
 
 /**
@@ -37,7 +35,6 @@ public final class TraceIdConverter extends LogEventPatternConverter {
     public static String getTraceId() {
         return ServerSupport.INSTANCE.getTraceIdHeader();
     }
-
 
     /**
      * Formats the trace.id into json fields.

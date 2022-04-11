@@ -14,6 +14,6 @@ import org.elasticsearch.logging.spi.StringBuildersSupport;
 public class StringBuildersSupportImpl implements StringBuildersSupport {
     @Override
     public void escapeJsonImpl(StringBuilder toAppendTo, int start) {
-        StringBuilders.escapeJson(toAppendTo,start);
+        StringBuilders.escapeJson(toAppendTo, start);
     }
 }

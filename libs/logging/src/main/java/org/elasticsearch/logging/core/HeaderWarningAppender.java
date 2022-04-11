@@ -12,10 +12,9 @@ import org.elasticsearch.logging.ESMapMessage;
 import org.elasticsearch.logging.Message;
 import org.elasticsearch.logging.spi.ServerSupport;
 
-public class HeaderWarningAppender implements Appender{
+public class HeaderWarningAppender implements Appender {
 
-    public HeaderWarningAppender() {
-    }
+    public HeaderWarningAppender() {}
 
     public static HeaderWarningAppender createAppender(String name, Filter filter) {
         return new HeaderWarningAppender();

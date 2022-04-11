@@ -8,8 +8,6 @@
 
 package org.elasticsearch.migration;
 
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusAction;
 import org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusRequest;
 import org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusResponse;
@@ -19,6 +17,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;

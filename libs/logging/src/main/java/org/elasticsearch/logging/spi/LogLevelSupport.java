@@ -8,7 +8,6 @@
 
 package org.elasticsearch.logging.spi;
 
-
 /**
  * the SPI for changing logger level. Used for slow logs (we want to make sure the level is TRACE)
  * and dynamic change of logger level via settings api

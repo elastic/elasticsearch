@@ -21,7 +21,8 @@ public class LogManager {
     }
 
     private LogManager() {}
-    //TODO PG  getRootLogger do we want it?
+
+    // TODO PG getRootLogger do we want it?
     public static Logger getRootLogger() {
         return getLogger("");
     }

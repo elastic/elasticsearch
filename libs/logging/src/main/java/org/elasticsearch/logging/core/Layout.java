@@ -10,7 +10,5 @@ package org.elasticsearch.logging.core;
 
 public interface Layout {
 
-
-
     byte[] toByteArray(LogEvent event);
 }

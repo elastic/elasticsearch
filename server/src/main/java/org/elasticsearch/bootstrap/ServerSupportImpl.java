@@ -44,7 +44,7 @@ public class ServerSupportImpl implements ServerSupport {
 
     // --
 
-    //TODO PG not ideal.. maybe we can have some similar impl in some util?
+    // TODO PG not ideal.. maybe we can have some similar impl in some util?
     @Override
     public byte[] quoteAsUTF8(String line) {
         return JsonStringEncoder.getInstance().quoteAsUTF8(line);

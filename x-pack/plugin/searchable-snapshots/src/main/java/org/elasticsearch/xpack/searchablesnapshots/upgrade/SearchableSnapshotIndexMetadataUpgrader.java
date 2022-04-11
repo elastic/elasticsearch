@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.upgrade;
 
-
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;

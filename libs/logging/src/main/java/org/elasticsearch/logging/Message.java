@@ -12,19 +12,17 @@ package org.elasticsearch.logging;
 //import org.elasticsearch.logging.impl.ParameterizedMessageImpl;
 import org.elasticsearch.logging.spi.MessageFactory;
 
-
 // TODO PG: I wonder if we need this. I would prefer if logger users would use String as a message, possibly some parameters suppliers
 public interface Message {
-    static final MessageFactory provider = MessageFactory.provider();
+    MessageFactory provider = MessageFactory.provider();
 
     static Message createParameterizedMessage(String format, Object[] params, Throwable throwable) {
-        return provider.createParametrizedMessage(format,params,throwable);//new ParameterizedMessageImpl(format, params, throwable);
+        return provider.createParametrizedMessage(format, params, throwable);// new ParameterizedMessageImpl(format, params, throwable);
     }
 
     static Message createParameterizedMessage(String format, Object... params) {
         return provider.createParametrizedMessage(format, params, null);
     }
-
 
     static ESMapMessage createMapMessage(String format, Object... params) {
         return provider.createMapMessage(format, params);

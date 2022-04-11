@@ -7,12 +7,12 @@
  */
 
 package org.elasticsearch.logging.impl;/*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
- */
+                                       * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+                                       * or more contributor license agreements. Licensed under the Elastic License
+                                       * 2.0 and the Server Side Public License, v 1; you may not use this file except
+                                       * in compliance with, at your election, the Elastic License 2.0 or the Server
+                                       * Side Public License, v 1.
+                                       */
 
 import org.apache.logging.log4j.core.Layout;
 import org.apache.logging.log4j.core.LogEvent;
@@ -21,18 +21,15 @@ import org.apache.logging.log4j.core.config.plugins.Plugin;
 import org.apache.logging.log4j.core.config.plugins.PluginAttribute;
 import org.apache.logging.log4j.core.config.plugins.PluginBuilderFactory;
 import org.apache.logging.log4j.core.config.plugins.PluginFactory;
-import org.apache.logging.log4j.core.config.plugins.processor.PluginEntry;
 import org.apache.logging.log4j.core.layout.AbstractStringLayout;
 import org.apache.logging.log4j.core.layout.ByteBufferDestination;
 import org.apache.logging.log4j.core.layout.PatternLayout;
-import org.elasticsearch.logging.impl.provider.Log4JBootstrapSupportImpl;
 
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
-
 
 /**
  * Formats log events as strings in a json format.
@@ -66,7 +63,12 @@ import java.util.Set;
  * @deprecated ECSJsonlayout should be used as JSON logs layout
  */
 @Deprecated(since = "v8")
-@Plugin(name = "org.elasticsearch.logging.impl.ESJsonLayout", category = Node.CATEGORY, elementType = Layout.ELEMENT_TYPE, printObject = true)
+@Plugin(
+    name = "org.elasticsearch.logging.impl.ESJsonLayout",
+    category = Node.CATEGORY,
+    elementType = Layout.ELEMENT_TYPE,
+    printObject = true
+)
 public class ESJsonLayout extends AbstractStringLayout {
 
     private final PatternLayout patternLayout;
@@ -80,7 +82,6 @@ public class ESJsonLayout extends AbstractStringLayout {
             .withAlwaysWriteExceptions(false)
             .build();
     }
-
 
     private String pattern(String type, String[] esmessagefields) {
         if (Util.isEmpty(type)) {

@@ -13,7 +13,6 @@ import org.elasticsearch.logging.spi.MessageFactory;
 
 import java.util.Locale;
 
-
 /**
  * A logger message used by {@link DeprecationLogger}, enriched with fields
  * named following ECS conventions. Carries x-opaque-id field if provided in the headers.
@@ -27,7 +26,6 @@ public final class DeprecatedMessage {
     public static final String ECS_VERSION = "1.2.0";
 
     static final MessageFactory provider = MessageFactory.provider();
-
 
     private DeprecatedMessage() {}
 
@@ -63,7 +61,8 @@ public final class DeprecatedMessage {
         String messagePattern,
         Object[] args
     ) {
-        ESMapMessage esLogMessage =  provider.createMapMessage(messagePattern, args).field("data_stream.dataset", "deprecation.elasticsearch")
+        ESMapMessage esLogMessage = provider.createMapMessage(messagePattern, args)
+            .field("data_stream.dataset", "deprecation.elasticsearch")
             .field("data_stream.type", "logs")
             .field("data_stream.namespace", "default")
             .field(KEY_FIELD_NAME, key)

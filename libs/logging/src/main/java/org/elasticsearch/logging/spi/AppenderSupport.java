@@ -12,7 +12,6 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.core.Appender;
 import org.elasticsearch.logging.core.Layout;
 import org.elasticsearch.logging.core.MockLogAppender;
-import org.elasticsearch.logging.locator.LoggingSupportLocator;
 
 import java.util.List;
 
@@ -23,13 +22,13 @@ public interface AppenderSupport {
         return LoggingSupportProvider.provider().appenderSupport();
     }
 
-    void addAppender(final org.elasticsearch.logging.Logger logger, final org.elasticsearch.logging.core.Appender appender);
+    void addAppender(org.elasticsearch.logging.Logger logger, org.elasticsearch.logging.core.Appender appender);
 
-    void addAppender(final Logger logger, final MockLogAppender appender);
+    void addAppender(Logger logger, MockLogAppender appender);
 
-    void removeAppender(final Logger logger, final org.elasticsearch.logging.core.Appender appender);
+    void removeAppender(Logger logger, org.elasticsearch.logging.core.Appender appender);
 
-    void removeAppender(final Logger logger, final MockLogAppender appender);
+    void removeAppender(Logger logger, MockLogAppender appender);
 
     Layout createECSLayout(String dataset);
 

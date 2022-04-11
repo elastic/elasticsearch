@@ -37,7 +37,7 @@ public class MockLogAppender {
          * modification from #addExpectation.
          */
         expectations = new CopyOnWriteArrayList<>();
-        appender =  AppenderSupport.provider().createMockLogAppender(expectations);
+        appender = AppenderSupport.provider().createMockLogAppender(expectations);
     }
 
     public static LoggingExpectation createUnseenEventExpectation(String name, String logger, Level level, String message) {
@@ -88,7 +88,7 @@ public class MockLogAppender {
     }
 
     public void stop() {
-       /* impl.stop();*/
+        /* impl.stop();*/
     }
 
     public void assertAllExpectationsMatched() {

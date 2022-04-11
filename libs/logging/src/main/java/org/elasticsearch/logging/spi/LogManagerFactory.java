@@ -18,12 +18,11 @@ public interface LogManagerFactory {
         return LoggingSupportProvider.provider().logManagerFactory();
     }
 
-    Logger getLogger(final String name);
+    Logger getLogger(String name);
 
-    Logger getLogger(final Class<?> clazz);
+    Logger getLogger(Class<?> clazz);
 
     Logger getPrefixLogger(String loggerName, String prefix);
 
     Logger getPrefixLogger(Class<?> clazz, String prefix);
 }
-

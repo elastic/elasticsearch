@@ -9,7 +9,6 @@
 package org.elasticsearch.logging.impl.provider;
 
 import org.elasticsearch.logging.Level;
-import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.impl.Loggers;
 import org.elasticsearch.logging.impl.Util;
@@ -24,7 +23,7 @@ public class LogLevelSupportImpl implements LogLevelSupport {
 
     @Override
     public void setRootLoggerLevel(Level level) {
-//        Loggers.setLevelImpl(LogManager.getRootLogger(), Util.log4jLevel(level));
+        // Loggers.setLevelImpl(LogManager.getRootLogger(), Util.log4jLevel(level));
 
     }
 
@@ -39,7 +38,5 @@ public class LogLevelSupportImpl implements LogLevelSupport {
         Loggers.setLevelImpl(Util.log4jLogger(logger), Util.log4jLevel(level));
 
     }
-
-
 
 }

@@ -43,16 +43,16 @@ public class PrefixLogger {
     }
 
     public static org.elasticsearch.logging.Logger getLogger(org.elasticsearch.logging.Logger parentLogger, String s) {
-        //TODO PG finish this.. if possible
+        // TODO PG finish this.. if possible
         org.elasticsearch.logging.Logger inner = org.elasticsearch.logging.LogManager.getLogger(parentLogger.getName() + s);
-//        if (parentLogger instanceof org.elasticsearch.logging.impl.PrefixLogger) {
-//            return new LoggerImpl(
-//                new org.elasticsearch.logging.impl.PrefixLogger(
-//                    Util.log4jLogger(inner),
-//                    ((org.elasticsearch.logging.impl.PrefixLogger) parentLogger).prefix()
-//                )
-//            );
-//        }
+        // if (parentLogger instanceof org.elasticsearch.logging.impl.PrefixLogger) {
+        // return new LoggerImpl(
+        // new org.elasticsearch.logging.impl.PrefixLogger(
+        // Util.log4jLogger(inner),
+        // ((org.elasticsearch.logging.impl.PrefixLogger) parentLogger).prefix()
+        // )
+        // );
+        // }
         return parentLogger;
     }
 

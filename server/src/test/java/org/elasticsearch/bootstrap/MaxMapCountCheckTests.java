@@ -16,9 +16,9 @@ import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.Message;
-import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.LogEvent;
 import org.elasticsearch.logging.core.MockLogAppender;
+import org.elasticsearch.logging.spi.AppenderSupport;
 import org.elasticsearch.test.AbstractBootstrapCheckTestCase;
 
 import java.io.BufferedReader;

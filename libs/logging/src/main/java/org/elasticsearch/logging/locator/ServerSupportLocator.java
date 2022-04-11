@@ -7,6 +7,7 @@
  */
 
 package org.elasticsearch.logging.locator;
+
 import org.elasticsearch.logging.spi.ServerSupport;
 
 import java.util.ServiceLoader;

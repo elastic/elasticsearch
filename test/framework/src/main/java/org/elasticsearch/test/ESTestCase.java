@@ -378,8 +378,8 @@ public abstract class ESTestCase extends LuceneTestCase {
     @Before
     public void setHeaderWarningAppender() {
         this.headerWarningAppender = HeaderWarningAppender.createAppender("header_warning", null);
-//        this.headerWarningAppender.start(); // TODO PG start?
-         AppenderSupport.provider().addAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.headerWarningAppender);
+        // this.headerWarningAppender.start(); // TODO PG start?
+        AppenderSupport.provider().addAppender(LogManager.getLogger("org.elasticsearch.deprecation"), this.headerWarningAppender);
     }
 
     @After

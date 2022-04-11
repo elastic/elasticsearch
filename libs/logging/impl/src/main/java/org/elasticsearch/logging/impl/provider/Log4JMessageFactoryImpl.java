@@ -15,8 +15,7 @@ import org.elasticsearch.logging.impl.ParameterizedMessageImpl;
 import org.elasticsearch.logging.spi.MessageFactory;
 
 public class Log4JMessageFactoryImpl implements MessageFactory {
-    public Log4JMessageFactoryImpl() {
-    }
+    public Log4JMessageFactoryImpl() {}
 
     @Override
     public Message createParametrizedMessage(String format, Object[] params, Throwable throwable) {

@@ -26,14 +26,11 @@ public class RateLimitingFilter implements Filter {
 
     private volatile boolean useXOpaqueId = true;
 
-
-    public RateLimitingFilter() {
-    }
+    public RateLimitingFilter() {}
 
     public void setUseXOpaqueId(boolean useXOpaqueId) {
         this.useXOpaqueId = useXOpaqueId;
     }
-
 
     /**
      * Clears the cache of previously-seen keys.
@@ -47,6 +44,7 @@ public class RateLimitingFilter implements Filter {
         org.elasticsearch.logging.Message message = logEvent.getMessage();
         return filterMessage(message);
     }
+
     @Override
     public Filter.Result filterMessage(org.elasticsearch.logging.Message message) {
         if (message instanceof final ESMapMessage esLogMessage) { // TODO: just avoid for now

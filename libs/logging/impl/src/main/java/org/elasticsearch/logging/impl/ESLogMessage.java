@@ -7,6 +7,7 @@
  */
 
 package org.elasticsearch.logging.impl;
+
 import org.apache.logging.log4j.message.MapMessage;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Chars;

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.logging;
 
-
 import java.util.Collection;
 import java.util.Locale;
 import java.util.Objects;

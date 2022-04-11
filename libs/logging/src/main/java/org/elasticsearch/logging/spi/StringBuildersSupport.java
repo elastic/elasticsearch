@@ -11,14 +11,14 @@ package org.elasticsearch.logging.spi;
 //TODO PG remove.. .
 public interface StringBuildersSupport {
 
-    static StringBuildersSupport provider(){
+    static StringBuildersSupport provider() {
         return LoggingSupportProvider.provider().stringBuildersSupport();
 
     }
-    static void escapeJson(final StringBuilder toAppendTo, final int start) {
+
+    static void escapeJson(StringBuilder toAppendTo, int start) {
         provider().escapeJsonImpl(toAppendTo, start);
     }
 
-    void escapeJsonImpl(final StringBuilder toAppendTo, final int start);
+    void escapeJsonImpl(StringBuilder toAppendTo, int start);
 }
-

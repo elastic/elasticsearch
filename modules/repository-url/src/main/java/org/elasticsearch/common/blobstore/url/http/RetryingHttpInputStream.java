@@ -8,10 +8,10 @@
 
 package org.elasticsearch.common.blobstore.url.http;
 
-import org.apache.log4j.LogManager;
-import org.apache.log4j.Logger;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.Message;
 import org.elasticsearch.rest.RestStatus;
 

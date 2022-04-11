@@ -17,7 +17,6 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.plugins.PluginsService;
-import org.elasticsearch.secure_sm.SecureSM;
 import org.elasticsearch.transport.TcpTransport;
 
 import java.io.FilePermission;
@@ -159,7 +158,7 @@ final class Security {
             // SecureSM matches class names as regular expressions so we escape the $ that arises from the nested class name
             ElasticsearchUncaughtExceptionHandler.PrivilegedHaltAction.class.getName().replace("$", "\\$"),
             Command.class.getName() };
-//        setSecurityManager(new SecureSM(classesThatCanExit));
+        // setSecurityManager(new SecureSM(classesThatCanExit));
 
         // do some basic tests
         selfTest();

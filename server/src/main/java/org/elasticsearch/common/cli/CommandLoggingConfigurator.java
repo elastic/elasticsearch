@@ -27,7 +27,8 @@ public final class CommandLoggingConfigurator {
         // initialize default for es.logger.level because we will not read the log4j2.properties
         final String loggerLevel = System.getProperty("es.logger.level", Level.INFO.name());
         final Settings settings = Settings.builder().put("logger.level", loggerLevel).build();
-        LoggingBootstrapSupport.provider().configureWithoutConfig(LogSettings.defaultLogLevel(settings), LogSettings.logLevelSettingsMap(settings));
+        LoggingBootstrapSupport.provider()
+            .configureWithoutConfig(LogSettings.defaultLogLevel(settings), LogSettings.logLevelSettingsMap(settings));
     }
 
 }

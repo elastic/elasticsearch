@@ -15,10 +15,10 @@ import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.core.Appender;
-import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.Filter;
 import org.elasticsearch.logging.core.Layout;
 import org.elasticsearch.logging.core.LogEvent;
+import org.elasticsearch.logging.spi.AppenderSupport;
 import org.elasticsearch.logging.spi.LogLevelSupport;
 import org.elasticsearch.test.ESTestCase;
 

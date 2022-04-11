@@ -1051,7 +1051,9 @@ public class TokenServiceTests extends ESTestCase {
             GetResponse response = mock(GetResponse.class);
             Version tokenVersion = tokenService.getTokenVersionCompatibility();
             final String possiblyHashedUserTokenId;
-            if (tokenVersion.onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
+            if (tokenVersion.onOrAfter(TokenService.VERSION_MACAROON_ACCESS_TOKENS)) {
+                possiblyHashedUserTokenId = TokenService.hashTokenString("access token that is part of a macaroon" + userTokenId);
+            } else if (tokenVersion.onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
                 possiblyHashedUserTokenId = TokenService.hashTokenString(userTokenId);
             } else {
                 possiblyHashedUserTokenId = userTokenId;
@@ -1085,7 +1087,9 @@ public class TokenServiceTests extends ESTestCase {
     ) {
         final Version tokenVersion = tokenService.getTokenVersionCompatibility();
         final String possiblyHashedUserTokenId;
-        if (tokenVersion.onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
+        if (tokenVersion.onOrAfter(TokenService.VERSION_MACAROON_ACCESS_TOKENS)) {
+            possiblyHashedUserTokenId = TokenService.hashTokenString("access token that is part of a macaroon" + userTokenId);
+        } else if (tokenVersion.onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
             possiblyHashedUserTokenId = TokenService.hashTokenString(userTokenId);
         } else {
             possiblyHashedUserTokenId = userTokenId;
@@ -1109,7 +1113,9 @@ public class TokenServiceTests extends ESTestCase {
             ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocationOnMock.getArguments()[1];
             GetResponse response = mock(GetResponse.class);
             final String possiblyHashedUserTokenId;
-            if (userToken.getVersion().onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
+            if (userToken.getVersion().onOrAfter(TokenService.VERSION_MACAROON_ACCESS_TOKENS)) {
+                possiblyHashedUserTokenId = TokenService.hashTokenString("access token that is part of a macaroon" + userToken.getId());
+            } else if (userToken.getVersion().onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
                 possiblyHashedUserTokenId = TokenService.hashTokenString(userToken.getId());
             } else {
                 possiblyHashedUserTokenId = userToken.getId();

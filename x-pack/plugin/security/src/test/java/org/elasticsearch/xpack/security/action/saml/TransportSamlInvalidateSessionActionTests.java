@@ -394,22 +394,34 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
         assertThat(bulkRequests, hasSize(4)); // 4 updates (refresh-token + access-token)
         // Invalidate refresh token 1
         assertThat(bulkRequests.get(0).requests().get(0), instanceOf(UpdateRequest.class));
-        assertThat(bulkRequests.get(0).requests().get(0).id(), equalTo("token_" + TokenService.hashTokenString(userTokenId1)));
+        assertThat(
+            bulkRequests.get(0).requests().get(0).id(),
+            equalTo("token_" + TokenService.hashTokenString("access token that is part of a macaroon" + userTokenId1))
+        );
         UpdateRequest updateRequest1 = (UpdateRequest) bulkRequests.get(0).requests().get(0);
         assertThat(updateRequest1.toString().contains("refresh_token"), equalTo(true));
         // Invalidate access token 1
         assertThat(bulkRequests.get(1).requests().get(0), instanceOf(UpdateRequest.class));
-        assertThat(bulkRequests.get(1).requests().get(0).id(), equalTo("token_" + TokenService.hashTokenString(userTokenId1)));
+        assertThat(
+            bulkRequests.get(1).requests().get(0).id(),
+            equalTo("token_" + TokenService.hashTokenString("access token that is part of a macaroon" + userTokenId1))
+        );
         UpdateRequest updateRequest2 = (UpdateRequest) bulkRequests.get(1).requests().get(0);
         assertThat(updateRequest2.toString().contains("access_token"), equalTo(true));
         // Invalidate refresh token 2
         assertThat(bulkRequests.get(2).requests().get(0), instanceOf(UpdateRequest.class));
-        assertThat(bulkRequests.get(2).requests().get(0).id(), equalTo("token_" + TokenService.hashTokenString(userTokenId2)));
+        assertThat(
+            bulkRequests.get(2).requests().get(0).id(),
+            equalTo("token_" + TokenService.hashTokenString("access token that is part of a macaroon" + userTokenId2))
+        );
         UpdateRequest updateRequest3 = (UpdateRequest) bulkRequests.get(2).requests().get(0);
         assertThat(updateRequest3.toString().contains("refresh_token"), equalTo(true));
         // Invalidate access token 2
         assertThat(bulkRequests.get(3).requests().get(0), instanceOf(UpdateRequest.class));
-        assertThat(bulkRequests.get(3).requests().get(0).id(), equalTo("token_" + TokenService.hashTokenString(userTokenId2)));
+        assertThat(
+            bulkRequests.get(3).requests().get(0).id(),
+            equalTo("token_" + TokenService.hashTokenString("access token that is part of a macaroon" + userTokenId2))
+        );
         UpdateRequest updateRequest4 = (UpdateRequest) bulkRequests.get(3).requests().get(0);
         assertThat(updateRequest4.toString().contains("access_token"), equalTo(true));
     }

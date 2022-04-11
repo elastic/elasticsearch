@@ -15,12 +15,6 @@ common allocation failure reasons.
   Shards are not assigned because the data tier allocation decider fails.
 <<node-left, NODE_LEFT>>::
   The unassigned info reason is NODE_LEFT.
-<<searchable-snapshot-enable-allocation-decider, Searchable snapshot enable allocation decider>>::
-  Shards are not assigned because the searchable snapshot enable allocation decider fails.
-<<searchable-snapshot-repository-exists-allocation-decider, Searchable snapshot repository exists allocation decider>>::
-  Shards are not assigned because the searchable snapshot repository exists allocation decider fails.
-<<has-frozen-cache-allocation-decider, Has frozen cache allocation decider>>::
-  Shards are not assigned because the has frozen cache allocation decider fails.
 <<same-shard-allocation-decider, Same shard allocation decider>>::
   Shards are not assigned because the same shard allocation decider fails.
 
@@ -30,7 +24,4 @@ include::shards-limit-allocation-decider.asciidoc[]
 include::enable-allocation-decider.asciidoc[]
 include::data-tier-allocation-decider.asciidoc[]
 include::node-left.asciidoc[]
-include::searchable-snapshot-enable-allocation-decider.asciidoc[]
-include::searchable-snapshot-repository-exists-allocation-decider.asciidoc[]
-include::has-frozen-cache-allocation-decider.asciidoc[]
 include::same-shard-allocation-decider.asciidoc[]

@@ -42,8 +42,6 @@ final class SystemJvmOptions {
              * debugging.
              */
             "-XX:-OmitStackTraceInFastThrow",
-            // enable helpful NullPointerExceptions (https://openjdk.java.net/jeps/358), if they are supported
-            "-XX:+ShowCodeDetailsInExceptionMessages",
             // flags to configure Netty
             "-Dio.netty.noUnsafe=true",
             "-Dio.netty.noKeySetOptimization=true",

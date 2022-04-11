@@ -531,6 +531,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
             static final String VM_NAME = "vm_name";
             static final String VM_VERSION = "vm_version";
             static final String VM_VENDOR = "vm_vendor";
+            static final String BUNDLED_JDK = "bundled_jdk";
             static final String USING_BUNDLED_JDK = "using_bundled_jdk";
             static final String COUNT = "count";
             static final String THREADS = "threads";
@@ -553,6 +554,7 @@ public class ClusterStatsNodes implements ToXContentFragment {
                 builder.field(Fields.VM_NAME, v.getKey().vmName);
                 builder.field(Fields.VM_VERSION, v.getKey().vmVersion);
                 builder.field(Fields.VM_VENDOR, v.getKey().vmVendor);
+                builder.field(Fields.BUNDLED_JDK, true); // bundled_jdk is retained for backcompat
                 builder.field(Fields.USING_BUNDLED_JDK, v.getKey().usingBundledJdk);
                 builder.field(Fields.COUNT, v.getValue());
                 builder.endObject();

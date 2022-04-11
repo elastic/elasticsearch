@@ -857,13 +857,13 @@ teardown:
                         - bool:
                             should:
                               - exists:
-                                  field: unknown_metric
+                                  field: score
                             minimum_should_match: 1
                   aggs:
                     top_metrics:
                       top_metrics:
                         metrics:
-                          field: score
+                          field: unknown_metric
                         size: 1
                         sort:
                           order_date: desc
@@ -1036,13 +1036,13 @@ teardown:
                         - bool:
                             should:
                               - exists:
-                                  field: unknown_metric
+                                  field: score
                             minimum_should_match: 1
                   aggs:
                     top_metrics:
                       top_metrics:
                         metrics:
-                          field: score
+                          field: unknown_metric
                         size: 1
                         sort:
                           order_date: desc

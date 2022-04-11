@@ -29,9 +29,9 @@ public final class MacaroonVerifier {
     }
 
     public boolean verify(String action, TransportRequest request) throws GeneralSecurityRuntimeException {
-        final MacaroonsVerifier macaroonsVerifier = new MacaroonsVerifier(macaroon);
+        MacaroonsVerifier macaroonsVerifier = new MacaroonsVerifier(macaroon);
         macaroonsVerifier.satisfyGeneral(new TimestampCaveatVerifier());
-        if (action.startsWith("data:read/")) {
+        if (action.startsWith("indices:data/read")) {
             macaroonsVerifier.satisfyExact(READ_ONLY_CAVEAT_KEY);
         }
         if (request instanceof SearchRequest searchRequest && searchRequest.pointInTimeBuilder() != null) {

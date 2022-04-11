@@ -11,6 +11,8 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -32,6 +34,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.SecurityIntegTestCase;
 import org.elasticsearch.test.SecuritySettingsSource;
@@ -810,6 +813,104 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertThat(invalidateTokenResponse.getErrors(), empty());
 
         assertUnauthorizedToken(createTokenResponse.getAccessToken());
+    }
+
+    public void testAccessTokenAttenuationForPIT() throws Exception {
+        final RequestOptions superuserOptions = RequestOptions.DEFAULT.toBuilder()
+            .addHeader(
+                "Authorization",
+                UsernamePasswordToken.basicAuthHeaderValue(
+                    SecuritySettingsSource.ES_TEST_ROOT_USER,
+                    SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING
+                )
+            )
+            .build();
+        final RestHighLevelClient restClient = new TestRestHighLevelClient();
+        CreateTokenResponse createTokenResponse = restClient.security()
+            .createToken(CreateTokenRequest.clientCredentialsGrant(), superuserOptions);
+        final RequestOptions superuserTokenOptions = RequestOptions.DEFAULT.toBuilder()
+            .addHeader("Authorization", "Bearer " + createTokenResponse.getAccessToken())
+            .build();
+
+        restClient.index(new IndexRequest("twitter1").source("click", "1"), superuserOptions);
+        String pit1 = restClient.openPointInTime(
+            new OpenPointInTimeRequest("twitter1").keepAlive(TimeValue.timeValueMinutes(10)),
+            superuserOptions
+        ).getPointInTimeId();
+        restClient.index(new IndexRequest("twitter2").source("click", "2"), superuserOptions);
+        String pit2 = restClient.openPointInTime(
+            new OpenPointInTimeRequest("twitter2").keepAlive(TimeValue.timeValueMinutes(10)),
+            superuserOptions
+        ).getPointInTimeId();
+
+        String accessTokenAttenuatedForPIT1 = MacaroonUtils.attenuateTokenForPITOnly(createTokenResponse.getAccessToken(), pit1);
+        String accessTokenAttenuatedForPIT2 = MacaroonUtils.attenuateTokenForPITOnly(createTokenResponse.getAccessToken(), pit2);
+
+        SearchRequest searchRequest1 = new SearchRequest();
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        source.pointInTimeBuilder(new PointInTimeBuilder(pit1).setKeepAlive(TimeValue.timeValueMinutes(10)));
+        searchRequest1.source(source);
+
+        restClient.search(searchRequest1, superuserTokenOptions);
+
+        restClient.search(
+            searchRequest1,
+            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + accessTokenAttenuatedForPIT1).build()
+        );
+        expectThrows(
+            ElasticsearchStatusException.class,
+            () -> restClient.search(
+                new SearchRequest("twitter1"),
+                RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + accessTokenAttenuatedForPIT1).build()
+            )
+        );
+        expectThrows(
+            ElasticsearchStatusException.class,
+            () -> restClient.search(
+                searchRequest1,
+                RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + accessTokenAttenuatedForPIT2).build()
+            )
+        );
+
+        SearchRequest searchRequest2 = new SearchRequest();
+        source = new SearchSourceBuilder();
+        source.pointInTimeBuilder(new PointInTimeBuilder(pit2).setKeepAlive(TimeValue.timeValueMinutes(10)));
+        searchRequest2.source(source);
+
+        restClient.search(searchRequest2, superuserTokenOptions);
+
+        restClient.search(
+            searchRequest2,
+            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + accessTokenAttenuatedForPIT2).build()
+        );
+        expectThrows(
+            ElasticsearchStatusException.class,
+            () -> restClient.search(
+                new SearchRequest(),
+                RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + accessTokenAttenuatedForPIT2).build()
+            )
+        );
+        expectThrows(
+            ElasticsearchStatusException.class,
+            () -> restClient.index(
+                new IndexRequest("twitter2").source("click2", "2"),
+                RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + accessTokenAttenuatedForPIT2).build()
+            )
+        );
+        expectThrows(
+            ElasticsearchStatusException.class,
+            () -> restClient.index(
+                new IndexRequest("twitter1").source("click1", "1"),
+                RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + accessTokenAttenuatedForPIT2).build()
+            )
+        );
+        expectThrows(
+            ElasticsearchStatusException.class,
+            () -> restClient.search(
+                searchRequest2,
+                RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "Bearer " + accessTokenAttenuatedForPIT1).build()
+            )
+        );
     }
 
     public void testAuthenticateWithWrongToken() throws Exception {

@@ -15,7 +15,7 @@ import org.mockito.InOrder;
 
 import java.util.concurrent.Callable;
 
-import static org.mockito.Matchers.anyString;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -107,8 +107,7 @@ public class AbstractLifecycleRunnableTests extends ESTestCase {
             protected void onAfterInLifecycle() {
                 try {
                     afterCallable.call();
-                }
-                catch (Exception e) {
+                } catch (Exception e) {
                     fail("Unexpected for mock.");
                 }
             }

@@ -6,13 +6,13 @@
  */
 package org.elasticsearch.xpack.core.ml.job.results;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
@@ -50,8 +50,11 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
     public static final ConstructingObjectParser<CategoryDefinition, Void> LENIENT_PARSER = createParser(true);
 
     private static ConstructingObjectParser<CategoryDefinition, Void> createParser(boolean ignoreUnknownFields) {
-        ConstructingObjectParser<CategoryDefinition, Void> parser = new ConstructingObjectParser<>(TYPE.getPreferredName(),
-                ignoreUnknownFields, a -> new CategoryDefinition((String) a[0]));
+        ConstructingObjectParser<CategoryDefinition, Void> parser = new ConstructingObjectParser<>(
+            TYPE.getPreferredName(),
+            ignoreUnknownFields,
+            a -> new CategoryDefinition((String) a[0])
+        );
 
         parser.declareString(ConstructingObjectParser.constructorArg(), Job.ID);
         parser.declareLong(CategoryDefinition::setCategoryId, CATEGORY_ID);
@@ -269,21 +272,22 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
         }
         CategoryDefinition that = (CategoryDefinition) other;
         return Objects.equals(this.jobId, that.jobId)
-                && Objects.equals(this.categoryId, that.categoryId)
-                && Objects.equals(this.partitionFieldName, that.partitionFieldName)
-                && Objects.equals(this.partitionFieldValue, that.partitionFieldValue)
-                && Objects.equals(this.terms, that.terms)
-                && Objects.equals(this.regex, that.regex)
-                && Objects.equals(this.maxMatchingLength, that.maxMatchingLength)
-                && Objects.equals(this.examples, that.examples)
-                && Objects.equals(this.grokPattern, that.grokPattern)
-                && Arrays.equals(this.preferredToCategories, that.preferredToCategories)
-                && Objects.equals(this.numMatches, that.numMatches);
+            && Objects.equals(this.categoryId, that.categoryId)
+            && Objects.equals(this.partitionFieldName, that.partitionFieldName)
+            && Objects.equals(this.partitionFieldValue, that.partitionFieldValue)
+            && Objects.equals(this.terms, that.terms)
+            && Objects.equals(this.regex, that.regex)
+            && Objects.equals(this.maxMatchingLength, that.maxMatchingLength)
+            && Objects.equals(this.examples, that.examples)
+            && Objects.equals(this.grokPattern, that.grokPattern)
+            && Arrays.equals(this.preferredToCategories, that.preferredToCategories)
+            && Objects.equals(this.numMatches, that.numMatches);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(jobId,
+        return Objects.hash(
+            jobId,
             categoryId,
             partitionFieldName,
             partitionFieldValue,
@@ -293,6 +297,7 @@ public class CategoryDefinition implements ToXContentObject, Writeable {
             examples,
             grokPattern,
             Arrays.hashCode(preferredToCategories),
-            numMatches);
+            numMatches
+        );
     }
 }

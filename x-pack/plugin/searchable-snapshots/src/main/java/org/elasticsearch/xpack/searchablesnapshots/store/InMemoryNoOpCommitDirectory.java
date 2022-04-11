@@ -22,6 +22,7 @@ import java.nio.file.NoSuchFileException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Set;
+import java.util.concurrent.CopyOnWriteArraySet;
 
 /**
  * A {@link Directory} which wraps a read-only "real" directory with a wrapper that allows no-op (in-memory) commits, and peer recoveries
@@ -30,6 +31,7 @@ import java.util.Set;
 public class InMemoryNoOpCommitDirectory extends FilterDirectory {
 
     private final Directory realDirectory;
+    private final Set<String> deletedFiles = new CopyOnWriteArraySet<>();
 
     InMemoryNoOpCommitDirectory(Directory realDirectory) {
         super(new ByteBuffersDirectory(NoLockFactory.INSTANCE));
@@ -43,7 +45,9 @@ public class InMemoryNoOpCommitDirectory extends FilterDirectory {
     @Override
     public String[] listAll() throws IOException {
         final String[] ephemeralFiles = in.listAll();
-        final String[] realFiles = realDirectory.listAll();
+        final String[] realFiles = Arrays.stream(realDirectory.listAll())
+            .filter(f -> deletedFiles.contains(f) == false)
+            .toArray(String[]::new);
         final String[] allFiles = new String[ephemeralFiles.length + realFiles.length];
         System.arraycopy(ephemeralFiles, 0, allFiles, 0, ephemeralFiles.length);
         System.arraycopy(realFiles, 0, allFiles, ephemeralFiles.length, realFiles.length);
@@ -53,11 +57,13 @@ public class InMemoryNoOpCommitDirectory extends FilterDirectory {
     @Override
     public void deleteFile(String name) throws IOException {
         ensureMutable(name);
+        // remember that file got deleted, and blend it out when files are listed
         try {
             in.deleteFile(name);
         } catch (NoSuchFileException | FileNotFoundException e) {
             // cannot delete the segments_N file in the read-only directory, but that's ok, just ignore this
         }
+        deletedFiles.add(name);
     }
 
     @Override
@@ -79,6 +85,7 @@ public class InMemoryNoOpCommitDirectory extends FilterDirectory {
     public IndexOutput createOutput(String name, IOContext context) throws IOException {
         ensureMutable(name);
         assert notOverwritingRealSegmentsFile(name) : name;
+        deletedFiles.remove(name);
         return super.createOutput(name, context);
     }
 
@@ -88,6 +95,7 @@ public class InMemoryNoOpCommitDirectory extends FilterDirectory {
         ensureMutable(dest);
         assert notOverwritingRealSegmentsFile(dest) : dest;
         super.rename(source, dest);
+        deletedFiles.remove(dest);
     }
 
     @Override

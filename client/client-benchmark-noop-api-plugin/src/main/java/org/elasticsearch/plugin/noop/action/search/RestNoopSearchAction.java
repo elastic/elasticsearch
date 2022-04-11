@@ -8,7 +8,7 @@
 package org.elasticsearch.plugin.noop.action.search;
 
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
@@ -26,7 +26,8 @@ public class RestNoopSearchAction extends BaseRestHandler {
             new Route(GET, "/_noop_search"),
             new Route(POST, "/_noop_search"),
             new Route(GET, "/{index}/_noop_search"),
-            new Route(POST, "/{index}/_noop_search"));
+            new Route(POST, "/{index}/_noop_search")
+        );
     }
 
     @Override

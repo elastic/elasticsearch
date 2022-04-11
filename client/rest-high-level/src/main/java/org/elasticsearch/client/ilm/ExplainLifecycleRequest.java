@@ -22,7 +22,7 @@ import java.util.Optional;
 public class ExplainLifecycleRequest extends TimedRequest {
 
     private final String[] indices;
-    private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpen();
+    private IndicesOptions indicesOptions;
 
     public ExplainLifecycleRequest(String... indices) {
         if (indices.length == 0) {
@@ -63,8 +63,7 @@ public class ExplainLifecycleRequest extends TimedRequest {
             return false;
         }
         ExplainLifecycleRequest other = (ExplainLifecycleRequest) obj;
-        return Objects.deepEquals(getIndices(), other.getIndices()) &&
-                Objects.equals(indicesOptions(), other.indicesOptions());
+        return Objects.deepEquals(getIndices(), other.getIndices()) && Objects.equals(indicesOptions(), other.indicesOptions());
     }
 
     @Override

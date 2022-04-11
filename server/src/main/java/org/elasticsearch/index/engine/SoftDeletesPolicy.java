@@ -38,10 +38,11 @@ final class SoftDeletesPolicy {
     private final Supplier<RetentionLeases> retentionLeasesSupplier;
 
     SoftDeletesPolicy(
-            final LongSupplier globalCheckpointSupplier,
-            final long minRetainedSeqNo,
-            final long retentionOperations,
-            final Supplier<RetentionLeases> retentionLeasesSupplier) {
+        final LongSupplier globalCheckpointSupplier,
+        final long minRetainedSeqNo,
+        final long retentionOperations,
+        final Supplier<RetentionLeases> retentionLeasesSupplier
+    ) {
         this.globalCheckpointSupplier = globalCheckpointSupplier;
         this.retentionOperations = retentionOperations;
         this.minRetainedSeqNo = minRetainedSeqNo;
@@ -63,8 +64,15 @@ final class SoftDeletesPolicy {
      */
     synchronized void setLocalCheckpointOfSafeCommit(long newCheckpoint) {
         if (newCheckpoint < this.localCheckpointOfSafeCommit) {
-            throw new IllegalArgumentException("Local checkpoint can't go backwards; " +
-                "new checkpoint [" + newCheckpoint + "]," + "current checkpoint [" + localCheckpointOfSafeCommit + "]");
+            throw new IllegalArgumentException(
+                "Local checkpoint can't go backwards; "
+                    + "new checkpoint ["
+                    + newCheckpoint
+                    + "],"
+                    + "current checkpoint ["
+                    + localCheckpointOfSafeCommit
+                    + "]"
+            );
         }
         this.localCheckpointOfSafeCommit = newCheckpoint;
     }
@@ -108,20 +116,21 @@ final class SoftDeletesPolicy {
              */
 
             // calculate the minimum sequence number to retain based on retention leases
-            final long minimumRetainingSequenceNumber = retentionLeases
-                    .leases()
-                    .stream()
-                    .mapToLong(RetentionLease::retainingSequenceNumber)
-                    .min()
-                    .orElse(Long.MAX_VALUE);
+            final long minimumRetainingSequenceNumber = retentionLeases.leases()
+                .stream()
+                .mapToLong(RetentionLease::retainingSequenceNumber)
+                .min()
+                .orElse(Long.MAX_VALUE);
             /*
              * The minimum sequence number to retain is the minimum of the minimum based on retention leases, and the number of operations
              * below the global checkpoint to retain (index.soft_deletes.retention.operations). The additional increments on the global
              * checkpoint and the local checkpoint of the safe commit are due to the fact that we want to retain all operations above
              * those checkpoints.
              */
-            final long minSeqNoForQueryingChanges =
-                    Math.min(1 + globalCheckpointSupplier.getAsLong() - retentionOperations, minimumRetainingSequenceNumber);
+            final long minSeqNoForQueryingChanges = Math.min(
+                1 + globalCheckpointSupplier.getAsLong() - retentionOperations,
+                minimumRetainingSequenceNumber
+            );
             final long minSeqNoToRetain = Math.min(minSeqNoForQueryingChanges, 1 + localCheckpointOfSafeCommit);
 
             /*

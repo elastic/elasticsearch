@@ -1,0 +1,234 @@
+setup:
+
+  - skip:
+      version: " - 7.14.99"
+      reason: "unsigned long script fields api was added in 7.15.0"
+
+  - do:
+      indices.create:
+        index:  test1
+        body:
+          mappings:
+            properties:
+              ul:
+                type: unsigned_long
+
+  - do:
+      bulk:
+        index: test1
+        refresh: true
+        body: |
+          { "index": {"_id" : "1"} }
+          { "ul": 0 }
+          { "index": {"_id" : "2"} }
+          { "ul": 9223372036854775807 }
+          { "index": {"_id" : "3"} }
+          { "ul": 9223372036854775808 }
+          { "index": {"_id" : "4"} }
+          { "ul": 18446744073709551613 }
+          { "index": {"_id" : "5"} }
+          { "ul": 18446744073709551615 }
+
+---
+"Scripted fields values return Long":
+  - do:
+      search:
+        index: test1
+        body:
+          sort: [ { ul: desc } ]
+          script_fields:
+            scripted_ul:
+              script:
+                source: "field('ul').getValue(1000L)"
+
+  - match: { hits.hits.0.fields.scripted_ul.0: -1 }
+  - match: { hits.hits.1.fields.scripted_ul.0: -3 }
+  - match: { hits.hits.2.fields.scripted_ul.0: -9223372036854775808 }
+  - match: { hits.hits.3.fields.scripted_ul.0: 9223372036854775807 }
+  - match: { hits.hits.4.fields.scripted_ul.0: 0 }
+
+  - do:
+      search:
+        index: test1
+        body:
+          sort: [ { ul: desc } ]
+          script_fields:
+            scripted_ul:
+              script:
+                source: "doc['ul'].value"
+
+  - match: { hits.hits.0.fields.scripted_ul.0: -1 }
+  - match: { hits.hits.1.fields.scripted_ul.0: -3 }
+  - match: { hits.hits.2.fields.scripted_ul.0: -9223372036854775808 }
+  - match: { hits.hits.3.fields.scripted_ul.0: 9223372036854775807 }
+  - match: { hits.hits.4.fields.scripted_ul.0: 0 }
+
+---
+"Scripted sort values":
+  - do:
+      search:
+        index: test1
+        body:
+          sort:
+            _script:
+              order: desc
+              type: number
+              script:
+                source: "field('ul').asBigInteger(BigInteger.valueOf(Long.parseUnsignedLong('18446744073709551614'))).doubleValue()"
+
+  - match: { hits.hits.0.sort: [1.8446744073709552E19] }
+  - match: { hits.hits.1.sort: [1.8446744073709552E19] }
+  - match: { hits.hits.2.sort: [9.223372036854776E18] }
+  - match: { hits.hits.3.sort: [9.223372036854776E18] }
+  - match: { hits.hits.4.sort: [0.0] }
+  - do:
+      search:
+        index: test1
+        body:
+          sort:
+            _script:
+              order: desc
+              type: number
+              script:
+                source: "doc['ul'].value"
+
+
+  - match: { hits.hits.0.sort: [9.223372036854776E18] }
+  - match: { hits.hits.1.sort: [0.0] }
+  - match: { hits.hits.2.sort: [-1.0] }
+  - match: { hits.hits.3.sort: [-3.0] }
+  - match: { hits.hits.4.sort: [-9.223372036854776E18] }
+---
+"Scripted sort values via doc":
+  - do:
+      search:
+        index: test1
+        body:
+          sort:
+            _script:
+              order: desc
+              type: number
+              script:
+                source: "doc['ul'].value"
+
+  - match: { hits.hits.0.sort: [9.223372036854776E18] }
+  - match: { hits.hits.1.sort: [0.0] }
+  - match: { hits.hits.2.sort: [-1.0] }
+  - match: { hits.hits.3.sort: [-3.0] }
+  - match: { hits.hits.4.sort: [-9.223372036854776E18] }
+
+---
+"Script query":
+  - do:
+      search:
+        index: test1
+        body:
+          query:
+            bool:
+              filter:
+               script:
+                 script:
+                   source: "field('ul').asBigInteger(BigInteger.valueOf(Long.parseUnsignedLong('18446744073709551614'))).doubleValue() > 10E18"
+          sort: [ { ul: asc } ]
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: "4" }
+  - match: { hits.hits.1._id: "5" }
+
+  - do:
+      search:
+        index: test1
+        body:
+          size: 0
+          query:
+            bool:
+              filter:
+                script:
+                  script:
+                    source: "field('ul').isEmpty() == false"
+  - match: { hits.total.value: 5 }
+
+
+  - do:
+      search:
+        index: test1
+        body:
+          query:
+            bool:
+              filter:
+                script:
+                  script:
+                    source: "doc['ul'].value.doubleValue() > 9E18"
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._id: "2" }
+
+  - do:
+      search:
+        index: test1
+        body:
+          size: 0
+          query:
+            bool:
+              filter:
+                script:
+                  script:
+                    source: "doc['ul'].size() > 0"
+  - match: { hits.total.value: 5 }
+
+---
+"script_score query":
+  - do:
+      search:
+        index: test1
+        body:
+          query:
+            script_score:
+              query: {match_all: {}}
+              script:
+                source: "field('ul').asBigInteger(BigInteger.valueOf(Long.parseUnsignedLong('18446744073709551614'))).doubleValue()"
+
+  - match: { hits.total.value: 5 }
+
+  - do:
+      search:
+        index: test1
+        body:
+          query:
+            script_score:
+              query: {match_all: {}}
+              script:
+                source: "Math.abs(doc['ul'].value)"
+
+  - match: { hits.total.value: 5 }
+
+---
+"Scripted Metric":
+  - skip:
+      version: " - 8.0.99"
+      reason: "context for scripted metric was added in 8.1"
+
+  - do:
+      search:
+        index: test1
+        body:
+          query:
+            term:
+              ul: 18446744073709551615
+          aggs:
+            sqrt:
+              scripted_metric:
+                init_script: |
+                  state.sqrd = []
+                map_script: |
+                  double v = field('ul').asBigInteger(BigInteger.ZERO).doubleValue();
+                  state.sqrd.add(v * v)
+                combine_script: |
+                  state.sqrd
+                reduce_script: |
+                  def sum = 0.0;
+                  for (s in states) {
+                    for (v in s) {
+                      sum += v;
+                    }
+                  }
+                  return sum
+  - match: { aggregations.sqrt.value: 3.4028236692093846E38 }

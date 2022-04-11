@@ -12,9 +12,9 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.common.util.concurrent.AsyncIOProcessor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
 
@@ -56,8 +56,13 @@ public abstract class MultiChunkTransfer<Source, Request extends MultiChunkTrans
     private final Iterator<Source> remainingSources;
     private Tuple<Source, Request> readAheadRequest = null;
 
-    protected MultiChunkTransfer(Logger logger, ThreadContext threadContext, ActionListener<Void> listener,
-                                 int maxConcurrentChunks, List<Source> sources) {
+    protected MultiChunkTransfer(
+        Logger logger,
+        ThreadContext threadContext,
+        ActionListener<Void> listener,
+        int maxConcurrentChunks,
+        List<Source> sources
+    ) {
         this.logger = logger;
         this.maxConcurrentChunks = maxConcurrentChunks;
         this.listener = listener;
@@ -82,8 +87,14 @@ public abstract class MultiChunkTransfer<Source, Request extends MultiChunkTrans
         if (status != Status.PROCESSING) {
             assert status == Status.FAILED : "must not receive any response after the transfer was completed";
             // These exceptions will be ignored as we record only the first failure, log them for debugging purpose.
-            items.stream().filter(item -> item.v1().failure != null).forEach(item ->
-                logger.debug(new ParameterizedMessage("failed to transfer a chunk request {}", item.v1().source), item.v1().failure));
+            items.stream()
+                .filter(item -> item.v1().failure != null)
+                .forEach(
+                    item -> logger.debug(
+                        new ParameterizedMessage("failed to transfer a chunk request {}", item.v1().source),
+                        item.v1().failure
+                    )
+                );
             return;
         }
         try {
@@ -109,9 +120,10 @@ public abstract class MultiChunkTransfer<Source, Request extends MultiChunkTrans
                     return;
                 }
                 final long requestSeqId = requestSeqIdTracker.generateSeqNo();
-                executeChunkRequest(request.v2(), ActionListener.wrap(
-                    r -> addItem(requestSeqId, request.v1(), null),
-                    e -> addItem(requestSeqId, request.v1(), e)));
+                executeChunkRequest(
+                    request.v2(),
+                    ActionListener.wrap(r -> addItem(requestSeqId, request.v1(), null), e -> addItem(requestSeqId, request.v1(), e))
+                );
             }
             // While we are waiting for the responses, we can prepare the next request in advance
             // so we can send it immediately when the responses arrive to reduce the transfer time.

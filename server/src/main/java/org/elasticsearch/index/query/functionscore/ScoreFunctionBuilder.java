@@ -8,27 +8,26 @@
 
 package org.elasticsearch.index.query.functionscore;
 
-import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public abstract class ScoreFunctionBuilder<FB extends ScoreFunctionBuilder<FB>> implements ToXContentFragment, NamedWriteable {
+public abstract class ScoreFunctionBuilder<FB extends ScoreFunctionBuilder<FB>> implements ToXContentFragment, VersionedNamedWriteable {
 
     private Float weight;
 
     /**
      * Standard empty constructor.
      */
-    public ScoreFunctionBuilder() {
-    }
+    public ScoreFunctionBuilder() {}
 
     /**
      * Read from a stream.
@@ -62,7 +61,7 @@ public abstract class ScoreFunctionBuilder<FB extends ScoreFunctionBuilder<FB>> 
         return (FB) this;
     }
 
-    private Float checkWeight(Float weight) {
+    private static Float checkWeight(Float weight) {
         if (weight != null && Float.compare(weight, 0) < 0) {
             throw new IllegalArgumentException("[weight] cannot be negative for a filtering function");
         }

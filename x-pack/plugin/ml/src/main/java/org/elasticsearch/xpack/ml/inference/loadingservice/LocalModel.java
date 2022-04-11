@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.ml.inference.loadingservice;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.license.License;
 import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
@@ -59,15 +59,17 @@ public class LocalModel implements Closeable {
     private final AtomicLong referenceCount;
     private final long cachedRamBytesUsed;
 
-    LocalModel(String modelId,
-               String nodeId,
-               InferenceDefinition trainedModelDefinition,
-               TrainedModelInput input,
-               Map<String, String> defaultFieldMap,
-               InferenceConfig modelInferenceConfig,
-               License.OperationMode licenseLevel,
-               TrainedModelStatsService trainedModelStatsService,
-               CircuitBreaker trainedModelCircuitBreaker) {
+    LocalModel(
+        String modelId,
+        String nodeId,
+        InferenceDefinition trainedModelDefinition,
+        TrainedModelInput input,
+        Map<String, String> defaultFieldMap,
+        InferenceConfig modelInferenceConfig,
+        License.OperationMode licenseLevel,
+        TrainedModelStatsService trainedModelStatsService,
+        CircuitBreaker trainedModelCircuitBreaker
+    ) {
         this.trainedModelDefinition = trainedModelDefinition;
         this.cachedRamBytesUsed = trainedModelDefinition.ramBytesUsed();
         this.modelId = modelId;
@@ -129,11 +131,14 @@ public class LocalModel implements Closeable {
 
     public void infer(Map<String, Object> fields, InferenceConfigUpdate update, ActionListener<InferenceResults> listener) {
         if (update.isSupported(this.inferenceConfig) == false) {
-            listener.onFailure(ExceptionsHelper.badRequestException(
-                "Model [{}] has inference config of type [{}] which is not supported by inference request of type [{}]",
-                this.modelId,
-                this.inferenceConfig.getName(),
-                update.getName()));
+            listener.onFailure(
+                ExceptionsHelper.badRequestException(
+                    "Model [{}] has inference config of type [{}] which is not supported by inference request of type [{}]",
+                    this.modelId,
+                    this.inferenceConfig.getName(),
+                    update.getName()
+                )
+            );
             return;
         }
         try {
@@ -167,10 +172,7 @@ public class LocalModel implements Closeable {
     public InferenceResults infer(Map<String, Object> fields, InferenceConfigUpdate update) throws Exception {
         AtomicReference<InferenceResults> result = new AtomicReference<>();
         AtomicReference<Exception> exception = new AtomicReference<>();
-        ActionListener<InferenceResults> listener = ActionListener.wrap(
-            result::set,
-            exception::set
-        );
+        ActionListener<InferenceResults> listener = ActionListener.wrap(result::set, exception::set);
 
         infer(fields, update, listener);
         if (exception.get() != null) {
@@ -237,19 +239,32 @@ public class LocalModel implements Closeable {
 
     @Override
     public String toString() {
-        return "LocalModel{" +
-            "trainedModelDefinition=" + trainedModelDefinition +
-            ", modelId='" + modelId + '\'' +
-            ", fieldNames=" + fieldNames +
-            ", defaultFieldMap=" + defaultFieldMap +
-            ", statsAccumulator=" + statsAccumulator +
-            ", trainedModelStatsService=" + trainedModelStatsService +
-            ", persistenceQuotient=" + persistenceQuotient +
-            ", currentInferenceCount=" + currentInferenceCount +
-            ", inferenceConfig=" + inferenceConfig +
-            ", licenseLevel=" + licenseLevel +
-            ", trainedModelCircuitBreaker=" + trainedModelCircuitBreaker +
-            ", referenceCount=" + referenceCount +
-            '}';
+        return "LocalModel{"
+            + "trainedModelDefinition="
+            + trainedModelDefinition
+            + ", modelId='"
+            + modelId
+            + '\''
+            + ", fieldNames="
+            + fieldNames
+            + ", defaultFieldMap="
+            + defaultFieldMap
+            + ", statsAccumulator="
+            + statsAccumulator
+            + ", trainedModelStatsService="
+            + trainedModelStatsService
+            + ", persistenceQuotient="
+            + persistenceQuotient
+            + ", currentInferenceCount="
+            + currentInferenceCount
+            + ", inferenceConfig="
+            + inferenceConfig
+            + ", licenseLevel="
+            + licenseLevel
+            + ", trainedModelCircuitBreaker="
+            + trainedModelCircuitBreaker
+            + ", referenceCount="
+            + referenceCount
+            + '}';
     }
 }

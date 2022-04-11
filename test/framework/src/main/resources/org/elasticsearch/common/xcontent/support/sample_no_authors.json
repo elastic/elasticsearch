@@ -1,0 +1,59 @@
+{
+  "title" : "My awesome book",
+  "pages" : 456,
+  "price" : 27.99,
+  "timestamp" : 1428582942867,
+  "default" : null,
+  "tags" : [
+    "elasticsearch",
+    "java"
+  ],
+  "properties" : {
+    "weight" : 0.8,
+    "language" : {
+      "en" : {
+        "lang" : "English",
+        "available" : true,
+        "distributors" : [
+          {
+            "name" : "The Book Shop",
+            "addresses" : [
+              {
+                "name" : "address #1",
+                "street" : "Hampton St",
+                "city" : "London"
+              },
+              {
+                "name" : "address #2",
+                "street" : "Queen St",
+                "city" : "Stornoway"
+              }
+            ]
+          },
+          {
+            "name" : "Sussex Books House"
+          }
+        ]
+      },
+      "fr" : {
+        "lang" : "French",
+        "available" : false,
+        "distributors" : [
+          {
+            "name" : "La Maison du Livre",
+            "addresses" : [
+              {
+                "name" : "address #1",
+                "street" : "Rue Mouffetard",
+                "city" : "Paris"
+              }
+            ]
+          },
+          {
+            "name" : "Thetra"
+          }
+        ]
+      }
+    }
+  }
+}

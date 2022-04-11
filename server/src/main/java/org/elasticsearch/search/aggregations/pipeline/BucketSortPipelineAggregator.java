@@ -7,9 +7,8 @@
  */
 package org.elasticsearch.search.aggregations.pipeline;
 
-
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
@@ -29,8 +28,14 @@ public class BucketSortPipelineAggregator extends PipelineAggregator {
     private final Integer size;
     private final GapPolicy gapPolicy;
 
-    BucketSortPipelineAggregator(String name, List<FieldSortBuilder> sorts, int from, Integer size, GapPolicy gapPolicy,
-                                        Map<String, Object> metadata) {
+    BucketSortPipelineAggregator(
+        String name,
+        List<FieldSortBuilder> sorts,
+        int from,
+        Integer size,
+        GapPolicy gapPolicy,
+        Map<String, Object> metadata
+    ) {
         super(name, sorts.stream().map(FieldSortBuilder::getFieldName).toArray(String[]::new), metadata);
         this.sorts = sorts;
         this.from = from;
@@ -39,9 +44,10 @@ public class BucketSortPipelineAggregator extends PipelineAggregator {
     }
 
     @Override
-    public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
+    public InternalAggregation reduce(InternalAggregation aggregation, AggregationReduceContext reduceContext) {
+        @SuppressWarnings({ "rawtypes", "unchecked" })
         InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket> originalAgg =
-                (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
+            (InternalMultiBucketAggregation<InternalMultiBucketAggregation, InternalMultiBucketAggregation.InternalBucket>) aggregation;
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = originalAgg.getBuckets();
         int bucketsCount = buckets.size();
         int currentSize = size == null ? bucketsCount : size;
@@ -87,6 +93,7 @@ public class BucketSortPipelineAggregator extends PipelineAggregator {
             this.sortValues = resolveAndCacheSortValues();
         }
 
+        @SuppressWarnings("unchecked")
         private Map<FieldSortBuilder, Comparable<Object>> resolveAndCacheSortValues() {
             Map<FieldSortBuilder, Comparable<Object>> resolved = new HashMap<>();
             for (FieldSortBuilder sort : sorts) {

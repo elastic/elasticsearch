@@ -13,8 +13,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.ScorerAware;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
 
@@ -23,38 +21,35 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
 
-public abstract class AggregationScript implements ScorerAware {
+public abstract class AggregationScript extends DocBasedScript implements ScorerAware {
 
     public static final String[] PARAMETERS = {};
 
     public static final ScriptContext<Factory> CONTEXT = new ScriptContext<>("aggs", Factory.class);
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
-    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of(
-            "doc", value -> {
-                deprecationLogger.deprecate(DeprecationCategory.SCRIPTING, "aggregation-script_doc",
-                        "Accessing variable [doc] via [params.doc] from within an aggregation-script "
-                                + "is deprecated in favor of directly accessing [doc].");
-                return value;
-            },
-            "_doc", value -> {
-                deprecationLogger.deprecate(DeprecationCategory.SCRIPTING, "aggregation-script__doc",
-                        "Accessing variable [doc] via [params._doc] from within an aggregation-script "
-                                + "is deprecated in favor of directly accessing [doc].");
-                return value;
-            },
-            "_source", value -> ((SourceLookup)value).source()
-    );
+    private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of("doc", value -> {
+        deprecationLogger.warn(
+            DeprecationCategory.SCRIPTING,
+            "aggregation-script_doc",
+            "Accessing variable [doc] via [params.doc] from within an aggregation-script "
+                + "is deprecated in favor of directly accessing [doc]."
+        );
+        return value;
+    }, "_doc", value -> {
+        deprecationLogger.warn(
+            DeprecationCategory.SCRIPTING,
+            "aggregation-script__doc",
+            "Accessing variable [doc] via [params._doc] from within an aggregation-script "
+                + "is deprecated in favor of directly accessing [doc]."
+        );
+        return value;
+    }, "_source", value -> ((SourceLookup) value).source());
 
     /**
      * The generic runtime parameters for the script.
      */
     private final Map<String, Object> params;
-
-    /**
-     * A leaf lookup for the bound segment this script will operate on.
-     */
-    private final LeafSearchLookup leafLookup;
 
     /**
      * A scorer that will return the score for the current document when the script is run.
@@ -64,14 +59,14 @@ public abstract class AggregationScript implements ScorerAware {
     private Object value;
 
     public AggregationScript(Map<String, Object> params, SearchLookup lookup, LeafReaderContext leafContext) {
+        super(new DocValuesDocReader(lookup, leafContext));
         this.params = new DynamicMap(new HashMap<>(params), PARAMS_FUNCTIONS);
-        this.leafLookup = lookup.getLeafSearchLookup(leafContext);
-        this.params.putAll(leafLookup.asMap());
+        this.params.putAll(docAsMap());
     }
 
     protected AggregationScript() {
+        super(null);
         params = null;
-        leafLookup = null;
     }
 
     /**
@@ -79,20 +74,6 @@ public abstract class AggregationScript implements ScorerAware {
      */
     public Map<String, Object> getParams() {
         return params;
-    }
-
-    /**
-     * The doc lookup for the Lucene segment this script was created for.
-     */
-    public Map<String, ScriptDocValues<?>> getDoc() {
-        return leafLookup.doc();
-    }
-
-    /**
-     * Set the current document to run the script on next.
-     */
-    public void setDocument(int docid) {
-        leafLookup.setDocument(docid);
     }
 
     @Override
@@ -105,7 +86,7 @@ public abstract class AggregationScript implements ScorerAware {
      * <p>
      * The default implementation just calls {@code setNextVar("_value", value)} but
      * some engines might want to handle this differently for better performance.
-     * <p>
+     *
      * @param value per-document value, typically a String, Long, or Double
      */
     public void setNextAggregationValue(Object value) {

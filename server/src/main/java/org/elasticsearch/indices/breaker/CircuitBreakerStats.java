@@ -12,8 +12,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -89,10 +89,21 @@ public class CircuitBreakerStats implements Writeable, ToXContentObject {
 
     @Override
     public String toString() {
-        return "[" + this.name +
-                ",limit=" + this.limit + "/" + new ByteSizeValue(this.limit) +
-                ",estimated=" + this.estimated + "/" + new ByteSizeValue(this.estimated) +
-                ",overhead=" + this.overhead + ",tripped=" + this.trippedCount + "]";
+        return "["
+            + this.name
+            + ",limit="
+            + this.limit
+            + "/"
+            + new ByteSizeValue(this.limit)
+            + ",estimated="
+            + this.estimated
+            + "/"
+            + new ByteSizeValue(this.estimated)
+            + ",overhead="
+            + this.overhead
+            + ",tripped="
+            + this.trippedCount
+            + "]";
     }
 
     static final class Fields {

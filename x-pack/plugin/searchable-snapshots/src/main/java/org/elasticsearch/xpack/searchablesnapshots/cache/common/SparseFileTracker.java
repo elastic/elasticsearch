@@ -246,18 +246,17 @@ public class SparseFileTracker {
         // there is no risk of concurrent modification.
 
         switch (requiredRanges.size()) {
-            case 0:
+            case 0 ->
                 // no need to wait for the gaps to be filled, the listener can be executed immediately
                 wrappedListener.onResponse(null);
-                break;
-            case 1:
+            case 1 -> {
                 final Range requiredRange = requiredRanges.get(0);
                 requiredRange.completionListener.addListener(
                     wrappedListener.map(progress -> null),
                     Math.min(requiredRange.completionListener.end, subRange.end())
                 );
-                break;
-            default:
+            }
+            default -> {
                 final GroupedActionListener<Long> groupedActionListener = new GroupedActionListener<>(
                     wrappedListener.map(progress -> null),
                     requiredRanges.size()
@@ -265,6 +264,7 @@ public class SparseFileTracker {
                 requiredRanges.forEach(
                     r -> r.completionListener.addListener(groupedActionListener, Math.min(r.completionListener.end, subRange.end()))
                 );
+            }
         }
 
         return Collections.unmodifiableList(gaps);
@@ -335,17 +335,16 @@ public class SparseFileTracker {
         // there is no risk of concurrent modification.
 
         switch (pendingRanges.size()) {
-            case 0:
-                wrappedListener.onResponse(null);
-                break;
-            case 1:
+            case 0 -> wrappedListener.onResponse(null);
+            case 1 -> {
                 final Range pendingRange = pendingRanges.get(0);
                 pendingRange.completionListener.addListener(
                     wrappedListener.map(progress -> null),
                     Math.min(pendingRange.completionListener.end, range.end())
                 );
                 return true;
-            default:
+            }
+            default -> {
                 final GroupedActionListener<Long> groupedActionListener = new GroupedActionListener<>(
                     wrappedListener.map(progress -> null),
                     pendingRanges.size()
@@ -354,6 +353,7 @@ public class SparseFileTracker {
                     r -> r.completionListener.addListener(groupedActionListener, Math.min(r.completionListener.end, range.end()))
                 );
                 return true;
+            }
         }
         return true;
     }

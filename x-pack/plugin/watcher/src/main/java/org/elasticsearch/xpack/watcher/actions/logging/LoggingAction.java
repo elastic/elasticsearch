@@ -8,9 +8,9 @@ package org.elasticsearch.xpack.watcher.actions.logging;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.watcher.actions.Action;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 
@@ -23,8 +23,10 @@ public class LoggingAction implements Action {
     public static final String TYPE = "logging";
 
     final TextTemplate text;
-    @Nullable final LoggingLevel level;
-    @Nullable final String category;
+    @Nullable
+    final LoggingLevel level;
+    @Nullable
+    final String category;
 
     public LoggingAction(TextTemplate text, @Nullable LoggingLevel level, @Nullable String category) {
         this.text = text;
@@ -82,8 +84,14 @@ public class LoggingAction implements Action {
                 try {
                     text = TextTemplate.parse(parser);
                 } catch (ElasticsearchParseException pe) {
-                    throw new ElasticsearchParseException("failed to parse [{}] action [{}/{}]. failed to parse [{}] field", pe, TYPE,
-                            watchId, actionId, Field.TEXT.getPreferredName());
+                    throw new ElasticsearchParseException(
+                        "failed to parse [{}] action [{}/{}]. failed to parse [{}] field",
+                        pe,
+                        TYPE,
+                        watchId,
+                        actionId,
+                        Field.TEXT.getPreferredName()
+                    );
                 }
             } else if (token == XContentParser.Token.VALUE_STRING) {
                 if (Field.CATEGORY.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -92,22 +100,42 @@ public class LoggingAction implements Action {
                     try {
                         level = LoggingLevel.valueOf(parser.text().toUpperCase(Locale.ROOT));
                     } catch (IllegalArgumentException iae) {
-                        throw new ElasticsearchParseException("failed to parse [{}] action [{}/{}]. unknown logging level [{}]", TYPE,
-                                watchId, actionId, parser.text());
+                        throw new ElasticsearchParseException(
+                            "failed to parse [{}] action [{}/{}]. unknown logging level [{}]",
+                            TYPE,
+                            watchId,
+                            actionId,
+                            parser.text()
+                        );
                     }
                 } else {
-                    throw new ElasticsearchParseException("failed to parse [{}] action [{}/{}]. unexpected string field [{}]", TYPE,
-                            watchId, actionId, currentFieldName);
+                    throw new ElasticsearchParseException(
+                        "failed to parse [{}] action [{}/{}]. unexpected string field [{}]",
+                        TYPE,
+                        watchId,
+                        actionId,
+                        currentFieldName
+                    );
                 }
             } else {
-                throw new ElasticsearchParseException("failed to parse [{}] action [{}/{}]. unexpected token [{}]", TYPE, watchId,
-                        actionId, token);
+                throw new ElasticsearchParseException(
+                    "failed to parse [{}] action [{}/{}]. unexpected token [{}]",
+                    TYPE,
+                    watchId,
+                    actionId,
+                    token
+                );
             }
         }
 
         if (text == null) {
-            throw new ElasticsearchParseException("failed to parse [{}] action [{}/{}]. missing required [{}] field", TYPE, watchId,
-                    actionId, Field.TEXT.getPreferredName());
+            throw new ElasticsearchParseException(
+                "failed to parse [{}] action [{}/{}]. missing required [{}] field",
+                TYPE,
+                watchId,
+                actionId,
+                Field.TEXT.getPreferredName()
+            );
         }
 
         return new LoggingAction(text, level, category);
@@ -134,9 +162,7 @@ public class LoggingAction implements Action {
 
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                return builder.startObject(type)
-                        .field(Field.LOGGED_TEXT.getPreferredName(), loggedText)
-                        .endObject();
+                return builder.startObject(type).field(Field.LOGGED_TEXT.getPreferredName(), loggedText).endObject();
             }
         }
 
@@ -155,9 +181,7 @@ public class LoggingAction implements Action {
 
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                return builder.startObject(type)
-                        .field(Field.LOGGED_TEXT.getPreferredName(), loggedText)
-                        .endObject();
+                return builder.startObject(type).field(Field.LOGGED_TEXT.getPreferredName(), loggedText).endObject();
             }
         }
     }
@@ -166,7 +190,8 @@ public class LoggingAction implements Action {
 
         final TextTemplate text;
         LoggingLevel level;
-        @Nullable String category;
+        @Nullable
+        String category;
 
         private Builder(TextTemplate text) {
             this.text = text;

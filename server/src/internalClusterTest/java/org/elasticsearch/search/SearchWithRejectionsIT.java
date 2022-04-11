@@ -24,10 +24,11 @@ import static org.hamcrest.Matchers.equalTo;
 public class SearchWithRejectionsIT extends ESIntegTestCase {
     @Override
     public Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings))
-                .put("thread_pool.search.size", 1)
-                .put("thread_pool.search.queue_size", 1)
-                .build();
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put("thread_pool.search.size", 1)
+            .put("thread_pool.search.queue_size", 1)
+            .build();
     }
 
     public void testOpenContextsAfterRejections() throws Exception {
@@ -42,23 +43,22 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
         refresh();
 
         int numSearches = 10;
+        @SuppressWarnings({ "rawtypes", "unchecked" })
         Future<SearchResponse>[] responses = new Future[numSearches];
         SearchType searchType = randomFrom(SearchType.DEFAULT, SearchType.QUERY_THEN_FETCH, SearchType.DFS_QUERY_THEN_FETCH);
         logger.info("search type is {}", searchType);
         for (int i = 0; i < numSearches; i++) {
-            responses[i] = client().prepareSearch()
-                    .setQuery(matchAllQuery())
-                    .setSearchType(searchType)
-                    .execute();
+            responses[i] = client().prepareSearch().setQuery(matchAllQuery()).setSearchType(searchType).execute();
         }
         for (int i = 0; i < numSearches; i++) {
             try {
                 responses[i].get();
-            } catch (Exception t) {
-            }
+            } catch (Exception t) {}
         }
         assertBusy(
             () -> assertThat(client().admin().indices().prepareStats().get().getTotal().getSearch().getOpenContexts(), equalTo(0L)),
-            1, TimeUnit.SECONDS);
+            1,
+            TimeUnit.SECONDS
+        );
     }
 }

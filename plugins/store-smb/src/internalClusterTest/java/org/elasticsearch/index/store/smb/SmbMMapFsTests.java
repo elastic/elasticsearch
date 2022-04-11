@@ -10,15 +10,11 @@ package org.elasticsearch.index.store.smb;
 
 import org.elasticsearch.common.settings.Settings;
 
-
 public class SmbMMapFsTests extends AbstractAzureFsTestCase {
 
     @Override
     public Settings indexSettings() {
-        return Settings.builder()
-                .put(super.indexSettings())
-                .put("index.store.type", "smb_mmap_fs")
-                .build();
+        return Settings.builder().put(super.indexSettings()).put("index.store.type", "smb_mmap_fs").build();
     }
 
 }

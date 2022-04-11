@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.core.ml.notifications;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditMessage;
 
-
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AuditMessageTests<T extends AbstractAuditMessage> extends AbstractXContentTestCase<T> {

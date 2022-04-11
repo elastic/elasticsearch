@@ -18,6 +18,17 @@ teardown:
   - do:
       and: again
 
+  - do:
+      deep:
+        key: "below"
+        body:
+          actions:
+            output:
+              webhook:
+                a: "b"
+                key_to_replace: "value_to_replace"
+
+
   - key_not_to_replace: { copied.from.real.test.total: 1 }
   - key_not_to_replace: { hits.hits.0._index: "single_doc_index"}
   - key_not_to_replace: { _shards.total: 2 }

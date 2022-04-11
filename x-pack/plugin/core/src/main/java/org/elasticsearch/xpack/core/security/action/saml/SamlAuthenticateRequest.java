@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.core.security.action.saml;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.List;
@@ -28,8 +28,7 @@ public final class SamlAuthenticateRequest extends ActionRequest {
         super(in);
     }
 
-    public SamlAuthenticateRequest() {
-    }
+    public SamlAuthenticateRequest() {}
 
     @Override
     public ActionRequestValidationException validate() {

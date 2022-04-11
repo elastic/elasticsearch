@@ -108,6 +108,8 @@ teardown:
         index: "unmanaged_index"
 
   - match: { indices.unmanaged_index.index: "unmanaged_index" }
+  - is_false: indices.unmanaged_index.index_creation_date_millis
+  - is_false: indices.unmanaged_index.time_since_index_creation
   - is_false: indices.unmanaged_index.managed
   - is_false: indices.unmanaged_index.policy
   - is_false: indices.unmanaged_index.phase

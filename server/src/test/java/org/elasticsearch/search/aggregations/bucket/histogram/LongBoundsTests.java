@@ -13,13 +13,13 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateUtils;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.time.ZoneOffset;
@@ -95,15 +95,23 @@ public class LongBoundsTests extends ESTestCase {
         assertNull(parsed.getMin());
         assertEquals(now, (long) parsed.getMax());
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-                () -> new LongBounds(100L, 90L).parseAndValidate("test", "extended_bounds", nowInMillis, format));
-        assertEquals("[extended_bounds.min][100] cannot be greater than [extended_bounds.max][90] for histogram aggregation [test]",
-                e.getMessage());
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new LongBounds(100L, 90L).parseAndValidate("test", "extended_bounds", nowInMillis, format)
+        );
+        assertEquals(
+            "[extended_bounds.min][100] cannot be greater than [extended_bounds.max][90] for histogram aggregation [test]",
+            e.getMessage()
+        );
 
-        e = expectThrows(IllegalArgumentException.class,
-                () -> unparsed(new LongBounds(100L, 90L)).parseAndValidate("test", "extended_bounds", nowInMillis, format));
-        assertEquals("[extended_bounds.min][100] cannot be greater than [extended_bounds.max][90] for histogram aggregation [test]",
-                e.getMessage());
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> unparsed(new LongBounds(100L, 90L)).parseAndValidate("test", "extended_bounds", nowInMillis, format)
+        );
+        assertEquals(
+            "[extended_bounds.min][100] cannot be greater than [extended_bounds.max][90] for histogram aggregation [test]",
+            e.getMessage()
+        );
     }
 
     public void testTransportRoundTrip() throws IOException {

@@ -20,6 +20,8 @@ import java.util.function.BiConsumer;
  */
 public class CompletableContext<T> {
 
+    public CompletableContext() {}
+
     private final CompletableFuture<T> completableFuture = new CompletableFuture<>();
 
     public void addListener(BiConsumer<T, ? super Exception> listener) {
@@ -27,7 +29,7 @@ public class CompletableContext<T> {
             if (t == null) {
                 listener.accept(v, null);
             } else {
-                assert (t instanceof Error) == false: "Cannot be error";
+                assert (t instanceof Error) == false : "Cannot be error";
                 listener.accept(v, (Exception) t);
             }
         };

@@ -8,13 +8,13 @@ package org.elasticsearch.xpack.core.action;
 
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.action.TransportReloadAnalyzersAction.ReloadResult;
 
 import java.io.IOException;
@@ -27,12 +27,12 @@ import java.util.Map.Entry;
 import java.util.Objects;
 import java.util.Set;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * The response object that will be returned when reloading analyzers
  */
-public class ReloadAnalyzersResponse extends BroadcastResponse  {
+public class ReloadAnalyzersResponse extends BroadcastResponse {
 
     private final Map<String, ReloadDetails> reloadDetails;
 
@@ -46,8 +46,13 @@ public class ReloadAnalyzersResponse extends BroadcastResponse  {
         this.reloadDetails = in.readMap(StreamInput::readString, ReloadDetails::new);
     }
 
-    public ReloadAnalyzersResponse(int totalShards, int successfulShards, int failedShards,
-            List<DefaultShardOperationFailedException> shardFailures, Map<String, ReloadDetails> reloadedIndicesNodes) {
+    public ReloadAnalyzersResponse(
+        int totalShards,
+        int successfulShards,
+        int failedShards,
+        List<DefaultShardOperationFailedException> shardFailures,
+        Map<String, ReloadDetails> reloadedIndicesNodes
+    ) {
         super(totalShards, successfulShards, failedShards, shardFailures);
         this.reloadDetails = reloadedIndicesNodes;
     }
@@ -66,31 +71,40 @@ public class ReloadAnalyzersResponse extends BroadcastResponse  {
             builder.startObject();
             ReloadDetails value = indexDetails.getValue();
             builder.field(INDEX_FIELD.getPreferredName(), value.getIndexName());
-            builder.field(RELOADED_ANALYZERS_FIELD.getPreferredName(), value.getReloadedAnalyzers());
-            builder.field(RELOADED_NODE_IDS_FIELD.getPreferredName(), value.getReloadedIndicesNodes());
+            builder.stringListField(RELOADED_ANALYZERS_FIELD.getPreferredName(), value.getReloadedAnalyzers());
+            builder.stringListField(RELOADED_NODE_IDS_FIELD.getPreferredName(), value.getReloadedIndicesNodes());
             builder.endObject();
         }
         builder.endArray();
     }
 
     @SuppressWarnings({ "unchecked" })
-    private static final ConstructingObjectParser<ReloadAnalyzersResponse, Void> PARSER = new ConstructingObjectParser<>("reload_analyzer",
-            true, arg -> {
-                BroadcastResponse response = (BroadcastResponse) arg[0];
-                List<ReloadDetails> results = (List<ReloadDetails>) arg[1];
-                Map<String, ReloadDetails> reloadedNodeIds = new HashMap<>();
-                for (ReloadDetails result : results) {
-                    reloadedNodeIds.put(result.getIndexName(), result);
-                }
-                return new ReloadAnalyzersResponse(response.getTotalShards(), response.getSuccessfulShards(), response.getFailedShards(),
-                        Arrays.asList(response.getShardFailures()), reloadedNodeIds);
-            });
+    private static final ConstructingObjectParser<ReloadAnalyzersResponse, Void> PARSER = new ConstructingObjectParser<>(
+        "reload_analyzer",
+        true,
+        arg -> {
+            BroadcastResponse response = (BroadcastResponse) arg[0];
+            List<ReloadDetails> results = (List<ReloadDetails>) arg[1];
+            Map<String, ReloadDetails> reloadedNodeIds = new HashMap<>();
+            for (ReloadDetails result : results) {
+                reloadedNodeIds.put(result.getIndexName(), result);
+            }
+            return new ReloadAnalyzersResponse(
+                response.getTotalShards(),
+                response.getSuccessfulShards(),
+                response.getFailedShards(),
+                Arrays.asList(response.getShardFailures()),
+                reloadedNodeIds
+            );
+        }
+    );
 
     @SuppressWarnings({ "unchecked" })
     private static final ConstructingObjectParser<ReloadDetails, Void> ENTRY_PARSER = new ConstructingObjectParser<>(
-            "reload_analyzer.entry", true, arg -> {
-                return new ReloadDetails((String) arg[0], new HashSet<>((List<String>) arg[1]), new HashSet<>((List<String>) arg[2]));
-            });
+        "reload_analyzer.entry",
+        true,
+        arg -> { return new ReloadDetails((String) arg[0], new HashSet<>((List<String>) arg[1]), new HashSet<>((List<String>) arg[2])); }
+    );
 
     static {
         declareBroadcastFields(PARSER);
@@ -180,8 +194,8 @@ public class ReloadAnalyzersResponse extends BroadcastResponse  {
             }
             ReloadDetails that = (ReloadDetails) o;
             return Objects.equals(indexName, that.indexName)
-                    && Objects.equals(reloadedIndicesNodes, that.reloadedIndicesNodes)
-                    && Objects.equals(reloadedAnalyzers, that.reloadedAnalyzers);
+                && Objects.equals(reloadedIndicesNodes, that.reloadedIndicesNodes)
+                && Objects.equals(reloadedAnalyzers, that.reloadedAnalyzers);
         }
 
         @Override

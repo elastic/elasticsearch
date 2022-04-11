@@ -33,8 +33,7 @@ public class AggSource {
     ValuesSourceAggregationBuilder with(ValuesSourceAggregationBuilder aggBuilder) {
         if (fieldName != null) {
             return aggBuilder.field(fieldName);
-        }
-        else {
+        } else {
             return aggBuilder.script(script.toPainless());
         }
     }

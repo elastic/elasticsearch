@@ -10,8 +10,8 @@ package org.elasticsearch.action;
 
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.Requests;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.concurrent.CountDownLatch;

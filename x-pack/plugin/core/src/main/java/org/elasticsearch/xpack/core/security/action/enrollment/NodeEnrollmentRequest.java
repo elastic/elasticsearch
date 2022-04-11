@@ -15,14 +15,14 @@ import java.io.IOException;
 
 public final class NodeEnrollmentRequest extends ActionRequest {
 
-    public NodeEnrollmentRequest() {
-    }
+    public NodeEnrollmentRequest() {}
 
     public NodeEnrollmentRequest(StreamInput in) throws IOException {
         super(in);
     }
 
-    @Override public ActionRequestValidationException validate() {
+    @Override
+    public ActionRequestValidationException validate() {
         return null;
     }
 }

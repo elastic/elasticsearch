@@ -1,0 +1,40 @@
+
+HAPROXYTIME (?!<[0-9])%{HOUR}:%{MINUTE}(?::%{SECOND})(?![0-9])
+HAPROXYDATE %{MONTHDAY}/%{MONTH}/%{YEAR}:%{HAPROXYTIME}.%{INT}
+
+# Override these default patterns to parse out what is captured in your haproxy.cfg
+HAPROXYCAPTUREDREQUESTHEADERS %{DATA:haproxy.http.request.captured_headers}
+HAPROXYCAPTUREDRESPONSEHEADERS %{DATA:haproxy.http.response.captured_headers}
+
+# Example:
+#  These haproxy config lines will add data to the logs that are captured
+#  by the patterns below. Place them in your custom patterns directory to
+#  override the defaults.
+#
+#  capture request header Host len 40
+#  capture request header X-Forwarded-For len 50
+#  capture request header Accept-Language len 50
+#  capture request header Referer len 200
+#  capture request header User-Agent len 200
+#
+#  capture response header Content-Type len 30
+#  capture response header Content-Encoding len 10
+#  capture response header Cache-Control len 200
+#  capture response header Last-Modified len 200
+#
+# HAPROXYCAPTUREDREQUESTHEADERS %{DATA:haproxy.http.request.host}\|%{DATA:haproxy.http.request.x_forwarded_for}\|%{DATA:haproxy.http.request.accept_language}\|%{DATA:http.request.referrer}\|%{DATA:user_agent.original}
+# HAPROXYCAPTUREDRESPONSEHEADERS %{DATA:http.response.mime_type}\|%{DATA:haproxy.http.response.encoding}\|%{DATA:haproxy.http.response.cache_control}\|%{DATA:haproxy.http.response.last_modified}
+
+HAPROXYURI (?:%{URIPROTO:url.scheme}://)?(?:%{USER:url.username}(?::[^@]*)?@)?(?:%{IPORHOST:url.domain}(?::%{POSINT:url.port:int})?)?(?:%{URIPATH:url.path}(?:\?%{URIQUERY:url.query})?)?
+
+HAPROXYHTTPREQUESTLINE (?:<BADREQ>|(?:%{WORD:http.request.method} %{HAPROXYURI:url.original}(?: HTTP/%{NUMBER:http.version})?))
+
+# parse a haproxy 'httplog' line
+HAPROXYHTTPBASE %{IP:source.address}:%{INT:source.port:int} \[%{HAPROXYDATE:haproxy.request_date}\] %{NOTSPACE:haproxy.frontend_name} %{NOTSPACE:haproxy.backend_name}/(?:<NOSRV>|%{NOTSPACE:haproxy.server_name}) (?:-1|%{INT:haproxy.http.request.time_wait_ms:int})/(?:-1|%{INT:haproxy.total_waiting_time_ms:int})/(?:-1|%{INT:haproxy.connection_wait_time_ms:int})/(?:-1|%{INT:haproxy.http.request.time_wait_without_data_ms:int})/%{NOTSPACE:haproxy.total_time_ms} %{INT:http.response.status_code:int} %{INT:source.bytes:long} (?:-|%{DATA:haproxy.http.request.captured_cookie}) (?:-|%{DATA:haproxy.http.response.captured_cookie}) %{NOTSPACE:haproxy.termination_state} %{INT:haproxy.connections.active:int}/%{INT:haproxy.connections.frontend:int}/%{INT:haproxy.connections.backend:int}/%{INT:haproxy.connections.server:int}/%{INT:haproxy.connections.retries:int} %{INT:haproxy.server_queue:int}/%{INT:haproxy.backend_queue:int}(?: \{%{HAPROXYCAPTUREDREQUESTHEADERS}\}(?: \{%{HAPROXYCAPTUREDRESPONSEHEADERS}\})?)?(?: "%{HAPROXYHTTPREQUESTLINE}"?)?
+# :long - %{INT:source.bytes:int}
+
+HAPROXYHTTP (?:%{SYSLOGTIMESTAMP:timestamp}|%{TIMESTAMP_ISO8601:timestamp}) %{IPORHOST:host.hostname} %{SYSLOGPROG}: %{HAPROXYHTTPBASE}
+
+# parse a haproxy 'tcplog' line
+HAPROXYTCP (?:%{SYSLOGTIMESTAMP:timestamp}|%{TIMESTAMP_ISO8601:timestamp}) %{IPORHOST:host.hostname} %{SYSLOGPROG}: %{IP:source.address}:%{INT:source.port:int} \[%{HAPROXYDATE:haproxy.request_date}\] %{NOTSPACE:haproxy.frontend_name} %{NOTSPACE:haproxy.backend_name}/(?:<NOSRV>|%{NOTSPACE:haproxy.server_name}) (?:-1|%{INT:haproxy.total_waiting_time_ms:int})/(?:-1|%{INT:haproxy.connection_wait_time_ms:int})/%{NOTSPACE:haproxy.total_time_ms} %{INT:source.bytes:long} %{NOTSPACE:haproxy.termination_state} %{INT:haproxy.connections.active:int}/%{INT:haproxy.connections.frontend:int}/%{INT:haproxy.connections.backend:int}/%{INT:haproxy.connections.server:int}/%{INT:haproxy.connections.retries:int} %{INT:haproxy.server_queue:int}/%{INT:haproxy.backend_queue:int}
+# :long - %{INT:source.bytes:int}

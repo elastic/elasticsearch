@@ -8,7 +8,6 @@
 
 package org.elasticsearch.gradle.internal.test;
 
-import org.elasticsearch.gradle.internal.ElasticsearchJavaPlugin;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.plugins.JavaBasePlugin;
@@ -30,7 +29,6 @@ public class StandaloneTestPlugin implements Plugin<Project> {
             test.mustRunAfter(project.getTasks().getByName("precommit"));
         });
 
-        ElasticsearchJavaPlugin.configureCompile(project);
         project.getTasks().named("check").configure(task -> task.dependsOn(project.getTasks().named("test")));
     }
 }

@@ -5,19 +5,19 @@ setup:
   - do:
       index:
           index:  test
-          id:     1
+          id:     "1"
           body:   { id: 1, foo: bar, age: 18 }
 
   - do:
       index:
           index:  test
-          id:     42
+          id:     "42"
           body:   { id: 42, foo: bar, age: 18 }
 
   - do:
         index:
             index:  test
-            id:     172
+            id:     "172"
             body:   { id: 172, foo: bar, age: 24 }
 
   - do:
@@ -27,7 +27,7 @@ setup:
   - do:
       index:
         index:  test2
-        id:     45
+        id:     "45"
         body:   { id: 45, foo: bar, age: 19 }
 
   - do:
@@ -67,7 +67,7 @@ setup:
   - do:
       index:
         index:  test
-        id:     100
+        id:     "100"
         body:   { id: 100, foo: bar, age: 23 }
   - do:
       indices.refresh:
@@ -134,6 +134,36 @@ setup:
           id: "$point_in_time_id"
 
 ---
+"point-in-time with slicing":
+  - skip:
+      version: " - 7.14.99"
+      reason: "support for slicing was added in 7.15"
+  - do:
+      open_point_in_time:
+        index: test
+        keep_alive: 5m
+  - set: {id: point_in_time_id}
+
+  - do:
+      search:
+        body:
+          slice:
+            id: "0"
+            max: 2
+          size: 1
+          query:
+            match:
+              foo: bar
+          sort: [{ age: desc }, { id: desc }]
+          pit:
+            id: "$point_in_time_id"
+
+  - do:
+      close_point_in_time:
+        body:
+          id: "$point_in_time_id"
+
+---
 "wildcard":
   - skip:
       version: " - 7.9.99"
@@ -171,8 +201,8 @@ setup:
 ---
 "msearch":
   - skip:
-      version: " - 7.99.99"
-      reason: "After backport: 7.9.99 => point in time is introduced in 7.10"
+      version: " - 7.9.99"
+      reason: "point in time is introduced in 7.10"
   - do:
       open_point_in_time:
         index: "t*"

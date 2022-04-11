@@ -17,14 +17,17 @@ import java.util.function.Function;
 public final class LdapLoadBalancingSettings {
 
     public static final Function<String, Setting.AffixSetting<String>> LOAD_BALANCE_TYPE_SETTING = RealmSettings.affixSetting(
-            "load_balance.type", key -> Setting.simpleString(key, Setting.Property.NodeScope));
+        "load_balance.type",
+        key -> Setting.simpleString(key, Setting.Property.NodeScope)
+    );
 
     private static final TimeValue CACHE_TTL_DEFAULT = TimeValue.timeValueHours(1L);
     public static final Function<String, Setting.AffixSetting<TimeValue>> CACHE_TTL_SETTING = RealmSettings.affixSetting(
-            "load_balance.cache_ttl", key -> Setting.timeSetting(key, CACHE_TTL_DEFAULT, Setting.Property.NodeScope));
+        "load_balance.cache_ttl",
+        key -> Setting.timeSetting(key, CACHE_TTL_DEFAULT, Setting.Property.NodeScope)
+    );
 
-    private LdapLoadBalancingSettings() {
-    }
+    private LdapLoadBalancingSettings() {}
 
     public static Set<Setting.AffixSetting<?>> getSettings(String realmType) {
         Set<Setting.AffixSetting<?>> settings = new HashSet<>();

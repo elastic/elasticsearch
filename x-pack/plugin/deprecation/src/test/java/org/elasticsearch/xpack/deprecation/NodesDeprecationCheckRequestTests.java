@@ -12,8 +12,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 
 import java.io.IOException;
 
-public class NodesDeprecationCheckRequestTests
-    extends AbstractWireSerializingTestCase<NodesDeprecationCheckRequest> {
+public class NodesDeprecationCheckRequestTests extends AbstractWireSerializingTestCase<NodesDeprecationCheckRequest> {
 
     @Override
     protected Writeable.Reader<NodesDeprecationCheckRequest> instanceReader() {
@@ -22,14 +21,13 @@ public class NodesDeprecationCheckRequestTests
 
     @Override
     protected NodesDeprecationCheckRequest mutateInstance(NodesDeprecationCheckRequest instance) throws IOException {
-        int newSize = randomValueOtherThan(instance.nodesIds().length, () -> randomIntBetween(0,10));
+        int newSize = randomValueOtherThan(instance.nodesIds().length, () -> randomIntBetween(0, 10));
         String[] newNodeIds = randomArray(newSize, newSize, String[]::new, () -> randomAlphaOfLengthBetween(5, 10));
         return new NodesDeprecationCheckRequest(newNodeIds);
     }
 
     @Override
     protected NodesDeprecationCheckRequest createTestInstance() {
-        return new NodesDeprecationCheckRequest(randomArray(0, 10, String[]::new,
-            ()-> randomAlphaOfLengthBetween(5,10)));
+        return new NodesDeprecationCheckRequest(randomArray(0, 10, String[]::new, () -> randomAlphaOfLengthBetween(5, 10)));
     }
 }

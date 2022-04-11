@@ -21,8 +21,8 @@ import java.util.function.Consumer;
  * cleanup for guice, and some guidance about consulting full
  * logs for the whole exception.
  */
-//TODO: remove this when guice is removed, and exceptions are cleaned up
-//this is horrible, but its what we must do
+// TODO: remove this when guice is removed, and exceptions are cleaned up
+// this is horrible, but its what we must do
 final class StartupException extends RuntimeException {
 
     /** maximum length of a stacktrace, before we truncate it */
@@ -56,7 +56,7 @@ final class StartupException extends RuntimeException {
         Throwable originalCause = getCause();
         Throwable cause = originalCause;
         if (cause instanceof CreationException) {
-            cause = getFirstGuiceCause((CreationException)cause);
+            cause = getFirstGuiceCause((CreationException) cause);
         }
 
         String message = cause.toString();

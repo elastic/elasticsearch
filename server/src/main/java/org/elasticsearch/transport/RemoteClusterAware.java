@@ -73,7 +73,7 @@ public abstract class RemoteClusterAware {
                     throw new IllegalArgumentException("node [" + nodeName + "] does not have the remote cluster client role enabled");
                 }
                 String remoteClusterName = index.substring(0, i);
-                List<String> clusters = clusterNameResolver.resolveClusterNames(remoteClusterNames, remoteClusterName);
+                List<String> clusters = ClusterNameExpressionResolver.resolveClusterNames(remoteClusterNames, remoteClusterName);
                 String indexName = index.substring(i + 1);
                 for (String clusterName : clusters) {
                     perClusterIndices.computeIfAbsent(clusterName, k -> new ArrayList<>()).add(indexName);
@@ -110,12 +110,14 @@ public abstract class RemoteClusterAware {
             SniffConnectionStrategy.REMOTE_NODE_CONNECTIONS,
             ProxyConnectionStrategy.PROXY_ADDRESS,
             ProxyConnectionStrategy.REMOTE_SOCKET_CONNECTIONS,
-            ProxyConnectionStrategy.SERVER_NAME);
+            ProxyConnectionStrategy.SERVER_NAME
+        );
         clusterSettings.addAffixGroupUpdateConsumer(remoteClusterSettings, this::validateAndUpdateRemoteCluster);
     }
 
     public static String buildRemoteIndexName(String clusterAlias, String indexName) {
         return clusterAlias == null || LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)
-            ? indexName : clusterAlias + REMOTE_CLUSTER_INDEX_SEPARATOR + indexName;
+            ? indexName
+            : clusterAlias + REMOTE_CLUSTER_INDEX_SEPARATOR + indexName;
     }
 }

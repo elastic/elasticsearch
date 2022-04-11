@@ -12,14 +12,14 @@ import java.util.Arrays;
 import java.util.Locale;
 
 /**
- * Simple program that checks if the runtime Java version is at least 1.8.
+ * Simple program that checks if the runtime Java version is at least 17.
  */
 final class JavaVersionChecker {
 
     private JavaVersionChecker() {}
 
     /**
-     * The main entry point. The exit code is 0 if the Java version is at least 1.8, otherwise the exit code is 1.
+     * The main entry point. The exit code is 0 if the Java version is at least 17, otherwise the exit code is 1.
      *
      * @param args the args to the program which are rejected if not empty
      */
@@ -28,10 +28,10 @@ final class JavaVersionChecker {
         if (args.length != 0) {
             throw new IllegalArgumentException("expected zero arguments but was " + Arrays.toString(args));
         }
-        if (JavaVersion.compare(JavaVersion.CURRENT, JavaVersion.JAVA_11) < 0) {
+        if (JavaVersion.compare(JavaVersion.CURRENT, JavaVersion.JAVA_17) < 0) {
             final String message = String.format(
                 Locale.ROOT,
-                "the minimum required Java version is 11; your Java version from [%s] does not meet this requirement",
+                "The minimum required Java version is 17; your Java version from [%s] does not meet this requirement",
                 System.getProperty("java.home")
             );
             errPrintln(message);

@@ -26,9 +26,10 @@ final class XPackRequestConverters {
             request.addParameter("human", "false");
         }
         if (false == infoRequest.getCategories().equals(EnumSet.allOf(XPackInfoRequest.Category.class))) {
-            request.addParameter("categories", infoRequest.getCategories().stream()
-                    .map(c -> c.toString().toLowerCase(Locale.ROOT))
-                    .collect(Collectors.joining(",")));
+            request.addParameter(
+                "categories",
+                infoRequest.getCategories().stream().map(c -> c.toString().toLowerCase(Locale.ROOT)).collect(Collectors.joining(","))
+            );
         }
         return request;
     }

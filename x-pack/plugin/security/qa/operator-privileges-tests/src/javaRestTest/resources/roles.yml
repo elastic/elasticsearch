@@ -4,3 +4,4 @@ limited_operator:
     - "monitor"
     - "cluster:admin/settings/update"
     - "cluster:admin/snapshot/restore"
+    - "cluster:admin/shutdown/*"

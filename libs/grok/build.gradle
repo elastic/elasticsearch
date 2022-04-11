@@ -16,6 +16,10 @@ dependencies {
   }
 }
 
+tasks.named("forbiddenPatterns").configure {
+  exclude '**/nagios'
+}
+
 tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
 }

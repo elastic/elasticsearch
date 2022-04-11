@@ -8,19 +8,19 @@
 
 package org.elasticsearch.client.analytics;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Results from the {@code string_stats} aggregation.
@@ -41,8 +41,16 @@ public class ParsedStringStats extends ParsedAggregation {
     private final boolean showDistribution;
     private final Map<String, Double> distribution;
 
-    private ParsedStringStats(String name, long count, int minLength, int maxLength, double avgLength, double entropy,
-            boolean showDistribution, Map<String, Double> distribution) {
+    private ParsedStringStats(
+        String name,
+        long count,
+        int minLength,
+        int maxLength,
+        double avgLength,
+        double entropy,
+        boolean showDistribution,
+        Map<String, Double> distribution
+    ) {
         setName(name);
         this.count = count;
         this.minLength = minLength;
@@ -108,34 +116,39 @@ public class ParsedStringStats extends ParsedAggregation {
 
     private static final Object NULL_DISTRIBUTION_MARKER = new Object();
     public static final ConstructingObjectParser<ParsedStringStats, String> PARSER = new ConstructingObjectParser<>(
-            StringStatsAggregationBuilder.NAME, true, (args, name) -> {
-                long count = (long) args[0];
-                boolean disributionWasExplicitNull = args[5] == NULL_DISTRIBUTION_MARKER;
-                if (count == 0) {
-                    return new ParsedStringStats(name, count, 0, 0, 0, 0, disributionWasExplicitNull, null);
-                }
-                int minLength = (int) args[1];
-                int maxLength = (int) args[2];
-                double averageLength = (double) args[3];
-                double entropy = (double) args[4];
-                if (disributionWasExplicitNull) {
-                    return new ParsedStringStats(name, count, minLength, maxLength, averageLength, entropy,
-                            disributionWasExplicitNull, null);
-                } else {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Double> distribution = (Map<String, Double>) args[5];
-                    return new ParsedStringStats(name, count, minLength, maxLength, averageLength, entropy,
-                            distribution != null, distribution);
-                }
-            });
+        StringStatsAggregationBuilder.NAME,
+        true,
+        (args, name) -> {
+            long count = (long) args[0];
+            boolean disributionWasExplicitNull = args[5] == NULL_DISTRIBUTION_MARKER;
+            if (count == 0) {
+                return new ParsedStringStats(name, count, 0, 0, 0, 0, disributionWasExplicitNull, null);
+            }
+            int minLength = (int) args[1];
+            int maxLength = (int) args[2];
+            double averageLength = (double) args[3];
+            double entropy = (double) args[4];
+            if (disributionWasExplicitNull) {
+                return new ParsedStringStats(name, count, minLength, maxLength, averageLength, entropy, disributionWasExplicitNull, null);
+            } else {
+                @SuppressWarnings("unchecked")
+                Map<String, Double> distribution = (Map<String, Double>) args[5];
+                return new ParsedStringStats(name, count, minLength, maxLength, averageLength, entropy, distribution != null, distribution);
+            }
+        }
+    );
     static {
         PARSER.declareLong(constructorArg(), COUNT_FIELD);
         PARSER.declareIntOrNull(constructorArg(), 0, MIN_LENGTH_FIELD);
         PARSER.declareIntOrNull(constructorArg(), 0, MAX_LENGTH_FIELD);
         PARSER.declareDoubleOrNull(constructorArg(), 0, AVG_LENGTH_FIELD);
         PARSER.declareDoubleOrNull(constructorArg(), 0, ENTROPY_FIELD);
-        PARSER.declareObjectOrNull(optionalConstructorArg(), (p, c) -> unmodifiableMap(p.map(HashMap::new, XContentParser::doubleValue)),
-                NULL_DISTRIBUTION_MARKER, DISTRIBUTION_FIELD);
+        PARSER.declareObjectOrNull(
+            optionalConstructorArg(),
+            (p, c) -> unmodifiableMap(p.map(HashMap::new, XContentParser::doubleValue)),
+            NULL_DISTRIBUTION_MARKER,
+            DISTRIBUTION_FIELD
+        );
         ParsedAggregation.declareAggregationFields(PARSER);
     }
 

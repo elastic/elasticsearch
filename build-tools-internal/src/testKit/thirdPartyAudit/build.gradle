@@ -28,8 +28,12 @@ repositories {
   mavenCentral()
 }
 
+project("libs:elasticsearch-core") {
+  apply plugin:'java'
+}
+
 dependencies {
-  forbiddenApisCliJar 'de.thetaphi:forbiddenapis:2.7'
+  forbiddenApisCliJar 'de.thetaphi:forbiddenapis:3.2'
   jdkJarHell 'org.elasticsearch:elasticsearch-core:current'
   compileOnly "org.${project.properties.compileOnlyGroup}:${project.properties.compileOnlyVersion}"
   implementation "org.${project.properties.compileGroup}:${project.properties.compileVersion}"

@@ -22,7 +22,7 @@ public class ConstantProcessorTests extends AbstractWireSerializingTestCase<Cons
             if (randomBoolean()) {
                 clock = Clock.tick(clock, Duration.ofNanos(1));
             }
-            return new ConstantProcessor( ZonedDateTime.now(clock));
+            return new ConstantProcessor(ZonedDateTime.now(clock));
         } else {
             return new ConstantProcessor(randomAlphaOfLength(5));
         }

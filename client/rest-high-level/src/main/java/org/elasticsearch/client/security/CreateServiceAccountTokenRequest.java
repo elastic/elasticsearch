@@ -25,9 +25,12 @@ public final class CreateServiceAccountTokenRequest implements Validatable {
     @Nullable
     private final RefreshPolicy refreshPolicy;
 
-    public CreateServiceAccountTokenRequest(String namespace, String serviceName,
-                                            @Nullable String tokenName,
-                                            @Nullable RefreshPolicy refreshPolicy) {
+    public CreateServiceAccountTokenRequest(
+        String namespace,
+        String serviceName,
+        @Nullable String tokenName,
+        @Nullable RefreshPolicy refreshPolicy
+    ) {
         this.namespace = Objects.requireNonNull(namespace, "namespace is required");
         this.serviceName = Objects.requireNonNull(serviceName, "service-name is required");
         this.tokenName = tokenName;
@@ -60,13 +63,13 @@ public final class CreateServiceAccountTokenRequest implements Validatable {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (o == null || getClass() != o.getClass())
-            return false;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
         CreateServiceAccountTokenRequest that = (CreateServiceAccountTokenRequest) o;
-        return namespace.equals(that.namespace) && serviceName.equals(that.serviceName) && Objects.equals(tokenName,
-            that.tokenName) && refreshPolicy == that.refreshPolicy;
+        return namespace.equals(that.namespace)
+            && serviceName.equals(that.serviceName)
+            && Objects.equals(tokenName, that.tokenName)
+            && refreshPolicy == that.refreshPolicy;
     }
 
     @Override

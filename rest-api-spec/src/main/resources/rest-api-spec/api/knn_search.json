@@ -1,0 +1,40 @@
+{
+  "knn_search":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/search-search.html",
+      "description":"Performs a kNN search."
+    },
+    "stability":"experimental",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/{index}/_knn_search",
+          "methods":[
+            "GET",
+            "POST"
+          ],
+          "parts":{
+            "index":{
+              "type":"list",
+              "description":"A comma-separated list of index names to search; use `_all` to perform the operation on all indices"
+            }
+          }
+        }
+      ]
+    },
+    "params": {
+      "routing":{
+        "type":"list",
+        "description":"A comma-separated list of specific routing values"
+      }
+    },
+    "body":{
+      "description":"The search definition"
+    }
+  }
+}

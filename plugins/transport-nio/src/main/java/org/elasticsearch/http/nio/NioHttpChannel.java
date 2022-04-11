@@ -32,9 +32,6 @@ public class NioHttpChannel extends NioSocketChannel implements HttpChannel {
 
     @Override
     public String toString() {
-        return "NioHttpChannel{" +
-            "localAddress=" + getLocalAddress() +
-            ", remoteAddress=" + getRemoteAddress() +
-            '}';
+        return "NioHttpChannel{" + "localAddress=" + getLocalAddress() + ", remoteAddress=" + getRemoteAddress() + '}';
     }
 }

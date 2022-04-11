@@ -13,12 +13,12 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestMatchers;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderDocument;
 import org.elasticsearch.xpack.idp.saml.sp.SamlServiceProviderTestUtils;
 import org.hamcrest.MatcherAssert;
@@ -85,10 +85,17 @@ public class PutSamlServiceProviderRequestTests extends ESTestCase {
         final SamlServiceProviderDocument doc = SamlServiceProviderTestUtils.randomDocument();
         final PutSamlServiceProviderRequest request = new PutSamlServiceProviderRequest(doc, RefreshPolicy.NONE);
         final Version version = VersionUtils.randomVersionBetween(random(), Version.V_7_7_0, Version.CURRENT);
-        final PutSamlServiceProviderRequest read = copyWriteable(request, new NamedWriteableRegistry(List.of()),
-            PutSamlServiceProviderRequest::new, version);
-        MatcherAssert.assertThat("Serialized request with version [" + version + "] does not match original object",
-            read, equalTo(request));
+        final PutSamlServiceProviderRequest read = copyWriteable(
+            request,
+            new NamedWriteableRegistry(List.of()),
+            PutSamlServiceProviderRequest::new,
+            version
+        );
+        MatcherAssert.assertThat(
+            "Serialized request with version [" + version + "] does not match original object",
+            read,
+            equalTo(request)
+        );
     }
 
     public void testParseRequestBodySuccessfully() throws Exception {
@@ -96,16 +103,23 @@ public class PutSamlServiceProviderRequestTests extends ESTestCase {
         fields.put("name", randomAlphaOfLengthBetween(3, 30));
         fields.put("acs", "https://www." + randomAlphaOfLengthBetween(3, 30) + ".fake/saml/acs");
         fields.put("enabled", randomBoolean());
-        fields.put("attributes", Map.of(
-            "principal", "urn:oid:0.1." + randomLongBetween(1, 1000),
-            "email", "urn:oid:0.2." + randomLongBetween(1001, 2000),
-            "name", "urn:oid:0.3." + randomLongBetween(2001, 3000),
-            "roles", "urn:oid:0.4." + randomLongBetween(3001, 4000)
-        ));
-        fields.put("privileges", Map.of(
-            "resource", "ece:deployment:" + randomLongBetween(1_000_000, 999_999_999),
-            "roles", List.of("role:(.*)")
-        ));
+        fields.put(
+            "attributes",
+            Map.of(
+                "principal",
+                "urn:oid:0.1." + randomLongBetween(1, 1000),
+                "email",
+                "urn:oid:0.2." + randomLongBetween(1001, 2000),
+                "name",
+                "urn:oid:0.3." + randomLongBetween(2001, 3000),
+                "roles",
+                "urn:oid:0.4." + randomLongBetween(3001, 4000)
+            )
+        );
+        fields.put(
+            "privileges",
+            Map.of("resource", "ece:deployment:" + randomLongBetween(1_000_000, 999_999_999), "roles", List.of("role:(.*)"))
+        );
         fields.put("certificates", Map.of());
         final String entityId = "https://www." + randomAlphaOfLengthBetween(5, 12) + ".app/";
         final PutSamlServiceProviderRequest request = parseRequest(entityId, fields);

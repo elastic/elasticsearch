@@ -35,6 +35,10 @@
         "default_api_key_id": {
           "type": "keyword"
         },
+        "default_api_key_history": {
+          "type": "object",
+          "enabled": false
+        },
         "enrolled_at": {
           "type": "date"
         },

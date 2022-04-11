@@ -9,14 +9,15 @@
 package org.elasticsearch.search.aggregations.pipeline;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation.CommonFields;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.metrics.Percentile;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -38,8 +39,12 @@ public class InternalPercentilesBucketTests extends InternalAggregationTestCase<
         return createTestInstance(name, metadata, randomPercents(), true);
     }
 
-    private static InternalPercentilesBucket createTestInstance(String name, Map<String, Object> metadata,
-            double[] percents, boolean keyed) {
+    private static InternalPercentilesBucket createTestInstance(
+        String name,
+        Map<String, Object> metadata,
+        double[] percents,
+        boolean keyed
+    ) {
         final double[] percentiles = new double[percents.length];
         for (int i = 0; i < percents.length; ++i) {
             percentiles[i] = frequently() ? randomDouble() : Double.NaN;
@@ -47,8 +52,13 @@ public class InternalPercentilesBucketTests extends InternalAggregationTestCase<
         return createTestInstance(name, metadata, percents, percentiles, keyed);
     }
 
-    private static InternalPercentilesBucket createTestInstance(String name, Map<String, Object> metadata,
-            double[] percents, double[] percentiles, boolean keyed) {
+    private static InternalPercentilesBucket createTestInstance(
+        String name,
+        Map<String, Object> metadata,
+        double[] percents,
+        double[] percentiles,
+        boolean keyed
+    ) {
         DocValueFormat format = randomNumericDocValueFormat();
         return new InternalPercentilesBucket(name, percents, percentiles, keyed, format, metadata);
     }
@@ -83,7 +93,7 @@ public class InternalPercentilesBucketTests extends InternalAggregationTestCase<
      * check that we don't rely on the percent array order and that the iterator returns the values in the original order
      */
     public void testPercentOrder() {
-        final double[] percents =  new double[]{ 0.50, 0.25, 0.01, 0.99, 0.60 };
+        final double[] percents = new double[] { 0.50, 0.25, 0.01, 0.99, 0.60 };
         InternalPercentilesBucket aggregation = createTestInstance("test", Collections.emptyMap(), percents, randomBoolean());
         Iterator<Percentile> iterator = aggregation.iterator();
         Iterator<String> nameIterator = aggregation.valueNames().iterator();
@@ -104,12 +114,16 @@ public class InternalPercentilesBucketTests extends InternalAggregationTestCase<
     }
 
     public void testErrorOnDifferentArgumentSize() {
-        final double[] percents =  new double[]{ 0.1, 0.2, 0.3};
-        final double[] percentiles =  new double[]{ 0.10, 0.2};
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> new InternalPercentilesBucket("test", percents,
-                percentiles, randomBoolean(), DocValueFormat.RAW, Collections.emptyMap()));
-        assertEquals("The number of provided percents and percentiles didn't match. percents: [0.1, 0.2, 0.3], percentiles: [0.1, 0.2]",
-                e.getMessage());
+        final double[] percents = new double[] { 0.1, 0.2, 0.3 };
+        final double[] percentiles = new double[] { 0.10, 0.2 };
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new InternalPercentilesBucket("test", percents, percentiles, randomBoolean(), DocValueFormat.RAW, Collections.emptyMap())
+        );
+        assertEquals(
+            "The number of provided percents and percentiles didn't match. percents: [0.1, 0.2, 0.3], percentiles: [0.1, 0.2]",
+            e.getMessage()
+        );
     }
 
     public void testParsedAggregationIteratorOrder() throws IOException {
@@ -123,7 +137,7 @@ public class InternalPercentilesBucketTests extends InternalAggregationTestCase<
     }
 
     public void testEmptyRanksXContent() throws IOException {
-        double[] percents = new double[]{1,2,3};
+        double[] percents = new double[] { 1, 2, 3 };
         double[] percentiles = new double[3];
         for (int i = 0; i < 3; ++i) {
             percentiles[i] = randomBoolean() ? Double.NaN : Double.POSITIVE_INFINITY;
@@ -138,30 +152,32 @@ public class InternalPercentilesBucketTests extends InternalAggregationTestCase<
         builder.endObject();
         String expected;
         if (keyed) {
-            expected = "{\n" +
-                "  \"values\" : {\n" +
-                "    \"1.0\" : null,\n" +
-                "    \"2.0\" : null,\n" +
-                "    \"3.0\" : null\n" +
-                "  }\n" +
-                "}";
+            expected = """
+                {
+                  "values" : {
+                    "1.0" : null,
+                    "2.0" : null,
+                    "3.0" : null
+                  }
+                }""";
         } else {
-            expected = "{\n" +
-                "  \"values\" : [\n" +
-                "    {\n" +
-                "      \"key\" : 1.0,\n" +
-                "      \"value\" : null\n" +
-                "    },\n" +
-                "    {\n" +
-                "      \"key\" : 2.0,\n" +
-                "      \"value\" : null\n" +
-                "    },\n" +
-                "    {\n" +
-                "      \"key\" : 3.0,\n" +
-                "      \"value\" : null\n" +
-                "    }\n" +
-                "  ]\n" +
-                "}";
+            expected = """
+                {
+                  "values" : [
+                    {
+                      "key" : 1.0,
+                      "value" : null
+                    },
+                    {
+                      "key" : 2.0,
+                      "value" : null
+                    },
+                    {
+                      "key" : 3.0,
+                      "value" : null
+                    }
+                  ]
+                }""";
         }
 
         assertThat(Strings.toString(builder), equalTo(expected));
@@ -180,27 +196,24 @@ public class InternalPercentilesBucketTests extends InternalAggregationTestCase<
         DocValueFormat formatter = instance.formatter();
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 3)) {
-        case 0:
-            name += randomAlphaOfLength(5);
-            break;
-        case 1:
-            percents = Arrays.copyOf(percents, percents.length);
-            percents[percents.length - 1] = randomDouble();
-            break;
-        case 2:
-            percentiles = Arrays.copyOf(percentiles, percentiles.length);
-            percentiles[percentiles.length - 1] = randomDouble();
-            break;
-        case 3:
-            if (metadata == null) {
-                metadata = new HashMap<>(1);
-            } else {
-                metadata = new HashMap<>(instance.getMetadata());
+            case 0 -> name += randomAlphaOfLength(5);
+            case 1 -> {
+                percents = Arrays.copyOf(percents, percents.length);
+                percents[percents.length - 1] = randomDouble();
             }
-            metadata.put(randomAlphaOfLength(15), randomInt());
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+            case 2 -> {
+                percentiles = Arrays.copyOf(percentiles, percentiles.length);
+                percentiles[percentiles.length - 1] = randomDouble();
+            }
+            case 3 -> {
+                if (metadata == null) {
+                    metadata = Maps.newMapWithExpectedSize(1);
+                } else {
+                    metadata = new HashMap<>(instance.getMetadata());
+                }
+                metadata.put(randomAlphaOfLength(15), randomInt());
+            }
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalPercentilesBucket(name, percents, percentiles, randomBoolean(), formatter, metadata);
     }

@@ -26,11 +26,10 @@ public class InternalInferModelActionResponseTests extends AbstractWireSerializi
     protected Response createTestInstance() {
         String resultType = randomFrom(ClassificationInferenceResults.NAME, RegressionInferenceResults.NAME);
         return new Response(
-            Stream.generate(() -> randomInferenceResult(resultType))
-            .limit(randomIntBetween(0, 10))
-            .collect(Collectors.toList()),
+            Stream.generate(() -> randomInferenceResult(resultType)).limit(randomIntBetween(0, 10)).collect(Collectors.toList()),
             randomAlphaOfLength(10),
-            randomBoolean());
+            randomBoolean()
+        );
     }
 
     private static InferenceResults randomInferenceResult(String resultType) {

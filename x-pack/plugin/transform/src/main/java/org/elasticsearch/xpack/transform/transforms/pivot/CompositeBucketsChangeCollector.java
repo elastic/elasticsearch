@@ -32,6 +32,7 @@ import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceB
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation.SingleValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.DateHistogramGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.HistogramGroupSource;
 import org.elasticsearch.xpack.core.transform.transforms.pivot.SingleGroupSource;
@@ -705,22 +706,31 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
     }
 
     @Override
-    public QueryBuilder buildFilterQuery(long lastCheckpointTimestamp, long nextCheckpointTimestamp) {
+    public QueryBuilder buildFilterQuery(TransformCheckpoint lastCheckpoint, TransformCheckpoint nextCheckpoint) {
         // shortcut for only 1 element
         if (fieldCollectors.size() == 1) {
-            return fieldCollectors.values().iterator().next().filterByChanges(lastCheckpointTimestamp, nextCheckpointTimestamp);
+            return fieldCollectors.values()
+                .iterator()
+                .next()
+                .filterByChanges(lastCheckpoint.getTimeUpperBound(), nextCheckpoint.getTimeUpperBound());
         }
 
         BoolQueryBuilder filteredQuery = new BoolQueryBuilder();
 
         for (FieldCollector fieldCollector : fieldCollectors.values()) {
-            QueryBuilder filter = fieldCollector.filterByChanges(lastCheckpointTimestamp, nextCheckpointTimestamp);
+            QueryBuilder filter = fieldCollector.filterByChanges(lastCheckpoint.getTimeUpperBound(), nextCheckpoint.getTimeUpperBound());
             if (filter != null) {
                 filteredQuery.filter(filter);
             }
         }
 
         return filteredQuery;
+    }
+
+    @Override
+    public Collection<String> getIndicesToQuery(TransformCheckpoint lastCheckpoint, TransformCheckpoint nextCheckpoint) {
+        // for updating the data, all indices have to be queried
+        return TransformCheckpoint.getChangedIndices(TransformCheckpoint.EMPTY, nextCheckpoint);
     }
 
     @Override
@@ -809,59 +819,42 @@ public class CompositeBucketsChangeCollector implements ChangeCollector {
             }
 
             switch (entry.getValue().getType()) {
-                case TERMS:
-                    fieldCollectors.put(
+                case TERMS -> fieldCollectors.put(
+                    entry.getKey(),
+                    new TermsFieldCollector(entry.getValue().getField(), entry.getKey(), entry.getValue().getMissingBucket())
+                );
+                case HISTOGRAM -> fieldCollectors.put(
+                    entry.getKey(),
+                    new HistogramFieldCollector(
+                        entry.getValue().getField(),
                         entry.getKey(),
-                        new CompositeBucketsChangeCollector.TermsFieldCollector(
-                            entry.getValue().getField(),
-                            entry.getKey(),
-                            entry.getValue().getMissingBucket()
-                        )
-                    );
-                    break;
-                case HISTOGRAM:
-                    fieldCollectors.put(
-                        entry.getKey(),
-                        new CompositeBucketsChangeCollector.HistogramFieldCollector(
-                            entry.getValue().getField(),
-                            entry.getKey(),
-                            entry.getValue().getMissingBucket(),
-                            ((HistogramGroupSource) entry.getValue()).getInterval()
-                        )
-                    );
-                    break;
-                case DATE_HISTOGRAM:
-                    fieldCollectors.put(
-                        entry.getKey(),
-                        entry.getValue().getMissingBucket() == false
-                            && entry.getValue().getField() != null
-                            && entry.getValue().getField().equals(synchronizationField)
-                                ? new CompositeBucketsChangeCollector.DateHistogramFieldCollectorSynchronized(
-                                    entry.getValue().getField(),
-                                    entry.getKey(),
-                                    entry.getValue().getMissingBucket(),
-                                    ((DateHistogramGroupSource) entry.getValue()).getRounding()
-                                )
-                                : new CompositeBucketsChangeCollector.DateHistogramFieldCollector(
-                                    entry.getValue().getField(),
-                                    entry.getKey(),
-                                    entry.getValue().getMissingBucket(),
-                                    ((DateHistogramGroupSource) entry.getValue()).getRounding()
-                                )
-                    );
-                    break;
-                case GEOTILE_GRID:
-                    fieldCollectors.put(
-                        entry.getKey(),
-                        new CompositeBucketsChangeCollector.GeoTileFieldCollector(
-                            entry.getValue().getField(),
-                            entry.getKey(),
-                            entry.getValue().getMissingBucket()
-                        )
-                    );
-                    break;
-                default:
-                    throw new IllegalArgumentException("unknown type");
+                        entry.getValue().getMissingBucket(),
+                        ((HistogramGroupSource) entry.getValue()).getInterval()
+                    )
+                );
+                case DATE_HISTOGRAM -> fieldCollectors.put(
+                    entry.getKey(),
+                    entry.getValue().getMissingBucket() == false
+                        && entry.getValue().getField() != null
+                        && entry.getValue().getField().equals(synchronizationField)
+                            ? new DateHistogramFieldCollectorSynchronized(
+                                entry.getValue().getField(),
+                                entry.getKey(),
+                                entry.getValue().getMissingBucket(),
+                                ((DateHistogramGroupSource) entry.getValue()).getRounding()
+                            )
+                            : new DateHistogramFieldCollector(
+                                entry.getValue().getField(),
+                                entry.getKey(),
+                                entry.getValue().getMissingBucket(),
+                                ((DateHistogramGroupSource) entry.getValue()).getRounding()
+                            )
+                );
+                case GEOTILE_GRID -> fieldCollectors.put(
+                    entry.getKey(),
+                    new GeoTileFieldCollector(entry.getValue().getField(), entry.getKey(), entry.getValue().getMissingBucket())
+                );
+                default -> throw new IllegalArgumentException("unknown type");
             }
         }
         return fieldCollectors;

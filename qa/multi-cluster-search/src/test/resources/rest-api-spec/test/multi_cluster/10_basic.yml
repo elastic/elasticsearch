@@ -235,7 +235,7 @@
   - match: { aggregations.cluster.buckets.1.animal_length.value: 15 }
 
 ---
-"Add transient remote cluster based on the preset cluster":
+"Add persistent remote cluster based on the preset cluster":
   - do:
       cluster.get_settings:
         include_defaults: true
@@ -246,10 +246,10 @@
       cluster.put_settings:
         flat_settings: true
         body:
-          transient:
+          persistent:
             cluster.remote.test_remote_cluster.seeds: $remote_ip
 
-  - match: {transient: {cluster.remote.test_remote_cluster.seeds: $remote_ip}}
+  - match: {persistent: {cluster.remote.test_remote_cluster.seeds: $remote_ip}}
 
   - do:
       search:
@@ -276,10 +276,10 @@
       cluster.put_settings:
         flat_settings: true
         body:
-          transient:
+          persistent:
             cluster.remote.test_remote_cluster.seeds: $remote_ip
 
-  - match: {transient: {cluster.remote.test_remote_cluster.seeds: $remote_ip}}
+  - match: {persistent: {cluster.remote.test_remote_cluster.seeds: $remote_ip}}
 
   - do:
       search:

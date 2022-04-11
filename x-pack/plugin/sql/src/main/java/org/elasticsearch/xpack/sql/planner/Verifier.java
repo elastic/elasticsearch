@@ -7,11 +7,14 @@
 package org.elasticsearch.xpack.sql.planner;
 
 import org.elasticsearch.xpack.ql.common.Failure;
-import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.util.Holder;
+import org.elasticsearch.xpack.sql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.sql.plan.physical.FilterExec;
 import org.elasticsearch.xpack.sql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.sql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.sql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.sql.plan.physical.PivotExec;
+import org.elasticsearch.xpack.sql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.sql.plan.physical.Unexecutable;
 import org.elasticsearch.xpack.sql.plan.physical.UnplannedExec;
 
@@ -59,20 +62,23 @@ abstract class Verifier {
     }
 
     private static void checkForNonCollapsableSubselects(PhysicalPlan plan, List<Failure> failures) {
-        Holder<Boolean> hasLimit = new Holder<>(Boolean.FALSE);
-        Holder<List<Order>> orderBy = new Holder<>();
+        Holder<LimitExec> limit = new Holder<>();
+        Holder<UnaryExec> limitedExec = new Holder<>();
+
         plan.forEachUp(p -> {
-            if (hasLimit.get() == false && p instanceof LimitExec) {
-                hasLimit.set(Boolean.TRUE);
-                return;
-            }
-            if (p instanceof OrderExec) {
-                if (hasLimit.get() && orderBy.get() != null && ((OrderExec) p).order().equals(orderBy.get()) == false) {
-                    failures.add(fail(p, "Cannot use ORDER BY on top of a subquery with ORDER BY and LIMIT"));
-                } else {
-                    orderBy.set(((OrderExec) p).order());
+            if (limit.get() == null && p instanceof LimitExec) {
+                limit.set((LimitExec) p);
+            } else if (limit.get() != null && limitedExec.get() == null) {
+                if (p instanceof OrderExec || p instanceof FilterExec || p instanceof PivotExec || p instanceof AggregateExec) {
+                    limitedExec.set((UnaryExec) p);
                 }
             }
         });
+
+        if (limitedExec.get() != null) {
+            failures.add(
+                fail(limit.get(), "LIMIT or TOP cannot be used in a subquery if outer query contains GROUP BY, ORDER BY, PIVOT or WHERE")
+            );
+        }
     }
 }

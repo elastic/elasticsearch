@@ -22,7 +22,7 @@ buildScan {
     String buildUrl = System.getenv('BUILD_URL')
     String jobName = System.getenv('JOB_NAME')
     String nodeName = System.getenv('NODE_NAME')
-    String jobBranch = System.getenv('JOB_BRANCH')
+    String jobBranch = System.getenv('ghprbTargetBranch') ?: System.getenv('JOB_BRANCH')
 
     tag OS.current().name()
     tag Architecture.current().name()

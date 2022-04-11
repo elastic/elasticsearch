@@ -318,24 +318,15 @@ public class TimeValue implements Comparable<TimeValue> {
         if (duration < 0) {
             return Long.toString(duration);
         }
-        switch (timeUnit) {
-            case NANOSECONDS:
-                return duration + "nanos";
-            case MICROSECONDS:
-                return duration + "micros";
-            case MILLISECONDS:
-                return duration + "ms";
-            case SECONDS:
-                return duration + "s";
-            case MINUTES:
-                return duration + "m";
-            case HOURS:
-                return duration + "h";
-            case DAYS:
-                return duration + "d";
-            default:
-                throw new IllegalArgumentException("unknown time unit: " + timeUnit.name());
-        }
+        return switch (timeUnit) {
+            case NANOSECONDS -> duration + "nanos";
+            case MICROSECONDS -> duration + "micros";
+            case MILLISECONDS -> duration + "ms";
+            case SECONDS -> duration + "s";
+            case MINUTES -> duration + "m";
+            case HOURS -> duration + "h";
+            case DAYS -> duration + "d";
+        };
     }
 
     public static TimeValue parseTimeValue(String sValue, String settingName) {
@@ -371,8 +362,9 @@ public class TimeValue implements Comparable<TimeValue> {
             return TimeValue.ZERO;
         } else {
             // Missing units:
-            throw new IllegalArgumentException("failed to parse setting [" + settingName + "] with value [" + sValue +
-                    "] as a time value: unit is missing or unrecognized");
+            throw new IllegalArgumentException(
+                "failed to parse setting [" + settingName + "] with value [" + sValue + "] as a time value: unit is missing or unrecognized"
+            );
         }
     }
 
@@ -382,13 +374,19 @@ public class TimeValue implements Comparable<TimeValue> {
             final long value = Long.parseLong(s);
             if (value < -1) {
                 // -1 is magic, but reject any other negative values
-                throw new IllegalArgumentException("failed to parse setting [" + settingName + "] with value [" + initialInput +
-                    "] as a time value: negative durations are not supported");
+                throw new IllegalArgumentException(
+                    "failed to parse setting ["
+                        + settingName
+                        + "] with value ["
+                        + initialInput
+                        + "] as a time value: negative durations are not supported"
+                );
             }
             return value;
         } catch (final NumberFormatException e) {
             try {
-                @SuppressWarnings("unused") final double ignored = Double.parseDouble(s);
+                @SuppressWarnings("unused")
+                final double ignored = Double.parseDouble(s);
                 throw new IllegalArgumentException("failed to parse [" + initialInput + "], fractional time values are not supported", e);
             } catch (final NumberFormatException ignored) {
                 throw new IllegalArgumentException("failed to parse [" + initialInput + "]", e);

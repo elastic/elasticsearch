@@ -2,7 +2,7 @@
 [[ml-configuring-detector-custom-rules]]
 = Customizing detectors with custom rules
 
-<<ml-rules,Custom rules>> – or _job rules_ as {kib} refers to them – enable you 
+<<ml-ad-rules,Custom rules>> – or _job rules_ as {kib} refers to them – enable you 
 to change the behavior of anomaly detectors based on domain-specific knowledge.
 
 Custom rules describe _when_ a detector should take a certain _action_ instead

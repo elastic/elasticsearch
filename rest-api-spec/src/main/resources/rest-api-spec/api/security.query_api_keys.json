@@ -1,0 +1,30 @@
+{
+  "security.query_api_keys":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-query-api-key.html",
+      "description":"Retrieves information for API keys using a subset of query DSL"
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_security/_query/api_key",
+          "methods":[
+            "GET",
+            "POST"
+          ]
+        }
+      ]
+    },
+    "params":{},
+    "body":{
+      "description":"From, size, query, sort and search_after",
+      "required":false
+    }
+  }
+}

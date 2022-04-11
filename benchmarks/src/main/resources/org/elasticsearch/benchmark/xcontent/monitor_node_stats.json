@@ -1,0 +1,164 @@
+{
+  "cluster_uuid" : "R0aKM8oRQs2Wq_x9y1O0Uw",
+  "timestamp" : "2099-10-25T00:00:03.928Z",
+  "interval_ms" : 10000,
+  "type" : "node_stats",
+  "source_node" : {
+    "uuid" : "-rpuVf04QC63wzXSDyYN9Q",
+    "host" : "192.168.1.71",
+    "transport_address" : "192.168.1.71:9300",
+    "ip" : "192.168.1.71",
+    "name" : "es-cn-fakecluster-e2cd88de-0005",
+    "timestamp" : "2099-10-25T00:00:03.928Z"
+  },
+  "node_stats" : {
+    "node_id" : "-rpuVf04QC63wzXSDyYN9Q",
+    "node_master" : false,
+    "mlockall" : true,
+    "indices" : {
+      "docs" : {
+        "count" : 1601638497
+      },
+      "store" : {
+        "size_in_bytes" : 825525999280
+      },
+      "indexing" : {
+        "index_total" : 568882489,
+        "index_time_in_millis" : 190718592,
+        "throttle_time_in_millis" : 0
+      },
+      "search" : {
+        "query_total" : 18768648,
+        "query_time_in_millis" : 224176750
+      },
+      "query_cache" : {
+        "memory_size_in_bytes" : 439466295,
+        "hit_count" : 886543,
+        "miss_count" : 32574883,
+        "evictions" : 139905
+      },
+      "fielddata" : {
+        "memory_size_in_bytes" : 9852040,
+        "evictions" : 0
+      },
+      "segments" : {
+        "count" : 2208,
+        "memory_in_bytes" : 1063901884,
+        "terms_memory_in_bytes" : 75511488,
+        "stored_fields_memory_in_bytes" : 1255392,
+        "term_vectors_memory_in_bytes" : 0,
+        "norms_memory_in_bytes" : 1920,
+        "points_memory_in_bytes" : 0,
+        "doc_values_memory_in_bytes" : 987133084,
+        "index_writer_memory_in_bytes" : 0,
+        "version_map_memory_in_bytes" : 0,
+        "fixed_bit_set_memory_in_bytes" : 281160
+      },
+      "request_cache" : {
+        "memory_size_in_bytes" : 97274144,
+        "evictions" : 35,
+        "hit_count" : 363048,
+        "miss_count" : 1275225
+      }
+    },
+    "os" : {
+      "cpu" : {
+        "load_average" : {
+          "1m" : 6.99,
+          "5m" : 6.85,
+          "15m" : 5.66
+        }
+      },
+      "cgroup" : {
+        "cpuacct" : {
+          "control_group" : "/",
+          "usage_nanos" : 22974830064116401
+        },
+        "cpu" : {
+          "control_group" : "/",
+          "cfs_period_micros" : 100000,
+          "cfs_quota_micros" : -1,
+          "stat" : {
+            "number_of_elapsed_periods" : 0,
+            "number_of_times_throttled" : 0,
+            "time_throttled_nanos" : 0
+          }
+        },
+        "memory" : {
+          "control_group" : "/",
+          "limit_in_bytes" : "65538097152",
+          "usage_in_bytes" : "60854362112"
+        }
+      }
+    },
+    "process" : {
+      "open_file_descriptors" : 1640,
+      "max_file_descriptors" : 165536,
+      "cpu" : {
+        "percent" : 50
+      }
+    },
+    "jvm" : {
+      "mem" : {
+        "heap_used_in_bytes" : 12648745064,
+        "heap_used_percent" : 39,
+        "heap_max_in_bytes" : 31950897152
+      },
+      "gc" : {
+        "collectors" : {
+          "young" : {
+            "collection_count" : 58825,
+            "collection_time_in_millis" : 4306254
+          },
+          "old" : {
+            "collection_count" : 170,
+            "collection_time_in_millis" : 26518
+          }
+        }
+      }
+    },
+    "thread_pool" : {
+      "generic" : {
+        "threads" : 41,
+        "queue" : 0,
+        "rejected" : 0
+      },
+      "get" : {
+        "threads" : 16,
+        "queue" : 0,
+        "rejected" : 0
+      },
+      "management" : {
+        "threads" : 5,
+        "queue" : 0,
+        "rejected" : 0
+      },
+      "search" : {
+        "threads" : 25,
+        "queue" : 0,
+        "rejected" : 0
+      },
+      "write" : {
+        "threads" : 16,
+        "queue" : 0,
+        "rejected" : 0
+      }
+    },
+    "fs" : {
+      "total" : {
+        "total_in_bytes" : 2164374028288,
+        "free_in_bytes" : 1337790623744,
+        "available_in_bytes" : 1227822686208
+      },
+      "io_stats" : {
+        "total" : {
+          "operations" : 321851807,
+          "read_operations" : 70958647,
+          "write_operations" : 250893160,
+          "read_kilobytes" : 1506868396,
+          "write_kilobytes" : 14564501444
+        }
+      }
+    }
+  }
+}

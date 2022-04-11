@@ -44,14 +44,10 @@ public abstract class BinaryDateTimeFunction extends BinaryScalarFunction {
     @Override
     protected ScriptTemplate asScriptFrom(ScriptTemplate leftScript, ScriptTemplate rightScript) {
         return new ScriptTemplate(
-            formatTemplate("{sql}." + scriptMethodName() +
-                "(" + leftScript.template() + "," + rightScript.template()+ ",{})"),
-            paramsBuilder()
-                .script(leftScript.params())
-                .script(rightScript.params())
-                .variable(zoneId.getId())
-                .build(),
-            dataType());
+            formatTemplate("{sql}." + scriptMethodName() + "(" + leftScript.template() + "," + rightScript.template() + ",{})"),
+            paramsBuilder().script(leftScript.params()).script(rightScript.params()).variable(zoneId.getId()).build(),
+            dataType()
+        );
     }
 
     @Override

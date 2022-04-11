@@ -13,3 +13,8 @@ cat_test_role:
     - names: [ "index_allowed" ]
       privileges: [ "read", "write", "monitor" ]
 
+dls_painless_role:
+  indices:
+    - names: [ "dls-template-painless-index" ]
+      privileges: ["read"]
+      query: {"template":{"id":"range-now"}}

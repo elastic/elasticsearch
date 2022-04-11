@@ -36,8 +36,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.Matchers.any;
-import static org.mockito.Matchers.anyString;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -60,8 +60,7 @@ public class TransportPutSamlServiceProviderActionTests extends ESTestCase {
 
         now = Instant.ofEpochMilli(System.currentTimeMillis() + randomLongBetween(-500_000, 500_000));
         final Clock clock = Clock.fixed(now, randomZone());
-        action = new TransportPutSamlServiceProviderAction(
-            mock(TransportService.class), mock(ActionFilters.class), index, idp, clock);
+        action = new TransportPutSamlServiceProviderAction(mock(TransportService.class), mock(ActionFilters.class), index, idp, clock);
     }
 
     public void testRegisterNewServiceProvider() throws Exception {
@@ -140,7 +139,12 @@ public class TransportPutSamlServiceProviderActionTests extends ESTestCase {
 
             final DocWriteResponse docWriteResponse = new IndexResponse(
                 new ShardId(randomAlphaOfLengthBetween(4, 12), randomAlphaOfLength(24), randomIntBetween(1, 10)),
-                doc.docId, randomLong(), randomLong(), randomLong(), created);
+                doc.docId,
+                randomLong(),
+                randomLong(),
+                randomLong(),
+                created
+            );
             writeResponse.set(docWriteResponse);
 
             @SuppressWarnings("unchecked")
@@ -148,17 +152,25 @@ public class TransportPutSamlServiceProviderActionTests extends ESTestCase {
             listener.onResponse(docWriteResponse);
 
             return null;
-        }).when(index).writeDocument(any(SamlServiceProviderDocument.class), any(DocWriteRequest.OpType.class),
-            any(WriteRequest.RefreshPolicy.class), any());
+        }).when(index)
+            .writeDocument(
+                any(SamlServiceProviderDocument.class),
+                any(DocWriteRequest.OpType.class),
+                any(WriteRequest.RefreshPolicy.class),
+                any()
+            );
 
         return writeResponse;
     }
 
     public void mockExistingDocuments(String expectedEntityId, Set<SamlServiceProviderDocument> documents) {
         final Set<SamlServiceProviderIndex.DocumentSupplier> documentSuppliers = documents.stream()
-            .map(doc -> new SamlServiceProviderIndex.DocumentSupplier(
-                new DocumentVersion(randomAlphaOfLength(24), randomLong(), randomLong()),
-                () -> doc))
+            .map(
+                doc -> new SamlServiceProviderIndex.DocumentSupplier(
+                    new DocumentVersion(randomAlphaOfLength(24), randomLong(), randomLong()),
+                    () -> doc
+                )
+            )
             .collect(Collectors.toUnmodifiableSet());
         doAnswer(inv -> {
             final Object[] args = inv.getArguments();

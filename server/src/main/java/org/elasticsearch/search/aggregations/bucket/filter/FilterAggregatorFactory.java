@@ -28,8 +28,14 @@ public class FilterAggregatorFactory extends AggregatorFactory {
     private final Query filter;
     private Weight weight;
 
-    public FilterAggregatorFactory(String name, QueryBuilder filterBuilder, AggregationContext context,
-            AggregatorFactory parent, AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metadata) throws IOException {
+    public FilterAggregatorFactory(
+        String name,
+        QueryBuilder filterBuilder,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, context, parent, subFactoriesBuilder, metadata);
         filter = context.buildQuery(filterBuilder);
     }

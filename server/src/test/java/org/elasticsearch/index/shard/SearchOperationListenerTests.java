@@ -38,8 +38,8 @@ public class SearchOperationListenerTests extends ESTestCase {
         AtomicInteger failedFetch = new AtomicInteger();
         AtomicInteger newContext = new AtomicInteger();
         AtomicInteger freeContext = new AtomicInteger();
-        AtomicInteger newScrollContext =  new AtomicInteger();
-        AtomicInteger freeScrollContext =  new AtomicInteger();
+        AtomicInteger newScrollContext = new AtomicInteger();
+        AtomicInteger freeScrollContext = new AtomicInteger();
         AtomicInteger validateSearchContext = new AtomicInteger();
         AtomicInteger timeInNanos = new AtomicInteger(randomIntBetween(0, 10));
         SearchOperationListener listener = new SearchOperationListener() {
@@ -114,8 +114,9 @@ public class SearchOperationListenerTests extends ESTestCase {
 
         SearchOperationListener throwingListener = (SearchOperationListener) Proxy.newProxyInstance(
             SearchOperationListener.class.getClassLoader(),
-            new Class[]{SearchOperationListener.class},
-            (a,b,c) -> { throw new RuntimeException();});
+            new Class<?>[] { SearchOperationListener.class },
+            (a, b, c) -> { throw new RuntimeException(); }
+        );
         int throwingListeners = 0;
         final List<SearchOperationListener> indexingOperationListeners = new ArrayList<>(Arrays.asList(listener, listener));
         if (randomBoolean()) {
@@ -127,8 +128,10 @@ public class SearchOperationListenerTests extends ESTestCase {
             }
         }
         Collections.shuffle(indexingOperationListeners, random());
-        SearchOperationListener.CompositeListener compositeListener =
-            new SearchOperationListener.CompositeListener(indexingOperationListeners, logger);
+        SearchOperationListener.CompositeListener compositeListener = new SearchOperationListener.CompositeListener(
+            indexingOperationListeners,
+            logger
+        );
         SearchContext ctx = new TestSearchContext((SearchExecutionContext) null);
         compositeListener.onQueryPhase(ctx, timeInNanos.get());
         assertEquals(0, preFetch.get());
@@ -263,8 +266,10 @@ public class SearchOperationListenerTests extends ESTestCase {
         if (throwingListeners == 0) {
             compositeListener.validateReaderContext(mock(ReaderContext.class), Empty.INSTANCE);
         } else {
-            RuntimeException expected = expectThrows(RuntimeException.class,
-                () -> compositeListener.validateReaderContext(mock(ReaderContext.class), Empty.INSTANCE));
+            RuntimeException expected = expectThrows(
+                RuntimeException.class,
+                () -> compositeListener.validateReaderContext(mock(ReaderContext.class), Empty.INSTANCE)
+            );
             assertNull(expected.getMessage());
             assertEquals(throwingListeners - 1, expected.getSuppressed().length);
             if (throwingListeners > 1) {

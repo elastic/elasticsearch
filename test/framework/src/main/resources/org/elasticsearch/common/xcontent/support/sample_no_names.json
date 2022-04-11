@@ -1,0 +1,58 @@
+{
+  "title" : "My awesome book",
+  "pages" : 456,
+  "price" : 27.99,
+  "timestamp" : 1428582942867,
+  "default" : null,
+  "tags" : [
+    "elasticsearch",
+    "java"
+  ],
+  "authors" : [
+    {
+      "lastname" : "John",
+      "firstname" : "Doe"
+    },
+    {
+      "lastname" : "William",
+      "firstname" : "Smith"
+    }
+  ],
+  "properties" : {
+    "weight" : 0.8,
+    "language" : {
+      "en" : {
+        "lang" : "English",
+        "available" : true,
+        "distributors" : [
+          {
+            "addresses" : [
+              {
+                "street" : "Hampton St",
+                "city" : "London"
+              },
+              {
+                "street" : "Queen St",
+                "city" : "Stornoway"
+              }
+            ]
+          }
+        ]
+      },
+      "fr" : {
+        "lang" : "French",
+        "available" : false,
+        "distributors" : [
+          {
+            "addresses" : [
+              {
+                "street" : "Rue Mouffetard",
+                "city" : "Paris"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  }
+}

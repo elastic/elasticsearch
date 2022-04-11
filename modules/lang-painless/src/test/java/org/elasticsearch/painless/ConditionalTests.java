@@ -45,50 +45,54 @@ public class ConditionalTests extends ScriptTestCase {
 
     public void testAssignment() {
         assertEquals(4D, exec("boolean x = false; double z = x ? 2 : 4.0F; return z;"));
-        assertEquals((byte)7, exec("boolean x = false; int y = 2; byte z = x ? (byte)y : 7; return z;"));
-        assertEquals((byte)7, exec("boolean x = false; int y = 2; byte z = (byte)(x ? y : 7); return z;"));
+        assertEquals((byte) 7, exec("boolean x = false; int y = 2; byte z = x ? (byte)y : 7; return z;"));
+        assertEquals((byte) 7, exec("boolean x = false; int y = 2; byte z = (byte)(x ? y : 7); return z;"));
         assertEquals(ArrayList.class, exec("boolean x = false; Object z = x ? new HashMap() : new ArrayList(); return z;").getClass());
     }
 
     public void testNullArguments() {
         assertEquals(null, exec("boolean b = false, c = true; Object x; Map y; return b && c ? x : y;"));
-        assertEquals(HashMap.class,
-                exec("boolean b = false, c = true; Object x; Map y = new HashMap(); return b && c ? x : y;").getClass());
+        assertEquals(
+            HashMap.class,
+            exec("boolean b = false, c = true; Object x; Map y = new HashMap(); return b && c ? x : y;").getClass()
+        );
     }
 
     public void testPromotion() {
         assertEquals(false, exec("boolean x = false; boolean y = true; return (x ? 2 : 4.0F) == (y ? 2 : 4.0F);"));
-        assertEquals(false, exec("boolean x = false; boolean y = true; " +
-            "return (x ? new HashMap() : new ArrayList()) == (y ? new HashMap() : new ArrayList());"));
+        assertEquals(
+            false,
+            exec(
+                "boolean x = false; boolean y = true; "
+                    + "return (x ? new HashMap() : new ArrayList()) == (y ? new HashMap() : new ArrayList());"
+            )
+        );
     }
 
     public void testIncompatibleAssignment() {
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("boolean x = false; byte z = x ? 2 : 4.0F; return z;");
-        });
+        expectScriptThrows(ClassCastException.class, () -> { exec("boolean x = false; byte z = x ? 2 : 4.0F; return z;"); });
 
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("boolean x = false; Map z = x ? 4 : (byte)7; return z;");
-        });
+        expectScriptThrows(ClassCastException.class, () -> { exec("boolean x = false; Map z = x ? 4 : (byte)7; return z;"); });
 
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("boolean x = false; Map z = x ? new HashMap() : new ArrayList(); return z;");
-        });
+        expectScriptThrows(
+            ClassCastException.class,
+            () -> { exec("boolean x = false; Map z = x ? new HashMap() : new ArrayList(); return z;"); }
+        );
 
-        expectScriptThrows(ClassCastException.class, () -> {
-            exec("boolean x = false; int y = 2; byte z = x ? y : 7; return z;");
-        });
+        expectScriptThrows(ClassCastException.class, () -> { exec("boolean x = false; int y = 2; byte z = x ? y : 7; return z;"); });
     }
 
     public void testNested() {
         for (int i = 0; i < 100; i++) {
             String scriptPart = IntStream.range(0, i).mapToObj(j -> "field == '" + j + "' ? '" + j + "' :").collect(joining("\n"));
-            assertEquals("z", exec("def field = params.a;\n" +
-                "\n" +
-                "return (\n" +
-                scriptPart +
-                "field == '' ? 'unknown' :\n" +
-                "field);", Map.of("a", "z"), true));
+            assertEquals(
+                "z",
+                exec(
+                    "def field = params.a;\n" + "\n" + "return (\n" + scriptPart + "field == '' ? 'unknown' :\n" + "field);",
+                    Map.of("a", "z"),
+                    true
+                )
+            );
         }
     }
 }

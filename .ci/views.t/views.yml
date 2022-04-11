@@ -2,3 +2,7 @@
     name: "Elasticsearch %BRANCH%"
     view-type: list
     regex: '^elastic[-+]elasticsearch\+%BRANCH%\+((?!multijob).)*$'
+- view:
+    name: "Elasticsearch Pull Requests"
+    view-type: list
+    regex: '^elastic[-+]elasticsearch\+pull[-+]request\+.*$'

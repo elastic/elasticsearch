@@ -11,6 +11,7 @@ package org.elasticsearch.common.blobstore.url.http;
 import org.apache.log4j.LogManager;
 import org.apache.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.rest.RestStatus;
 
@@ -23,7 +24,6 @@ import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -147,13 +147,29 @@ class RetryingHttpInputStream extends InputStream {
 
     private void maybeThrow(IOException e) throws IOException {
         if (retryCount >= maxRetries || e instanceof NoSuchFileException) {
-            logger.debug(new ParameterizedMessage("failed reading [{}] at offset [{}], retry [{}] of [{}], giving up",
-                blobURI, start + totalBytesRead, retryCount, maxRetries), e);
+            logger.debug(
+                new ParameterizedMessage(
+                    "failed reading [{}] at offset [{}], retry [{}] of [{}], giving up",
+                    blobURI,
+                    start + totalBytesRead,
+                    retryCount,
+                    maxRetries
+                ),
+                e
+            );
             throw addSuppressedFailures(e);
         }
 
-        logger.debug(new ParameterizedMessage("failed reading [{}] at offset [{}], retry [{}] of [{}], retrying",
-            blobURI, start + totalBytesRead, retryCount, maxRetries), e);
+        logger.debug(
+            new ParameterizedMessage(
+                "failed reading [{}] at offset [{}], retry [{}] of [{}], retrying",
+                blobURI,
+                start + totalBytesRead,
+                retryCount,
+                maxRetries
+            ),
+            e
+        );
 
         retryCount += 1;
         accumulateFailure(e);
@@ -203,7 +219,7 @@ class RetryingHttpInputStream extends InputStream {
     private HttpResponseInputStream openInputStream() throws IOException {
         try {
             return AccessController.doPrivileged((PrivilegedExceptionAction<HttpResponseInputStream>) () -> {
-                final Map<String, String> headers = new HashMap<>(1);
+                final Map<String, String> headers = Maps.newMapWithExpectedSize(1);
 
                 if (isRangeRead()) {
                     headers.put("Range", getBytesRange(Math.addExact(start, totalBytesRead), end));
@@ -216,8 +232,11 @@ class RetryingHttpInputStream extends InputStream {
                     if (statusCode != RestStatus.OK.getStatus() && statusCode != RestStatus.PARTIAL_CONTENT.getStatus()) {
                         String body = response.getBodyAsString(MAX_ERROR_MESSAGE_BODY_SIZE);
                         IOUtils.closeWhileHandlingException(response);
-                        throw new IOException(getErrorMessage("The server returned an invalid response:" +
-                            " Status code: [" + statusCode + "] - Body: " + body));
+                        throw new IOException(
+                            getErrorMessage(
+                                "The server returned an invalid response:" + " Status code: [" + statusCode + "] - Body: " + body
+                            )
+                        );
                     }
 
                     currentStreamLastOffset = Math.addExact(Math.addExact(start, totalBytesRead), getStreamLength(response));
@@ -233,8 +252,8 @@ class RetryingHttpInputStream extends InputStream {
             });
         } catch (PrivilegedActionException e) {
             final Throwable cause = e.getCause();
-            if (cause instanceof IOException) {
-                throw (IOException) cause;
+            if (cause instanceof IOException ioException) {
+                throw ioException;
             }
             throw new IOException(getErrorMessage(), e);
         } catch (Exception e) {
@@ -258,9 +277,13 @@ class RetryingHttpInputStream extends InputStream {
 
                 assert upperBound >= lowerBound : "Incorrect Content-Range: lower bound > upper bound " + lowerBound + "-" + upperBound;
                 assert lowerBound == start + totalBytesRead : "Incorrect Content-Range: lower bound != specified lower bound";
-                assert upperBound == end || upperBound <= MAX_RANGE_VAL :
-                    "Incorrect Content-Range: the returned upper bound is incorrect, expected [" + end + "] " +
-                    "got [" + upperBound + "]";
+                assert upperBound == end || upperBound <= MAX_RANGE_VAL
+                    : "Incorrect Content-Range: the returned upper bound is incorrect, expected ["
+                        + end
+                        + "] "
+                        + "got ["
+                        + upperBound
+                        + "]";
 
                 return upperBound - lowerBound + 1;
             }

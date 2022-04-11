@@ -156,18 +156,18 @@ public class EqualsTests extends ScriptTestCase {
          * we can never be sure that the JVM hasn't configured itself to cache that Integer. It is sneaky like that. */
         int uncachedAutoboxedInt = randomValueOtherThanMany(i -> Integer.valueOf(i) == Integer.valueOf(i), ESTestCase::randomInt);
         assertEquals(false, exec("def x = params.i; int y = params.i; return x != y;", singletonMap("i", uncachedAutoboxedInt), true));
-        assertEquals(true,  exec("def x = params.i; int y = params.i; return x !== y;", singletonMap("i", uncachedAutoboxedInt), true));
+        assertEquals(true, exec("def x = params.i; int y = params.i; return x !== y;", singletonMap("i", uncachedAutoboxedInt), true));
         assertEquals(false, exec("def x = params.i; int y = params.i; return y != x;", singletonMap("i", uncachedAutoboxedInt), true));
-        assertEquals(true,  exec("def x = params.i; int y = params.i; return y !== x;", singletonMap("i", uncachedAutoboxedInt), true));
+        assertEquals(true, exec("def x = params.i; int y = params.i; return y !== x;", singletonMap("i", uncachedAutoboxedInt), true));
 
         /* Now check that we use valueOf with the boxing used for comparing primitives to def. For this we need an
          * integer that is cached by Integer.valueOf. The JLS says 0 should always be cached. */
         int cachedAutoboxedInt = 0;
         assertSame(Integer.valueOf(cachedAutoboxedInt), Integer.valueOf(cachedAutoboxedInt));
         assertEquals(false, exec("def x = params.i; int y = params.i; return x != y;", singletonMap("i", cachedAutoboxedInt), true));
-        assertEquals(false,  exec("def x = params.i; int y = params.i; return x !== y;", singletonMap("i", cachedAutoboxedInt), true));
+        assertEquals(false, exec("def x = params.i; int y = params.i; return x !== y;", singletonMap("i", cachedAutoboxedInt), true));
         assertEquals(false, exec("def x = params.i; int y = params.i; return y != x;", singletonMap("i", cachedAutoboxedInt), true));
-        assertEquals(false,  exec("def x = params.i; int y = params.i; return y !== x;", singletonMap("i", cachedAutoboxedInt), true));
+        assertEquals(false, exec("def x = params.i; int y = params.i; return y !== x;", singletonMap("i", cachedAutoboxedInt), true));
     }
 
     public void testRightHandNull() {

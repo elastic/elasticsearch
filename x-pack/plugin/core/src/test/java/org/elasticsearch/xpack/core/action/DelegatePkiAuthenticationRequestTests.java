@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.core.action;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractXContentTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.security.action.DelegatePkiAuthenticationRequest;
 
 import java.io.IOException;
@@ -79,8 +79,12 @@ public class DelegatePkiAuthenticationRequestTests extends AbstractXContentTestC
     private List<X509Certificate> randomCertificateList() {
         List<X509Certificate> certificates = Arrays.asList(randomArray(1, 3, X509Certificate[]::new, () -> {
             try {
-                return readCert(getDataPath("/org/elasticsearch/xpack/security/transport/ssl/certs/simple/"
-                        + randomFrom("testclient.crt", "testnode.crt", "testnode-ip-only.crt", "openldap.crt", "samba4.crt")));
+                return readCert(
+                    getDataPath(
+                        "/org/elasticsearch/xpack/security/transport/ssl/certs/simple/"
+                            + randomFrom("testclient.crt", "testnode.crt", "testnode-ip-only.crt", "openldap.crt", "samba4.crt")
+                    )
+                );
             } catch (Exception e) {
                 throw new RuntimeException(e);
             }

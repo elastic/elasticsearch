@@ -28,8 +28,15 @@ import static org.elasticsearch.xpack.analytics.ttest.TTestAggregationBuilder.B_
 public class PairedTTestAggregator extends TTestAggregator<PairedTTestState> {
     private TTestStatsBuilder statsBuilder;
 
-    PairedTTestAggregator(String name, MultiValuesSource.NumericMultiValuesSource valuesSources, int tails, DocValueFormat format,
-                          AggregationContext context, Aggregator parent, Map<String, Object> metadata) throws IOException {
+    PairedTTestAggregator(
+        String name,
+        MultiValuesSource.NumericMultiValuesSource valuesSources,
+        int tails,
+        DocValueFormat format,
+        AggregationContext context,
+        Aggregator parent,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, valuesSources, tails, format, context, parent, metadata);
         statsBuilder = new TTestStatsBuilder(bigArrays());
     }
@@ -50,8 +57,7 @@ public class PairedTTestAggregator extends TTestAggregator<PairedTTestState> {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-                                                final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         if (valuesSources == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
@@ -65,8 +71,10 @@ public class PairedTTestAggregator extends TTestAggregator<PairedTTestState> {
             public void collect(int doc, long bucket) throws IOException {
                 if (docAValues.advanceExact(doc) && docBValues.advanceExact(doc)) {
                     if (docAValues.docValueCount() > 1 || docBValues.docValueCount() > 1) {
-                        throw new AggregationExecutionException("Encountered more than one value for a " +
-                            "single document. Use a script to combine multiple values per doc into a single value.");
+                        throw new AggregationExecutionException(
+                            "Encountered more than one value for a "
+                                + "single document. Use a script to combine multiple values per doc into a single value."
+                        );
                     }
                     statsBuilder.grow(bigArrays(), bucket + 1);
                     // There should always be one value if advanceExact lands us here, either

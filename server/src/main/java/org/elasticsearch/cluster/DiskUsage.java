@@ -13,8 +13,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -97,7 +97,7 @@ public class DiskUsage implements ToXContentFragment, Writeable {
         if (totalBytes == 0) {
             return 100.0;
         }
-        return 100.0 * ((double)freeBytes / totalBytes);
+        return 100.0 * ((double) freeBytes / totalBytes);
     }
 
     public double getUsedDiskAsPercentage() {
@@ -122,10 +122,10 @@ public class DiskUsage implements ToXContentFragment, Writeable {
         if (o == null || getClass() != o.getClass()) return false;
 
         DiskUsage other = (DiskUsage) o;
-        return Objects.equals(nodeId, other.nodeId) &&
-                Objects.equals(nodeName, other.nodeName) &&
-                Objects.equals(totalBytes, other.totalBytes) &&
-                Objects.equals(freeBytes, other.freeBytes);
+        return Objects.equals(nodeId, other.nodeId)
+            && Objects.equals(nodeName, other.nodeName)
+            && Objects.equals(totalBytes, other.totalBytes)
+            && Objects.equals(freeBytes, other.freeBytes);
 
     }
 
@@ -136,7 +136,16 @@ public class DiskUsage implements ToXContentFragment, Writeable {
 
     @Override
     public String toString() {
-        return "[" + nodeId + "][" + nodeName + "][" + path + "] free: " + new ByteSizeValue(getFreeBytes()) +
-                "[" + Strings.format1Decimals(getFreeDiskAsPercentage(), "%") + "]";
+        return "["
+            + nodeId
+            + "]["
+            + nodeName
+            + "]["
+            + path
+            + "] free: "
+            + new ByteSizeValue(getFreeBytes())
+            + "["
+            + Strings.format1Decimals(getFreeDiskAsPercentage(), "%")
+            + "]";
     }
 }

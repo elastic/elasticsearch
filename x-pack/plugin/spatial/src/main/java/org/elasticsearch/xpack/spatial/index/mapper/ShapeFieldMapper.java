@@ -9,21 +9,20 @@ package org.elasticsearch.xpack.spatial.index.mapper;
 import org.apache.lucene.document.XYShape;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Explicit;
+import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.common.geo.GeometryParser;
-import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.Orientation;
+import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.mapper.AbstractShapeGeometryFieldMapper;
-import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
-import org.elasticsearch.index.mapper.GeoShapeParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.xpack.spatial.common.CartesianFormatterFactory;
 import org.elasticsearch.xpack.spatial.index.query.ShapeQueryProcessor;
 
 import java.io.IOException;
@@ -54,7 +53,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(GeoShapeFieldMapper.class);
 
     private static Builder builder(FieldMapper in) {
-        return ((ShapeFieldMapper)in).builder;
+        return ((ShapeFieldMapper) in).builder;
     }
 
     public static class Builder extends FieldMapper.Builder {
@@ -80,35 +79,40 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
         }
 
         @Override
-        public ShapeFieldMapper build(ContentPath contentPath) {
+        public ShapeFieldMapper build(MapperBuilderContext context) {
             if (multiFieldsBuilder.hasMultiFields()) {
-                DEPRECATION_LOGGER.deprecate(
+                DEPRECATION_LOGGER.warn(
                     DeprecationCategory.MAPPINGS,
                     "shape_multifields",
                     "Adding multifields to [shape] mappers has no effect and will be forbidden in future"
                 );
             }
-            GeometryParser geometryParser
-                = new GeometryParser(orientation.get().value().getAsBoolean(), coerce.get().value(), ignoreZValue.get().value());
-            Parser<Geometry> parser = new GeoShapeParser(geometryParser);
-            ShapeFieldType ft
-                = new ShapeFieldType(buildFullName(contentPath), indexed.get(), orientation.get().value(), parser, meta.get());
-            return new ShapeFieldMapper(name, ft,
-                multiFieldsBuilder.build(this, contentPath), copyTo.build(), parser, this);
+            GeometryParser geometryParser = new GeometryParser(
+                orientation.get().value().getAsBoolean(),
+                coerce.get().value(),
+                ignoreZValue.get().value()
+            );
+            Parser<Geometry> parser = new ShapeParser(geometryParser);
+            ShapeFieldType ft = new ShapeFieldType(
+                context.buildFullName(name),
+                indexed.get(),
+                orientation.get().value(),
+                parser,
+                meta.get()
+            );
+            return new ShapeFieldMapper(name, ft, multiFieldsBuilder.build(this, context), copyTo.build(), parser, this);
         }
     }
 
-    public static TypeParser PARSER = new TypeParser((n, c) -> new Builder(n,
-        IGNORE_MALFORMED_SETTING.get(c.getSettings()),
-        COERCE_SETTING.get(c.getSettings())));
+    public static TypeParser PARSER = new TypeParser(
+        (n, c) -> new Builder(n, IGNORE_MALFORMED_SETTING.get(c.getSettings()), COERCE_SETTING.get(c.getSettings()))
+    );
 
-    public static final class ShapeFieldType extends AbstractShapeGeometryFieldType<Geometry>
-        implements ShapeQueryable {
+    public static final class ShapeFieldType extends AbstractShapeGeometryFieldType<Geometry> implements ShapeQueryable {
 
         private final ShapeQueryProcessor queryProcessor;
 
-        public ShapeFieldType(String name, boolean indexed, Orientation orientation,
-                              Parser<Geometry> parser, Map<String, String> meta) {
+        public ShapeFieldType(String name, boolean indexed, Orientation orientation, Parser<Geometry> parser, Map<String, String> meta) {
             super(name, indexed, false, false, parser, orientation, meta);
             this.queryProcessor = new ShapeQueryProcessor();
         }
@@ -124,26 +128,39 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
         }
 
         @Override
-        protected Function<Geometry, Object> getFormatter(String format) {
-            return CartesianFormatterFactory.getFormatter(format);
+        protected Function<List<Geometry>, List<Object>> getFormatter(String format) {
+            return GeometryFormatterFactory.getFormatter(format, Function.identity());
         }
     }
 
     private final Builder builder;
     private final ShapeIndexer indexer;
 
-    public ShapeFieldMapper(String simpleName, MappedFieldType mappedFieldType,
-                            MultiFields multiFields, CopyTo copyTo,
-                            Parser<Geometry> parser, Builder builder) {
-        super(simpleName, mappedFieldType, builder.ignoreMalformed.get(),
-            builder.coerce.get(), builder.ignoreZValue.get(), builder.orientation.get(),
-            multiFields, copyTo, parser);
+    public ShapeFieldMapper(
+        String simpleName,
+        MappedFieldType mappedFieldType,
+        MultiFields multiFields,
+        CopyTo copyTo,
+        Parser<Geometry> parser,
+        Builder builder
+    ) {
+        super(
+            simpleName,
+            mappedFieldType,
+            builder.ignoreMalformed.get(),
+            builder.coerce.get(),
+            builder.ignoreZValue.get(),
+            builder.orientation.get(),
+            multiFields,
+            copyTo,
+            parser
+        );
         this.builder = builder;
         this.indexer = new ShapeIndexer(mappedFieldType.name());
     }
 
     @Override
-    protected void index(ParseContext context, Geometry geometry) throws IOException {
+    protected void index(DocumentParserContext context, Geometry geometry) throws IOException {
         if (geometry == null) {
             return;
         }
@@ -158,8 +175,9 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), builder.ignoreMalformed.getDefaultValue().value(), builder.coerce.getDefaultValue().value())
-            .init(this);
+        return new Builder(simpleName(), builder.ignoreMalformed.getDefaultValue().value(), builder.coerce.getDefaultValue().value()).init(
+            this
+        );
     }
 
     @Override

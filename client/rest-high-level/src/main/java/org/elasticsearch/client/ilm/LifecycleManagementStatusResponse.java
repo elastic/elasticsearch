@@ -8,9 +8,9 @@
 
 package org.elasticsearch.client.ilm;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.Objects;
 
@@ -23,13 +23,16 @@ public class LifecycleManagementStatusResponse {
     private static final String OPERATION_MODE = "operation_mode";
     @SuppressWarnings("unchecked")
     private static final ConstructingObjectParser<LifecycleManagementStatusResponse, Void> PARSER = new ConstructingObjectParser<>(
-        OPERATION_MODE, true, a -> new LifecycleManagementStatusResponse((String) a[0]));
+        OPERATION_MODE,
+        true,
+        a -> new LifecycleManagementStatusResponse((String) a[0])
+    );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), new ParseField(OPERATION_MODE));
     }
 
-    //package private for testing
+    // package private for testing
     LifecycleManagementStatusResponse(String operationMode) {
         this.operationMode = OperationMode.fromString(operationMode);
     }

@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.repositories.RepositoryMissingException;
@@ -34,6 +35,8 @@ import java.util.Set;
  * Transport action for get repositories operation
  */
 public class TransportGetRepositoriesAction extends TransportMasterNodeReadAction<GetRepositoriesRequest, GetRepositoriesResponse> {
+
+    public static final String ALL_PATTERN = "_all";
 
     @Inject
     public TransportGetRepositoriesAction(
@@ -54,6 +57,11 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
             GetRepositoriesResponse::new,
             ThreadPool.Names.SAME
         );
+    }
+
+    public static boolean isMatchAll(String[] patterns) {
+        return (patterns.length == 0)
+            || (patterns.length == 1 && (ALL_PATTERN.equalsIgnoreCase(patterns[0]) || Regex.isMatchAllPattern(patterns[0])));
     }
 
     @Override
@@ -80,30 +88,37 @@ public class TransportGetRepositoriesAction extends TransportMasterNodeReadActio
      */
     public static List<RepositoryMetadata> getRepositories(ClusterState state, String[] repoNames) {
         RepositoriesMetadata repositories = state.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
-        if (repoNames.length == 0 || (repoNames.length == 1 && ("_all".equals(repoNames[0]) || "*".equals(repoNames[0])))) {
+        if (isMatchAll(repoNames)) {
             return repositories.repositories();
-        } else {
-            Set<String> repositoriesToGet = new LinkedHashSet<>(); // to keep insertion order
-            for (String repositoryOrPattern : repoNames) {
-                if (Regex.isSimpleMatchPattern(repositoryOrPattern) == false) {
-                    repositoriesToGet.add(repositoryOrPattern);
+        }
+        final List<String> includePatterns = new ArrayList<>();
+        final List<String> excludePatterns = new ArrayList<>();
+        boolean seenWildcard = false;
+        for (String repositoryOrPattern : repoNames) {
+            if (seenWildcard && repositoryOrPattern.length() > 1 && repositoryOrPattern.startsWith("-")) {
+                excludePatterns.add(repositoryOrPattern.substring(1));
+            } else {
+                if (Regex.isSimpleMatchPattern(repositoryOrPattern)) {
+                    seenWildcard = true;
                 } else {
-                    for (RepositoryMetadata repository : repositories.repositories()) {
-                        if (Regex.simpleMatch(repositoryOrPattern, repository.name())) {
-                            repositoriesToGet.add(repository.name());
-                        }
+                    if (repositories.repository(repositoryOrPattern) == null) {
+                        throw new RepositoryMissingException(repositoryOrPattern);
                     }
                 }
+                includePatterns.add(repositoryOrPattern);
             }
-            List<RepositoryMetadata> repositoryListBuilder = new ArrayList<>();
-            for (String repository : repositoriesToGet) {
-                RepositoryMetadata repositoryMetadata = repositories.repository(repository);
-                if (repositoryMetadata == null) {
-                    throw new RepositoryMissingException(repository);
-                }
-                repositoryListBuilder.add(repositoryMetadata);
-            }
-            return repositoryListBuilder;
         }
+        final String[] excludes = excludePatterns.toArray(Strings.EMPTY_ARRAY);
+        final Set<RepositoryMetadata> repositoryListBuilder = new LinkedHashSet<>(); // to keep insertion order
+        for (String repositoryOrPattern : includePatterns) {
+            for (RepositoryMetadata repository : repositories.repositories()) {
+                if (repositoryListBuilder.contains(repository) == false
+                    && Regex.simpleMatch(repositoryOrPattern, repository.name())
+                    && Regex.simpleMatch(excludes, repository.name()) == false) {
+                    repositoryListBuilder.add(repository);
+                }
+            }
+        }
+        return List.copyOf(repositoryListBuilder);
     }
 }

@@ -16,7 +16,9 @@ import java.util.Set;
 public interface ExtractedField {
 
     enum Method {
-        SOURCE, DOC_VALUE, SCRIPT_FIELD
+        SOURCE,
+        DOC_VALUE,
+        SCRIPT_FIELD
     }
 
     /**

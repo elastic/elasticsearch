@@ -8,22 +8,22 @@
 package org.elasticsearch.xpack.eql.execution.search;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.search.ClosePointInTimeAction;
+import org.elasticsearch.action.search.ClosePointInTimeRequest;
+import org.elasticsearch.action.search.ClosePointInTimeResponse;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.MultiSearchResponse;
+import org.elasticsearch.action.search.OpenPointInTimeAction;
+import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.action.search.ClosePointInTimeAction;
-import org.elasticsearch.action.search.ClosePointInTimeRequest;
-import org.elasticsearch.action.search.ClosePointInTimeResponse;
-import org.elasticsearch.action.search.OpenPointInTimeAction;
-import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.xpack.eql.session.EqlSession;
 import org.elasticsearch.xpack.ql.index.IndexResolver;
 
@@ -113,10 +113,10 @@ public class PITAwareQueryClient extends BasicQueryClient {
     // listener handing the extraction of new PIT and closing in case of exceptions
     private <Response> ActionListener<Response> pitListener(Function<Response, String> pitIdExtractor, ActionListener<Response> listener) {
         return wrap(r -> {
-                // get pid
-                pitId = pitIdExtractor.apply(r);
-                listener.onResponse(r);
-            },
+            // get pid
+            pitId = pitIdExtractor.apply(r);
+            listener.onResponse(r);
+        },
             // always close PIT in case of exceptions
             e -> {
                 listener.onFailure(e);
@@ -124,24 +124,26 @@ public class PITAwareQueryClient extends BasicQueryClient {
                     // ignore any success/failure to avoid obfuscating the response
                     close(wrap(b -> {}, ex -> {}));
                 }
-            });
+            }
+        );
     }
 
     private <Response> void openPIT(ActionListener<Response> listener, Runnable runnable) {
-        OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices)
-            .indicesOptions(IndexResolver.FIELD_CAPS_INDICES_OPTIONS)
+        OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices).indicesOptions(IndexResolver.FIELD_CAPS_INDICES_OPTIONS)
             .keepAlive(keepAlive);
         client.execute(OpenPointInTimeAction.INSTANCE, request, wrap(r -> {
-                pitId = r.getPointInTimeId();
-                runnable.run();
-            },
-            listener::onFailure));
+            pitId = r.getPointInTimeId();
+            runnable.run();
+        }, listener::onFailure));
     }
 
     @Override
     public void close(ActionListener<Boolean> listener) {
-        client.execute(ClosePointInTimeAction.INSTANCE, new ClosePointInTimeRequest(pitId),
-            map(listener, ClosePointInTimeResponse::isSucceeded));
+        client.execute(
+            ClosePointInTimeAction.INSTANCE,
+            new ClosePointInTimeRequest(pitId),
+            map(listener, ClosePointInTimeResponse::isSucceeded)
+        );
         pitId = null;
     }
 }

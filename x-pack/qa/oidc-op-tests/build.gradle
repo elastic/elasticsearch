@@ -15,8 +15,6 @@ dependencies {
 testFixtures.useFixture ":x-pack:test:idp-fixture", "oidc-provider"
 testFixtures.useFixture ":x-pack:test:idp-fixture", "elasticsearch-node"
 
-tasks.named("thirdPartyAudit").configure { enabled = false }
-
 tasks.named("processTestResources").configure {
   from project(':x-pack:plugin:core')
           .files(

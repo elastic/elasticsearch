@@ -27,7 +27,7 @@ public class TDigestStateTests extends ESTestCase {
         }
         assertEquals(1000 + 10L * (1 << 29), digest.size());
         assertTrue(digest.size() > 2 * Integer.MAX_VALUE);
-        final double[] quantiles = new double[] { 0, 0.1, 0.5, 0.9, 1, randomDouble()};
+        final double[] quantiles = new double[] { 0, 0.1, 0.5, 0.9, 1, randomDouble() };
         Arrays.sort(quantiles);
         double prev = Double.NEGATIVE_INFINITY;
         for (double q : quantiles) {

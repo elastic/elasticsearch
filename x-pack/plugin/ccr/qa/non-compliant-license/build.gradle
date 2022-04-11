@@ -1,7 +1,7 @@
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-testclusters'
-apply plugin: 'elasticsearch.standalone-test'
+apply plugin: 'elasticsearch.standalone-rest-test'
 
 dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
@@ -9,21 +9,19 @@ dependencies {
   testImplementation project(':x-pack:plugin:ccr:qa:')
 }
 
-testClusters {
-  'leader-cluster' {
-    testDistribution = 'DEFAULT'
-    setting 'xpack.security.enabled', 'true'
-    user username: 'admin', password: 'admin-password', role: 'superuser'
-  }
+def leaderCluster = testClusters.register('leader-cluster') {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.security.enabled', 'true'
+  user username: 'admin', password: 'admin-password', role: 'superuser'
+}
 
-  'follow-cluster' {
-    testDistribution = 'DEFAULT'
-    setting 'xpack.license.self_generated.type', 'trial'
-    setting 'xpack.security.enabled', 'true'
-    user username: 'admin', password: 'admin-password', role: 'superuser'
-    setting 'cluster.remote.leader_cluster.seeds',
-            { "\"${testClusters.'leader-cluster'.getAllTransportPortURI().join(",")}\"" }
-  }
+def followerCluster =  testClusters.register('follow-cluster') {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.enabled', 'true'
+  user username: 'admin', password: 'admin-password', role: 'superuser'
+  setting 'cluster.remote.leader_cluster.seeds',
+          { "\"${leaderCluster.get().getAllTransportPortURI().join(",")}\"" }
 }
 
 tasks.register('leader-cluster', RestIntegTestTask) {
@@ -33,11 +31,9 @@ tasks.register('leader-cluster', RestIntegTestTask) {
 
 tasks.register('follow-cluster', RestIntegTestTask) {
   dependsOn 'leader-cluster'
-  useCluster testClusters.'leader-cluster'
+  useCluster leaderCluster
   systemProperty 'tests.target_cluster', 'follow'
-  nonInputProperties.systemProperty 'tests.leader_host',
-    { "${testClusters.'follow-cluster'.getAllHttpSocketURI().get(0)}" }
+  nonInputProperties.systemProperty 'tests.leader_host', followerCluster.map(c -> c.allHttpSocketURI.get(0))
 }
 
 tasks.named("check").configure { dependsOn "follow-cluster" }
-tasks.named("test").configure { enabled = false }

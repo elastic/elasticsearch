@@ -1,0 +1,13 @@
+---
+setup:
+  - skip:
+      version: " - 7.1.99"
+      reason:  why not
+---
+"Test with setup and skip but no feature":
+  - do:
+      something:
+        id: "something"
+  - match: { acknowledged: true }
+
+

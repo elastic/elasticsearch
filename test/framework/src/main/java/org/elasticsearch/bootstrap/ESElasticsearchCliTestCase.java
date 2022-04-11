@@ -28,11 +28,12 @@ abstract class ESElasticsearchCliTestCase extends ESTestCase {
     }
 
     void runTest(
-            final int expectedStatus,
-            final boolean expectedInit,
-            final BiConsumer<String, String> outputConsumer,
-            final InitConsumer initConsumer,
-            final String... args) throws Exception {
+        final int expectedStatus,
+        final boolean expectedInit,
+        final BiConsumer<String, String> outputConsumer,
+        final InitConsumer initConsumer,
+        final String... args
+    ) throws Exception {
         final MockTerminal terminal = new MockTerminal();
         final Path home = createTempDir();
         try {
@@ -41,10 +42,11 @@ abstract class ESElasticsearchCliTestCase extends ESTestCase {
                 @Override
                 protected Environment createEnv(final Map<String, String> settings) throws UserException {
                     Settings.Builder builder = Settings.builder().put("path.home", home);
-                    settings.forEach((k,v) -> builder.put(k, v));
+                    settings.forEach((k, v) -> builder.put(k, v));
                     final Settings realSettings = builder.build();
                     return new Environment(realSettings, home.resolve("config"));
                 }
+
                 @Override
                 void init(final boolean daemonize, final Path pidFile, final boolean quiet, Environment initialEnv) {
                     init.set(true);

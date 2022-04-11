@@ -6,52 +6,32 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.Writer;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.security.Key;
-import java.security.PrivateKey;
-import java.security.cert.Certificate;
-import java.security.cert.X509Certificate;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
-import java.util.SortedSet;
-import java.util.TreeSet;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
-
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.KeyStoreAwareCommand;
 import org.elasticsearch.cli.SuppressForbidden;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.common.cli.KeyStoreAwareCommand;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
-import org.elasticsearch.xpack.core.ssl.PemUtils;
 import org.elasticsearch.xpack.security.authc.saml.SamlSpMetadataBuilder.ContactInfo;
 import org.opensaml.core.xml.config.XMLObjectProviderRegistrySupport;
 import org.opensaml.core.xml.io.MarshallingException;
@@ -65,6 +45,26 @@ import org.opensaml.xmlsec.signature.support.SignatureConstants;
 import org.opensaml.xmlsec.signature.support.Signer;
 import org.w3c.dom.Element;
 import org.xml.sax.SAXException;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.Writer;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.Key;
+import java.security.PrivateKey;
+import java.security.cert.Certificate;
+import java.security.cert.X509Certificate;
+import java.util.Arrays;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
+import java.util.SortedSet;
+import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Collectors;
 
 /**
  * CLI tool to generate SAML Metadata for a Service Provider (realm)
@@ -111,22 +111,25 @@ public class SamlMetadataCommand extends KeyStoreAwareCommand {
         attributeSpec = parser.accepts("attribute", "additional SAML attributes to request").withRequiredArg();
         orgNameSpec = parser.accepts("organisation-name", "the name of the organisation operating this service").withRequiredArg();
         orgDisplayNameSpec = parser.accepts("organisation-display-name", "the display-name of the organisation operating this service")
-                .availableIf(orgNameSpec).withRequiredArg();
+            .availableIf(orgNameSpec)
+            .withRequiredArg();
         orgUrlSpec = parser.accepts("organisation-url", "the URL of the organisation operating this service")
-                .requiredIf(orgNameSpec).withRequiredArg();
+            .requiredIf(orgNameSpec)
+            .withRequiredArg();
         contactsSpec = parser.accepts("contacts", "Include contact information in metadata").availableUnless(batchSpec);
-        signingPkcs12PathSpec = parser.accepts("signing-bundle", "path to an existing key pair (in PKCS#12 format) to be used for " +
-                "signing ")
-                .withRequiredArg();
+        signingPkcs12PathSpec = parser.accepts(
+            "signing-bundle",
+            "path to an existing key pair (in PKCS#12 format) to be used for " + "signing "
+        ).withRequiredArg();
         signingCertPathSpec = parser.accepts("signing-cert", "path to an existing signing certificate")
-                .availableUnless(signingPkcs12PathSpec)
-                .withRequiredArg();
+            .availableUnless(signingPkcs12PathSpec)
+            .withRequiredArg();
         signingKeyPathSpec = parser.accepts("signing-key", "path to an existing signing private key")
-                .availableIf(signingCertPathSpec)
-                .requiredIf(signingCertPathSpec)
-                .withRequiredArg();
+            .availableIf(signingCertPathSpec)
+            .requiredIf(signingCertPathSpec)
+            .withRequiredArg();
         keyPasswordSpec = parser.accepts("signing-key-password", "password for an existing signing private key or keypair")
-                .withOptionalArg();
+            .withOptionalArg();
         this.keyStoreFunction = keyStoreFunction;
     }
 
@@ -159,20 +162,23 @@ public class SamlMetadataCommand extends KeyStoreAwareCommand {
 
         final RealmConfig realm = findRealm(terminal, options, env);
         final Settings realmSettings = realm.settings().getByPrefix(RealmSettings.realmSettingPrefix(realm.identifier()));
-        terminal.println(Terminal.Verbosity.VERBOSE,
-                "Using realm configuration\n=====\n" + realmSettings.toDelimitedString('\n') + "=====");
+        terminal.println(
+            Terminal.Verbosity.VERBOSE,
+            "Using realm configuration\n=====\n" + realmSettings.toDelimitedString('\n') + "====="
+        );
         final Locale locale = findLocale(options);
         terminal.println(Terminal.Verbosity.VERBOSE, "Using locale: " + locale.toLanguageTag());
 
         final SpConfiguration spConfig = SamlRealm.getSpConfiguration(realm);
-        final SamlSpMetadataBuilder builder = new SamlSpMetadataBuilder(locale, spConfig.getEntityId())
-                .assertionConsumerServiceUrl(spConfig.getAscUrl())
-                .singleLogoutServiceUrl(spConfig.getLogoutUrl())
-                .encryptionCredentials(spConfig.getEncryptionCredentials())
-                .signingCredential(spConfig.getSigningConfiguration().getCredential())
-                .authnRequestsSigned(spConfig.getSigningConfiguration().shouldSign(AuthnRequest.DEFAULT_ELEMENT_LOCAL_NAME))
-                .nameIdFormat(realm.getSetting(SamlRealmSettings.NAMEID_FORMAT))
-                .serviceName(option(serviceNameSpec, options, env.settings().get("cluster.name")));
+        final SamlSpMetadataBuilder builder = new SamlSpMetadataBuilder(locale, spConfig.getEntityId()).assertionConsumerServiceUrl(
+            spConfig.getAscUrl()
+        )
+            .singleLogoutServiceUrl(spConfig.getLogoutUrl())
+            .encryptionCredentials(spConfig.getEncryptionCredentials())
+            .signingCredential(spConfig.getSigningConfiguration().getCredential())
+            .authnRequestsSigned(spConfig.getSigningConfiguration().shouldSign(AuthnRequest.DEFAULT_ELEMENT_LOCAL_NAME))
+            .nameIdFormat(realm.getSetting(SamlRealmSettings.NAMEID_FORMAT))
+            .serviceName(option(serviceNameSpec, options, env.settings().get("cluster.name")));
 
         Map<String, String> attributes = getAttributeNames(options, realm);
         for (String attr : attributes.keySet()) {
@@ -185,23 +191,31 @@ public class SamlMetadataCommand extends KeyStoreAwareCommand {
                 if (batch) {
                     friendlyName = settingName;
                 } else {
-                    friendlyName = terminal.readText("What is the friendly name for " +
-                            attributeSource
-                            + " attribute \"" + attr + "\" [default: " +
-                            (settingName == null ? "none" : settingName) +
-                            "] ");
+                    friendlyName = terminal.readText(
+                        "What is the friendly name for "
+                            + attributeSource
+                            + " attribute \""
+                            + attr
+                            + "\" [default: "
+                            + (settingName == null ? "none" : settingName)
+                            + "] "
+                    );
                     if (Strings.isNullOrEmpty(friendlyName)) {
                         friendlyName = settingName;
                     }
                 }
             } else {
                 if (batch) {
-                    throw new UserException(ExitCodes.CONFIG, "Option " + batchSpec.toString() + " is specified, but attribute "
-                            + attr + " appears to be a FriendlyName value");
+                    throw new UserException(
+                        ExitCodes.CONFIG,
+                        "Option " + batchSpec.toString() + " is specified, but attribute " + attr + " appears to be a FriendlyName value"
+                    );
                 }
                 friendlyName = attr;
-                name = requireText(terminal,
-                        "What is the standard (urn) name for " + attributeSource + " attribute \"" + attr + "\" (required): ");
+                name = requireText(
+                    terminal,
+                    "What is the standard (urn) name for " + attributeSource + " attribute \"" + attr + "\" (required): "
+                );
             }
             terminal.println(Terminal.Verbosity.VERBOSE, "Requesting attribute '" + name + "' (FriendlyName: '" + friendlyName + "')");
             builder.withAttribute(friendlyName, name);
@@ -225,8 +239,12 @@ public class SamlMetadataCommand extends KeyStoreAwareCommand {
                     if (ContactInfo.TYPES.containsKey(type)) {
                         break;
                     } else {
-                        terminal.errorPrintln("Type '" + type + "' is not valid. Valid values are "
-                                + Strings.collectionToCommaDelimitedString(ContactInfo.TYPES.keySet()));
+                        terminal.errorPrintln(
+                            "Type '"
+                                + type
+                                + "' is not valid. Valid values are "
+                                + Strings.collectionToCommaDelimitedString(ContactInfo.TYPES.keySet())
+                        );
                     }
                 }
                 builder.withContact(type, givenName, surName, email);
@@ -238,13 +256,13 @@ public class SamlMetadataCommand extends KeyStoreAwareCommand {
 
     // package-protected for testing
     Element possiblySignDescriptor(Terminal terminal, OptionSet options, EntityDescriptor descriptor, Environment env)
-            throws UserException {
+        throws UserException {
         try {
             final EntityDescriptorMarshaller marshaller = new EntityDescriptorMarshaller();
             if (options.has(signingPkcs12PathSpec) || (options.has(signingCertPathSpec) && options.has(signingKeyPathSpec))) {
                 Signature signature = (Signature) XMLObjectProviderRegistrySupport.getBuilderFactory()
-                        .getBuilder(Signature.DEFAULT_ELEMENT_NAME)
-                        .buildObject(Signature.DEFAULT_ELEMENT_NAME);
+                    .getBuilder(Signature.DEFAULT_ELEMENT_NAME)
+                    .buildObject(Signature.DEFAULT_ELEMENT_NAME);
                 signature.setSigningCredential(buildSigningCredential(terminal, options, env));
                 signature.setSignatureAlgorithm(SignatureConstants.ALGO_ID_SIGNATURE_RSA_SHA256);
                 signature.setCanonicalizationAlgorithm(SignatureConstants.ALGO_ID_C14N_EXCL_OMIT_COMMENTS);
@@ -279,19 +297,23 @@ public class SamlMetadataCommand extends KeyStoreAwareCommand {
         return outputFile;
     }
 
-    private Credential buildSigningCredential(Terminal terminal, OptionSet options, Environment env) throws
-            Exception {
+    private Credential buildSigningCredential(Terminal terminal, OptionSet options, Environment env) throws Exception {
         X509Certificate signingCertificate;
         PrivateKey signingKey;
         char[] password = getChars(keyPasswordSpec.value(options));
         if (options.has(signingPkcs12PathSpec)) {
             Path p12Path = resolvePath(signingPkcs12PathSpec.value(options));
-            Map<Certificate, Key> keys = withPassword("certificate bundle (" + p12Path + ")", password,
-                    terminal, keyPassword -> CertParsingUtils.readPkcs12KeyPairs(p12Path, keyPassword, a -> keyPassword));
+            Map<Certificate, Key> keys = withPassword(
+                "certificate bundle (" + p12Path + ")",
+                password,
+                terminal,
+                keyPassword -> CertParsingUtils.readPkcs12KeyPairs(p12Path, keyPassword, a -> keyPassword)
+            );
 
             if (keys.size() != 1) {
-                throw new IllegalArgumentException("expected a single key in file [" + p12Path.toAbsolutePath() + "] but found [" +
-                        keys.size() + "]");
+                throw new IllegalArgumentException(
+                    "expected a single key in file [" + p12Path.toAbsolutePath() + "] but found [" + keys.size() + "]"
+                );
             }
             final Map.Entry<Certificate, Key> pair = keys.entrySet().iterator().next();
             signingCertificate = (X509Certificate) pair.getKey();
@@ -299,20 +321,18 @@ public class SamlMetadataCommand extends KeyStoreAwareCommand {
         } else {
             Path cert = resolvePath(signingCertPathSpec.value(options));
             Path key = resolvePath(signingKeyPathSpec.value(options));
-            final String resolvedSigningCertPath = cert.toAbsolutePath().toString();
-            Certificate[] certificates = CertParsingUtils.readCertificates(Collections.singletonList(resolvedSigningCertPath), env);
-            if (certificates.length != 1) {
-                throw new IllegalArgumentException("expected a single certificate in file [" + resolvedSigningCertPath + "] but found [" +
-                        certificates.length + "]");
-            }
-            signingCertificate = (X509Certificate) certificates[0];
+            signingCertificate = CertParsingUtils.readX509Certificate(cert);
             signingKey = readSigningKey(key, password, terminal);
         }
         return new BasicX509Credential(signingCertificate, signingKey);
     }
 
-    private static <T, E extends Exception> T withPassword(String description, char[] password, Terminal terminal,
-                                                           CheckedFunction<char[], T, E> body) throws E {
+    private static <T, E extends Exception> T withPassword(
+        String description,
+        char[] password,
+        Terminal terminal,
+        CheckedFunction<char[], T, E> body
+    ) throws E {
         if (password == null) {
             char[] promptedValue = terminal.readSecret("Enter password for " + description + " : ");
             try {
@@ -329,8 +349,7 @@ public class SamlMetadataCommand extends KeyStoreAwareCommand {
         return password == null ? null : password.toCharArray();
     }
 
-    private static PrivateKey readSigningKey(Path path, char[] password, Terminal terminal)
-            throws Exception {
+    private static PrivateKey readSigningKey(Path path, char[] password, Terminal terminal) throws Exception {
         AtomicReference<char[]> passwordReference = new AtomicReference<>(password);
         try {
             return PemUtils.readPrivateKey(path, () -> {
@@ -347,13 +366,16 @@ public class SamlMetadataCommand extends KeyStoreAwareCommand {
             }
         }
     }
+
     private void validateXml(Terminal terminal, Path xml) throws Exception {
         try (InputStream xmlInput = Files.newInputStream(xml)) {
             SamlUtils.validate(xmlInput, METADATA_SCHEMA);
             terminal.println(Terminal.Verbosity.VERBOSE, "The generated metadata file conforms to the SAML metadata schema");
         } catch (SAXException e) {
-            terminal.errorPrintln(Terminal.Verbosity.SILENT, "Error - The generated metadata file does not conform to the " +
-                "SAML metadata schema");
+            terminal.errorPrintln(
+                Terminal.Verbosity.SILENT,
+                "Error - The generated metadata file does not conform to the " + "SAML metadata schema"
+            );
             terminal.errorPrintln("While validating " + xml.toString() + " the follow errors were found:");
             printExceptions(terminal, e);
             throw new UserException(ExitCodes.CODE_ERROR, "Generated metadata is not valid");
@@ -447,19 +469,24 @@ public class SamlMetadataCommand extends KeyStoreAwareCommand {
                 throw new UserException(ExitCodes.CONFIG, "Realm '" + name + "' is not a SAML realm (is '" + identifier.getType() + "')");
             }
         } else {
-            final List<Map.Entry<RealmConfig.RealmIdentifier, Settings>> saml = realms.entrySet().stream()
-                    .filter(entry -> isSamlRealm(entry.getKey()))
-                    .collect(Collectors.toList());
+            final List<Map.Entry<RealmConfig.RealmIdentifier, Settings>> saml = realms.entrySet()
+                .stream()
+                .filter(entry -> isSamlRealm(entry.getKey()))
+                .collect(Collectors.toList());
             if (saml.isEmpty()) {
                 throw new UserException(ExitCodes.CONFIG, "There is no SAML realm configured in " + env.configFile());
             }
             if (saml.size() > 1) {
                 terminal.errorPrintln("Using configuration in " + env.configFile());
-                terminal.errorPrintln("Found multiple SAML realms: "
-                        + saml.stream().map(Map.Entry::getKey).map(Object::toString).collect(Collectors.joining(", ")));
+                terminal.errorPrintln(
+                    "Found multiple SAML realms: "
+                        + saml.stream().map(Map.Entry::getKey).map(Object::toString).collect(Collectors.joining(", "))
+                );
                 terminal.errorPrintln("Use the -" + optionName(realmSpec) + " option to specify an explicit realm");
-                throw new UserException(ExitCodes.CONFIG,
-                        "Found multiple SAML realms, please specify one with '-" + optionName(realmSpec) + "'");
+                throw new UserException(
+                    ExitCodes.CONFIG,
+                    "Found multiple SAML realms, please specify one with '-" + optionName(realmSpec) + "'"
+                );
             }
             final Map.Entry<RealmConfig.RealmIdentifier, Settings> entry = saml.get(0);
             terminal.println("Building metadata for SAML realm " + entry.getKey());
@@ -471,7 +498,7 @@ public class SamlMetadataCommand extends KeyStoreAwareCommand {
         return spec.options().get(0);
     }
 
-    private RealmConfig buildRealm(RealmConfig.RealmIdentifier identifier, Environment env, Settings globalSettings ) {
+    private RealmConfig buildRealm(RealmConfig.RealmIdentifier identifier, Environment env, Settings globalSettings) {
         return new RealmConfig(identifier, globalSettings, env, new ThreadContext(globalSettings));
     }
 

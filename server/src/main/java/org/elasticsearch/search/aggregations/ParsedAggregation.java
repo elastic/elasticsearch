@@ -8,12 +8,12 @@
 
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.common.xcontent.AbstractObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
+import org.elasticsearch.xcontent.AbstractObjectParser;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParser.Token;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -26,8 +26,11 @@ import java.util.Map;
 public abstract class ParsedAggregation implements Aggregation, ToXContentFragment {
 
     protected static void declareAggregationFields(AbstractObjectParser<? extends ParsedAggregation, ?> objectParser) {
-        objectParser.declareObject((parsedAgg, metadata) -> parsedAgg.metadata = Collections.unmodifiableMap(metadata),
-                (parser, context) -> parser.map(), InternalAggregation.CommonFields.META);
+        objectParser.declareObject(
+            (parsedAgg, metadata) -> parsedAgg.metadata = Collections.unmodifiableMap(metadata),
+            (parser, context) -> parser.map(),
+            InternalAggregation.CommonFields.META
+        );
     }
 
     private String name;

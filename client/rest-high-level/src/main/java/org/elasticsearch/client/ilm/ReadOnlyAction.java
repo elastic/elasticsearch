@@ -8,10 +8,10 @@
 package org.elasticsearch.client.ilm;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
@@ -24,8 +24,7 @@ public class ReadOnlyAction implements LifecycleAction, ToXContentObject {
         return PARSER.apply(parser, null);
     }
 
-    public ReadOnlyAction() {
-    }
+    public ReadOnlyAction() {}
 
     @Override
     public String getName() {

@@ -11,10 +11,10 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
@@ -78,7 +78,7 @@ public class FileUserPasswdStore {
         return users.size();
     }
 
-    public AuthenticationResult verifyPassword(String username, SecureString password, java.util.function.Supplier<User> user) {
+    public AuthenticationResult<User> verifyPassword(String username, SecureString password, java.util.function.Supplier<User> user) {
         final char[] hash = users.get(username);
         if (hash == null) {
             return AuthenticationResult.notHandled();
@@ -107,8 +107,12 @@ public class FileUserPasswdStore {
             return map == null ? emptyMap() : map;
         } catch (Exception e) {
             logger.error(
-                    (Supplier<?>) () -> new ParameterizedMessage(
-                            "failed to parse users file [{}]. skipping/removing all users...", path.toAbsolutePath()), e);
+                (Supplier<?>) () -> new ParameterizedMessage(
+                    "failed to parse users file [{}]. skipping/removing all users...",
+                    path.toAbsolutePath()
+                ),
+                e
+            );
             return emptyMap();
         }
     }
@@ -156,8 +160,12 @@ public class FileUserPasswdStore {
             String username = line.substring(0, i);
             Validation.Error validationError = Users.validateUsername(username, allowReserved, settings);
             if (validationError != null) {
-                logger.error("invalid username [{}] in users file [{}], skipping... ({})", username, path.toAbsolutePath(),
-                        validationError);
+                logger.error(
+                    "invalid username [{}] in users file [{}], skipping... ({})",
+                    username,
+                    path.toAbsolutePath(),
+                    validationError
+                );
                 continue;
             }
             String hash = line.substring(i + 1);
@@ -169,10 +177,7 @@ public class FileUserPasswdStore {
     }
 
     public static void writeFile(Map<String, char[]> users, Path path) {
-        SecurityFiles.writeFileAtomically(
-                path,
-                users,
-                e -> String.format(Locale.ROOT, "%s:%s", e.getKey(), new String(e.getValue())));
+        SecurityFiles.writeFileAtomically(path, users, e -> String.format(Locale.ROOT, "%s:%s", e.getKey(), new String(e.getValue())));
     }
 
     void notifyRefresh() {

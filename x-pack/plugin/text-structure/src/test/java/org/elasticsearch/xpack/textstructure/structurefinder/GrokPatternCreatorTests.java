@@ -14,9 +14,11 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.is;
 
 public class GrokPatternCreatorTests extends TextStructureTestCase {
 
@@ -526,17 +528,17 @@ public class GrokPatternCreatorTests extends TextStructureTestCase {
     }
 
     public void testAdjustForPunctuationGivenCommonPrefix() {
-        Collection<String> snippets = Arrays.asList(
-            "\",\"lab6.localhost\",\"Route Domain\",\"/Common/0\",\"No-lookup\",\"192.168.33.212\",\"No-lookup\",\"192.168.33.132\","
-                + "\"80\",\"46721\",\"/Common/Subnet_33\",\"TCP\",\"0\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"Staged\",\"/Common/policy1\""
-                + ",\"rule1\",\"Accept\",\"\",\"\",\"\",\"0000000000000000\"",
-            "\",\"lab6.localhost\",\"Route Domain\",\"/Common/0\",\"No-lookup\",\"192.168.143.244\",\"No-lookup\",\"192.168.33.106\","
-                + "\"55025\",\"162\",\"/Common/Subnet_33\",\"UDP\",\"0\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"Staged\",\"/Common/policy1\""
-                + ",\"rule1\",\"Accept\",\"\",\"\",\"\",\"0000000000000000\"",
-            "\",\"lab6.localhost\",\"Route Domain\",\"/Common/0\",\"No-lookup\",\"192.168.33.3\",\"No-lookup\",\"224.0.0.102\","
-                + "\"3222\",\"3222\",\"/Common/Subnet_33\",\"UDP\",\"0\",\"\",\"\",\"\",\"\",\"\",\"\",\"\",\"Staged\",\"/Common/policy1\""
-                + ",\"rule1\",\"Accept\",\"\",\"\",\"\",\"0000000000000000\""
-        );
+        Collection<String> snippets = """
+            ","lab6.localhost","Route Domain","/Common/0","No-lookup","192.168.33.212","No-lookup","192.168.33.132","80","46721",\
+            "/Common/Subnet_33","TCP","0","","","","","","","","Staged","/Common/policy1","rule1","Accept","","","",\
+            "0000000000000000"
+            ","lab6.localhost","Route Domain","/Common/0","No-lookup","192.168.143.244","No-lookup","192.168.33.106","55025","162",\
+            "/Common/Subnet_33","UDP","0","","","","","","","","Staged","/Common/policy1","rule1","Accept","","","",\
+            "0000000000000000"
+            ","lab6.localhost","Route Domain","/Common/0","No-lookup","192.168.33.3","No-lookup","224.0.0.102","3222","3222",\
+            "/Common/Subnet_33","UDP","0","","","","","","","","Staged","/Common/policy1","rule1","Accept","","","",\
+            "0000000000000000"\
+            """.lines().toList();
 
         GrokPatternCreator grokPatternCreator = new GrokPatternCreator(
             explanation,
@@ -698,5 +700,24 @@ public class GrokPatternCreatorTests extends TextStructureTestCase {
         );
 
         assertEquals("Supplied Grok pattern [" + grokPattern + "] does not match sample messages", e.getMessage());
+    }
+
+    public void testLongestRun() {
+
+        List<Integer> sequence = new ArrayList<>();
+        if (randomBoolean()) {
+            for (int before = randomIntBetween(1, 41); before > 0; --before) {
+                sequence.add(randomIntBetween(1, 2));
+            }
+        }
+        for (int longest = 42; longest > 0; --longest) {
+            sequence.add(42);
+        }
+        if (randomBoolean()) {
+            for (int after = randomIntBetween(1, 41); after > 0; --after) {
+                sequence.add(randomIntBetween(2, 3));
+            }
+        }
+        assertThat(GrokPatternCreator.longestRun(sequence), is(42));
     }
 }

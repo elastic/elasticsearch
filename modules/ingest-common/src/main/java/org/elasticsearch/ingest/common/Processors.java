@@ -59,7 +59,7 @@ public final class Processors {
      * @return structured JSON object
      */
     public static Object json(Object fieldValue) {
-        return JsonProcessor.apply(fieldValue);
+        return JsonProcessor.apply(fieldValue, false);
     }
 
     /**
@@ -72,7 +72,7 @@ public final class Processors {
      *             contains the JSON string
      */
     public static void json(Map<String, Object> map, String field) {
-        JsonProcessor.apply(map, field);
+        JsonProcessor.apply(map, field, false, JsonProcessor.ConflictStrategy.REPLACE);
     }
 
     /**
@@ -108,7 +108,8 @@ public final class Processors {
         Object destinationPort,
         Object icmpType,
         Object icmpCode,
-        int seed) {
+        int seed
+    ) {
         return CommunityIdProcessor.apply(
             sourceIpAddrString,
             destIpAddrString,
@@ -143,15 +144,18 @@ public final class Processors {
         Object sourcePort,
         Object destinationPort,
         Object icmpType,
-        Object icmpCode) {
-        return CommunityIdProcessor.apply(sourceIpAddrString,
+        Object icmpCode
+    ) {
+        return CommunityIdProcessor.apply(
+            sourceIpAddrString,
             destIpAddrString,
             ianaNumber,
             transport,
             sourcePort,
             destinationPort,
             icmpType,
-            icmpCode);
+            icmpCode
+        );
     }
 
     /*

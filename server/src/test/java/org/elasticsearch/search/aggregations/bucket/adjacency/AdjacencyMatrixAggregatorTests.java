@@ -8,27 +8,27 @@
 
 package org.elasticsearch.search.aggregations.bucket.adjacency;
 
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.startsWith;
 
 public class AdjacencyMatrixAggregatorTests extends AggregatorTestCase {
-    public void testTooManyFilters() throws Exception {
-        int maxFilters = SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.get(Settings.EMPTY);
+    public void testTooManyFilters() {
+        int maxFilters = IndexSearcher.getMaxClauseCount();
         int maxFiltersPlusOne = maxFilters + 1;
 
-        Map<String, QueryBuilder> filters = new HashMap<>(maxFilters);
+        Map<String, QueryBuilder> filters = Maps.newMapWithExpectedSize(maxFilters);
         for (int i = 0; i < maxFiltersPlusOne; i++) {
             filters.put("filter" + i, new MatchAllQueryBuilder());
         }
@@ -39,15 +39,8 @@ public class AdjacencyMatrixAggregatorTests extends AggregatorTestCase {
         );
         assertThat(
             ex.getMessage(),
-            equalTo(
-                "Number of filters is too large, must be less than or equal to: ["
-                    + maxFilters
-                    + "] but was ["
-                    + maxFiltersPlusOne
-                    + "]."
-                    + "This limit can be set by changing the ["
-                    + SearchModule.INDICES_MAX_CLAUSE_COUNT_SETTING.getKey()
-                    + "] setting."
+            startsWith(
+                "Number of filters is too large, must be less than or equal to: [" + maxFilters + "] but was [" + maxFiltersPlusOne + "]."
             )
         );
     }

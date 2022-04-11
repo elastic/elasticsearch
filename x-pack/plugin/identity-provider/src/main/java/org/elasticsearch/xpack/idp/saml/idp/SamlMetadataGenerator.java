@@ -43,38 +43,35 @@ public class SamlMetadataGenerator {
     }
 
     public void generateMetadata(String spEntityId, String acs, ActionListener<SamlMetadataResponse> listener) {
-        idp.resolveServiceProvider(spEntityId, acs, true, ActionListener.wrap(
-            sp -> {
-                try {
-                    if (null == sp) {
-                        listener.onFailure(new IllegalArgumentException("Service provider with Entity ID [" + spEntityId
-                            + "] is not registered with this Identity Provider"));
-                        return;
-                    }
-                    EntityDescriptor metadata = buildEntityDescriptor(sp);
-                    final X509Credential signingCredential = idp.getMetadataSigningCredential();
-                    Element metadataElement = possiblySignDescriptor(metadata, signingCredential);
-                    listener.onResponse(new SamlMetadataResponse(samlFactory.toString(metadataElement, false)));
-                } catch (Exception e) {
-                    logger.debug("Error generating IDP metadata to share with [" + spEntityId + "]", e);
-                    listener.onFailure(e);
+        idp.resolveServiceProvider(spEntityId, acs, true, ActionListener.wrap(sp -> {
+            try {
+                if (null == sp) {
+                    listener.onFailure(
+                        new IllegalArgumentException(
+                            "Service provider with Entity ID [" + spEntityId + "] is not registered with this Identity Provider"
+                        )
+                    );
+                    return;
                 }
-            },
-            listener::onFailure
-        ));
+                EntityDescriptor metadata = buildEntityDescriptor(sp);
+                final X509Credential signingCredential = idp.getMetadataSigningCredential();
+                Element metadataElement = possiblySignDescriptor(metadata, signingCredential);
+                listener.onResponse(new SamlMetadataResponse(samlFactory.toString(metadataElement, false)));
+            } catch (Exception e) {
+                logger.debug("Error generating IDP metadata to share with [" + spEntityId + "]", e);
+                listener.onFailure(e);
+            }
+        }, listener::onFailure));
     }
 
     EntityDescriptor buildEntityDescriptor(SamlServiceProvider sp) throws Exception {
-        final SamlIdPMetadataBuilder builder = new SamlIdPMetadataBuilder(idp.getEntityId())
-            .wantAuthnRequestsSigned(sp.shouldSignAuthnRequests())
-            .withSingleSignOnServiceUrl(SAML2_REDIRECT_BINDING_URI,
-                idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI))
-            .withSingleSignOnServiceUrl(SAML2_POST_BINDING_URI,
-                idp.getSingleSignOnEndpoint(SAML2_POST_BINDING_URI))
-            .withSingleLogoutServiceUrl(SAML2_REDIRECT_BINDING_URI,
-                idp.getSingleLogoutEndpoint(SAML2_REDIRECT_BINDING_URI))
-            .withSingleLogoutServiceUrl(SAML2_POST_BINDING_URI,
-                idp.getSingleLogoutEndpoint(SAML2_POST_BINDING_URI))
+        final SamlIdPMetadataBuilder builder = new SamlIdPMetadataBuilder(idp.getEntityId()).wantAuthnRequestsSigned(
+            sp.shouldSignAuthnRequests()
+        )
+            .withSingleSignOnServiceUrl(SAML2_REDIRECT_BINDING_URI, idp.getSingleSignOnEndpoint(SAML2_REDIRECT_BINDING_URI))
+            .withSingleSignOnServiceUrl(SAML2_POST_BINDING_URI, idp.getSingleSignOnEndpoint(SAML2_POST_BINDING_URI))
+            .withSingleLogoutServiceUrl(SAML2_REDIRECT_BINDING_URI, idp.getSingleLogoutEndpoint(SAML2_REDIRECT_BINDING_URI))
+            .withSingleLogoutServiceUrl(SAML2_POST_BINDING_URI, idp.getSingleLogoutEndpoint(SAML2_POST_BINDING_URI))
             .withNameIdFormat(PERSISTENT)
             .withNameIdFormat(TRANSIENT)
             .organization(idp.getOrganization())

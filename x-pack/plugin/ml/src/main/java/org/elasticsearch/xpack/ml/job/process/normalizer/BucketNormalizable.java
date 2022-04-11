@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.job.process.normalizer;
 
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 
 import java.io.IOException;
@@ -111,13 +111,13 @@ public class BucketNormalizable extends Normalizable {
     public List<Normalizable> getChildren(ChildType type) {
         List<Normalizable> children = new ArrayList<>();
         switch (type) {
-            case BUCKET_INFLUENCER:
-                children.addAll(bucket.getBucketInfluencers().stream()
-                        .map(bi -> new BucketInfluencerNormalizable(bi, getOriginatingIndex()))
-                        .collect(Collectors.toList()));
-                break;
-            default:
-                throw new IllegalArgumentException("Invalid type: " + type);
+            case BUCKET_INFLUENCER -> children.addAll(
+                bucket.getBucketInfluencers()
+                    .stream()
+                    .map(bi -> new BucketInfluencerNormalizable(bi, getOriginatingIndex()))
+                    .collect(Collectors.toList())
+            );
+            default -> throw new IllegalArgumentException("Invalid type: " + type);
         }
         return children;
     }
@@ -125,12 +125,12 @@ public class BucketNormalizable extends Normalizable {
     @Override
     public boolean setMaxChildrenScore(ChildType childrenType, double maxScore) {
         switch (childrenType) {
-            case BUCKET_INFLUENCER:
+            case BUCKET_INFLUENCER -> {
                 double oldScore = bucket.getAnomalyScore();
                 bucket.setAnomalyScore(maxScore);
                 return maxScore != oldScore;
-            default:
-                throw new IllegalArgumentException("Invalid type: " + childrenType);
+            }
+            default -> throw new IllegalArgumentException("Invalid type: " + childrenType);
         }
 
     }

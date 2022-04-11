@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.eql.expression.function.scalar.string;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.Expressions.ParamOrdinal;
 import org.elasticsearch.xpack.ql.expression.FieldAttribute;
 import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
@@ -28,6 +27,9 @@ import java.util.Locale;
 
 import static java.lang.String.format;
 import static org.elasticsearch.xpack.eql.expression.function.scalar.string.SubstringFunctionProcessor.doProcess;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.FIRST;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.THIRD;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isInteger;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
@@ -53,17 +55,17 @@ public class Substring extends ScalarFunction implements OptionalArgument {
             return new TypeResolution("Unresolved children");
         }
 
-        TypeResolution sourceResolution = isStringAndExact(input, sourceText(), ParamOrdinal.FIRST);
+        TypeResolution sourceResolution = isStringAndExact(input, sourceText(), FIRST);
         if (sourceResolution.unresolved()) {
             return sourceResolution;
         }
 
-        TypeResolution startResolution = isInteger(start, sourceText(), ParamOrdinal.SECOND);
+        TypeResolution startResolution = isInteger(start, sourceText(), SECOND);
         if (startResolution.unresolved()) {
             return startResolution;
         }
 
-        return isInteger(end, sourceText(), ParamOrdinal.THIRD);
+        return isInteger(end, sourceText(), THIRD);
     }
 
     @Override
@@ -96,23 +98,27 @@ public class Substring extends ScalarFunction implements OptionalArgument {
     }
 
     protected ScriptTemplate asScriptFrom(ScriptTemplate inputScript, ScriptTemplate startScript, ScriptTemplate endScript) {
-        return new ScriptTemplate(format(Locale.ROOT, formatTemplate("{eql}.%s(%s,%s,%s)"),
+        return new ScriptTemplate(
+            format(
+                Locale.ROOT,
+                formatTemplate("{eql}.%s(%s,%s,%s)"),
                 "substring",
                 inputScript.template(),
                 startScript.template(),
-                endScript.template()),
-                paramsBuilder()
-                    .script(inputScript.params())
-                    .script(startScript.params())
-                    .script(endScript.params())
-                    .build(), dataType());
+                endScript.template()
+            ),
+            paramsBuilder().script(inputScript.params()).script(startScript.params()).script(endScript.params()).build(),
+            dataType()
+        );
     }
 
     @Override
     public ScriptTemplate scriptWithField(FieldAttribute field) {
-        return new ScriptTemplate(processScript(Scripts.DOC_VALUE),
-                paramsBuilder().variable(field.exactAttribute().name()).build(),
-                dataType());
+        return new ScriptTemplate(
+            processScript(Scripts.DOC_VALUE),
+            paramsBuilder().variable(field.exactAttribute().name()).build(),
+            dataType()
+        );
     }
 
     @Override

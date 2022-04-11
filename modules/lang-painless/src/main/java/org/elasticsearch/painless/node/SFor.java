@@ -21,8 +21,14 @@ public class SFor extends AStatement {
     private final AExpression afterthoughtNode;
     private final SBlock blockNode;
 
-    public SFor(int identifier, Location location,
-            ANode initializerNode, AExpression conditionNode, AExpression afterthoughtNode, SBlock blockNode) {
+    public SFor(
+        int identifier,
+        Location location,
+        ANode initializerNode,
+        AExpression conditionNode,
+        AExpression afterthoughtNode,
+        SBlock blockNode
+    ) {
 
         super(identifier, location);
 

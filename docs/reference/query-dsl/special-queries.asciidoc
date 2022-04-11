@@ -6,7 +6,7 @@ This group contains queries which do not fit into the other groups:
 
 <<query-dsl-distance-feature-query,`distance_feature` query>>::
 A query that computes scores based on the dynamically computed distances
-between the origin and documents' date, date_nanos and geo_point fields.
+between the origin and documents' `date`, `date_nanos`, and `geo_point` fields.
 It is able to efficiently skip non-competitive hits.
 
 <<query-dsl-mlt-query,`more_like_this` query>>::

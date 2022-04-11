@@ -37,20 +37,14 @@ public class LicenseVerificationToolTests extends CommandTestCase {
 
     public void testMissingKeyPath() throws Exception {
         Path pub = createTempDir().resolve("pub");
-        UserException e = expectThrows(
-                UserException.class,
-                () -> execute("--publicKeyPath", pub.toString()));
+        UserException e = expectThrows(UserException.class, () -> execute("--publicKeyPath", pub.toString()));
         assertTrue(e.getMessage(), e.getMessage().contains("pub does not exist"));
         assertEquals(ExitCodes.USAGE, e.exitCode);
     }
 
     public void testMissingLicenseSpec() throws Exception {
-        UserException e = expectThrows(UserException.class, () -> {
-            execute("--publicKeyPath", pubKeyPath.toString());
-        });
-        assertTrue(
-                e.getMessage(),
-                e.getMessage().contains("Must specify either --license or --licenseFile"));
+        UserException e = expectThrows(UserException.class, () -> { execute("--publicKeyPath", pubKeyPath.toString()); });
+        assertTrue(e.getMessage(), e.getMessage().contains("Must specify either --license or --licenseFile"));
         assertEquals(ExitCodes.USAGE, e.exitCode);
     }
 
@@ -59,14 +53,12 @@ public class LicenseVerificationToolTests extends CommandTestCase {
         License signedLicense = TestUtils.generateSignedLicense(oneHour, pubKeyPath, priKeyPath);
         License tamperedLicense = License.builder()
             .fromLicenseSpec(signedLicense, signedLicense.signature())
-            .expiryDate(signedLicense.expiryDate() + randomIntBetween(1, 1000)).build();
+            .expiryDate(signedLicense.expiryDate() + randomIntBetween(1, 1000))
+            .build();
         UserException e = expectThrows(
-                UserException.class,
-                () -> execute(
-                        "--publicKeyPath",
-                        pubKeyPath.toString(),
-                        "--license",
-                        TestUtils.dumpLicense(tamperedLicense)));
+            UserException.class,
+            () -> execute("--publicKeyPath", pubKeyPath.toString(), "--license", TestUtils.dumpLicense(tamperedLicense))
+        );
         assertEquals("Invalid License!", e.getMessage());
         assertEquals(ExitCodes.DATA_ERROR, e.exitCode);
     }
@@ -74,11 +66,7 @@ public class LicenseVerificationToolTests extends CommandTestCase {
     public void testLicenseSpecString() throws Exception {
         final TimeValue oneHour = TimeValue.timeValueHours(1);
         License signedLicense = TestUtils.generateSignedLicense(oneHour, pubKeyPath, priKeyPath);
-        String output = execute(
-                "--publicKeyPath",
-                pubKeyPath.toString(),
-                "--license",
-                TestUtils.dumpLicense(signedLicense));
+        String output = execute("--publicKeyPath", pubKeyPath.toString(), "--license", TestUtils.dumpLicense(signedLicense));
         assertFalse(output, output.isEmpty());
     }
 
@@ -86,14 +74,8 @@ public class LicenseVerificationToolTests extends CommandTestCase {
         final TimeValue oneHour = TimeValue.timeValueHours(1);
         License signedLicense = TestUtils.generateSignedLicense(oneHour, pubKeyPath, priKeyPath);
         Path licenseSpecFile = createTempFile();
-        Files.write(
-                licenseSpecFile,
-                TestUtils.dumpLicense(signedLicense).getBytes(StandardCharsets.UTF_8));
-        String output = execute(
-                "--publicKeyPath",
-                pubKeyPath.toString(),
-                "--licenseFile",
-                licenseSpecFile.toString());
+        Files.write(licenseSpecFile, TestUtils.dumpLicense(signedLicense).getBytes(StandardCharsets.UTF_8));
+        String output = execute("--publicKeyPath", pubKeyPath.toString(), "--licenseFile", licenseSpecFile.toString());
         assertFalse(output, output.isEmpty());
     }
 

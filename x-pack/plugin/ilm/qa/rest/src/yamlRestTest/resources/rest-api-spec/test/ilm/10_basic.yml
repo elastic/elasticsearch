@@ -281,7 +281,7 @@ setup:
 "Test increasing phase timings validated":
 
   - do:
-      catch: /phases \[delete\] configure a \[min_age\] value less than the \[min_age\] of \[10s\] for the \[warm\] phase/
+      catch: /Your policy is configured to run the delete phase \(min_age\:\ 5s\) before the warm phase \(min_age\:\ 10s\). You should change the phase timing so that the phases will execute in the order of hot, warm, then cold./
       ilm.put_lifecycle:
         policy: "bad_policy"
         body: |

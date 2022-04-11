@@ -13,20 +13,20 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
-import org.elasticsearch.client.AdminClient;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.client.IndicesAdminClient;
+import org.elasticsearch.client.internal.AdminClient;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ElasticsearchClient;
+import org.elasticsearch.client.internal.IndicesAdminClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.monitoring.MonitoredSystem;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringDoc;
 import org.elasticsearch.xpack.monitoring.BaseCollectorTestCase;
 
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Matchers.anyString;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -85,9 +85,9 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
         // Total number of indices
         final int indices = existingIndices + createdIndices + deletedIndices;
 
-        final Map<String, IndexStats> indicesStats = new HashMap<>(indices);
-        final Map<String, IndexMetadata> indicesMetadata = new HashMap<>(indices);
-        final Map<String, IndexRoutingTable> indicesRoutingTable = new HashMap<>(indices);
+        final Map<String, IndexStats> indicesStats = Maps.newMapWithExpectedSize(indices);
+        final Map<String, IndexMetadata> indicesMetadata = Maps.newMapWithExpectedSize(indices);
+        final Map<String, IndexRoutingTable> indicesRoutingTable = Maps.newMapWithExpectedSize(indices);
 
         for (int i = 0; i < indices; i++) {
             final String index = "_index_" + i;
@@ -117,8 +117,9 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
         final String[] indexNames = indicesMetadata.keySet().toArray(new String[0]);
         when(metadata.getConcreteAllIndices()).thenReturn(indexNames);
 
-        final IndicesStatsRequestBuilder indicesStatsRequestBuilder =
-                spy(new IndicesStatsRequestBuilder(mock(ElasticsearchClient.class), IndicesStatsAction.INSTANCE));
+        final IndicesStatsRequestBuilder indicesStatsRequestBuilder = spy(
+            new IndicesStatsRequestBuilder(mock(ElasticsearchClient.class), IndicesStatsAction.INSTANCE)
+        );
         doReturn(indicesStatsResponse).when(indicesStatsRequestBuilder).get();
 
         final IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
@@ -162,7 +163,7 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
             } else {
                 assertThat(document.getType(), equalTo(IndexStatsMonitoringDoc.TYPE));
 
-                final IndexStatsMonitoringDoc indexStatsDocument = (IndexStatsMonitoringDoc)document;
+                final IndexStatsMonitoringDoc indexStatsDocument = (IndexStatsMonitoringDoc) document;
                 final String index = indexStatsDocument.getIndexStats().getIndex();
 
                 assertThat(indexStatsDocument.getIndexStats(), is(indicesStats.get(index)));
@@ -170,6 +171,11 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
                 assertThat(indexStatsDocument.getIndexRoutingTable(), is(indicesRoutingTable.get(index)));
             }
         }
+
+        assertWarnings(
+            "[xpack.monitoring.collection.index.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
+                + "in a future release."
+        );
     }
 
     public void testDoCollectThrowsTimeoutException() throws Exception {
@@ -181,13 +187,18 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
         final IndicesStatsResponse indicesStatsResponse = mock(IndicesStatsResponse.class);
         final MonitoringDoc.Node node = randomMonitoringNode(random());
 
-        when(indicesStatsResponse.getShardFailures()).thenReturn(new DefaultShardOperationFailedException[] {
-                new DefaultShardOperationFailedException("test", 0,
-                        new FailedNodeException(node.getUUID(), "msg", new ElasticsearchTimeoutException("test timeout")))
-        });
+        when(indicesStatsResponse.getShardFailures()).thenReturn(
+            new DefaultShardOperationFailedException[] {
+                new DefaultShardOperationFailedException(
+                    "test",
+                    0,
+                    new FailedNodeException(node.getUUID(), "msg", new ElasticsearchTimeoutException("test timeout"))
+                ) }
+        );
 
-        final IndicesStatsRequestBuilder indicesStatsRequestBuilder =
-                spy(new IndicesStatsRequestBuilder(mock(ElasticsearchClient.class), IndicesStatsAction.INSTANCE));
+        final IndicesStatsRequestBuilder indicesStatsRequestBuilder = spy(
+            new IndicesStatsRequestBuilder(mock(ElasticsearchClient.class), IndicesStatsAction.INSTANCE)
+        );
         doReturn(indicesStatsResponse).when(indicesStatsRequestBuilder).get();
 
         final IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
@@ -203,6 +214,11 @@ public class IndexStatsCollectorTests extends BaseCollectorTestCase {
         final long interval = randomNonNegativeLong();
 
         expectThrows(ElasticsearchTimeoutException.class, () -> collector.doCollect(node, interval, clusterState));
+
+        assertWarnings(
+            "[xpack.monitoring.collection.index.stats.timeout] setting was deprecated in Elasticsearch and will be removed "
+                + "in a future release."
+        );
     }
 
 }

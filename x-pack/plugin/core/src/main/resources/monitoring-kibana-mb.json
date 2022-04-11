@@ -1,0 +1,657 @@
+{
+  "index_patterns": [".monitoring-kibana-${xpack.stack.monitoring.template.version}-*"],
+  "version": ${xpack.stack.monitoring.template.release.version},
+  "template": {
+    "mappings": {
+      "dynamic": false,
+      "properties": {
+        "process": {
+          "properties": {
+            "pid": {
+              "type": "long"
+            }
+          }
+        },
+        "@timestamp": {
+          "type": "date"
+        },
+        "ecs": {
+          "properties": {
+            "version": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            }
+          }
+        },
+        "service": {
+          "properties": {
+            "address": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            },
+            "name": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            },
+            "id": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            },
+            "type": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            },
+            "version": {
+              "ignore_above": 1024,
+              "type": "keyword"
+            },
+            "environment": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "ephemeral_id": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "hostname": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "node": {
+              "properties": {
+                "name": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                }
+              }
+            },
+            "origin": {
+              "properties": {
+                "address": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "environment": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "ephemeral_id": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "id": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "name": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "node": {
+                  "properties": {
+                    "name": {
+                      "type": "keyword",
+                      "ignore_above": 1024
+                    }
+                  }
+                },
+                "state": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "type": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "version": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                }
+              }
+            },
+            "state": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "target": {
+              "properties": {
+                "address": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "environment": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "ephemeral_id": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "id": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "name": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "node": {
+                  "properties": {
+                    "name": {
+                      "type": "keyword",
+                      "ignore_above": 1024
+                    }
+                  }
+                },
+                "state": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "type": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                },
+                "version": {
+                  "type": "keyword",
+                  "ignore_above": 1024
+                }
+              }
+            }
+          }
+        },
+        "kibana": {
+          "properties": {
+            "elasticsearch": {
+              "properties": {
+                "cluster": {
+                  "properties": {
+                    "id": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    }
+                  }
+                }
+              }
+            },
+            "stats": {
+              "properties": {
+                "request": {
+                  "properties": {
+                    "total": {
+                      "type": "long"
+                    },
+                    "disconnects": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "process": {
+                  "properties": {
+                    "memory": {
+                      "properties": {
+                        "resident_set_size": {
+                          "properties": {
+                            "bytes": {
+                              "type": "long"
+                            }
+                          }
+                        },
+                        "heap": {
+                          "properties": {
+                            "total": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "used": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "size_limit": {
+                              "properties": {
+                                "bytes": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "uptime": {
+                              "properties": {
+                                "ms": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "event_loop_delay": {
+                      "properties": {
+                        "ms": {
+                          "scaling_factor": 1000,
+                          "type": "scaled_float"
+                        }
+                      }
+                    },
+                    "uptime": {
+                      "properties": {
+                        "ms": {
+                          "type": "long"
+                        }
+                      }
+                    }
+                  }
+                },
+                "os": {
+                  "properties": {
+                    "distroRelease": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    },
+                    "distro": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    },
+                    "memory": {
+                      "properties": {
+                        "used_in_bytes": {
+                          "type": "long"
+                        },
+                        "total_in_bytes": {
+                          "type": "long"
+                        },
+                        "free_in_bytes": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "load": {
+                      "properties": {
+                        "5m": {
+                          "type": "half_float"
+                        },
+                        "15m": {
+                          "type": "half_float"
+                        },
+                        "1m": {
+                          "type": "half_float"
+                        }
+                      }
+                    },
+                    "platformRelease": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    },
+                    "platform": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "usage": {
+                  "properties": {
+                    "index": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "name": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "host": {
+                  "properties": {
+                    "name": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "index": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "response_time": {
+                  "properties": {
+                    "avg": {
+                      "properties": {
+                        "ms": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "max": {
+                      "properties": {
+                        "ms": {
+                          "type": "long"
+                        }
+                      }
+                    }
+                  }
+                },
+                "kibana": {
+                  "properties": {
+                    "status": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "concurrent_connections": {
+                  "type": "long"
+                },
+                "snapshot": {
+                  "type": "boolean"
+                },
+                "status": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                }
+              }
+            },
+            "status": {
+              "properties": {
+                "name": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "metrics": {
+                  "properties": {
+                    "requests": {
+                      "properties": {
+                        "total": {
+                          "type": "long"
+                        },
+                        "disconnects": {
+                          "type": "long"
+                        }
+                      }
+                    },
+                    "concurrent_connections": {
+                      "type": "long"
+                    }
+                  }
+                },
+                "status": {
+                  "properties": {
+                    "overall": {
+                      "properties": {
+                        "state": {
+                          "ignore_above": 1024,
+                          "type": "keyword"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "kibana_stats": {
+          "properties": {
+            "process": {
+              "properties": {
+                "memory": {
+                  "properties": {
+                    "resident_set_size_in_bytes": {
+                      "path": "kibana.stats.process.memory.resident_set_size.bytes",
+                      "type": "alias"
+                    },
+                    "heap": {
+                      "properties": {
+                        "size_limit": {
+                          "path": "kibana.stats.process.memory.heap.size_limit.bytes",
+                          "type": "alias"
+                        }
+                      }
+                    }
+                  }
+                },
+                "event_loop_delay": {
+                  "path": "kibana.stats.process.event_loop_delay.ms",
+                  "type": "alias"
+                },
+                "uptime_in_millis": {
+                  "path": "kibana.stats.process.uptime.ms",
+                  "type": "alias"
+                }
+              }
+            },
+            "os": {
+              "properties": {
+                "memory": {
+                  "properties": {
+                    "free_in_bytes": {
+                      "path": "kibana.stats.os.memory.free_in_bytes",
+                      "type": "alias"
+                    }
+                  }
+                },
+                "load": {
+                  "properties": {
+                    "5m": {
+                      "path": "kibana.stats.os.load.5m",
+                      "type": "alias"
+                    },
+                    "15m": {
+                      "path": "kibana.stats.os.load.15m",
+                      "type": "alias"
+                    },
+                    "1m": {
+                      "path": "kibana.stats.os.load.1m",
+                      "type": "alias"
+                    }
+                  }
+                }
+              }
+            },
+            "response_times": {
+              "properties": {
+                "average": {
+                  "path": "kibana.stats.response_time.avg.ms",
+                  "type": "alias"
+                },
+                "max": {
+                  "path": "kibana.stats.response_time.max.ms",
+                  "type": "alias"
+                }
+              }
+            },
+            "requests": {
+              "properties": {
+                "total": {
+                  "path": "kibana.stats.request.total",
+                  "type": "alias"
+                },
+                "disconnects": {
+                  "path": "kibana.stats.request.disconnects",
+                  "type": "alias"
+                }
+              }
+            },
+            "kibana": {
+              "properties": {
+                "response_time": {
+                  "properties": {
+                    "max": {
+                      "path": "kibana.stats.response_time.max.ms",
+                      "type": "alias"
+                    }
+                  }
+                },
+                "status": {
+                  "path": "kibana.stats.status",
+                  "type": "alias"
+                },
+                "uuid": {
+                  "type": "alias",
+                  "path": "service.id"
+                },
+                "version": {
+                  "type": "alias",
+                  "path": "service.version"
+                }
+              }
+            },
+            "concurrent_connections": {
+              "path": "kibana.stats.concurrent_connections",
+              "type": "alias"
+            },
+            "timestamp": {
+              "type": "alias",
+              "path": "@timestamp"
+            }
+          }
+        },
+        "timestamp": {
+          "type": "alias",
+          "path": "@timestamp"
+        },
+        "host": {
+          "properties": {
+            "name": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "architecture": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "hostname": {
+              "type": "keyword",
+              "ignore_above": 1024
+            }
+          }
+        },
+        "metricset": {
+          "properties": {
+            "name": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "period": {
+              "type": "long"
+            }
+          }
+        },
+        "event": {
+          "properties": {
+            "action": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "agent_id_status": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "category": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "code": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "created": {
+              "type": "date"
+            },
+            "dataset": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "duration": {
+              "type": "long"
+            },
+            "end": {
+              "type": "date"
+            },
+            "hash": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "id": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "ingested": {
+              "type": "date"
+            },
+            "kind": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "module": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "original": {
+              "type": "keyword",
+              "index": false,
+              "doc_values": false,
+              "ignore_above": 1024
+            },
+            "outcome": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "provider": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "reason": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "reference": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "risk_score": {
+              "type": "float"
+            },
+            "risk_score_norm": {
+              "type": "float"
+            },
+            "sequence": {
+              "type": "long"
+            },
+            "severity": {
+              "type": "long"
+            },
+            "start": {
+              "type": "date"
+            },
+            "timezone": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "type": {
+              "type": "keyword",
+              "ignore_above": 1024
+            },
+            "url": {
+              "type": "keyword",
+              "ignore_above": 1024
+            }
+          }
+        },
+        "cluster_uuid": {
+          "type": "alias",
+          "path": "kibana.elasticsearch.cluster.id"
+        }
+      }
+    },
+    "settings": {
+      "index.mapping.total_fields.limit": 2000,
+      "index.lifecycle.name": "${xpack.stack.monitoring.policy.name}"
+    }
+  },
+  "data_stream": {}
+}

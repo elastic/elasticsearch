@@ -1,5 +1,4 @@
-[role="xpack"]
-[[ml-metric-functions]]
+["appendix",role="exclude",id="ml-metric-functions"]
 = Metric functions
 
 The metric functions include functions such as mean, min and max. These values

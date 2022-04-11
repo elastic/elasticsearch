@@ -1,0 +1,249 @@
+[[knn-search-api]]
+=== kNN search API
+++++
+<titleabbrev>kNN search</titleabbrev>
+++++
+
+experimental::[]
+
+Performs a k-nearest neighbor (kNN) search and returns the matching documents.
+
+////
+[source,console]
+----
+PUT my-index
+{
+  "mappings": {
+    "properties": {
+      "image_vector": {
+        "type": "dense_vector",
+        "dims": 3,
+        "index": true,
+        "similarity": "l2_norm"
+      }
+    }
+  }
+}
+
+PUT my-index/_doc/1?refresh
+{
+  "image_vector" : [0.5, 10, 6]
+}
+----
+////
+
+[source,console]
+----
+GET my-index/_knn_search
+{
+  "knn": {
+    "field": "image_vector",
+    "query_vector": [0.3, 0.1, 1.2],
+    "k": 10,
+    "num_candidates": 100
+  },
+  "_source": ["name", "file_type"]
+}
+----
+// TEST[continued]
+
+[[knn-search-api-request]]
+==== {api-request-title}
+
+`GET <target>/_knn_search`
+
+`POST <target>/_knn_search`
+
+[[knn-search-api-prereqs]]
+==== {api-prereq-title}
+
+* If the {es} {security-features} are enabled, you must have the `read`
+<<privileges-list-indices,index privilege>> for the target data stream, index,
+or alias.
+
+[[knn-search-api-desc]]
+==== {api-description-title}
+
+The kNN search API performs a k-nearest neighbor (kNN) search on a
+<<dense-vector,`dense_vector`>> field. Given a query vector, it finds the _k_
+closest vectors and returns those documents as search hits.
+
+//tag::hnsw-algorithm[]
+{es} uses the https://arxiv.org/abs/1603.09320[HNSW algorithm] to support
+efficient kNN search. Like most kNN algorithms, HNSW is an approximate method
+that sacrifices result accuracy for improved search speed. This means the
+results returned are not always the true _k_ closest neighbors.
+//end::hnsw-algorithm[]
+
+[[knn-search-api-path-params]]
+==== {api-path-parms-title}
+
+`<target>`::
+(Optional, string) Comma-separated list of data streams, indices, and aliases
+to search. Supports wildcards (`*`). To search all data streams and indices,
+use `*` or `_all`.
+
+WARNING: kNN search does not yet work with <<filter-alias,filtered aliases>>.
+Running a kNN search against a filtered alias may incorrectly result in fewer
+than _k_ hits.
+
+[role="child_attributes"]
+[[knn-search-api-query-params]]
+==== {api-query-parms-title}
+
+include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]
+
+[role="child_attributes"]
+[[knn-search-api-request-body]]
+==== {api-request-body-title}
+
+`knn`::
+(Required, object) Defines the kNN query to run.
++
+.Properties of `knn` object
+[%collapsible%open]
+====
+`field`::
+(Required, string) The name of the vector field to search against. Must be a
+<<index-vectors-knn-search, `dense_vector` field with indexing enabled>>.
+
+`query_vector`::
+(Required, array of floats) Query vector. Must have the same number of
+dimensions as the vector field you are searching against.
+
+`k`::
+(Required, integer) Number of nearest neighbors to return as top hits. This
+value must be less than `num_candidates`.
+
+`num_candidates`::
+(Required, integer) The number of nearest neighbor candidates to consider per
+shard. Cannot exceed 10,000. {es} collects `num_candidates` results from each
+shard, then merges them to find the top `k` results. Increasing
+`num_candidates` tends to improve the accuracy of the final `k` results.
+====
+
+`filter`::
+(Optional, <<query-dsl,Query DSL object>>) Query to filter the documents that
+can match. The kNN search will return the top `k` documents that also match
+this filter. The value can be a single query or a list of queries. If `filter`
+is not provided, all documents are allowed to match.
+
+
+
+include::{es-repo-dir}/search/search.asciidoc[tag=docvalue-fields-def]
+include::{es-repo-dir}/search/search.asciidoc[tag=fields-param-def]
+include::{es-repo-dir}/search/search.asciidoc[tag=source-filtering-def]
+include::{es-repo-dir}/search/search.asciidoc[tag=stored-fields-def]
+
+[role="child_attributes"]
+[[knn-search-api-response-body]]
+==== {api-response-body-title}
+
+A kNN search response has the exact same structure as a
+<<search-api-response-body, search API response>>. However, certain sections
+have a meaning specific to kNN search:
+
+* The <<search-api-response-body-score,document `_score`>> is determined by
+the similarity between the query and document vector. See
+<<dense-vector-similarity, `similarity`>>.
+* The `hits.total` object contains the total number of nearest neighbor
+candidates considered, which is `num_candidates * num_shards`. The
+`hits.total.relation` will always be `eq`, indicating an exact value.
+
+[[knn-search-api-example]]
+==== {api-examples-title}
+
+The following requests create a `dense_vector` field with indexing enabled and
+add sample documents:
+
+[source,console]
+----
+PUT my-index
+{
+  "mappings": {
+    "properties": {
+      "image_vector": {
+        "type": "dense_vector",
+        "dims": 3,
+        "index": true,
+        "similarity": "l2_norm"
+      },
+      "name": {
+        "type": "keyword"
+      },
+      "file_type": {
+        "type": "keyword"
+      }
+    }
+  }
+}
+
+PUT my-index/_doc/1?refresh
+{
+  "image_vector" : [0.5, 0.1, 2.6],
+  "name": "moose family",
+  "file_type": "jpeg"
+}
+
+PUT my-index/_doc/2?refresh
+{
+  "image_vector" : [1.0, 0.8, -0.2],
+  "name": "alpine lake",
+  "file_type": "svg"
+}
+----
+
+The next request performs a kNN search filtered by the `file_type` field:
+
+[source,console]
+----
+GET my-index/_knn_search
+{
+  "knn": {
+    "field": "image_vector",
+    "query_vector": [0.3, 0.1, 1.2],
+    "k": 5,
+    "num_candidates": 50
+  },
+  "filter": {
+    "term": {
+      "file_type": "svg"
+    }
+  },
+  "_source": ["name"]
+}
+----
+// TEST[continued]
+
+[source,console-result]
+----
+{
+  "took": 5,
+  "timed_out": false,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "skipped": 0,
+    "failed": 0
+  },
+  "hits": {
+    "total": {
+      "value": 1,
+      "relation": "eq"
+    },
+    "max_score": 0.2538071,
+    "hits": [
+      {
+        "_index": "my-index",
+        "_id": "2",
+        "_score": 0.2538071,
+        "_source": {
+          "name": "alpine lake"
+        }
+      }
+    ]
+  }
+}
+----
+// TESTRESPONSE[s/"took": 5/"took": $body.took/]
+// TESTRESPONSE[s/,\n      \.\.\.//]

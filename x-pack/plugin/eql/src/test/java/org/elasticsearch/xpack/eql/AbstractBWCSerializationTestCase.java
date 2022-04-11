@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.eql;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -25,8 +25,9 @@ public abstract class AbstractBWCSerializationTestCase<T extends Writeable & ToX
     private static final List<Version> ALL_VERSIONS = Collections.unmodifiableList(getDeclaredVersions(Version.class));
 
     private static List<Version> getAllBWCVersions(Version version) {
-        return ALL_VERSIONS.stream().filter(v -> v.onOrAfter(EQL_GA_VERSION) && v.before(version) && version.isCompatible(v)).collect(
-            Collectors.toList());
+        return ALL_VERSIONS.stream()
+            .filter(v -> v.onOrAfter(EQL_GA_VERSION) && v.before(version) && version.isCompatible(v))
+            .collect(Collectors.toList());
     }
 
     private static final List<Version> DEFAULT_BWC_VERSIONS = getAllBWCVersions(Version.CURRENT);

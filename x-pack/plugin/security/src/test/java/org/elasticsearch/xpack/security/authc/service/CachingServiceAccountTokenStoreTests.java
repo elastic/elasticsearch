@@ -16,7 +16,6 @@ import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.action.service.TokenInfo.TokenSource;
 import org.elasticsearch.xpack.core.security.support.ValidationTests;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
@@ -25,7 +24,6 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -71,11 +69,6 @@ public class CachingServiceAccountTokenStoreTests extends ESTestCase {
             void doAuthenticate(ServiceAccountToken token, ActionListener<StoreAuthenticationResult> listener) {
                 doAuthenticateInvoked.set(true);
                 listener.onResponse(new StoreAuthenticationResult(validSecret.equals(token.getSecret()), getTokenSource()));
-            }
-
-            @Override
-            public void findTokensFor(ServiceAccountId accountId, ActionListener<Collection<TokenInfo>> listener) {
-                listener.onFailure(new UnsupportedOperationException());
             }
 
             @Override
@@ -171,11 +164,6 @@ public class CachingServiceAccountTokenStoreTests extends ESTestCase {
             }
 
             @Override
-            public void findTokensFor(ServiceAccountId accountId, ActionListener<Collection<TokenInfo>> listener) {
-                listener.onFailure(new UnsupportedOperationException());
-            }
-
-            @Override
             TokenSource getTokenSource() {
                 return tokenSource;
             }
@@ -197,11 +185,6 @@ public class CachingServiceAccountTokenStoreTests extends ESTestCase {
             }
 
             @Override
-            public void findTokensFor(ServiceAccountId accountId, ActionListener<Collection<TokenInfo>> listener) {
-                listener.onFailure(new UnsupportedOperationException());
-            }
-
-            @Override
             TokenSource getTokenSource() {
                 return randomFrom(TokenSource.values());
             }
@@ -211,13 +194,17 @@ public class CachingServiceAccountTokenStoreTests extends ESTestCase {
 
         final ArrayList<ServiceAccountToken> tokens = new ArrayList<>();
         IntStream.range(0, randomIntBetween(3, 8)).forEach(i -> {
-            final ServiceAccountToken token = ServiceAccountToken.newToken(accountId,
-                randomValueOtherThanMany(n -> n.length() > 248, ValidationTests::randomTokenName));
+            final ServiceAccountToken token = ServiceAccountToken.newToken(
+                accountId,
+                randomValueOtherThanMany(n -> n.length() > 248, ValidationTests::randomTokenName)
+            );
             tokens.add(token);
             store.authenticate(token, mock(ActionListener.class));
 
-            final ServiceAccountToken tokenWithSuffix =
-                ServiceAccountToken.newToken(accountId, token.getTokenName() + randomAlphaOfLengthBetween(3, 8));
+            final ServiceAccountToken tokenWithSuffix = ServiceAccountToken.newToken(
+                accountId,
+                token.getTokenName() + randomAlphaOfLengthBetween(3, 8)
+            );
             tokens.add(tokenWithSuffix);
             store.authenticate(tokenWithSuffix, mock(ActionListener.class));
         });

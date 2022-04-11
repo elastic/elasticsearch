@@ -118,138 +118,139 @@ public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
             // English stemmers
         } else if ("english".equalsIgnoreCase(language)) {
             return new PorterStemFilter(tokenStream);
-        } else if ("light_english".equalsIgnoreCase(language) || "lightEnglish".equalsIgnoreCase(language)
-                || "kstem".equalsIgnoreCase(language)) {
-            return new KStemFilter(tokenStream);
-        } else if ("lovins".equalsIgnoreCase(language)) {
-            return new SnowballFilter(tokenStream, new LovinsStemmer());
-        } else if ("porter".equalsIgnoreCase(language)) {
-            return new PorterStemFilter(tokenStream);
-        } else if ("porter2".equalsIgnoreCase(language)) {
-            return new SnowballFilter(tokenStream, new EnglishStemmer());
-        } else if ("minimal_english".equalsIgnoreCase(language) || "minimalEnglish".equalsIgnoreCase(language)) {
-            return new EnglishMinimalStemFilter(tokenStream);
-        } else if ("possessive_english".equalsIgnoreCase(language) || "possessiveEnglish".equalsIgnoreCase(language)) {
-            return new EnglishPossessiveFilter(tokenStream);
+        } else if ("light_english".equalsIgnoreCase(language)
+            || "lightEnglish".equalsIgnoreCase(language)
+            || "kstem".equalsIgnoreCase(language)) {
+                return new KStemFilter(tokenStream);
+            } else if ("lovins".equalsIgnoreCase(language)) {
+                return new SnowballFilter(tokenStream, new LovinsStemmer());
+            } else if ("porter".equalsIgnoreCase(language)) {
+                return new PorterStemFilter(tokenStream);
+            } else if ("porter2".equalsIgnoreCase(language)) {
+                return new SnowballFilter(tokenStream, new EnglishStemmer());
+            } else if ("minimal_english".equalsIgnoreCase(language) || "minimalEnglish".equalsIgnoreCase(language)) {
+                return new EnglishMinimalStemFilter(tokenStream);
+            } else if ("possessive_english".equalsIgnoreCase(language) || "possessiveEnglish".equalsIgnoreCase(language)) {
+                return new EnglishPossessiveFilter(tokenStream);
 
-        } else if ("estonian".equalsIgnoreCase(language)) {
-            return new SnowballFilter(tokenStream, new EstonianStemmer());
+            } else if ("estonian".equalsIgnoreCase(language)) {
+                return new SnowballFilter(tokenStream, new EstonianStemmer());
 
-            // Finnish stemmers
-        } else if ("finnish".equalsIgnoreCase(language)) {
-            return new SnowballFilter(tokenStream, new FinnishStemmer());
-        } else if ("light_finish".equalsIgnoreCase(language) || "lightFinish".equalsIgnoreCase(language)) {
-            // leaving this for backward compatibility
-            return new FinnishLightStemFilter(tokenStream);
-        } else if ("light_finnish".equalsIgnoreCase(language) || "lightFinnish".equalsIgnoreCase(language)) {
-            return new FinnishLightStemFilter(tokenStream);
+                // Finnish stemmers
+            } else if ("finnish".equalsIgnoreCase(language)) {
+                return new SnowballFilter(tokenStream, new FinnishStemmer());
+            } else if ("light_finish".equalsIgnoreCase(language) || "lightFinish".equalsIgnoreCase(language)) {
+                // leaving this for backward compatibility
+                return new FinnishLightStemFilter(tokenStream);
+            } else if ("light_finnish".equalsIgnoreCase(language) || "lightFinnish".equalsIgnoreCase(language)) {
+                return new FinnishLightStemFilter(tokenStream);
 
-            // French stemmers
-        } else if ("french".equalsIgnoreCase(language)) {
-            return new SnowballFilter(tokenStream, new FrenchStemmer());
-        } else if ("light_french".equalsIgnoreCase(language) || "lightFrench".equalsIgnoreCase(language)) {
-            return new FrenchLightStemFilter(tokenStream);
-        } else if ("minimal_french".equalsIgnoreCase(language) || "minimalFrench".equalsIgnoreCase(language)) {
-            return new FrenchMinimalStemFilter(tokenStream);
+                // French stemmers
+            } else if ("french".equalsIgnoreCase(language)) {
+                return new SnowballFilter(tokenStream, new FrenchStemmer());
+            } else if ("light_french".equalsIgnoreCase(language) || "lightFrench".equalsIgnoreCase(language)) {
+                return new FrenchLightStemFilter(tokenStream);
+            } else if ("minimal_french".equalsIgnoreCase(language) || "minimalFrench".equalsIgnoreCase(language)) {
+                return new FrenchMinimalStemFilter(tokenStream);
 
-            // Galician stemmers
-        } else if ("galician".equalsIgnoreCase(language)) {
-            return new GalicianStemFilter(tokenStream);
-        } else if ("minimal_galician".equalsIgnoreCase(language)) {
-            return new GalicianMinimalStemFilter(tokenStream);
+                // Galician stemmers
+            } else if ("galician".equalsIgnoreCase(language)) {
+                return new GalicianStemFilter(tokenStream);
+            } else if ("minimal_galician".equalsIgnoreCase(language)) {
+                return new GalicianMinimalStemFilter(tokenStream);
 
-            // German stemmers
-        } else if ("german".equalsIgnoreCase(language)) {
-            return new SnowballFilter(tokenStream, new GermanStemmer());
-        } else if ("german2".equalsIgnoreCase(language)) {
-            return new SnowballFilter(tokenStream, new German2Stemmer());
-        } else if ("light_german".equalsIgnoreCase(language) || "lightGerman".equalsIgnoreCase(language)) {
-            return new GermanLightStemFilter(tokenStream);
-        } else if ("minimal_german".equalsIgnoreCase(language) || "minimalGerman".equalsIgnoreCase(language)) {
-            return new GermanMinimalStemFilter(tokenStream);
+                // German stemmers
+            } else if ("german".equalsIgnoreCase(language)) {
+                return new SnowballFilter(tokenStream, new GermanStemmer());
+            } else if ("german2".equalsIgnoreCase(language)) {
+                return new SnowballFilter(tokenStream, new German2Stemmer());
+            } else if ("light_german".equalsIgnoreCase(language) || "lightGerman".equalsIgnoreCase(language)) {
+                return new GermanLightStemFilter(tokenStream);
+            } else if ("minimal_german".equalsIgnoreCase(language) || "minimalGerman".equalsIgnoreCase(language)) {
+                return new GermanMinimalStemFilter(tokenStream);
 
-        } else if ("greek".equalsIgnoreCase(language)) {
-            return new GreekStemFilter(tokenStream);
-        } else if ("hindi".equalsIgnoreCase(language)) {
-            return new HindiStemFilter(tokenStream);
+            } else if ("greek".equalsIgnoreCase(language)) {
+                return new GreekStemFilter(tokenStream);
+            } else if ("hindi".equalsIgnoreCase(language)) {
+                return new HindiStemFilter(tokenStream);
 
-            // Hungarian stemmers
-        } else if ("hungarian".equalsIgnoreCase(language)) {
-            return new SnowballFilter(tokenStream, new HungarianStemmer());
-        } else if ("light_hungarian".equalsIgnoreCase(language) || "lightHungarian".equalsIgnoreCase(language)) {
-            return new HungarianLightStemFilter(tokenStream);
+                // Hungarian stemmers
+            } else if ("hungarian".equalsIgnoreCase(language)) {
+                return new SnowballFilter(tokenStream, new HungarianStemmer());
+            } else if ("light_hungarian".equalsIgnoreCase(language) || "lightHungarian".equalsIgnoreCase(language)) {
+                return new HungarianLightStemFilter(tokenStream);
 
-        } else if ("indonesian".equalsIgnoreCase(language)) {
-            return new IndonesianStemFilter(tokenStream);
+            } else if ("indonesian".equalsIgnoreCase(language)) {
+                return new IndonesianStemFilter(tokenStream);
 
-            // Irish stemmer
-        } else if ("irish".equalsIgnoreCase(language)) {
-            return new SnowballFilter(tokenStream, new IrishStemmer());
+                // Irish stemmer
+            } else if ("irish".equalsIgnoreCase(language)) {
+                return new SnowballFilter(tokenStream, new IrishStemmer());
 
-            // Italian stemmers
-        } else if ("italian".equalsIgnoreCase(language)) {
-            return new SnowballFilter(tokenStream, new ItalianStemmer());
-        } else if ("light_italian".equalsIgnoreCase(language) || "lightItalian".equalsIgnoreCase(language)) {
-            return new ItalianLightStemFilter(tokenStream);
+                // Italian stemmers
+            } else if ("italian".equalsIgnoreCase(language)) {
+                return new SnowballFilter(tokenStream, new ItalianStemmer());
+            } else if ("light_italian".equalsIgnoreCase(language) || "lightItalian".equalsIgnoreCase(language)) {
+                return new ItalianLightStemFilter(tokenStream);
 
-        } else if ("latvian".equalsIgnoreCase(language)) {
-            return new LatvianStemFilter(tokenStream);
+            } else if ("latvian".equalsIgnoreCase(language)) {
+                return new LatvianStemFilter(tokenStream);
 
-        } else if ("lithuanian".equalsIgnoreCase(language)) {
-            return new SnowballFilter(tokenStream, new LithuanianStemmer());
+            } else if ("lithuanian".equalsIgnoreCase(language)) {
+                return new SnowballFilter(tokenStream, new LithuanianStemmer());
 
-            // Norwegian (Bokmål) stemmers
-        } else if ("norwegian".equalsIgnoreCase(language)) {
-            return new SnowballFilter(tokenStream, new NorwegianStemmer());
-        } else if ("light_norwegian".equalsIgnoreCase(language) || "lightNorwegian".equalsIgnoreCase(language)) {
-            return new NorwegianLightStemFilter(tokenStream);
-        } else if ("minimal_norwegian".equalsIgnoreCase(language) || "minimalNorwegian".equals(language)) {
-            return new NorwegianMinimalStemFilter(tokenStream);
+                // Norwegian (Bokmål) stemmers
+            } else if ("norwegian".equalsIgnoreCase(language)) {
+                return new SnowballFilter(tokenStream, new NorwegianStemmer());
+            } else if ("light_norwegian".equalsIgnoreCase(language) || "lightNorwegian".equalsIgnoreCase(language)) {
+                return new NorwegianLightStemFilter(tokenStream);
+            } else if ("minimal_norwegian".equalsIgnoreCase(language) || "minimalNorwegian".equals(language)) {
+                return new NorwegianMinimalStemFilter(tokenStream);
 
-            // Norwegian (Nynorsk) stemmers
-        } else if ("light_nynorsk".equalsIgnoreCase(language) || "lightNynorsk".equalsIgnoreCase(language)) {
-            return new NorwegianLightStemFilter(tokenStream, NorwegianLightStemmer.NYNORSK);
-        } else if ("minimal_nynorsk".equalsIgnoreCase(language) || "minimalNynorsk".equalsIgnoreCase(language)) {
-            return new NorwegianMinimalStemFilter(tokenStream, NorwegianLightStemmer.NYNORSK);
+                // Norwegian (Nynorsk) stemmers
+            } else if ("light_nynorsk".equalsIgnoreCase(language) || "lightNynorsk".equalsIgnoreCase(language)) {
+                return new NorwegianLightStemFilter(tokenStream, NorwegianLightStemmer.NYNORSK);
+            } else if ("minimal_nynorsk".equalsIgnoreCase(language) || "minimalNynorsk".equalsIgnoreCase(language)) {
+                return new NorwegianMinimalStemFilter(tokenStream, NorwegianLightStemmer.NYNORSK);
 
-            // Portuguese stemmers
-        } else if ("portuguese".equalsIgnoreCase(language)) {
-            return new SnowballFilter(tokenStream, new PortugueseStemmer());
-        } else if ("light_portuguese".equalsIgnoreCase(language) || "lightPortuguese".equalsIgnoreCase(language)) {
-            return new PortugueseLightStemFilter(tokenStream);
-        } else if ("minimal_portuguese".equalsIgnoreCase(language) || "minimalPortuguese".equalsIgnoreCase(language)) {
-            return new PortugueseMinimalStemFilter(tokenStream);
-        } else if ("portuguese_rslp".equalsIgnoreCase(language)) {
-            return new PortugueseStemFilter(tokenStream);
+                // Portuguese stemmers
+            } else if ("portuguese".equalsIgnoreCase(language)) {
+                return new SnowballFilter(tokenStream, new PortugueseStemmer());
+            } else if ("light_portuguese".equalsIgnoreCase(language) || "lightPortuguese".equalsIgnoreCase(language)) {
+                return new PortugueseLightStemFilter(tokenStream);
+            } else if ("minimal_portuguese".equalsIgnoreCase(language) || "minimalPortuguese".equalsIgnoreCase(language)) {
+                return new PortugueseMinimalStemFilter(tokenStream);
+            } else if ("portuguese_rslp".equalsIgnoreCase(language)) {
+                return new PortugueseStemFilter(tokenStream);
 
-        } else if ("romanian".equalsIgnoreCase(language)) {
-            return new SnowballFilter(tokenStream, new RomanianStemmer());
+            } else if ("romanian".equalsIgnoreCase(language)) {
+                return new SnowballFilter(tokenStream, new RomanianStemmer());
 
-            // Russian stemmers
-        } else if ("russian".equalsIgnoreCase(language)) {
-            return new SnowballFilter(tokenStream, new RussianStemmer());
-        } else if ("light_russian".equalsIgnoreCase(language) || "lightRussian".equalsIgnoreCase(language)) {
-            return new RussianLightStemFilter(tokenStream);
+                // Russian stemmers
+            } else if ("russian".equalsIgnoreCase(language)) {
+                return new SnowballFilter(tokenStream, new RussianStemmer());
+            } else if ("light_russian".equalsIgnoreCase(language) || "lightRussian".equalsIgnoreCase(language)) {
+                return new RussianLightStemFilter(tokenStream);
 
-            // Spanish stemmers
-        } else if ("spanish".equalsIgnoreCase(language)) {
-            return new SnowballFilter(tokenStream, new SpanishStemmer());
-        } else if ("light_spanish".equalsIgnoreCase(language) || "lightSpanish".equalsIgnoreCase(language)) {
-            return new SpanishLightStemFilter(tokenStream);
+                // Spanish stemmers
+            } else if ("spanish".equalsIgnoreCase(language)) {
+                return new SnowballFilter(tokenStream, new SpanishStemmer());
+            } else if ("light_spanish".equalsIgnoreCase(language) || "lightSpanish".equalsIgnoreCase(language)) {
+                return new SpanishLightStemFilter(tokenStream);
 
-            // Sorani Kurdish stemmer
-        } else if ("sorani".equalsIgnoreCase(language)) {
-            return new SoraniStemFilter(tokenStream);
+                // Sorani Kurdish stemmer
+            } else if ("sorani".equalsIgnoreCase(language)) {
+                return new SoraniStemFilter(tokenStream);
 
-            // Swedish stemmers
-        } else if ("swedish".equalsIgnoreCase(language)) {
-            return new SnowballFilter(tokenStream, new SwedishStemmer());
-        } else if ("light_swedish".equalsIgnoreCase(language) || "lightSwedish".equalsIgnoreCase(language)) {
-            return new SwedishLightStemFilter(tokenStream);
+                // Swedish stemmers
+            } else if ("swedish".equalsIgnoreCase(language)) {
+                return new SnowballFilter(tokenStream, new SwedishStemmer());
+            } else if ("light_swedish".equalsIgnoreCase(language) || "lightSwedish".equalsIgnoreCase(language)) {
+                return new SwedishLightStemFilter(tokenStream);
 
-        } else if ("turkish".equalsIgnoreCase(language)) {
-            return new SnowballFilter(tokenStream, new TurkishStemmer());
-        }
+            } else if ("turkish".equalsIgnoreCase(language)) {
+                return new SnowballFilter(tokenStream, new TurkishStemmer());
+            }
 
         return new SnowballFilter(tokenStream, language);
     }

@@ -8,7 +8,9 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.util.HashMap;
@@ -24,9 +26,17 @@ public class InternalGeoBoundsTests extends InternalAggregationTestCase<Internal
     protected InternalGeoBounds createTestInstance(String name, Map<String, Object> metadata) {
         // we occasionally want to test top = Double.NEGATIVE_INFINITY since this triggers empty xContent object
         double top = frequently() ? randomDouble() : Double.NEGATIVE_INFINITY;
-        InternalGeoBounds geo = new InternalGeoBounds(name,
-            top, randomDouble(), randomDouble(), randomDouble(),
-            randomDouble(), randomDouble(), randomBoolean(), metadata);
+        InternalGeoBounds geo = new InternalGeoBounds(
+            name,
+            top,
+            randomDouble(),
+            randomDouble(),
+            randomDouble(),
+            randomDouble(),
+            randomDouble(),
+            randomBoolean(),
+            metadata
+        );
         return geo;
     }
 
@@ -75,6 +85,21 @@ public class InternalGeoBoundsTests extends InternalAggregationTestCase<Internal
     }
 
     @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
+    protected void assertSampled(InternalGeoBounds sampled, InternalGeoBounds reduced, SamplingContext samplingContext) {
+        assertValueClose(sampled.top, reduced.top);
+        assertValueClose(sampled.bottom, reduced.bottom);
+        assertValueClose(sampled.posLeft, reduced.posLeft);
+        assertValueClose(sampled.posRight, reduced.posRight);
+        assertValueClose(sampled.negLeft, reduced.negLeft);
+        assertValueClose(sampled.negRight, reduced.negRight);
+    }
+
+    @Override
     protected void assertFromXContent(InternalGeoBounds aggregation, ParsedAggregation parsedAggregation) {
         assertTrue(parsedAggregation instanceof ParsedGeoBounds);
         ParsedGeoBounds parsed = (ParsedGeoBounds) parsedAggregation;
@@ -95,44 +120,44 @@ public class InternalGeoBoundsTests extends InternalAggregationTestCase<Internal
         boolean wrapLongitude = instance.wrapLongitude;
         Map<String, Object> metadata = instance.getMetadata();
         switch (between(0, 8)) {
-        case 0:
-            name += randomAlphaOfLength(5);
-            break;
-        case 1:
-            if (Double.isFinite(top)) {
-                top += between(1, 20);
-            } else {
-                top = randomDouble();
-            }
-            break;
-        case 2:
-            bottom += between(1, 20);
-            break;
-        case 3:
-            posLeft += between(1, 20);
-            break;
-        case 4:
-            posRight += between(1, 20);
-            break;
-        case 5:
-            negLeft += between(1, 20);
-            break;
-        case 6:
-            negRight += between(1, 20);
-            break;
-        case 7:
-            wrapLongitude = wrapLongitude == false;
-            break;
-        case 8:
-            if (metadata == null) {
-                metadata = new HashMap<>(1);
-            } else {
-                metadata = new HashMap<>(instance.getMetadata());
-            }
-            metadata.put(randomAlphaOfLength(15), randomInt());
-            break;
-        default:
-            throw new AssertionError("Illegal randomisation branch");
+            case 0:
+                name += randomAlphaOfLength(5);
+                break;
+            case 1:
+                if (Double.isFinite(top)) {
+                    top += between(1, 20);
+                } else {
+                    top = randomDouble();
+                }
+                break;
+            case 2:
+                bottom += between(1, 20);
+                break;
+            case 3:
+                posLeft += between(1, 20);
+                break;
+            case 4:
+                posRight += between(1, 20);
+                break;
+            case 5:
+                negLeft += between(1, 20);
+                break;
+            case 6:
+                negRight += between(1, 20);
+                break;
+            case 7:
+                wrapLongitude = wrapLongitude == false;
+                break;
+            case 8:
+                if (metadata == null) {
+                    metadata = Maps.newMapWithExpectedSize(1);
+                } else {
+                    metadata = new HashMap<>(instance.getMetadata());
+                }
+                metadata.put(randomAlphaOfLength(15), randomInt());
+                break;
+            default:
+                throw new AssertionError("Illegal randomisation branch");
         }
         return new InternalGeoBounds(name, top, bottom, posLeft, posRight, negLeft, negRight, wrapLongitude, metadata);
     }

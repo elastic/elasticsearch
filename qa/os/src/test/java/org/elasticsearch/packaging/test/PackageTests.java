@@ -8,7 +8,6 @@
 
 package org.elasticsearch.packaging.test;
 
-import org.apache.http.client.fluent.Request;
 import org.elasticsearch.packaging.util.FileUtils;
 import org.elasticsearch.packaging.util.Packages;
 import org.elasticsearch.packaging.util.Shell.Result;
@@ -40,8 +39,6 @@ import static org.elasticsearch.packaging.util.Packages.restartElasticsearch;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
 import static org.elasticsearch.packaging.util.Platforms.getOsRelease;
 import static org.elasticsearch.packaging.util.Platforms.isSystemd;
-import static org.elasticsearch.packaging.util.ServerUtils.makeRequest;
-import static org.elasticsearch.packaging.util.ServerUtils.runElasticsearchTests;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
 import static org.hamcrest.Matchers.containsString;
@@ -62,22 +59,23 @@ public class PackageTests extends PackagingTestCase {
         installation = installPackage(sh, distribution());
         assertInstalled(distribution());
         verifyPackageInstallation(installation, distribution(), sh);
+        setFileSuperuser("test_superuser", "test_superuser_password");
     }
 
     public void test20PluginsCommandWhenNoPlugins() {
-        assertThat(sh.run(installation.bin("elasticsearch-plugin") + " list").stdout, is(emptyString()));
+        assertThat(sh.run(installation.bin("elasticsearch-plugin") + " list").stdout(), is(emptyString()));
     }
 
     public void test30DaemonIsNotEnabledOnRestart() {
         if (isSystemd()) {
             sh.run("systemctl daemon-reload");
-            String isEnabledOutput = sh.runIgnoreExitCode("systemctl is-enabled elasticsearch.service").stdout.trim();
+            String isEnabledOutput = sh.runIgnoreExitCode("systemctl is-enabled elasticsearch.service").stdout().trim();
             assertThat(isEnabledOutput, equalTo("disabled"));
         }
     }
 
     public void test31InstallDoesNotStartServer() {
-        assertThat(sh.run("ps aux").stdout, not(containsString("org.elasticsearch.bootstrap.Elasticsearch")));
+        assertThat(sh.run("ps aux").stdout(), not(containsString("org.elasticsearch.bootstrap.Elasticsearch")));
     }
 
     private void assertRunsWithJavaHome() throws Exception {
@@ -126,19 +124,19 @@ public class PackageTests extends PackagingTestCase {
 
         startElasticsearch();
 
-        final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
+        final String nodesResponse = makeRequest("https://localhost:9200/_nodes");
         assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
 
         stopElasticsearch();
     }
 
     public void test40StartServer() throws Exception {
-        String start = sh.runIgnoreExitCode("date ").stdout.trim();
+        String start = sh.runIgnoreExitCode("date ").stdout().trim();
         startElasticsearch();
 
         String journalEntries = sh.runIgnoreExitCode(
             "journalctl _SYSTEMD_UNIT=elasticsearch.service " + "--since \"" + start + "\" --output cat | wc -l"
-        ).stdout.trim();
+        ).stdout().trim();
         assertThat(journalEntries, equalTo("0"));
 
         assertPathsExist(installation.pidDir.resolve("elasticsearch.pid"));
@@ -168,7 +166,7 @@ public class PackageTests extends PackagingTestCase {
         remove(distribution());
 
         // removing must stop the service
-        assertThat(sh.run("ps aux").stdout, not(containsString("org.elasticsearch.bootstrap.Elasticsearch")));
+        assertThat(sh.run("ps aux").stdout(), not(containsString("org.elasticsearch.bootstrap.Elasticsearch")));
 
         if (isSystemd()) {
 
@@ -177,24 +175,26 @@ public class PackageTests extends PackagingTestCase {
             // Before version 231 systemctl returned exit code 3 for both services that were stopped, and nonexistent
             // services [1]. In version 231 and later it returns exit code 4 for non-existent services.
             //
-            // The exception is Centos 7 and oel 7 where it returns exit code 4 for non-existent services from a systemd reporting a version
-            // earlier than 231. Centos 6 does not have an /etc/os-release, but that's fine because it also doesn't use systemd.
+            // The exception is Centos, OEL or RHEL 7 where it returns exit code 4 for non-existent services from a systemd reporting a
+            // version earlier than 231. Centos 6 does not have an /etc/os-release, but that's fine because it also doesn't use systemd.
             //
             // [1] https://github.com/systemd/systemd/pull/3385
-            if (getOsRelease().contains("ID=\"centos\"") || getOsRelease().contains("ID=\"ol\"")) {
+            if (getOsRelease().contains("ID=\"centos\"")
+                || getOsRelease().contains("ID=\"ol\"")
+                || getOsRelease().contains("ID=\"rhel\"")) {
                 statusExitCode = 4;
             } else {
 
                 final Result versionResult = sh.run("systemctl --version");
-                final Matcher matcher = Pattern.compile("^systemd (\\d+)").matcher(versionResult.stdout);
+                final Matcher matcher = Pattern.compile("^systemd (\\d+)").matcher(versionResult.stdout());
                 matcher.find();
                 final int version = Integer.parseInt(matcher.group(1));
 
                 statusExitCode = version < 231 ? 3 : 4;
             }
 
-            assertThat(sh.runIgnoreExitCode("systemctl status elasticsearch.service").exitCode, is(statusExitCode));
-            assertThat(sh.runIgnoreExitCode("systemctl is-enabled elasticsearch.service").exitCode, is(1));
+            assertThat(sh.runIgnoreExitCode("systemctl status elasticsearch.service").exitCode(), is(statusExitCode));
+            assertThat(sh.runIgnoreExitCode("systemctl is-enabled elasticsearch.service").exitCode(), is(1));
 
         }
 
@@ -211,23 +211,57 @@ public class PackageTests extends PackagingTestCase {
     }
 
     public void test60Reinstall() throws Exception {
-        install();
-        assertInstalled(distribution());
-        verifyPackageInstallation(installation, distribution(), sh);
+        try {
+            install();
+            assertInstalled(distribution());
+            verifyPackageInstallation(installation, distribution(), sh);
 
-        remove(distribution());
-        assertRemoved(distribution());
+            remove(distribution());
+            assertRemoved(distribution());
+        } finally {
+            cleanup();
+        }
     }
 
     public void test70RestartServer() throws Exception {
         try {
             install();
             assertInstalled(distribution());
+            // Recreate file realm users that have been deleted in earlier tests
+            setFileSuperuser("test_superuser", "test_superuser_password");
 
             startElasticsearch();
             restartElasticsearch(sh, installation);
             runElasticsearchTests();
             stopElasticsearch();
+        } finally {
+            cleanup();
+        }
+    }
+
+    public void test71JvmOptionsTotalMemoryOverride() throws Exception {
+        try {
+            install();
+            assertPathsExist(installation.envFile);
+            setHeap(null);
+
+            // Recreate file realm users that have been deleted in earlier tests
+            setFileSuperuser("test_superuser", "test_superuser_password");
+
+            withCustomConfig(tempConf -> {
+                // Work as though total system memory is 850MB
+                append(installation.envFile, "ES_JAVA_OPTS=\"-Des.total_memory_bytes=891289600\"");
+
+                startElasticsearch();
+
+                final String nodesStatsResponse = makeRequest("https://localhost:9200/_nodes/stats");
+                assertThat(nodesStatsResponse, containsString("\"adjusted_total_in_bytes\":891289600"));
+
+                // 40% of 850MB
+                assertThat(sh.run("ps auwwx").stdout(), containsString("-Xms340m -Xmx340m"));
+
+                stopElasticsearch();
+            });
         } finally {
             cleanup();
         }
@@ -282,13 +316,15 @@ public class PackageTests extends PackagingTestCase {
 
         assertPathsExist(installation.envFile);
         stopElasticsearch();
+        // Recreate file realm users that have been deleted in earlier tests
+        setFileSuperuser("test_superuser", "test_superuser_password");
 
         withCustomConfig(tempConf -> {
             append(installation.envFile, "ES_JAVA_OPTS=\"-Xmx512m -Xms512m -XX:-UseCompressedOops\"");
 
             startElasticsearch();
 
-            final String nodesResponse = makeRequest(Request.Get("http://localhost:9200/_nodes"));
+            final String nodesResponse = makeRequest("https://localhost:9200/_nodes");
             assertThat(nodesResponse, containsString("\"heap_init_in_bytes\":536870912"));
             assertThat(nodesResponse, containsString("\"using_compressed_ordinary_object_pointers\":\"false\""));
 
@@ -322,16 +358,16 @@ public class PackageTests extends PackagingTestCase {
         final Path pidFile = installation.pidDir.resolve("elasticsearch.pid");
         assertThat(pidFile, fileExists());
         String pid = slurp(pidFile).trim();
-        String maxFileSize = sh.run("cat /proc/%s/limits | grep \"Max file size\" | awk '{ print $4 }'", pid).stdout.trim();
+        String maxFileSize = sh.run("cat /proc/%s/limits | grep \"Max file size\" | awk '{ print $4 }'", pid).stdout().trim();
         assertThat(maxFileSize, equalTo("unlimited"));
 
-        String maxProcesses = sh.run("cat /proc/%s/limits | grep \"Max processes\" | awk '{ print $3 }'", pid).stdout.trim();
+        String maxProcesses = sh.run("cat /proc/%s/limits | grep \"Max processes\" | awk '{ print $3 }'", pid).stdout().trim();
         assertThat(maxProcesses, equalTo("4096"));
 
-        String maxOpenFiles = sh.run("cat /proc/%s/limits | grep \"Max open files\" | awk '{ print $4 }'", pid).stdout.trim();
+        String maxOpenFiles = sh.run("cat /proc/%s/limits | grep \"Max open files\" | awk '{ print $4 }'", pid).stdout().trim();
         assertThat(maxOpenFiles, equalTo("65535"));
 
-        String maxAddressSpace = sh.run("cat /proc/%s/limits | grep \"Max address space\" | awk '{ print $4 }'", pid).stdout.trim();
+        String maxAddressSpace = sh.run("cat /proc/%s/limits | grep \"Max address space\" | awk '{ print $4 }'", pid).stdout().trim();
         assertThat(maxAddressSpace, equalTo("unlimited"));
 
         stopElasticsearch();
@@ -345,7 +381,7 @@ public class PackageTests extends PackagingTestCase {
 
         withCustomConfig(tempConf -> {
             // Create a startup problem by adding an invalid YAML line to the config
-            append(tempConf.resolve("elasticsearch.yml"), "discovery.zen.ping.unicast.hosts:15172.30.5.3416172.30.5.35, 172.30.5.17]\n");
+            append(tempConf.resolve("elasticsearch.yml"), "discovery.seed_hosts:15172.30.5.3416172.30.5.35, 172.30.5.17]\n");
 
             // Make sure we don't pick up the journal entries for previous ES instances.
             Packages.JournaldWrapper journald = new Packages.JournaldWrapper(sh);
@@ -353,7 +389,7 @@ public class PackageTests extends PackagingTestCase {
 
             assertBusy(() -> {
                 final Result logs = journald.getLogs();
-                assertThat(logs.stdout, containsString("Failed to load settings from [elasticsearch.yml]"));
+                assertThat(logs.stdout(), containsString("Failed to load settings from [elasticsearch.yml]"));
             });
         });
     }

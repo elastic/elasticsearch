@@ -18,13 +18,13 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -118,22 +118,42 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
         }
 
         if (shardRouting.recoverySource().getType() != RecoverySource.Type.EMPTY_STORE && acceptDataLoss == false) {
-            String dataLossWarning = "allocating an empty primary for [" + index + "][" + shardId +
-                "] can result in data loss. Please confirm by setting the accept_data_loss parameter to true";
+            String dataLossWarning = "allocating an empty primary for ["
+                + index
+                + "]["
+                + shardId
+                + "] can result in data loss. Please confirm by setting the accept_data_loss parameter to true";
             return explainOrThrowRejectedCommand(explain, allocation, dataLossWarning);
         }
 
         UnassignedInfo unassignedInfoToUpdate = null;
         if (shardRouting.unassignedInfo().getReason() != UnassignedInfo.Reason.FORCED_EMPTY_PRIMARY) {
-            String unassignedInfoMessage = "force empty allocation from previous reason " + shardRouting.unassignedInfo().getReason() +
-                ", " + shardRouting.unassignedInfo().getMessage();
-            unassignedInfoToUpdate = new UnassignedInfo(UnassignedInfo.Reason.FORCED_EMPTY_PRIMARY, unassignedInfoMessage,
-                shardRouting.unassignedInfo().getFailure(), 0, System.nanoTime(), System.currentTimeMillis(), false,
-                shardRouting.unassignedInfo().getLastAllocationStatus(), Collections.emptySet());
+            String unassignedInfoMessage = "force empty allocation from previous reason "
+                + shardRouting.unassignedInfo().getReason()
+                + ", "
+                + shardRouting.unassignedInfo().getMessage();
+            unassignedInfoToUpdate = new UnassignedInfo(
+                UnassignedInfo.Reason.FORCED_EMPTY_PRIMARY,
+                unassignedInfoMessage,
+                shardRouting.unassignedInfo().getFailure(),
+                0,
+                System.nanoTime(),
+                System.currentTimeMillis(),
+                false,
+                shardRouting.unassignedInfo().getLastAllocationStatus(),
+                Collections.emptySet(),
+                null
+            );
         }
 
-        initializeUnassignedShard(allocation, routingNodes, routingNode, shardRouting, unassignedInfoToUpdate,
-            EmptyStoreRecoverySource.INSTANCE);
+        initializeUnassignedShard(
+            allocation,
+            routingNodes,
+            routingNode,
+            shardRouting,
+            unassignedInfoToUpdate,
+            EmptyStoreRecoverySource.INSTANCE
+        );
 
         return new RerouteExplanation(this, allocation.decision(Decision.YES, name() + " (allocation command)", "ignore deciders"));
     }

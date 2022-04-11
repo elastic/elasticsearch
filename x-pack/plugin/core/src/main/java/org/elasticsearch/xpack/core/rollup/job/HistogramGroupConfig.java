@@ -8,15 +8,15 @@ package org.elasticsearch.xpack.core.rollup.job;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.rollup.RollupField;
 
 import java.io.IOException;
@@ -25,7 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
 /**
  * The configuration object for the histograms in the rollup config
@@ -47,7 +47,8 @@ public class HistogramGroupConfig implements Writeable, ToXContentObject {
     private static final ConstructingObjectParser<HistogramGroupConfig, Void> PARSER;
     static {
         PARSER = new ConstructingObjectParser<>(NAME, args -> {
-            @SuppressWarnings("unchecked") List<String> fields = (List<String>) args[1];
+            @SuppressWarnings("unchecked")
+            List<String> fields = (List<String>) args[1];
             return new HistogramGroupConfig((long) args[0], fields != null ? fields.toArray(new String[fields.size()]) : null);
         });
         PARSER.declareLong(constructorArg(), new ParseField(INTERVAL));
@@ -81,8 +82,10 @@ public class HistogramGroupConfig implements Writeable, ToXContentObject {
         return fields;
     }
 
-    public void validateMappings(Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,
-                                 ActionRequestValidationException validationException) {
+    public void validateMappings(
+        Map<String, Map<String, FieldCapabilities>> fieldCapsResponse,
+        ActionRequestValidationException validationException
+    ) {
 
         Arrays.stream(fields).forEach(field -> {
             Map<String, FieldCapabilities> fieldCaps = fieldCapsResponse.get(field);
@@ -90,17 +93,25 @@ public class HistogramGroupConfig implements Writeable, ToXContentObject {
                 fieldCaps.forEach((key, value) -> {
                     if (RollupField.NUMERIC_FIELD_MAPPER_TYPES.contains(key)) {
                         if (value.isAggregatable() == false) {
-                            validationException.addValidationError("The field [" + field + "] must be aggregatable across all indices, " +
-                                    "but is not.");
+                            validationException.addValidationError(
+                                "The field [" + field + "] must be aggregatable across all indices, " + "but is not."
+                            );
                         }
                     } else {
-                        validationException.addValidationError("The field referenced by a histo group must be a [numeric] type, " +
-                                "but found " + fieldCaps.keySet().toString() + " for field [" + field + "]");
+                        validationException.addValidationError(
+                            "The field referenced by a histo group must be a [numeric] type, "
+                                + "but found "
+                                + fieldCaps.keySet().toString()
+                                + " for field ["
+                                + field
+                                + "]"
+                        );
                     }
                 });
             } else {
-                validationException.addValidationError("Could not find a [numeric] field with name [" + field
-                        + "] in any of the indices matching the index pattern.");
+                validationException.addValidationError(
+                    "Could not find a [numeric] field with name [" + field + "] in any of the indices matching the index pattern."
+                );
             }
         });
     }

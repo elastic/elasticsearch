@@ -28,22 +28,37 @@ import java.util.List;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
 
-public class TransportStopRollupAction extends TransportTasksAction<RollupJobTask, StopRollupJobAction.Request,
-    StopRollupJobAction.Response, StopRollupJobAction.Response> {
+public class TransportStopRollupAction extends TransportTasksAction<
+    RollupJobTask,
+    StopRollupJobAction.Request,
+    StopRollupJobAction.Response,
+    StopRollupJobAction.Response> {
 
     private final ThreadPool threadPool;
 
     @Inject
-    public TransportStopRollupAction(TransportService transportService, ActionFilters actionFilters,
-                                     ClusterService clusterService, ThreadPool threadPool) {
-        super(StopRollupJobAction.NAME, clusterService, transportService, actionFilters, StopRollupJobAction.Request::new,
-            StopRollupJobAction.Response::new, StopRollupJobAction.Response::new, ThreadPool.Names.SAME);
+    public TransportStopRollupAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        ClusterService clusterService,
+        ThreadPool threadPool
+    ) {
+        super(
+            StopRollupJobAction.NAME,
+            clusterService,
+            transportService,
+            actionFilters,
+            StopRollupJobAction.Request::new,
+            StopRollupJobAction.Response::new,
+            StopRollupJobAction.Response::new,
+            ThreadPool.Names.SAME
+        );
         this.threadPool = threadPool;
     }
 
     @Override
     protected void processTasks(StopRollupJobAction.Request request, Consumer<RollupJobTask> operation) {
-       TransportTaskHelper.doProcessTasks(request.getId(), operation, taskManager);
+        TransportTaskHelper.doProcessTasks(request.getId(), operation, taskManager);
     }
 
     @Override
@@ -52,45 +67,71 @@ public class TransportStopRollupAction extends TransportTasksAction<RollupJobTas
     }
 
     @Override
-    protected void taskOperation(StopRollupJobAction.Request request, RollupJobTask jobTask,
-                                 ActionListener<StopRollupJobAction.Response> listener) {
+    protected void taskOperation(
+        StopRollupJobAction.Request request,
+        RollupJobTask jobTask,
+        ActionListener<StopRollupJobAction.Response> listener
+    ) {
         if (jobTask.getConfig().getId().equals(request.getId())) {
             jobTask.stop(maybeWrapWithBlocking(request, jobTask, listener, threadPool));
         } else {
-            listener.onFailure(new RuntimeException("ID of rollup task [" + jobTask.getConfig().getId()
-                    + "] does not match request's ID [" + request.getId() + "]"));
+            listener.onFailure(
+                new RuntimeException(
+                    "ID of rollup task [" + jobTask.getConfig().getId() + "] does not match request's ID [" + request.getId() + "]"
+                )
+            );
         }
     }
 
-    private static ActionListener<StopRollupJobAction.Response> maybeWrapWithBlocking(StopRollupJobAction.Request request,
-                                                                  RollupJobTask jobTask,
-                                                                  ActionListener<StopRollupJobAction.Response> listener,
-                                                                  ThreadPool threadPool) {
+    private static ActionListener<StopRollupJobAction.Response> maybeWrapWithBlocking(
+        StopRollupJobAction.Request request,
+        RollupJobTask jobTask,
+        ActionListener<StopRollupJobAction.Response> listener,
+        ThreadPool threadPool
+    ) {
         if (request.waitForCompletion()) {
             return ActionListener.wrap(response -> {
                 if (response.isStopped()) {
                     // The Task acknowledged that it is stopped/stopping... wait until the status actually
-                    // changes over before returning.  Switch over to Generic threadpool so
+                    // changes over before returning. Switch over to Generic threadpool so
                     // we don't block the network thread
                     threadPool.generic().execute(() -> {
                         try {
-                            boolean stopped = awaitBusy(() -> ((RollupJobStatus) jobTask.getStatus())
-                                .getIndexerState().equals(IndexerState.STOPPED), request.timeout());
+                            boolean stopped = awaitBusy(
+                                () -> ((RollupJobStatus) jobTask.getStatus()).getIndexerState().equals(IndexerState.STOPPED),
+                                request.timeout()
+                            );
 
                             if (stopped) {
                                 // We have successfully confirmed a stop, send back the response
                                 listener.onResponse(response);
                             } else {
-                                listener.onFailure(new ElasticsearchTimeoutException("Timed out after [" + request.timeout().getStringRep()
-                                    + "] while waiting for rollup job [" + request.getId() + "] to stop. State was ["
-                                    + ((RollupJobStatus) jobTask.getStatus()).getIndexerState() + "]"));
+                                listener.onFailure(
+                                    new ElasticsearchTimeoutException(
+                                        "Timed out after ["
+                                            + request.timeout().getStringRep()
+                                            + "] while waiting for rollup job ["
+                                            + request.getId()
+                                            + "] to stop. State was ["
+                                            + ((RollupJobStatus) jobTask.getStatus()).getIndexerState()
+                                            + "]"
+                                    )
+                                );
                             }
                         } catch (InterruptedException e) {
                             listener.onFailure(e);
                         } catch (Exception e) {
-                            listener.onFailure(new ElasticsearchTimeoutException("Encountered unexpected error while waiting for " +
-                                "rollup job [" + request.getId() + "] to stop.  State was ["
-                                + ((RollupJobStatus) jobTask.getStatus()).getIndexerState() + "].", e));
+                            listener.onFailure(
+                                new ElasticsearchTimeoutException(
+                                    "Encountered unexpected error while waiting for "
+                                        + "rollup job ["
+                                        + request.getId()
+                                        + "] to stop.  State was ["
+                                        + ((RollupJobStatus) jobTask.getStatus()).getIndexerState()
+                                        + "].",
+                                    e
+                                )
+                            );
                         }
                     });
 
@@ -126,16 +167,17 @@ public class TransportStopRollupAction extends TransportTasksAction<RollupJobTas
     }
 
     @Override
-    protected StopRollupJobAction.Response newResponse(StopRollupJobAction.Request request, List<StopRollupJobAction.Response> tasks,
-                                                       List<TaskOperationFailure> taskOperationFailures,
-                                                       List<FailedNodeException> failedNodeExceptions) {
+    protected StopRollupJobAction.Response newResponse(
+        StopRollupJobAction.Request request,
+        List<StopRollupJobAction.Response> tasks,
+        List<TaskOperationFailure> taskOperationFailures,
+        List<FailedNodeException> failedNodeExceptions
+    ) {
 
         if (taskOperationFailures.isEmpty() == false) {
-            throw org.elasticsearch.ExceptionsHelper
-                    .convertToElastic(taskOperationFailures.get(0).getCause());
+            throw org.elasticsearch.ExceptionsHelper.convertToElastic(taskOperationFailures.get(0).getCause());
         } else if (failedNodeExceptions.isEmpty() == false) {
-            throw org.elasticsearch.ExceptionsHelper
-                    .convertToElastic(failedNodeExceptions.get(0));
+            throw org.elasticsearch.ExceptionsHelper.convertToElastic(failedNodeExceptions.get(0));
         }
 
         // Either the job doesn't exist (the user didn't create it yet) or was deleted after the Stop API executed.

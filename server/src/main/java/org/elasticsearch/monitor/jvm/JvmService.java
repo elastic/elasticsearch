@@ -26,9 +26,12 @@ public class JvmService implements ReportingService<JvmInfo> {
 
     private JvmStats jvmStats;
 
-    public static final Setting<TimeValue> REFRESH_INTERVAL_SETTING =
-        Setting.timeSetting("monitor.jvm.refresh_interval", TimeValue.timeValueSeconds(1), TimeValue.timeValueSeconds(1),
-            Property.NodeScope);
+    public static final Setting<TimeValue> REFRESH_INTERVAL_SETTING = Setting.timeSetting(
+        "monitor.jvm.refresh_interval",
+        TimeValue.timeValueSeconds(1),
+        TimeValue.timeValueSeconds(1),
+        Property.NodeScope
+    );
 
     public JvmService(Settings settings) {
         this.jvmInfo = JvmInfo.jvmInfo();

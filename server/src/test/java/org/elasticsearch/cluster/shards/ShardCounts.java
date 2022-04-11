@@ -22,11 +22,7 @@ public class ShardCounts {
     private final int failingIndexShards;
     private final int failingIndexReplicas;
 
-    private ShardCounts(int shardsPerNode,
-                        int firstIndexShards,
-                        int firstIndexReplicas,
-                        int failingIndexShards,
-                        int failingIndexReplicas) {
+    private ShardCounts(int shardsPerNode, int firstIndexShards, int firstIndexReplicas, int failingIndexShards, int failingIndexReplicas) {
         this.shardsPerNode = shardsPerNode;
         this.firstIndexShards = firstIndexShards;
         this.firstIndexReplicas = firstIndexReplicas;
@@ -35,8 +31,12 @@ public class ShardCounts {
     }
 
     public static ShardCounts forDataNodeCount(int dataNodes) {
-        Assert.assertThat("this method will not work reliably with this many data nodes due to the limit of shards in a single index," +
-            "use fewer data nodes or multiple indices", dataNodes, lessThanOrEqualTo(90));
+        Assert.assertThat(
+            "this method will not work reliably with this many data nodes due to the limit of shards in a single index,"
+                + "use fewer data nodes or multiple indices",
+            dataNodes,
+            lessThanOrEqualTo(90)
+        );
         int mainIndexReplicas = ESTestCase.between(0, dataNodes - 1);
         int mainIndexShards = ESTestCase.between(1, 10);
         int totalShardsInIndex = (mainIndexReplicas + 1) * mainIndexShards;

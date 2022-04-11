@@ -34,8 +34,8 @@ import static org.elasticsearch.test.ESTestCase.randomValueOtherThanMany;
 public class SnapshotInfoTestUtils {
     private SnapshotInfoTestUtils() {}
 
-    static SnapshotInfo createRandomSnapshotInfo() {
-        final SnapshotId snapshotId = new SnapshotId(randomAlphaOfLength(5), randomAlphaOfLength(5));
+    public static SnapshotInfo createRandomSnapshotInfo() {
+        final Snapshot snapshot = new Snapshot(randomAlphaOfLength(5), new SnapshotId(randomAlphaOfLength(5), randomAlphaOfLength(5)));
         final List<String> indices = Arrays.asList(randomArray(1, 10, String[]::new, () -> randomAlphaOfLengthBetween(2, 20)));
 
         final List<String> dataStreams = Arrays.asList(randomArray(1, 10, String[]::new, () -> randomAlphaOfLengthBetween(2, 20)));
@@ -57,7 +57,7 @@ public class SnapshotInfoTestUtils {
         final Map<String, SnapshotInfo.IndexSnapshotDetails> indexSnapshotDetails = randomIndexSnapshotDetails();
 
         return new SnapshotInfo(
-            snapshotId,
+            snapshot,
             indices,
             dataStreams,
             snapshotFeatureInfos,
@@ -142,8 +142,9 @@ public class SnapshotInfoTestUtils {
                 final SnapshotId snapshotId = randomBoolean()
                     ? new SnapshotId(instance.snapshotId().getName(), newUuid)
                     : new SnapshotId(newName, instance.snapshotId().getUUID());
+                final String repo = randomBoolean() ? instance.repository() : randomAlphaOfLength(5);
                 return new SnapshotInfo(
-                    snapshotId,
+                    new Snapshot(repo, snapshotId),
                     instance.indices(),
                     instance.dataStreams(),
                     instance.featureStates(),
@@ -162,7 +163,7 @@ public class SnapshotInfoTestUtils {
                     randomArray(indicesSize, indicesSize, String[]::new, () -> randomAlphaOfLengthBetween(2, 20))
                 );
                 return new SnapshotInfo(
-                    instance.snapshotId(),
+                    instance.snapshot(),
                     indices,
                     instance.dataStreams(),
                     instance.featureStates(),
@@ -177,7 +178,7 @@ public class SnapshotInfoTestUtils {
                 );
             case 2:
                 return new SnapshotInfo(
-                    instance.snapshotId(),
+                    instance.snapshot(),
                     instance.indices(),
                     instance.dataStreams(),
                     instance.featureStates(),
@@ -192,7 +193,7 @@ public class SnapshotInfoTestUtils {
                 );
             case 3:
                 return new SnapshotInfo(
-                    instance.snapshotId(),
+                    instance.snapshot(),
                     instance.indices(),
                     instance.dataStreams(),
                     instance.featureStates(),
@@ -207,7 +208,7 @@ public class SnapshotInfoTestUtils {
                 );
             case 4:
                 return new SnapshotInfo(
-                    instance.snapshotId(),
+                    instance.snapshot(),
                     instance.indices(),
                     instance.dataStreams(),
                     instance.featureStates(),
@@ -224,7 +225,7 @@ public class SnapshotInfoTestUtils {
                 final int totalShards = randomValueOtherThan(instance.totalShards(), () -> randomIntBetween(0, 100));
                 final List<SnapshotShardFailure> shardFailures = randomShardFailures(randomIntBetween(0, totalShards));
                 return new SnapshotInfo(
-                    instance.snapshotId(),
+                    instance.snapshot(),
                     instance.indices(),
                     instance.dataStreams(),
                     instance.featureStates(),
@@ -239,7 +240,7 @@ public class SnapshotInfoTestUtils {
                 );
             case 6:
                 return new SnapshotInfo(
-                    instance.snapshotId(),
+                    instance.snapshot(),
                     instance.indices(),
                     instance.dataStreams(),
                     instance.featureStates(),
@@ -254,7 +255,7 @@ public class SnapshotInfoTestUtils {
                 );
             case 7:
                 return new SnapshotInfo(
-                    instance.snapshotId(),
+                    instance.snapshot(),
                     instance.indices(),
                     instance.dataStreams(),
                     instance.featureStates(),
@@ -273,7 +274,7 @@ public class SnapshotInfoTestUtils {
                     () -> Arrays.asList(randomArray(0, 10, String[]::new, () -> randomAlphaOfLengthBetween(2, 20)))
                 );
                 return new SnapshotInfo(
-                    instance.snapshotId(),
+                    instance.snapshot(),
                     instance.indices(),
                     dataStreams,
                     instance.featureStates(),
@@ -288,7 +289,7 @@ public class SnapshotInfoTestUtils {
                 );
             case 9:
                 return new SnapshotInfo(
-                    instance.snapshotId(),
+                    instance.snapshot(),
                     instance.indices(),
                     instance.dataStreams(),
                     randomValueOtherThan(instance.featureStates(), SnapshotInfoTestUtils::randomSnapshotFeatureInfos),
@@ -303,7 +304,7 @@ public class SnapshotInfoTestUtils {
                 );
             case 10:
                 return new SnapshotInfo(
-                    instance.snapshotId(),
+                    instance.snapshot(),
                     instance.indices(),
                     instance.dataStreams(),
                     instance.featureStates(),

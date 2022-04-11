@@ -9,7 +9,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -27,27 +27,9 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
 
     protected abstract void registerParameters(ParameterChecker checker) throws IOException;
 
-    private static class ConflictCheck {
-        final XContentBuilder init;
-        final XContentBuilder update;
+    private record ConflictCheck(XContentBuilder init, XContentBuilder update) {}
 
-        private ConflictCheck(XContentBuilder init, XContentBuilder update) {
-            this.init = init;
-            this.update = update;
-        }
-    }
-
-    private static class UpdateCheck {
-        final XContentBuilder init;
-        final XContentBuilder update;
-        final Consumer<DocumentMapper> check;
-
-        private UpdateCheck(XContentBuilder init, XContentBuilder update, Consumer<DocumentMapper> check) {
-            this.init = init;
-            this.update = update;
-            this.check = check;
-        }
-    }
+    private record UpdateCheck(XContentBuilder init, XContentBuilder update, Consumer<DocumentMapper> check) {}
 
     public class ParameterChecker {
 
@@ -61,14 +43,11 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
          * @param update a field builder applied on top of the minimal mapping
          */
         public void registerConflictCheck(String param, CheckedConsumer<XContentBuilder, IOException> update) throws IOException {
-            conflictChecks.put(param, new ConflictCheck(
-                topMapping(b -> b.startObject(fieldName()).endObject()),
-                topMapping(b -> {
-                    b.startObject(fieldName());
-                    update.accept(b);
-                    b.endObject();
-                })
-            ));
+            conflictChecks.put(param, new ConflictCheck(topMapping(b -> b.startObject(fieldName()).endObject()), topMapping(b -> {
+                b.startObject(fieldName());
+                update.accept(b);
+                b.endObject();
+            })));
         }
 
         /**
@@ -95,12 +74,15 @@ public abstract class MetadataMapperTestCase extends MapperServiceTestCase {
             // merging the same change is fine
             merge(mapperService, checker.conflictChecks.get(param).init);
             // merging the conflicting update should throw an exception
-            Exception e = expectThrows(IllegalArgumentException.class,
+            Exception e = expectThrows(
+                IllegalArgumentException.class,
                 "No conflict when updating parameter [" + param + "]",
-                () -> merge(mapperService, checker.conflictChecks.get(param).update));
-            assertThat(e.getMessage(), anyOf(
-                containsString("Cannot update parameter [" + param + "]"),
-                containsString("different [" + param + "]")));
+                () -> merge(mapperService, checker.conflictChecks.get(param).update)
+            );
+            assertThat(
+                e.getMessage(),
+                anyOf(containsString("Cannot update parameter [" + param + "]"), containsString("different [" + param + "]"))
+            );
         }
         for (UpdateCheck updateCheck : checker.updateChecks) {
             MapperService mapperService = createMapperService(updateCheck.init);

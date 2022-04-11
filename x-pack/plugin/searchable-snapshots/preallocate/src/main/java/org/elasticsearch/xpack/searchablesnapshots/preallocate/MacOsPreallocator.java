@@ -20,7 +20,7 @@ import java.util.List;
 final class MacOsPreallocator implements Preallocator {
 
     @Override
-    public boolean available() {
+    public boolean useNative() {
         return Natives.NATIVES_AVAILABLE;
     }
 

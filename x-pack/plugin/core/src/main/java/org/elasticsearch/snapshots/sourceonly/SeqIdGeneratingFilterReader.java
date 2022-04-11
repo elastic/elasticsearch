@@ -67,7 +67,7 @@ final class SeqIdGeneratingFilterReader extends FilterDirectoryReader {
 
         @Override
         public int nextDoc() {
-            if (docID+1 < maxDoc) {
+            if (docID + 1 < maxDoc) {
                 docID++;
             } else {
                 docID = NO_MORE_DOCS;
@@ -161,7 +161,7 @@ final class SeqIdGeneratingFilterReader extends FilterDirectoryReader {
 
                 @Override
                 public PointValues getPointValues(String field) {
-                    throw new UnsupportedOperationException("_source only indices can't be searched or filtered");
+                    return null;
                 }
             };
         }

@@ -51,7 +51,7 @@ Later dissect matches the `[` and then `]` and then assigns `@timestamp` to ever
 Paying special attention the parts of the string to discard will help build successful dissect patterns.
 
 Successful matches require all keys in a pattern to have a value. If any of the `%{keyname}` defined in the pattern do
-not have a value, then an exception is thrown and may be handled by the <<handling-failure-in-pipelines,on_failure>> directive.
+not have a value, then an exception is thrown and may be handled by the <<handling-pipeline-failures,`on_failure`>> directive.
 An empty key `%{}` or a <<dissect-modifier-named-skip-key, named skip key>> can be used to match values, but exclude the value from
 the final document. All matched values are represented as string data types. The <<convert-processor, convert processor>>
 may be used to convert to expected data type.
@@ -194,7 +194,7 @@ Reference key modifier example
 | *Pattern* | `[%{ts}] [%{level}] %{*p1}:%{&p1} %{*p2}:%{&p2}`
 | *Input*   | [2018-08-10T17:15:42,466] [ERR] ip:1.2.3.4 error:REFUSED
 | *Result*  a|
-* ts = 1998-08-10T17:15:42,466
+* ts = 2018-08-10T17:15:42,466
 * level = ERR
 * ip = 1.2.3.4
 * error = REFUSED

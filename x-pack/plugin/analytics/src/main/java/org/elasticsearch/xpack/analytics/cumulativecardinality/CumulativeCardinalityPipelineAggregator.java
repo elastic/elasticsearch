@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.analytics.cumulativecardinality;
 
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
@@ -37,7 +37,7 @@ public class CumulativeCardinalityPipelineAggregator extends PipelineAggregator 
     }
 
     @Override
-    public InternalAggregation reduce(InternalAggregation aggregation, ReduceContext reduceContext) {
+    public InternalAggregation reduce(InternalAggregation aggregation, AggregationReduceContext reduceContext) {
         InternalMultiBucketAggregation<?, ?> histo = (InternalMultiBucketAggregation<?, ?>) aggregation;
         List<? extends InternalMultiBucketAggregation.InternalBucket> buckets = histo.getBuckets();
         HistogramFactory factory = (HistogramFactory) histo;
@@ -73,14 +73,17 @@ public class CumulativeCardinalityPipelineAggregator extends PipelineAggregator 
         }
     }
 
-    private AbstractHyperLogLogPlusPlus resolveBucketValue(MultiBucketsAggregation agg,
-                                                           InternalMultiBucketAggregation.InternalBucket bucket,
-                                                           String aggPath) {
+    private AbstractHyperLogLogPlusPlus resolveBucketValue(
+        MultiBucketsAggregation agg,
+        InternalMultiBucketAggregation.InternalBucket bucket,
+        String aggPath
+    ) {
         List<String> aggPathsList = AggregationPath.parse(aggPath).getPathElementsAsStringList();
         Object propertyValue = bucket.getProperty(agg.getName(), aggPathsList);
         if (propertyValue == null) {
-            throw new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
-                + " must reference a cardinality aggregation");
+            throw new AggregationExecutionException(
+                AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName() + " must reference a cardinality aggregation"
+            );
         }
 
         if (propertyValue instanceof InternalCardinality) {
@@ -94,9 +97,14 @@ public class CumulativeCardinalityPipelineAggregator extends PipelineAggregator 
             currentAggName = aggPathsList.get(0);
         }
 
-        throw new AggregationExecutionException(AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
-            + " must reference a cardinality aggregation, got: ["
-            + propertyValue.getClass().getSimpleName() + "] at aggregation [" + currentAggName + "]");
+        throw new AggregationExecutionException(
+            AbstractPipelineAggregationBuilder.BUCKETS_PATH_FIELD.getPreferredName()
+                + " must reference a cardinality aggregation, got: ["
+                + propertyValue.getClass().getSimpleName()
+                + "] at aggregation ["
+                + currentAggName
+                + "]"
+        );
     }
 
 }

@@ -7,13 +7,13 @@
  */
 package org.elasticsearch.client.ilm;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -29,8 +29,11 @@ public class AllocateAction implements LifecycleAction, ToXContentObject {
     static final ParseField REQUIRE_FIELD = new ParseField("require");
 
     @SuppressWarnings("unchecked")
-    private static final ConstructingObjectParser<AllocateAction, Void> PARSER = new ConstructingObjectParser<>(NAME, true,
-            a -> new AllocateAction((Integer) a[0], (Map<String, String>) a[1], (Map<String, String>) a[2], (Map<String, String>) a[3]));
+    private static final ConstructingObjectParser<AllocateAction, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        true,
+        a -> new AllocateAction((Integer) a[0], (Map<String, String>) a[1], (Map<String, String>) a[2], (Map<String, String>) a[3])
+    );
 
     static {
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), NUMBER_OF_REPLICAS_FIELD);
@@ -66,8 +69,15 @@ public class AllocateAction implements LifecycleAction, ToXContentObject {
         }
         if (this.include.isEmpty() && this.exclude.isEmpty() && this.require.isEmpty() && numberOfReplicas == null) {
             throw new IllegalArgumentException(
-                    "At least one of " + INCLUDE_FIELD.getPreferredName() + ", " + EXCLUDE_FIELD.getPreferredName() + " or "
-                            + REQUIRE_FIELD.getPreferredName() + "must contain attributes for action " + NAME);
+                "At least one of "
+                    + INCLUDE_FIELD.getPreferredName()
+                    + ", "
+                    + EXCLUDE_FIELD.getPreferredName()
+                    + " or "
+                    + REQUIRE_FIELD.getPreferredName()
+                    + "must contain attributes for action "
+                    + NAME
+            );
         }
         if (numberOfReplicas != null && numberOfReplicas < 0) {
             throw new IllegalArgumentException("[" + NUMBER_OF_REPLICAS_FIELD.getPreferredName() + "] must be >= 0");
@@ -123,10 +133,10 @@ public class AllocateAction implements LifecycleAction, ToXContentObject {
             return false;
         }
         AllocateAction other = (AllocateAction) obj;
-        return Objects.equals(numberOfReplicas, other.numberOfReplicas) &&
-            Objects.equals(include, other.include) &&
-            Objects.equals(exclude, other.exclude) &&
-            Objects.equals(require, other.require);
+        return Objects.equals(numberOfReplicas, other.numberOfReplicas)
+            && Objects.equals(include, other.include)
+            && Objects.equals(exclude, other.exclude)
+            && Objects.equals(require, other.require);
     }
 
     @Override

@@ -1,0 +1,6 @@
+pr: 84813
+summary: Use exact attributes for script templates from scalar functions
+area: SQL
+type: bug
+issues:
+ - 80551

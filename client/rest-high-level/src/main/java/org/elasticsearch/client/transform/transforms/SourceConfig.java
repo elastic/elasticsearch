@@ -8,12 +8,12 @@
 
 package org.elasticsearch.client.transform.transforms;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -21,9 +21,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
-
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Class encapsulating all options for a {@link TransformConfig} gathering data
@@ -33,17 +32,19 @@ public class SourceConfig implements ToXContentObject {
     public static final ParseField QUERY = new ParseField("query");
     public static final ParseField INDEX = new ParseField("index");
 
-    public static final ConstructingObjectParser<SourceConfig, Void> PARSER = new ConstructingObjectParser<>("transform_config_source",
-    true,
-    args -> {
-        @SuppressWarnings("unchecked")
-        String[] index = ((List<String>)args[0]).toArray(new String[0]);
-        // default handling: if the user does not specify a query, we default to match_all
-        QueryConfig queryConfig = (QueryConfig) args[1];
-        @SuppressWarnings("unchecked")
-        Map<String, Object> runtimeMappings = (Map<String, Object>) args[2];
-        return new SourceConfig(index, queryConfig, runtimeMappings);
-    });
+    public static final ConstructingObjectParser<SourceConfig, Void> PARSER = new ConstructingObjectParser<>(
+        "transform_config_source",
+        true,
+        args -> {
+            @SuppressWarnings("unchecked")
+            String[] index = ((List<String>) args[0]).toArray(new String[0]);
+            // default handling: if the user does not specify a query, we default to match_all
+            QueryConfig queryConfig = (QueryConfig) args[1];
+            @SuppressWarnings("unchecked")
+            Map<String, Object> runtimeMappings = (Map<String, Object>) args[2];
+            return new SourceConfig(index, queryConfig, runtimeMappings);
+        }
+    );
     static {
         PARSER.declareStringArray(constructorArg(), INDEX);
         PARSER.declareObject(optionalConstructorArg(), (p, c) -> QueryConfig.fromXContent(p), QUERY);
@@ -122,7 +123,7 @@ public class SourceConfig implements ToXContentObject {
     }
 
     @Override
-    public int hashCode(){
+    public int hashCode() {
         // Using Arrays.hashCode as Objects.hash does not deeply hash nested arrays. Since we are doing Array.equals, this is necessary
         int indexArrayHash = Arrays.hashCode(index);
         return Objects.hash(indexArrayHash, queryConfig, runtimeMappings);

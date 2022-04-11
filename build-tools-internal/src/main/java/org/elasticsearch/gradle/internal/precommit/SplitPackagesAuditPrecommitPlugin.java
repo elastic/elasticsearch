@@ -16,6 +16,10 @@ import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.TaskProvider;
 
+import java.io.File;
+import java.util.HashMap;
+import java.util.Map;
+
 public class SplitPackagesAuditPrecommitPlugin extends PrecommitPlugin {
     public static final String TASK_NAME = "splitPackagesAudit";
 
@@ -23,10 +27,20 @@ public class SplitPackagesAuditPrecommitPlugin extends PrecommitPlugin {
     public TaskProvider<? extends Task> createTask(Project project) {
         TaskProvider<SplitPackagesAuditTask> task = project.getTasks().register(TASK_NAME, SplitPackagesAuditTask.class);
         task.configure(t -> {
+            t.setProjectBuildDirs(getProjectBuildDirs(project));
             t.setClasspath(project.getConfigurations().getByName(JavaPlugin.COMPILE_CLASSPATH_CONFIGURATION_NAME));
             SourceSet mainSourceSet = GradleUtils.getJavaSourceSets(project).findByName(SourceSet.MAIN_SOURCE_SET_NAME);
             t.getSrcDirs().set(project.provider(() -> mainSourceSet.getAllSource().getSrcDirs()));
         });
         return task;
+    }
+
+    private static Map<File, String> getProjectBuildDirs(Project project) {
+        // while this is done in every project, it should be cheap to calculate
+        Map<File, String> buildDirs = new HashMap<>();
+        for (Project p : project.getRootProject().getAllprojects()) {
+            buildDirs.put(p.getBuildDir(), p.getPath());
+        }
+        return buildDirs;
     }
 }

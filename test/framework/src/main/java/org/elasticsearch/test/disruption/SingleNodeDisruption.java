@@ -28,28 +28,28 @@ public abstract class SingleNodeDisruption implements ServiceDisruptionScheme {
     }
 
     @Override
-    public void applyToCluster(InternalTestCluster cluster) {
-        this.cluster = cluster;
+    public void applyToCluster(InternalTestCluster testCluster) {
+        this.cluster = testCluster;
         if (disruptedNode == null) {
-            String[] nodes = cluster.getNodeNames();
+            String[] nodes = testCluster.getNodeNames();
             disruptedNode = nodes[random.nextInt(nodes.length)];
         }
     }
 
     @Override
-    public void removeFromCluster(InternalTestCluster cluster) {
+    public void removeFromCluster(InternalTestCluster testCluster) {
         if (disruptedNode != null) {
-            removeFromNode(disruptedNode, cluster);
+            removeFromNode(disruptedNode, testCluster);
         }
     }
 
     @Override
-    public synchronized void applyToNode(String node, InternalTestCluster cluster) {
+    public synchronized void applyToNode(String node, InternalTestCluster testCluster) {
 
     }
 
     @Override
-    public synchronized void removeFromNode(String node, InternalTestCluster cluster) {
+    public synchronized void removeFromNode(String node, InternalTestCluster testCluster) {
         if (disruptedNode == null) {
             return;
         }
@@ -65,10 +65,17 @@ public abstract class SingleNodeDisruption implements ServiceDisruptionScheme {
         disruptedNode = null;
     }
 
-    protected void ensureNodeCount(InternalTestCluster cluster) {
-        assertFalse("cluster failed to form after disruption was healed", cluster.client().admin().cluster().prepareHealth()
-                .setWaitForNodes(String.valueOf(cluster.size()))
+    protected void ensureNodeCount(InternalTestCluster testCluster) {
+        assertFalse(
+            "cluster failed to form after disruption was healed",
+            testCluster.client()
+                .admin()
+                .cluster()
+                .prepareHealth()
+                .setWaitForNodes(String.valueOf(testCluster.size()))
                 .setWaitForNoRelocatingShards(true)
-                .get().isTimedOut());
+                .get()
+                .isTimedOut()
+        );
     }
 }

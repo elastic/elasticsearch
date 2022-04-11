@@ -16,11 +16,18 @@
         "action_id": {
           "type": "keyword"
         },
+        "action_input_type": {
+          "type": "keyword"
+        },
         "agent_id": {
           "type": "keyword"
         },
         "action_data": {
           "enabled": false,
+          "type": "object"
+        },
+        "action_response": {
+          "dynamic": true,
           "type": "object"
         },
         "data": {

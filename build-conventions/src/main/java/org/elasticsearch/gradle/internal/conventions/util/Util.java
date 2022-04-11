@@ -12,14 +12,12 @@ import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
 import org.gradle.api.file.FileTree;
-import org.gradle.api.plugins.JavaPluginConvention;
+import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.util.PatternFilterable;
 
 import javax.annotation.Nullable;
-import java.net.URI;
-import java.net.URISyntaxException;
 import java.util.Optional;
 import java.util.function.Supplier;
 
@@ -85,7 +83,7 @@ public class Util {
      * @return An Optional that contains the Java test SourceSet if it exists.
      */
     public static Optional<SourceSet> getJavaTestSourceSet(Project project) {
-        return project.getConvention().findPlugin(JavaPluginConvention.class) == null
+        return project.getExtensions().findByName("java") == null
             ? Optional.empty()
             : Optional.ofNullable(getJavaSourceSets(project).findByName(SourceSet.TEST_SOURCE_SET_NAME));
     }
@@ -95,9 +93,13 @@ public class Util {
      * @return An Optional that contains the Java main SourceSet if it exists.
      */
     public static Optional<SourceSet> getJavaMainSourceSet(Project project) {
-        return project.getConvention().findPlugin(JavaPluginConvention.class) == null
+        return isJavaExtensionAvailable(project)
             ? Optional.empty()
             : Optional.ofNullable(getJavaSourceSets(project).findByName(SourceSet.MAIN_SOURCE_SET_NAME));
+    }
+
+    private static boolean isJavaExtensionAvailable(Project project) {
+        return project.getExtensions().getByType(JavaPluginExtension.class) == null;
     }
 
 
@@ -111,7 +113,7 @@ public class Util {
     }
 
     public static SourceSetContainer getJavaSourceSets(Project project) {
-        return project.getConvention().getPlugin(JavaPluginConvention.class).getSourceSets();
+        return project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets();
     }
 
 }

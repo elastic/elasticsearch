@@ -10,7 +10,7 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -131,6 +131,15 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      */
     public SearchRequestBuilder setPreference(String preference) {
         request.preference(preference);
+        return this;
+    }
+
+    /**
+     * Wait for checkpoints configured for a concrete index, will require that the search request only
+     * be executed after the checkpoints are available for search due to a refresh.
+     */
+    public SearchRequestBuilder setWaitForCheckpoints(Map<String, long[]> waitForCheckpoints) {
+        request.setWaitForCheckpoints(waitForCheckpoints);
         return this;
     }
 
@@ -454,7 +463,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
      * @param window   rescore window
      * @return this for chaining
      */
-    public SearchRequestBuilder setRescorer(RescorerBuilder rescorer, int window) {
+    public SearchRequestBuilder setRescorer(RescorerBuilder<?> rescorer, int window) {
         sourceBuilder().clearRescorers();
         return addRescorer(rescorer.windowSize(window));
     }
@@ -509,7 +518,6 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
         request.requestCache(requestCache);
         return this;
     }
-
 
     /**
      * Sets if this request should allow partial results.  (If method is not called,

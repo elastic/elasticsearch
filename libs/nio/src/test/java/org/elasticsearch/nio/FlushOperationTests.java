@@ -28,7 +28,7 @@ public class FlushOperationTests extends ESTestCase {
     }
 
     public void testFullyFlushedMarker() {
-        ByteBuffer[] buffers = {ByteBuffer.allocate(10)};
+        ByteBuffer[] buffers = { ByteBuffer.allocate(10) };
         FlushOperation writeOp = new FlushOperation(buffers, listener);
 
         writeOp.incrementIndex(10);
@@ -37,7 +37,7 @@ public class FlushOperationTests extends ESTestCase {
     }
 
     public void testPartiallyFlushedMarker() {
-        ByteBuffer[] buffers = {ByteBuffer.allocate(10)};
+        ByteBuffer[] buffers = { ByteBuffer.allocate(10) };
         FlushOperation writeOp = new FlushOperation(buffers, listener);
 
         writeOp.incrementIndex(5);
@@ -46,7 +46,7 @@ public class FlushOperationTests extends ESTestCase {
     }
 
     public void testMultipleFlushesWithCompositeBuffer() throws IOException {
-        ByteBuffer[] buffers = {ByteBuffer.allocate(10), ByteBuffer.allocate(15), ByteBuffer.allocate(3)};
+        ByteBuffer[] buffers = { ByteBuffer.allocate(10), ByteBuffer.allocate(15), ByteBuffer.allocate(3) };
         FlushOperation writeOp = new FlushOperation(buffers, listener);
 
         writeOp.incrementIndex(5);

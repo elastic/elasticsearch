@@ -15,6 +15,17 @@ First test:
         that_is: true
   - do:
       and: "again"
+
+  - do:
+      deep:
+        key: "below"
+        body:
+          actions:
+            output:
+              webhook:
+                a: "b"
+                key_to_replace: "_replaced_value"
+
   - key_not_to_replace:
       copied.from.real.test.total: 1
   - key_not_to_replace:

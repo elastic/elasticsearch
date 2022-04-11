@@ -12,11 +12,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
 
-
 public class GetLicenseRequest extends MasterNodeReadRequest<GetLicenseRequest> {
 
-    public GetLicenseRequest() {
-    }
+    public GetLicenseRequest() {}
 
     public GetLicenseRequest(StreamInput in) throws IOException {
         super(in);

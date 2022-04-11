@@ -8,8 +8,8 @@
 package org.elasticsearch.xpack.core.searchablesnapshots;
 
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.searchablesnapshots.SearchableSnapshotsConstants;
 
 import java.util.Map;
 
@@ -18,19 +18,35 @@ import static org.hamcrest.Matchers.is;
 public class SearchableSnapshotsConstantsTests extends ESTestCase {
 
     public void testIsPartialSearchableSnapshotIndex() {
-        assertThat(SearchableSnapshotsConstants.isPartialSearchableSnapshotIndex(
-            Map.of(IndexModule.INDEX_STORE_TYPE_SETTING, SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY,
-                SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING, false)),
-            is(false));
+        assertThat(
+            SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(
+                Map.of(
+                    IndexModule.INDEX_STORE_TYPE_SETTING,
+                    SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE,
+                    SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING,
+                    false
+                )
+            ),
+            is(false)
+        );
 
-        assertThat(SearchableSnapshotsConstants.isPartialSearchableSnapshotIndex(
-            Map.of(IndexModule.INDEX_STORE_TYPE_SETTING, "abc",
-                SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING, randomBoolean())),
-            is(false));
+        assertThat(
+            SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(
+                Map.of(IndexModule.INDEX_STORE_TYPE_SETTING, "abc", SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING, randomBoolean())
+            ),
+            is(false)
+        );
 
-        assertThat(SearchableSnapshotsConstants.isPartialSearchableSnapshotIndex(
-            Map.of(IndexModule.INDEX_STORE_TYPE_SETTING, SearchableSnapshotsConstants.SNAPSHOT_DIRECTORY_FACTORY_KEY,
-                SearchableSnapshotsConstants.SNAPSHOT_PARTIAL_SETTING, true)),
-            is(true));
+        assertThat(
+            SearchableSnapshotsSettings.isPartialSearchableSnapshotIndex(
+                Map.of(
+                    IndexModule.INDEX_STORE_TYPE_SETTING,
+                    SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE,
+                    SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING,
+                    true
+                )
+            ),
+            is(true)
+        );
     }
 }

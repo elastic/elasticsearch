@@ -17,7 +17,6 @@ import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeParseException;
 
-
 public class DateTimeFormatterTimestampConverterTests extends ESTestCase {
     public void testOfPattern_GivenPatternIsOnlyYear() {
 
@@ -26,19 +25,25 @@ public class DateTimeFormatterTimestampConverterTests extends ESTestCase {
 
     public void testOfPattern_GivenPatternIsOnlyDate() {
 
-        ESTestCase.expectThrows(IllegalArgumentException.class,
-                () -> DateTimeFormatterTimestampConverter.ofPattern("y-M-d", ZoneOffset.UTC));
+        ESTestCase.expectThrows(
+            IllegalArgumentException.class,
+            () -> DateTimeFormatterTimestampConverter.ofPattern("y-M-d", ZoneOffset.UTC)
+        );
     }
 
     public void testOfPattern_GivenPatternIsOnlyTime() {
 
-        ESTestCase.expectThrows(IllegalArgumentException.class,
-                () -> DateTimeFormatterTimestampConverter.ofPattern("HH:mm:ss", ZoneOffset.UTC));
+        ESTestCase.expectThrows(
+            IllegalArgumentException.class,
+            () -> DateTimeFormatterTimestampConverter.ofPattern("HH:mm:ss", ZoneOffset.UTC)
+        );
     }
 
     public void testOfPattern_GivenPatternIsUsingYearInsteadOfYearOfEra() {
-        ESTestCase.expectThrows(IllegalArgumentException.class,
-                () -> DateTimeFormatterTimestampConverter.ofPattern("uuuu-MM-dd HH:mm:ss", ZoneOffset.UTC));
+        ESTestCase.expectThrows(
+            IllegalArgumentException.class,
+            () -> DateTimeFormatterTimestampConverter.ofPattern("uuuu-MM-dd HH:mm:ss", ZoneOffset.UTC)
+        );
     }
 
     public void testToEpochSeconds_GivenValidTimestampDoesNotFollowPattern() {
@@ -86,8 +91,7 @@ public class DateTimeFormatterTimestampConverterTests extends ESTestCase {
     }
 
     public void testToEpochMillis_GivenPatternHasFullDateAndTimeWithTimeZone() {
-        assertEquals(1395703820542L,
-                toEpochMillis("2014-03-25 01:30:20.542 +02:00", "yyyy-MM-dd HH:mm:ss.SSS XXX"));
+        assertEquals(1395703820542L, toEpochMillis("2014-03-25 01:30:20.542 +02:00", "yyyy-MM-dd HH:mm:ss.SSS XXX"));
     }
 
     private static long toEpochSeconds(String timestamp, String pattern) {

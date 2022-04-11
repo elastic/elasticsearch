@@ -4,14 +4,6 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-
-/*
- * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
- */
 package org.elasticsearch.xpack.searchablesnapshots;
 
 import org.elasticsearch.ElasticsearchSecurityException;
@@ -54,6 +46,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.oneOf;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class SearchableSnapshotsLicenseIntegTests extends BaseFrozenSearchableSnapshotsIntegTestCase {
@@ -167,10 +160,19 @@ public class SearchableSnapshotsLicenseIntegTests extends BaseFrozenSearchableSn
         waitNoPendingTasksOnAll();
         ensureClusterStateConsistency();
 
-        PostStartTrialRequest startTrialRequest = new PostStartTrialRequest().setType(License.LicenseType.TRIAL.getTypeName())
-            .acknowledge(true);
-        PostStartTrialResponse resp = client().execute(PostStartTrialAction.INSTANCE, startTrialRequest).get();
-        assertEquals(PostStartTrialResponse.Status.UPGRADED_TO_TRIAL, resp.getStatus());
+        PostStartTrialRequest request = new PostStartTrialRequest().setType(License.LicenseType.TRIAL.getTypeName()).acknowledge(true);
+        final PostStartTrialResponse response = client().execute(PostStartTrialAction.INSTANCE, request).get();
+        assertThat(
+            response.getStatus(),
+            oneOf(
+                PostStartTrialResponse.Status.UPGRADED_TO_TRIAL,
+                // The LicenceService automatically generates a license of {@link LicenceService#SELF_GENERATED_LICENSE_TYPE} type
+                // if there is no license found in the cluster state (see {@link LicenceService#registerOrUpdateSelfGeneratedLicense).
+                // Since this test explicitly removes the LicensesMetadata from cluster state it is possible that the self generated
+                // license is created before the PostStartTrialRequest is acked.
+                PostStartTrialResponse.Status.TRIAL_ALREADY_ACTIVATED
+            )
+        );
         // check if cluster goes green again after valid license has been put in place
         ensureGreen(indexName);
     }

@@ -6,9 +6,6 @@
  */
 package org.elasticsearch.xpack.security.authc.saml;
 
-import java.time.Clock;
-import java.util.Objects;
-
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.core.TimeValue;
@@ -19,6 +16,9 @@ import org.opensaml.saml.saml2.core.NameID;
 import org.opensaml.xmlsec.encryption.support.DecryptionException;
 import org.opensaml.xmlsec.signature.Signature;
 import org.w3c.dom.Element;
+
+import java.time.Clock;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.security.authc.saml.SamlUtils.samlException;
 
@@ -57,8 +57,12 @@ public class SamlLogoutRequestHandler extends SamlObjectHandler {
                 throw e;
             }
         } else {
-            throw samlException("SAML content [{}] should have a root element of Namespace=[{}] Tag=[{}]",
-                    root, SAML_NAMESPACE, REQUEST_TAG_NAME);
+            throw samlException(
+                "SAML content [{}] should have a root element of Namespace=[{}] Tag=[{}]",
+                root,
+                SAML_NAMESPACE,
+                REQUEST_TAG_NAME
+            );
         }
     }
 
@@ -100,30 +104,37 @@ public class SamlLogoutRequestHandler extends SamlObjectHandler {
         try {
             return decrypter.decrypt(encrypted);
         } catch (DecryptionException e) {
-            logger.debug(() -> new ParameterizedMessage("Failed to decrypt SAML EncryptedID [{}] with [{}]",
-                    text(encrypted, 512), describe(getSpConfiguration().getEncryptionCredentials())), e);
+            logger.debug(
+                () -> new ParameterizedMessage(
+                    "Failed to decrypt SAML EncryptedID [{}] with [{}]",
+                    text(encrypted, 512),
+                    describe(getSpConfiguration().getEncryptionCredentials())
+                ),
+                e
+            );
             throw samlException("Failed to decrypt SAML EncryptedID " + text(encrypted, 32), e);
         }
     }
 
     private String getSessionIndex(LogoutRequest logoutRequest) {
-        return logoutRequest.getSessionIndexes()
-                .stream()
-                .map(as -> as.getSessionIndex())
-                .filter(Objects::nonNull)
-                .findFirst()
-                .orElse(null);
+        return logoutRequest.getSessionIndexes().stream().map(as -> as.getValue()).filter(Objects::nonNull).findFirst().orElse(null);
     }
 
     private void checkDestination(LogoutRequest request) {
         final String url = getSpConfiguration().getLogoutUrl();
         if (url == null) {
-            throw samlException("SAML request " + request.getID() + " is for destination " + request.getDestination()
-                    + " but this realm is not configured for logout");
+            throw samlException(
+                "SAML request "
+                    + request.getID()
+                    + " is for destination "
+                    + request.getDestination()
+                    + " but this realm is not configured for logout"
+            );
         }
         if (url.equals(request.getDestination()) == false) {
-            throw samlException("SAML request " + request.getID() + " is for destination " + request.getDestination()
-                    + " but this realm uses " + url);
+            throw samlException(
+                "SAML request " + request.getID() + " is for destination " + request.getDestination() + " but this realm uses " + url
+            );
         }
     }
 
@@ -158,12 +169,19 @@ public class SamlLogoutRequestHandler extends SamlObjectHandler {
 
         @Override
         public String toString() {
-            return "SamlLogoutRequestHandler.Result{" +
-                    "requestId='" + requestId + '\'' +
-                    ", nameId=" + nameId +
-                    ", session='" + session + '\'' +
-                    ", relayState='" + relayState + '\'' +
-                    '}';
+            return "SamlLogoutRequestHandler.Result{"
+                + "requestId='"
+                + requestId
+                + '\''
+                + ", nameId="
+                + nameId
+                + ", session='"
+                + session
+                + '\''
+                + ", relayState='"
+                + relayState
+                + '\''
+                + '}';
         }
     }
 

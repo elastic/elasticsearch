@@ -28,7 +28,8 @@ public class SpiExtensionPlugin extends Plugin implements ActionPlugin {
     public Collection<RestHeaderDefinition> getRestHeaders() {
         return Arrays.asList(
             new RestHeaderDefinition(CustomRealm.USER_HEADER, false),
-            new RestHeaderDefinition(CustomRealm.PW_HEADER, false));
+            new RestHeaderDefinition(CustomRealm.PW_HEADER, false)
+        );
     }
 
     @Override

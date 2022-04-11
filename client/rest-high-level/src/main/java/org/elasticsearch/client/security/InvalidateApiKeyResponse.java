@@ -10,17 +10,17 @@ package org.elasticsearch.client.security;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.common.xcontent.ConstructingObjectParser.optionalConstructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public final class InvalidateApiKeyResponse {
 
@@ -34,11 +34,16 @@ public final class InvalidateApiKeyResponse {
      * @param previouslyInvalidatedApiKeys list of previously invalidated API key ids
      * @param errors list of encountered errors while invalidating API keys
      */
-    public InvalidateApiKeyResponse(List<String> invalidatedApiKeys, List<String> previouslyInvalidatedApiKeys,
-                                    @Nullable List<ElasticsearchException> errors) {
+    public InvalidateApiKeyResponse(
+        List<String> invalidatedApiKeys,
+        List<String> previouslyInvalidatedApiKeys,
+        @Nullable List<ElasticsearchException> errors
+    ) {
         this.invalidatedApiKeys = Objects.requireNonNull(invalidatedApiKeys, "invalidated_api_keys must be provided");
-        this.previouslyInvalidatedApiKeys = Objects.requireNonNull(previouslyInvalidatedApiKeys,
-                "previously_invalidated_api_keys must be provided");
+        this.previouslyInvalidatedApiKeys = Objects.requireNonNull(
+            previouslyInvalidatedApiKeys,
+            "previously_invalidated_api_keys must be provided"
+        );
         if (null != errors) {
             this.errors = errors;
         } else {
@@ -74,8 +79,11 @@ public final class InvalidateApiKeyResponse {
         PARSER.declareStringArray(constructorArg(), new ParseField("previously_invalidated_api_keys"));
         // error count is parsed but ignored as we have list of errors
         PARSER.declareInt(constructorArg(), new ParseField("error_count"));
-        PARSER.declareObjectArray(optionalConstructorArg(), (p, c) -> ElasticsearchException.fromXContent(p),
-                new ParseField("error_details"));
+        PARSER.declareObjectArray(
+            optionalConstructorArg(),
+            (p, c) -> ElasticsearchException.fromXContent(p),
+            new ParseField("error_details")
+        );
     }
 
     public static InvalidateApiKeyResponse fromXContent(XContentParser parser) throws IOException {
@@ -100,13 +108,18 @@ public final class InvalidateApiKeyResponse {
         }
         InvalidateApiKeyResponse other = (InvalidateApiKeyResponse) obj;
         return Objects.equals(invalidatedApiKeys, other.invalidatedApiKeys)
-                && Objects.equals(previouslyInvalidatedApiKeys, other.previouslyInvalidatedApiKeys)
-                && Objects.equals(errors, other.errors);
+            && Objects.equals(previouslyInvalidatedApiKeys, other.previouslyInvalidatedApiKeys)
+            && Objects.equals(errors, other.errors);
     }
 
     @Override
     public String toString() {
-        return "ApiKeysInvalidationResult [invalidatedApiKeys=" + invalidatedApiKeys + ", previouslyInvalidatedApiKeys="
-                + previouslyInvalidatedApiKeys + ", errors=" + errors + "]";
+        return "ApiKeysInvalidationResult [invalidatedApiKeys="
+            + invalidatedApiKeys
+            + ", previouslyInvalidatedApiKeys="
+            + previouslyInvalidatedApiKeys
+            + ", errors="
+            + errors
+            + "]";
     }
 }

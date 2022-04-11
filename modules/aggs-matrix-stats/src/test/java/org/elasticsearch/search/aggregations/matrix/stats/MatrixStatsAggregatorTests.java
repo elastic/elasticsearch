@@ -12,10 +12,10 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -30,18 +30,17 @@ import java.util.List;
 public class MatrixStatsAggregatorTests extends AggregatorTestCase {
 
     public void testNoData() throws Exception {
-        MappedFieldType ft =
-            new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
+        MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
 
-        try (Directory directory = newDirectory();
-            RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+        try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
             if (randomBoolean()) {
                 indexWriter.addDocument(Collections.singleton(new StringField("another_field", "value", Field.Store.NO)));
             }
             try (IndexReader reader = indexWriter.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                MatrixStatsAggregationBuilder aggBuilder = new MatrixStatsAggregationBuilder("my_agg")
-                    .fields(Collections.singletonList("field"));
+                MatrixStatsAggregationBuilder aggBuilder = new MatrixStatsAggregationBuilder("my_agg").fields(
+                    Collections.singletonList("field")
+                );
                 InternalMatrixStats stats = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, ft);
                 assertNull(stats.getStats());
                 assertEquals(0L, stats.getDocCount());
@@ -52,15 +51,15 @@ public class MatrixStatsAggregatorTests extends AggregatorTestCase {
     public void testUnmapped() throws Exception {
         MappedFieldType ft = new NumberFieldMapper.NumberFieldType("field", NumberFieldMapper.NumberType.DOUBLE);
 
-        try (Directory directory = newDirectory();
-             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+        try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
             if (randomBoolean()) {
                 indexWriter.addDocument(Collections.singleton(new StringField("another_field", "value", Field.Store.NO)));
             }
             try (IndexReader reader = indexWriter.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                MatrixStatsAggregationBuilder aggBuilder = new MatrixStatsAggregationBuilder("my_agg")
-                    .fields(Collections.singletonList("bogus"));
+                MatrixStatsAggregationBuilder aggBuilder = new MatrixStatsAggregationBuilder("my_agg").fields(
+                    Collections.singletonList("bogus")
+                );
                 InternalMatrixStats stats = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, ft);
                 assertNull(stats.getStats());
                 assertEquals(0L, stats.getDocCount());
@@ -74,8 +73,7 @@ public class MatrixStatsAggregatorTests extends AggregatorTestCase {
         String fieldB = "b";
         MappedFieldType ftB = new NumberFieldMapper.NumberFieldType(fieldB, NumberFieldMapper.NumberType.DOUBLE);
 
-        try (Directory directory = newDirectory();
-             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+        try (Directory directory = newDirectory(); RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
 
             int numDocs = scaledRandomIntBetween(8192, 16384);
             Double[] fieldAValues = new Double[numDocs];
@@ -94,8 +92,9 @@ public class MatrixStatsAggregatorTests extends AggregatorTestCase {
             multiPassStats.computeStats(Arrays.asList(fieldAValues), Arrays.asList(fieldBValues));
             try (IndexReader reader = indexWriter.getReader()) {
                 IndexSearcher searcher = new IndexSearcher(reader);
-                MatrixStatsAggregationBuilder aggBuilder = new MatrixStatsAggregationBuilder("my_agg")
-                    .fields(Arrays.asList(fieldA, fieldB));
+                MatrixStatsAggregationBuilder aggBuilder = new MatrixStatsAggregationBuilder("my_agg").fields(
+                    Arrays.asList(fieldA, fieldB)
+                );
                 InternalMatrixStats stats = searchAndReduce(searcher, new MatchAllDocsQuery(), aggBuilder, ftA, ftB);
                 multiPassStats.assertNearlyEqual(stats);
                 assertTrue(MatrixAggregationInspectionHelper.hasValue(stats));

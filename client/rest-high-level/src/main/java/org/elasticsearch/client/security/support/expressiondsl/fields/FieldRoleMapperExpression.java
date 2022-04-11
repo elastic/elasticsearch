@@ -9,7 +9,7 @@
 package org.elasticsearch.client.security.support.expressiondsl.fields;
 
 import org.elasticsearch.client.security.support.expressiondsl.RoleMapperExpression;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -53,10 +53,8 @@ public class FieldRoleMapperExpression implements RoleMapperExpression {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o)
-            return true;
-        if (o == null || getClass() != o.getClass())
-            return false;
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
 
         final FieldRoleMapperExpression that = (FieldRoleMapperExpression) o;
 

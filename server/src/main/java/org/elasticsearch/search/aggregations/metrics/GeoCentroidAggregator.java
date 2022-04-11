@@ -10,9 +10,9 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -87,9 +87,9 @@ final class GeoCentroidAggregator extends MetricsAggregator {
                     // update the sum
                     for (int i = 0; i < valueCount; ++i) {
                         GeoPoint value = values.nextValue();
-                        //latitude
+                        // latitude
                         compensatedSumLat.add(value.getLat());
-                        //longitude
+                        // longitude
                         compensatedSumLon.add(value.getLon());
                     }
                     lonSum.set(bucket, compensatedSumLon.value());
@@ -108,9 +108,9 @@ final class GeoCentroidAggregator extends MetricsAggregator {
         }
         final long bucketCount = counts.get(bucket);
         final GeoPoint bucketCentroid = (bucketCount > 0)
-                ? new GeoPoint(latSum.get(bucket) / bucketCount, lonSum.get(bucket) / bucketCount)
-                : null;
-        return new InternalGeoCentroid(name, bucketCentroid , bucketCount, metadata());
+            ? new GeoPoint(latSum.get(bucket) / bucketCount, lonSum.get(bucket) / bucketCount)
+            : null;
+        return new InternalGeoCentroid(name, bucketCentroid, bucketCount, metadata());
     }
 
     @Override

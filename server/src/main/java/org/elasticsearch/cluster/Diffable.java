@@ -10,7 +10,6 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.common.io.stream.Writeable;
 
-
 /**
  * Cluster state part, changes in which can be serialized
  */

@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 
 [[eql-search-api]]
 === EQL search API
@@ -48,6 +47,9 @@ or alias.
 
 * See <<eql-required-fields>>.
 
+* experimental:[] For cross-cluster search, the local and remote clusters must
+use the same {es} version. For security, see <<remote-clusters-security>>.
+
 [[eql-search-api-limitations]]
 ===== Limitations
 
@@ -60,6 +62,9 @@ See <<eql-syntax-limitations,EQL limitations>>.
 (Required, string) Comma-separated list of data streams, indices, or aliases
 used to limit the request. Supports wildcards (`*`). To search all data streams
 and indices, use `*` or `_all`.
++
+experimental:[] To search a remote cluster, use the `<cluster>:<target>` syntax.
+See <<run-eql-search-across-clusters>>.
 
 [[eql-search-api-query-params]]
 ==== {api-query-parms-title}
@@ -83,6 +88,16 @@ request that targets only `bar*` still returns an error.
 +
 Defaults to `true`.
 
+`ccs_minimize_roundtrips`::
+(Optional, Boolean) If `true`, network round-trips between the local and the
+remote cluster are minimized when running cross-cluster search (CCS) requests.
++
+This option is effective for requests that target data fully contained in one
+remote cluster; when data is spread across multiple clusters, the setting is
+ignored.
++
+Defaults to `true`.
+
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
@@ -94,8 +109,8 @@ Comma-separated list of filters for the API response. See
 <<common-options-response-filtering>>.
 
 `ignore_unavailable`::
-(Optional, Boolean) If `true`, missing or closed indices are not included in the
-response. Defaults to `true`.
+(Optional, Boolean) If `false`, the request returns an error if it targets a
+missing or closed index. Defaults to `true`.
 
 `keep_alive`::
 +
@@ -191,33 +206,7 @@ returned.
 +
 A greater `fetch_size` value often increases search speed but uses more memory.
 
-`fields`::
-(Optional, array of strings and objects)
-Array of wildcard (`*`) patterns. The response returns values for field names
-matching these patterns in the `fields` property of each hit.
-+
-You can specify items in the array as a string or object.
-+
-.Properties of `fields` objects
-[%collapsible%open]
-====
-`field`::
-(Required, string)
-Wildcard pattern. The request returns values for field names matching this
-pattern.
-
-`format`::
-(Optional, string)
-Format in which the values are returned.
-+
-<<date,`date`>> and <<date_nanos, `date_nanos`>> fields accept a
-<<mapping-date-format,date format>>. <<spatial_datatypes, Spatial fields>>
-accept either `geojson` for http://www.geojson.org[GeoJSON] (the default) or
-`wkt` for {wikipedia}/Well-known_text_representation_of_geometry[Well Known
-Text].
-+
-For other field data types, this parameter is not supported.
-====
+include::{es-repo-dir}/search/search.asciidoc[tag=fields-param-def]
 
 `filter`::
 (Optional, <<query-dsl,Query DSL object>>)
@@ -293,6 +282,7 @@ change the sort order of hits in the response.
 
 include::{es-repo-dir}/search/search.asciidoc[tag=runtime-mappings-def]
 
+[[eql-search-api-params-size]]
 `size`::
 (Optional, integer or float)
 For <<eql-basic-syntax,basic queries>>, the maximum number of matching events to

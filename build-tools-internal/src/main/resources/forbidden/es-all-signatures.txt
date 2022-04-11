@@ -10,7 +10,6 @@ java.nio.file.Path#of(java.lang.String, java.lang.String[]) @ Use org.elasticsea
 java.nio.file.FileSystems#getDefault() @ use org.elasticsearch.core.PathUtils.getDefaultFileSystem() instead.
 
 java.nio.file.Files#getFileStore(java.nio.file.Path) @ Use org.elasticsearch.env.Environment.getFileStore() instead, impacted by JDK-8034057
-java.nio.file.Files#isWritable(java.nio.file.Path) @ Use org.elasticsearch.env.Environment.isWritable() instead, impacted by JDK-8034057
 
 @defaultMessage Use org.elasticsearch.common.Randomness#get for reproducible sources of randomness
 java.util.Random#<init>()

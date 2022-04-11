@@ -8,6 +8,7 @@ package org.elasticsearch.smoketest;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
@@ -45,13 +46,16 @@ public class WatcherPagerDutyYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 getAdminExecutionContext().callApi("watcher.start", emptyMap(), emptyList(), emptyMap());
 
                 for (String template : watcherTemplates) {
-                    ClientYamlTestResponse templateExistsResponse = getAdminExecutionContext().callApi("indices.exists_template",
-                            singletonMap("name", template), emptyList(), emptyMap());
+                    ClientYamlTestResponse templateExistsResponse = getAdminExecutionContext().callApi(
+                        "indices.exists_template",
+                        singletonMap("name", template),
+                        emptyList(),
+                        emptyMap()
+                    );
                     assertThat(templateExistsResponse.getStatusCode(), is(200));
                 }
 
-                ClientYamlTestResponse response =
-                        getAdminExecutionContext().callApi("watcher.stats", emptyMap(), emptyList(), emptyMap());
+                ClientYamlTestResponse response = getAdminExecutionContext().callApi("watcher.stats", emptyMap(), emptyList(), emptyMap());
                 String state = (String) response.evaluate("stats.0.watcher_state");
                 assertThat(state, is("started"));
             } catch (IOException e) {
@@ -65,8 +69,7 @@ public class WatcherPagerDutyYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         assertBusy(() -> {
             try {
                 getAdminExecutionContext().callApi("watcher.stop", emptyMap(), emptyList(), emptyMap());
-                ClientYamlTestResponse response =
-                        getAdminExecutionContext().callApi("watcher.stats", emptyMap(), emptyList(), emptyMap());
+                ClientYamlTestResponse response = getAdminExecutionContext().callApi("watcher.stats", emptyMap(), emptyList(), emptyMap());
                 String state = (String) response.evaluate("stats.0.watcher_state");
                 assertThat(state, is("stopped"));
             } catch (IOException e) {

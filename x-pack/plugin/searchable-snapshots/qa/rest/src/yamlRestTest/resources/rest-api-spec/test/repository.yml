@@ -14,15 +14,15 @@ setup:
         body:
           - index:
               _index: docs
-              _id:    1
+              _id:    "1"
           - field: foo
           - index:
               _index: docs
-              _id:    2
+              _id:    "2"
           - field: bar
           - index:
               _index: docs
-              _id:    3
+              _id:    "3"
           - field: baz
 
   - do:
@@ -70,9 +70,9 @@ setup:
   - match: { snapshot.shards.failed: 0 }
   - match: { snapshot.shards.successful: 1 }
 
-  # Returns an illegal state exception
+  # Returns a repository conflict exception
   - do:
-      catch: request
+      catch: conflict
       snapshot.delete_repository:
         repository: repository-fs
 

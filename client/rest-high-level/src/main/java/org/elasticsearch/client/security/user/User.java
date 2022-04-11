@@ -8,8 +8,8 @@
 
 package org.elasticsearch.client.security.user;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Nullable;
 
 import java.util.Collections;
 import java.util.List;
@@ -25,8 +25,10 @@ public final class User {
     private final String username;
     private final List<String> roles;
     private final Map<String, Object> metadata;
-    @Nullable private final String fullName;
-    @Nullable private final String email;
+    @Nullable
+    private final String fullName;
+    @Nullable
+    private final String email;
 
     /**
      * Builds the user to be utilized with security APIs.
@@ -37,12 +39,12 @@ public final class User {
      * @param fullName the full name of the user that may be used for display purposes
      * @param email the email address of the user
      */
-    public User(String username, List<String> roles, Map<String, Object> metadata, @Nullable String fullName,
-            @Nullable String email) {
+    public User(String username, List<String> roles, Map<String, Object> metadata, @Nullable String fullName, @Nullable String email) {
         this.username = Objects.requireNonNull(username, "`username` is required, cannot be null");
         this.roles = List.copyOf(Objects.requireNonNull(roles, "`roles` is required, cannot be null. Pass an empty list instead."));
         this.metadata = Collections.unmodifiableMap(
-                Objects.requireNonNull(metadata, "`metadata` is required, cannot be null. Pass an empty map instead."));
+            Objects.requireNonNull(metadata, "`metadata` is required, cannot be null. Pass an empty map instead.")
+        );
         this.fullName = fullName;
         this.email = email;
     }
@@ -113,10 +115,10 @@ public final class User {
         if (o == null || this.getClass() != o.getClass()) return false;
         final User that = (User) o;
         return Objects.equals(username, that.username)
-                && Objects.equals(roles, that.roles)
-                && Objects.equals(metadata, that.metadata)
-                && Objects.equals(fullName, that.fullName)
-                && Objects.equals(email, that.email);
+            && Objects.equals(roles, that.roles)
+            && Objects.equals(metadata, that.metadata)
+            && Objects.equals(fullName, that.fullName)
+            && Objects.equals(email, that.email);
     }
 
     @Override

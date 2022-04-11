@@ -12,20 +12,17 @@ import org.elasticsearch.xpack.core.ml.job.config.Detector;
 
 public class DefaultDetectorDescriptionTests extends ESTestCase {
 
-
     public void testOf_GivenOnlyFunctionAndFieldName() {
         Detector detector = new Detector.Builder("min", "value").build();
 
         assertEquals("min(value)", DefaultDetectorDescription.of(detector));
     }
 
-
     public void testOf_GivenOnlyFunctionAndFieldNameWithNonWordChars() {
         Detector detector = new Detector.Builder("min", "val-ue").build();
 
         assertEquals("min(\"val-ue\")", DefaultDetectorDescription.of(detector));
     }
-
 
     public void testOf_GivenFullyPopulatedDetector() {
         Detector.Builder detector = new Detector.Builder("sum", "value");
@@ -35,7 +32,9 @@ public class DefaultDetectorDescriptionTests extends ESTestCase {
         detector.setPartitionFieldName("planet");
         detector.setExcludeFrequent(Detector.ExcludeFrequent.ALL);
 
-        assertEquals("sum(value) by airline over region usenull=true partitionfield=planet excludefrequent=all",
-                DefaultDetectorDescription.of(detector.build()));
+        assertEquals(
+            "sum(value) by airline over region usenull=true partitionfield=planet excludefrequent=all",
+            DefaultDetectorDescription.of(detector.build())
+        );
     }
 }

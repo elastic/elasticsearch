@@ -35,16 +35,16 @@ public class CurrentDateTests extends AbstractNodeTestCase<CurrentDate, Expressi
     @Override
     protected CurrentDate mutate(CurrentDate instance) {
         ZonedDateTime now = instance.configuration().now();
-        ZoneId mutatedZoneId = randomValueOtherThanMany(o -> Objects.equals(now.getOffset(), o.getRules().getOffset(now.toInstant())),
-                () -> randomZone());
+        ZoneId mutatedZoneId = randomValueOtherThanMany(
+            o -> Objects.equals(now.getOffset(), o.getRules().getOffset(now.toInstant())),
+            () -> randomZone()
+        );
         return new CurrentDate(instance.source(), SqlTestUtils.randomConfiguration(mutatedZoneId));
     }
 
     @Override
-    public void testTransform() {
-    }
+    public void testTransform() {}
 
     @Override
-    public void testReplaceChildren() {
-    }
+    public void testReplaceChildren() {}
 }

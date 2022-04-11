@@ -32,17 +32,20 @@ public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory {
             BoxplotAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.NUMERIC, AnalyticsValuesSourceType.HISTOGRAM),
             BoxplotAggregator::new,
-                true);
+            true
+        );
     }
 
-    BoxplotAggregatorFactory(String name,
-                             ValuesSourceConfig config,
-                             double compression,
-                             AggregationContext context,
-                             AggregatorFactory parent,
-                             AggregatorFactories.Builder subFactoriesBuilder,
-                             Map<String, Object> metadata,
-                             BoxplotAggregatorSupplier aggregatorSupplier) throws IOException {
+    BoxplotAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        double compression,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata,
+        BoxplotAggregatorSupplier aggregatorSupplier
+    ) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.compression = compression;
         this.aggregatorSupplier = aggregatorSupplier;
@@ -54,12 +57,8 @@ public class BoxplotAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator doCreateInternal(
-        Aggregator parent,
-        CardinalityUpperBound cardinality,
-        Map<String, Object> metadata
-    ) throws IOException {
-        return aggregatorSupplier
-                .build(name, config.getValuesSource(), config.format(), compression, context, parent, metadata);
+    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException {
+        return aggregatorSupplier.build(name, config.getValuesSource(), config.format(), compression, context, parent, metadata);
     }
 }

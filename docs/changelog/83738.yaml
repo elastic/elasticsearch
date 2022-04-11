@@ -1,0 +1,6 @@
+pr: 83738
+summary: Check the utf8 length of keyword field is not bigger than 32766 in ES, rather than in Lucene.
+area: Mapping
+type: enhancement
+issues:
+  - 80865

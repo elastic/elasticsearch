@@ -8,9 +8,9 @@
 
 package org.elasticsearch.client.ilm;
 
-import org.elasticsearch.common.xcontent.ParseField;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.Collections;
 import java.util.List;
@@ -22,7 +22,10 @@ public class RemoveIndexLifecyclePolicyResponse {
     public static final ParseField FAILED_INDEXES_FIELD = new ParseField("failed_indexes");
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<RemoveIndexLifecyclePolicyResponse, Void> PARSER = new ConstructingObjectParser<>(
-            "change_policy_for_index_response", true, args -> new RemoveIndexLifecyclePolicyResponse((List<String>)args[0]));
+        "change_policy_for_index_response",
+        true,
+        args -> new RemoveIndexLifecyclePolicyResponse((List<String>) args[0])
+    );
     static {
         PARSER.declareStringArray(ConstructingObjectParser.constructorArg(), FAILED_INDEXES_FIELD);
         // Needs to be declared but not used in constructing the response object

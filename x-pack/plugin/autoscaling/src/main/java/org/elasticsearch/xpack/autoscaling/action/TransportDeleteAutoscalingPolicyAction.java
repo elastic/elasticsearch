@@ -16,6 +16,8 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -23,6 +25,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -34,7 +37,7 @@ import java.util.TreeMap;
 
 public class TransportDeleteAutoscalingPolicyAction extends AcknowledgedTransportMasterNodeAction<DeleteAutoscalingPolicyAction.Request> {
 
-    private static final Logger logger = LogManager.getLogger(TransportPutAutoscalingPolicyAction.class);
+    private static final Logger LOGGER = LogManager.getLogger(TransportPutAutoscalingPolicyAction.class);
 
     @Inject
     public TransportDeleteAutoscalingPolicyAction(
@@ -68,9 +71,14 @@ public class TransportDeleteAutoscalingPolicyAction extends AcknowledgedTranspor
         clusterService.submitStateUpdateTask("delete-autoscaling-policy", new AckedClusterStateUpdateTask(request, listener) {
             @Override
             public ClusterState execute(final ClusterState currentState) {
-                return deleteAutoscalingPolicy(currentState, request.name(), logger);
+                return deleteAutoscalingPolicy(currentState, request.name(), LOGGER);
             }
-        });
+        }, newExecutor());
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 
     @Override

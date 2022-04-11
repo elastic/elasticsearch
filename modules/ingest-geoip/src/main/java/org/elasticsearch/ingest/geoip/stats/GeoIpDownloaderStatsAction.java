@@ -8,6 +8,7 @@
 
 package org.elasticsearch.ingest.geoip.stats;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
@@ -18,9 +19,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
@@ -91,6 +92,10 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
             super(clusterName, nodes, failures);
         }
 
+        public GeoIpDownloaderStats getStats() {
+            return getNodes().stream().map(n -> n.stats).filter(Objects::nonNull).findFirst().orElse(GeoIpDownloaderStats.EMPTY);
+        }
+
         @Override
         protected List<NodeResponse> readNodesFrom(StreamInput in) throws IOException {
             return in.readList(NodeResponse::new);
@@ -103,14 +108,13 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            GeoIpDownloaderStats stats =
-                getNodes().stream().map(n -> n.stats).filter(Objects::nonNull).findFirst().orElse(GeoIpDownloaderStats.EMPTY);
+            GeoIpDownloaderStats stats = getStats();
             builder.startObject();
             builder.field("stats", stats);
             builder.startObject("nodes");
             for (Map.Entry<String, NodeResponse> e : getNodesMap().entrySet()) {
                 NodeResponse response = e.getValue();
-                if (response.filesInTemp.isEmpty() && response.databases.isEmpty()) {
+                if (response.filesInTemp.isEmpty() && response.databases.isEmpty() && response.configDatabases.isEmpty()) {
                     continue;
                 }
                 builder.startObject(e.getKey());
@@ -125,6 +129,9 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
                 }
                 if (response.filesInTemp.isEmpty() == false) {
                     builder.array("files_in_temp", response.filesInTemp.toArray(String[]::new));
+                }
+                if (response.configDatabases.isEmpty() == false) {
+                    builder.array("config_databases", response.configDatabases.toArray(String[]::new));
                 }
                 builder.endObject();
             }
@@ -152,19 +159,44 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
         private final GeoIpDownloaderStats stats;
         private final Set<String> databases;
         private final Set<String> filesInTemp;
+        private final Set<String> configDatabases;
 
         protected NodeResponse(StreamInput in) throws IOException {
             super(in);
             stats = in.readBoolean() ? new GeoIpDownloaderStats(in) : null;
             databases = in.readSet(StreamInput::readString);
             filesInTemp = in.readSet(StreamInput::readString);
+            configDatabases = in.getVersion().onOrAfter(Version.V_8_0_0) ? in.readSet(StreamInput::readString) : null;
         }
 
-        protected NodeResponse(DiscoveryNode node, GeoIpDownloaderStats stats, Set<String> databases, Set<String> filesInTemp) {
+        protected NodeResponse(
+            DiscoveryNode node,
+            GeoIpDownloaderStats stats,
+            Set<String> databases,
+            Set<String> filesInTemp,
+            Set<String> configDatabases
+        ) {
             super(node);
             this.stats = stats;
             this.databases = databases;
             this.filesInTemp = filesInTemp;
+            this.configDatabases = configDatabases;
+        }
+
+        public GeoIpDownloaderStats getStats() {
+            return stats;
+        }
+
+        public Set<String> getDatabases() {
+            return databases;
+        }
+
+        public Set<String> getFilesInTemp() {
+            return filesInTemp;
+        }
+
+        public Set<String> getConfigDatabases() {
+            return configDatabases;
         }
 
         @Override
@@ -176,6 +208,9 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
             }
             out.writeCollection(databases, StreamOutput::writeString);
             out.writeCollection(filesInTemp, StreamOutput::writeString);
+            if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
+                out.writeCollection(configDatabases, StreamOutput::writeString);
+            }
         }
 
         @Override
@@ -183,12 +218,15 @@ public class GeoIpDownloaderStatsAction extends ActionType<GeoIpDownloaderStatsA
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             NodeResponse that = (NodeResponse) o;
-            return stats.equals(that.stats) && databases.equals(that.databases) && filesInTemp.equals(that.filesInTemp);
+            return stats.equals(that.stats)
+                && databases.equals(that.databases)
+                && filesInTemp.equals(that.filesInTemp)
+                && Objects.equals(configDatabases, that.configDatabases);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(stats, databases, filesInTemp);
+            return Objects.hash(stats, databases, filesInTemp, configDatabases);
         }
     }
 }

@@ -41,13 +41,12 @@ public class IndexLongFieldRangeWireTests extends AbstractWireSerializingTestCas
         while (true) {
             final IndexLongFieldRange newInstance = IndexLongFieldRangeTestUtils.randomSpecificRange();
             if (newInstance.getMinUnsafe() != instance.getMinUnsafe()
-                    || newInstance.getMaxUnsafe() != instance.getMaxUnsafe()
-                    || Arrays.equals(newInstance.getShards(), instance.getShards()) == false) {
+                || newInstance.getMaxUnsafe() != instance.getMaxUnsafe()
+                || Arrays.equals(newInstance.getShards(), instance.getShards()) == false) {
                 return newInstance;
             }
         }
     }
-
 
     @Override
     protected void assertEqualInstances(IndexLongFieldRange expectedInstance, IndexLongFieldRange newInstance) {

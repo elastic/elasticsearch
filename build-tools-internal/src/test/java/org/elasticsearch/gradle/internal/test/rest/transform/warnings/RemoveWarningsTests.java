@@ -9,6 +9,7 @@
 package org.elasticsearch.gradle.internal.test.rest.transform.warnings;
 
 import com.fasterxml.jackson.databind.node.ObjectNode;
+
 import org.elasticsearch.gradle.internal.test.rest.transform.RestTestTransform;
 import org.elasticsearch.gradle.internal.test.rest.transform.TransformTests;
 import org.junit.Test;
@@ -48,6 +49,23 @@ public class RemoveWarningsTests extends TransformTests {
         printTest(testName, transformedTests);
         validateSetupAndTearDown(transformedTests);
         validateBodyHasWarnings(WARNINGS, tests, Set.of("b"));
+    }
+
+    @Test
+    public void testRemoveWarningWithPreExistingFromSingleTest() throws Exception {
+        String testName = "/rest/transform/warnings/with_existing_warnings.yml";
+        List<ObjectNode> tests = getTests(testName);
+        validateSetupExist(tests);
+        validateBodyHasWarnings(WARNINGS, tests, Set.of("a", "b"));
+        List<ObjectNode> transformedTests = transformTests(tests, getTransformationsForTest("Test warnings"));
+        printTest(testName, transformedTests);
+        validateSetupAndTearDown(transformedTests);
+        validateBodyHasWarnings(WARNINGS, "Test warnings", tests, Set.of("b"));
+        validateBodyHasWarnings(WARNINGS, "Not the test to change", tests, Set.of("a", "b"));
+    }
+
+    private List<RestTestTransform<?>> getTransformationsForTest(String testName) {
+        return Collections.singletonList(new RemoveWarnings(Set.of("a"), testName));
     }
 
     /**

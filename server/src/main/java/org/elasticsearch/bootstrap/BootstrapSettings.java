@@ -13,18 +13,22 @@ import org.elasticsearch.common.settings.Setting.Property;
 
 public final class BootstrapSettings {
 
-    private BootstrapSettings() {
-    }
+    private BootstrapSettings() {}
 
     // TODO: remove this hack when insecure defaults are removed from java
-    public static final Setting<Boolean> SECURITY_FILTER_BAD_DEFAULTS_SETTING =
-            Setting.boolSetting("security.manager.filter_bad_defaults", true, Property.NodeScope);
+    public static final Setting<Boolean> SECURITY_FILTER_BAD_DEFAULTS_SETTING = Setting.boolSetting(
+        "security.manager.filter_bad_defaults",
+        true,
+        Property.NodeScope
+    );
 
-    public static final Setting<Boolean> MEMORY_LOCK_SETTING =
-        Setting.boolSetting("bootstrap.memory_lock", false, Property.NodeScope);
-    public static final Setting<Boolean> SYSTEM_CALL_FILTER_SETTING =
-        Setting.boolSetting("bootstrap.system_call_filter", true, Property.Deprecated, Property.NodeScope);
-    public static final Setting<Boolean> CTRLHANDLER_SETTING =
-        Setting.boolSetting("bootstrap.ctrlhandler", true, Property.NodeScope);
+    public static final Setting<Boolean> MEMORY_LOCK_SETTING = Setting.boolSetting("bootstrap.memory_lock", false, Property.NodeScope);
+    public static final Setting<Boolean> SYSTEM_CALL_FILTER_SETTING = Setting.boolSetting(
+        "bootstrap.system_call_filter",
+        true,
+        Property.DeprecatedWarning,
+        Property.NodeScope
+    );
+    public static final Setting<Boolean> CTRLHANDLER_SETTING = Setting.boolSetting("bootstrap.ctrlhandler", true, Property.NodeScope);
 
 }

@@ -27,7 +27,7 @@ public class SignificantTextTests extends BaseAggregationTestCase<SignificantTex
             factory.bucketCountThresholds().setRequiredSize(randomIntBetween(1, Integer.MAX_VALUE));
         }
         if (randomBoolean()) {
-            factory.sourceFieldNames(Arrays.asList(new String []{"foo", "bar"}));
+            factory.sourceFieldNames(Arrays.asList(new String[] { "foo", "bar" }));
         }
 
         if (randomBoolean()) {
@@ -36,30 +36,30 @@ public class SignificantTextTests extends BaseAggregationTestCase<SignificantTex
         if (randomBoolean()) {
             int minDocCount = randomInt(4);
             switch (minDocCount) {
-            case 0:
-                break;
-            case 1:
-            case 2:
-            case 3:
-            case 4:
-                minDocCount = randomIntBetween(0, Integer.MAX_VALUE);
-                break;
+                case 0:
+                    break;
+                case 1:
+                case 2:
+                case 3:
+                case 4:
+                    minDocCount = randomIntBetween(0, Integer.MAX_VALUE);
+                    break;
             }
             factory.bucketCountThresholds().setMinDocCount(minDocCount);
         }
         if (randomBoolean()) {
             int shardMinDocCount = randomInt(4);
             switch (shardMinDocCount) {
-            case 0:
-                break;
-            case 1:
-            case 2:
-            case 3:
-            case 4:
-                shardMinDocCount = randomIntBetween(0, Integer.MAX_VALUE);
-                break;
-            default:
-                fail();
+                case 0:
+                    break;
+                case 1:
+                case 2:
+                case 3:
+                case 4:
+                    shardMinDocCount = randomIntBetween(0, Integer.MAX_VALUE);
+                    break;
+                default:
+                    fail();
             }
             factory.bucketCountThresholds().setShardMinDocCount(shardMinDocCount);
         }

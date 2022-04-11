@@ -4,7 +4,14 @@
 <titleabbrev>cat aliases</titleabbrev>
 ++++
 
-Retrieves the cluster's <<alias,index aliases>>, including filter and routing
+[IMPORTANT]
+====
+cat APIs are only intended for human consumption using the command line or the 
+{kib} console. They are _not_ intended for use by applications. For application 
+consumption, use the <<aliases,aliases API>>.
+====
+
+Retrieves the cluster's <<aliases,index aliases>>, including filter and routing
 information. The API does not return data stream aliases.
 
 [[cat-alias-api-request]]

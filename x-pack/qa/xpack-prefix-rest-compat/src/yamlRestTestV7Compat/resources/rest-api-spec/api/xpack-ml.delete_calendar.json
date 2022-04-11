@@ -1,0 +1,33 @@
+{
+  "xpack-ml.delete_calendar":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-calendar.html",
+      "description":"Deletes a calendar."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/vnd.elasticsearch+json;compatible-with=7"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_xpack/ml/calendars/{calendar_id}",
+          "methods":[
+            "DELETE"
+          ],
+          "parts":{
+            "calendar_id":{
+              "type":"string",
+              "description":"The ID of the calendar to delete"
+            }
+          },
+          "deprecated":{
+            "version":"7.0.0",
+            "description":"all _xpack prefix have been deprecated"
+          }
+        }
+      ]
+    }
+  }
+}

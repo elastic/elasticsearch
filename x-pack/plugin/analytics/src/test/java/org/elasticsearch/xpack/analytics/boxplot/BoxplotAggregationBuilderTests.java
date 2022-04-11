@@ -7,13 +7,13 @@
 
 package org.elasticsearch.xpack.analytics.boxplot;
 
-import org.elasticsearch.common.xcontent.ParseField;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentParser;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -31,10 +31,15 @@ public class BoxplotAggregationBuilderTests extends AbstractSerializingTestCase<
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        return new NamedXContentRegistry(singletonList(new NamedXContentRegistry.Entry(
-                BaseAggregationBuilder.class,
-                new ParseField(BoxplotAggregationBuilder.NAME),
-                (p, n) -> BoxplotAggregationBuilder.PARSER.apply(p, (String) n))));
+        return new NamedXContentRegistry(
+            singletonList(
+                new NamedXContentRegistry.Entry(
+                    BaseAggregationBuilder.class,
+                    new ParseField(BoxplotAggregationBuilder.NAME),
+                    (p, n) -> BoxplotAggregationBuilder.PARSER.apply(p, (String) n)
+                )
+            )
+        );
     }
 
     @Override
@@ -51,8 +56,7 @@ public class BoxplotAggregationBuilderTests extends AbstractSerializingTestCase<
 
     @Override
     protected BoxplotAggregationBuilder createTestInstance() {
-        BoxplotAggregationBuilder aggregationBuilder = new BoxplotAggregationBuilder(aggregationName)
-            .field(randomAlphaOfLength(10));
+        BoxplotAggregationBuilder aggregationBuilder = new BoxplotAggregationBuilder(aggregationName).field(randomAlphaOfLength(10));
         if (randomBoolean()) {
             aggregationBuilder.compression(randomDoubleBetween(0, 100, true));
         }
@@ -64,4 +68,3 @@ public class BoxplotAggregationBuilderTests extends AbstractSerializingTestCase<
         return BoxplotAggregationBuilder::new;
     }
 }
-

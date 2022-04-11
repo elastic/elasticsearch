@@ -22,13 +22,17 @@ public final class CustomAnalyzer extends Analyzer implements AnalyzerComponents
     private final int offsetGap;
     private final AnalysisMode analysisMode;
 
-    public CustomAnalyzer(TokenizerFactory tokenizerFactory, CharFilterFactory[] charFilters,
-            TokenFilterFactory[] tokenFilters) {
+    public CustomAnalyzer(TokenizerFactory tokenizerFactory, CharFilterFactory[] charFilters, TokenFilterFactory[] tokenFilters) {
         this(tokenizerFactory, charFilters, tokenFilters, 0, -1);
     }
 
-    public CustomAnalyzer(TokenizerFactory tokenizerFactory, CharFilterFactory[] charFilters,
-            TokenFilterFactory[] tokenFilters, int positionIncrementGap, int offsetGap) {
+    public CustomAnalyzer(
+        TokenizerFactory tokenizerFactory,
+        CharFilterFactory[] charFilters,
+        TokenFilterFactory[] tokenFilters,
+        int positionIncrementGap,
+        int offsetGap
+    ) {
         this.components = new AnalyzerComponents(tokenizerFactory, charFilters, tokenFilters);
         this.positionIncrementGap = positionIncrementGap;
         this.offsetGap = offsetGap;

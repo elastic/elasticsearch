@@ -1,0 +1,38 @@
+{
+  "ml.put_trained_model_definition_part":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/put-trained-model-definition-part.html",
+      "description":"Creates part of a trained model definition"
+    },
+    "stability":"experimental",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/trained_models/{model_id}/definition/{part}",
+          "methods":[
+            "PUT"
+          ],
+          "parts":{
+            "model_id":{
+              "type":"string",
+              "description":"The ID of the trained model for this definition part"
+            },
+            "part":{
+              "type":"int",
+              "description":"The part number"
+            }
+          }
+        }
+      ]
+    },
+    "body":{
+      "description":"The trained model definition part",
+      "required":true
+    }
+  }
+}

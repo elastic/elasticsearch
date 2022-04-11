@@ -20,6 +20,8 @@ import java.util.Arrays;
  */
 public class NetUtils {
 
+    private NetUtils() {}
+
     /**
      * Returns the extended TCP_KEEPIDLE socket option, if available on this JDK
      */
@@ -68,7 +70,8 @@ public class NetUtils {
                 if (keepalive.booleanValue()) {
                     for (SocketOption<Integer> option : Arrays.asList(
                         NetUtils.getTcpKeepIdleSocketOptionOrNull(),
-                        NetUtils.getTcpKeepIntervalSocketOptionOrNull())) {
+                        NetUtils.getTcpKeepIntervalSocketOptionOrNull()
+                    )) {
                         setMinValueForSocketOption(socketChannel, option, 300);
                     }
                 }

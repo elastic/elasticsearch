@@ -11,18 +11,18 @@ import com.sun.net.httpserver.HttpServer;
 import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsParameters;
 import com.sun.net.httpserver.HttpsServer;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.mocksocket.MockHttpServer;
 
-import javax.net.ssl.SSLContext;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -40,6 +40,8 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
+
+import javax.net.ssl.SSLContext;
 
 import static org.elasticsearch.test.ESTestCase.terminate;
 
@@ -109,8 +111,15 @@ public class MockWebServer implements Closeable {
                 requests.add(request);
 
                 if (logger.isDebugEnabled()) {
-                    logger.debug("[{}:{}] incoming HTTP request [{} {}], returning status [{}] body [{}]", getHostName(), getPort(),
-                            s.getRequestMethod(), s.getRequestURI(), response.getStatusCode(), getStartOfBody(response));
+                    logger.debug(
+                        "[{}:{}] incoming HTTP request [{} {}], returning status [{}] body [{}]",
+                        getHostName(),
+                        getPort(),
+                        s.getRequestMethod(),
+                        s.getRequestURI(),
+                        response.getStatusCode(),
+                        getStartOfBody(response)
+                    );
                 }
 
                 sleepIfNeeded(response.getBeforeReplyDelay());
@@ -130,8 +139,14 @@ public class MockWebServer implements Closeable {
                     }
                 }
             } catch (Exception e) {
-                logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to respond to request [{} {}]",
-                        s.getRequestMethod(), s.getRequestURI()), e);
+                logger.error(
+                    (Supplier<?>) () -> new ParameterizedMessage(
+                        "failed to respond to request [{} {}]",
+                        s.getRequestMethod(),
+                        s.getRequestURI()
+                    ),
+                    e
+                );
             } finally {
                 s.close();
             }
@@ -194,10 +209,11 @@ public class MockWebServer implements Closeable {
      */
     private MockRequest createRequest(HttpExchange exchange) throws IOException {
         MockRequest request = new MockRequest(
-                exchange.getRequestMethod(),
-                exchange.getRequestURI(),
-                exchange.getRequestHeaders(),
-                exchange.getRemoteAddress());
+            exchange.getRequestMethod(),
+            exchange.getRequestURI(),
+            exchange.getRequestHeaders(),
+            exchange.getRemoteAddress()
+        );
         if (exchange.getRequestBody() != null) {
             String body = Streams.copyToString(new InputStreamReader(exchange.getRequestBody(), StandardCharsets.UTF_8));
             if (Strings.isEmpty(body) == false) {
@@ -228,8 +244,14 @@ public class MockWebServer implements Closeable {
      */
     public void enqueue(MockResponse response) {
         if (logger.isTraceEnabled()) {
-            logger.trace("[{}:{}] Enqueueing response [{}], status [{}] body [{}]", getHostName(), getPort(), responses.size(),
-                    response.getStatusCode(), getStartOfBody(response));
+            logger.trace(
+                "[{}:{}] Enqueueing response [{}], status [{}] body [{}]",
+                getHostName(),
+                getPort(),
+                responses.size(),
+                response.getStatusCode(),
+                getStartOfBody(response)
+            );
         }
         responses.add(response);
     }

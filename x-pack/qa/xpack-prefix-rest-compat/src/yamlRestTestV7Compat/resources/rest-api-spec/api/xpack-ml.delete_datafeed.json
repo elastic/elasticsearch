@@ -1,0 +1,40 @@
+{
+  "xpack-ml.delete_datafeed":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/ml-delete-datafeed.html",
+      "description":"Deletes an existing datafeed."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/vnd.elasticsearch+json;compatible-with=7"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_xpack/ml/datafeeds/{datafeed_id}",
+          "methods":[
+            "DELETE"
+          ],
+          "parts":{
+            "datafeed_id":{
+              "type":"string",
+              "description":"The ID of the datafeed to delete"
+            }
+          },
+          "deprecated":{
+            "version":"7.0.0",
+            "description":"all _xpack prefix have been deprecated"
+          }
+        }
+      ]
+    },
+    "params":{
+      "force":{
+        "type":"boolean",
+        "required":false,
+        "description":"True if the datafeed should be forcefully deleted"
+      }
+    }
+  }
+}

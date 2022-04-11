@@ -19,7 +19,6 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 /**
@@ -32,7 +31,6 @@ import java.util.stream.Stream;
  * when the channel is created. This is what allows an NioSelectorGroup to support different channel types.
  */
 public class NioSelectorGroup implements NioGroup {
-
 
     private final List<NioSelector> dedicatedAcceptors;
     private final RoundRobinSupplier<NioSelector> acceptorSupplier;
@@ -51,8 +49,11 @@ public class NioSelectorGroup implements NioGroup {
      * @param eventHandlerFunction function for creating event handlers
      * @throws IOException occurs if there is a problem while opening a java.nio.Selector
      */
-    public NioSelectorGroup(ThreadFactory threadFactory, int selectorCount,
-                            Function<Supplier<NioSelector>, EventHandler> eventHandlerFunction) throws IOException {
+    public NioSelectorGroup(
+        ThreadFactory threadFactory,
+        int selectorCount,
+        Function<Supplier<NioSelector>, EventHandler> eventHandlerFunction
+    ) throws IOException {
         this(null, 0, threadFactory, selectorCount, eventHandlerFunction);
     }
 
@@ -68,8 +69,13 @@ public class NioSelectorGroup implements NioGroup {
      * @param eventHandlerFunction function for creating event handlers
      * @throws IOException occurs if there is a problem while opening a java.nio.Selector
      */
-    public NioSelectorGroup(ThreadFactory acceptorThreadFactory, int dedicatedAcceptorCount, ThreadFactory selectorThreadFactory,
-                            int selectorCount, Function<Supplier<NioSelector>, EventHandler> eventHandlerFunction) throws IOException {
+    public NioSelectorGroup(
+        ThreadFactory acceptorThreadFactory,
+        int dedicatedAcceptorCount,
+        ThreadFactory selectorThreadFactory,
+        int selectorCount,
+        Function<Supplier<NioSelector>, EventHandler> eventHandlerFunction
+    ) throws IOException {
         dedicatedAcceptors = new ArrayList<>(dedicatedAcceptorCount);
         selectors = new ArrayList<>(selectorCount);
 
@@ -129,15 +135,14 @@ public class NioSelectorGroup implements NioGroup {
     @Override
     public void close() throws IOException {
         if (isOpen.compareAndSet(true, false)) {
-            List<NioSelector> toClose = Stream.concat(dedicatedAcceptors.stream(), selectors.stream()).collect(Collectors.toList());
             List<IOException> closingExceptions = new ArrayList<>();
-            for (NioSelector selector : toClose) {
+            Stream.concat(dedicatedAcceptors.stream(), selectors.stream()).forEach(selector -> {
                 try {
                     selector.close();
                 } catch (IOException e) {
                     closingExceptions.add(e);
                 }
-            }
+            });
             ExceptionsHelper.rethrowAndSuppress(closingExceptions);
         }
     }

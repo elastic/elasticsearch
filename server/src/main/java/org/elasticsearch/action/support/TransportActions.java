@@ -20,12 +20,12 @@ public class TransportActions {
 
     public static boolean isShardNotAvailableException(final Throwable e) {
         final Throwable actual = ExceptionsHelper.unwrapCause(e);
-        return (actual instanceof ShardNotFoundException ||
-                actual instanceof IndexNotFoundException ||
-                actual instanceof IllegalIndexShardStateException ||
-                actual instanceof NoShardAvailableActionException ||
-                actual instanceof UnavailableShardsException ||
-                actual instanceof AlreadyClosedException);
+        return (actual instanceof ShardNotFoundException
+            || actual instanceof IndexNotFoundException
+            || actual instanceof IllegalIndexShardStateException
+            || actual instanceof NoShardAvailableActionException
+            || actual instanceof UnavailableShardsException
+            || actual instanceof AlreadyClosedException);
     }
 
     /**

@@ -13,8 +13,8 @@ import org.apache.lucene.index.PointValues;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.util.DoubleArray;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.NumericDoubleValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.DocValueFormat;
@@ -42,11 +42,8 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
 
     DoubleArray mins;
 
-    MinAggregator(String name,
-                    ValuesSourceConfig config,
-                    AggregationContext context,
-                    Aggregator parent,
-                    Map<String, Object> metadata) throws IOException {
+    MinAggregator(String name, ValuesSourceConfig config, AggregationContext context, Aggregator parent, Map<String, Object> metadata)
+        throws IOException {
         super(name, context, parent, metadata);
         // TODO: Stop using nulls here
         this.valuesSource = config.hasValues() ? (ValuesSource.Numeric) config.getValuesSource() : null;
@@ -69,8 +66,7 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
     }
 
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-            final LeafBucketCollector sub) throws IOException {
+    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, final LeafBucketCollector sub) throws IOException {
         if (valuesSource == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
@@ -122,19 +118,18 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
         if (valuesSource == null || bucket >= mins.size()) {
             return buildEmptyAggregation();
         }
-        return new InternalMin(name, mins.get(bucket), format, metadata());
+        return new Min(name, mins.get(bucket), format, metadata());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalMin(name, Double.POSITIVE_INFINITY, format, metadata());
+        return new Min(name, Double.POSITIVE_INFINITY, format, metadata());
     }
 
     @Override
     public void doClose() {
         Releasables.close(mins);
     }
-
 
     /**
      * Returns the minimum value indexed in the <code>fieldName</code> field or <code>null</code>

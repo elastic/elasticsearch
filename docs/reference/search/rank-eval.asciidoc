@@ -205,7 +205,7 @@ GET /my-index-000001/_rank_eval
 <3> a reference to a previously defined template
 <4> the parameters to use to fill the template
 
-It is also possible to use <<pre-registered-templates,templates already stored>>  in the cluster state by referencing their id in the templates section.
+You can also use a <<create-search-template,stored search template>>.
 
 [source,js]
 --------------------------------

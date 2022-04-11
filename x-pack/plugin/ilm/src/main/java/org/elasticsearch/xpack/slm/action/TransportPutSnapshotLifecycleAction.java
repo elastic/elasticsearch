@@ -14,12 +14,15 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -37,23 +40,40 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-public class TransportPutSnapshotLifecycleAction extends
-    TransportMasterNodeAction<PutSnapshotLifecycleAction.Request, PutSnapshotLifecycleAction.Response> {
+public class TransportPutSnapshotLifecycleAction extends TransportMasterNodeAction<
+    PutSnapshotLifecycleAction.Request,
+    PutSnapshotLifecycleAction.Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportPutSnapshotLifecycleAction.class);
 
     @Inject
-    public TransportPutSnapshotLifecycleAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                               ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(PutSnapshotLifecycleAction.NAME, transportService, clusterService, threadPool, actionFilters,
-                PutSnapshotLifecycleAction.Request::new, indexNameExpressionResolver, PutSnapshotLifecycleAction.Response::new,
-                ThreadPool.Names.SAME);
+    public TransportPutSnapshotLifecycleAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver
+    ) {
+        super(
+            PutSnapshotLifecycleAction.NAME,
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            PutSnapshotLifecycleAction.Request::new,
+            indexNameExpressionResolver,
+            PutSnapshotLifecycleAction.Response::new,
+            ThreadPool.Names.SAME
+        );
     }
 
     @Override
-    protected void masterOperation(final Task task, final PutSnapshotLifecycleAction.Request request,
-                                   final ClusterState state,
-                                   final ActionListener<PutSnapshotLifecycleAction.Response> listener) {
+    protected void masterOperation(
+        final Task task,
+        final PutSnapshotLifecycleAction.Request request,
+        final ClusterState state,
+        final ActionListener<PutSnapshotLifecycleAction.Response> listener
+    ) {
         SnapshotLifecycleService.validateRepositoryExists(request.getLifecycle().getRepository(), state);
 
         SnapshotLifecycleService.validateMinimumInterval(request.getLifecycle(), state);
@@ -62,9 +82,10 @@ public class TransportPutSnapshotLifecycleAction extends
         // REST layer and the Transport layer here must be accessed within this thread and not in the
         // cluster state thread in the ClusterStateUpdateTask below since that thread does not share the
         // same context, and therefore does not have access to the appropriate security headers.
-        final Map<String, String> filteredHeaders = ClientHelper.filterSecurityHeaders(threadPool.getThreadContext().getHeaders());
+        final Map<String, String> filteredHeaders = ClientHelper.getPersistableSafeSecurityHeaders(threadPool.getThreadContext(), state);
         LifecyclePolicy.validatePolicyName(request.getLifecycleId());
-        clusterService.submitStateUpdateTask("put-snapshot-lifecycle-" + request.getLifecycleId(),
+        clusterService.submitStateUpdateTask(
+            "put-snapshot-lifecycle-" + request.getLifecycleId(),
             new AckedClusterStateUpdateTask(request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
@@ -78,8 +99,11 @@ public class TransportPutSnapshotLifecycleAction extends
                             .setHeaders(filteredHeaders)
                             .setModifiedDate(Instant.now().toEpochMilli())
                             .build();
-                        lifecycleMetadata = new SnapshotLifecycleMetadata(Collections.singletonMap(id, meta),
-                            OperationMode.RUNNING, new SnapshotLifecycleStats());
+                        lifecycleMetadata = new SnapshotLifecycleMetadata(
+                            Collections.singletonMap(id, meta),
+                            OperationMode.RUNNING,
+                            new SnapshotLifecycleStats()
+                        );
                         logger.info("adding new snapshot lifecycle [{}]", id);
                     } else {
                         Map<String, SnapshotLifecyclePolicyMetadata> snapLifecycles = new HashMap<>(snapMeta.getSnapshotConfigurations());
@@ -91,8 +115,7 @@ public class TransportPutSnapshotLifecycleAction extends
                             .setModifiedDate(Instant.now().toEpochMilli())
                             .build();
                         snapLifecycles.put(id, newLifecycle);
-                        lifecycleMetadata = new SnapshotLifecycleMetadata(snapLifecycles,
-                            snapMeta.getOperationMode(), snapMeta.getStats());
+                        lifecycleMetadata = new SnapshotLifecycleMetadata(snapLifecycles, snapMeta.getOperationMode(), snapMeta.getStats());
                         if (oldLifecycle == null) {
                             logger.info("adding new snapshot lifecycle [{}]", id);
                         } else {
@@ -102,8 +125,7 @@ public class TransportPutSnapshotLifecycleAction extends
 
                     Metadata currentMeta = currentState.metadata();
                     return ClusterState.builder(currentState)
-                        .metadata(Metadata.builder(currentMeta)
-                            .putCustom(SnapshotLifecycleMetadata.TYPE, lifecycleMetadata))
+                        .metadata(Metadata.builder(currentMeta).putCustom(SnapshotLifecycleMetadata.TYPE, lifecycleMetadata))
                         .build();
                 }
 
@@ -111,7 +133,14 @@ public class TransportPutSnapshotLifecycleAction extends
                 protected PutSnapshotLifecycleAction.Response newResponse(boolean acknowledged) {
                     return new PutSnapshotLifecycleAction.Response(acknowledged);
                 }
-            });
+            },
+            newExecutor()
+        );
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 
     @Override

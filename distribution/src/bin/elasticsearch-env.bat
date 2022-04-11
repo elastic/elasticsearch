@@ -15,6 +15,7 @@ for %%I in ("%ES_HOME%..") do set ES_HOME=%%~dpfI
 
 rem now set the classpath
 set ES_CLASSPATH=!ES_HOME!\lib\*
+set LAUNCHERS_CLASSPATH=!ES_CLASSPATH!;!ES_HOME!\lib\launchers\*
 
 set HOSTNAME=%COMPUTERNAME%
 
@@ -25,9 +26,9 @@ if not defined ES_PATH_CONF (
 rem now make ES_PATH_CONF absolute
 for %%I in ("%ES_PATH_CONF%..") do set ES_PATH_CONF=%%~dpfI
 
-set ES_DISTRIBUTION_FLAVOR=${es.distribution.flavor}
-set ES_DISTRIBUTION_TYPE=${es.distribution.type}
-set ES_BUNDLED_JDK=${es.bundled_jdk}
+set ES_DISTRIBUTION_FLAVOR=@es.distribution.flavor@
+set ES_DISTRIBUTION_TYPE=@es.distribution.type@
+set ES_BUNDLED_JDK=@es.bundled_jdk@
 
 if "%ES_BUNDLED_JDK%" == "false" (
   echo "warning: no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release" >&2
@@ -77,5 +78,5 @@ if defined JAVA_OPTS (
 )
 
 rem check the Java version
-%JAVA% -cp "%ES_CLASSPATH%" "org.elasticsearch.tools.java_version_checker.JavaVersionChecker" || exit /b 1
+%JAVA% -cp "%LAUNCHERS_CLASSPATH%" "org.elasticsearch.tools.java_version_checker.JavaVersionChecker" || exit /b 1
 

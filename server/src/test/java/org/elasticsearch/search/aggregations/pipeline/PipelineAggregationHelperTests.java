@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
@@ -76,7 +75,7 @@ public class PipelineAggregationHelperTests extends ESTestCase {
         }
 
         if (emptyHisto) {
-            int idx = randomIntBetween(0, values.size()-1);
+            int idx = randomIntBetween(0, values.size() - 1);
             MockBucket bucket = values.get(idx);
             bucket.count = randomIntBetween(1, 50);
             bucket.docValues = new double[bucket.count];
@@ -129,7 +128,7 @@ public class PipelineAggregationHelperTests extends ESTestCase {
             for (double value : values) {
                 accumulator += value;
             }
-            return values.length == 0 ? Double.NaN : accumulator / values.length ;
+            return values.length == 0 ? Double.NaN : accumulator / values.length;
         }
 
         return 0.0;
@@ -138,9 +137,10 @@ public class PipelineAggregationHelperTests extends ESTestCase {
     static AggregationBuilder getRandomSequentiallyOrderedParentAgg() throws IOException {
         @SuppressWarnings("unchecked")
         Function<String, AggregationBuilder> builder = randomFrom(
-                HistogramAggregationBuilder::new,
-                DateHistogramAggregationBuilder::new,
-                AutoDateHistogramAggregationBuilder::new);
+            HistogramAggregationBuilder::new,
+            DateHistogramAggregationBuilder::new,
+            AutoDateHistogramAggregationBuilder::new
+        );
         return builder.apply("name");
     }
 }

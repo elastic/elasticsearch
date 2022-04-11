@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.watcher.transform.script;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.apache.logging.log4j.util.Supplier;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
@@ -38,7 +37,7 @@ public class ExecutableScriptTransform extends ExecutableTransform<ScriptTransfo
         try {
             return doExecute(ctx, payload);
         } catch (Exception e) {
-            logger.error((Supplier<?>) () -> new ParameterizedMessage("failed to execute [{}] transform for [{}]", TYPE, ctx.id()), e);
+            logger.error(new ParameterizedMessage("failed to execute [{}] transform for [{}]", TYPE, ctx.id()), e);
             return new ScriptTransform.Result(e);
         }
     }
@@ -50,7 +49,9 @@ public class ExecutableScriptTransform extends ExecutableTransform<ScriptTransfo
         Object value = transformScript.execute();
         // TODO: deprecate one of these styles (returning a map or returning an opaque value below)
         if (value instanceof Map) {
-            return new ScriptTransform.Result(new Payload.Simple((Map<String, Object>) value));
+            @SuppressWarnings("unchecked")
+            final Payload.Simple simplePayload = new Payload.Simple((Map<String, Object>) value);
+            return new ScriptTransform.Result(simplePayload);
         }
         Map<String, Object> data = new HashMap<>();
         data.put("_value", value);

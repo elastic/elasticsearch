@@ -8,11 +8,10 @@
 
 package org.elasticsearch.bootstrap;
 
-
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
@@ -26,34 +25,24 @@ public class EvilElasticsearchCliTests extends ESElasticsearchCliTestCase {
         final String value = randomAlphaOfLength(16);
         System.setProperty("es.path.home", value);
 
-        runTest(
-                ExitCodes.OK,
-                true,
-                (output, error) -> {},
-                (foreground, pidFile, quiet, esSettings) -> {
-                    Settings settings = esSettings.settings();
-                    assertThat(settings.keySet(), hasSize(2));
-                    assertThat(
-                        settings.get("path.home"),
-                        equalTo(PathUtils.get(System.getProperty("user.dir")).resolve(value).toString()));
-                    assertThat(settings.keySet(), hasItem("path.logs")); // added by env initialization
-                });
+        runTest(ExitCodes.OK, true, (output, error) -> {}, (foreground, pidFile, quiet, esSettings) -> {
+            Settings settings = esSettings.settings();
+            assertThat(settings.keySet(), hasSize(2));
+            assertThat(settings.get("path.home"), equalTo(PathUtils.get(System.getProperty("user.dir")).resolve(value).toString()));
+            assertThat(settings.keySet(), hasItem("path.logs")); // added by env initialization
+        });
 
         System.clearProperty("es.path.home");
         final String commandLineValue = randomAlphaOfLength(16);
-        runTest(
-                ExitCodes.OK,
-                true,
-                (output, error) -> {},
-                (foreground, pidFile, quiet, esSettings) -> {
-                    Settings settings = esSettings.settings();
-                    assertThat(settings.keySet(), hasSize(2));
-                    assertThat(
-                        settings.get("path.home"),
-                        equalTo(PathUtils.get(System.getProperty("user.dir")).resolve(commandLineValue).toString()));
-                    assertThat(settings.keySet(), hasItem("path.logs")); // added by env initialization
-                },
-                "-Epath.home=" + commandLineValue);
+        runTest(ExitCodes.OK, true, (output, error) -> {}, (foreground, pidFile, quiet, esSettings) -> {
+            Settings settings = esSettings.settings();
+            assertThat(settings.keySet(), hasSize(2));
+            assertThat(
+                settings.get("path.home"),
+                equalTo(PathUtils.get(System.getProperty("user.dir")).resolve(commandLineValue).toString())
+            );
+            assertThat(settings.keySet(), hasItem("path.logs")); // added by env initialization
+        }, "-Epath.home=" + commandLineValue);
 
         if (pathHome != null) System.setProperty("es.path.home", pathHome);
         else System.clearProperty("es.path.home");

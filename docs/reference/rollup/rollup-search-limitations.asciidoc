@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[rollup-search-limitations]]
 === {rollup-cap} search limitations
 

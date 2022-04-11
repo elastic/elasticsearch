@@ -11,8 +11,8 @@ package org.elasticsearch.action.admin.cluster.stats;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -30,8 +30,7 @@ public final class FieldScriptStats implements Writeable, ToXContentFragment {
     private long maxDocUsages = 0;
     private long totalDocUsages = 0;
 
-    FieldScriptStats() {
-    }
+    FieldScriptStats() {}
 
     FieldScriptStats(StreamInput in) throws IOException {
         this.maxLines = in.readLong();
@@ -69,14 +68,14 @@ public final class FieldScriptStats implements Writeable, ToXContentFragment {
         return builder;
     }
 
-    void update(int chars, long lines, int sourceUsages, int docUsages) {
+    void update(int chars, long lines, int sourceUsages, int docUsages, int count) {
         this.maxChars = Math.max(this.maxChars, chars);
-        this.totalChars += chars;
+        this.totalChars += (long) chars * count;
         this.maxLines = Math.max(this.maxLines, lines);
-        this.totalLines += lines;
-        this.totalSourceUsages += sourceUsages;
+        this.totalLines += lines * count;
+        this.totalSourceUsages += (long) sourceUsages * count;
         this.maxSourceUsages = Math.max(this.maxSourceUsages, sourceUsages);
-        this.totalDocUsages += docUsages;
+        this.totalDocUsages += (long) docUsages * count;
         this.maxDocUsages = Math.max(this.maxDocUsages, docUsages);
     }
 
@@ -89,14 +88,14 @@ public final class FieldScriptStats implements Writeable, ToXContentFragment {
             return false;
         }
         FieldScriptStats that = (FieldScriptStats) o;
-        return maxLines == that.maxLines &&
-            totalLines == that.totalLines &&
-            maxChars == that.maxChars &&
-            totalChars == that.totalChars &&
-            maxSourceUsages == that.maxSourceUsages &&
-            totalSourceUsages == that.totalSourceUsages &&
-            maxDocUsages == that.maxDocUsages &&
-            totalDocUsages == that.totalDocUsages;
+        return maxLines == that.maxLines
+            && totalLines == that.totalLines
+            && maxChars == that.maxChars
+            && totalChars == that.totalChars
+            && maxSourceUsages == that.maxSourceUsages
+            && totalSourceUsages == that.totalSourceUsages
+            && maxDocUsages == that.maxDocUsages
+            && totalDocUsages == that.totalDocUsages;
     }
 
     @Override

@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.ccr;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Settings;
@@ -42,12 +42,10 @@ class CcrRepositoryManager extends AbstractLifecycleComponent {
     }
 
     @Override
-    protected void doStop() {
-    }
+    protected void doStop() {}
 
     @Override
-    protected void doClose() throws IOException {
-    }
+    protected void doClose() throws IOException {}
 
     private void putRepository(String repositoryName) {
         ActionRequest request = new PutInternalCcrRepositoryRequest(repositoryName, CcrRepository.TYPE);

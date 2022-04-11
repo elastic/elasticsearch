@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ql.expression.predicate.regex;
 
 import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Nullability;
 import org.elasticsearch.xpack.ql.expression.function.scalar.UnaryScalarFunction;
 import org.elasticsearch.xpack.ql.expression.gen.processor.Processor;
@@ -20,6 +19,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import java.util.Objects;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.ql.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.ql.expression.TypeResolutions.isStringAndExact;
 import static org.elasticsearch.xpack.ql.expression.gen.script.ParamsBuilder.paramsBuilder;
 
@@ -57,7 +57,7 @@ public abstract class RegexMatch<T extends StringPattern> extends UnaryScalarFun
 
     @Override
     protected TypeResolution resolveType() {
-        return isStringAndExact(field(), sourceText(), Expressions.ParamOrdinal.DEFAULT);
+        return isStringAndExact(field(), sourceText(), DEFAULT);
     }
 
     @Override

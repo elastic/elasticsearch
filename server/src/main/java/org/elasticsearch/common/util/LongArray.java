@@ -33,4 +33,9 @@ public interface LongArray extends BigArray {
      */
     void fill(long fromIndex, long toIndex, long value);
 
+    /**
+     * Bulk set.
+     */
+    void set(long index, byte[] buf, int offset, int len);
+
 }

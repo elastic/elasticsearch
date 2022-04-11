@@ -8,18 +8,18 @@
 
 package org.elasticsearch.index.mapper.flattened;
 
-import com.fasterxml.jackson.core.JsonParseException;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MockFieldMapper.FakeFieldType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.XContentTestUtils;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -31,15 +31,12 @@ public class FlattenedFieldParserTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        parser = new FlattenedFieldParser("field", "field._keyed",
-            new FakeFieldType("field"),
-            Integer.MAX_VALUE,
-            Integer.MAX_VALUE,
-            null);
+        parser = new FlattenedFieldParser("field", "field._keyed", new FakeFieldType("field"), Integer.MAX_VALUE, Integer.MAX_VALUE, null);
     }
 
     public void testTextValues() throws Exception {
-        String input = "{ \"key1\": \"value1\", \"key2\": \"value2\" }";
+        String input = """
+            { "key1": "value1", "key2": "value2" }""";
         XContentParser xContentParser = createXContentParser(input);
 
         List<IndexableField> fields = parser.parse(xContentParser);
@@ -95,7 +92,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
     }
 
     public void testBasicArrays() throws Exception {
-        String input = "{ \"key\": [true, false] }";
+        String input = """
+            { "key": [true, false] }""";
         XContentParser xContentParser = createXContentParser(input);
 
         List<IndexableField> fields = parser.parse(xContentParser);
@@ -119,7 +117,8 @@ public class FlattenedFieldParserTests extends ESTestCase {
     }
 
     public void testArrayOfArrays() throws Exception {
-        String input = "{ \"key\": [[true, \"value\"], 3] }";
+        String input = """
+            { "key": [[true, "value"], 3] }""";
         XContentParser xContentParser = createXContentParser(input);
 
         List<IndexableField> fields = parser.parse(xContentParser);
@@ -151,7 +150,11 @@ public class FlattenedFieldParserTests extends ESTestCase {
     }
 
     public void testArraysOfObjects() throws Exception {
-        String input = "{ \"key1\": [{ \"key2\": true }, false], \"key4\": \"other\" }";
+        String input = """
+            {
+              "key1": [ { "key2": true }, false ],
+              "key4": "other"
+            }""";
         XContentParser xContentParser = createXContentParser(input);
 
         List<IndexableField> fields = parser.parse(xContentParser);
@@ -183,8 +186,15 @@ public class FlattenedFieldParserTests extends ESTestCase {
     }
 
     public void testNestedObjects() throws Exception {
-        String input = "{ \"parent1\": { \"key\" : \"value\" }," +
-            "\"parent2\": { \"key\" : \"value\" }}";
+        String input = """
+            {
+              "parent1": {
+                "key": "value"
+              },
+              "parent2": {
+                "key": "value"
+              }
+            }""";
         XContentParser xContentParser = createXContentParser(input);
 
         List<IndexableField> fields = parser.parse(xContentParser);
@@ -213,9 +223,14 @@ public class FlattenedFieldParserTests extends ESTestCase {
      *   * The same field name can be specified as a dotted path and using object notation.
      */
     public void testDottedPaths() throws Exception {
-        String input = "{ \"object1.object2\": \"value1\"," +
-            "\"object1.object2.object3\": \"value2\"," +
-            "\"object1\": { \"object2\": \"value3\" }}";
+        String input = """
+            {
+              "object1.object2": "value1",
+              "object1.object2.object3": "value2",
+              "object1": {
+                "object2": "value3"
+              }
+            }""";
         XContentParser xContentParser = createXContentParser(input);
 
         List<IndexableField> fields = parser.parse(xContentParser);
@@ -247,23 +262,44 @@ public class FlattenedFieldParserTests extends ESTestCase {
     }
 
     public void testDepthLimit() throws Exception {
-        String input = "{ \"parent1\": { \"key\" : \"value\" }," +
-            "\"parent2\": [{ \"key\" : { \"key\" : \"value\" }}]}";
+        String input = """
+            {
+              "parent1": {
+                "key": "value"
+              },
+              "parent2": [ { "key": { "key": "value" } } ]
+            }""";
         XContentParser xContentParser = createXContentParser(input);
-        FlattenedFieldParser configuredParser = new FlattenedFieldParser("field", "field._keyed",
-            new FakeFieldType("field"), 2, Integer.MAX_VALUE, null);
+        FlattenedFieldParser configuredParser = new FlattenedFieldParser(
+            "field",
+            "field._keyed",
+            new FakeFieldType("field"),
+            2,
+            Integer.MAX_VALUE,
+            null
+        );
 
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> configuredParser.parse(xContentParser));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> configuredParser.parse(xContentParser));
         assertEquals("The provided [flattened] field [field] exceeds the maximum depth limit of [2].", e.getMessage());
     }
 
     public void testDepthLimitBoundary() throws Exception {
-        String input = "{ \"parent1\": { \"key\" : \"value\" }," +
-            "\"parent2\": [{ \"key\" : { \"key\" : \"value\" }}]}";
+        String input = """
+            {
+              "parent1": {
+                "key": "value"
+              },
+              "parent2": [ { "key": { "key": "value" } } ]
+            }""";
         XContentParser xContentParser = createXContentParser(input);
-        FlattenedFieldParser configuredParser = new FlattenedFieldParser("field", "field._keyed",
-            new FakeFieldType("field"), 3, Integer.MAX_VALUE, null);
+        FlattenedFieldParser configuredParser = new FlattenedFieldParser(
+            "field",
+            "field._keyed",
+            new FakeFieldType("field"),
+            3,
+            Integer.MAX_VALUE,
+            null
+        );
 
         List<IndexableField> fields = configuredParser.parse(xContentParser);
         assertEquals(4, fields.size());
@@ -272,8 +308,14 @@ public class FlattenedFieldParserTests extends ESTestCase {
     public void testIgnoreAbove() throws Exception {
         String input = "{ \"key\": \"a longer field than usual\" }";
         XContentParser xContentParser = createXContentParser(input);
-        FlattenedFieldParser configuredParser = new FlattenedFieldParser("field", "field._keyed",
-            new FakeFieldType("field"), Integer.MAX_VALUE, 10, null);
+        FlattenedFieldParser configuredParser = new FlattenedFieldParser(
+            "field",
+            "field._keyed",
+            new FakeFieldType("field"),
+            Integer.MAX_VALUE,
+            10,
+            null
+        );
 
         List<IndexableField> fields = configuredParser.parse(xContentParser);
         assertEquals(0, fields.size());
@@ -289,8 +331,14 @@ public class FlattenedFieldParserTests extends ESTestCase {
         xContentParser = createXContentParser(input);
 
         MappedFieldType fieldType = new FakeFieldType("field");
-        FlattenedFieldParser configuredParser = new FlattenedFieldParser("field", "field._keyed",
-            fieldType, Integer.MAX_VALUE, Integer.MAX_VALUE, "placeholder");
+        FlattenedFieldParser configuredParser = new FlattenedFieldParser(
+            "field",
+            "field._keyed",
+            fieldType,
+            Integer.MAX_VALUE,
+            Integer.MAX_VALUE,
+            "placeholder"
+        );
 
         fields = configuredParser.parse(xContentParser);
         assertEquals(2, fields.size());
@@ -308,7 +356,7 @@ public class FlattenedFieldParserTests extends ESTestCase {
         String input = "{ \"key\": [true, false }";
         XContentParser xContentParser = createXContentParser(input);
 
-        expectThrows(JsonParseException.class, () -> parser.parse(xContentParser));
+        expectThrows(XContentParseException.class, () -> parser.parse(xContentParser));
     }
 
     public void testEmptyObject() throws Exception {
@@ -323,13 +371,14 @@ public class FlattenedFieldParserTests extends ESTestCase {
         BytesReference input = BytesReference.bytes(
             XContentBuilder.builder(JsonXContent.jsonXContent)
                 .startObject()
-                    .startObject("object")
-                        .field("key", "value")
-                    .endObject()
-                    .startArray("array")
-                        .value(2.718)
-                    .endArray()
-                .endObject());
+                .startObject("object")
+                .field("key", "value")
+                .endObject()
+                .startArray("array")
+                .value(2.718)
+                .endArray()
+                .endObject()
+        );
 
         input = XContentTestUtils.insertRandomFields(XContentType.JSON, input, null, random());
         XContentParser xContentParser = createXContentParser(input.utf8ToString());
@@ -340,15 +389,12 @@ public class FlattenedFieldParserTests extends ESTestCase {
 
     public void testReservedCharacters() throws Exception {
         BytesReference input = BytesReference.bytes(
-            XContentBuilder.builder(JsonXContent.jsonXContent)
-                .startObject()
-                    .field("k\0y", "value")
-                .endObject());
+            XContentBuilder.builder(JsonXContent.jsonXContent).startObject().field("k\0y", "value").endObject()
+        );
         XContentParser xContentParser = createXContentParser(input.utf8ToString());
 
         IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> parser.parse(xContentParser));
-        assertEquals("Keys in [flattened] fields cannot contain the reserved character \\0. Offending key: [k\0y].",
-            e.getMessage());
+        assertEquals("Keys in [flattened] fields cannot contain the reserved character \\0. Offending key: [k\0y].", e.getMessage());
     }
 
     private XContentParser createXContentParser(String input) throws IOException {

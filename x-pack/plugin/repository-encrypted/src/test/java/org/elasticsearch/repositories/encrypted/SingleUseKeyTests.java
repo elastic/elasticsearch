@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 public class SingleUseKeyTests extends ESTestCase {
@@ -75,7 +75,7 @@ public class SingleUseKeyTests extends ESTestCase {
         assertThat(generatedSingleUseKey2.getKeyId(), equalTo(testKeyId));
         assertThat(generatedSingleUseKey2.getNonce(), equalTo(nonce + 1));
         assertThat(generatedSingleUseKey2.getKey().getEncoded(), equalTo(testKeyPlaintext));
-        verifyZeroInteractions(keyGenerator);
+        verifyNoMoreInteractions(keyGenerator);
     }
 
     public void testConcurrentWrapAround() throws Exception {

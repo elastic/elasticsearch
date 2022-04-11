@@ -37,12 +37,6 @@
         "required":false,
         "description":"Whether to ignore if a wildcard expression matches no jobs. (This includes `_all` string or when no jobs have been specified)"
       },
-      "allow_no_jobs":{
-        "type":"boolean",
-        "required":false,
-        "description":"Whether to ignore if a wildcard expression matches no jobs. (This includes `_all` string or when no jobs have been specified)",
-        "deprecated":true
-      },
       "bytes":{
         "type":"enum",
         "description":"The unit in which to display byte values",

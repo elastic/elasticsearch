@@ -10,6 +10,7 @@ package org.elasticsearch.plugin.discovery.gce;
 
 import com.google.api.client.http.HttpHeaders;
 import com.google.api.client.util.ClassInfo;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
@@ -18,10 +19,10 @@ import org.elasticsearch.cloud.gce.GceInstancesServiceImpl;
 import org.elasticsearch.cloud.gce.GceMetadataService;
 import org.elasticsearch.cloud.gce.network.GceNameResolver;
 import org.elasticsearch.cloud.gce.util.Access;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.discovery.gce.GceSeedHostsProvider;
@@ -41,8 +42,9 @@ import java.util.function.Supplier;
 public class GceDiscoveryPlugin extends Plugin implements DiscoveryPlugin, Closeable {
 
     /** Determines whether settings those reroutes GCE call should be allowed (for testing purposes only). */
-    private static final boolean ALLOW_REROUTE_GCE_SETTINGS =
-        Booleans.parseBoolean(System.getProperty("es.allow_reroute_gce_settings", "false"));
+    private static final boolean ALLOW_REROUTE_GCE_SETTINGS = Booleans.parseBoolean(
+        System.getProperty("es.allow_reroute_gce_settings", "false")
+    );
 
     public static final String GCE = "gce";
     protected final Settings settings;
@@ -59,7 +61,7 @@ public class GceDiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
          * our plugin permissions don't allow core to "reach through" plugins to
          * change the permission. Because that'd be silly.
          */
-        Access.doPrivilegedVoid( () -> ClassInfo.of(HttpHeaders.class, true));
+        Access.doPrivilegedVoid(() -> ClassInfo.of(HttpHeaders.class, true));
     }
 
     public GceDiscoveryPlugin(Settings settings) {
@@ -73,8 +75,7 @@ public class GceDiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
     }
 
     @Override
-    public Map<String, Supplier<SeedHostsProvider>> getSeedHostProviders(TransportService transportService,
-                                                                         NetworkService networkService) {
+    public Map<String, Supplier<SeedHostsProvider>> getSeedHostProviders(TransportService transportService, NetworkService networkService) {
         return Collections.singletonMap(GCE, () -> {
             gceInstancesService.set(createGceInstancesService());
             return new GceSeedHostsProvider(settings, gceInstancesService.get(), transportService, networkService);
@@ -82,14 +83,14 @@ public class GceDiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
     }
 
     @Override
-    public NetworkService.CustomNameResolver getCustomNameResolver(Settings settings) {
+    public NetworkService.CustomNameResolver getCustomNameResolver(Settings settingsToUse) {
         logger.debug("Register _gce_, _gce:xxx network names");
-        return new GceNameResolver(new GceMetadataService(settings));
+        return new GceNameResolver(new GceMetadataService(settingsToUse));
     }
 
     @Override
     public List<Setting<?>> getSettings() {
-        List<Setting<?>> settings = new ArrayList<>(
+        List<Setting<?>> settingList = new ArrayList<>(
             Arrays.asList(
                 // Register GCE settings
                 GceInstancesService.PROJECT_SETTING,
@@ -97,17 +98,16 @@ public class GceDiscoveryPlugin extends Plugin implements DiscoveryPlugin, Close
                 GceSeedHostsProvider.TAGS_SETTING,
                 GceInstancesService.REFRESH_SETTING,
                 GceInstancesService.RETRY_SETTING,
-                GceInstancesService.MAX_WAIT_SETTING)
+                GceInstancesService.MAX_WAIT_SETTING
+            )
         );
 
         if (ALLOW_REROUTE_GCE_SETTINGS) {
-            settings.add(GceMetadataService.GCE_HOST);
-            settings.add(GceInstancesServiceImpl.GCE_ROOT_URL);
+            settingList.add(GceMetadataService.GCE_HOST);
+            settingList.add(GceInstancesServiceImpl.GCE_ROOT_URL);
         }
-        return Collections.unmodifiableList(settings);
+        return Collections.unmodifiableList(settingList);
     }
-
-
 
     @Override
     public void close() throws IOException {

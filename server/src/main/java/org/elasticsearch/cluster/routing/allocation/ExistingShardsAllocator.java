@@ -12,8 +12,8 @@ import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.gateway.GatewayAllocator;
 
 import java.util.List;
@@ -28,8 +28,11 @@ public interface ExistingShardsAllocator {
      * Allows plugins to override how we allocate shards that may already exist on disk in the cluster.
      */
     Setting<String> EXISTING_SHARDS_ALLOCATOR_SETTING = Setting.simpleString(
-        "index.allocation.existing_shards_allocator", GatewayAllocator.ALLOCATOR_NAME,
-        Setting.Property.IndexScope, Setting.Property.PrivateIndex);
+        "index.allocation.existing_shards_allocator",
+        GatewayAllocator.ALLOCATOR_NAME,
+        Setting.Property.IndexScope,
+        Setting.Property.PrivateIndex
+    );
 
     /**
      * Called before starting a round of allocation, allowing the allocator to invalidate some caches if appropriate.
@@ -45,8 +48,11 @@ public interface ExistingShardsAllocator {
     /**
      * Allocate any unassigned shards in the given {@link RoutingAllocation} for which this {@link ExistingShardsAllocator} is responsible.
      */
-    void allocateUnassigned(ShardRouting shardRouting, RoutingAllocation allocation,
-                            UnassignedAllocationHandler unassignedAllocationHandler);
+    void allocateUnassigned(
+        ShardRouting shardRouting,
+        RoutingAllocation allocation,
+        UnassignedAllocationHandler unassignedAllocationHandler
+    );
 
     /**
      * Returns an explanation for a single unassigned shard.
@@ -87,8 +93,12 @@ public interface ExistingShardsAllocator {
          *
          * @param existingAllocationId allocation id to use. If null, a fresh allocation id is generated.
          */
-        ShardRouting initialize(String nodeId, @Nullable String existingAllocationId, long expectedShardSize,
-                                RoutingChangesObserver routingChangesObserver);
+        ShardRouting initialize(
+            String nodeId,
+            @Nullable String existingAllocationId,
+            long expectedShardSize,
+            RoutingChangesObserver routingChangesObserver
+        );
 
         /**
          * Removes and ignores the unassigned shard (will be ignored for this run, but

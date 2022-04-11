@@ -107,20 +107,16 @@ PUT _ml/anomaly_detectors/test1
   },
   "data_description": {
     "time_field":"@timestamp"
-  }
-}
-
-PUT _ml/datafeeds/datafeed-test1
-{
-  "job_id": "test1",
-  "indices": [
-    "my-index-000001"
-  ],
-  "runtime_mappings": {
-    "total_error_count": { <2>
-      "type": "long",
-      "script": {
-        "source": "emit(doc['error_count'].value + doc['aborted_count'].value)"
+  },
+  "datafeed_config":{
+    "datafeed_id": "datafeed-test1",
+    "indices": ["my-index-000001"],
+    "runtime_mappings": {
+      "total_error_count": { <2>
+        "type": "long",
+        "script": {
+          "source": "emit(doc['error_count'].value + doc['aborted_count'].value)"
+        }
       }
     }
   }
@@ -193,18 +189,16 @@ PUT _ml/anomaly_detectors/test2
   },
   "data_description": {
     "time_field":"@timestamp"
-  }
-}
-
-PUT _ml/datafeeds/datafeed-test2
-{
-  "job_id": "test2",
-  "indices": ["my-index-000001"],
-  "runtime_mappings": {
-    "my_runtime_field": {
-      "type": "keyword",
-      "script": {
-        "source": "emit(doc['some_field'].value + '_' + doc['another_field'].value)" <2>
+  },
+  "datafeed_config":{
+    "datafeed_id": "datafeed-test2",
+    "indices": ["my-index-000001"],
+    "runtime_mappings": {
+      "my_runtime_field": {
+        "type": "keyword",
+        "script": {
+          "source": "emit(doc['some_field'].value + '_' + doc['another_field'].value)" <2>
+        }
       }
     }
   }
@@ -392,7 +386,7 @@ POST _ml/datafeeds/datafeed-test2/_update
     "my_runtime_field": {
       "type": "keyword",
       "script": {
-        "source": "emit(def m = /(.*)-bar-([0-9][0-9])/.matcher(doc['tokenstring3'].value); return m.find() ? m.group(1) + '_' + m.group(2) : '';)" <1>
+        "source": "def m = /(.*)-bar-([0-9][0-9])/.matcher(doc['tokenstring3'].value); emit(m.find() ? m.group(1) + '_' + m.group(2) : '');" <1>
       }
     }
   }
@@ -421,7 +415,7 @@ The preview {dfeed} API returns the following results, which show that
 
 
 [[ml-configuring-transform8]]
-.Example 8: Transforming geo_point data
+.Example 8: Transforming geopoint data
 
 [source,console]
 --------------------------------------------------
@@ -438,18 +432,16 @@ PUT _ml/anomaly_detectors/test3
   },
   "data_description": {
     "time_field":"@timestamp"
-  }
-}
-
-PUT _ml/datafeeds/datafeed-test3
-{
-  "job_id": "test3",
-  "indices": ["my-index-000001"],
-  "runtime_mappings": {
-    "my_coordinates": {
-      "type": "keyword",
-      "script": {
-        "source": "emit(doc['coords.lat'].value + ',' + doc['coords.lon'].value)"
+  },
+  "datafeed_config":{
+    "datafeed_id": "datafeed-test3",
+    "indices": ["my-index-000001"],
+    "runtime_mappings": {
+      "my_coordinates": {
+        "type": "keyword",
+        "script": {
+          "source": "emit(doc['coords.lat'].value + ',' + doc['coords.lon'].value)"
+        }
       }
     }
   }
@@ -501,19 +493,17 @@ PUT _ml/anomaly_detectors/test4
   },
   "data_description": {
     "time_field":"@timestamp"
-  }
-}
-
-PUT _ml/datafeeds/datafeed-test4
-{
-  "job_id": "test4",
-  "indices": ["my-index-000001"],
-  "script_fields":{
-    "sub":{
-      "script":"return domainSplit(doc['query'].value).get(0);"
-    },
-    "hrd":{
-      "script":"return domainSplit(doc['query'].value).get(1);"
+  },
+  "datafeed_config":{
+    "datafeed_id": "datafeed-test4",
+    "indices": ["my-index-000001"],
+    "script_fields":{
+      "sub":{
+        "script":"return domainSplit(doc['query'].value).get(0);"
+      },
+      "hrd":{
+        "script":"return domainSplit(doc['query'].value).get(1);"
+      }
     }
   }
 }

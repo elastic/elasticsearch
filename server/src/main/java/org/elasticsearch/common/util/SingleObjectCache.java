@@ -16,7 +16,7 @@ import java.util.concurrent.locks.ReentrantLock;
  * A very simple single object cache that allows non-blocking refresh calls
  * triggered by expiry time.
  */
-public abstract class SingleObjectCache<T>{
+public abstract class SingleObjectCache<T> {
 
     private volatile T cached;
     private final Lock refreshLock = new ReentrantLock();
@@ -31,13 +31,12 @@ public abstract class SingleObjectCache<T>{
         cached = initialValue;
     }
 
-
     /**
      * Returns the currently cached object and potentially refreshes the cache before returning.
      */
     public T getOrRefresh() {
         if (needsRefresh()) {
-            if(refreshLock.tryLock()) {
+            if (refreshLock.tryLock()) {
                 try {
                     if (needsRefresh()) { // check again!
                         cached = refresh();

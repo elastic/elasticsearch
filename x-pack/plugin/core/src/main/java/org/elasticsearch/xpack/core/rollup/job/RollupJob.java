@@ -7,15 +7,15 @@
 package org.elasticsearch.xpack.core.rollup.job;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
-import org.elasticsearch.common.xcontent.ParseField;
+import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ConstructingObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.persistent.PersistentTaskParams;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -29,7 +29,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.assertNoAuthorizationHea
  * It holds the config (RollupJobConfig) and a map of authentication headers.  Only RollupJobConfig
  * is ever serialized to the user, so the headers should never leak
  */
-public class RollupJob extends AbstractDiffable<RollupJob> implements PersistentTaskParams {
+public class RollupJob implements SimpleDiffable<RollupJob>, PersistentTaskParams {
 
     public static final String NAME = "xpack/rollup/job";
 
@@ -40,8 +40,10 @@ public class RollupJob extends AbstractDiffable<RollupJob> implements Persistent
     private static final ParseField HEADERS = new ParseField("headers");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<RollupJob, Void> PARSER
-            = new ConstructingObjectParser<>(NAME, a -> new RollupJob((RollupJobConfig) a[0], (Map<String, String>) a[1]));
+    public static final ConstructingObjectParser<RollupJob, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        a -> new RollupJob((RollupJobConfig) a[0], (Map<String, String>) a[1])
+    );
 
     static {
         PARSER.declareObject(ConstructingObjectParser.constructorArg(), (p, c) -> RollupJobConfig.fromXContent(p, null), CONFIG);
@@ -88,7 +90,7 @@ public class RollupJob extends AbstractDiffable<RollupJob> implements Persistent
     }
 
     static Diff<RollupJob> readJobDiffFrom(StreamInput in) throws IOException {
-        return AbstractDiffable.readDiffFrom(RollupJob::new, in);
+        return SimpleDiffable.readDiffFrom(RollupJob::new, in);
     }
 
     public static RollupJob fromXContent(XContentParser parser) throws IOException {
@@ -107,8 +109,7 @@ public class RollupJob extends AbstractDiffable<RollupJob> implements Persistent
 
         RollupJob that = (RollupJob) other;
 
-        return Objects.equals(this.config, that.config)
-                && Objects.equals(this.headers, that.headers);
+        return Objects.equals(this.config, that.config) && Objects.equals(this.headers, that.headers);
     }
 
     @Override

@@ -32,8 +32,8 @@ public class BucketCountKSTestAggregatorTests extends ESTestCase {
         new double[] { 40, 60, 20, 30, 30, 10, 10, 10, 10, 10 }
     );
     private static final MlAggsHelper.DoubleBucketValues LOWER_TAILED_VALUES_SPARSE = new MlAggsHelper.DoubleBucketValues(
-        new long[] { 4, 6, 2, 3, 3, 2, 1, 1, 1, 1 },
-        new double[] { 4, 6, 2, 3, 3, 2, 1, 1, 1, 1 }
+        new long[] { 4, 8, 2, 3, 3, 2, 1, 1, 1, 0 },
+        new double[] { 4, 8, 2, 3, 3, 2, 1, 1, 1, 0 }
     );
 
     private static final MlAggsHelper.DoubleBucketValues UPPER_TAILED_VALUES = new MlAggsHelper.DoubleBucketValues(
@@ -45,10 +45,7 @@ public class BucketCountKSTestAggregatorTests extends ESTestCase {
         new double[] { 1, 2, 2, 6, 7, 7, 7, 6, 6, 7 }
     );
 
-    private static Map<String, Double> runKsTestAndValidate(
-        MlAggsHelper.DoubleBucketValues bucketValues,
-        SamplingMethod samplingMethod
-    ) {
+    private static Map<String, Double> runKsTestAndValidate(MlAggsHelper.DoubleBucketValues bucketValues, SamplingMethod samplingMethod) {
         Map<String, Double> ksTestValues = BucketCountKSTestAggregator.ksTest(
             UNIFORM_FRACTIONS,
             bucketValues,
@@ -115,15 +112,9 @@ public class BucketCountKSTestAggregatorTests extends ESTestCase {
         // its difficult to make sure things are super close in the sparser case as the sparser data is more "uniform"
         // Having error of 0.25 allows for this. But, the two values should be similar as the distributions are "close"
         for (String alternative : Arrays.stream(Alternative.values()).map(Alternative::toString).collect(Collectors.toList())) {
-            assertThat(alternative,
-                lessValsLowerSampled.get(alternative),
-                closeTo(lessValsLowerSampledSparsed.get(alternative), 0.25));
-            assertThat(alternative,
-                lessValsUpperSampled.get(alternative),
-                closeTo(lessValsUpperSampledSparsed.get(alternative), 0.25));
-            assertThat(alternative,
-                lessValsUniformSampled.get(alternative),
-                closeTo(lessValsUniformSampledSparsed.get(alternative), 0.25));
+            assertThat(alternative, lessValsLowerSampled.get(alternative), closeTo(lessValsLowerSampledSparsed.get(alternative), 0.25));
+            assertThat(alternative, lessValsUpperSampled.get(alternative), closeTo(lessValsUpperSampledSparsed.get(alternative), 0.25));
+            assertThat(alternative, lessValsUniformSampled.get(alternative), closeTo(lessValsUniformSampledSparsed.get(alternative), 0.25));
         }
     }
 
@@ -160,15 +151,21 @@ public class BucketCountKSTestAggregatorTests extends ESTestCase {
         // its difficult to make sure things are super close in the sparser case as the sparser data is more "uniform"
         // Having error of 0.25 allows for this. But, the two values should be similar as the distributions are "close"
         for (String alternative : Arrays.stream(Alternative.values()).map(Alternative::toString).collect(Collectors.toList())) {
-            assertThat(alternative,
+            assertThat(
+                alternative,
                 greaterValsLowerSampled.get(alternative),
-                closeTo(greaterValsLowerSampledSparsed.get(alternative), 0.25));
-            assertThat(alternative,
+                closeTo(greaterValsLowerSampledSparsed.get(alternative), 0.25)
+            );
+            assertThat(
+                alternative,
                 greaterValsUpperSampled.get(alternative),
-                closeTo(greaterValsUpperSampledSparsed.get(alternative), 0.25));
-            assertThat(alternative,
+                closeTo(greaterValsUpperSampledSparsed.get(alternative), 0.25)
+            );
+            assertThat(
+                alternative,
                 greaterValsUniformSampled.get(alternative),
-                closeTo(greaterValsUniformSampledSparsed.get(alternative), 0.25));
+                closeTo(greaterValsUniformSampledSparsed.get(alternative), 0.25)
+            );
         }
     }
 

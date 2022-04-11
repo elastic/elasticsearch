@@ -7,7 +7,7 @@ setup:
   - do:
       index:
         index: idx
-        id: 1
+        id: "1"
         body: >
           {
             "date" : "2015-01-01T00:00:00",
@@ -16,7 +16,7 @@ setup:
   - do:
       index:
         index: idx
-        id: 2
+        id: "2"
         body: >
           {
             "date" : "2015-01-02T00:00:00",
@@ -25,7 +25,7 @@ setup:
   - do:
       index:
         index: idx
-        id: 3
+        id: "3"
         body: >
           {
             "date" : "2015-01-03T00:00:00",
@@ -34,7 +34,7 @@ setup:
   - do:
       index:
         index: idx
-        id: 4
+        id: "4"
         body: >
           {
             "date" : "2015-01-04T00:00:00",
@@ -92,8 +92,8 @@ setup:
   - match: { "watch_record.result.input.status": "success" }
   - match: { "watch_record.result.input.payload.hits.total": 4 }
   # makes sure that the mustache template snippets have been resolved  correctly:
-  - match: { "watch_record.result.input.search.request.body.query.bool.filter.0.range.date.gte": "2015-01-04T00:00:00.000Z||-3d" }
-  - match: { "watch_record.result.input.search.request.body.query.bool.filter.0.range.date.lte": "2015-01-04T00:00:00.000Z" }
+  - match: { "watch_record.result.input.search.request.body.query.bool.filter.0.range.date.gte": "2015-01-04T00:00Z||-3d" }
+  - match: { "watch_record.result.input.search.request.body.query.bool.filter.0.range.date.lte": "2015-01-04T00:00Z" }
 
 ---
 "Test search input mustache integration (using request template)":
@@ -210,8 +210,8 @@ setup:
   - match: { "watch_record.result.input.status": "success" }
   - match: { "watch_record.result.input.payload.hits.total": 4 }
   # makes sure that the mustache template snippets have been resolved  correctly:
-  - match: { "watch_record.result.input.search.request.body.query.bool.filter.0.range.date.gte": "2015-01-04T00:00:00.000Z||-3d" }
-  - match: { "watch_record.result.input.search.request.body.query.bool.filter.0.range.date.lte": "2015-01-04T00:00:00.000Z" }
+  - match: { "watch_record.result.input.search.request.body.query.bool.filter.0.range.date.gte": "2015-01-04T00:00Z||-3d" }
+  - match: { "watch_record.result.input.search.request.body.query.bool.filter.0.range.date.lte": "2015-01-04T00:00Z" }
 
 ---
 "Test search input mustache integration (using request template and rest_total_hits_as_int)":

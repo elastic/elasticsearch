@@ -9,17 +9,19 @@
 package org.elasticsearch.action.admin.cluster.settings;
 
 import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.util.Map;
 
 /**
  * Builder for a cluster update settings request
  */
-public class ClusterUpdateSettingsRequestBuilder extends AcknowledgedRequestBuilder<ClusterUpdateSettingsRequest,
-        ClusterUpdateSettingsResponse, ClusterUpdateSettingsRequestBuilder> {
+public class ClusterUpdateSettingsRequestBuilder extends AcknowledgedRequestBuilder<
+    ClusterUpdateSettingsRequest,
+    ClusterUpdateSettingsResponse,
+    ClusterUpdateSettingsRequestBuilder> {
 
     public ClusterUpdateSettingsRequestBuilder(ElasticsearchClient client, ClusterUpdateSettingsAction action) {
         super(client, action, new ClusterUpdateSettingsRequest());

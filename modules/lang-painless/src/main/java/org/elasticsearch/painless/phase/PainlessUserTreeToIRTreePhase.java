@@ -22,6 +22,7 @@ import org.elasticsearch.painless.ir.ExpressionNode;
 import org.elasticsearch.painless.ir.FieldNode;
 import org.elasticsearch.painless.ir.FunctionNode;
 import org.elasticsearch.painless.ir.IRNode;
+import org.elasticsearch.painless.ir.InvokeCallDefNode;
 import org.elasticsearch.painless.ir.InvokeCallMemberNode;
 import org.elasticsearch.painless.ir.InvokeCallNode;
 import org.elasticsearch.painless.ir.LoadFieldMemberNode;
@@ -33,13 +34,16 @@ import org.elasticsearch.painless.ir.ThrowNode;
 import org.elasticsearch.painless.ir.TryNode;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.lookup.def;
 import org.elasticsearch.painless.node.AStatement;
+import org.elasticsearch.painless.node.ECallLocal;
 import org.elasticsearch.painless.node.SExpression;
 import org.elasticsearch.painless.node.SFunction;
 import org.elasticsearch.painless.node.SReturn;
 import org.elasticsearch.painless.symbol.Decorations.Converter;
 import org.elasticsearch.painless.symbol.Decorations.IRNodeDecoration;
 import org.elasticsearch.painless.symbol.Decorations.MethodEscape;
+import org.elasticsearch.painless.symbol.Decorations.ThisPainlessMethod;
 import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCAllEscape;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCStatic;
@@ -56,6 +60,7 @@ import org.elasticsearch.painless.symbol.IRDecorations.IRDName;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDParameterNames;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDReturnType;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDSymbol;
+import org.elasticsearch.painless.symbol.IRDecorations.IRDThisMethod;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDTypeParameters;
 import org.elasticsearch.painless.symbol.ScriptScope;
 import org.elasticsearch.script.ScriptException;
@@ -82,12 +87,12 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
         // the main "execute" block with several exceptions.
         if ("execute".equals(functionName)) {
             ScriptClassInfo scriptClassInfo = scriptScope.getScriptClassInfo();
-            LocalFunction localFunction =
-                    scriptScope.getFunctionTable().getFunction(functionName, scriptClassInfo.getExecuteArguments().size());
+            LocalFunction localFunction = scriptScope.getFunctionTable()
+                .getFunction(functionName, scriptClassInfo.getExecuteArguments().size());
             Class<?> returnType = localFunction.getReturnType();
 
             boolean methodEscape = scriptScope.getCondition(userFunctionNode, MethodEscape.class);
-            BlockNode irBlockNode = (BlockNode)visit(userFunctionNode.getBlockNode(), scriptScope);
+            BlockNode irBlockNode = (BlockNode) visit(userFunctionNode.getBlockNode(), scriptScope);
 
             if (methodEscape == false) {
                 ExpressionNode irExpressionNode;
@@ -102,19 +107,19 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
                         if (returnType == boolean.class) {
                             irConstantNode.attachDecoration(new IRDConstant(false));
                         } else if (returnType == byte.class
-                                || returnType == char.class
-                                || returnType == short.class
-                                || returnType == int.class) {
-                            irConstantNode.attachDecoration(new IRDConstant(0));
-                        } else if (returnType == long.class) {
-                            irConstantNode.attachDecoration(new IRDConstant(0L));
-                        } else if (returnType == float.class) {
-                            irConstantNode.attachDecoration(new IRDConstant(0f));
-                        } else if (returnType == double.class) {
-                            irConstantNode.attachDecoration(new IRDConstant(0d));
-                        } else {
-                            throw userFunctionNode.createError(new IllegalStateException("illegal tree structure"));
-                        }
+                            || returnType == char.class
+                            || returnType == short.class
+                            || returnType == int.class) {
+                                irConstantNode.attachDecoration(new IRDConstant(0));
+                            } else if (returnType == long.class) {
+                                irConstantNode.attachDecoration(new IRDConstant(0L));
+                            } else if (returnType == float.class) {
+                                irConstantNode.attachDecoration(new IRDConstant(0f));
+                            } else if (returnType == double.class) {
+                                irConstantNode.attachDecoration(new IRDConstant(0d));
+                            } else {
+                                throw userFunctionNode.createError(new IllegalStateException("illegal tree structure"));
+                            }
 
                         irExpressionNode = irConstantNode;
                     } else {
@@ -281,8 +286,9 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
 
                 InvokeCallMemberNode irInvokeCallMemberNode = new InvokeCallMemberNode(internalLocation);
                 irInvokeCallMemberNode.attachDecoration(new IRDExpressionType(returnType));
-                irInvokeCallMemberNode.attachDecoration(new IRDFunction(new LocalFunction(
-                        getMethod.getName(), returnType, Collections.emptyList(), true, false)));
+                irInvokeCallMemberNode.attachDecoration(
+                    new IRDFunction(new LocalFunction(getMethod.getName(), returnType, Collections.emptyList(), true, false))
+                );
                 irDeclarationNode.setExpressionNode(irInvokeCallMemberNode);
             }
         }
@@ -324,15 +330,27 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
         }
     }
 
-    // decorate the execute method with nodes to wrap the user statements with
-    // the sandboxed errors as follows:
-    // } catch (PainlessExplainError e) {
-    //     throw this.convertToScriptException(e, e.getHeaders($DEFINITION))
-    // }
-    // and
-    // } catch (PainlessError | LinkageError | OutOfMemoryError | StackOverflowError | Exception e) {
-    //     throw this.convertToScriptException(e, e.getHeaders())
-    // }
+    /*
+     * Decorate the execute method with nodes to wrap the user statements with
+     * the sandboxed errors as follows:
+     *
+     * } catch (PainlessExplainError e) {
+     *     throw this.convertToScriptException(e, e.getHeaders($DEFINITION))
+     * }
+     *
+     * and
+     *
+     * } catch (SecurityException e) {
+     *     throw e;
+     * }
+     *
+     * and
+     *
+     * } catch (PainlessError | LinkageError | OutOfMemoryError | StackOverflowError | Exception e) {
+     *     throw this.convertToScriptException(e, e.getHeaders())
+     * }
+     *
+     */
     protected void injectSandboxExceptions(FunctionNode irFunctionNode) {
         try {
             Location internalLocation = new Location("$internal$ScriptInjectionPhase$injectSandboxExceptions", 0);
@@ -341,32 +359,21 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
             TryNode irTryNode = new TryNode(internalLocation);
             irTryNode.setBlockNode(irBlockNode);
 
-            CatchNode irCatchNode = new CatchNode(internalLocation);
-            irCatchNode.attachDecoration(new IRDExceptionType(PainlessExplainError.class));
-            irCatchNode.attachDecoration(new IRDSymbol("#painlessExplainError"));
-
-            irTryNode.addCatchNode(irCatchNode);
-
-            BlockNode irCatchBlockNode = new BlockNode(internalLocation);
-            irCatchBlockNode.attachCondition(IRCAllEscape.class);
-
-            irCatchNode.setBlockNode(irCatchBlockNode);
-
-            ThrowNode irThrowNode = new ThrowNode(internalLocation);
-
-            irCatchBlockNode.addStatementNode(irThrowNode);
+            ThrowNode irThrowNode = createCatchAndThrow(PainlessExplainError.class, internalLocation, irTryNode);
 
             InvokeCallMemberNode irInvokeCallMemberNode = new InvokeCallMemberNode(internalLocation);
             irInvokeCallMemberNode.attachDecoration(new IRDExpressionType(ScriptException.class));
-            irInvokeCallMemberNode.attachDecoration(new IRDFunction(
+            irInvokeCallMemberNode.attachDecoration(
+                new IRDFunction(
                     new LocalFunction(
-                            "convertToScriptException",
-                            ScriptException.class,
-                            Arrays.asList(Throwable.class, Map.class),
-                            true,
-                            false
+                        "convertToScriptException",
+                        ScriptException.class,
+                        Arrays.asList(Throwable.class, Map.class),
+                        true,
+                        false
                     )
-            ));
+                )
+            );
 
             irThrowNode.setExpressionNode(irInvokeCallMemberNode);
 
@@ -391,17 +398,15 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
             irInvokeCallNode.attachDecoration(new IRDExpressionType(Map.class));
             irInvokeCallNode.setBox(PainlessExplainError.class);
             irInvokeCallNode.setMethod(
-                    new PainlessMethod(
-                            PainlessExplainError.class.getMethod(
-                                    "getHeaders",
-                                    PainlessLookup.class),
-                            PainlessExplainError.class,
-                            null,
-                            Collections.emptyList(),
-                            null,
-                            null,
-                            null
-                    )
+                new PainlessMethod(
+                    PainlessExplainError.class.getMethod("getHeaders", PainlessLookup.class),
+                    PainlessExplainError.class,
+                    null,
+                    Collections.emptyList(),
+                    null,
+                    null,
+                    null
+                )
             );
 
             irBinaryImplNode.setRightNode(irInvokeCallNode);
@@ -413,44 +418,41 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
 
             irInvokeCallNode.addArgumentNode(irLoadFieldMemberNode);
 
-            for (Class<?> throwable : new Class<?>[] {
-                    PainlessError.class, LinkageError.class, OutOfMemoryError.class, StackOverflowError.class, Exception.class}) {
+            irThrowNode = createCatchAndThrow(SecurityException.class, internalLocation, irTryNode);
+            irLoadVariableNode = new LoadVariableNode(internalLocation);
+            irLoadVariableNode.attachDecoration(new IRDExpressionType(SecurityException.class));
+            irLoadVariableNode.attachDecoration(new IRDName(getExceptionVariableName(SecurityException.class)));
+            irThrowNode.setExpressionNode(irLoadVariableNode);
 
-                String name = throwable.getSimpleName();
-                name = "#" + Character.toLowerCase(name.charAt(0)) + name.substring(1);
+            for (Class<? extends Throwable> throwable : List.of(
+                PainlessError.class,
+                LinkageError.class,
+                OutOfMemoryError.class,
+                StackOverflowError.class,
+                Exception.class
+            )) {
 
-                irCatchNode = new CatchNode(internalLocation);
-                irCatchNode.attachDecoration(new IRDExceptionType(throwable));
-                irCatchNode.attachDecoration(new IRDSymbol(name));
-
-                irTryNode.addCatchNode(irCatchNode);
-
-                irCatchBlockNode = new BlockNode(internalLocation);
-                irCatchBlockNode.attachCondition(IRCAllEscape.class);
-
-                irCatchNode.setBlockNode(irCatchBlockNode);
-
-                irThrowNode = new ThrowNode(internalLocation);
-
-                irCatchBlockNode.addStatementNode(irThrowNode);
+                irThrowNode = createCatchAndThrow(throwable, internalLocation, irTryNode);
 
                 irInvokeCallMemberNode = new InvokeCallMemberNode(internalLocation);
                 irInvokeCallMemberNode.attachDecoration(new IRDExpressionType(ScriptException.class));
-                irInvokeCallMemberNode.attachDecoration(new IRDFunction(
+                irInvokeCallMemberNode.attachDecoration(
+                    new IRDFunction(
                         new LocalFunction(
-                                "convertToScriptException",
-                                ScriptException.class,
-                                Arrays.asList(Throwable.class, Map.class),
-                                true,
-                                false
+                            "convertToScriptException",
+                            ScriptException.class,
+                            Arrays.asList(Throwable.class, Map.class),
+                            true,
+                            false
                         )
-                ));
+                    )
+                );
 
                 irThrowNode.setExpressionNode(irInvokeCallMemberNode);
 
                 irLoadVariableNode = new LoadVariableNode(internalLocation);
                 irLoadVariableNode.attachDecoration(new IRDExpressionType(ScriptException.class));
-                irLoadVariableNode.attachDecoration(new IRDName(name));
+                irLoadVariableNode.attachDecoration(new IRDName(getExceptionVariableName(throwable)));
 
                 irInvokeCallMemberNode.addArgumentNode(irLoadVariableNode);
 
@@ -468,15 +470,15 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
                 irInvokeCallNode.attachDecoration(new IRDExpressionType(Map.class));
                 irInvokeCallNode.setBox(Collections.class);
                 irInvokeCallNode.setMethod(
-                        new PainlessMethod(
-                                Collections.class.getMethod("emptyMap"),
-                                Collections.class,
-                                null,
-                                Collections.emptyList(),
-                                null,
-                                null,
-                                null
-                        )
+                    new PainlessMethod(
+                        Collections.class.getMethod("emptyMap"),
+                        Collections.class,
+                        null,
+                        Collections.emptyList(),
+                        null,
+                        null,
+                        null
+                    )
                 );
 
                 irBinaryImplNode.setRightNode(irInvokeCallNode);
@@ -490,6 +492,32 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
         } catch (Exception exception) {
             throw new RuntimeException(exception);
         }
+    }
+
+    // Turn an exception class name into a local variable name to hold an object of that type
+    private static String getExceptionVariableName(Class<? extends Throwable> throwable) {
+        String name = throwable.getSimpleName();
+        return "#" + Character.toLowerCase(name.charAt(0)) + name.substring(1);
+    }
+
+    // Helper for catching a known exception type. Returns the ThrowNode to be filled in.
+    private static ThrowNode createCatchAndThrow(Class<? extends Throwable> throwable, Location internalLocation, TryNode irTryNode) {
+        String name = getExceptionVariableName(throwable);
+
+        CatchNode irCatchNode = new CatchNode(internalLocation);
+        irCatchNode.attachDecoration(new IRDExceptionType(throwable));
+        irCatchNode.attachDecoration(new IRDSymbol(name));
+
+        irTryNode.addCatchNode(irCatchNode);
+
+        BlockNode irCatchBlockNode = new BlockNode(internalLocation);
+        irCatchBlockNode.attachCondition(IRCAllEscape.class);
+
+        irCatchNode.setBlockNode(irCatchBlockNode);
+        ThrowNode irThrowNode = new ThrowNode(internalLocation);
+        irCatchBlockNode.addStatementNode(irThrowNode);
+
+        return irThrowNode;
     }
 
     @Override
@@ -512,7 +540,7 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
         }
 
         IRNodeDecoration irNodeDecoration = scriptScope.getDecoration(userStatementNode, IRNodeDecoration.class);
-        IRNode irNode = irNodeDecoration.getIRNode();
+        IRNode irNode = irNodeDecoration.irNode();
 
         if ((irNode instanceof ReturnNode) == false) {
             // Shouldn't have a Converter decoration if StatementExpressionNode, should be ReturnNode if explicit return
@@ -523,10 +551,35 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
 
         // inject converter
         InvokeCallMemberNode irInvokeCallMemberNode = new InvokeCallMemberNode(userStatementNode.getLocation());
-        irInvokeCallMemberNode.attachDecoration(new IRDFunction(converter.getConverter()));
+        irInvokeCallMemberNode.attachDecoration(new IRDFunction(converter.converter()));
         ExpressionNode returnExpression = returnNode.getExpressionNode();
         returnNode.setExpressionNode(irInvokeCallMemberNode);
         irInvokeCallMemberNode.addArgumentNode(returnExpression);
+    }
 
+    @Override
+    public void visitCallLocal(ECallLocal userCallLocalNode, ScriptScope scriptScope) {
+        if ("$".equals(userCallLocalNode.getMethodName())) {
+            PainlessMethod thisMethod = scriptScope.getDecoration(userCallLocalNode, ThisPainlessMethod.class).thisPainlessMethod();
+
+            InvokeCallMemberNode irInvokeCallMemberNode = new InvokeCallMemberNode(userCallLocalNode.getLocation());
+            irInvokeCallMemberNode.attachDecoration(new IRDThisMethod(thisMethod));
+            irInvokeCallMemberNode.addArgumentNode(injectCast(userCallLocalNode.getArgumentNodes().get(0), scriptScope));
+            irInvokeCallMemberNode.attachDecoration(new IRDExpressionType(def.class));
+
+            InvokeCallDefNode irCallSubDefNode = new InvokeCallDefNode(userCallLocalNode.getLocation());
+            irCallSubDefNode.addArgumentNode(injectCast(userCallLocalNode.getArgumentNodes().get(1), scriptScope));
+            irCallSubDefNode.attachDecoration(new IRDExpressionType(def.class));
+            irCallSubDefNode.attachDecoration(new IRDName("get"));
+
+            BinaryImplNode irBinaryImplNode = new BinaryImplNode(userCallLocalNode.getLocation());
+            irBinaryImplNode.setLeftNode(irInvokeCallMemberNode);
+            irBinaryImplNode.setRightNode(irCallSubDefNode);
+            irBinaryImplNode.attachDecoration(new IRDExpressionType(def.class));
+
+            scriptScope.putDecoration(userCallLocalNode, new IRNodeDecoration(irBinaryImplNode));
+        } else {
+            super.visitCallLocal(userCallLocalNode, scriptScope);
+        }
     }
 }

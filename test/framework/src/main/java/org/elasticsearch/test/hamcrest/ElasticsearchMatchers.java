@@ -14,6 +14,7 @@ import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
 import org.hamcrest.core.CombinableMatcher;
 
+import java.util.Objects;
 import java.util.function.Function;
 
 public class ElasticsearchMatchers {
@@ -27,7 +28,7 @@ public class ElasticsearchMatchers {
 
         @Override
         protected boolean matchesSafely(SearchHit searchHit) {
-            return searchHit.getId().equals(id);
+            return Objects.equals(searchHit.getId(), id);
         }
 
         @Override

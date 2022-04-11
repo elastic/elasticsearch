@@ -21,8 +21,7 @@ public interface Filters extends MultiBucketsAggregation {
     /**
      * A bucket associated with a specific filter (identified by its key)
      */
-    interface Bucket extends MultiBucketsAggregation.Bucket {
-    }
+    interface Bucket extends MultiBucketsAggregation.Bucket {}
 
     /**
      * The buckets created by this aggregation.

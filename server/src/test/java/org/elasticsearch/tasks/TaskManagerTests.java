@@ -11,12 +11,12 @@ package org.elasticsearch.tasks;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.TransportTasksActionTests;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -46,6 +46,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.in;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class TaskManagerTests extends ESTestCase {
     private ThreadPool threadPool;
@@ -76,7 +77,9 @@ public class TaskManagerTests extends ESTestCase {
     public void testTrackingChannelTask() throws Exception {
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of());
         Set<Task> cancelledTasks = ConcurrentCollections.newConcurrentSet();
-        taskManager.setTaskCancellationService(new TaskCancellationService(mock(TransportService.class)) {
+        final var transportServiceMock = mock(TransportService.class);
+        when(transportServiceMock.getThreadPool()).thenReturn(threadPool);
+        taskManager.setTaskCancellationService(new TaskCancellationService(transportServiceMock) {
             @Override
             void cancelTaskAndDescendants(CancellableTask task, String reason, boolean waitForCompletion, ActionListener<Void> listener) {
                 assertThat(reason, equalTo("channel was closed"));
@@ -124,7 +127,9 @@ public class TaskManagerTests extends ESTestCase {
     public void testTrackingTaskAndCloseChannelConcurrently() throws Exception {
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of());
         Set<CancellableTask> cancelledTasks = ConcurrentCollections.newConcurrentSet();
-        taskManager.setTaskCancellationService(new TaskCancellationService(mock(TransportService.class)) {
+        final var transportServiceMock = mock(TransportService.class);
+        when(transportServiceMock.getThreadPool()).thenReturn(threadPool);
+        taskManager.setTaskCancellationService(new TaskCancellationService(transportServiceMock) {
             @Override
             void cancelTaskAndDescendants(CancellableTask task, String reason, boolean waitForCompletion, ActionListener<Void> listener) {
                 assertTrue("task [" + task + "] was cancelled already", cancelledTasks.add(task));
@@ -154,7 +159,13 @@ public class TaskManagerTests extends ESTestCase {
                     } else {
                         final TaskId taskId = new TaskId("node", between(1, 100));
                         final TcpTransportChannel tcpTransportChannel = TestTransportChannels.newFakeTcpTransportChannel(
-                            "node-" + i, channel, threadPool, "action-" + i, randomIntBetween(0, 1000), Version.CURRENT);
+                            "node-" + i,
+                            channel,
+                            threadPool,
+                            "action-" + i,
+                            randomIntBetween(0, 1000),
+                            Version.CURRENT
+                        );
                         taskManager.setBan(taskId, "test", tcpTransportChannel);
                     }
                 }
@@ -174,10 +185,11 @@ public class TaskManagerTests extends ESTestCase {
 
     public void testRemoveBansOnChannelDisconnects() throws Exception {
         final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of());
-        taskManager.setTaskCancellationService(new TaskCancellationService(mock(TransportService.class)) {
+        final var transportServiceMock = mock(TransportService.class);
+        when(transportServiceMock.getThreadPool()).thenReturn(threadPool);
+        taskManager.setTaskCancellationService(new TaskCancellationService(transportServiceMock) {
             @Override
-            void cancelTaskAndDescendants(CancellableTask task, String reason, boolean waitForCompletion, ActionListener<Void> listener) {
-            }
+            void cancelTaskAndDescendants(CancellableTask task, String reason, boolean waitForCompletion, ActionListener<Void> listener) {}
         });
         Map<TaskId, Set<TcpChannel>> installedBans = new HashMap<>();
         FakeTcpChannel[] channels = new FakeTcpChannel[randomIntBetween(1, 10)];
@@ -192,10 +204,21 @@ public class TaskManagerTests extends ESTestCase {
             }
             TaskId taskId = new TaskId("node-" + randomIntBetween(1, 3), randomIntBetween(1, 100));
             installedBans.computeIfAbsent(taskId, t -> new HashSet<>()).add(channel);
-            taskManager.setBan(taskId, "test", TestTransportChannels.newFakeTcpTransportChannel(
-                "node", channel, threadPool, "action", randomIntBetween(1, 10000), Version.CURRENT));
+            taskManager.setBan(
+                taskId,
+                "test",
+                TestTransportChannels.newFakeTcpTransportChannel(
+                    "node",
+                    channel,
+                    threadPool,
+                    "action",
+                    randomIntBetween(1, 10000),
+                    Version.CURRENT
+                )
+            );
         }
-        final Set<TaskId> expectedBannedTasks = installedBans.entrySet().stream()
+        final Set<TaskId> expectedBannedTasks = installedBans.entrySet()
+            .stream()
             .filter(e -> e.getValue().stream().anyMatch(CloseableChannel::isOpen))
             .map(Map.Entry::getKey)
             .collect(Collectors.toSet());

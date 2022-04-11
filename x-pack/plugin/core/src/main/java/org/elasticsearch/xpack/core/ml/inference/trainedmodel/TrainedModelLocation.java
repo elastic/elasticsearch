@@ -14,8 +14,6 @@ import org.elasticsearch.xpack.core.ml.utils.NamedXContentObject;
 
 public interface TrainedModelLocation extends NamedXContentObject, NamedWriteable {
 
-    String getModelId();
-
     String getResourceName();
 
     default Version getMinimalCompatibilityVersion() {

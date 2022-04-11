@@ -17,7 +17,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.SecuritySettingsSourceField;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
-import java.util.Collections;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
@@ -110,7 +109,7 @@ public class FleetDataStreamIT extends ESRestTestCase {
         // The rest of these produce a warning
         RequestOptions consumeWarningsOptions = RequestOptions.DEFAULT.toBuilder()
             .setWarningsHandler(
-                warnings -> Collections.singletonList(
+                warnings -> List.of(
                     "this request accesses system indices: [.fleet-artifacts-7], but "
                         + "in a future major version, direct access to system indices will be prevented by default"
                 ).equals(warnings) == false
@@ -206,12 +205,7 @@ public class FleetDataStreamIT extends ESRestTestCase {
         // Create a system index - this one has an alias
         Request sysIdxRequest = new Request("PUT", ".fleet-artifacts");
         assertOK(adminClient().performRequest(sysIdxRequest));
-        assertThatAPIWildcardResolutionWorks(
-            singletonList(
-                "this request accesses system indices: [.fleet-artifacts-7], but in a future major version, direct access to system"
-                    + " indices will be prevented by default"
-            )
-        );
+        assertThatAPIWildcardResolutionWorks();
         assertThatAPIWildcardResolutionWorks(
             singletonList(
                 "this request accesses system indices: [.fleet-artifacts-7], but in a future major version, direct access to system"
@@ -226,21 +220,12 @@ public class FleetDataStreamIT extends ESRestTestCase {
         Request regularIdxRequest = new Request("PUT", regularIndex);
         regularIdxRequest.setJsonEntity("{\"aliases\": {\"" + regularAlias + "\":  {}}}");
         assertOK(client().performRequest(regularIdxRequest));
-        assertThatAPIWildcardResolutionWorks(
-            singletonList(
-                "this request accesses system indices: [.fleet-artifacts-7], but in a future major version, direct access to system"
-                    + " indices will be prevented by default"
-            )
-        );
+        assertThatAPIWildcardResolutionWorks();
         assertThatAPIWildcardResolutionWorks(emptyList(), "r*");
     }
 
     private void assertThatAPIWildcardResolutionWorks() throws Exception {
         assertThatAPIWildcardResolutionWorks(emptyList(), null);
-    }
-
-    private void assertThatAPIWildcardResolutionWorks(List<String> warningsExpected) throws Exception {
-        assertThatAPIWildcardResolutionWorks(warningsExpected, null);
     }
 
     private void assertThatAPIWildcardResolutionWorks(List<String> warningsExpected, String indexPattern) throws Exception {

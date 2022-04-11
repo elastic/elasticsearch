@@ -37,7 +37,7 @@ public class Circle implements Geometry {
         this.x = x;
         this.radiusMeters = radiusMeters;
         this.z = z;
-        if (radiusMeters < 0 ) {
+        if (radiusMeters < 0) {
             throw new IllegalArgumentException("Circle radius [" + radiusMeters + "] cannot be negative");
         }
     }

@@ -15,7 +15,7 @@ import org.junit.Assert;
 
 import java.util.List;
 
-public class GoogleCloudStoragePluginTest extends ESTestCase {
+public class GoogleCloudStoragePluginTests extends ESTestCase {
 
     public void testExposedSettings() {
         List<Setting<?>> settings = new GoogleCloudStoragePlugin(Settings.EMPTY).getSettings();

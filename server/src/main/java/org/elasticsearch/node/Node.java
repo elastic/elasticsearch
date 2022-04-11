@@ -99,6 +99,7 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.health.HealthService;
+import org.elasticsearch.health.collector.NodeHealthCacheTaskExecutor;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexSettings;
@@ -212,7 +213,6 @@ import java.util.function.LongSupplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 import javax.net.ssl.SNIHostName;
 
 import static java.util.stream.Collectors.toList;
@@ -864,8 +864,16 @@ public class Node implements Closeable {
                 metadataCreateIndexService,
                 settingsModule.getIndexScopedSettings()
             );
-            final List<PersistentTasksExecutor<?>> builtinTaskExecutors = List.of(systemIndexMigrationExecutor);
-            final List<PersistentTasksExecutor<?>> pluginTaskExectors = pluginsService.filterPlugins(PersistentTaskPlugin.class)
+            final NodeHealthCacheTaskExecutor nodeHealthCacheTaskExecutor = new NodeHealthCacheTaskExecutor(
+                client,
+                clusterService,
+                threadPool
+            );
+            final List<PersistentTasksExecutor<?>> builtinTaskExecutors = List.of(
+                systemIndexMigrationExecutor,
+                nodeHealthCacheTaskExecutor
+            );
+            final List<PersistentTasksExecutor<?>> persistentTasksExecutors = pluginsService.filterPlugins(PersistentTaskPlugin.class)
                 .stream()
                 .map(
                     p -> p.getPersistentTasksExecutor(
@@ -879,7 +887,7 @@ public class Node implements Closeable {
                 .flatMap(List::stream)
                 .collect(toList());
             final PersistentTasksExecutorRegistry registry = new PersistentTasksExecutorRegistry(
-                concatLists(pluginTaskExectors, builtinTaskExecutors)
+                concatLists(persistentTasksExecutors, builtinTaskExecutors)
             );
             final PersistentTasksClusterService persistentTasksClusterService = new PersistentTasksClusterService(
                 settings,

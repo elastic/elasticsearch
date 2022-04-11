@@ -65,6 +65,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
+import org.elasticsearch.health.collector.NodeHealthCache;
 import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
@@ -512,7 +513,8 @@ public final class ClusterSettings extends AbstractScopedSettings {
         ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE_FROZEN,
         DataTier.ENFORCE_DEFAULT_TIER_PREFERENCE_SETTING,
         StatsRequestLimiter.MAX_CONCURRENT_STATS_REQUESTS_PER_NODE,
-        ReadinessService.PORT
+        ReadinessService.PORT,
+        NodeHealthCache.POLL_INTERVAL_SETTING
     );
 
     static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();

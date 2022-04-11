@@ -62,7 +62,6 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -145,6 +144,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
+
 import javax.crypto.Cipher;
 import javax.crypto.CipherInputStream;
 import javax.crypto.CipherOutputStream;
@@ -595,8 +595,7 @@ public final class TokenService {
                                     );
                                 }
                                 // verify the access token inside the macaroon
-                                final String userTokenId = hashTokenString("access token that is part of a macaroon" +
-                                    macaroon.identifier);
+                                final String userTokenId = hashTokenString("access token that is part of a macaroon" + macaroon.identifier);
                                 getUserTokenFromId(userTokenId, version, listener);
                             } catch (GeneralSecurityRuntimeException e) {
                                 // could happen with a token that is not ours

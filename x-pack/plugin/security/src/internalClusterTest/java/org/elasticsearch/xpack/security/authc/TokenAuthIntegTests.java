@@ -49,6 +49,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.security.authz.accesscontrol.MacaroonUtils;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import org.junit.After;
 import org.junit.Before;
@@ -675,7 +676,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                         );
                     } else {
                         authStatuses.add(getAuthenticationResponseCode(result.getAccessToken()));
-                        tokens.add(result.getAccessToken() + result.getRefreshToken());
+                        tokens.add(MacaroonUtils.extractAccessTokenFromMacaroon(result.getAccessToken()) + result.getRefreshToken());
                     }
                     logger.info("received access token [{}] and refresh token [{}]", result.getAccessToken(), result.getRefreshToken());
                     completedLatch.countDown();

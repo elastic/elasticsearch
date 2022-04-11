@@ -79,4 +79,19 @@ public final class MacaroonUtils {
         }
     }
 
+    public static String extractAccessTokenFromMacaroon(String token) throws IOException {
+        final byte[] bytes = token.getBytes(StandardCharsets.UTF_8);
+        try (StreamInput in = new InputStreamStreamInput(Base64.getDecoder().wrap(new ByteArrayInputStream(bytes)), bytes.length)) {
+            final Version version = Version.readVersion(in);
+            if (false == version.onOrAfter(VERSION_MACAROON_ACCESS_TOKENS)) {
+                throw new IllegalArgumentException("Unsupported token for attenuation");
+            }
+            in.setVersion(version);
+            final byte[] decodedSalt = in.readByteArray();
+            final byte[] passphraseHash = in.readByteArray();
+            final String serializedMacaroon = in.readString();
+            return MacaroonsBuilder.deserialize(serializedMacaroon).identifier;
+        }
+    }
+
 }

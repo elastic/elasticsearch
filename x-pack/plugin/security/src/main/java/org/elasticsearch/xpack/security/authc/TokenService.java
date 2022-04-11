@@ -1426,7 +1426,12 @@ public final class TokenService {
             } else {
                 // We expect this to protect against race conditions that manifest within few ms
                 final Iterator<TimeValue> backoff = BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(10), 8).iterator();
-                final String tokenDocId = getTokenDocumentId(hashTokenString(decryptedTokens[0]));
+                final String tokenDocId;
+                if (refreshTokenStatus.getVersion().onOrAfter(TokenService.VERSION_MACAROON_ACCESS_TOKENS)) {
+                    tokenDocId = getTokenDocumentId(hashTokenString("access token that is part of a macaroon" + decryptedTokens[0]));
+                } else {
+                    tokenDocId = getTokenDocumentId(hashTokenString(decryptedTokens[0]));
+                }
                 final Consumer<Exception> onFailure = ex -> listener.onFailure(
                     traceLog("decrypt and get superseding token", tokenDocId, ex)
                 );

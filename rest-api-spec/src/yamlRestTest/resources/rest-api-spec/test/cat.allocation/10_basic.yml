@@ -60,7 +60,7 @@
   - match:
       $body: |
             /^
-              ( \d                     \s+   #usually 0, unless some system index has been recreated before this runs
+              ( \d+                    \s+   #usually 0, unless some system index has been recreated before this runs
                 \d+(\.\d+)?[kmgt]?b    \s+
                 \d+(\.\d+)?[kmgt]?b    \s+
                 (\d+(\.\d+)?[kmgt]b   \s+)?  #no value from client nodes
@@ -94,7 +94,7 @@
        $body: |
              /^
                ( \s*                          #allow leading spaces to account for right-justified text
-                 \d+                    \s+
+                 \d+                    \s+   #usually 0, unless some system index has been recreated before this runs
                  \d+(\.\d+)?[kmgt]?b    \s+
                  \d+(\.\d+)?[kmgt]?b    \s+
                  (\d+(\.\d+)?[kmgt]b   \s+)?  #no value from client nodes
@@ -134,8 +134,8 @@
                \n
 
               ( \s*                          #allow leading spaces to account for right-justified text
-                0                      \s+
-                0b                     \s+
+                \d+                    \s+   #usually 0, unless some system index has been recreated before this runs
+                \d+(\.\d+)?[kmgt]?b    \s+
                 \d+(\.\d+)?[kmgt]?b    \s+
                 (\d+(\.\d+)?[kmgt]b   \s+)  #always should return value since we filter out non data nodes by default
                 (\d+(\.\d+)?[kmgt]b   \s+)  #always should return value since we filter out non data nodes by default
@@ -194,7 +194,7 @@
   - match:
       $body: |
             /^
-              ( \d                  \s+    #usually 0, unless some system index has been recreated before this runs
+              ( \d+                 \s+    #usually 0, unless some system index has been recreated before this runs
                 0                   \s+
                 \d+                 \s+
                 (\d+                 \s+)  #always should return value since we filter out non data nodes by default

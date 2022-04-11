@@ -55,7 +55,6 @@ public final class MappingLookup {
     private final Map<String, NamedAnalyzer> indexAnalyzersMap = new HashMap<>();
     private final List<FieldMapper> indexTimeScriptMappers = new ArrayList<>();
     private final Mapping mapping;
-    private final Set<String> shadowedFields;
     private final Set<String> completionFields = new HashSet<>();
 
     /**
@@ -169,11 +168,6 @@ public final class MappingLookup {
             }
         }
 
-        this.shadowedFields = new HashSet<>();
-        for (RuntimeField runtimeField : mapping.getRoot().runtimeFields()) {
-            runtimeField.asMappedFieldTypes().forEach(mft -> shadowedFields.add(mft.name()));
-        }
-
         this.fieldTypeLookup = new FieldTypeLookup(mappers, aliasMappers, mapping.getRoot().runtimeFields());
         this.indexTimeLookup = new FieldTypeLookup(mappers, aliasMappers, Collections.emptyList());
         this.fieldMappers = Collections.unmodifiableMap(fieldMappers);
@@ -221,13 +215,6 @@ public final class MappingLookup {
      */
     public Iterable<Mapper> fieldMappers() {
         return fieldMappers.values();
-    }
-
-    /**
-     * @return {@code true} if the given field is shadowed by a runtime field
-     */
-    public boolean isShadowed(String field) {
-        return shadowedFields.contains(field);
     }
 
     /**

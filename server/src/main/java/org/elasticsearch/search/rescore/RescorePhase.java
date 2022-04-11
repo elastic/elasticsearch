@@ -21,7 +21,7 @@ import java.io.IOException;
  */
 public class RescorePhase {
 
-    public void execute(SearchContext context) {
+    public static void execute(SearchContext context) {
         TopDocs topDocs = context.queryResult().topDocs().topDocs;
         if (topDocs.scoreDocs.length == 0) {
             return;
@@ -43,7 +43,7 @@ public class RescorePhase {
     /**
      * Returns true if the provided docs are sorted by score.
      */
-    private boolean topDocsSortedByScore(TopDocs topDocs) {
+    private static boolean topDocsSortedByScore(TopDocs topDocs) {
         if (topDocs == null || topDocs.scoreDocs == null || topDocs.scoreDocs.length < 2) {
             return true;
         }

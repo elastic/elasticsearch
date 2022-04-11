@@ -232,7 +232,7 @@ public class MetadataIndexAliasesService {
         );
     }
 
-    private void validateAliasTargetIsNotDSBackingIndex(ClusterState currentState, AliasAction action) {
+    private static void validateAliasTargetIsNotDSBackingIndex(ClusterState currentState, AliasAction action) {
         IndexAbstraction indexAbstraction = currentState.metadata().getIndicesLookup().get(action.getIndex());
         assert indexAbstraction != null : "invalid cluster metadata. index [" + action.getIndex() + "] was not found";
         if (indexAbstraction.getParentDataStream() != null) {

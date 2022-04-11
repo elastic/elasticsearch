@@ -9,6 +9,8 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -16,6 +18,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
@@ -23,6 +26,7 @@ import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -70,10 +74,10 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     }
 
     @Override
-    public HealthIndicatorResult calculate() {
+    public HealthIndicatorResult calculate(boolean includeDetails) {
         var state = clusterService.state();
         var shutdown = state.getMetadata().custom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY);
-        var status = new ShardAllocationStatus();
+        var status = new ShardAllocationStatus(state.getMetadata());
 
         for (IndexRoutingTable indexShardRouting : state.routingTable()) {
             for (int i = 0; i < indexShardRouting.size(); i++) {
@@ -85,7 +89,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             }
         }
 
-        return createIndicator(status.getStatus(), status.getSummary(), status.getDetails(), status.getImpacts());
+        return createIndicator(status.getStatus(), status.getSummary(), status.getDetails(includeDetails), status.getImpacts());
     }
 
     private static class ShardAllocationCounts {
@@ -144,6 +148,11 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     private static class ShardAllocationStatus {
         private final ShardAllocationCounts primaries = new ShardAllocationCounts();
         private final ShardAllocationCounts replicas = new ShardAllocationCounts();
+        private final Metadata clusterMetadata;
+
+        ShardAllocationStatus(Metadata clusterMetadata) {
+            this.clusterMetadata = clusterMetadata;
+        }
 
         public void addPrimary(ShardRouting routing, NodesShutdownMetadata shutdowns) {
             primaries.increment(routing, shutdowns);
@@ -193,29 +202,33 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             };
         }
 
-        public SimpleHealthIndicatorDetails getDetails() {
-            return new SimpleHealthIndicatorDetails(
-                Map.of(
-                    "unassigned_primaries",
-                    primaries.unassigned,
-                    "initializing_primaries",
-                    primaries.initializing,
-                    "creating_primaries",
-                    primaries.unassigned_new,
-                    "restarting_primaries",
-                    primaries.unassigned_restarting,
-                    "started_primaries",
-                    primaries.started + primaries.relocating,
-                    "unassigned_replicas",
-                    replicas.unassigned,
-                    "initializing_replicas",
-                    replicas.initializing,
-                    "restarting_replicas",
-                    replicas.unassigned_restarting,
-                    "started_replicas",
-                    replicas.started + replicas.relocating
-                )
-            );
+        public HealthIndicatorDetails getDetails(boolean includeDetails) {
+            if (includeDetails) {
+                return new SimpleHealthIndicatorDetails(
+                    Map.of(
+                        "unassigned_primaries",
+                        primaries.unassigned,
+                        "initializing_primaries",
+                        primaries.initializing,
+                        "creating_primaries",
+                        primaries.unassigned_new,
+                        "restarting_primaries",
+                        primaries.unassigned_restarting,
+                        "started_primaries",
+                        primaries.started + primaries.relocating,
+                        "unassigned_replicas",
+                        replicas.unassigned,
+                        "initializing_replicas",
+                        replicas.initializing,
+                        "restarting_replicas",
+                        replicas.unassigned_restarting,
+                        "started_replicas",
+                        replicas.started + replicas.relocating
+                    )
+                );
+            } else {
+                return HealthIndicatorDetails.EMPTY;
+            }
         }
 
         public List<HealthIndicatorImpact> getImpacts() {
@@ -226,7 +239,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     "Cannot add data to %d %s [%s]. Searches might return incomplete results.",
                     primaries.indicesWithUnavailableShards.size(),
                     primaries.indicesWithUnavailableShards.size() == 1 ? "index" : "indices",
-                    getTruncatedIndicesString(primaries.indicesWithUnavailableShards)
+                    getTruncatedIndicesString(primaries.indicesWithUnavailableShards, clusterMetadata)
                 );
                 impacts.add(new HealthIndicatorImpact(1, impactDescription));
             }
@@ -243,7 +256,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     "Searches might return slower than usual. Fewer redundant copies of the data exist on %d %s [%s].",
                     indicesWithUnavailableReplicasOnly.size(),
                     indicesWithUnavailableReplicasOnly.size() == 1 ? "index" : "indices",
-                    getTruncatedIndicesString(indicesWithUnavailableReplicasOnly)
+                    getTruncatedIndicesString(indicesWithUnavailableReplicasOnly, clusterMetadata)
                 );
                 impacts.add(new HealthIndicatorImpact(3, impactDescription));
             }
@@ -252,9 +265,15 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
     }
 
-    private static String getTruncatedIndicesString(Set<String> indices) {
+    private static String getTruncatedIndicesString(Set<String> indices, Metadata clusterMetadata) {
         final int maxIndices = 10;
-        String truncatedIndicesString = indices.stream().limit(maxIndices).collect(joining(", "));
+        final int unknownIndexPriority = -1;
+        // We want to show indices with a numerically higher index.priority first (since lower priority ones might get truncated):
+        Comparator<String> priorityThenNameComparator = Comparator.comparingInt((String indexName) -> {
+            IndexMetadata indexMetadata = clusterMetadata.index(indexName);
+            return indexMetadata == null ? unknownIndexPriority : indexMetadata.priority();
+        }).reversed().thenComparing(Comparator.naturalOrder());
+        String truncatedIndicesString = indices.stream().sorted(priorityThenNameComparator).limit(maxIndices).collect(joining(", "));
         if (maxIndices < indices.size()) {
             truncatedIndicesString = truncatedIndicesString + ", ...";
         }

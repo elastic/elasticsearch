@@ -293,7 +293,7 @@ public abstract class SslConfigurationLoader {
         return buildDefaultTrustConfig(defaultTrustConfig, keyConfig);
     }
 
-    protected SslTrustConfig buildDefaultTrustConfig(SslTrustConfig trustConfig, SslKeyConfig keyConfig) {
+    protected static SslTrustConfig buildDefaultTrustConfig(SslTrustConfig trustConfig, SslKeyConfig keyConfig) {
         final SslTrustConfig trust = keyConfig.asTrustConfig();
         if (trust == null) {
             return trustConfig;

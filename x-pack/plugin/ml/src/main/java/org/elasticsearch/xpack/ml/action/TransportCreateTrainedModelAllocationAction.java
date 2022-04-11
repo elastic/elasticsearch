@@ -63,6 +63,7 @@ public class TransportCreateTrainedModelAllocationAction extends TransportMaster
                 trainedModelAllocationService,
                 clusterService,
                 deploymentManager,
+                indexNameExpressionResolver,
                 transportService.getTaskManager(),
                 threadPool,
                 licenseState

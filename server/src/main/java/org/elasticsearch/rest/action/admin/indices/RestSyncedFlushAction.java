@@ -71,7 +71,7 @@ public class RestSyncedFlushAction extends BaseRestHandler {
             return new BytesRestResponse(restStatus, builder);
         }
 
-        private void buildSyncedFlushResponse(XContentBuilder builder, FlushResponse flushResponse) throws IOException {
+        private static void buildSyncedFlushResponse(XContentBuilder builder, FlushResponse flushResponse) throws IOException {
             builder.startObject("_shards");
             builder.field("total", flushResponse.getTotalShards());
             builder.field("successful", flushResponse.getSuccessfulShards());

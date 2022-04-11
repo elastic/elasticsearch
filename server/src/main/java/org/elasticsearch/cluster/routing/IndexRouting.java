@@ -262,7 +262,7 @@ public abstract class IndexRouting {
             return createId(hashSource(flat), suffix);
         }
 
-        private String createId(int routingHash, byte[] suffix) {
+        private static String createId(int routingHash, byte[] suffix) {
             byte[] idBytes = new byte[4 + suffix.length];
             ByteUtils.writeIntLE(routingHash, idBytes, 0);
             System.arraycopy(suffix, 0, idBytes, 4, suffix.length);

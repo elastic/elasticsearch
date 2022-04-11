@@ -226,7 +226,7 @@ public final class TokenService {
     public static final int MINIMUM_BASE64_BYTES = Double.valueOf(Math.ceil((4 * MINIMUM_BYTES) / 3)).intValue();
     static final Version VERSION_HASHED_TOKENS = Version.V_7_2_0;
     static final Version VERSION_TOKENS_INDEX_INTRODUCED = Version.V_7_2_0;
-    static final Version VERSION_ACCESS_TOKENS_AS_UUIDS = Version.V_7_2_0;
+    public static final Version VERSION_ACCESS_TOKENS_AS_UUIDS = Version.V_7_2_0;
     static final Version VERSION_MULTIPLE_CONCURRENT_REFRESHES = Version.V_7_2_0;
     static final Version VERSION_CLIENT_AUTH_FOR_REFRESH = Version.V_8_2_0;
     public static final Version VERSION_MACAROON_ACCESS_TOKENS = Version.V_8_3_0;
@@ -586,10 +586,17 @@ public final class TokenService {
                     getKeyAsync(decodedSalt, keyAndCache, ActionListener.wrap(decodeKey -> {
                         if (decodeKey != null) {
                             try {
-                                // the macaroon will be verified later because it might contain caveats that need the request context
-                                client.threadPool()
-                                    .getThreadContext()
-                                    .putTransient(MACAROON_VERIFIER_KEY, new MacaroonVerifier(macaroon, decodeKey.getEncoded()));
+                                // attach the macaroon to the thread context in order to be verified later
+                                // the macaroon will be verified after the containing access token is confirmed to be valid
+                                // also macaroon verification requires the request context, which is not available here
+                                ThreadContext threadContext = client.threadPool().getThreadContext();
+                                Object existing = threadContext.getTransient(MACAROON_VERIFIER_KEY);
+                                if (existing == null) {
+                                    threadContext.putTransient(
+                                        MACAROON_VERIFIER_KEY,
+                                        new MacaroonVerifier(macaroon, decodeKey.getEncoded())
+                                    );
+                                }
                                 // verify the access token inside the macaroon
                                 final String userTokenId = hashTokenString(macaroon.identifier);
                                 getUserTokenFromId(userTokenId, version, listener);

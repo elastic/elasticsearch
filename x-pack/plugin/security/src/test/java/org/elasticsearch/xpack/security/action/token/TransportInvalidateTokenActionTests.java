@@ -161,8 +161,8 @@ public class TransportInvalidateTokenActionTests extends ESTestCase {
 
     private String generateAccessTokenString() throws Exception {
         try (BytesStreamOutput out = new BytesStreamOutput(TokenService.MINIMUM_BASE64_BYTES)) {
-            out.setVersion(Version.CURRENT);
-            Version.writeVersion(Version.CURRENT, out);
+            out.setVersion(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS);
+            Version.writeVersion(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS, out);
             out.writeString(UUIDs.randomBase64UUID());
             return Base64.getEncoder().encodeToString(out.bytes().toBytesRef().bytes);
         }

@@ -131,10 +131,9 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             addCookies(httpResponse);
 
             ActionListener<Void> listener = ActionListener.wrap(() -> Releasables.close(toClose));
+            // try (ThreadContext.StoredContext existing = threadContext.stashContext()) { //TODO PG uncomment before commit
             httpChannel.sendResponse(httpResponse, listener);
-            try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
-                httpChannel.sendResponse(httpResponse, listener);
-            }
+            // }
             success = true;
         } finally {
             if (success == false) {

@@ -15,6 +15,9 @@ import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 
+import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.Transports;
+
 import java.nio.channels.ClosedChannelException;
 import java.util.ArrayDeque;
 import java.util.Queue;
@@ -29,12 +32,17 @@ public final class Netty4WriteThrottlingHandler extends ChannelDuplexHandler {
     private final Queue<WriteOperation> queuedWrites = new ArrayDeque<>();
 
     private WriteOperation currentWrite;
+    private ThreadPool threadPool;
 
-    public Netty4WriteThrottlingHandler() {}
+    public Netty4WriteThrottlingHandler(ThreadPool threadPool) {
+        this.threadPool = threadPool;
+    }
 
     @Override
     public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) {
         assert msg instanceof ByteBuf;
+        assert Transports.assertDefaultThreadContext(threadPool.getThreadContext());
+        assert Transports.assertTransportThread();
         final boolean queued = queuedWrites.offer(new WriteOperation((ByteBuf) msg, promise));
         assert queued;
     }

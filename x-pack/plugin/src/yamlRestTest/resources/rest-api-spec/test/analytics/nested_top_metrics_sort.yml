@@ -847,7 +847,7 @@ teardown:
               terms:
                 field: name
                 order:
-                  "field_exists>top_metrics[unknown_metric]": asc
+                  "field_exists>top_metrics[score]": asc
                 size: 5
               aggs:
                 field_exists:
@@ -857,7 +857,7 @@ teardown:
                         - bool:
                             should:
                               - exists:
-                                  field: score
+                                  field: unknown_metric
                             minimum_should_match: 1
                   aggs:
                     top_metrics:
@@ -1026,7 +1026,7 @@ teardown:
               terms:
                 field: name
                 order:
-                  "field_exists>top_metrics[unknown_metric]": asc
+                  "field_exists>top_metrics[score]": asc
                 size: 5
               aggs:
                 field_exists:
@@ -1036,7 +1036,7 @@ teardown:
                         - bool:
                             should:
                               - exists:
-                                  field: score
+                                  field: unknown_metric
                             minimum_should_match: 1
                   aggs:
                     top_metrics:

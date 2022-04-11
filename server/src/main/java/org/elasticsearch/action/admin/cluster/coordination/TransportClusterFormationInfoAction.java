@@ -65,9 +65,11 @@ public class TransportClusterFormationInfoAction extends TransportNodesAction<
     }
 
     @Override
-    protected ClusterFormationInfoResponse newResponse(ClusterFormationInfoRequest request,
-                                                       List<ClusterFormationInfoNodeResponse> responses,
-                                                       List<FailedNodeException> failures) {
+    protected ClusterFormationInfoResponse newResponse(
+        ClusterFormationInfoRequest request,
+        List<ClusterFormationInfoNodeResponse> responses,
+        List<FailedNodeException> failures
+    ) {
         return new ClusterFormationInfoResponse(clusterService.getClusterName(), responses, failures);
     }
 
@@ -83,10 +85,7 @@ public class TransportClusterFormationInfoAction extends TransportNodesAction<
 
     @Override
     protected ClusterFormationInfoNodeResponse nodeOperation(ClusterFormationInfoTransportRequest nodeRequest, Task task) {
-        return new ClusterFormationInfoNodeResponse(
-            clusterService.localNode(),
-            coordinator.getClusterFormationWarning().orElse(null)
-        );
+        return new ClusterFormationInfoNodeResponse(clusterService.localNode(), coordinator.getClusterFormationWarning().orElse(null));
     }
 
     public static class ClusterFormationInfoTransportRequest extends TransportRequest {

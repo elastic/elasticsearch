@@ -35,10 +35,7 @@ public class ClusterFormationInfoNodeResponse extends BaseNodeResponse implement
         warningMessage = in.readOptionalString();
     }
 
-    public ClusterFormationInfoNodeResponse(
-        DiscoveryNode node,
-        @Nullable String warningMessage
-    ) {
+    public ClusterFormationInfoNodeResponse(DiscoveryNode node, @Nullable String warningMessage) {
         super(node);
         this.warningMessage = warningMessage;
     }

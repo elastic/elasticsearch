@@ -9,7 +9,6 @@
 package org.elasticsearch.action.admin.cluster.coordination;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 
 public class ClusterFormationInfoAction extends ActionType<ClusterFormationInfoResponse> {
 

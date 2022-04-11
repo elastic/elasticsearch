@@ -8,7 +8,6 @@
 
 package org.elasticsearch.client.internal;
 
-import org.elasticsearch.action.admin.cluster.coordination.ClusterFormationInfoRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
@@ -364,16 +363,6 @@ public class Requests {
      */
     public static ClusterStatsRequest clusterStatsRequest() {
         return new ClusterStatsRequest();
-    }
-
-    /**
-     * Creates a cluster formation info request.
-     *
-     * @return The cluster formation info request
-     * @see org.elasticsearch.client.internal.ClusterAdminClient#clusterFormationInfo(ClusterFormationInfoRequest)
-     */
-    public static ClusterFormationInfoRequest clusterFormationInfoRequest(String... nodeIds) {
-        return new ClusterFormationInfoRequest(nodeIds);
     }
 
     /**

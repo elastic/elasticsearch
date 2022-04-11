@@ -19,10 +19,6 @@ import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplai
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequestBuilder;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
-import org.elasticsearch.action.admin.cluster.coordination.ClusterFormationInfoAction;
-import org.elasticsearch.action.admin.cluster.coordination.ClusterFormationInfoRequest;
-import org.elasticsearch.action.admin.cluster.coordination.ClusterFormationInfoRequestBuilder;
-import org.elasticsearch.action.admin.cluster.coordination.ClusterFormationInfoResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthAction;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
@@ -766,21 +762,6 @@ public abstract class AbstractClient implements Client {
         @Override
         public NodesInfoRequestBuilder prepareNodesInfo(String... nodesIds) {
             return new NodesInfoRequestBuilder(this, NodesInfoAction.INSTANCE).setNodesIds(nodesIds);
-        }
-
-        @Override
-        public ActionFuture<ClusterFormationInfoResponse> clusterFormationInfo(ClusterFormationInfoRequest request) {
-            return execute(ClusterFormationInfoAction.INSTANCE, request);
-        }
-
-        @Override
-        public void clusterFormationInfo(ClusterFormationInfoRequest request, ActionListener<ClusterFormationInfoResponse> listener) {
-            execute(ClusterFormationInfoAction.INSTANCE, request, listener);
-        }
-
-        @Override
-        public ClusterFormationInfoRequestBuilder prepareClusterFormationInfo() {
-            return new ClusterFormationInfoRequestBuilder(this, ClusterFormationInfoAction.INSTANCE);
         }
 
         @Override

@@ -25,9 +25,11 @@ public class ClusterFormationInfoResponse extends BaseNodesResponse<ClusterForma
         super(in);
     }
 
-    public ClusterFormationInfoResponse(ClusterName clusterName,
-                                        List<ClusterFormationInfoNodeResponse> nodes,
-                                        List<FailedNodeException> failures) {
+    public ClusterFormationInfoResponse(
+        ClusterName clusterName,
+        List<ClusterFormationInfoNodeResponse> nodes,
+        List<FailedNodeException> failures
+    ) {
         super(clusterName, nodes, failures);
     }
 

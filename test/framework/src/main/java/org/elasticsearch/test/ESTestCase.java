@@ -193,7 +193,6 @@ public abstract class ESTestCase extends LuceneTestCase {
     private static final AtomicInteger portGenerator = new AtomicInteger();
 
     private static final Collection<String> loggedLeaks = new ArrayList<>();
-    public static final int MIN_PRIVATE_PORT = 13301;
 
     private HeaderWarningAppender headerWarningAppender;
 
@@ -1647,38 +1646,73 @@ public abstract class ESTestCase extends LuceneTestCase {
         return Boolean.parseBoolean(System.getProperty(FIPS_SYSPROP));
     }
 
+    /*
+     * [NOTE: Port ranges for tests]
+     *
+     * Some tests involve interactions over the localhost interface of the machine running the tests. The tests run concurrently in multiple
+     * JVMs, but all have access to the same network, so there's a risk that different tests will interact with each other in unexpected
+     * ways and trigger spurious failures. Gradle numbers its workers sequentially starting at 1 and each worker can determine its own
+     * identity from the {@link #TEST_WORKER_SYS_PROPERTY} system property. We use this to assign disjoint port ranges to each test worker,
+     * avoiding any unexpected interactions.
+     */
+
     /**
-     * Returns a unique port range for this JVM starting from the computed base port
+     * Defines the size of the port range assigned to each worker, which must be large enough to supply enough ports to run the tests, but
+     * not so large that we run out of ports. See also [NOTE: Port ranges for tests].
+     */
+    private static final int PORTS_PER_WORKER = 30;
+
+    /**
+     * Defines the minimum port that test workers should use. See also [NOTE: Port ranges for tests].
+     */
+    protected static final int MIN_PRIVATE_PORT = 13301;
+
+    /**
+     * Defines the maximum port that test workers should use. See also [NOTE: Port ranges for tests].
+     */
+    private static final int MAX_PRIVATE_PORT = 36600;
+
+    /**
+     * Returns a port range for this JVM according to its Gradle worker ID. See also [NOTE: Port ranges for tests].
      */
     public static String getPortRange() {
-        return getBasePort() + "-" + (getBasePort() + 99); // upper bound is inclusive
+        final var firstPort = getBasePort();
+        final var lastPort = firstPort + PORTS_PER_WORKER - 1; // upper bound is inclusive
+        assert MIN_PRIVATE_PORT <= firstPort && lastPort <= MAX_PRIVATE_PORT
+            : firstPort + "-" + lastPort + " vs " + MIN_PRIVATE_PORT + "-" + MAX_PRIVATE_PORT;
+        return firstPort + "-" + lastPort;
     }
 
+    /**
+     * Returns the start of the port range for this JVM according to its Gradle worker ID. See also [NOTE: Port ranges for tests].
+     */
     protected static int getBasePort() {
-        // some tests use MockTransportService to do network based testing. Yet, we run tests in multiple JVMs that means
-        // concurrent tests could claim port that another JVM just released and if that test tries to simulate a disconnect it might
-        // be smart enough to re-connect depending on what is tested. To reduce the risk, since this is very hard to debug we use
-        // a different default port range per JVM unless the incoming settings override it
-        // use a non-default base port otherwise some cluster in this JVM might reuse a port
-
-        // We rely on Gradle implementation details here, the worker IDs are long values incremented by one for the
-        // lifespan of the daemon this means that they can get larger than the allowed port range.
-        // Ephemeral ports on Linux start at 32768 so we modulo to make sure that we don't exceed that.
-        // This is safe as long as we have fewer than 224 Gradle workers running in parallel
-        // See also: https://github.com/elastic/elasticsearch/issues/44134
-        final String workerIdStr = System.getProperty(ESTestCase.TEST_WORKER_SYS_PROPERTY);
-        final int startAt;
+        final var workerIdStr = System.getProperty(ESTestCase.TEST_WORKER_SYS_PROPERTY);
         if (workerIdStr == null) {
-            startAt = 0; // IDE
-        } else {
-            // we adjust the gradle worker id with mod so as to not go over the ephemoral port ranges, but gradle continually
-            // increases this value, so the mod can eventually become zero, thus we shift on both sides by 1
-            final long workerId = Long.valueOf(workerIdStr);
-            assert workerId >= 1 : "Non positive gradle worker id: " + workerIdStr;
-            startAt = Math.floorMod(workerId - 1, 223) + 1;
+            // running in IDE
+            return MIN_PRIVATE_PORT;
         }
-        assert startAt >= 0 : "Unexpected test worker Id, resulting port range would be negative";
-        return MIN_PRIVATE_PORT + (startAt * 100);
+
+        final var workerId = Integer.parseInt(workerIdStr);
+        assert workerId >= 1 : "Non positive gradle worker id: " + workerIdStr;
+        final var firstPort = MIN_PRIVATE_PORT + (workerId * PORTS_PER_WORKER);
+        final var lastPort = firstPort + PORTS_PER_WORKER - 1; // upper bound is inclusive;
+        if (lastPort > MAX_PRIVATE_PORT) {
+            throw new AssertionError(
+                String.format(
+                    Locale.ROOT,
+                    """
+                        worker ID %d would get port range %d-%d which is outside the range of available ports %d-%d; either reduce \
+                        ESTestCase#PORTS_PER_WORKER or run fewer Gradle workers""",
+                    workerId,
+                    firstPort,
+                    lastPort,
+                    MIN_PRIVATE_PORT,
+                    MAX_PRIVATE_PORT
+                )
+            );
+        }
+        return firstPort;
     }
 
     protected static InetAddress randomIp(boolean v4) {

@@ -49,7 +49,6 @@ public abstract class WebServerTestCase extends ESTestCase {
         String nodeName = randomAlphaOfLength(10);
         final String date = new Date(randomNonNegativeLong()).toString();
         Build build = new Build(
-            Build.Flavor.UNKNOWN,
             Build.Type.UNKNOWN,
             randomAlphaOfLength(8),
             date,

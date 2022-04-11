@@ -516,10 +516,6 @@ subprojects {
         'def': footer
       ],
 
-      'es.distribution.flavor': [
-        'def': 'default'
-      ],
-
       'es.distribution.type': [
         'deb': 'deb',
         'rpm': 'rpm',

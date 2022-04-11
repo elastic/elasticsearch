@@ -34,7 +34,6 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
         final String date = new Date(randomNonNegativeLong()).toString();
         Version version = VersionUtils.randomIndexCompatibleVersion(random());
         Build build = new Build(
-            Build.Flavor.UNKNOWN,
             Build.Type.UNKNOWN,
             randomAlphaOfLength(8),
             date,
@@ -58,7 +57,6 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
         String clusterUUID = randomAlphaOfLengthBetween(10, 20);
         final Build current = Build.CURRENT;
         Build build = new Build(
-            current.flavor(),
             current.type(),
             current.hash(),
             current.date(),
@@ -78,7 +76,6 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
                         "cluster_uuid": "%s",
                         "version": {
                             "number": "%s",
-                            "build_flavor": "%s",
                             "build_type": "%s",
                             "build_hash": "%s",
                             "build_date": "%s",
@@ -92,7 +89,6 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
                     """.formatted(
                     clusterUUID,
                     build.qualifiedVersion(),
-                    current.flavor().displayName(),
                     current.type().displayName(),
                     current.hash(),
                     current.date(),
@@ -119,7 +115,6 @@ public class MainResponseTests extends AbstractSerializingTestCase<MainResponse>
             case 2 ->
                 // toggle the snapshot flag of the original Build parameter
                 build = new Build(
-                    Build.Flavor.UNKNOWN,
                     Build.Type.UNKNOWN,
                     build.hash(),
                     build.date(),

@@ -1235,8 +1235,7 @@ Contains statistics about {es} distributions installed on selected nodes.
 =====
 `flavor`:::
 (string)
-Type of {es} distribution, such as `default` or `OSS`, used by one or more
-selected nodes.
+Type of {es} distribution. This is always `default`.
 
 `type`:::
 (string)

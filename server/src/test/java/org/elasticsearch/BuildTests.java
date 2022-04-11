@@ -51,23 +51,13 @@ public class BuildTests extends ESTestCase {
         assertTrue(build.qualifiedVersion(), build.isProductionRelease());
 
         assertFalse(
-            new Build(
-                Build.CURRENT.type(),
-                Build.CURRENT.hash(),
-                Build.CURRENT.date(),
-                Build.CURRENT.isSnapshot(),
-                "7.0.0-SNAPSHOT"
-            ).isProductionRelease()
+            new Build(Build.CURRENT.type(), Build.CURRENT.hash(), Build.CURRENT.date(), Build.CURRENT.isSnapshot(), "7.0.0-SNAPSHOT")
+                .isProductionRelease()
         );
 
         assertFalse(
-            new Build(
-                Build.CURRENT.type(),
-                Build.CURRENT.hash(),
-                Build.CURRENT.date(),
-                Build.CURRENT.isSnapshot(),
-                "Unknown"
-            ).isProductionRelease()
+            new Build(Build.CURRENT.type(), Build.CURRENT.hash(), Build.CURRENT.date(), Build.CURRENT.isSnapshot(), "Unknown")
+                .isProductionRelease()
         );
     }
 
@@ -82,13 +72,7 @@ public class BuildTests extends ESTestCase {
             .filter(f -> f.equals(build.type()) == false)
             .collect(Collectors.toSet());
         final Build.Type otherType = randomFrom(otherTypes);
-        Build differentType = new Build(
-            otherType,
-            build.hash(),
-            build.date(),
-            build.isSnapshot(),
-            build.qualifiedVersion()
-        );
+        Build differentType = new Build(otherType, build.hash(), build.date(), build.isSnapshot(), build.qualifiedVersion());
         assertNotEquals(build, differentType);
 
         Build differentHash = new Build(
@@ -100,13 +84,7 @@ public class BuildTests extends ESTestCase {
         );
         assertNotEquals(build, differentHash);
 
-        Build differentDate = new Build(
-            build.type(),
-            build.hash(),
-            "1970-01-01",
-            build.isSnapshot(),
-            build.qualifiedVersion()
-        );
+        Build differentDate = new Build(build.type(), build.hash(), "1970-01-01", build.isSnapshot(), build.qualifiedVersion());
         assertNotEquals(build, differentDate);
 
         Build differentSnapshot = new Build(
@@ -173,13 +151,7 @@ public class BuildTests extends ESTestCase {
                 switch (randomIntBetween(1, 6)) {
                     case 1:
                         return new WriteableBuild(
-                            new Build(
-                                b.build.type(),
-                                b.build.hash(),
-                                b.build.date(),
-                                b.build.isSnapshot(),
-                                b.build.qualifiedVersion()
-                            )
+                            new Build(b.build.type(), b.build.hash(), b.build.date(), b.build.isSnapshot(), b.build.qualifiedVersion())
                         );
                     case 2:
                         return new WriteableBuild(

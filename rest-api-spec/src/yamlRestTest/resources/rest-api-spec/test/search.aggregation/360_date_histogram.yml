@@ -320,6 +320,7 @@ setup:
 
   - do:
       search:
+        index: test_date_hist
         body:
           query:
             match:
@@ -337,10 +338,11 @@ setup:
 "Multi-value date histogram docvalues only":
   - skip:
       version: " - 8.1.99"
-      reason:  Bug fixed in 8.2.0
+      reason: Bug fixed in 8.2.0
 
   - do:
       search:
+        index: test_date_hist
         body:
           profile: true
           query:

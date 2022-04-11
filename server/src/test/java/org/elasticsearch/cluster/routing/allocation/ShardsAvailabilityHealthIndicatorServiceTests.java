@@ -41,6 +41,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -63,7 +64,6 @@ import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.health.ServerHealthComponents.DATA;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.oneOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -81,7 +81,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 createExpectedResult(
                     GREEN,
@@ -110,7 +110,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 createExpectedResult(
                     YELLOW,
@@ -144,7 +144,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 createExpectedResult(
                     RED,
@@ -163,7 +163,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 createExpectedResult(
                     RED,
@@ -184,7 +184,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
         var service = createAllocationHealthIndicatorService(clusterState);
 
-        HealthIndicatorResult result = service.calculate();
+        HealthIndicatorResult result = service.calculate(true);
         assertEquals(RED, result.status());
         assertEquals("This cluster has 1 unavailable primary, 1 unavailable replica.", result.summary());
         assertEquals(1, result.impacts().size());
@@ -195,7 +195,11 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testShouldBeRedWhenThereAreUnassignedPrimariesAndUnassignedReplicasOnDifferentIndices() {
+        List<IndexMetadata> indexMetadataList = createIndexMetadataForIndexNameToPriorityMap(
+            Map.of("red-index", 3, "yellow-index-1", 5, "yellow-index-2", 8)
+        );
         var clusterState = createClusterStateWith(
+            indexMetadataList,
             List.of(
                 index("red-index", new ShardAllocation(randomNodeId(), UNAVAILABLE), new ShardAllocation(randomNodeId(), AVAILABLE)),
                 index("yellow-index-1", new ShardAllocation(randomNodeId(), AVAILABLE), new ShardAllocation(randomNodeId(), UNAVAILABLE)),
@@ -205,7 +209,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
         var service = createAllocationHealthIndicatorService(clusterState);
 
-        HealthIndicatorResult result = service.calculate();
+        HealthIndicatorResult result = service.calculate(true);
         assertEquals(RED, result.status());
         assertEquals("This cluster has 1 unavailable primary, 2 unavailable replicas.", result.summary());
         assertEquals(2, result.impacts().size());
@@ -213,18 +217,45 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             result.impacts().get(0),
             new HealthIndicatorImpact(1, "Cannot add data to 1 index [red-index]. Searches might return incomplete results.")
         );
+        // yellow-index-2 has the higher priority so it ought to be listed first:
         assertThat(
             result.impacts().get(1),
-            oneOf(
-                new HealthIndicatorImpact(
-                    3,
-                    "Searches might return slower than usual. Fewer redundant copies of the data exist on 2 indices [yellow-index-1, "
-                        + "yellow-index-2]."
-                ),
+            equalTo(
                 new HealthIndicatorImpact(
                     3,
                     "Searches might return slower than usual. Fewer redundant copies of the data exist on 2 indices [yellow-index-2, "
                         + "yellow-index-1]."
+                )
+            )
+        );
+    }
+
+    public void testSortByIndexPriority() {
+        var lowPriority = randomIntBetween(1, 5);
+        var highPriority = randomIntBetween(6, 20);
+        List<IndexMetadata> indexMetadataList = createIndexMetadataForIndexNameToPriorityMap(
+            Map.of("index-3", lowPriority, "index-1", lowPriority, "index-2", highPriority)
+        );
+        var clusterState = createClusterStateWith(
+            indexMetadataList,
+            List.of(
+                index("index-3", new ShardAllocation(randomNodeId(), AVAILABLE), new ShardAllocation(randomNodeId(), UNAVAILABLE)),
+                index("index-1", new ShardAllocation(randomNodeId(), AVAILABLE), new ShardAllocation(randomNodeId(), UNAVAILABLE)),
+                index("index-2", new ShardAllocation(randomNodeId(), AVAILABLE), new ShardAllocation(randomNodeId(), UNAVAILABLE))
+            ),
+            List.of()
+        );
+        var service = createAllocationHealthIndicatorService(clusterState);
+
+        HealthIndicatorResult result = service.calculate(true);
+        // index-2 has the higher priority so it ought to be listed first, followed by index-1 then index-3 which have the same priority:
+        assertThat(
+            result.impacts().get(0),
+            equalTo(
+                new HealthIndicatorImpact(
+                    3,
+                    "Searches might return slower than usual. Fewer redundant copies of the data exist on 3 indices [index-2, "
+                        + "index-1, index-3]."
                 )
             )
         );
@@ -244,7 +275,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 createExpectedResult(
                     GREEN,
@@ -264,7 +295,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 createExpectedResult(
                     GREEN,
@@ -290,7 +321,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 createExpectedResult(
                     YELLOW,
@@ -316,7 +347,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 createExpectedResult(
                     GREEN,
@@ -336,7 +367,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 createExpectedResult(
                     GREEN,
@@ -361,7 +392,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 createExpectedResult(
                     RED,
@@ -401,7 +432,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState, decisionMap);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 createExpectedResult(
                     RED,
@@ -472,7 +503,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState, decisionMap);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 createExpectedResult(
                     RED,
@@ -548,7 +579,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState, decisionMap);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 createExpectedResult(
                     RED,
@@ -624,7 +655,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState, decisionMap);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 createExpectedResult(
                     RED,
@@ -700,7 +731,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState, decisionMap);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 createExpectedResult(
                     RED,
@@ -770,14 +801,34 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         return createClusterStateWith(indices, indexRoutes, nodeShutdowns);
     }
 
+    private static List<IndexMetadata> createIndexMetadataForIndexNameToPriorityMap(Map<String, Integer> indexNameToPriorityMap) {
+        List<IndexMetadata> indexMetadataList = new ArrayList<>();
+        if (indexNameToPriorityMap != null) {
+            for (Map.Entry<String, Integer> indexNameToPriority : indexNameToPriorityMap.entrySet()) {
+                String indexName = indexNameToPriority.getKey();
+                IndexMetadata.Builder indexMetadataBuilder = new IndexMetadata.Builder(indexName);
+                Settings settings = Settings.builder()
+                    .put(IndexMetadata.SETTING_PRIORITY, indexNameToPriority.getValue())
+                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                    .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+                    .build();
+                indexMetadataBuilder.settings(settings);
+                indexMetadataList.add(indexMetadataBuilder.build());
+
+            }
+        }
+        return indexMetadataList;
+    }
+
     private static ClusterState createClusterStateWith(
-        List<IndexMetadata> indices,
-        List<IndexRoutingTable> indexRoutes,
+        List<IndexMetadata> indexMetadataList,
+        List<IndexRoutingTable> indexRoutingTables,
         List<NodeShutdown> nodeShutdowns
     ) {
-        var builder = RoutingTable.builder();
-        for (IndexRoutingTable index : indexRoutes) {
-            builder.add(index);
+        var routingTableBuilder = RoutingTable.builder();
+        for (IndexRoutingTable indexRoutingTable : indexRoutingTables) {
+            routingTableBuilder.add(indexRoutingTable);
         }
 
         var nodesShutdownMetadata = new NodesShutdownMetadata(
@@ -796,16 +847,16 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     )
                 )
         );
-
-        ImmutableOpenMap.Builder<String, IndexMetadata> indexMapBuilder = ImmutableOpenMap.builder();
-        indices.forEach(index -> indexMapBuilder.put(index.getIndex().getName(), index));
-
+        Metadata.Builder metadataBuilder = Metadata.builder();
+        ImmutableOpenMap.Builder<String, IndexMetadata> indexMetadataMapBuilder = ImmutableOpenMap.builder();
+        for (IndexMetadata indexMetadata : indexMetadataList) {
+            indexMetadataMapBuilder.put(indexMetadata.getIndex().getName(), indexMetadata);
+        }
+        metadataBuilder.indices(indexMetadataMapBuilder.build());
+        metadataBuilder.putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata);
         return ClusterState.builder(new ClusterName("test-cluster"))
-            .routingTable(builder.build())
-            .metadata(Metadata.builder()
-                .indices(indexMapBuilder.build())
-                .putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata)
-                .build())
+            .routingTable(routingTableBuilder.build())
+            .metadata(metadataBuilder.build())
             .build();
     }
 

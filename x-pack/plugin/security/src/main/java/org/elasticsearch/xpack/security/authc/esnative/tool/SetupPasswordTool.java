@@ -535,7 +535,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
             terminal.println(Verbosity.VERBOSE, "");
             terminal.println(Verbosity.VERBOSE, "Trying user password change call " + route.toString());
             try {
-                // supplier should own his resources
+                // supplier should own its resources
                 SecureString supplierPassword = password.clone();
                 final HttpResponse httpResponse = client.execute("PUT", route, elasticUser, elasticUserPassword, () -> {
                     try {

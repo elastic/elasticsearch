@@ -26,13 +26,11 @@ import java.io.File;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.UncheckedIOException;
-import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.regex.Pattern;
-
 import javax.inject.Inject;
 
 /**
@@ -96,11 +94,7 @@ public class LoggedExec extends Exec implements FileSystemOperationsAware {
         } else {
             out = new ByteArrayOutputStream();
             outputLogger = logger -> {
-                try {
-                    logger.error(((ByteArrayOutputStream) out).toString("UTF-8"));
-                } catch (UnsupportedEncodingException e) {
-                    throw new RuntimeException(e);
-                }
+                logger.error(((ByteArrayOutputStream) out).toString(StandardCharsets.UTF_8));
             };
         }
         setStandardOutput(out);
@@ -134,13 +128,9 @@ public class LoggedExec extends Exec implements FileSystemOperationsAware {
                 }
             });
         } catch (Exception e) {
-            try {
-                if (output.size() != 0) {
-                    LOGGER.error("Exec output and error:");
-                    NEWLINE.splitAsStream(output.toString("UTF-8")).forEach(s -> LOGGER.error("| " + s));
-                }
-            } catch (UnsupportedEncodingException ue) {
-                throw new GradleException("Failed to read exec output", ue);
+            if (output.size() != 0) {
+                LOGGER.error("Exec output and error:");
+                NEWLINE.splitAsStream(output.toString(StandardCharsets.UTF_8)).forEach(s -> LOGGER.error("| " + s));
             }
             throw e;
         }

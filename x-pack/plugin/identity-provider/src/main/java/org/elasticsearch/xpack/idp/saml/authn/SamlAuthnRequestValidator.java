@@ -33,7 +33,6 @@ import org.xml.sax.SAXException;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
@@ -48,7 +47,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.zip.Inflater;
 import java.util.zip.InflaterInputStream;
-
 import javax.xml.parsers.DocumentBuilder;
 
 import static org.opensaml.saml.common.xml.SAMLConstants.SAML2_REDIRECT_BINDING_URI;
@@ -369,8 +367,8 @@ public class SamlAuthnRequestValidator {
         }
     }
 
-    private String urlEncode(String param) throws UnsupportedEncodingException {
-        return URLEncoder.encode(param, StandardCharsets.UTF_8.name());
+    private String urlEncode(String param) {
+        return URLEncoder.encode(param, StandardCharsets.UTF_8);
     }
 
     private void logAndRespond(String message, ActionListener<SamlValidateAuthnRequestResponse> listener) {
@@ -406,13 +404,9 @@ public class SamlAuthnRequestValidator {
         }
 
         public String reconstructQueryParameters() throws ElasticsearchSecurityException {
-            try {
-                return relayState == null
-                    ? "SAMLRequest=" + urlEncode(samlRequest) + "&SigAlg=" + urlEncode(sigAlg)
-                    : "SAMLRequest=" + urlEncode(samlRequest) + "&RelayState=" + urlEncode(relayState) + "&SigAlg=" + urlEncode(sigAlg);
-            } catch (UnsupportedEncodingException e) {
-                throw new ElasticsearchSecurityException("Cannot reconstruct query for signature verification", e);
-            }
+            return relayState == null
+                ? "SAMLRequest=" + urlEncode(samlRequest) + "&SigAlg=" + urlEncode(sigAlg)
+                : "SAMLRequest=" + urlEncode(samlRequest) + "&RelayState=" + urlEncode(relayState) + "&SigAlg=" + urlEncode(sigAlg);
         }
     }
 }

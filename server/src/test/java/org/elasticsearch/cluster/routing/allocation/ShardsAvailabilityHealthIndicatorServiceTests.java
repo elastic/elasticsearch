@@ -69,7 +69,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 createExpectedResult(
                     GREEN,
@@ -98,7 +98,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 createExpectedResult(
                     YELLOW,
@@ -132,7 +132,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 createExpectedResult(
                     RED,
@@ -151,7 +151,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 createExpectedResult(
                     RED,
@@ -172,7 +172,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
         var service = createAllocationHealthIndicatorService(clusterState);
 
-        HealthIndicatorResult result = service.calculate();
+        HealthIndicatorResult result = service.calculate(true);
         assertEquals(RED, result.status());
         assertEquals("This cluster has 1 unavailable primary, 1 unavailable replica.", result.summary());
         assertEquals(1, result.impacts().size());
@@ -197,7 +197,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
         var service = createAllocationHealthIndicatorService(clusterState);
 
-        HealthIndicatorResult result = service.calculate();
+        HealthIndicatorResult result = service.calculate(true);
         assertEquals(RED, result.status());
         assertEquals("This cluster has 1 unavailable primary, 2 unavailable replicas.", result.summary());
         assertEquals(2, result.impacts().size());
@@ -235,7 +235,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
         var service = createAllocationHealthIndicatorService(clusterState);
 
-        HealthIndicatorResult result = service.calculate();
+        HealthIndicatorResult result = service.calculate(true);
         // index-2 has the higher priority so it ought to be listed first, followed by index-1 then index-3 which have the same priority:
         assertThat(
             result.impacts().get(0),
@@ -263,7 +263,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 createExpectedResult(
                     GREEN,
@@ -283,7 +283,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 createExpectedResult(
                     GREEN,
@@ -309,7 +309,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 createExpectedResult(
                     YELLOW,
@@ -335,7 +335,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 createExpectedResult(
                     GREEN,
@@ -355,7 +355,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 createExpectedResult(
                     GREEN,
@@ -380,7 +380,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 createExpectedResult(
                     RED,

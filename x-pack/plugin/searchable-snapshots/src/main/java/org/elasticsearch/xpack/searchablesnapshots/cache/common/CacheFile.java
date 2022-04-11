@@ -362,34 +362,28 @@ public class CacheFile {
             );
 
             for (SparseFileTracker.Gap gap : gaps) {
-                try {
-                    executor.execute(new AbstractRunnable() {
+                executor.execute(new AbstractRunnable() {
 
-                        @Override
-                        protected void doRun() throws Exception {
-                            if (reference.tryIncRef() == false) {
-                                throw new AlreadyClosedException("Cache file channel has been released and closed");
-                            }
-                            try {
-                                ensureOpen();
-                                writer.fillCacheRange(reference.fileChannel, gap.start(), gap.end(), gap::onProgress);
-                                gap.onCompletion();
-                                markAsNeedsFSync();
-                            } finally {
-                                reference.decRef();
-                            }
+                    @Override
+                    protected void doRun() throws Exception {
+                        if (reference.tryIncRef() == false) {
+                            throw new AlreadyClosedException("Cache file channel has been released and closed");
                         }
+                        try {
+                            ensureOpen();
+                            writer.fillCacheRange(reference.fileChannel, gap.start(), gap.end(), gap::onProgress);
+                            gap.onCompletion();
+                            markAsNeedsFSync();
+                        } finally {
+                            reference.decRef();
+                        }
+                    }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            gap.onFailure(e);
-                        }
-                    });
-                } catch (Exception e) {
-                    logger.error(() -> new ParameterizedMessage("unexpected exception when submitting task to fill gap [{}]", gap), e);
-                    assert false : e;
-                    gap.onFailure(e);
-                }
+                    @Override
+                    public void onFailure(Exception e) {
+                        gap.onFailure(e);
+                    }
+                });
             }
         } catch (Exception e) {
             releaseAndFail(future, decrementRef, e);

@@ -47,6 +47,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.zip.Inflater;
 import java.util.zip.InflaterInputStream;
+
 import javax.xml.parsers.DocumentBuilder;
 
 import static org.opensaml.saml.common.xml.SAMLConstants.SAML2_REDIRECT_BINDING_URI;

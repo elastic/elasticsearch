@@ -125,11 +125,7 @@ public class AnnotatedPassageFormatter extends PassageFormatter {
             int start = passage.getMatchStarts()[i];
             int end = passage.getMatchEnds()[i];
             String searchTerm = passage.getMatchTerms()[i].utf8ToString();
-            Markup markup = new Markup(
-                start,
-                end,
-                SEARCH_HIT_TYPE + "=" + URLEncoder.encode(searchTerm, StandardCharsets.UTF_8)
-            );
+            Markup markup = new Markup(start, end, SEARCH_HIT_TYPE + "=" + URLEncoder.encode(searchTerm, StandardCharsets.UTF_8));
             markupPassage.addUnlessOverlapping(markup);
         }
 

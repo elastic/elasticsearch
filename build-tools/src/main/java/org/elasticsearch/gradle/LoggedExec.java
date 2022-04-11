@@ -31,6 +31,7 @@ import java.nio.file.Files;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.regex.Pattern;
+
 import javax.inject.Inject;
 
 /**
@@ -93,9 +94,7 @@ public class LoggedExec extends Exec implements FileSystemOperationsAware {
             };
         } else {
             out = new ByteArrayOutputStream();
-            outputLogger = logger -> {
-                logger.error(((ByteArrayOutputStream) out).toString(StandardCharsets.UTF_8));
-            };
+            outputLogger = logger -> { logger.error(((ByteArrayOutputStream) out).toString(StandardCharsets.UTF_8)); };
         }
         setStandardOutput(out);
         setErrorOutput(out);

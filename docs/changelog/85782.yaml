@@ -1,0 +1,5 @@
+pr: 85782
+summary: Transport action for `ClusterFormationFailureHelper` warnings
+area: Health
+type: feature
+issues: []

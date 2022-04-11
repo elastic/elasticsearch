@@ -25,15 +25,16 @@ class AuthorizationDenialMessages {
     private AuthorizationDenialMessages() {}
 
     static String runAsDenied(Authentication authentication, String action) {
+        assert authentication.getUser().isRunAs() : "constructing run as denied message but action was not run as";
+
         String userText = authenticatedUserText(authentication);
 
-        String actionIsDeniedMessage = "action [" + action + "] is unauthorized for " + userText;
+        String actionIsUnauthorizedText = actionIsUnauthorizedText(action, userText);
 
         String runAsUserText = authentication.getUser().isRunAs() ? authentication.getUser().principal() : "";
+        String runAsDeniedMessage = "because " + userText + " is unauthorized to run as [" + runAsUserText + "]";
 
-        String runAsDeniedMessage = "because" + userText + " is unauthorized to run as [" + runAsUserText + "]";
-
-        return actionIsDeniedMessage + " " + runAsDeniedMessage;
+        return actionIsUnauthorizedText + " " + runAsDeniedMessage;
     }
 
     static String actionDenied(Authentication authentication, String action, TransportRequest request, @Nullable String context) {
@@ -50,7 +51,7 @@ class AuthorizationDenialMessages {
             userText = userText + " with roles [" + Strings.arrayToCommaDelimitedString(authentication.getUser().roles()) + "]";
         }
 
-        String message = "action [" + action + "] is unauthorized for " + userText;
+        String message = actionIsUnauthorizedText(action, userText);
         if (context != null) {
             message = message + " " + context;
         }
@@ -89,4 +90,7 @@ class AuthorizationDenialMessages {
         return userText;
     }
 
+    private static String actionIsUnauthorizedText(String action, String userText) {
+        return "action [" + action + "] is unauthorized for " + userText;
+    }
 }

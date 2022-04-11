@@ -9,7 +9,7 @@ import java.util.List;
 
 public class GoogleCloudStoragePluginTest extends ESTestCase {
 
-    public void testGetSettings() {
+    public void testExposedSettings() {
         List<Setting<?>> settings = new GoogleCloudStoragePlugin(Settings.EMPTY).getSettings();
 
         Assert.assertEquals(

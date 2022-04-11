@@ -111,7 +111,7 @@ Security::
 * Ensure tokens represent effective user's identity in all cases {es-pull}84263[#84263]
 
 Snapshot/Restore::
-* Don't fail if there no symlink for AWS Web Identity Token {es-pull}84697[#84697]
+* Don't fail if there is no symlink for AWS Web Identity Token {es-pull}84697[#84697]
 * Fix atomic writes in HDFS {es-pull}85210[#85210]
 * Fix leaking listeners bug on frozen tier {es-pull}85239[#85239]
 * Fix snapshot status messages on node-left {es-pull}85021[#85021]
@@ -147,7 +147,7 @@ Audit::
 * User Profile - Audit security config change for profile APIs {es-pull}84785[#84785]
 
 Authentication::
-* Authentication under domains {es-pull}82639[#82639]
+* Adds domain information to authentication object {es-pull}82639[#82639]
 * Improve BWC for persisted authentication headers {es-pull}83913[#83913] (issue: {es-issue}83567[#83567])
 * Warn on SAML attributes with special attribute names {es-pull}85248[#85248] (issue: {es-issue}48613[#48613])
 

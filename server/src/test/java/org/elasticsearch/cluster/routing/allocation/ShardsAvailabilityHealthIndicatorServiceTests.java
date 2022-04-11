@@ -8,30 +8,42 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.health.UserAction;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.mockito.stubbing.Answer;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.RESTART;
@@ -49,6 +61,7 @@ import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.health.ServerHealthComponents.DATA;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.oneOf;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -362,18 +375,126 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
     }
 
+    public void testUserActionsEnableAllocation() throws IOException {
+        var unavailableReplicas = randomList(1, 5, () -> new ShardAllocation(randomNodeId(), UNAVAILABLE));
+
+        IndexMetadata indexMetadata = IndexMetadata.builder("yellow-index")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build())
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+
+        var clusterState = createClusterStateWith(
+            List.of(
+                indexMetadata
+            ),
+            List.of(
+                index(
+                    "yellow-index",
+                    new ShardAllocation(randomNodeId(), UNAVAILABLE, decidersNo())
+                )
+            ),
+            List.of()
+        );
+        Map<ShardRoutingKey, ShardAllocationDecision> decisionMap = Map.of(
+            new ShardRoutingKey("yellow-index", 0, true),
+            new ShardAllocationDecision(
+                AllocateUnassignedDecision.fromDecision(
+                    Decision.NO,
+                    null,
+                    List.of(
+                        new NodeAllocationResult(
+                            new DiscoveryNode(randomNodeId(), buildNewFakeTransportAddress(), Version.CURRENT),
+                            new Decision.Multi().add(Decision.single(Decision.Type.NO, EnableAllocationDecider.NAME, null)),
+                            1
+                        )
+                    )
+                ),
+                MoveDecision.NOT_TAKEN
+            )
+        );
+        var service = createAllocationHealthIndicatorService(clusterState, decisionMap);
+
+        assertThat(
+            service.calculate(),
+            equalTo(
+                createExpectedResult(
+                    RED,
+                    "This cluster has 1 unavailable primary.",
+                    Map.of(
+                        "unassigned_primaries",
+                        1,
+                        "started_primaries",
+                        0,
+                        "unassigned_replicas",
+                        0,
+                        "started_replicas",
+                        0
+                    ),
+                    List.of(
+                        new HealthIndicatorImpact(
+                            1,
+                            "Cannot add data to 1 index [yellow-index]. Searches might return incomplete results."
+                        )
+                    ),
+                    List.of(
+                        new UserAction(
+                            "enable_allocations",
+                            "",
+                            Set.of("yellow-index"),
+                            ""
+                        )
+                    )
+                )
+            )
+        );
+    }
+
     private HealthIndicatorResult createExpectedResult(
         HealthStatus status,
         String summary,
         Map<String, Object> details,
         List<HealthIndicatorImpact> impacts
     ) {
-        return new HealthIndicatorResult(NAME, DATA, status, summary, new SimpleHealthIndicatorDetails(addDefaults(details)), impacts);
+        return createExpectedResult(status, summary, details, impacts, null);
     }
 
-    private static ClusterState createClusterStateWith(List<IndexRoutingTable> indexes, List<NodeShutdown> nodeShutdowns) {
+    private HealthIndicatorResult createExpectedResult(
+        HealthStatus status,
+        String summary,
+        Map<String, Object> details,
+        List<HealthIndicatorImpact> impacts,
+        List<UserAction> actions
+    ) {
+        return new HealthIndicatorResult(
+            NAME,
+            DATA,
+            status,
+            summary,
+            new SimpleHealthIndicatorDetails(addDefaults(details)),
+            impacts,
+            actions
+        );
+    }
+
+    private static ClusterState createClusterStateWith(List<IndexRoutingTable> indexRoutes, List<NodeShutdown> nodeShutdowns) {
+        List<IndexMetadata> indices = indexRoutes.stream()
+            .map(table -> IndexMetadata.builder(table.getIndex().getName())
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build())
+                .numberOfShards(1)
+                .numberOfReplicas(table.size() - 1)
+                .build())
+            .collect(Collectors.toList());
+        return createClusterStateWith(indices, indexRoutes, nodeShutdowns);
+    }
+
+    private static ClusterState createClusterStateWith(
+        List<IndexMetadata> indices,
+        List<IndexRoutingTable> indexRoutes,
+        List<NodeShutdown> nodeShutdowns
+    ) {
         var builder = RoutingTable.builder();
-        for (IndexRoutingTable index : indexes) {
+        for (IndexRoutingTable index : indexRoutes) {
             builder.add(index);
         }
 
@@ -394,9 +515,15 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 )
         );
 
+        ImmutableOpenMap.Builder<String, IndexMetadata> indexMapBuilder = ImmutableOpenMap.builder();
+        indices.forEach(index -> indexMapBuilder.put(index.getIndex().getName(), index));
+
         return ClusterState.builder(new ClusterName("test-cluster"))
             .routingTable(builder.build())
-            .metadata(Metadata.builder().putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata).build())
+            .metadata(Metadata.builder()
+                .indices(indexMapBuilder.build())
+                .putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata)
+                .build())
             .build();
     }
 
@@ -424,7 +551,15 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     private static IndexRoutingTable index(String name, ShardAllocation primaryState, ShardAllocation... replicaStates) {
-        var index = new Index(name, UUID.randomUUID().toString());
+        return index(IndexMetadata.builder(name)
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build())
+            .numberOfShards(1)
+            .numberOfReplicas(replicaStates.length)
+            .build(), primaryState, replicaStates);
+    }
+
+    private static IndexRoutingTable index(IndexMetadata indexMetadata, ShardAllocation primaryState, ShardAllocation... replicaStates) {
+        var index = indexMetadata.getIndex();
         var shardId = new ShardId(index, 0);
 
         var builder = IndexRoutingTable.builder(index);
@@ -440,7 +575,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             shardId,
             primary,
             getSource(primary, allocation.state),
-            new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null)
+            allocation.unassignedInfo == null ? new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null) : allocation.unassignedInfo
         );
         if (allocation.state == UNAVAILABLE || allocation.state == INITIALIZING) {
             return routing;
@@ -488,10 +623,18 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         RESTARTING
     }
 
-    private record ShardAllocation(String nodeId, ShardState state, Long unassignedTimeNanos) {
+    private record ShardAllocation(String nodeId, ShardState state, Long unassignedTimeNanos, @Nullable UnassignedInfo unassignedInfo) {
 
         ShardAllocation(String nodeId, ShardState state) {
-            this(nodeId, state, null);
+            this(nodeId, state, null, null);
+        }
+
+        ShardAllocation(String nodeId, ShardState state, Long unassignedTimeNanos) {
+            this(nodeId, state, unassignedTimeNanos, null);
+        }
+
+        ShardAllocation(String nodeId, ShardState state, UnassignedInfo unassignedInfo) {
+            this(nodeId, state, null, unassignedInfo);
         }
     }
 
@@ -501,9 +644,40 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         return UUID.randomUUID().toString();
     }
 
+    private static UnassignedInfo decidersNo() {
+        return new UnassignedInfo(
+            UnassignedInfo.Reason.ALLOCATION_FAILED,
+            null,
+            null,
+            1,
+            0,
+            0,
+            false,
+            UnassignedInfo.AllocationStatus.DECIDERS_NO,
+            Collections.emptySet(),
+            null
+        );
+    }
+
+    private record ShardRoutingKey(String index, int shard, boolean primary) {}
+
     private static ShardsAvailabilityHealthIndicatorService createAllocationHealthIndicatorService(ClusterState clusterState) {
+        return createAllocationHealthIndicatorService(clusterState, Collections.emptyMap());
+    }
+
+    private static ShardsAvailabilityHealthIndicatorService createAllocationHealthIndicatorService(
+        ClusterState clusterState,
+        final Map<ShardRoutingKey, ShardAllocationDecision> decisions
+    ) {
         var clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
-        return new ShardsAvailabilityHealthIndicatorService(clusterService, null, null); // TODO FIX HERE
+        var allocationService = mock(AllocationService.class);
+        when(allocationService.explainShardAllocation(any(), any())).thenAnswer((Answer<ShardAllocationDecision>) invocation -> {
+            ShardRouting shardRouting = invocation.getArgument(0);
+            var key = new ShardRoutingKey(shardRouting.getIndexName(), shardRouting.getId(), shardRouting.primary());
+            return decisions.getOrDefault(key, ShardAllocationDecision.NOT_TAKEN);
+        });
+        var allocationDeciders = mock(AllocationDeciders.class);
+        return new ShardsAvailabilityHealthIndicatorService(clusterService, allocationService, allocationDeciders);
     }
 }

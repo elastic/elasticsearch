@@ -22,9 +22,9 @@ import java.nio.charset.StandardCharsets;
 import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.time.LocalDate;
+import java.time.ZoneOffset;
 import java.util.Base64;
-import java.util.Calendar;
-import java.util.Date;
+import java.util.Locale;
 
 import static org.elasticsearch.xpack.security.authc.TokenService.VERSION_MACAROON_ACCESS_TOKENS;
 
@@ -33,10 +33,9 @@ public final class MacaroonUtils {
     public static final String PIT_CAVEAT_KEY = "restrict access to PIT";
     public static final String READ_ONLY_CAVEAT_KEY = "restrict read-only";
 
-    private static final SimpleDateFormat ISO_DateFormat_MILLIS_TIMEZONE = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSX");
+    private static final SimpleDateFormat ISO_DateFormat_MILLIS_TIMEZONE = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSX", Locale.ROOT);
 
     public static String attenuateTokenForReadOnly(String token) throws IOException {
-        Date now = Calendar.getInstance().getTime();
         return attenuateTokenWithCaveats(token, READ_ONLY_CAVEAT_KEY);
     }
 
@@ -48,7 +47,7 @@ public final class MacaroonUtils {
         if (validFor.isNegative()) {
             throw new IllegalArgumentException("Token validity must be positive");
         }
-        String expiryDate = ISO_DateFormat_MILLIS_TIMEZONE.format(LocalDate.now().plus(validFor));
+        String expiryDate = ISO_DateFormat_MILLIS_TIMEZONE.format(LocalDate.now(ZoneOffset.UTC).plus(validFor));
         return attenuateTokenWithCaveats(token, TimestampCaveatVerifier.CAVEAT_PREFIX + expiryDate);
     }
 

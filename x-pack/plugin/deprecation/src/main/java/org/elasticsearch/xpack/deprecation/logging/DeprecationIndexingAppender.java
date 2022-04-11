@@ -7,13 +7,6 @@
 
 package org.elasticsearch.xpack.deprecation.logging;
 
-//import org.elasticsearch.logging.core.Appender;
-//import org.elasticsearch.logging.core.Core;
-//import org.elasticsearch.logging.core.Filter;
-//import org.elasticsearch.logging.core.Layout;
-//import org.elasticsearch.logging.core.LogEvent;
-//import org.elasticsearch.logging.core.appender.AbstractAppender;
-//import org.elasticsearch.logging.core.config.plugins.Plugin;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.logging.core.Appender;
@@ -30,8 +23,7 @@ import java.util.function.Consumer;
  * writes, but instead constructs an {@link IndexRequest} for the log message and passes that
  * to a callback.
  */
-// @Plugin(name = "DeprecationIndexingAppender", category = Core.CATEGORY_NAME, elementType = Appender.ELEMENT_TYPE)
-public class DeprecationIndexingAppender implements Appender/*extends AbstractAppender*/ {
+public class DeprecationIndexingAppender implements Appender {
     public static final String DEPRECATION_MESSAGES_DATA_STREAM = ".logs-deprecation.elasticsearch-default";
 
     private String name;

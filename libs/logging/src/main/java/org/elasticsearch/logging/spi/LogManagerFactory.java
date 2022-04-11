@@ -9,8 +9,10 @@
 package org.elasticsearch.logging.spi;
 
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.locator.LoggingSupportLocator;
 
+/**
+ * SPI for creating new loggers
+ */
 public interface LogManagerFactory {
     static LogManagerFactory provider() {
         return LoggingSupportProvider.provider().logManagerFactory();

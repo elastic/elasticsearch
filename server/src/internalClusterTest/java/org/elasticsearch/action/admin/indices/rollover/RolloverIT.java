@@ -35,6 +35,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.Message;
 import org.elasticsearch.logging.spi.AppendeSupport;
 import org.elasticsearch.logging.core.MockLogAppender;
+import org.elasticsearch.logging.spi.AppenderSupport;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;

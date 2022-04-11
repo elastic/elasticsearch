@@ -12,6 +12,10 @@ import org.elasticsearch.logging.ESMapMessage;
 import org.elasticsearch.logging.Message;
 import org.elasticsearch.logging.locator.LoggingSupportLocator;
 
+/**
+ * An SPI to create messages. Ideally we should get rid of parametrized message and use string suppliers
+ * TODO PG ESMapMessage should be more low level and not exposed.
+ */
 public interface MessageFactory {
 
     /**

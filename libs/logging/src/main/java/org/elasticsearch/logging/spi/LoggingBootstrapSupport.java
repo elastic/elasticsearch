@@ -17,6 +17,9 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Consumer;
 
+/**
+ * Used on startup and in testing infra. We can considere limiting the scope of export
+ */
 public interface LoggingBootstrapSupport {
     static LoggingBootstrapSupport provider() {
         return LoggingSupportProvider.provider().loggingBootstrapSupport();

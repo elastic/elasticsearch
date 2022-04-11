@@ -12,8 +12,7 @@ package org.elasticsearch.logging;
 //import org.elasticsearch.logging.impl.ParameterizedMessageImpl;
 import org.elasticsearch.logging.spi.MessageFactory;
 
-// TODO: This sucks ( to extends log4j type, but is temporary, until we replace new XXXMessage with factories )
-// TODO:
+
 // TODO PG: I wonder if we need this. I would prefer if logger users would use String as a message, possibly some parameters suppliers
 public interface Message {
     static final MessageFactory provider = MessageFactory.provider();

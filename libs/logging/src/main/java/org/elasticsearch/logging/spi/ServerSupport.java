@@ -10,6 +10,10 @@ package org.elasticsearch.logging.spi;
 
 import org.elasticsearch.logging.locator.ServerSupportLocator;
 
+/**
+ * An SPI that has to be implemented by ES server in order provided the logging infra with the information
+ * not available in logging framework
+ */
 public interface ServerSupport {
     ServerSupport INSTANCE = ServerSupportLocator.INSTANCE;
 

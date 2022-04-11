@@ -8,8 +8,11 @@
 
 package org.elasticsearch.logging.spi;
 
-import org.elasticsearch.logging.locator.LoggingSupportLocator;
 
+/**
+ * the SPI for changing logger level. Used for slow logs (we want to make sure the level is TRACE)
+ * and dynamic change of logger level via settings api
+ */
 public interface LogLevelSupport {
 
     static LogLevelSupport provider() {

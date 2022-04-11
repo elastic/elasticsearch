@@ -10,6 +10,7 @@ package org.elasticsearch.logging.core;
 
 import java.util.Iterator;
 
+//TODO PG remove.. a copy of regex from server
 public class RegexCopy {
     private RegexCopy() {}
 

@@ -16,6 +16,7 @@ import org.elasticsearch.logging.locator.LoggingSupportLocator;
 
 import java.util.List;
 
+//more low level stuff. we can possibly limit the scope of the export
 public interface AppenderSupport {
 
     static AppenderSupport provider() {
@@ -31,8 +32,6 @@ public interface AppenderSupport {
     void removeAppender(final Logger logger, final MockLogAppender appender);
 
     Layout createECSLayout(String dataset);
-
-//    RateLimitingFilter createRateLimitingFilter();
 
     Appender createMockLogAppender(List<MockLogAppender.LoggingExpectation> expectations) throws IllegalAccessException;
 }

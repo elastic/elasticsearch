@@ -18,6 +18,7 @@ import java.util.regex.Pattern;
 
 /**
  * Test appender that can be used to verify that certain events were logged correctly
+ * TODO possibly moved to a testing ?
  */
 public class MockLogAppender {
 

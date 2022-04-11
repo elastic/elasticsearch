@@ -823,7 +823,7 @@ teardown:
   - match: { aggregations.name.buckets.4.field_exists.top_metrics.top.1.metrics.score: 8 }
 
 ---
-"terms order by top metrics missing metric":
+"terms order by top metrics missing metric rewrite_to_filter_by_filter true":
   - skip:
       version: " - 8.1.99"
       reason: Bug fixed in 8.2.0
@@ -1002,7 +1002,7 @@ teardown:
                           order_date: desc
 
 ---
-"terms order by top metrics missing metric":
+"terms order by top metrics missing metric rewrite_to_filter_by_filter false":
   - skip:
       version: " - 8.1.99"
       reason: Bug fixed in 8.2.0

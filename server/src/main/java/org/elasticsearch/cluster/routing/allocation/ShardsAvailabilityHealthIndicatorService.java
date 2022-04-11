@@ -131,18 +131,6 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     private static final String ACTION_MIGRATE_TIERS_MESSAGE = ""; // TODO
     private static final String ACTION_MIGRATE_TIERS_URL = ""; // TODO
 
-    private static final String ACTION_ENABLE_SEARCHABLE_SNAPSHOT_ALLOCATION_ID = "enable_searchable_snapshot_allocation";
-    private static final String ACTION_ENABLE_SEARCHABLE_SNAPSHOT_ALLOCATION_MESSAGE = ""; // TODO
-    private static final String ACTION_ENABLE_SEARCHABLE_SNAPSHOT_ALLOCATION_URL = ""; // TODO
-
-    private static final String ACTION_REDEFINE_SEARCHABLE_SNAPSHOT_REPOSITORY_ID = "redefine_searchable_snapshot_repository";
-    private static final String ACTION_REDEFINE_SEARCHABLE_SNAPSHOT_REPOSITORY_MESSAGE = ""; // TODO
-    private static final String ACTION_REDEFINE_SEARCHABLE_SNAPSHOT_REPOSITORY_URL = ""; // TODO
-
-    private static final String ACTION_ADD_FROZEN_TIER_RESOURCES_ID = "add_frozen_tier_resources";
-    private static final String ACTION_ADD_FROZEN_TIER_RESOURCES_MESSAGE = ""; // TODO
-    private static final String ACTION_ADD_FROZEN_TIER_RESOURCES_URL = ""; // TODO
-
     private static final String ACTION_INCREASE_TIER_CAPACITY_FOR_ALLOCATIONS_ID = "increase_tier_capacity_for_allocations";
     private static final String ACTION_INCREASE_TIER_CAPACITY_FOR_ALLOCATIONS_MESSAGE = ""; // TODO
     private static final String ACTION_INCREASE_TIER_CAPACITY_FOR_ALLOCATIONS_URL = ""; // TODO
@@ -487,17 +475,6 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 case ACTION_RESTORE_FROM_SNAPSHOT_ID ->
                     new UserAction(ACTION_RESTORE_FROM_SNAPSHOT_ID, ACTION_RESTORE_FROM_SNAPSHOT_MESSAGE, indices,
                         ACTION_RESTORE_FROM_SNAPSHOT_URL);
-                case ACTION_ENABLE_SEARCHABLE_SNAPSHOT_ALLOCATION_ID ->
-                    new UserAction(ACTION_ENABLE_SEARCHABLE_SNAPSHOT_ALLOCATION_ID, ACTION_ENABLE_SEARCHABLE_SNAPSHOT_ALLOCATION_MESSAGE,
-                        indices,
-                        ACTION_ENABLE_SEARCHABLE_SNAPSHOT_ALLOCATION_URL);
-                case ACTION_REDEFINE_SEARCHABLE_SNAPSHOT_REPOSITORY_ID ->
-                    new UserAction(ACTION_REDEFINE_SEARCHABLE_SNAPSHOT_REPOSITORY_ID,
-                        ACTION_REDEFINE_SEARCHABLE_SNAPSHOT_REPOSITORY_MESSAGE, indices,
-                        ACTION_REDEFINE_SEARCHABLE_SNAPSHOT_REPOSITORY_URL);
-                case ACTION_ADD_FROZEN_TIER_RESOURCES_ID ->
-                    new UserAction(ACTION_ADD_FROZEN_TIER_RESOURCES_ID, ACTION_ADD_FROZEN_TIER_RESOURCES_MESSAGE, indices,
-                        ACTION_ADD_FROZEN_TIER_RESOURCES_URL);
                 case ACTION_INCREASE_TIER_CAPACITY_FOR_ALLOCATIONS_ID ->
                     new UserAction(ACTION_INCREASE_TIER_CAPACITY_FOR_ALLOCATIONS_ID, ACTION_INCREASE_TIER_CAPACITY_FOR_ALLOCATIONS_MESSAGE,
                         indices,

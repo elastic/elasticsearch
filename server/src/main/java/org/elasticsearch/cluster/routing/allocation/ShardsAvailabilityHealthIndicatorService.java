@@ -42,6 +42,7 @@ import java.util.Locale;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -117,26 +118,13 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             status.getImpacts(), status.getUserActions());
     }
 
-    private static final String ACTION_SHARD_LIMIT_ID = "increase_shard_limit";
-    private static final String ACTION_SHARD_LIMIT_MESSAGE = ""; // TODO
-    private static final String ACTION_SHARD_LIMIT_URL = ""; // TODO
-
-    // TODO: This should be split into 4 options based on the setting keeping it from allocating
-    private static final String ACTION_ENABLE_ALLOCATIONS_ID = "enable_allocations";
-    private static final String ACTION_ENABLE_ALLOCATIONS_MESSAGE = ""; // TODO
-    private static final String ACTION_ENABLE_ALLOCATIONS_URL = ""; // TODO
-
-    private static final String ACTION_MIGRATE_TIERS_ID = "migrate_data_tiers";
-    private static final String ACTION_MIGRATE_TIERS_MESSAGE = ""; // TODO
-    private static final String ACTION_MIGRATE_TIERS_URL = ""; // TODO
-
-    private static final String ACTION_INCREASE_TIER_CAPACITY_FOR_ALLOCATIONS_ID = "increase_tier_capacity_for_allocations";
-    private static final String ACTION_INCREASE_TIER_CAPACITY_FOR_ALLOCATIONS_MESSAGE = ""; // TODO
-    private static final String ACTION_INCREASE_TIER_CAPACITY_FOR_ALLOCATIONS_URL = ""; // TODO
-
-    private static final String ACTION_RESTORE_FROM_SNAPSHOT_ID = "restore_from_snapshot";
-    private static final String ACTION_RESTORE_FROM_SNAPSHOT_MESSAGE = ""; // TODO
-    private static final String ACTION_RESTORE_FROM_SNAPSHOT_URL = ""; // TODO
+    // TODO: Fill in messages and help URLs
+    public static final UserAction.Definition ACTION_RESTORE_FROM_SNAPSHOT = new UserAction.Definition("restore_from_snapshot", "", "");
+    public static final UserAction.Definition ACTION_SHARD_LIMIT = new UserAction.Definition("increase_shard_limit", "", "");
+    public static final UserAction.Definition ACTION_ENABLE_ALLOCATIONS = new UserAction.Definition("enable_allocations", "", "");
+    public static final UserAction.Definition ACTION_MIGRATE_TIERS = new UserAction.Definition("migrate_data_tiers", "", "");
+    public static final UserAction.Definition ACTION_INCREASE_TIER_CAPACITY = new UserAction.Definition(
+        "increase_tier_capacity_for_allocations", "", "");
 
     private class ShardAllocationCounts {
         private boolean available = true; // This will be true even if no replicas are expected, as long as none are unavailable
@@ -146,8 +134,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         private int initializing = 0;
         private int started = 0;
         private int relocating = 0;
-        private Set<String> indicesWithUnavailableShards = new HashSet<>();
-        private final Map<String, List<ShardRouting>> diagnoses = new HashMap<>();
+        private final Set<String> indicesWithUnavailableShards = new HashSet<>();
+        private final Map<String, UserAction> userActions = new HashMap<>();
 
         public void increment(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns) {
             boolean isNew = isUnassignedDueToNewInitialization(routing);
@@ -165,7 +153,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                         unassigned_restarting++;
                     } else {
                         unassigned++;
-                        diagnoseUnassigned(this, routing, state);
+                        diagnoseUnassigned(this::addUserAction, routing, state);
                     }
                 }
                 case INITIALIZING -> initializing++;
@@ -174,8 +162,10 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             }
         }
 
-        public void addUserAction(String id, ShardRouting routing) {
-            diagnoses.computeIfAbsent(id, (k) -> new ArrayList<>()).add(routing);
+        public void addUserAction(UserAction.Definition actionDef, ShardRouting routing) {
+            userActions.computeIfAbsent(actionDef.id(), (k) -> new UserAction(actionDef, new HashSet<>()))
+                .affectedResources()
+                .add(routing.getIndexName());
         }
     }
 
@@ -197,22 +187,30 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         return routing.primary() && routing.active() == false && getInactivePrimaryHealth(routing) == ClusterHealthStatus.YELLOW;
     }
 
-    private void diagnoseUnassigned(ShardAllocationCounts shardAllocationCounts, ShardRouting shardRouting, ClusterState state) {
+    private void diagnoseUnassigned(
+        BiConsumer<UserAction.Definition, ShardRouting> diagnosisOutput,
+        ShardRouting shardRouting,
+        ClusterState state
+    ) {
         switch (shardRouting.unassignedInfo().getLastAllocationStatus()) {
             case NO_VALID_SHARD_COPY:
                 if (UnassignedInfo.Reason.NODE_LEFT == shardRouting.unassignedInfo().getReason()) {
-                    shardAllocationCounts.addUserAction(ACTION_RESTORE_FROM_SNAPSHOT_ID, shardRouting);
+                    diagnosisOutput.accept(ACTION_RESTORE_FROM_SNAPSHOT, shardRouting);
                 }
                 break;
             case DECIDERS_NO:
-                diagnoseDeciders(shardAllocationCounts, shardRouting, state);
+                diagnoseDeciders(diagnosisOutput, shardRouting, state);
                 break;
             default:
                 break;
         }
     }
 
-    private void diagnoseDeciders(ShardAllocationCounts shardAllocationCounts, ShardRouting shardRouting, ClusterState state) {
+    private void diagnoseDeciders(
+        BiConsumer<UserAction.Definition, ShardRouting> diagnosisOutput,
+        ShardRouting shardRouting,
+        ClusterState state
+    ) {
         LOGGER.trace("Diagnosing shard [{}]", shardRouting.shardId());
         RoutingAllocation allocation = new RoutingAllocation(
             allocationDeciders,
@@ -241,8 +239,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             List<NodeAllocationResult> nodeAllocationResults = allocateDecision.getNodeDecisions();
             IndexMetadata index = state.metadata().index(shardRouting.index());
             if (index != null) {
-                checkIsAllocationDisabled(shardAllocationCounts, shardRouting, nodeAllocationResults);
-                checkDataTierRelatedIssues(shardAllocationCounts, index, shardRouting, nodeAllocationResults);
+                checkIsAllocationDisabled(diagnosisOutput, shardRouting, nodeAllocationResults);
+                checkDataTierRelatedIssues(diagnosisOutput, index, shardRouting, nodeAllocationResults);
             }
         }
     }
@@ -253,17 +251,17 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     }
 
     private void checkIsAllocationDisabled(
-        ShardAllocationCounts shardAllocationCounts,
+        BiConsumer<UserAction.Definition, ShardRouting> diagnosisOutput,
         ShardRouting shardRouting,
         List<NodeAllocationResult> nodeAllocationResults
     ) {
         if (nodeAllocationResults.stream().allMatch(nodeHasDeciderResult(EnableAllocationDecider.NAME, Decision.Type.NO))) {
-            shardAllocationCounts.addUserAction(ACTION_ENABLE_ALLOCATIONS_ID, shardRouting);
+            diagnosisOutput.accept(ACTION_ENABLE_ALLOCATIONS, shardRouting);
         }
     }
 
     private void checkDataTierRelatedIssues(
-        ShardAllocationCounts shardAllocationCounts,
+        BiConsumer<UserAction.Definition, ShardRouting> diagnosisOutput,
         IndexMetadata indexMetadata,
         ShardRouting shardRouting,
         List<NodeAllocationResult> nodeAllocationResults
@@ -275,18 +273,18 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             if (dataTierNodes.isEmpty() == false) {
                 // All tier nodes at shards limit?
                 if (dataTierNodes.stream().allMatch(nodeHasDeciderResult(ShardsLimitAllocationDecider.NAME, Decision.Type.NO))) {
-                    shardAllocationCounts.addUserAction(ACTION_SHARD_LIMIT_ID, shardRouting);
+                    diagnosisOutput.accept(ACTION_SHARD_LIMIT, shardRouting);
                 }
 
                 // All tier nodes conflict with allocation filters?
                 if (dataTierNodes.stream().allMatch(nodeHasDeciderResult(FilterAllocationDecider.NAME, Decision.Type.NO))) {
                     // TODO: Check if shard is part of an index that can be migrated to data tiers?
-                    shardAllocationCounts.addUserAction(ACTION_MIGRATE_TIERS_ID, shardRouting);
+                    diagnosisOutput.accept(ACTION_MIGRATE_TIERS, shardRouting);
                 }
 
                 // Not enough tier nodes to hold shards on different nodes?
                 if (dataTierNodes.stream().allMatch(nodeHasDeciderResult(SameShardAllocationDecider.NAME, Decision.Type.NO))) {
-                    shardAllocationCounts.addUserAction(ACTION_INCREASE_TIER_CAPACITY_FOR_ALLOCATIONS_ID, shardRouting);
+                    diagnosisOutput.accept(ACTION_INCREASE_TIER_CAPACITY, shardRouting);
                 }
             }
         }
@@ -402,49 +400,21 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         }
 
         public List<UserAction> getUserActions() {
-            Map<String, List<ShardRouting>> allDiagnoses = new HashMap<>();
-            primaries.diagnoses.forEach(allDiagnoses::put);
-            replicas.diagnoses.forEach((action, replicaShards) -> {
-                List<ShardRouting> shards = allDiagnoses.get(action);
-                if (shards == null) {
-                    allDiagnoses.put(action, replicaShards);
+            Map<String, UserAction> allActions = new HashMap<>();
+            primaries.userActions.forEach(allActions::put);
+            replicas.userActions.forEach((actionId, replicaUserActions) -> {
+                UserAction existingAction = allActions.get(actionId);
+                if (existingAction == null) {
+                    allActions.put(actionId, replicaUserActions);
                 } else {
-                    shards.addAll(replicaShards);
+                    existingAction.affectedResources().addAll(replicaUserActions.affectedResources());
                 }
             });
-
-            List<UserAction> results = allDiagnoses.entrySet().stream()
-                .map(entry -> {
-                    List<ShardRouting> shardRoutings = entry.getValue();
-                    Set<String> indices = shardRoutings.stream().map(ShardRouting::getIndexName).collect(Collectors.toSet());
-                    return createUserAction(entry.getKey(), indices);
-                })
-                .collect(Collectors.toList());
-
-            if (results.isEmpty()) {
+            if (allActions.isEmpty()) {
                 return null;
             } else {
-                return results;
+                return allActions.values().stream().toList();
             }
-        }
-
-        private UserAction createUserAction(String id, Set<String> indices) {
-            return switch (id) {
-                case ACTION_SHARD_LIMIT_ID ->
-                    new UserAction(ACTION_SHARD_LIMIT_ID, ACTION_SHARD_LIMIT_MESSAGE, indices, ACTION_SHARD_LIMIT_URL);
-                case ACTION_ENABLE_ALLOCATIONS_ID ->
-                    new UserAction(ACTION_ENABLE_ALLOCATIONS_ID, ACTION_ENABLE_ALLOCATIONS_MESSAGE, indices, ACTION_ENABLE_ALLOCATIONS_URL);
-                case ACTION_MIGRATE_TIERS_ID ->
-                    new UserAction(ACTION_MIGRATE_TIERS_ID, ACTION_MIGRATE_TIERS_MESSAGE, indices, ACTION_MIGRATE_TIERS_URL);
-                case ACTION_RESTORE_FROM_SNAPSHOT_ID ->
-                    new UserAction(ACTION_RESTORE_FROM_SNAPSHOT_ID, ACTION_RESTORE_FROM_SNAPSHOT_MESSAGE, indices,
-                        ACTION_RESTORE_FROM_SNAPSHOT_URL);
-                case ACTION_INCREASE_TIER_CAPACITY_FOR_ALLOCATIONS_ID ->
-                    new UserAction(ACTION_INCREASE_TIER_CAPACITY_FOR_ALLOCATIONS_ID, ACTION_INCREASE_TIER_CAPACITY_FOR_ALLOCATIONS_MESSAGE,
-                        indices,
-                        ACTION_INCREASE_TIER_CAPACITY_FOR_ALLOCATIONS_URL);
-                default -> throw new IllegalArgumentException("Invalid action id [" + id + "]");
-            };
         }
     }
 

@@ -424,10 +424,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     ),
                     List.of(
                         new UserAction(
-                            "restore_from_snapshot",
-                            "",
-                            Set.of("red-index"),
-                            ""
+                            ShardsAvailabilityHealthIndicatorService.ACTION_RESTORE_FROM_SNAPSHOT,
+                            Set.of("red-index")
                         )
                     )
                 )
@@ -497,10 +495,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     ),
                     List.of(
                         new UserAction(
-                            "enable_allocations",
-                            "",
-                            Set.of("red-index"),
-                            ""
+                            ShardsAvailabilityHealthIndicatorService.ACTION_ENABLE_ALLOCATIONS,
+                            Set.of("red-index")
                         )
                     )
                 )
@@ -575,10 +571,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     ),
                     List.of(
                         new UserAction(
-                            "increase_shard_limit",
-                            "",
-                            Set.of("red-index"),
-                            ""
+                            ShardsAvailabilityHealthIndicatorService.ACTION_SHARD_LIMIT,
+                            Set.of("red-index")
                         )
                     )
                 )
@@ -653,10 +647,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     ),
                     List.of(
                         new UserAction(
-                            "migrate_data_tiers",
-                            "",
-                            Set.of("red-index"),
-                            ""
+                            ShardsAvailabilityHealthIndicatorService.ACTION_MIGRATE_TIERS,
+                            Set.of("red-index")
                         )
                     )
                 )
@@ -731,10 +723,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     ),
                     List.of(
                         new UserAction(
-                            "increase_tier_capacity_for_allocations",
-                            "",
-                            Set.of("red-index"),
-                            ""
+                            ShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_TIER_CAPACITY,
+                            Set.of("red-index")
                         )
                     )
                 )

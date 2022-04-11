@@ -18,26 +18,33 @@ import java.util.Set;
 /**
  * Details a potential action that a user could take to clear an issue identified by a {@link HealthService}.
  *
- * @param id A unique identifier for this kind of action
- * @param message A description of the action to be taken
+ * @param definition The definition of the user action (e.g. message, helpURL)
  * @param affectedResources Optional list of "things" that this action should be taken on (e.g. shards, indices, or policies).
- * @param helpURL Optional evergreen url to a help document
  */
-public record UserAction(String id, String message, @Nullable Set<String> affectedResources, @Nullable String helpURL)
+public record UserAction(Definition definition, @Nullable Set<String> affectedResources)
     implements
         ToXContentObject {
+
+    /**
+     * Details a potential action that a user could take to clear an issue identified by a {@link HealthService}.
+     *
+     * @param id A unique identifier for this kind of action
+     * @param message A description of the action to be taken
+     * @param helpURL Optional evergreen url to a help document
+     */
+    public static record Definition(String id, String message, @Nullable String helpURL) {}
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject()
-            .field("message", message);
+            .field("message", definition.message);
 
         if (affectedResources != null && affectedResources.size() > 0) {
             builder.field("affected_resources", affectedResources);
         }
 
-        if (helpURL != null) {
-            builder.field("help_url", helpURL);
+        if (definition.helpURL != null) {
+            builder.field("help_url", definition.helpURL);
         }
 
         return builder.endObject();

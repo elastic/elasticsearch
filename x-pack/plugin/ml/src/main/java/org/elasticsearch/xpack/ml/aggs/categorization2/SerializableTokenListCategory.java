@@ -102,6 +102,26 @@ public class SerializableTokenListCategory implements Writeable {
         this.numMatches = in.readVLong();
     }
 
+    /**
+     * Used to copy an existing category but scaling the number of matches.
+     * (For use with sampling.)
+     * @param other Category to largely copy.
+     * @param scaledMatches Override for the number of matches.
+     */
+    public SerializableTokenListCategory(SerializableTokenListCategory other, long scaledMatches) {
+        this.baseTokens = other.baseTokens;
+        this.baseTokenWeights = other.baseTokenWeights;
+        this.baseUnfilteredLength = other.baseUnfilteredLength;
+        this.maxUnfilteredStringLength = other.maxUnfilteredStringLength;
+        this.orderedCommonTokenBeginIndex = other.orderedCommonTokenBeginIndex;
+        this.orderedCommonTokenEndIndex = other.orderedCommonTokenEndIndex;
+        this.commonUniqueTokenIndexes = other.commonUniqueTokenIndexes;
+        this.commonUniqueTokenWeights = other.commonUniqueTokenWeights;
+        this.keyTokenIndexes = other.keyTokenIndexes;
+        this.origUniqueTokenWeight = other.origUniqueTokenWeight;
+        this.numMatches = scaledMatches;
+    }
+
     public long getNumMatches() {
         return numMatches;
     }

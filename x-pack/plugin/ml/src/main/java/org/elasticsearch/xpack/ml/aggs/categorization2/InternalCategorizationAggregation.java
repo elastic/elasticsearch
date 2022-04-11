@@ -17,6 +17,7 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.ml.job.results.CategoryDefinition;
@@ -161,6 +162,10 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
             return bucketOrd;
         }
 
+        SerializableTokenListCategory getSerializableCategory() {
+            return serializableCategory;
+        }
+
         @Override
         public String toString() {
             return "Bucket{key="
@@ -296,6 +301,26 @@ public class InternalCategorizationAggregation extends InternalMultiBucketAggreg
                 Arrays.asList(mergedBuckets)
             );
         }
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return new InternalCategorizationAggregation(
+            name,
+            requiredSize,
+            minDocCount,
+            similarityThreshold,
+            metadata,
+            buckets.stream()
+                .map(
+                    b -> new Bucket(
+                        new SerializableTokenListCategory(b.getSerializableCategory(), samplingContext.scaleUp(b.getDocCount())),
+                        b.getBucketOrd(),
+                        InternalAggregations.finalizeSampling(b.aggregations, samplingContext)
+                    )
+                )
+                .collect(Collectors.toList())
+        );
     }
 
     public int getSimilarityThreshold() {

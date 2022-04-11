@@ -121,7 +121,7 @@ public class TokenListCategorizer implements Accountable {
         return computeCategory(weightedTokenIds, unfilteredStringLen, numDocs);
     }
 
-    public synchronized TokenListCategory computeCategory(List<TokenAndWeight> weightedTokenIds, int unfilteredStringLen, long numDocs) {
+    public TokenListCategory computeCategory(List<TokenAndWeight> weightedTokenIds, int unfilteredStringLen, long numDocs) {
 
         // First set up the data structures based on the weighted tokenized string.
         // Although this can be done using stream() and collect() with a grouping

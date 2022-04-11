@@ -258,32 +258,33 @@ public class TokenListCategory implements Accountable {
      */
     private void updateCommonUniqueTokenIds(List<TokenAndWeight> newUniqueTokenIds) {
 
-        boolean changed = false;
-        int commonIndex = 0;
+        int initialSize = commonUniqueTokenIds.size();
         int newIndex = 0;
+        int outputIndex = 0;
 
-        while (commonIndex < commonUniqueTokenIds.size()) {
+        for (int commonIndex = 0; commonIndex < initialSize; ++commonIndex) {
             TokenAndWeight commonTokenAndWeight = commonUniqueTokenIds.get(commonIndex);
-            if (newIndex >= newUniqueTokenIds.size() || commonTokenAndWeight.getTokenId() < newUniqueTokenIds.get(newIndex).getTokenId()) {
+            TokenAndWeight newTokenAndWeight;
+            if (newIndex >= newUniqueTokenIds.size()
+                || commonTokenAndWeight.getTokenId() < (newTokenAndWeight = newUniqueTokenIds.get(newIndex)).getTokenId()) {
                 commonUniqueTokenWeight -= commonTokenAndWeight.getWeight();
-                commonUniqueTokenIds.remove(commonIndex);
-                changed = true;
             } else {
-                TokenAndWeight newTokenAndWeight = newUniqueTokenIds.get(newIndex);
                 if (commonTokenAndWeight.getTokenId() == newTokenAndWeight.getTokenId()) {
                     if (commonTokenAndWeight.getWeight() == newTokenAndWeight.getWeight()) {
-                        ++commonIndex;
+                        commonUniqueTokenIds.set(outputIndex++, commonTokenAndWeight);
                     } else {
                         commonUniqueTokenWeight -= commonTokenAndWeight.getWeight();
-                        commonUniqueTokenIds.remove(commonIndex);
-                        changed = true;
                     }
                 }
                 ++newIndex;
             }
         }
-        if (changed) {
+        if (outputIndex < initialSize) {
+            commonUniqueTokenIds.subList(outputIndex, initialSize).clear();
             cacheRamUsage();
+        } else {
+            assert outputIndex == initialSize
+                : "should be impossible for output index to exceed initial size, but got " + outputIndex + " > " + initialSize;
         }
     }
 
@@ -328,10 +329,9 @@ public class TokenListCategory implements Accountable {
         // reduce the ordered set to 50 tokens. Then the next call will start
         // with only 50 ordered tokens.
         // There's a trade-off here, because reducing the complexity would mean
-        // changing the data structures, which would add complexity to state
-        // persistence, or allocating temporary storage, which would increase the
-        // runtime a lot in the common case where the previously ordered common
-        // tokens are present in the same order in the new tokens.
+        // allocating temporary storage, which would increase the runtime a lot in
+        // the common case where the previously ordered common tokens are present
+        // in the same order in the new tokens.
 
         int bestOrderedCommonTokenBeginIndex = orderedCommonTokenEndIndex;
         int bestOrderedCommonTokenEndIndex = orderedCommonTokenEndIndex;
@@ -520,10 +520,8 @@ public class TokenListCategory implements Accountable {
         int testIndex = 0;
         while (commonIndex < commonUniqueTokenIds.size() && testIndex < uniqueTokenIds.size()) {
             switch (Integer.signum(commonUniqueTokenIds.get(commonIndex).compareTo(uniqueTokenIds.get(testIndex)))) {
-                case -1:
-                    ++commonIndex;
-                    break;
-                case 0:
+                case -1 -> ++commonIndex;
+                case 0 -> {
                     // Don't increment the weight if a given token appears a different
                     // number of times in the two strings.
                     int testWeight = uniqueTokenIds.get(testIndex).getWeight();
@@ -532,12 +530,9 @@ public class TokenListCategory implements Accountable {
                     }
                     ++commonIndex;
                     ++testIndex;
-                    break;
-                case 1:
-                    ++testIndex;
-                    break;
-                default:
-                    throw new IllegalStateException("signum should not return numbers other than -1, 0 and 1");
+                }
+                case 1 -> ++testIndex;
+                default -> throw new IllegalStateException("signum should not return numbers other than -1, 0 and 1");
             }
         }
 
@@ -631,7 +626,6 @@ public class TokenListCategory implements Accountable {
     // For testing - should return the same value as the method above, just more slowly.
     long ramBytesUsedSlow() {
         return SHALLOW_SIZE + sizeOfCollection(baseWeightedTokenIds) + sizeOfCollection(commonUniqueTokenIds);
-        // TODO: should subAggs be included, or are nested aggregations accounted for separately?
     }
 
     private void cacheRamUsage() {
@@ -646,7 +640,6 @@ public class TokenListCategory implements Accountable {
                 SHALLOW_SIZE_OF_ARRAY_LIST + NUM_BYTES_ARRAY_HEADER + commonUniqueTokenIds.size() * (TokenAndWeight.SHALLOW_SIZE
                     + NUM_BYTES_OBJECT_REF)
             );
-        // TODO: should subAggs be included, or are nested aggregations accounted for separately?
     }
 
     @Override

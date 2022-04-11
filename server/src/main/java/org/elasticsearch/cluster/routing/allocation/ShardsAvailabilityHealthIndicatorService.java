@@ -42,7 +42,6 @@ import java.util.Locale;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -242,10 +241,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             List<NodeAllocationResult> nodeAllocationResults = allocateDecision.getNodeDecisions();
             IndexMetadata index = state.metadata().index(shardRouting.index());
             if (index != null) {
-                checkAllNodesAtShardsLimit(shardAllocationCounts, index, shardRouting, nodeAllocationResults);
                 checkIsAllocationDisabled(shardAllocationCounts, shardRouting, nodeAllocationResults);
-                checkDataTierConflictsWithFilters(shardAllocationCounts, index, shardRouting, nodeAllocationResults);
-                checkNotEnoughTierNodesForShardAllocation(shardAllocationCounts, index, shardRouting, nodeAllocationResults);
+                checkDataTierRelatedIssues(shardAllocationCounts, index, shardRouting, nodeAllocationResults);
             }
         }
     }
@@ -255,75 +252,42 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             .anyMatch(decision -> deciderName.equals(decision.label()) && outcome == decision.type());
     }
 
-    private void checkAllNodesAtShardsLimit(
-        ShardAllocationCounts shardAllocationCounts,
-        IndexMetadata indexMetadata,
-        ShardRouting shardRouting,
-        List<NodeAllocationResult> nodeAllocationResults
-    ) {
-        if (indexMetadata.getTierPreference().size() > 0) {
-            Optional<NodeAllocationResult> possibleHome = nodeAllocationResults.stream()
-                .filter(nodeHasDeciderResult(DATA_TIER_ALLOCATION_DECIDER_NAME, Decision.Type.YES))
-                .filter(nodeHasDeciderResult(ShardsLimitAllocationDecider.NAME, Decision.Type.YES))
-                .findAny();
-            if (possibleHome.isEmpty()) {
-                shardAllocationCounts.addUserAction(ACTION_SHARD_LIMIT_ID, shardRouting);
-            }
-        }
-    }
-
     private void checkIsAllocationDisabled(
         ShardAllocationCounts shardAllocationCounts,
         ShardRouting shardRouting,
         List<NodeAllocationResult> nodeAllocationResults
     ) {
-        LOGGER.trace("[{}]: Checking allocation disabled", shardRouting.shardId());
-        Optional<NodeAllocationResult> possibleHome = nodeAllocationResults.stream()
-            .filter(nodeHasDeciderResult(EnableAllocationDecider.NAME, Decision.Type.YES))
-            .findAny();
-        if (possibleHome.isEmpty()) {
-            LOGGER.trace("[{}]: Allocation disabled on all nodes, adding user action", shardRouting.shardId());
+        if (nodeAllocationResults.stream().allMatch(nodeHasDeciderResult(EnableAllocationDecider.NAME, Decision.Type.NO))) {
             shardAllocationCounts.addUserAction(ACTION_ENABLE_ALLOCATIONS_ID, shardRouting);
         }
     }
 
-    private void checkDataTierConflictsWithFilters(
+    private void checkDataTierRelatedIssues(
         ShardAllocationCounts shardAllocationCounts,
         IndexMetadata indexMetadata,
         ShardRouting shardRouting,
         List<NodeAllocationResult> nodeAllocationResults
     ) {
-        LOGGER.trace("[{}]: Checking tier/filter setting agreement", shardRouting.shardId());
         if (indexMetadata.getTierPreference().size() > 0) {
-            LOGGER.trace("[{}]: Tiers configured for index", shardRouting.shardId());
-            Optional<NodeAllocationResult> possibleHome = nodeAllocationResults.stream()
+            List<NodeAllocationResult> dataTierNodes = nodeAllocationResults.stream()
                 .filter(nodeHasDeciderResult(DATA_TIER_ALLOCATION_DECIDER_NAME, Decision.Type.YES))
-                .filter(nodeHasDeciderResult(FilterAllocationDecider.NAME, Decision.Type.YES))
-                .findAny();
-            if (possibleHome.isEmpty()) {
-                LOGGER.trace("[{}]: Tier and filter settings conflict, adding user action", shardRouting.shardId());
-                // TODO: Check if shard is part of an index that can be migrated to data tiers?
-                shardAllocationCounts.addUserAction(ACTION_MIGRATE_TIERS_ID, shardRouting);
-            }
-        }
-    }
+                .collect(Collectors.toList());
+            if (dataTierNodes.isEmpty() == false) {
+                // All tier nodes at shards limit?
+                if (dataTierNodes.stream().allMatch(nodeHasDeciderResult(ShardsLimitAllocationDecider.NAME, Decision.Type.NO))) {
+                    shardAllocationCounts.addUserAction(ACTION_SHARD_LIMIT_ID, shardRouting);
+                }
 
-    private void checkNotEnoughTierNodesForShardAllocation(
-        ShardAllocationCounts shardAllocationCounts,
-        IndexMetadata indexMetadata,
-        ShardRouting shardRouting,
-        List<NodeAllocationResult> nodeAllocationResults
-    ) {
-        LOGGER.trace("[{}]: Checking if enough nodes in tier", shardRouting.shardId());
-        if (indexMetadata.getTierPreference().size() > 0) {
-            LOGGER.trace("[{}]: Tiers configured for index", shardRouting.shardId());
-            Optional<NodeAllocationResult> possibleHome = nodeAllocationResults.stream()
-                .filter(nodeHasDeciderResult(DATA_TIER_ALLOCATION_DECIDER_NAME, Decision.Type.YES))
-                .filter(nodeHasDeciderResult(SameShardAllocationDecider.NAME, Decision.Type.YES))
-                .findAny();
-            if (possibleHome.isEmpty()) {
-                LOGGER.trace("[{}]: All nodes in tier contain copies of this shard already, adding user action", shardRouting.shardId());
-                shardAllocationCounts.addUserAction(ACTION_INCREASE_TIER_CAPACITY_FOR_ALLOCATIONS_ID, shardRouting);
+                // All tier nodes conflict with allocation filters?
+                if (dataTierNodes.stream().allMatch(nodeHasDeciderResult(FilterAllocationDecider.NAME, Decision.Type.NO))) {
+                    // TODO: Check if shard is part of an index that can be migrated to data tiers?
+                    shardAllocationCounts.addUserAction(ACTION_MIGRATE_TIERS_ID, shardRouting);
+                }
+
+                // Not enough tier nodes to hold shards on different nodes?
+                if (dataTierNodes.stream().allMatch(nodeHasDeciderResult(SameShardAllocationDecider.NAME, Decision.Type.NO))) {
+                    shardAllocationCounts.addUserAction(ACTION_INCREASE_TIER_CAPACITY_FOR_ALLOCATIONS_ID, shardRouting);
+                }
             }
         }
     }

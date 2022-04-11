@@ -112,9 +112,9 @@ public class StandaloneRestIntegTestTask extends Test implements TestClustersAwa
                 .findFirst()
                 .get();
             getResourceLock.setAccessible(true);
-            return (ResourceLock) (GradleVersion.current().compareTo(GradleVersion.version("7.4.1")) > 0
-                ? getResourceLock.invoke(resource)
-                : getResourceLock.invoke(resource, Math.min(nodeCount, resource.getMaxUsages())));
+            return (ResourceLock) (GradleVersion.current().compareTo(GradleVersion.version("7.5.0")) < 0
+                ? getResourceLock.invoke(resource, Math.min(nodeCount, resource.getMaxUsages()))
+                : getResourceLock.invoke(resource));
         } catch (Exception e) {
             throw new GradleException("Unable to get ResourceLock", e);
         }

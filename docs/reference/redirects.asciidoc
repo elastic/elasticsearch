@@ -309,6 +309,11 @@ See <<configuring-stack-security,Configuring security for the Elastic Stack>>.
 === Encrypting communications
 
 See <<configuring-stack-security,Configuring security for the Elastic Stack>>.
+
+[role="exclude",id="security-api-search-user-profile"]
+=== Search user profile API
+
+See <<security-api-suggest-user-profile,Suggest user profile API>>.
 // [END] Security redirects
 
 [roles="exclude",id="modules-scripting-stored-scripts"]
@@ -360,7 +365,7 @@ See <<xpack-ccr,Cross-cluster replication>>.
 === Upgrade API
 
 The `_upgrade` API is no longer useful and will be removed.
-For information about upgrading, see 
+For information about upgrading, see
 {stack-ref}/upgrading-elasticsearch.html[Upgrading {es}].
 
 [role="exclude",id="mapping-parent-field"]
@@ -1813,7 +1818,7 @@ See the <<sql-search-api-request-body,request body parameters>> for the
 
 When upgrading to {es} 8.0 and later, you must first upgrade to {prev-major-last}
 even if you opt to perform a full-cluster restart instead of a rolling upgrade.
-For more information about upgrading, refer to 
+For more information about upgrading, refer to
 {stack-ref}/upgrading-elastic-stack.html[Upgrading to Elastic {version}].
 
 [role="exclude",id="rolling-upgrades"]
@@ -1821,7 +1826,7 @@ For more information about upgrading, refer to
 
 When upgrading to {es} 8.0 and later, you must first upgrade to {prev-major-last}
 whether you opt to perform a rolling upgrade (upgrade one node at a time) or a full-cluster restart upgrade.
-For more information about upgrading, refer to 
+For more information about upgrading, refer to
 {stack-ref}/upgrading-elastic-stack.html[Upgrading to Elastic {version}].
 
 [role="exclude",id="reindex-upgrade"]
@@ -1832,7 +1837,7 @@ Before upgrading to {es} 8.0 and later, you must reindex any indices created in
 a 6.x version. We recommend using the **Upgrade Assistant** to guide you
 through this process.
 
-For more information about upgrading, refer to 
+For more information about upgrading, refer to
 {stack-ref}/upgrading-elastic-stack.html[Upgrading to Elastic {version}].
 //end::upgrade-reindex[]
 

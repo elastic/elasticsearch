@@ -283,7 +283,7 @@ public class PermissionsIT extends ESRestTestCase {
 
         // test_user: index docs using alias in the newly created index
         indexDocs("test_user", "x-pack-test-password", "foo_alias", 2);
-        refresh("foo_alias");
+        refresh(adminClient(), "foo_alias");
 
         // wait so the ILM policy triggers rollover action, verify that the new index exists
         assertBusy(() -> {
@@ -294,7 +294,7 @@ public class PermissionsIT extends ESRestTestCase {
 
         // test_user: index docs using alias, now should be able write to new index
         indexDocs("test_user", "x-pack-test-password", "foo_alias", 1);
-        refresh("foo_alias");
+        refresh(adminClient(), "foo_alias");
 
         // verify that the doc has been indexed into new write index
         assertBusy(() -> {
@@ -391,11 +391,6 @@ public class PermissionsIT extends ESRestTestCase {
                 assertOK(userClient.performRequest(request));
             }
         }
-    }
-
-    private void refresh(String index) throws IOException {
-        Request request = new Request("POST", "/" + index + "/_refresh");
-        assertOK(adminClient().performRequest(request));
     }
 
 }

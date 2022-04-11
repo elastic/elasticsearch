@@ -31,6 +31,9 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
      * Get a {@linkplain SortValue} for a double.
      */
     public static SortValue from(double d) {
+        if (Double.isNaN(d)) {
+            return new EmptySortValue();
+        }
         return new DoubleSortValue(d);
     }
 
@@ -74,16 +77,8 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
 
     @Override
     public final int compareTo(SortValue other) {
-        /*
-         * It might make sense to try and compare doubles to longs
-         * *carefully* to get a real sort. but it might not. For now
-         * we sort all doubles before all longs.
-         */
-        int typeCompare = getWriteableName().compareTo(other.getWriteableName());
-        if (typeCompare != 0) {
-            return typeCompare;
-        }
-        return compareToSameType(other);
+        int typeComparison = typeComparisonKey() - other.typeComparisonKey();
+        return typeComparison == 0 ? compareToSameType(other) : typeComparison;
     }
 
     /**
@@ -128,6 +123,9 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
     @Override
     public abstract String toString();
 
+    // Force implementations to override typeComparisonKey and associate each subclass with an integer key
+    protected abstract int typeComparisonKey();
+
     /**
      * Return this {@linkplain SortValue} as a boxed {@linkplain Number}
      * or {@link Double#NaN} if it isn't a number. Or if it is actually
@@ -137,6 +135,7 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
 
     private static class DoubleSortValue extends SortValue {
         public static final String NAME = "double";
+        private static final int SORT_VALUE = -2;
 
         private final double key;
 
@@ -199,6 +198,11 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
         }
 
         @Override
+        public int typeComparisonKey() {
+            return SORT_VALUE;
+        }
+
+        @Override
         public Number numberValue() {
             return key;
         }
@@ -206,6 +210,7 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
 
     private static class LongSortValue extends SortValue {
         public static final String NAME = "long";
+        private static final int SORT_VALUE = -1;
 
         private final long key;
 
@@ -268,6 +273,11 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
         }
 
         @Override
+        public int typeComparisonKey() {
+            return SORT_VALUE;
+        }
+
+        @Override
         public Number numberValue() {
             return key;
         }
@@ -275,6 +285,7 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
 
     private static class BytesSortValue extends SortValue {
         public static final String NAME = "bytes";
+        private static final int SORT_VALUE = -3;
 
         private final BytesRef key;
 
@@ -344,6 +355,11 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
         }
 
         @Override
+        public int typeComparisonKey() {
+            return SORT_VALUE;
+        }
+
+        @Override
         public Number numberValue() {
             return Double.NaN;
         }
@@ -353,6 +369,7 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
 
         public static final String NAME = "empty";
         private static final String EMPTY_STRING = "";
+        private int sortValue = 0;
 
         private EmptySortValue() {}
 
@@ -399,6 +416,11 @@ public abstract class SortValue implements NamedWriteable, Comparable<SortValue>
         @Override
         public String toString() {
             return EMPTY_STRING;
+        }
+
+        @Override
+        public int typeComparisonKey() {
+            return sortValue;
         }
 
         @Override

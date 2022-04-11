@@ -22,23 +22,6 @@ Other versions:
 // === Heading
 //
 // Description.
-
-[discrete]
-=== Faster indexing and searches on indexed `dense_vector` fields
-
-We've done several optimizations for indexing and searches on high-dimensional
-vectors (e.g. making HNSW graph hierarchical, speeding up graph merges,
-reusing data structures, better encoding of doc Ids). Lucene-level benchmarks
-reported up to 30% improvement in index throughput and 10% faster nearest
-neighbor searches on these fields. {es} indices that use indexed `dense_vector`
-fields should see these improvements.
-
-[discrete]
-===  Up to 20% faster range queries and aggregations
-Lucene optimizations brought up speedups in range queries. We have observed 
-up to 20% speedups in our nightly benchmarks. Elasticsearch users should notice 
-these speedups in range queries as well as aggregations that execute as range 
-queries under the hood such as some range or date_histogram aggregations.
 // end::notable-highlights[]
 
 

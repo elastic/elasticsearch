@@ -77,12 +77,6 @@ if [ ! -z "$JAVA_OPTS" ]; then
   echo "pass JVM parameters via ES_JAVA_OPTS"
 fi
 
-if [[ "$("$JAVA" -version 2>/dev/null)" =~ "Unable to map CDS archive" ]]; then
-  XSHARE="-Xshare:off"
-else
-  XSHARE="-Xshare:auto"
-fi
-
 export HOSTNAME=$HOSTNAME
 
 @source.path.env@

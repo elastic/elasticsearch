@@ -27,9 +27,13 @@ class AuthorizationDenialMessages {
     static String runAsDenied(Authentication authentication, String action) {
         String userText = authenticatedUserText(authentication);
 
+        String actionIsDeniedMessage = "action [" + action + "] is unauthorized for " + userText;
+
         String runAsUserText = authentication.getUser().isRunAs() ? authentication.getUser().principal() : "";
 
-        return userText + " is unauthorized to run as [" + runAsUserText + "]";
+        String runAsDeniedMessage = "because" + userText + " is unauthorized to run as [" + runAsUserText + "]";
+
+        return actionIsDeniedMessage + " " + runAsDeniedMessage;
     }
 
     static String actionDenied(Authentication authentication, String action, TransportRequest request, @Nullable String context) {

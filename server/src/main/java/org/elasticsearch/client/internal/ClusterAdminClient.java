@@ -13,6 +13,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequestBuilder;
 import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainResponse;
+import org.elasticsearch.action.admin.cluster.coordination.ClusterFormationInfoRequest;
+import org.elasticsearch.action.admin.cluster.coordination.ClusterFormationInfoRequestBuilder;
+import org.elasticsearch.action.admin.cluster.coordination.ClusterFormationInfoResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
@@ -221,6 +224,25 @@ public interface ClusterAdminClient extends ElasticsearchClient {
      * Nodes info of the cluster.
      */
     NodesInfoRequestBuilder prepareNodesInfo(String... nodesIds);
+
+    /**
+     * Cluster formation info.
+     *
+     * @return The result future
+     * @see org.elasticsearch.client.internal.Requests#clusterFormationInfoRequest(String...)
+     */
+    ActionFuture<ClusterFormationInfoResponse> clusterFormationInfo(ClusterFormationInfoRequest request);
+
+    /**
+     * Cluster formation info.
+     *
+     * @param request  The cluster formation info request
+     * @param listener A listener to be notified with a result
+     * @see org.elasticsearch.client.internal.Requests#clusterFormationInfoRequest(String...)
+     */
+    void clusterFormationInfo(ClusterFormationInfoRequest request, ActionListener<ClusterFormationInfoResponse> listener);
+
+    ClusterFormationInfoRequestBuilder prepareClusterFormationInfo();
 
     /**
      * Cluster wide aggregated stats.

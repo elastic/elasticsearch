@@ -294,6 +294,10 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         );
     }
 
+    public Optional<String> getClusterFormationWarning() {
+        return clusterFormationFailureHelper.emittedWarning();
+    }
+
     private void onLeaderFailure(MessageSupplier message, Exception e) {
         synchronized (mutex) {
             if (mode != Mode.CANDIDATE) {

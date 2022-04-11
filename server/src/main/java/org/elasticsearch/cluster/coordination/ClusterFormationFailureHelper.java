@@ -29,6 +29,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -51,6 +52,8 @@ public class ClusterFormationFailureHelper {
     private final Runnable logLastFailedJoinAttempt;
     @Nullable // if no warning is scheduled
     private volatile WarningScheduler warningScheduler;
+    @Nullable // if no warning was ever scheduled or if we stopped emitting warnings
+    private volatile String emittedWarning;
 
     public ClusterFormationFailureHelper(
         Settings settings,
@@ -76,6 +79,7 @@ public class ClusterFormationFailureHelper {
 
     public void stop() {
         warningScheduler = null;
+        emittedWarning = null;
     }
 
     private class WarningScheduler {
@@ -95,7 +99,8 @@ public class ClusterFormationFailureHelper {
                 protected void doRun() {
                     if (isActive()) {
                         logLastFailedJoinAttempt.run();
-                        logger.warn(clusterFormationStateSupplier.get().getDescription());
+                        emittedWarning = clusterFormationStateSupplier.get().getDescription();
+                        logger.warn(emittedWarning);
                     }
                 }
 
@@ -112,6 +117,10 @@ public class ClusterFormationFailureHelper {
                 }
             });
         }
+    }
+
+    public Optional<String> emittedWarning() {
+        return Optional.ofNullable(emittedWarning);
     }
 
     record ClusterFormationState(

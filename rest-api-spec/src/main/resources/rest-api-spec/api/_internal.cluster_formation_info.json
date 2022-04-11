@@ -1,0 +1,33 @@
+{
+  "_internal.cluster_formation_info":{
+    "documentation":{
+      "url": null,
+      "description":"Returns information regarding the cluster formation."
+    },
+    "stability":"experimental",
+    "visibility":"private",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_internal/cluster_formation_info?nodeIds={node_ids}",
+          "methods":[
+            "GET"
+          ]
+        }
+      ]
+    },
+    "params":{
+      "node_ids":{
+        "type":"string",
+        "description":"A comma-separated list of the ids of the nodes to gather the cluster formation info from."
+      },
+      "timeout":{
+        "type":"time",
+        "description":"Explicit operation timeout"
+      }
+    }
+  }
+}

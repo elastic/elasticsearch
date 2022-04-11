@@ -1,0 +1,19 @@
+---
+"cluster coordination info basic test":
+  - skip:
+      version: "- 8.2.99"
+      reason: "cluster coordination info was only added in 8.3.0"
+      features: [arbitrary_key]
+
+  - do:
+      nodes.info: {}
+
+  - set:
+      nodes._arbitrary_key_: node_id
+
+  - do:
+      _internal.cluster_formation_info:
+        node_ids: $node_id
+
+  - is_true: nodes
+  - is_true: cluster_name

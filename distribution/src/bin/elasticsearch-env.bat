@@ -36,11 +36,6 @@ if "%ES_BUNDLED_JDK%" == "false" (
 
 cd /d "%ES_HOME%"
 
-rem now set the path to java, pass "nojava" arg to skip setting ES_JAVA_HOME and JAVA
-if "%1" == "nojava" (
-   exit /b
-)
-
 rem comparing to empty string makes this equivalent to bash -v check on env var
 rem and allows to effectively force use of the bundled jdk when launching ES
 rem by setting ES_JAVA_HOME=
@@ -80,3 +75,36 @@ if defined JAVA_OPTS (
 rem check the Java version
 %JAVA% -cp "%LAUNCHERS_CLASSPATH%" "org.elasticsearch.tools.java_version_checker.JavaVersionChecker" || exit /b 1
 
+
+if "%ES_DISTRIBUTION_TYPE%" == "docker" (
+  rem # Allow environment variables to be set by creating a file with the
+  rem # contents, and setting an environment variable with the suffix _FILE to
+  rem # point to it. This can be used to provide secrets to a container, without
+  rem # the values being specified explicitly when running the container.
+  rem source "$ES_HOME/bin/elasticsearch-env-from-file"
+
+  rem # Parse Docker env vars to customize Elasticsearch
+  rem #
+  rem # e.g. Setting the env var cluster.name=testcluster
+  rem #
+  rem # will cause Elasticsearch to be invoked with -Ecluster.name=testcluster
+  rem #
+  rem # see https://www.elastic.co/guide/en/elasticsearch/reference/current/settings.html#_setting_default_settings
+
+  rem A very important var is exposed to this script : newparams
+  rem It contains all additional args passed to the CLI
+
+  rem For an unknown reason we seems pass multiple times to this script
+  rem we avoid duplicated parameters
+  if "%_es_config_params%" == "" (
+    rem # Elasticsearch settings need to have at least two dot separated lowercase
+    rem # words, e.g. `cluster.name`
+    rem copy all env vars xxx.xxxx as command line format (-Ecluster.name=xxxx) into es_arg_array
+    rem Be careful !!! findstr doesn't implement regex char "+"
+    for /f "delims== tokens=1,2" %%a in ('set ^| findstr /i /r "^[a-z0-9_]*\.[a-z0-9_]*"') do (
+        SET _es_config_params=!_es_config_params! -E%%a=%%b
+    )
+
+    SET newparams=!newparams!!_es_config_params!
+  )
+)

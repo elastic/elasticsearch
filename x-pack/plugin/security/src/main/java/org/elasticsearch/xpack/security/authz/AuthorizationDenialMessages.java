@@ -32,10 +32,6 @@ class AuthorizationDenialMessages {
         return userText + " is unauthorized to run as [" + runAsUserText + "]";
     }
 
-    static String actionDenied(Authentication authentication, String action, TransportRequest request) {
-        return actionDenied(authentication, action, request, null);
-    }
-
     static String actionDenied(Authentication authentication, String action, TransportRequest request, @Nullable String context) {
         String userText = authenticatedUserText(authentication);
 

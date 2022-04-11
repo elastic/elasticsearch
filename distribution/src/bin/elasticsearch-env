@@ -89,7 +89,6 @@ fi
 # now make ES_PATH_CONF absolute
 ES_PATH_CONF=`cd "$ES_PATH_CONF"; pwd`
 
-ES_DISTRIBUTION_FLAVOR=@es.distribution.flavor@
 ES_DISTRIBUTION_TYPE=@es.distribution.type@
 
 if [[ "$ES_DISTRIBUTION_TYPE" == "docker" ]]; then

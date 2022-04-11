@@ -20,7 +20,6 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.index.stats.IndexingPressureStats;
 import org.elasticsearch.monitor.fs.FsInfo;
@@ -675,14 +674,13 @@ public class ClusterStatsNodes implements ToXContentFragment {
 
     static class PackagingTypes implements ToXContentFragment {
 
-        private final Map<Tuple<String, String>, AtomicInteger> packagingTypes;
+        private final Map<String, AtomicInteger> packagingTypes;
 
         PackagingTypes(final List<NodeInfo> nodeInfos) {
-            final var packagingTypes = new HashMap<Tuple<String, String>, AtomicInteger>();
+            final var packagingTypes = new HashMap<String, AtomicInteger>();
             for (final var nodeInfo : nodeInfos) {
-                final var flavor = nodeInfo.getBuild().flavor().displayName();
                 final var type = nodeInfo.getBuild().type().displayName();
-                packagingTypes.computeIfAbsent(Tuple.tuple(flavor, type), k -> new AtomicInteger()).incrementAndGet();
+                packagingTypes.computeIfAbsent(type, k -> new AtomicInteger()).incrementAndGet();
             }
             this.packagingTypes = Collections.unmodifiableMap(packagingTypes);
         }
@@ -694,8 +692,9 @@ public class ClusterStatsNodes implements ToXContentFragment {
                 for (final var entry : packagingTypes.entrySet()) {
                     builder.startObject();
                     {
-                        builder.field("flavor", entry.getKey().v1());
-                        builder.field("type", entry.getKey().v2());
+                        // flavor is no longer used, but we keep it here for backcompat
+                        builder.field("flavor", "default");
+                        builder.field("type", entry.getKey());
                         builder.field("count", entry.getValue().get());
                     }
                     builder.endObject();

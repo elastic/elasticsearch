@@ -1041,7 +1041,7 @@ Vendor of the JVM.
 
 `bundled_jdk`::
 (Boolean)
-If `true`, the JVM includes a bundled Java Development Kit (JDK).
+Always `true`. All distributions come with a bundled Java Development Kit (JDK).
 
 `using_bundled_jdk`::
 (Boolean)

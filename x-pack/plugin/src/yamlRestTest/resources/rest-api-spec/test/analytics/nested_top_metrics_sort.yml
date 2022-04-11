@@ -725,7 +725,7 @@ teardown:
   - match: { aggregations.name.buckets.4.field_exists.top_metrics.top.0.metrics.price: 59.19 }
 
 ---
-"terms order by top metrics size greater than 1":
+"terms order by top metrics size greater than 1 rewrite_to_filter_by_filter true":
   - skip:
       version: " - 8.1.99"
       reason: Bug fixed in 8.2.0
@@ -956,7 +956,7 @@ teardown:
   - match: { aggregations.name.buckets.4.field_exists.top_metrics.top.0.metrics.version: 1 }
 
 ---
-"terms order by top metrics size greater than 1":
+"terms order by top metrics size greater than 1 rewrite_to_filter_by_filter false":
   - skip:
       version: " - 8.1.99"
       reason: Bug fixed in 8.2.0

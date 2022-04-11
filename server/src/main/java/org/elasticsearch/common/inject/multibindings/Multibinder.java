@@ -192,7 +192,7 @@ public abstract class Multibinder<T> {
             return Collections.unmodifiableSet(result);
         }
 
-        String getSetName() {
+        static String getSetName() {
             return "";
         }
 

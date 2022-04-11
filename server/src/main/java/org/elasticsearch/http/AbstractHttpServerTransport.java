@@ -328,7 +328,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         }
     }
 
-    protected void onServerException(HttpServerChannel channel, Exception e) {
+    protected static void onServerException(HttpServerChannel channel, Exception e) {
         logger.error(new ParameterizedMessage("exception from http server channel caught on transport layer [channel={}]", channel), e);
     }
 

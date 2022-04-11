@@ -999,7 +999,7 @@ public class TransportService extends AbstractLifecycleComponent
         "internal:"
     );
 
-    private void validateActionName(String actionName) {
+    private static void validateActionName(String actionName) {
         // TODO we should makes this a hard validation and throw an exception but we need a good way to add backwards layer
         // for it. Maybe start with a deprecation layer
         if (isValidActionName(actionName) == false) {

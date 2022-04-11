@@ -12,7 +12,7 @@
     "url":{
       "paths":[
         {
-          "path":"/_internal/cluster_formation_info?nodeIds={node_ids}",
+          "path":"/_internal/cluster_formation_info",
           "methods":[
             "GET"
           ]

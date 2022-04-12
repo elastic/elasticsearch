@@ -835,7 +835,7 @@ teardown:
             search.aggs.rewrite_to_filter_by_filter: true
 
   - do:
-      catch: /Invalid aggregation order path \[field_exists>top_metrics\[score\]\]. unknown metric [score]/
+      catch: /Invalid aggregation order path \[field_exists>top_metrics\[score\]\]. unknown metric \[score\]/
       search:
         index: test_order_by_top_metrics
         body:

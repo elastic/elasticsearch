@@ -84,8 +84,6 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         setupRestResources([wrongApi], [wrongTest]) //setups up resources for current version, which should not be used for this test
         String sourceSetName = "yamlRestTestV" + compatibleVersion + "Compat"
         addRestTestsToProject([additionalTest], sourceSetName)
-        //intentionally adding to yamlRestTest source set since the .classes are copied from there
-        file("src/yamlRestTest/java/MockIT.java") << "import org.junit.Test;class MockIT { @Test public void doNothing() { }}"
 
         String api = "foo.json"
         String test = "10_basic.yml"
@@ -114,14 +112,9 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         file("/build/resources/${sourceSetName}/" + testIntermediateDir + "/rest-api-spec/test/" + additionalTest).exists() == false
         file("/build/resources/${sourceSetName}/rest-api-spec/test/" + additionalTest).text.contains("headers") == false
 
-        file("/build/classes/java/yamlRestTest/MockIT.class").exists() //The "standard" runner is used to execute the compat test
-
         file("/build/resources/${sourceSetName}/rest-api-spec/api/" + wrongApi).exists() == false
         file("/build/resources/${sourceSetName}/" + testIntermediateDir + "/rest-api-spec/test/" + wrongTest).exists() == false
         file("/build/resources/${sourceSetName}/rest-api-spec/test/" + wrongTest).exists() == false
-
-        result.task(':copyRestApiSpecsTask').outcome == TaskOutcome.NO_SOURCE
-        result.task(':copyYamlTestsTask').outcome == TaskOutcome.NO_SOURCE
 
         when:
         result = gradleRunner("yamlRestTestV${compatibleVersion}CompatTest").build()
@@ -192,6 +185,10 @@ class YamlRestCompatTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         result.task(":yamlRestTestV${compatibleVersion}CompatTest").outcome == TaskOutcome.SKIPPED
         result.task(':copyRestCompatApiTask').outcome == TaskOutcome.SUCCESS
         result.task(':copyRestCompatTestTask').outcome == TaskOutcome.SUCCESS
+
+        result.task(':copyRestApiSpecsTask').outcome == TaskOutcome.NO_SOURCE
+        result.task(':copyYamlTestsTask').outcome == TaskOutcome.NO_SOURCE
+
         result.task(transformTask).outcome == TaskOutcome.SUCCESS
 
         //The "standard" runner is used to execute the compat test

@@ -67,37 +67,37 @@ setup:
         index: test_order_by_top_metrics
         refresh: true
         body:
-          - { "index": { } }
+          - { "index": {} }
           - { "name": "alice", "order_date": "2021-09-09T17:50:00.000Z", birth_date: "1990-12-10", score: 7, version: 1, price: 12.90 }
-          - { "index": { } }
+          - { "index": {} }
           - { "name": "bob", "order_date": "2021-10-12T18:39:00.000Z", birth_date: "1989-11-04", score: 9, version: 1, price: 34.20 }
-          - { "index": { } }
+          - { "index": {} }
           - { "name": "charlie", "order_date": "2021-12-10T19:33:00.000Z", birth_date: "1990-08-22", score: 6, version: 1, price: 22.50 }
-          - { "index": { } }
+          - { "index": {} }
           - { "name": "daniel", "order_date": "2021-08-09T17:22:00.000Z", birth_date: "1991-09-11", score: 3, version: 1, price: 18.49 }
-          - { "index": { } }
+          - { "index": {} }
           - { "name": "sophia", "order_date": "2021-09-02T16:44:00.000Z", birth_date: "1989-04-05", score: 6, version: 1, price: 90.00 }
-          - { "index": { } }
+          - { "index": {} }
           - { "name": "mike", "order_date": "2021-11-11T15:22:00.000Z", birth_date: "1990-06-18", score: 5, version: 1, price: 77.80 }
-          - { "index": { } }
+          - { "index": {} }
           - { "name": "thomas", "order_date": "2021-08-11T18:11:00.000Z", birth_date: "1991-10-27", score: 4, version: 1, price: 7.99 }
-          - { "index": { } }
+          - { "index": {} }
           - { "name": "bruce", "order_date": "2021-08-29T18:47:00.000Z", birth_date: "1990-01-17", score: 4, version: 1, price: 9.49 }
-          - { "index": { } }
+          - { "index": {} }
           - { "name": "alice", "order_date": "2021-08-11T17:22:00.000Z", birth_date: "1990-12-10", score: 5, version: 1, price: 14.99 }
-          - { "index": { } }
+          - { "index": {} }
           - { "name": "charlie", "order_date": "2021-11-22T18:47:00.000Z", birth_date: "1990-08-22", score: 8, version: 1, price: 24.90 }
-          - { "index": { } }
+          - { "index": {} }
           - { "name": "charlie", "order_date": "2021-08-10T18:31:00.000Z", birth_date: "1990-08-22", score: 7, version: 1, price: 49.19 }
-          - { "index": { } }
+          - { "index": {} }
           - { "name": "daniel", "order_date": "2021-11-09T17:29:00.000Z", birth_date: "1991-09-11", score: 5, version: 1, price: 59.19 }
-          - { "index": { } }
+          - { "index": {} }
           - { "name": "sophia", "order_date": "2021-12-11T12:13:00.000Z", birth_date: "1989-04-05", score: 3, version: 1, price: 99.89 }
-          - { "index": { } }
+          - { "index": {} }
           - { "name": "daniel", "order_date": "2021-08-09T17:22:00.000Z", birth_date: "1990-09-11", score: 4, version: 1, price: 119.00 }
-          - { "index": { } }
+          - { "index": {} }
           - { "name": "thomas", "order_date": "2021-09-27T18:29:00.000Z", birth_date: "1991-10-27", score: 8, version: 1, price: 79.90 }
-          - { "index": { } }
+          - { "index": {} }
           - { "name": "sophia", "order_date": "2021-10-24T18:37:00.000Z", birth_date: "1989-04-05", score: 9, version: 1, price: 19.99 }
 
 ---

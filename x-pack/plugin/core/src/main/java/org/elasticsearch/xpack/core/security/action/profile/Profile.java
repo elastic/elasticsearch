@@ -24,7 +24,7 @@ public record Profile(
     boolean enabled,
     long lastSynchronized,
     ProfileUser user,
-    Map<String, Object> access,
+    Map<String, Object> labels,
     Map<String, Object> applicationData,
     VersionControl versionControl
 ) implements Writeable, ToXContentObject {
@@ -129,7 +129,7 @@ public record Profile(
         builder.field("enabled", enabled);
         builder.field("last_synchronized", lastSynchronized);
         user.toXContent(builder, params);
-        builder.field("access", access);
+        builder.field("labels", labels);
         builder.field("data", applicationData);
     }
 
@@ -139,7 +139,7 @@ public record Profile(
         out.writeBoolean(enabled);
         out.writeLong(lastSynchronized);
         user.writeTo(out);
-        out.writeGenericMap(access);
+        out.writeGenericMap(labels);
         out.writeGenericMap(applicationData);
         versionControl.writeTo(out);
     }

@@ -230,11 +230,14 @@ public class JoinValidationService {
 
         final var nextItem = queue.poll();
         assert nextItem != null;
-        nextItem.run();
-        final var remaining = queueSize.decrementAndGet();
-        assert remaining >= 0;
-        if (remaining > 0) {
-            runProcessor();
+        try {
+            nextItem.run();
+        } finally {
+            final var remaining = queueSize.decrementAndGet();
+            assert remaining >= 0;
+            if (remaining > 0) {
+                runProcessor();
+            }
         }
     }
 
@@ -350,8 +353,8 @@ public class JoinValidationService {
                 newBytes.length()
             );
             final var previousBytes = statesByVersion.put(version, newBytes);
-            assert previousBytes == null;
             success = true;
+            assert previousBytes == null;
             return newBytes;
         } finally {
             if (success == false) {

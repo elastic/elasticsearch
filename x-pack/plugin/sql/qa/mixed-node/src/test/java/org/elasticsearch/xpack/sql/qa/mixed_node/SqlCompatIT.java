@@ -231,8 +231,9 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
         assertTextCursorCompatibleAcrossVersions(bwcVersion, oldNodesClient, newNodesClient);
     }
 
-    @AwaitsFix(bugUrl = "tbd")
     public void testTextCursorFromNewNodeWorksOnOldNode() throws IOException {
+        assumeBwcVersionSupportsCursorRedirect();
+
         assertTextCursorCompatibleAcrossVersions(Version.CURRENT, newNodesClient, oldNodesClient);
     }
 
@@ -259,8 +260,9 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
         assertTextCursorCloseWorksAcrossVersions(bwcVersion, oldNodesClient, newNodesClient);
     }
 
-    @AwaitsFix(bugUrl = "tbd")
     public void testTextCursorFromNewNodeCanCloseOnOldNode() throws IOException {
+        assumeBwcVersionSupportsCursorRedirect();
+
         assertTextCursorCloseWorksAcrossVersions(Version.CURRENT, newNodesClient, oldNodesClient);
     }
 

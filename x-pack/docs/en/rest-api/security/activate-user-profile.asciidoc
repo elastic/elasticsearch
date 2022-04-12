@@ -43,7 +43,7 @@ is intended for.
 
 `access_token`::
 (Required*, string)
-The user's labels token. If you specify the `access_token` grant type, this
+The user's access token. If you specify the `access_token` grant type, this
 parameter is required. It is not valid with other grant types.
 
 `grant_type`::

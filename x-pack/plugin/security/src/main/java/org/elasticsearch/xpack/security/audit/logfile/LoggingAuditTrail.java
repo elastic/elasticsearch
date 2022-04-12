@@ -1403,7 +1403,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
             builder.startObject()
                 .field("uid", updateProfileDataRequest.getUid())
-                .field("access", updateProfileDataRequest.getLabels())
+                .field("labels", updateProfileDataRequest.getLabels())
                 .field("data", updateProfileDataRequest.getData())
                 .endObject();
             logEntry.with(PUT_CONFIG_FIELD_NAME, Strings.toString(builder));

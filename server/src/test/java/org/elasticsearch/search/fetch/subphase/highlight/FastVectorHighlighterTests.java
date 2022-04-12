@@ -39,6 +39,7 @@ public class FastVectorHighlighterTests extends HighlighterTestCase {
             """));
 
         {
+            // test SimpleFragmentsBuilder case
             SearchSourceBuilder search = new SearchSourceBuilder().query(QueryBuilders.termQuery("field.stemmed", "some"))
                 .highlighter(new HighlightBuilder().field("field.stemmed").highlighterType("fvh"));
 
@@ -50,6 +51,7 @@ public class FastVectorHighlighterTests extends HighlighterTestCase {
         }
 
         {
+            // test ScoreOrderFragmentsBuilder case
             SearchSourceBuilder search = new SearchSourceBuilder().query(QueryBuilders.termQuery("field.stemmed", "some"))
                 .highlighter(new HighlightBuilder().field("field.stemmed").highlighterType("fvh").numOfFragments(2).fragmentSize(18));
 

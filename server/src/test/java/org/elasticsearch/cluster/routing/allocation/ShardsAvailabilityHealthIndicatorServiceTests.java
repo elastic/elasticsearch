@@ -141,8 +141,11 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     "This cluster has 1 unavailable primary.",
                     Map.of("unassigned_primaries", 1, "started_replicas", 1),
                     List.of(
-                        new HealthIndicatorImpact(1, "Cannot add data to 1 index [red-index]. Searches might return incomplete results.",
-                            List.of(ImpactArea.INGEST, ImpactArea.SEARCH))
+                        new HealthIndicatorImpact(
+                            1,
+                            "Cannot add data to 1 index [red-index]. Searches might return incomplete results.",
+                            List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
+                        )
                     )
                 )
             )
@@ -161,8 +164,11 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     "This cluster has 1 unavailable primary.",
                     Map.of("unassigned_primaries", 1),
                     List.of(
-                        new HealthIndicatorImpact(1, "Cannot add data to 1 index [red-index]. Searches might return incomplete results.",
-                            List.of(ImpactArea.INGEST, ImpactArea.SEARCH))
+                        new HealthIndicatorImpact(
+                            1,
+                            "Cannot add data to 1 index [red-index]. Searches might return incomplete results.",
+                            List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
+                        )
                     )
                 )
             )
@@ -182,8 +188,11 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         assertEquals(1, result.impacts().size());
         assertEquals(
             result.impacts().get(0),
-            new HealthIndicatorImpact(1, "Cannot add data to 1 index [red-index]. Searches might return incomplete results.",
-                List.of(ImpactArea.INGEST, ImpactArea.SEARCH))
+            new HealthIndicatorImpact(
+                1,
+                "Cannot add data to 1 index [red-index]. Searches might return incomplete results.",
+                List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
+            )
         );
     }
 
@@ -208,8 +217,11 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         assertEquals(2, result.impacts().size());
         assertEquals(
             result.impacts().get(0),
-            new HealthIndicatorImpact(1, "Cannot add data to 1 index [red-index]. Searches might return incomplete results.",
-                List.of(ImpactArea.INGEST, ImpactArea.SEARCH))
+            new HealthIndicatorImpact(
+                1,
+                "Cannot add data to 1 index [red-index]. Searches might return incomplete results.",
+                List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
+            )
         );
         // yellow-index-2 has the higher priority so it ought to be listed first:
         assertThat(
@@ -218,7 +230,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 new HealthIndicatorImpact(
                     2,
                     "Searches might return slower than usual. Fewer redundant copies of the data exist on 2 indices [yellow-index-2, "
-                        + "yellow-index-1].", List.of(ImpactArea.SEARCH)
+                        + "yellow-index-1].",
+                    List.of(ImpactArea.SEARCH)
                 )
             )
         );

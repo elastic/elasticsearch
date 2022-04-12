@@ -1674,6 +1674,11 @@ public abstract class ESTestCase extends LuceneTestCase {
      */
     private static final int MAX_EFFECTIVE_WORKER_ID = (MAX_PRIVATE_PORT - MIN_PRIVATE_PORT + 1) / PORTS_PER_WORKER;
 
+    static {
+        //noinspection ConstantConditions this is here to catch mistakes when changing other constants in this class
+        assert 0 < MAX_EFFECTIVE_WORKER_ID;
+    }
+
     /**
      * Returns a port range for this JVM according to its Gradle worker ID. See also [NOTE: Port ranges for tests].
      */

@@ -202,7 +202,10 @@ public class DockerTests extends PackagingTestCase {
 
         // Stuff the proxy settings with garbage, so any attempt to go out to the internet would fail
         sh.getEnv()
-            .put("CLI_JAVA_OPTS", "-Dhttp.proxyHost=example.org -Dhttp.proxyPort=9999 -Dhttps.proxyHost=example.org -Dhttps.proxyPort=9999");
+            .put(
+                "CLI_JAVA_OPTS",
+                "-Dhttp.proxyHost=example.org -Dhttp.proxyPort=9999 -Dhttps.proxyHost=example.org -Dhttps.proxyPort=9999"
+            );
         sh.run(bin.pluginTool + " install --batch analysis-icu");
 
         assertThat("Expected " + plugin + " to be installed", listPlugins(), hasItems(plugin));

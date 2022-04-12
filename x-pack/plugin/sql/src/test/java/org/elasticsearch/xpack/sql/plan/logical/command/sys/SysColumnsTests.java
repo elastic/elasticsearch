@@ -78,7 +78,7 @@ public class SysColumnsTests extends ESTestCase {
     private static final Map<String, EsField> MAPPING1 = loadMapping("mapping-multi-field-with-nested.json", true);
     private static final Map<String, EsField> MAPPING2 = loadMapping("mapping-multi-field-variation.json", true);
     private static final int FIELD_COUNT1 = 20;
-    private static final int FIELD_COUNT2 = 18;
+    private static final int FIELD_COUNT2 = 19;
 
     private final SqlParser parser = new SqlParser();
 

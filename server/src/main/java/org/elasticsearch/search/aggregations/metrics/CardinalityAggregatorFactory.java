@@ -13,6 +13,7 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -23,11 +24,17 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final Long precisionThreshold;
     private final CardinalityAggregatorSupplier aggregatorSupplier;
+    private int emptyCollectorsUsed;
+    private int numericCollectorsUsed;
+    private int ordinalsCollectorsUsed;
+    private int ordinalsCollectorsOverheadTooHigh;
+    private int stringHashingCollectorsUsed;
 
     CardinalityAggregatorFactory(
         String name,
@@ -48,7 +55,20 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
         builder.register(
             CardinalityAggregationBuilder.REGISTRY_KEY,
-            CoreValuesSourceType.ALL_CORE,
+            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.DATE),
+            NumericCardinalityAggregator::new,
+            true
+        );
+
+        builder.register(
+            CardinalityAggregationBuilder.REGISTRY_KEY,
+            List.of(CoreValuesSourceType.GEOPOINT, CoreValuesSourceType.RANGE),
+            DirectCollectorCardinalityAggregator::new,
+            true
+        );
+        builder.register(
+            CardinalityAggregationBuilder.REGISTRY_KEY,
+            List.of(CoreValuesSourceType.KEYWORD, CoreValuesSourceType.IP),
             (name, valuesSourceConfig, precision, context, parent, metadata) -> {
                 // check global ords
                 if (valuesSourceConfig.hasValues()) {
@@ -65,13 +85,25 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
                                 metadata
                             );
                         }
+                        // fallback in the default aggregator
+                        return new KeywordCardinalityAggregator(name, valuesSourceConfig, precision, context, parent, metadata);
                     }
                 }
-                // fallback in the default aggregator
-                return new CardinalityAggregator(name, valuesSourceConfig, precision, context, parent, metadata);
+                // If we don't have ordinals, don't try to use an ordinals collector
+                return new DirectCollectorCardinalityAggregator(name, valuesSourceConfig, precision, context, parent, metadata);
             },
             true
         );
+    }
+
+    @Override
+    public void collectDebugInfo(BiConsumer<String, Object> add) {
+        super.collectDebugInfo(add);
+        add.accept("empty_collectors_used", emptyCollectorsUsed);
+        add.accept("numeric_collectors_used", numericCollectorsUsed);
+        add.accept("ordinals_collectors_used", ordinalsCollectorsUsed);
+        add.accept("ordinals_collectors_overhead_too_high", ordinalsCollectorsOverheadTooHigh);
+        add.accept("string_hashing_collectors_used", stringHashingCollectorsUsed);
     }
 
     private static boolean useGlobalOrds(AggregationContext context, ValuesSource.Bytes.WithOrdinals source, int precision)
@@ -91,7 +123,12 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new CardinalityAggregator(name, config, precision(), context, parent, metadata);
+        return new CardinalityAggregator(name, config, precision(), context, parent, metadata) {
+            @Override
+            public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+                return new EmptyCollector();
+            }
+        };
     }
 
     @Override

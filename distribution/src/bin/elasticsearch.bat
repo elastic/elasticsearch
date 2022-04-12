@@ -102,11 +102,10 @@ SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^>=^^^>!
 SET KEYSTORE_PASSWORD=!KEYSTORE_PASSWORD:^\=^^^\!
 
 IF "%attemptautoconfig%"=="Y" (
+    SET CLI_NAME=auto-configure-node
+    SET CLI_LIBS=modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli
+    ECHO.!KEYSTORE_PASSWORD!|call "%~dp0elasticsearch-cli.bat" !newparams!
     ECHO.!KEYSTORE_PASSWORD!| %JAVA% %ES_JAVA_OPTS% ^
-      -Des.path.home="%ES_HOME%" ^
-      -Des.path.conf="%ES_PATH_CONF%" ^
-      -Des.distribution.type="%ES_DISTRIBUTION_TYPE%" ^
-      -cp "!ES_CLASSPATH!;!ES_HOME!/lib/tools/security-cli/*;!ES_HOME!/modules/x-pack-core/*;!ES_HOME!/modules/x-pack-security/*" "org.elasticsearch.xpack.security.cli.AutoConfigureNode" !newparams!
     SET SHOULDEXIT=Y
     IF !ERRORLEVEL! EQU 0 SET SHOULDEXIT=N
     IF !ERRORLEVEL! EQU 73 SET SHOULDEXIT=N
@@ -118,12 +117,9 @@ IF "%attemptautoconfig%"=="Y" (
 )
 
 IF "!enrolltocluster!"=="Y" (
-    ECHO.!KEYSTORE_PASSWORD!| %JAVA% %ES_JAVA_OPTS% ^
-      -Des.path.home="%ES_HOME%" ^
-      -Des.path.conf="%ES_PATH_CONF%" ^
-      -Des.distribution.type="%ES_DISTRIBUTION_TYPE%" ^
-      -cp "!ES_CLASSPATH!;!ES_HOME!/lib/tools/security-cli/*;!ES_HOME!/modules/x-pack-core/*;!ES_HOME!/modules/x-pack-security/*" "org.elasticsearch.xpack.security.cli.AutoConfigureNode" ^
-      !newparams! --enrollment-token %enrollmenttoken%
+    SET CLI_NAME=auto-configure-node
+    SET CLI_LIBS=modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli
+    ECHO.!KEYSTORE_PASSWORD!|call "%~dp0elasticsearch-cli.bat" !newparams! --enrollment-token %enrollmenttoken%
 	IF !ERRORLEVEL! NEQ 0 (
 	    exit /b !ERRORLEVEL!
 	)

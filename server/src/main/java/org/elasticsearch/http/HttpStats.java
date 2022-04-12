@@ -8,6 +8,7 @@
 
 package org.elasticsearch.http;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -22,21 +23,28 @@ public class HttpStats implements Writeable, ToXContentFragment {
     private final long serverOpen;
     private final long totalOpen;
     private final List<ClientStats> clientStats;
+    private final int[] nettyHttpWorkerPendingTaskCount;
 
-    public HttpStats(List<ClientStats> clientStats, long serverOpen, long totalOpened) {
+    public HttpStats(List<ClientStats> clientStats, long serverOpen, long totalOpened, int[] nettyHttpWorkerPendingTaskCount) {
         this.clientStats = clientStats;
         this.serverOpen = serverOpen;
         this.totalOpen = totalOpened;
+        this.nettyHttpWorkerPendingTaskCount = nettyHttpWorkerPendingTaskCount;
     }
 
-    public HttpStats(long serverOpen, long totalOpened) {
-        this(List.of(), serverOpen, totalOpened);
+    public HttpStats(long serverOpen, long totalOpened, int[] nettyHttpWorkerPendingTaskCount) {
+        this(List.of(), serverOpen, totalOpened, nettyHttpWorkerPendingTaskCount);
     }
 
     public HttpStats(StreamInput in) throws IOException {
         serverOpen = in.readVLong();
         totalOpen = in.readVLong();
         clientStats = in.readList(ClientStats::new);
+        if (in.getVersion().onOrAfter(Version.V_8_3_0)) {
+            nettyHttpWorkerPendingTaskCount = in.readIntArray();
+        } else {
+            nettyHttpWorkerPendingTaskCount = new int[0];
+        }
     }
 
     @Override
@@ -44,6 +52,9 @@ public class HttpStats implements Writeable, ToXContentFragment {
         out.writeVLong(serverOpen);
         out.writeVLong(totalOpen);
         out.writeList(clientStats);
+        if (out.getVersion().onOrAfter(Version.V_8_3_0)) {
+            out.writeIntArray(nettyHttpWorkerPendingTaskCount);
+        }
     }
 
     public long getServerOpen() {
@@ -56,6 +67,10 @@ public class HttpStats implements Writeable, ToXContentFragment {
 
     public List<ClientStats> getClientStats() {
         return this.clientStats;
+    }
+
+    public int[] getNettyHttpWorkerPendingTaskCount() {
+        return nettyHttpWorkerPendingTaskCount;
     }
 
     static final class Fields {
@@ -75,6 +90,7 @@ public class HttpStats implements Writeable, ToXContentFragment {
         static final String CLIENT_REQUEST_SIZE_BYTES = "request_size_bytes";
         static final String CLIENT_FORWARDED_FOR = "x_forwarded_for";
         static final String CLIENT_OPAQUE_ID = "x_opaque_id";
+        static final String NETTY_HTTP_WORKER_PENDING_TASK_COUNT = "netty_http_worker_pending_task_count";
     }
 
     @Override
@@ -87,6 +103,7 @@ public class HttpStats implements Writeable, ToXContentFragment {
             clientStats.toXContent(builder, params);
         }
         builder.endArray();
+        builder.field(Fields.NETTY_HTTP_WORKER_PENDING_TASK_COUNT, nettyHttpWorkerPendingTaskCount);
         builder.endObject();
         return builder;
     }

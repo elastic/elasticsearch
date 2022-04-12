@@ -144,6 +144,11 @@ public class NioHttpServerTransport extends AbstractHttpServerTransport {
     }
 
     @Override
+    protected int[] getNettyHttpWorkerPendingTaskCount() {
+        return new int[0];
+    }
+
+    @Override
     protected HttpServerChannel bind(InetSocketAddress socketAddress) throws IOException {
         NioHttpServerChannel httpServerChannel = nioGroup.bindServerChannel(socketAddress, channelFactory);
         PlainActionFuture<Void> future = PlainActionFuture.newFuture();

@@ -21,6 +21,10 @@ public final class SharedGroupFactoryTests extends ESTestCase {
         SharedGroupFactory.SharedGroup transportGroup = sharedGroupFactory.getTransportGroup();
 
         try {
+            assertArrayEquals(
+                sharedGroupFactory.getNettyTransportWorkerPendingTaskCount(),
+                sharedGroupFactory.getNettyHttpWorkerPendingTaskCount()
+            );
             assertSame(httpGroup.getLowLevelGroup(), transportGroup.getLowLevelGroup());
         } finally {
             httpGroup.shutdown();
@@ -37,15 +41,16 @@ public final class SharedGroupFactoryTests extends ESTestCase {
     }
 
     public void testNonSharedEventLoops() throws Exception {
-        Settings settings = Settings.builder()
-            .put(Netty4HttpServerTransport.SETTING_HTTP_WORKER_COUNT.getKey(), randomIntBetween(1, 10))
-            .build();
+        int httpWorkerCount = randomIntBetween(1, 10);
+        Settings settings = Settings.builder().put(Netty4HttpServerTransport.SETTING_HTTP_WORKER_COUNT.getKey(), httpWorkerCount).build();
         SharedGroupFactory sharedGroupFactory = new SharedGroupFactory(settings);
         SharedGroupFactory.SharedGroup httpGroup = sharedGroupFactory.getHttpGroup();
         SharedGroupFactory.SharedGroup transportGroup = sharedGroupFactory.getTransportGroup();
 
         try {
             assertNotSame(httpGroup.getLowLevelGroup(), transportGroup.getLowLevelGroup());
+            assertEquals(sharedGroupFactory.getNettyTransportWorkerPendingTaskCount().length, sharedGroupFactory.getTransportWorkerCount());
+            assertEquals(sharedGroupFactory.getNettyHttpWorkerPendingTaskCount().length, httpWorkerCount);
         } finally {
             httpGroup.shutdown();
             assertTrue(httpGroup.getLowLevelGroup().isShuttingDown());

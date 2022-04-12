@@ -327,6 +327,10 @@ public class Netty4Transport extends TcpTransport {
         }, serverBootstraps::clear, () -> clientBootstrap = null);
     }
 
+    protected int[] getNettyTransportWorkerPendingTaskCount() {
+        return sharedGroupFactory.getNettyTransportWorkerPendingTaskCount();
+    }
+
     protected class ClientChannelInitializer extends ChannelInitializer<Channel> {
 
         @Override

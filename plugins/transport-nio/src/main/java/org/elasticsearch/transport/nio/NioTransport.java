@@ -122,6 +122,11 @@ public class NioTransport extends TcpTransport {
         profileToChannelFactory.clear();
     }
 
+    @Override
+    protected int[] getNettyTransportWorkerPendingTaskCount() {
+        return new int[0];
+    }
+
     protected void acceptChannel(NioSocketChannel channel) {
         serverAcceptedChannel((NioTcpChannel) channel);
     }

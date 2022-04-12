@@ -18,7 +18,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.RefCounted;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
@@ -30,7 +29,7 @@ public class ValidateJoinRequest extends TransportRequest {
     public ValidateJoinRequest(StreamInput in) throws IOException {
         super(in);
         if (in.getVersion().onOrAfter(Version.V_8_3_0)) {
-            // recent versions send a BytesTransportRequest containing the compressed state
+            // recent versions send a BytesTransportRequest containing a compressed representation of the state
             final var bytes = in.readReleasableBytesReference();
             final var version = in.getVersion();
             final var namedWriteableRegistry = in.namedWriteableRegistry();
@@ -46,19 +45,15 @@ public class ValidateJoinRequest extends TransportRequest {
 
     private static ClusterState readCompressed(Version version, BytesReference bytes, NamedWriteableRegistry namedWriteableRegistry)
         throws IOException {
-        final var compressor = CompressorFactory.compressor(bytes);
-        StreamInput in = bytes.streamInput();
-        try {
-            if (compressor != null) {
-                in = new InputStreamStreamInput(compressor.threadLocalInputStream(in));
-            }
-            in = new NamedWriteableAwareStreamInput(in, namedWriteableRegistry);
+        try (
+            var bytesStreamInput = bytes.streamInput();
+            var in = new NamedWriteableAwareStreamInput(
+                new InputStreamStreamInput(CompressorFactory.COMPRESSOR.threadLocalInputStream(bytesStreamInput)),
+                namedWriteableRegistry
+            )
+        ) {
             in.setVersion(version);
-            try (StreamInput input = in) {
-                return ClusterState.readFrom(input, null);
-            }
-        } finally {
-            IOUtils.close(in);
+            return ClusterState.readFrom(in, null);
         }
     }
 

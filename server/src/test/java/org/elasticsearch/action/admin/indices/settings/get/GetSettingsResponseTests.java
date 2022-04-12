@@ -49,7 +49,7 @@ public class GetSettingsResponseTests extends AbstractSerializingTestCase<GetSet
             indexToSettings.put(indexName, builder.build());
         }
         ImmutableOpenMap<String, Settings> immutableIndexToSettings = ImmutableOpenMap.<String, Settings>builder()
-            .putAll(indexToSettings)
+            .putAllFromMap(indexToSettings)
             .build();
 
         if (randomBoolean()) {
@@ -60,7 +60,7 @@ public class GetSettingsResponseTests extends AbstractSerializingTestCase<GetSet
         }
 
         ImmutableOpenMap<String, Settings> immutableIndexToDefaultSettings = ImmutableOpenMap.<String, Settings>builder()
-            .putAll(indexToDefaultSettings)
+            .putAllFromMap(indexToDefaultSettings)
             .build();
 
         return new GetSettingsResponse(immutableIndexToSettings, immutableIndexToDefaultSettings);

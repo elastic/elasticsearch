@@ -166,12 +166,10 @@ public class FieldFetcher {
         Map<String, DocumentField> documentFields = new HashMap<>();
         for (FieldContext context : fieldContexts.values()) {
             String field = context.fieldName;
-
             ValueFetcher valueFetcher = context.valueFetcher;
-            List<Object> ignoredValues = new ArrayList<>();
-            List<Object> parsedValues = valueFetcher.fetchValues(sourceLookup, ignoredValues);
-            if (parsedValues.isEmpty() == false || ignoredValues.isEmpty() == false) {
-                documentFields.put(field, new DocumentField(field, parsedValues, ignoredValues));
+            final DocumentField docField = valueFetcher.fetchDocumentField(field, sourceLookup);
+            if (docField != null) {
+                documentFields.put(field, docField);
             }
         }
         collectUnmapped(documentFields, sourceLookup, "", 0);

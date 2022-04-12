@@ -156,7 +156,11 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
         }
         builder.startObject();
         builder.array(INDICES_FIELD.getPreferredName(), indices);
-        builder.field(FIELDS_FIELD.getPreferredName(), responseMap);
+        builder.startObject(FIELDS_FIELD.getPreferredName());
+        for (var r : responseMap.entrySet()) {
+            builder.xContentValuesMap(r.getKey(), r.getValue());
+        }
+        builder.endObject();
         if (this.failures.size() > 0) {
             builder.field(FAILED_INDICES_FIELD.getPreferredName(), getFailedIndices().length);
             builder.xContentList(FAILURES_FIELD.getPreferredName(), failures);
@@ -178,7 +182,7 @@ public class FieldCapabilitiesResponse extends ActionResponse implements ToXCont
                 .collect(Collectors.toMap(Tuple::v1, Tuple::v2));
             List<String> indices = a[1] == null ? Collections.emptyList() : (List<String>) a[1];
             List<FieldCapabilitiesFailure> failures = a[2] == null ? Collections.emptyList() : (List<FieldCapabilitiesFailure>) a[2];
-            return new FieldCapabilitiesResponse(indices.stream().toArray(String[]::new), responseMap, failures);
+            return new FieldCapabilitiesResponse(indices.toArray(String[]::new), responseMap, failures);
         }
     );
 

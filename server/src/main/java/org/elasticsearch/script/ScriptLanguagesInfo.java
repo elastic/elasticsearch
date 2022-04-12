@@ -133,7 +133,7 @@ public class ScriptLanguagesInfo implements ToXContentObject, Writeable {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject().startArray(TYPES_ALLOWED.getPreferredName());
-        for (String type : typesAllowed.stream().sorted().collect(Collectors.toList())) {
+        for (String type : typesAllowed.stream().sorted().toList()) {
             builder.value(type);
         }
 
@@ -141,11 +141,11 @@ public class ScriptLanguagesInfo implements ToXContentObject, Writeable {
         List<Map.Entry<String, Set<String>>> languagesByName = languageContexts.entrySet()
             .stream()
             .sorted(Map.Entry.comparingByKey())
-            .collect(Collectors.toList());
+            .toList();
 
         for (Map.Entry<String, Set<String>> languageContext : languagesByName) {
             builder.startObject().field(LANGUAGE.getPreferredName(), languageContext.getKey()).startArray(CONTEXTS.getPreferredName());
-            for (String context : languageContext.getValue().stream().sorted().collect(Collectors.toList())) {
+            for (String context : languageContext.getValue().stream().sorted().toList()) {
                 builder.value(context);
             }
             builder.endArray().endObject();

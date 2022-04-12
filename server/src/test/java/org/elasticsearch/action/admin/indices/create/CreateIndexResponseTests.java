@@ -12,9 +12,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.json.JsonXContent;
-
-import java.io.IOException;
 
 public class CreateIndexResponseTests extends AbstractSerializingTestCase<CreateIndexResponse> {
 
@@ -64,16 +61,4 @@ public class CreateIndexResponseTests extends AbstractSerializingTestCase<Create
             {"acknowledged":true,"shards_acknowledged":false,"index":"index_name"}""", output);
     }
 
-    public void testToAndFromXContentIndexNull() throws IOException {
-        CreateIndexResponse response = new CreateIndexResponse(true, false, null);
-        String output = Strings.toString(response);
-        assertEquals("""
-            {"acknowledged":true,"shards_acknowledged":false,"index":null}""", output);
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, output)) {
-            CreateIndexResponse parsedResponse = CreateIndexResponse.fromXContent(parser);
-            assertNull(parsedResponse.index());
-            assertTrue(parsedResponse.isAcknowledged());
-            assertFalse(parsedResponse.isShardsAcknowledged());
-        }
-    }
 }

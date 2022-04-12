@@ -262,7 +262,7 @@ public class FieldCapabilitiesTests extends AbstractSerializingTestCase<FieldCap
         if (metricTypes.isEmpty()) {
             assertNull(fieldCaps.getMetricType());
             assertNull(fieldCaps.metricConflictsIndices());
-        } else if (metricTypes.size() == indices.size() && metricTypes.values().size() == 1) {
+        } else if (metricTypes.size() == indices.size() && metricTypes.values().stream().distinct().count() == 1) {
             assertThat(fieldCaps.getMetricType(), equalTo(Iterables.get(metricTypes.values(), 0)));
             assertNull(fieldCaps.metricConflictsIndices());
         } else {

@@ -1,5 +1,0 @@
-pr: 83092
-summary: Make `AllocationService#adaptAutoExpandReplicas` Faster
-area: Allocation
-type: enhancement
-issues: []

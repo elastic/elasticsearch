@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations;
 
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.search.profile.aggregation.InternalAggregationProfileTree;
@@ -77,8 +76,8 @@ public abstract class AdaptingAggregator extends Aggregator {
     }
 
     @Override
-    public final LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
-        return delegate.getLeafCollector(ctx);
+    public final LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException {
+        return delegate.getLeafCollector(aggCtx);
     }
 
     @Override

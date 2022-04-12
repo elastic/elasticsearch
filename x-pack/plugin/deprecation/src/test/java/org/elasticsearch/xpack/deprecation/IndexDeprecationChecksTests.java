@@ -59,7 +59,12 @@ public class IndexDeprecationChecksTests extends ESTestCase {
                     "translog retention settings [index.translog.retention.size] and [index.translog.retention.age] are ignored "
                         + "because translog is no longer used in peer recoveries with soft-deletes enabled (default in 7.0 or later)",
                     false,
-                    null
+                    DeprecationIssue.createMetaMapForRemovableSettings(
+                        List.of(
+                            IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey(),
+                            IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey()
+                        )
+                    )
                 )
             )
         );

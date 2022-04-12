@@ -71,7 +71,7 @@ public class QueryConfig implements SimpleDiffable<QueryConfig>, Writeable, ToXC
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(source);
+        out.writeGenericMap(source);
         out.writeOptionalNamedWriteable(query);
     }
 

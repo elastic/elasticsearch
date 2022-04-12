@@ -39,7 +39,6 @@ import org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureH
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig.RealmIdentifier;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
-import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
@@ -51,6 +50,7 @@ import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.elasticsearch.xpack.security.support.SecuritySystemIndices;
 import org.elasticsearch.xpack.security.test.SecurityMocks;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -107,8 +107,8 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
         final AuthenticationFailureHandler failureHandler = new DefaultAuthenticationFailureHandler(Map.of());
         final AnonymousUser anonymous = new AnonymousUser(settings);
 
-        final SecurityIndexManager securityIndex = SecurityMocks.mockSecurityIndexManager(RestrictedIndicesNames.SECURITY_MAIN_ALIAS);
-        final SecurityIndexManager tokensIndex = SecurityMocks.mockSecurityIndexManager(RestrictedIndicesNames.SECURITY_TOKENS_ALIAS);
+        final SecurityIndexManager securityIndex = SecurityMocks.mockSecurityIndexManager(SecuritySystemIndices.SECURITY_MAIN_ALIAS);
+        final SecurityIndexManager tokensIndex = SecurityMocks.mockSecurityIndexManager(SecuritySystemIndices.SECURITY_TOKENS_ALIAS);
 
         client = Mockito.mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
@@ -306,7 +306,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
 
         final AtomicReference<String> tokenDocId = new AtomicReference<>();
         final AtomicReference<BytesReference> tokenSource = new AtomicReference<>();
-        SecurityMocks.mockIndexRequest(client, RestrictedIndicesNames.SECURITY_TOKENS_ALIAS, request -> {
+        SecurityMocks.mockIndexRequest(client, SecuritySystemIndices.SECURITY_TOKENS_ALIAS, request -> {
             tokenDocId.set(request.id());
             tokenSource.set(request.source());
         });
@@ -317,7 +317,7 @@ public class SecondaryAuthenticatorTests extends ESTestCase {
 
         threadPool.getThreadContext().putHeader(SECONDARY_AUTH_HEADER_NAME, "Bearer " + token);
 
-        SecurityMocks.mockGetRequest(client, RestrictedIndicesNames.SECURITY_TOKENS_ALIAS, tokenDocId.get(), tokenSource.get());
+        SecurityMocks.mockGetRequest(client, SecuritySystemIndices.SECURITY_TOKENS_ALIAS, tokenDocId.get(), tokenSource.get());
 
         final TransportRequest request = new AuthenticateRequest();
         final PlainActionFuture<SecondaryAuthentication> future = new PlainActionFuture<>();

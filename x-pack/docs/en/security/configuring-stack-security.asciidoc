@@ -18,11 +18,11 @@ security configuration to `kibana.yml`.
 [discrete]
 === Prerequisites
 
-* https://www.elastic.co/downloads/elasticsearch#preview-release[Download] and
-unpack the `elasticsearch 8.0.0-beta` package distribution for your
+* https://www.elastic.co/downloads/elasticsearch[Download] and
+unpack the `elasticsearch` package distribution for your
 environment.
-* https://www.elastic.co/downloads/kibana#preview-release[Download] and unpack
-the `kibana 8.0.0-beta` package distribution for your environment.
+* https://www.elastic.co/downloads/kibana[Download] and unpack
+the `kibana` package distribution for your environment.
 
 [discrete]
 [[stack-start-with-security]]
@@ -99,24 +99,7 @@ can <<encrypt-kibana-browser,encrypt traffic between your browser and {kib}>>.
 
 [discrete]
 [[stack-security-certificates]]
-=== Security certificates and keys
-
-When you start {es} for the first time, the following certificates and keys are
-generated in the `config/certs` directory,
-which are used to connect a {kib} instance to your secured {es} cluster and
-to encrypt internode communication. The files are listed here for reference.
-
-`http_ca.crt`::
-The CA certificate that is used to sign the certificates for the HTTP layer of
-this {es} cluster. You can use this CA certificate to configure any client to
-trust the certificate that {es} uses for HTTPS.
-
-`http.p12`::
-Keystore that contains the key and certificate for the HTTP layer for this node.
-
-`transport.p12`::
-Keystore that contains the key and certificate for the transport layer for all
-the nodes in your cluster.
+include::{es-ref-dir}/setup/install/security-files-reference.asciidoc[leveloffset=-2]
 
 Additionally, when you use the enrollment token to connect {kib} to a secured {es} cluster, the HTTP layer CA certificate is retrieved from {es} and stored in the
 {kib} `/data` directory. This file establishes trust between {kib} and the {es}

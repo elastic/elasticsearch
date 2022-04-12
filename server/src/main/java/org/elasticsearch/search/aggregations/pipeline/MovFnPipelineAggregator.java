@@ -95,7 +95,7 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
         List<Double> values = buckets.stream()
             .map(b -> resolveBucketValue(histo, b, bucketsPaths()[0], gapPolicy))
             .filter(v -> v != null && v.isNaN() == false)
-            .collect(Collectors.toList());
+            .toList();
 
         int index = 0;
         for (InternalMultiBucketAggregation.InternalBucket bucket : buckets) {
@@ -118,7 +118,7 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
 
                 List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
                     .map(InternalAggregation.class::cast)
-                    .collect(Collectors.toList());
+                    .collect(Collectors.toCollection(ArrayList::new));
                 aggs.add(new InternalSimpleValue(name(), movavg, formatter, metadata()));
                 newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), InternalAggregations.from(aggs));
                 index++;
@@ -129,7 +129,7 @@ public class MovFnPipelineAggregator extends PipelineAggregator {
         return factory.createAggregation(newBuckets);
     }
 
-    private int clamp(int index, List<Double> list) {
+    private static int clamp(int index, List<Double> list) {
         if (index < 0) {
             return 0;
         }

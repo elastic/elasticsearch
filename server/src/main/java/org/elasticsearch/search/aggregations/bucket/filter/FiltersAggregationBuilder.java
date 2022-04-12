@@ -99,6 +99,11 @@ public class FiltersAggregationBuilder extends AbstractAggregationBuilder<Filter
         return new FiltersAggregationBuilder(this, factoriesBuilder, metadata);
     }
 
+    @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
     /**
      * Read from a stream.
      */

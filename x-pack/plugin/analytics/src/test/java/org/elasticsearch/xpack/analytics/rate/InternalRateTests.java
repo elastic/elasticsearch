@@ -62,7 +62,7 @@ public class InternalRateTests extends InternalAggregationTestCase<InternalRate>
 
     @Override
     protected void assertSampled(InternalRate sampled, InternalRate reduced, SamplingContext samplingContext) {
-        assertThat(sampled.getValue(), closeTo(samplingContext.inverseScale(reduced.getValue()), 1e-10));
+        assertThat(sampled.getValue(), closeTo(samplingContext.scaleUp(reduced.getValue()), 1e-10));
     }
 
     @Override

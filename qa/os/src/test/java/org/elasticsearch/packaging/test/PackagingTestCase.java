@@ -311,7 +311,7 @@ public abstract class PackagingTestCase extends Assert {
             case TAR:
             case ZIP:
                 if (useTty) {
-                    return Archives.startElasticsearchWithTty(installation, sh, password, List.of(), daemonize);
+                    return Archives.startElasticsearchWithTty(installation, sh, password, List.of(), null, daemonize);
                 } else {
                     return Archives.runElasticsearchStartCommand(installation, sh, password, List.of(), daemonize);
                 }

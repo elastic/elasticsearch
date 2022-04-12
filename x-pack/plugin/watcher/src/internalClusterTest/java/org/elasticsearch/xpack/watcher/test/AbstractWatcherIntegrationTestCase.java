@@ -296,9 +296,9 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         if (watchesIsAlias) {
             GetAliasesResponse aliasesResponse = client().admin().indices().prepareGetAliases(originalIndexOrAlias).get();
             assertEquals(1, aliasesResponse.getAliases().size());
-            aliasesResponse.getAliases().forEach((aliasRecord) -> {
-                assertEquals(1, aliasRecord.value.size());
-                originalIndex.set(aliasRecord.key);
+            aliasesResponse.getAliases().entrySet().forEach((aliasRecord) -> {
+                assertEquals(1, aliasRecord.getValue().size());
+                originalIndex.set(aliasRecord.getKey());
             });
         }
         client().admin().indices().prepareDelete(originalIndex.get()).get();

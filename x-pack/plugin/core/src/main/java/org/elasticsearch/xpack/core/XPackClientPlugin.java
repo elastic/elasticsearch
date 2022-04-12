@@ -141,6 +141,7 @@ import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedState;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsTaskState;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
+import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskParams;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskState;
 import org.elasticsearch.xpack.core.monitoring.MonitoringFeatureSetUsage;
 import org.elasticsearch.xpack.core.rollup.RollupFeatureSetUsage;
@@ -595,6 +596,11 @@ public class XPackClientPlugin extends Plugin implements ActionPlugin, NetworkPl
                 PersistentTaskParams.class,
                 new ParseField(MlTasks.DATA_FRAME_ANALYTICS_TASK_NAME),
                 StartDataFrameAnalyticsAction.TaskParams::fromXContent
+            ),
+            new NamedXContentRegistry.Entry(
+                PersistentTaskParams.class,
+                new ParseField(MlTasks.JOB_SNAPSHOT_UPGRADE_TASK_NAME),
+                SnapshotUpgradeTaskParams::fromXContent
             ),
             // ML - Task states
             new NamedXContentRegistry.Entry(PersistentTaskState.class, new ParseField(DatafeedState.NAME), DatafeedState::fromXContent),

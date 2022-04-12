@@ -1,6 +1,6 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
-  "$id": "https://github.com/elastic/elasticsearch/tree/master/docs/changelog",
+  "$id": "https://github.com/elastic/elasticsearch/tree/main/docs/changelog",
   "$ref": "#/definitions/Changelog",
   "definitions": {
     "Changelog": {

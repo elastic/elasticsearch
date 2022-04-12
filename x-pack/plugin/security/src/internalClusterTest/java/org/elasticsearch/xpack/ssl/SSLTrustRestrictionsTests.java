@@ -171,7 +171,7 @@ public class SSLTrustRestrictionsTests extends SecurityIntegTestCase {
             logger.warn(
                 new ParameterizedMessage(
                     "unexpected handshake failure with certificate [{}] [{}]",
-                    trustedCert.certificate.getSubjectDN(),
+                    trustedCert.certificate.getSubjectX500Principal(),
                     trustedCert.certificate.getSubjectAlternativeNames()
                 ),
                 ex

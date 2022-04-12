@@ -48,9 +48,9 @@ class MatrixStatsResults implements Writeable {
         this.correlation = new HashMap<>();
         this.compute();
         // Note: it is important to scale counts AFTER compute as scaling before could introduce bias
-        this.results.docCount = samplingContext.inverseScale(this.results.docCount);
+        this.results.docCount = samplingContext.scaleUp(this.results.docCount);
         for (String field : this.results.counts.keySet()) {
-            this.results.counts.computeIfPresent(field, (k, v) -> samplingContext.inverseScale(v));
+            this.results.counts.computeIfPresent(field, (k, v) -> samplingContext.scaleUp(v));
         }
     }
 

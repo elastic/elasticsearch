@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.sql.session;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 
 /**
  * Information required to access the next page of response.
@@ -43,10 +42,10 @@ public interface Cursor extends NamedWriteable {
     /**
      * Request the next page of data.
      */
-    void nextPage(SqlConfiguration cfg, Client client, NamedWriteableRegistry registry, ActionListener<Page> listener);
+    void nextPage(SqlConfiguration cfg, Client client, ActionListener<Page> listener);
 
     /**
      *  Cleans the resources associated with the cursor
      */
-    void clear(Client client, NamedWriteableRegistry registry, ActionListener<Boolean> listener);
+    void clear(Client client, ActionListener<Boolean> listener);
 }

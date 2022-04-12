@@ -43,7 +43,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.equalTo;
@@ -144,9 +143,7 @@ public class StableMasterDisruptionIT extends ESIntegTestCase {
         ensureStableCluster(3);
 
         final String master = internalCluster().getMasterName();
-        final List<String> nonMasters = Arrays.stream(internalCluster().getNodeNames())
-            .filter(n -> master.equals(n) == false)
-            .collect(Collectors.toList());
+        final List<String> nonMasters = Arrays.stream(internalCluster().getNodeNames()).filter(n -> master.equals(n) == false).toList();
         final String isolatedNode = randomFrom(nonMasters);
         final String otherNode = nonMasters.get(nonMasters.get(0).equals(isolatedNode) ? 1 : 0);
 

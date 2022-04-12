@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -83,10 +84,15 @@ public class SearchableSnapshotIndexMetadataUpgrader {
                     // let us try again later.
                     upgraded.set(false);
                 }
-            }, ClusterStateTaskExecutor.unbatched());
+            }, newExecutor());
         } else {
             clusterService.removeListener(listener);
         }
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 
     static boolean needsUpgrade(ClusterState state) {

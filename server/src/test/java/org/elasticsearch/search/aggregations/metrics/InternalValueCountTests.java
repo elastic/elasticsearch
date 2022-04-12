@@ -38,7 +38,7 @@ public class InternalValueCountTests extends InternalAggregationTestCase<Interna
 
     @Override
     protected void assertSampled(InternalValueCount sampled, InternalValueCount reduced, SamplingContext samplingContext) {
-        assertThat(sampled.getValue(), equalTo(samplingContext.inverseScale(reduced.getValue())));
+        assertThat(sampled.getValue(), equalTo(samplingContext.scaleUp(reduced.getValue())));
     }
 
     @Override

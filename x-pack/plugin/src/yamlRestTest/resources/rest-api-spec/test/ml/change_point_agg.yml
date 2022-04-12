@@ -1,0 +1,213 @@
+setup:
+  - skip:
+      features: headers
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.create:
+        index: store
+        body:
+          mappings:
+            properties:
+              cost:
+                type: integer
+              time:
+                type: date
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      indices.create:
+        index: empty-store
+        body:
+          mappings:
+            properties:
+              cost:
+                type: integer
+              time:
+                type: date
+
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+        Content-Type: application/json
+      bulk:
+        index: store
+        refresh: true
+        body: |
+          {"index":{}}
+          {"cost":200,"time":1587501233000}
+          {"index":{}}
+          {"cost":200,"time":1587501243000}
+          {"index":{}}
+          {"cost":200,"time":1587501253000}
+          {"index":{}}
+          {"cost":250,"time":1587501263000}
+          {"index":{}}
+          {"cost":250,"time":1587501273000}
+          {"index":{}}
+          {"cost":580,"time":1587501283000}
+          {"index":{}}
+          {"cost":600,"time":1587501293000}
+          {"index":{}}
+          {"cost":600,"time":1587501303000}
+          {"index":{}}
+          {"cost":600,"time":1587501313000}
+          {"index":{}}
+          {"cost":600,"time":1587501313000}
+          {"index":{}}
+          {"cost":600,"time":1587501323000}
+          {"index":{}}
+          {"cost":600,"time":1587501333000}
+          {"index":{}}
+          {"cost":600,"time":1587501343000}
+          {"index":{}}
+          {"cost":600,"time":1587501353000}
+          {"index":{}}
+          {"cost":600,"time":1587501363000}
+          {"index":{}}
+          {"cost":600,"time":1587501373000}
+          {"index":{}}
+          {"cost":600,"time":1587501383000}
+          {"index":{}}
+          {"cost":600,"time":1587501393000}
+          {"index":{}}
+          {"cost":600,"time":1587501403000}
+          {"index":{}}
+          {"cost":600,"time":1587501413000}
+          {"index":{}}
+          {"cost":600,"time":1587501423000}
+          {"index":{}}
+          {"cost":600,"time":1587501433000}
+          {"index":{}}
+          {"cost":600,"time":1587501443000}
+          {"index":{}}
+          {"cost":600,"time":1587501453000}
+
+---
+"Test change_point agg simple":
+
+  - do:
+      search:
+        index: store
+        size: 0
+        body: >
+          {
+            "aggs": {
+              "date": {
+                "date_histogram": {
+                  "field": "time",
+                  "fixed_interval": "1s"
+                },
+                "aggs": {
+                  "avg": {
+                    "avg": {
+                      "field": "cost"
+                    }
+                  }
+                }
+              },
+              "change_point": {
+                "change_point": {
+                  "buckets_path": "date>avg"
+                }
+              }
+            }
+          }
+  - is_true: aggregations.change_point.type.trend_change
+  - is_true: aggregations.change_point.type.trend_change.p_value
+  - is_true: aggregations.change_point.type.trend_change.r_value
+
+---
+"Test change_point with missing buckets_path":
+
+  - do:
+      catch: /Required \[buckets_path\]/
+      search:
+        index: store
+        size: 0
+        body: >
+          {
+            "aggs": {
+              "date": {
+                "date_histogram": {
+                  "field": "time",
+                  "fixed_interval": "1s"
+                },
+                "aggs": {
+                  "avg": {
+                    "avg": {
+                      "field": "cost"
+                    }
+                  }
+                }
+              },
+              "change_point": {
+                "change_point": {
+                }
+              }
+            }
+          }
+
+---
+"Test change_point with bad buckets_path":
+
+  - do:
+      catch: /No aggregation found for path \[foo\]/
+      search:
+        index: store
+        size: 0
+        body: >
+          {
+            "aggs": {
+              "date": {
+                "date_histogram": {
+                  "field": "time",
+                  "fixed_interval": "1s"
+                },
+                "aggs": {
+                  "avg": {
+                    "avg": {
+                      "field": "cost"
+                    }
+                  }
+                }
+              },
+              "change_point": {
+                "change_point": {
+                  "buckets_path": "foo"
+                }
+              }
+            }
+          }
+---
+"Test change_point with too few buckets":
+
+  - do:
+      catch: /not enough buckets to calculate change_point. Requires at least \[22\]/
+      search:
+        index: empty-store
+        size: 0
+        body: >
+          {
+            "aggs": {
+              "date": {
+                "date_histogram": {
+                  "field": "time",
+                  "fixed_interval": "1s"
+                },
+                "aggs": {
+                  "avg": {
+                    "avg": {
+                      "field": "cost"
+                    }
+                  }
+                }
+              },
+              "change_point": {
+                "change_point": {
+                  "buckets_path": "date"
+                }
+              }
+            }
+          }

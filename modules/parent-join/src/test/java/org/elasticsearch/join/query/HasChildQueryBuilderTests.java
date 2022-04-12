@@ -229,13 +229,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
                 "_name" : "WNzYMJKRwePuRBh",
                 "inner_hits" : {
                   "name" : "inner_hits_name",
-                  "ignore_unmapped" : false,
-                  "from" : 0,
                   "size" : 100,
-                  "version" : false,
-                  "seq_no_primary_term" : false,
-                  "explain" : false,
-                  "track_scores" : false,
                   "sort" : [ {
                     "mapped_string" : {
                       "order" : "asc"
@@ -250,7 +244,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
              * Ignoring unmapped is the default and we don't dump it and can't
              * change it if we're going to use inner_hits.
              */
-            query.replaceFirst("\"ignore_unmapped\" : false,", ""),
+            query.replaceAll("\"ignore_unmapped\" : false,", ""),
             queryBuilder
         );
         assertEquals(query, queryBuilder.maxChildren(), 1217235442);
@@ -317,13 +311,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
                 "type" : "child",
                 "inner_hits" : {
                   "name" : "inner_hits_name",
-                  "ignore_unmapped" : false,
-                  "from" : 0,
                   "size" : 100,
-                  "version" : false,
-                  "seq_no_primary_term" : false,
-                  "explain" : false,
-                  "track_scores" : false,
                   "sort" : [ {
                     "mapped_string" : {
                       "order" : "asc"

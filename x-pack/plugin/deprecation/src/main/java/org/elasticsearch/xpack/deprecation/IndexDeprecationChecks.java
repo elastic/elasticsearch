@@ -13,7 +13,10 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.frozen.FrozenEngine;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /**
  * Index-specific deprecation checks
@@ -41,6 +44,14 @@ public class IndexDeprecationChecks {
         if (softDeletesEnabled) {
             if (IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(indexMetadata.getSettings())
                 || IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(indexMetadata.getSettings())) {
+                List<String> settingKeys = new ArrayList<>();
+                if (IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(indexMetadata.getSettings())) {
+                    settingKeys.add(IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.getKey());
+                }
+                if (IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(indexMetadata.getSettings())) {
+                    settingKeys.add(IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.getKey());
+                }
+                Map<String, Object> meta = DeprecationIssue.createMetaMapForRemovableSettings(settingKeys);
                 return new DeprecationIssue(
                     DeprecationIssue.Level.WARNING,
                     "translog retention settings are ignored",
@@ -48,7 +59,7 @@ public class IndexDeprecationChecks {
                     "translog retention settings [index.translog.retention.size] and [index.translog.retention.age] are ignored "
                         + "because translog is no longer used in peer recoveries with soft-deletes enabled (default in 7.0 or later)",
                     false,
-                    null
+                    meta
                 );
             }
         }

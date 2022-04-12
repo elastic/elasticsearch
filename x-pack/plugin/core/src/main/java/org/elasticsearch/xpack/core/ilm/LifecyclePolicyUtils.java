@@ -17,11 +17,11 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.NotXContentException;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.internal.io.Streams;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.ByteArrayOutputStream;
@@ -55,7 +55,7 @@ public class LifecyclePolicyUtils {
 
             try (
                 XContentParser parser = XContentType.JSON.xContent()
-                    .createParser(xContentRegistry, LoggingDeprecationHandler.THROW_UNSUPPORTED_OPERATION, source.utf8ToString())
+                    .createParser(XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry), source.utf8ToString())
             ) {
                 LifecyclePolicy policy = LifecyclePolicy.parse(parser, name);
                 policy.validate();

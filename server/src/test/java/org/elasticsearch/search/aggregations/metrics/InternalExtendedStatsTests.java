@@ -94,11 +94,11 @@ public class InternalExtendedStatsTests extends InternalAggregationTestCase<Inte
     @Override
     protected void assertSampled(InternalExtendedStats sampled, InternalExtendedStats reduced, SamplingContext samplingContext) {
         assertEquals(sigma, sampled.getSigma(), 0);
-        assertEquals(sampled.getCount(), samplingContext.inverseScale(reduced.getCount()));
-        assertEquals(sampled.getSum(), samplingContext.inverseScale(reduced.getSum()), 0);
+        assertEquals(sampled.getCount(), samplingContext.scaleUp(reduced.getCount()));
+        assertEquals(sampled.getSum(), samplingContext.scaleUp(reduced.getSum()), 0);
         assertEquals(sampled.getMax(), reduced.getMax(), 0d);
         assertEquals(sampled.getMin(), reduced.getMin(), 0d);
-        assertEquals(sampled.getSumOfSquares(), samplingContext.inverseScale(reduced.getSumOfSquares()), 0);
+        assertEquals(sampled.getSumOfSquares(), samplingContext.scaleUp(reduced.getSumOfSquares()), 0);
     }
 
     @Override

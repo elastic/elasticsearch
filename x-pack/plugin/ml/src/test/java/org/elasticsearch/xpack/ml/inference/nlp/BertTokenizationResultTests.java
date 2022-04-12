@@ -38,10 +38,10 @@ public class BertTokenizationResultTests extends ESTestCase {
     }
 
     public void testBuildRequest() throws IOException {
-        tokenizer = BertTokenizer.builder(TEST_CASED_VOCAB, new BertTokenization(null, null, 512, null)).build();
+        tokenizer = BertTokenizer.builder(TEST_CASED_VOCAB, new BertTokenization(null, null, 512, null, null)).build();
 
         var requestBuilder = tokenizer.requestBuilder();
-        NlpTask.Request request = requestBuilder.buildRequest(List.of("Elasticsearch fun"), "request1", Tokenization.Truncate.NONE);
+        NlpTask.Request request = requestBuilder.buildRequest(List.of("Elasticsearch fun"), "request1", Tokenization.Truncate.NONE, -1);
         Map<String, Object> jsonDocAsMap = XContentHelper.convertToMap(request.processInput(), true, XContentType.JSON).v2();
 
         assertThat(jsonDocAsMap.keySet(), hasSize(5));
@@ -62,7 +62,7 @@ public class BertTokenizationResultTests extends ESTestCase {
     }
 
     public void testInputTooLarge() throws IOException {
-        tokenizer = BertTokenizer.builder(TEST_CASED_VOCAB, new BertTokenization(null, null, 5, null)).build();
+        tokenizer = BertTokenizer.builder(TEST_CASED_VOCAB, new BertTokenization(null, null, 5, null, null)).build();
         {
             var requestBuilder = tokenizer.requestBuilder();
             ElasticsearchStatusException e = expectThrows(
@@ -70,7 +70,8 @@ public class BertTokenizationResultTests extends ESTestCase {
                 () -> requestBuilder.buildRequest(
                     Collections.singletonList("Elasticsearch fun Elasticsearch fun Elasticsearch fun"),
                     "request1",
-                    Tokenization.Truncate.NONE
+                    Tokenization.Truncate.NONE,
+                    -1
                 )
             );
 
@@ -83,19 +84,20 @@ public class BertTokenizationResultTests extends ESTestCase {
             var requestBuilder = tokenizer.requestBuilder();
             // input will become 3 tokens + the Class and Separator token = 5 which is
             // our max sequence length
-            requestBuilder.buildRequest(Collections.singletonList("Elasticsearch fun"), "request1", Tokenization.Truncate.NONE);
+            requestBuilder.buildRequest(Collections.singletonList("Elasticsearch fun"), "request1", Tokenization.Truncate.NONE, -1);
         }
     }
 
     @SuppressWarnings("unchecked")
     public void testBatchWithPadding() throws IOException {
-        tokenizer = BertTokenizer.builder(TEST_CASED_VOCAB, new BertTokenization(null, null, 512, null)).build();
+        tokenizer = BertTokenizer.builder(TEST_CASED_VOCAB, new BertTokenization(null, null, 512, null, null)).build();
 
         var requestBuilder = tokenizer.requestBuilder();
         NlpTask.Request request = requestBuilder.buildRequest(
             List.of("Elasticsearch", "my little red car", "Godzilla day"),
             "request1",
-            Tokenization.Truncate.NONE
+            Tokenization.Truncate.NONE,
+            -1
         );
         Map<String, Object> jsonDocAsMap = XContentHelper.convertToMap(request.processInput(), true, XContentType.JSON).v2();
 

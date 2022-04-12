@@ -124,13 +124,13 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 int firstDotIndex = name.indexOf(".");
                 String childName = name.substring(0, firstDotIndex);
                 String fullChildName = prefix == null ? childName : prefix + "." + childName;
-                ObjectMapper.Builder childBuilder = findChild(childName, fullChildName, context);
+                ObjectMapper.Builder childBuilder = findChild(fullChildName, context);
                 childBuilder.addDynamic(name.substring(firstDotIndex + 1), fullChildName, mapper, context);
                 mappersBuilders.add(childBuilder);
             }
         }
 
-        private ObjectMapper.Builder findChild(String childName, String fullChildName, DocumentParserContext context) {
+        private static ObjectMapper.Builder findChild(String fullChildName, DocumentParserContext context) {
             // does the child mapper already exist? if so, use that
             ObjectMapper child = context.mappingLookup().objectMappers().get(fullChildName);
             if (child != null) {
@@ -307,9 +307,9 @@ public class ObjectMapper extends Mapper implements Cloneable {
         this.enabled = enabled;
         this.dynamic = dynamic;
         if (mappers == null) {
-            this.mappers = new HashMap<>();
+            this.mappers = Map.of();
         } else {
-            this.mappers = new HashMap<>(mappers);
+            this.mappers = Map.copyOf(mappers);
         }
     }
 
@@ -321,7 +321,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         } catch (CloneNotSupportedException e) {
             throw new RuntimeException(e);
         }
-        clone.mappers = new HashMap<>(clone.mappers);
+        clone.mappers = Map.copyOf(clone.mappers);
         return clone;
     }
 
@@ -410,8 +410,9 @@ public class ObjectMapper extends Mapper implements Cloneable {
             }
         }
 
+        Map<String, Mapper> mergedMappers = null;
         for (Mapper mergeWithMapper : mergeWith) {
-            Mapper mergeIntoMapper = mappers.get(mergeWithMapper.simpleName());
+            Mapper mergeIntoMapper = (mergedMappers == null ? mappers : mergedMappers).get(mergeWithMapper.simpleName());
 
             Mapper merged;
             if (mergeIntoMapper == null) {
@@ -434,7 +435,13 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     merged = mergeIntoMapper.merge(mergeWithMapper);
                 }
             }
-            mappers.put(merged.simpleName(), merged);
+            if (mergedMappers == null) {
+                mergedMappers = new HashMap<>(mappers);
+            }
+            mergedMappers.put(merged.simpleName(), merged);
+        }
+        if (mergedMappers != null) {
+            mappers = Map.copyOf(mergedMappers);
         }
     }
 

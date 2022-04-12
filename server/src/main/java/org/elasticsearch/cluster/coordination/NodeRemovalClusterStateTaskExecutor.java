@@ -57,18 +57,18 @@ public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExec
     }
 
     @Override
-    public ClusterTasksResult<Task> execute(final ClusterState currentState, final List<Task> tasks) throws Exception {
+    public ClusterState execute(ClusterState currentState, List<TaskContext<Task>> taskContexts) throws Exception {
         final DiscoveryNodes.Builder remainingNodesBuilder = DiscoveryNodes.builder(currentState.nodes());
         boolean removed = false;
-        final var resultBuilder = ClusterTasksResult.<Task>builder();
-        for (final Task task : tasks) {
+        for (final var taskContext : taskContexts) {
+            final var task = taskContext.getTask();
             if (currentState.nodes().nodeExists(task.node())) {
                 remainingNodesBuilder.remove(task.node());
                 removed = true;
             } else {
                 logger.debug("node [{}] does not exist in cluster state, ignoring", task);
             }
-            resultBuilder.success(task, new ActionListener<>() {
+            taskContext.success(new ActionListener<>() {
                 @Override
                 public void onResponse(ClusterState clusterState) {
                     task.onClusterStateProcessed.run();
@@ -86,13 +86,17 @@ public class NodeRemovalClusterStateTaskExecutor implements ClusterStateTaskExec
         if (removed) {
             final ClusterState remainingNodesClusterState = remainingNodesClusterState(currentState, remainingNodesBuilder);
             final ClusterState ptasksDisassociatedState = PersistentTasksCustomMetadata.disassociateDeadNodes(remainingNodesClusterState);
-            finalState = allocationService.disassociateDeadNodes(ptasksDisassociatedState, true, describeTasks(tasks));
+            finalState = allocationService.disassociateDeadNodes(
+                ptasksDisassociatedState,
+                true,
+                describeTasks(taskContexts.stream().map(TaskContext::getTask).toList())
+            );
         } else {
             // no nodes to remove, keep the current cluster state
             finalState = currentState;
         }
 
-        return resultBuilder.build(finalState);
+        return finalState;
     }
 
     // visible for testing

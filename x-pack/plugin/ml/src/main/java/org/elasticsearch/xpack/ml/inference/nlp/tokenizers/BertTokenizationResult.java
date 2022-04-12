@@ -105,13 +105,15 @@ public class BertTokenizationResult extends TokenizationResult {
         }
 
         @Override
-        public Tokens build(String input, boolean truncated, List<? extends DelimitedToken> allTokens) {
+        public Tokens build(String input, boolean truncated, List<? extends DelimitedToken> allTokens, int spanPrev, int seqId) {
             return new Tokens(
                 input,
                 allTokens,
                 truncated,
                 tokenIds.build().flatMapToInt(Function.identity()).toArray(),
-                tokenMap.build().flatMapToInt(Function.identity()).toArray()
+                tokenMap.build().flatMapToInt(Function.identity()).toArray(),
+                spanPrev,
+                seqId
             );
         }
     }

@@ -125,13 +125,14 @@ public class FillMaskProcessor extends NlpTask.Processor {
         List<TopClassEntry> results = new ArrayList<>(scoreAndIndices.length);
         if (numResults != 0) {
             for (NlpHelpers.ScoreAndIndex scoreAndIndex : scoreAndIndices) {
-                String predictedToken = tokenization.getFromVocab(scoreAndIndex.index);
+                String predictedToken = tokenization.decode(tokenization.getFromVocab(scoreAndIndex.index));
                 results.add(new TopClassEntry(predictedToken, scoreAndIndex.score, scoreAndIndex.score));
             }
         }
+        String predictedValue = tokenization.decode(tokenization.getFromVocab(scoreAndIndices[0].index));
         return new FillMaskResults(
-            tokenization.getFromVocab(scoreAndIndices[0].index),
-            tokenization.getTokenization(0).input().replace(tokenizer.getMaskToken(), tokenization.getFromVocab(scoreAndIndices[0].index)),
+            predictedValue,
+            tokenization.getTokenization(0).input().replace(tokenizer.getMaskToken(), predictedValue),
             results,
             Optional.ofNullable(resultsField).orElse(DEFAULT_RESULTS_FIELD),
             scoreAndIndices[0].score,

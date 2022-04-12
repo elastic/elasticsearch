@@ -218,7 +218,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         out.writeOptionalStringCollection(this.componentTemplates);
         out.writeOptionalVLong(this.priority);
         out.writeOptionalVLong(this.version);
-        out.writeMap(this.metadata);
+        out.writeGenericMap(this.metadata);
         out.writeOptionalWriteable(dataStreamTemplate);
         out.writeOptionalBoolean(allowAutoCreate);
     }
@@ -359,7 +359,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             }
         }
 
-        public String getTimestampField() {
+        public static String getTimestampField() {
             return FIXED_TIMESTAMP_FIELD;
         }
 

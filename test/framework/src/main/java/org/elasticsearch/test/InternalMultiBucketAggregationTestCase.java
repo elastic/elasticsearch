@@ -21,6 +21,7 @@ import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.ParsedMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -112,6 +113,24 @@ public abstract class InternalMultiBucketAggregationTestCase<T extends InternalA
     public void testIterators() throws IOException {
         final T aggregation = createTestInstanceForXContent();
         assertMultiBucketsAggregations(aggregation, parseAndAssert(aggregation, false, false), true);
+    }
+
+    @Override
+    protected void assertSampled(T sampled, T reduced, SamplingContext samplingContext) {
+        assertBucketCountsScaled(sampled.getBuckets(), reduced.getBuckets(), samplingContext);
+    }
+
+    protected void assertBucketCountsScaled(
+        List<? extends MultiBucketsAggregation.Bucket> sampled,
+        List<? extends MultiBucketsAggregation.Bucket> reduced,
+        SamplingContext samplingContext
+    ) {
+        assertEquals(sampled.size(), reduced.size());
+        Iterator<? extends MultiBucketsAggregation.Bucket> sampledIt = sampled.iterator();
+        for (MultiBucketsAggregation.Bucket reducedBucket : reduced) {
+            MultiBucketsAggregation.Bucket sampledBucket = sampledIt.next();
+            assertEquals(sampledBucket.getDocCount(), samplingContext.scaleUp(reducedBucket.getDocCount()));
+        }
     }
 
     private void assertMultiBucketsAggregations(Aggregation expected, Aggregation actual, boolean checkOrder) {

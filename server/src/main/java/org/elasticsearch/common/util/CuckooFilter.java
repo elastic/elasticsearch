@@ -394,7 +394,7 @@ public class CuckooFilter implements Writeable {
     /**
      * Calculate the optimal number of bits per entry
      */
-    private int bitsPerEntry(double fpp, int numEntriesPerBucket) {
+    private static int bitsPerEntry(double fpp, int numEntriesPerBucket) {
         return (int) Math.round(log2((2 * numEntriesPerBucket) / fpp));
     }
 
@@ -402,7 +402,7 @@ public class CuckooFilter implements Writeable {
      * Calculate the optimal number of entries per bucket.  Will return 2, 4 or 8
      * depending on the false positive rate
      */
-    private int entriesPerBucket(double fpp) {
+    private static int entriesPerBucket(double fpp) {
         /*
           Empirical constants from paper:
             "the space-optimal bucket size depends on the target false positive rate ε:
@@ -423,7 +423,7 @@ public class CuckooFilter implements Writeable {
      * Calculates the optimal load factor for the filter, given the number of entries
      * per bucket.  Will return 0.84, 0.955 or 0.98 depending on b
      */
-    private double getLoadFactor(int b) {
+    private static double getLoadFactor(int b) {
         if ((b == 2 || b == 4 || b == 8) == false) {
             throw new IllegalArgumentException("b must be one of [2,4,8]");
         }
@@ -449,14 +449,14 @@ public class CuckooFilter implements Writeable {
      *
      * TODO: there are schemes to avoid powers of two, might want to investigate those
      */
-    private int getNumBuckets(long capacity, double loadFactor, int b) {
+    private static int getNumBuckets(long capacity, double loadFactor, int b) {
         long buckets = Math.round((((double) capacity / loadFactor)) / (double) b);
 
         // Rounds up to nearest power of 2
         return 1 << -Integer.numberOfLeadingZeros((int) buckets - 1);
     }
 
-    private double log2(double x) {
+    private static double log2(double x) {
         return Math.log(x) / LN_2;
     }
 

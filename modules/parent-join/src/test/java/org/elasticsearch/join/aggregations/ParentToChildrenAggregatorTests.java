@@ -37,7 +37,7 @@ import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.InternalMin;
+import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 
 import java.io.IOException;
@@ -66,11 +66,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
 
         testCase(new MatchAllDocsQuery(), newSearcher(indexReader, false, true), parentToChild -> {
             assertEquals(0, parentToChild.getDocCount());
-            assertEquals(
-                Double.POSITIVE_INFINITY,
-                ((InternalMin) parentToChild.getAggregations().get("in_child")).getValue(),
-                Double.MIN_VALUE
-            );
+            assertEquals(Double.POSITIVE_INFINITY, ((Min) parentToChild.getAggregations().get("in_child")).value(), Double.MIN_VALUE);
         });
         indexReader.close();
         directory.close();
@@ -99,7 +95,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
             }
             assertEquals(expectedTotalChildren, child.getDocCount());
             assertTrue(JoinAggregationInspectionHelper.hasValue(child));
-            assertEquals(expectedMinValue, ((InternalMin) child.getAggregations().get("in_child")).getValue(), Double.MIN_VALUE);
+            assertEquals(expectedMinValue, ((Min) child.getAggregations().get("in_child")).value(), Double.MIN_VALUE);
         });
 
         for (String parent : expectedParentChildRelations.keySet()) {
@@ -107,7 +103,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
                 assertEquals((long) expectedParentChildRelations.get(parent).v1(), child.getDocCount());
                 assertEquals(
                     expectedParentChildRelations.get(parent).v2(),
-                    ((InternalMin) child.getAggregations().get("in_child")).getValue(),
+                    ((Min) child.getAggregations().get("in_child")).value(),
                     Double.MIN_VALUE
                 );
             });
@@ -161,16 +157,16 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
 
                 StringTerms.Bucket evenBucket = result.getBucketByKey("even");
                 InternalChildren evenChildren = evenBucket.getAggregations().get("children");
-                InternalMin evenMin = evenChildren.getAggregations().get("min");
+                Min evenMin = evenChildren.getAggregations().get("min");
                 assertThat(evenChildren.getDocCount(), equalTo(expectedEvenChildCount));
-                assertThat(evenMin.getValue(), equalTo(expectedEvenMin));
+                assertThat(evenMin.value(), equalTo(expectedEvenMin));
 
                 if (expectedOddChildCount > 0) {
                     StringTerms.Bucket oddBucket = result.getBucketByKey("odd");
                     InternalChildren oddChildren = oddBucket.getAggregations().get("children");
-                    InternalMin oddMin = oddChildren.getAggregations().get("min");
+                    Min oddMin = oddChildren.getAggregations().get("min");
                     assertThat(oddChildren.getDocCount(), equalTo(expectedOddChildCount));
-                    assertThat(oddMin.getValue(), equalTo(expectedOddMin));
+                    assertThat(oddMin.value(), equalTo(expectedOddMin));
                 } else {
                     assertNull(result.getBucketByKey("odd"));
                 }

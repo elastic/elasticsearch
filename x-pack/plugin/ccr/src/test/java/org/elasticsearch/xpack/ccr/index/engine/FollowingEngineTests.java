@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ccr.index.engine;
 
+import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
@@ -20,6 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
@@ -31,6 +33,8 @@ import org.elasticsearch.index.engine.EngineTestCase;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.TranslogHandler;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
+import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
@@ -75,15 +79,30 @@ public class FollowingEngineTests extends ESTestCase {
     private ShardId shardId;
     private AtomicLong primaryTerm = new AtomicLong();
     private AtomicLong globalCheckpoint = new AtomicLong(SequenceNumbers.NO_OPS_PERFORMED);
+    private IndexMode indexMode;
+    private FieldType idFieldType;
 
+    @Override
     public void setUp() throws Exception {
         super.setUp();
         threadPool = new TestThreadPool("following-engine-tests");
         index = new Index("index", "uuid");
         shardId = new ShardId(index, 0);
         primaryTerm.set(randomLongBetween(1, Long.MAX_VALUE));
+        indexMode = randomFrom(IndexMode.values());
+        switch (indexMode) {
+            case STANDARD:
+                idFieldType = ProvidedIdFieldMapper.Defaults.FIELD_TYPE;
+                break;
+            case TIME_SERIES:
+                idFieldType = TsidExtractingIdFieldMapper.FIELD_TYPE;
+                break;
+            default:
+                throw new UnsupportedOperationException("Unknown index mode [" + indexMode + "]");
+        }
     }
 
+    @Override
     public void tearDown() throws Exception {
         terminate(threadPool);
         super.tearDown();
@@ -296,7 +315,7 @@ public class FollowingEngineTests extends ESTestCase {
     }
 
     private Engine.Index indexForFollowing(String id, long seqNo, Engine.Operation.Origin origin, long version) {
-        final ParsedDocument parsedDocument = EngineTestCase.createParsedDoc(id, null);
+        final ParsedDocument parsedDocument = EngineTestCase.createParsedDoc(id, idFieldType, null);
         return new Engine.Index(
             EngineTestCase.newUid(parsedDocument),
             parsedDocument,
@@ -327,12 +346,12 @@ public class FollowingEngineTests extends ESTestCase {
     }
 
     private Engine.Index indexForPrimary(String id) {
-        final ParsedDocument parsedDoc = EngineTestCase.createParsedDoc(id, null);
+        final ParsedDocument parsedDoc = EngineTestCase.createParsedDoc(id, idFieldType, null);
         return new Engine.Index(EngineTestCase.newUid(parsedDoc), primaryTerm.get(), parsedDoc);
     }
 
     private Engine.Delete deleteForPrimary(String id) {
-        final ParsedDocument parsedDoc = EngineTestCase.createParsedDoc(id, null);
+        final ParsedDocument parsedDoc = EngineTestCase.createParsedDoc(id, idFieldType, null);
         return new Engine.Delete(parsedDoc.id(), EngineTestCase.newUid(parsedDoc), primaryTerm.get());
     }
 
@@ -717,12 +736,21 @@ public class FollowingEngineTests extends ESTestCase {
     }
 
     public void testProcessOnceOnPrimary() throws Exception {
-        final Settings settings = Settings.builder()
+        final Settings.Builder settingsBuilder = Settings.builder()
             .put("index.number_of_shards", 1)
             .put("index.number_of_replicas", 0)
             .put("index.version.created", Version.CURRENT)
-            .put("index.xpack.ccr.following_index", true)
-            .build();
+            .put("index.xpack.ccr.following_index", true);
+        switch (indexMode) {
+            case STANDARD:
+                break;
+            case TIME_SERIES:
+                settingsBuilder.put("index.mode", "time_series").put("index.routing_path", "foo");
+                break;
+            default:
+                throw new UnsupportedOperationException("Unknown index mode [" + indexMode + "]");
+        }
+        final Settings settings = settingsBuilder.build();
         final IndexMetadata indexMetadata = IndexMetadata.builder(index.getName()).settings(settings).build();
         final IndexSettings indexSettings = new IndexSettings(indexMetadata, settings);
         final CheckedBiFunction<String, Integer, ParsedDocument, IOException> nestedDocFunc = EngineTestCase.nestedParsedDocFactory();
@@ -730,7 +758,9 @@ public class FollowingEngineTests extends ESTestCase {
         List<Engine.Operation> operations = new ArrayList<>(numOps);
         for (int i = 0; i < numOps; i++) {
             String docId = Integer.toString(between(1, 100));
-            ParsedDocument doc = randomBoolean() ? EngineTestCase.createParsedDoc(docId, null) : nestedDocFunc.apply(docId, randomInt(3));
+            ParsedDocument doc = randomBoolean()
+                ? EngineTestCase.createParsedDoc(docId, idFieldType, null)
+                : nestedDocFunc.apply(docId, randomInt(3));
             if (randomBoolean()) {
                 operations.add(
                     new Engine.Index(

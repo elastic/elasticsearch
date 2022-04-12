@@ -39,10 +39,13 @@ import org.apache.lucene.store.NIOFSDirectory;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.CheckedBiConsumer;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
@@ -212,7 +215,7 @@ public class PersistedClusterStateService {
 
                 final IndexWriter indexWriter = createIndexWriter(directory, false);
                 closeables.add(indexWriter);
-                metadataIndexWriters.add(new MetadataIndexWriter(directory, indexWriter));
+                metadataIndexWriters.add(new MetadataIndexWriter(path, directory, indexWriter));
             }
             success = true;
         } finally {
@@ -220,7 +223,18 @@ public class PersistedClusterStateService {
                 IOUtils.closeWhileHandlingException(closeables);
             }
         }
-        return new Writer(metadataIndexWriters, nodeId, documentPageSize, relativeTimeMillisSupplier, () -> slowWriteLoggingThreshold);
+        return new Writer(
+            metadataIndexWriters,
+            nodeId,
+            documentPageSize,
+            relativeTimeMillisSupplier,
+            () -> slowWriteLoggingThreshold,
+            getAssertOnCommit()
+        );
+    }
+
+    CheckedBiConsumer<Path, DirectoryReader, IOException> getAssertOnCommit() {
+        return Assertions.ENABLED ? this::loadOnDiskState : null;
     }
 
     private static IndexWriter createIndexWriter(Directory directory, boolean openExisting) throws IOException {
@@ -647,10 +661,12 @@ public class PersistedClusterStateService {
     private static class MetadataIndexWriter implements Closeable {
 
         private final Logger logger;
+        private final Path path;
         private final Directory directory;
         private final IndexWriter indexWriter;
 
-        MetadataIndexWriter(Directory directory, IndexWriter indexWriter) {
+        MetadataIndexWriter(Path path, Directory directory, IndexWriter indexWriter) {
+            this.path = path;
             this.directory = directory;
             this.indexWriter = indexWriter;
             this.logger = Loggers.getLogger(MetadataIndexWriter.class, directory.toString());
@@ -715,19 +731,24 @@ public class PersistedClusterStateService {
         boolean fullStateWritten = false;
         private final AtomicBoolean closed = new AtomicBoolean();
         private final byte[] documentBuffer;
+        @Nullable // if assertions disabled or we explicitly don't want to assert on commit in a test
+        private final CheckedBiConsumer<Path, DirectoryReader, IOException> assertOnCommit;
 
         private Writer(
             List<MetadataIndexWriter> metadataIndexWriters,
             String nodeId,
             ByteSizeValue documentPageSize,
             LongSupplier relativeTimeMillisSupplier,
-            Supplier<TimeValue> slowWriteLoggingThresholdSupplier
+            Supplier<TimeValue> slowWriteLoggingThresholdSupplier,
+            @Nullable // if assertions disabled or we explicitly don't want to assert on commit in a test
+            CheckedBiConsumer<Path, DirectoryReader, IOException> assertOnCommit
         ) {
             this.metadataIndexWriters = metadataIndexWriters;
             this.nodeId = nodeId;
             this.relativeTimeMillisSupplier = relativeTimeMillisSupplier;
             this.slowWriteLoggingThresholdSupplier = slowWriteLoggingThresholdSupplier;
             this.documentBuffer = new byte[ByteSizeUnit.BYTES.toIntBytes(documentPageSize.getBytes())];
+            this.assertOnCommit = assertOnCommit;
         }
 
         private void ensureOpen() {
@@ -984,6 +1005,22 @@ public class PersistedClusterStateService {
             ensureOpen();
             prepareCommit(currentTerm, lastAcceptedVersion, oldestIndexVersion);
             completeCommit();
+            assert assertOnCommit();
+        }
+
+        private boolean assertOnCommit() {
+            if (assertOnCommit != null && Randomness.get().nextInt(100) == 0) {
+                // only rarely run this assertion since reloading the whole state can be quite expensive
+                for (final var metadataIndexWriter : metadataIndexWriters) {
+                    try (var directoryReader = DirectoryReader.open(metadataIndexWriter.indexWriter)) {
+                        assertOnCommit.accept(metadataIndexWriter.path, directoryReader);
+                    } catch (Exception e) {
+                        throw new AssertionError(e);
+                    }
+                }
+            }
+
+            return true;
         }
 
         private void prepareCommit(long currentTerm, long lastAcceptedVersion, Version oldestIndexVersion) throws IOException {

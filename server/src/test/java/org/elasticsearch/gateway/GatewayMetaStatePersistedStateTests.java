@@ -8,6 +8,7 @@
 
 package org.elasticsearch.gateway;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
@@ -25,6 +26,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -540,6 +542,12 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
                 list.add(wrapper);
                 return wrapper;
             }
+
+            @Override
+            CheckedBiConsumer<Path, DirectoryReader, IOException> getAssertOnCommit() {
+                // IO issues might prevent reloading the state to verify that it round-trips
+                return null;
+            }
         };
         ClusterState state = createClusterState(randomNonNegativeLong(), Metadata.builder().clusterUUID(randomAlphaOfLength(10)).build());
         long currentTerm = 42L;
@@ -617,7 +625,13 @@ public class GatewayMetaStatePersistedStateTests extends ESTestCase {
                     xContentRegistry(),
                     new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
                     () -> 0L
-                );
+                ) {
+                    @Override
+                    CheckedBiConsumer<Path, DirectoryReader, IOException> getAssertOnCommit() {
+                        // IO issues might prevent reloading the state to verify that it round-trips
+                        return null;
+                    }
+                };
                 final PersistedClusterStateService.OnDiskState onDiskState = newPersistedClusterStateService.loadBestOnDiskState();
                 assertFalse(onDiskState.empty());
                 assertThat(onDiskState.currentTerm, equalTo(currentTerm));

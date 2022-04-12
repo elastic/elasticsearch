@@ -27,7 +27,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -291,15 +290,15 @@ public class FieldCapabilities implements Writeable, ToXContentObject {
             builder.array(NON_AGGREGATABLE_INDICES_FIELD.getPreferredName(), nonAggregatableIndices);
         }
         if (nonDimensionIndices != null) {
-            builder.field(NON_DIMENSION_INDICES_FIELD.getPreferredName(), nonDimensionIndices);
+            builder.array(NON_DIMENSION_INDICES_FIELD.getPreferredName(), nonDimensionIndices);
         }
         if (metricConflictsIndices != null) {
-            builder.field(METRIC_CONFLICTS_INDICES_FIELD.getPreferredName(), metricConflictsIndices);
+            builder.array(METRIC_CONFLICTS_INDICES_FIELD.getPreferredName(), metricConflictsIndices);
         }
         if (meta.isEmpty() == false) {
             builder.startObject("meta");
             List<Map.Entry<String, Set<String>>> entries = new ArrayList<>(meta.entrySet());
-            entries.sort(Comparator.comparing(Map.Entry::getKey)); // provide predictable order
+            entries.sort(Map.Entry.comparingByKey()); // provide predictable order
             for (Map.Entry<String, Set<String>> entry : entries) {
                 List<String> values = new ArrayList<>(entry.getValue());
                 values.sort(String::compareTo); // provide predictable order

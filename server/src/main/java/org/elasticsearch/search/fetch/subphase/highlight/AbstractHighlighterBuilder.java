@@ -202,7 +202,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
         boolean hasOptions = options != null;
         out.writeBoolean(hasOptions);
         if (hasOptions) {
-            out.writeMap(options);
+            out.writeGenericMap(options);
         }
         out.writeOptionalBoolean(requireFieldMatch);
         if (out.getVersion().onOrAfter(Version.V_7_12_0)) {

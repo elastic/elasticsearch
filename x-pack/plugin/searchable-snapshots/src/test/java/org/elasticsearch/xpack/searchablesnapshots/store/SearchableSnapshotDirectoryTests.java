@@ -469,17 +469,29 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                     : snapshotMetadata.recoveryDiff(metadata);
 
                 assertThat(
-                    "List of different files should be empty but got [" + metadata.asMap() + "] and [" + snapshotMetadata.asMap() + ']',
+                    "List of different files should be empty but got ["
+                        + metadata.fileMetadataMap()
+                        + "] and ["
+                        + snapshotMetadata.fileMetadataMap()
+                        + ']',
                     diff.different.isEmpty(),
                     is(true)
                 );
                 assertThat(
-                    "List of missing files should be empty but got [" + metadata.asMap() + "] and [" + snapshotMetadata.asMap() + ']',
+                    "List of missing files should be empty but got ["
+                        + metadata.fileMetadataMap()
+                        + "] and ["
+                        + snapshotMetadata.fileMetadataMap()
+                        + ']',
                     diff.missing.isEmpty(),
                     is(true)
                 );
                 assertThat(
-                    "List of files should be identical [" + metadata.asMap() + "] and [" + snapshotMetadata.asMap() + ']',
+                    "List of files should be identical ["
+                        + metadata.fileMetadataMap()
+                        + "] and ["
+                        + snapshotMetadata.fileMetadataMap()
+                        + ']',
                     diff.identical.size(),
                     equalTo(metadata.size())
                 );

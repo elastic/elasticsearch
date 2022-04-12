@@ -60,11 +60,11 @@ public class SqlStreamTests extends ESTestCase {
                     + "AP////8PAAAAAAAAAAAAAAAAAVoDAAICAAAAAAAAAAAKAP////8PAgFtCDJkMTBjNGJhBXZhbHVlAAEE"
                     + "QllURQFrCGJkZWY4OGU1AAABAwA=",
                 new NamedWriteableRegistry(List.of()),
-                Version.V_8_2_0
+                Version.CURRENT
             )
         );
 
-        assertThat(ex.getMessage(), containsString("Unsupported cursor version [7.15.1], expected [8.2.0]"));
+        assertThat(ex.getMessage(), containsString("Unsupported cursor version [7.15.1], expected [" + Version.CURRENT + "]"));
     }
 
     public void testVersionCanBeReadByOldNodes() throws IOException {

@@ -15,7 +15,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.search.IndexSearcher;
@@ -28,6 +27,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.test.ESTestCase;
@@ -95,9 +95,12 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
             long total = 0;
 
             @Override
-            public LeafBucketCollector getLeafCollector(LeafReaderContext ctx) throws IOException {
-                SortedDocValues tsid = DocValues.getSorted(ctx.reader(), TimeSeriesIdFieldMapper.NAME);
-                NumericDocValues timestamp = DocValues.getNumeric(ctx.reader(), DataStream.TimestampField.FIXED_TIMESTAMP_FIELD);
+            public LeafBucketCollector getLeafCollector(AggregationExecutionContext aggCtx) throws IOException {
+                SortedDocValues tsid = DocValues.getSorted(aggCtx.getLeafReaderContext().reader(), TimeSeriesIdFieldMapper.NAME);
+                NumericDocValues timestamp = DocValues.getNumeric(
+                    aggCtx.getLeafReaderContext().reader(),
+                    DataStream.TimestampField.FIXED_TIMESTAMP_FIELD
+                );
 
                 return new LeafBucketCollector() {
                     @Override

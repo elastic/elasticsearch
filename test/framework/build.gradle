@@ -12,7 +12,6 @@ apply plugin: 'elasticsearch.publish'
 
 dependencies {
   api project(":client:rest")
-  api project(":client:sniffer")
   api project(':modules:transport-netty4')
   api project(':libs:elasticsearch-ssl-config')
   api project(":server")
@@ -31,14 +30,6 @@ dependencies {
   api 'org.objenesis:objenesis:3.2'
 
   api "org.elasticsearch:mocksocket:${versions.mocksocket}"
-
-  // json schema validation dependencies
-  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  api "com.networknt:json-schema-validator:${versions.networknt_json_schema_validator}"
-  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
-  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
-  api "org.apache.commons:commons-compress:1.19"
-  api "org.apache.commons:commons-lang3:${versions.commons_lang3}"
 }
 
 // the main files are actually test files, so use the appropriate forbidden api sigs
@@ -54,11 +45,6 @@ tasks.named("dependenciesGraph").configure { enabled = false }
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
           // classes are missing
-          'com.github.luben.zstd.ZstdInputStream',
-          'com.github.luben.zstd.ZstdOutputStream',
-          'java.util.jar.Pack200',
-          'java.util.jar.Pack200$Packer',
-          'java.util.jar.Pack200$Unpacker',
           'javax.servlet.ServletContextEvent',
           'javax.servlet.ServletContextListener',
           'org.apache.avalon.framework.logger.Logger',
@@ -68,23 +54,6 @@ tasks.named("thirdPartyAudit").configure {
           'org.apache.log4j.Level',
           'org.apache.log4j.Logger',
           'org.apache.log4j.Priority',
-          'org.brotli.dec.BrotliInputStream',
-          'org.jcodings.specific.UTF8Encoding',
-          'org.joni.Matcher',
-          'org.joni.Regex',
-          'org.joni.Syntax',
-          'org.slf4j.Logger',
-          'org.slf4j.LoggerFactory',
-          'org.tukaani.xz.DeltaOptions',
-          'org.tukaani.xz.FilterOptions',
-          'org.tukaani.xz.LZMA2InputStream',
-          'org.tukaani.xz.LZMA2Options',
-          'org.tukaani.xz.LZMAInputStream',
-          'org.tukaani.xz.LZMAOutputStream',
-          'org.tukaani.xz.MemoryLimitException',
-          'org.tukaani.xz.UnsupportedOptionsException',
-          'org.tukaani.xz.XZ',
-          'org.tukaani.xz.XZOutputStream',
 
           // mockito
           'net.bytebuddy.agent.ByteBuddyAgent',

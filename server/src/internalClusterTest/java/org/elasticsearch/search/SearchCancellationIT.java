@@ -263,7 +263,9 @@ public class SearchCancellationIT extends ESIntegTestCase {
         int numberOfShards = between(2, 5);
         long now = Instant.now().toEpochMilli();
         int numberOfRefreshes = between(1, 5);
-        int numberOfDocsPerRefresh = numberOfShards * between(1500, 2000) / numberOfRefreshes;
+        // After a few initial checks we check every 2048 - number of shards records so we need to ensure all
+        // shards have enough records to trigger a check
+        int numberOfDocsPerRefresh = numberOfShards * between(3000, 3500) / numberOfRefreshes;
         assertAcked(
             prepareCreate("test").setSettings(
                 Settings.builder()
@@ -291,7 +293,14 @@ public class SearchCancellationIT extends ESIntegTestCase {
                 bulkRequestBuilder.add(
                     client().prepareIndex("test")
                         .setOpType(DocWriteRequest.OpType.CREATE)
-                        .setSource("@timestamp", now + (long) i * numberOfDocsPerRefresh + j, "val", (double) j, "dim", String.valueOf(i))
+                        .setSource(
+                            "@timestamp",
+                            now + (long) i * numberOfDocsPerRefresh + j,
+                            "val",
+                            (double) j,
+                            "dim",
+                            String.valueOf(j % 100)
+                        )
                 );
             }
             assertNoFailures(bulkRequestBuilder.get());

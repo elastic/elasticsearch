@@ -15,10 +15,19 @@ setup:
                 type: date
               value_field:
                 type: integer
+  - do:
+      indices.create:
+        index: bar
+        body:
+          mappings:
+            properties:
+              the_field:
+                type: date
+              value_field:
+                type: integer
 
 ---
 "Test basic put_job":
-
   - do:
       headers:
         Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
@@ -29,8 +38,8 @@ setup:
             "index_pattern": "foo",
             "rollup_index": "foo_rollup",
             "cron": "*/30 * * * * ?",
-            "page_size" :10,
-            "groups" : {
+            "page_size": 10,
+            "groups": {
               "date_histogram": {
                 "field": "the_field",
                 "calendar_interval": "1h"
@@ -57,7 +66,7 @@ setup:
             rollup_index: "foo_rollup"
             cron: "*/30 * * * * ?"
             page_size: 10
-            groups :
+            groups:
               date_histogram:
                 calendar_interval: "1h"
                 field: "the_field"
@@ -346,5 +355,74 @@ setup:
             field:
               type: "keyword"
 
+---
+"Test put_job with comma-delimited index pattern":
+  - skip:
+      version: " - 8.1.99"
+      reason: Comma delimited index pattern introduced in 8.2.0
 
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      rollup.put_job:
+        id: bar
+        body:  >
+          {
+            "index_pattern": "foo,bar*",
+            "rollup_index": "foo_rollup",
+            "cron": "*/30 * * * * ?",
+            "page_size": 10,
+            "groups": {
+              "date_histogram": {
+                "field": "the_field",
+                "calendar_interval": "1h"
+              }
+            },
+            "metrics": [
+              {
+                "field": "value_field",
+                "metrics": ["min", "max", "sum"]
+              }
+            ]
+          }
+  - is_true: acknowledged
 
+  - do:
+      rollup.get_jobs:
+        id: bar
+
+  - match:
+      jobs:
+        - config:
+            id: "bar"
+            index_pattern: "foo,bar*"
+            rollup_index: "foo_rollup"
+            cron: "*/30 * * * * ?"
+            page_size: 10
+            groups:
+              date_histogram:
+                calendar_interval: "1h"
+                field: "the_field"
+                time_zone: "UTC"
+            metrics:
+              - field: "value_field"
+                metrics:
+                  - "min"
+                  - "max"
+                  - "sum"
+            timeout: "20s"
+          stats:
+            pages_processed: 0
+            documents_processed: 0
+            rollups_indexed: 0
+            trigger_count: 0
+            search_failures: 0
+            index_failures: 0
+            index_time_in_ms: 0
+            index_total: 0
+            search_time_in_ms: 0
+            search_total: 0
+            processing_time_in_ms: 0
+            processing_total: 0
+          status:
+            job_state: "stopped"

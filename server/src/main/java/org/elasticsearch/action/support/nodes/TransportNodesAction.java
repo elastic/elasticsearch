@@ -261,6 +261,11 @@ public abstract class TransportNodesAction<
                             public void handleException(TransportException exp) {
                                 onFailure(idx, node.getId(), exp);
                             }
+
+                            @Override
+                            public String toString() {
+                                return "AsyncActionNodeResponseHandler{node=" + node + ", action=" + AsyncAction.this + '}';
+                            }
                         }
                     );
                 } catch (Exception e) {
@@ -312,6 +317,11 @@ public abstract class TransportNodesAction<
             } catch (TaskCancelledException e) {
                 nodeResponseTracker.discardIntermediateResponses(e);
             }
+        }
+
+        @Override
+        public String toString() {
+            return "AsyncAction{request=" + request + ", listener=" + listener + '}';
         }
     }
 

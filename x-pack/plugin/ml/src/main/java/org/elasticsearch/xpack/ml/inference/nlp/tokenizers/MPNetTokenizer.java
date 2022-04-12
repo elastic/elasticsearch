@@ -8,14 +8,12 @@ package org.elasticsearch.xpack.ml.inference.nlp.tokenizers;
 
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
-import org.elasticsearch.xpack.ml.inference.nlp.NlpTask;
 
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
-import java.util.stream.Collectors;
 
 /**
  * Performs basic tokenization and normalization of input text
@@ -65,13 +63,6 @@ public class MPNetTokenizer extends BertTokenizer {
 
     TokenizationResult.TokensBuilder createTokensBuilder(int clsTokenId, int sepTokenId, boolean withSpecialTokens) {
         return new MPNetTokenizationResult.MPNetTokensBuilder(withSpecialTokens, clsTokenId, sepTokenId);
-    }
-
-    @Override
-    public NlpTask.RequestBuilder requestBuilder() {
-        return (inputs, requestId, truncate) -> buildTokenizationResult(
-            inputs.stream().map(s -> tokenize(s, truncate)).collect(Collectors.toList())
-        ).buildRequest(requestId, truncate);
     }
 
     @Override

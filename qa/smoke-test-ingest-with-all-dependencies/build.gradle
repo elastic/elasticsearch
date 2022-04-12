@@ -12,11 +12,7 @@ apply plugin: 'elasticsearch.rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
 dependencies {
-  testImplementation project(':modules:ingest-common')
-  testImplementation project(':modules:ingest-geoip')
   testImplementation project(':modules:lang-mustache')
-  testImplementation project(':modules:lang-painless')
-  testImplementation project(':modules:reindex')
 }
 
 testClusters.configureEach {

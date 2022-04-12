@@ -9,7 +9,7 @@ ARG port
 ENV GEOIP_FIXTURE_CLASS=${fixtureClass}
 ENV GEOIP_FIXTURE_PORT=${port}
 
-ENTRYPOINT exec java -classpath "/fixture/shared/*" \
+ENTRYPOINT exec java -classpath "/fixture/shared/*:/fixture/shared/providers" \
     $GEOIP_FIXTURE_CLASS 0.0.0.0 "$GEOIP_FIXTURE_PORT"
 
 EXPOSE $port

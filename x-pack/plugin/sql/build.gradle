@@ -48,10 +48,8 @@ dependencies {
  * in $ES_HOME/bin/x-pack/. This is useful because it is an
  * executable jar that can be moved wherever it is needed.
  */
-tasks.named("bundlePlugin").configure {
-  from(configurations.bin) {
+esplugin.bundleSpec.from({configurations.bin}) {
     into 'bin'
-  }
 }
 
 addQaCheckDependencies()

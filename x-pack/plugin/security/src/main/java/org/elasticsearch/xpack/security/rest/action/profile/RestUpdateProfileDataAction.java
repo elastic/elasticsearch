@@ -24,6 +24,7 @@ import java.util.Map;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.rest.RestRequest.Method.PUT;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 public class RestUpdateProfileDataAction extends SecurityBaseRestHandler {
@@ -45,7 +46,7 @@ public class RestUpdateProfileDataAction extends SecurityBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, "/_security/profile/_data/{uid}"));
+        return List.of(new Route(PUT, "/_security/profile/{uid}/_data"), new Route(POST, "/_security/profile/{uid}/_data"));
     }
 
     @Override

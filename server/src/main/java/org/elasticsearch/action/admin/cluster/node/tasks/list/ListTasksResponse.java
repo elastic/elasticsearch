@@ -142,7 +142,7 @@ public class ListTasksResponse extends BaseTasksResponse implements ToXContentOb
                 topLevelTasks.add(taskGroup);
             }
         }
-        this.groups = Collections.unmodifiableList(topLevelTasks.stream().map(TaskGroup.Builder::build).collect(Collectors.toList()));
+        this.groups = Collections.unmodifiableList(topLevelTasks.stream().map(TaskGroup.Builder::build).toList());
     }
 
     /**

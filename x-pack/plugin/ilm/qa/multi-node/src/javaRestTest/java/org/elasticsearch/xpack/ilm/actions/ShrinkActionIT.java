@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -99,7 +100,7 @@ public class ShrinkActionIT extends ESRestTestCase {
         expectThrows(ResponseException.class, () -> indexDocument(client(), index));
     }
 
-    public void testShrinkSameShards() throws Exception {
+    public void testSkipShrinkSameShardsWithNumberOfShards() throws Exception {
         int numberOfShards = randomFrom(1, 2);
         createIndexWithSettings(
             client(),
@@ -117,7 +118,27 @@ public class ShrinkActionIT extends ESRestTestCase {
             assertNull(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()));
             assertThat(settings.get(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id"), nullValue());
             // the shrink action was effectively skipped so there must not be any `shrink_index_name` in the ILM state
-            assertThat(explainIndex(client(), index).get("shrink_index_name"), nullValue());
+            assertThat(explainIndex(client(), index).get(SHRINK_INDEX_NAME), nullValue());
+        });
+    }
+
+    public void testSkipShrinkSameShardsWithMaxShardSize() throws Exception {
+        createIndexWithSettings(
+            client(),
+            index,
+            alias,
+            Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+        );
+        createNewSingletonPolicy(client(), policy, "warm", new ShrinkAction(null, ByteSizeValue.ofGb(50)));
+        updatePolicy(client(), index, policy);
+        assertBusy(() -> {
+            assertTrue(indexExists(index));
+            Map<String, Object> settings = getOnlyIndexSettings(client(), index);
+            assertThat(getStepKeyForIndex(client(), index), equalTo(PhaseCompleteStep.finalStep("warm").getKey()));
+            assertNull(settings.get(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey()));
+            assertThat(settings.get(IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING.getKey() + "_id"), nullValue());
+            // the shrink action was effectively skipped so there must not be any `shrink_index_name` in the ILM state
+            assertThat(explainIndex(client(), index).get(SHRINK_INDEX_NAME), nullValue());
         });
     }
 

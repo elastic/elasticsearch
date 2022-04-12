@@ -298,7 +298,7 @@ public class SysColumnsTests extends ESTestCase {
                 Cursor c = page.next();
                 rowCount[0] += page.rowSet().size();
                 if (c != Cursor.EMPTY) {
-                    c.nextPage(config, null, null, this);
+                    c.nextPage(config, null, this);
                 }
             }
 

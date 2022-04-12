@@ -118,6 +118,11 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
         this.categorizationAnalyzerConfig = in.readOptionalWriteable(CategorizationAnalyzerConfig::new);
     }
 
+    @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
     public int getMaxUniqueTokens() {
         return maxUniqueTokens;
     }

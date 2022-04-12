@@ -121,13 +121,42 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             status.getImpacts(), status.getUserActions(includeDetails));
     }
 
-    // TODO: Fill in messages and help URLs
-    public static final UserAction.Definition ACTION_RESTORE_FROM_SNAPSHOT = new UserAction.Definition("restore_from_snapshot", "", "");
-    public static final UserAction.Definition ACTION_SHARD_LIMIT = new UserAction.Definition("increase_shard_limit", "", "");
-    public static final UserAction.Definition ACTION_ENABLE_ALLOCATIONS = new UserAction.Definition("enable_allocations", "", "");
-    public static final UserAction.Definition ACTION_MIGRATE_TIERS = new UserAction.Definition("migrate_data_tiers", "", "");
+    // TODO: #85572 Fill in help URLs once they are finalized
+    public static final UserAction.Definition ACTION_RESTORE_FROM_SNAPSHOT = new UserAction.Definition(
+        "restore_from_snapshot",
+        Explanations.Allocation.NO_COPIES,
+        ""
+    );
+    public static final UserAction.Definition ACTION_ENABLE_ALLOCATIONS = new UserAction.Definition(
+        "enable_allocations",
+        "Elasticsearch isn't allowed to allocate shards from these indices because allocation for those shards has been disabled. " +
+            "Check that the [" + EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey() + "] index settings and " +
+            "the [" + EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey() + "] cluster setting are not set " +
+            "to [" + EnableAllocationDecider.Allocation.NONE.toString().toLowerCase(Locale.getDefault()) + "].",
+        ""
+    );
+    public static final UserAction.Definition ACTION_SHARD_LIMIT = new UserAction.Definition(
+        "increase_shard_limit",
+        "Elasticsearch isn't allowed to allocate this shard to any of the nodes in its data tier because each node in the tier has " +
+            "reached its shard limit. Increase the values for the [" +
+            ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey() + "] index setting on each index or add more " +
+            "nodes to the cluster.",
+        ""
+    );
+    public static final UserAction.Definition ACTION_MIGRATE_TIERS = new UserAction.Definition(
+        "migrate_data_tiers",
+        "Elasticsearch isn't allowed to allocate this shard to any of the nodes in its data tier because no nodes in the tier are " +
+            "compatible with the allocation filters in the index settings. Remove the conflicting allocation filters from each index's " +
+            "settings or try migrating to data tiers using the data tier migration action.",
+        ""
+    );
     public static final UserAction.Definition ACTION_INCREASE_TIER_CAPACITY = new UserAction.Definition(
-        "increase_tier_capacity_for_allocations", "", "");
+        "increase_tier_capacity_for_allocations",
+        "Elasticsearch isn't allowed to allocate this shard to any of the nodes in its data tier because there are not enough nodes " +
+            "in the tier to allocate each shard copy on a different node. Increase the number of nodes in this tier or decrease the " +
+            "number of replicas your indices are using.",
+        ""
+    );
 
     private class ShardAllocationCounts {
         private boolean available = true; // This will be true even if no replicas are expected, as long as none are unavailable
@@ -283,7 +312,6 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
                 // All tier nodes conflict with allocation filters?
                 if (dataTierNodes.stream().allMatch(nodeHasDeciderResult(FilterAllocationDecider.NAME, Decision.Type.NO))) {
-                    // TODO: Check if shard is part of an index that can be migrated to data tiers?
                     diagnosisOutput.accept(ACTION_MIGRATE_TIERS, shardRouting);
                 }
 

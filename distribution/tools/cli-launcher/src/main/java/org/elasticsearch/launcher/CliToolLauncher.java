@@ -13,6 +13,10 @@ import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.core.SuppressForbidden;
 
+import java.util.Map;
+import java.util.Properties;
+import java.util.stream.Collectors;
+
 /**
  * A unified main method for Elasticsearch tools.
  *
@@ -38,25 +42,33 @@ class CliToolLauncher {
      * @throws Exception if the tool fails with an unknown error
      */
     public static void main(String[] args) throws Exception {
-        String toolname = System.getProperty("cli.name", "");
-        if (toolname.isBlank()) {
-            String script = System.getProperty("cli.script");
-            int nameStart = script.lastIndexOf(SCRIPT_PREFIX) + SCRIPT_PREFIX.length();
-            toolname = script.substring(nameStart);
-
-            if (isWindows()) {
-                int dotIndex = script.indexOf(".bat"); // strip off .bat
-                toolname = script.substring(0, dotIndex);
-            }
-        }
+        Map<String, String> sysprops = getSystemProperties();
+        String toolname = getToolName(sysprops);
         String libs = System.getProperty("cli.libs", "");
 
         Command command = CliToolProvider.loadTool(toolname, libs).create();
         exit(command.main(args, Terminal.DEFAULT));
     }
 
-    private static boolean isWindows() {
-        return System.getProperty("os.name").startsWith("Windows");
+    static String getToolName(Map<String, String> sysprops) {
+        String toolname = sysprops.getOrDefault("cli.name", "");
+        if (toolname.isBlank()) {
+            String script = sysprops.get("cli.script");
+            int nameStart = script.lastIndexOf(SCRIPT_PREFIX) + SCRIPT_PREFIX.length();
+            toolname = script.substring(nameStart);
+
+            if (sysprops.get("os.name").startsWith("Windows")) {
+                int dotIndex = toolname.indexOf(".bat"); // strip off .bat
+                toolname = toolname.substring(0, dotIndex);
+            }
+        }
+        return toolname;
+    }
+
+    @SuppressForbidden(reason = "collect system properties")
+    private static Map<String, String> getSystemProperties() {
+        Properties props = System.getProperties();
+        return props.entrySet().stream().collect(Collectors.toMap(e -> e.getKey().toString(), e -> e.getValue().toString()));
     }
 
     @SuppressForbidden(reason = "System#exit")

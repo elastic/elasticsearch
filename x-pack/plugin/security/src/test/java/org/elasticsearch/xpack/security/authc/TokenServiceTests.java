@@ -971,7 +971,7 @@ public class TokenServiceTests extends ESTestCase {
             Base64.getEncoder().encodeToString(salt)
         );
         refreshTokenStatus.setVersion(version);
-        mockGetTokenAsyncForDecryptedToken(newAccessToken);
+        mockGetTokenAsyncForDecryptedToken(newAccessToken, version);
         tokenService.decryptAndReturnSupersedingTokens(refrehToken, refreshTokenStatus, securityTokensIndex, authentication, tokenFuture);
         if (version.onOrAfter(TokenService.VERSION_ACCESS_TOKENS_AS_UUIDS)) {
             // previous versions serialized the access token encrypted and the cipher text was different each time (due to different IVs)
@@ -1200,13 +1200,19 @@ public class TokenServiceTests extends ESTestCase {
         }).when(client).search(any(SearchRequest.class), any());
     }
 
-    private void mockGetTokenAsyncForDecryptedToken(String accessToken) {
+    private void mockGetTokenAsyncForDecryptedToken(String accessToken, Version version) {
         doAnswer(invocationOnMock -> {
             GetRequest request = (GetRequest) invocationOnMock.getArguments()[0];
             @SuppressWarnings("unchecked")
             ActionListener<GetResponse> listener = (ActionListener<GetResponse>) invocationOnMock.getArguments()[1];
             GetResponse response = mock(GetResponse.class);
-            if (request.id().replace("token_", "").equals(TokenService.hashTokenString(accessToken))) {
+            if (request.id()
+                .replace("token_", "")
+                .equals(
+                    version.onOrAfter(TokenService.VERSION_MACAROON_ACCESS_TOKENS)
+                        ? TokenService.hashTokenString("access token that is part of a macaroon" + accessToken)
+                        : TokenService.hashTokenString(accessToken)
+                )) {
                 when(response.isExists()).thenReturn(true);
             }
             listener.onResponse(response);

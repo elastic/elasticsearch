@@ -79,6 +79,12 @@ Example response:
       "indices" : [ ]
     },
     {
+      "feature_name" : "indices_write_load",
+      "minimum_index_version" : "8.0.0",
+      "migration_status" : "NO_MIGRATION_NEEDED",
+      "indices" : [ ]
+    },
+    {
       "feature_name" : "kibana",
       "minimum_index_version" : "8.0.0",
       "migration_status" : "NO_MIGRATION_NEEDED",

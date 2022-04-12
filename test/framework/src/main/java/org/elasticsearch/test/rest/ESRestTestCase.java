@@ -603,7 +603,8 @@ public abstract class ESRestTestCase extends ESTestCase {
             "365-days-default",
             ".fleet-actions-results-ilm-policy",
             ".deprecation-indexing-ilm-policy",
-            ".monitoring-8-ilm-policy"
+            ".monitoring-8-ilm-policy",
+            ".indices-write-load-distribution-ilm-policy"
         );
     }
 

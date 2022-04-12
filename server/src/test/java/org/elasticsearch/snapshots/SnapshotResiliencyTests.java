@@ -147,6 +147,7 @@ import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.IndicesWriteLoadStatsCollector;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.indices.analysis.AnalysisModule;
@@ -1842,7 +1843,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         )
                     ),
                     RetentionLeaseSyncer.EMPTY,
-                    client
+                    client,
+                    new IndicesWriteLoadStatsCollector(clusterService, indicesService, threadPool::relativeTimeInNanos)
                 );
                 final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService);
                 final MetadataCreateIndexService metadataCreateIndexService = new MetadataCreateIndexService(

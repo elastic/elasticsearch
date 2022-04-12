@@ -108,6 +108,8 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.IndicesWriteLoadStatsCollector;
+import org.elasticsearch.indices.IndicesWriteLoadStatsService;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemIndexManager;
 import org.elasticsearch.indices.SystemIndices;
@@ -895,11 +897,25 @@ public class Node implements Closeable {
             clusterService.addListener(pluginShutdownService);
 
             final RecoveryPlannerService recoveryPlannerService = getRecoveryPlannerService(threadPool, clusterService, repositoryService);
+
             final DesiredNodesSettingsValidator desiredNodesSettingsValidator = new DesiredNodesSettingsValidator(
                 clusterService.getClusterSettings()
             );
 
             HealthService healthService = createHealthService(clusterService);
+
+            final IndicesWriteLoadStatsCollector indicesWriteLoadStatsCollector = new IndicesWriteLoadStatsCollector(
+                clusterService,
+                indicesService,
+                threadPool::relativeTimeInNanos
+            );
+            final IndicesWriteLoadStatsService indicesWriteLoadStatsService = IndicesWriteLoadStatsService.create(
+                indicesWriteLoadStatsCollector,
+                clusterService,
+                threadPool,
+                client,
+                settings
+            );
 
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);
@@ -980,9 +996,11 @@ public class Node implements Closeable {
                 b.bind(PluginShutdownService.class).toInstance(pluginShutdownService);
                 b.bind(ExecutorSelector.class).toInstance(executorSelector);
                 b.bind(IndexSettingProviders.class).toInstance(indexSettingProviders);
+                b.bind(IndicesWriteLoadStatsService.class).toInstance(indicesWriteLoadStatsService);
                 b.bind(DesiredNodesSettingsValidator.class).toInstance(desiredNodesSettingsValidator);
                 b.bind(HealthService.class).toInstance(healthService);
                 b.bind(StatsRequestLimiter.class).toInstance(statsRequestLimiter);
+                b.bind(IndicesWriteLoadStatsCollector.class).toInstance(indicesWriteLoadStatsCollector);
             });
 
             if (ReadinessService.enabled(environment)) {
@@ -1140,6 +1158,7 @@ public class Node implements Closeable {
         injector.getInstance(RepositoriesService.class).start();
         injector.getInstance(SearchService.class).start();
         injector.getInstance(FsHealthService.class).start();
+        injector.getInstance(IndicesWriteLoadStatsService.class).start();
         nodeService.getMonitorService().start();
 
         final ClusterService clusterService = injector.getInstance(ClusterService.class);
@@ -1295,6 +1314,7 @@ public class Node implements Closeable {
         injector.getInstance(ClusterService.class).stop();
         injector.getInstance(NodeConnectionsService.class).stop();
         injector.getInstance(FsHealthService.class).stop();
+        injector.getInstance(IndicesWriteLoadStatsService.class).stop();
         nodeService.getMonitorService().stop();
         injector.getInstance(GatewayService.class).stop();
         injector.getInstance(SearchService.class).stop();
@@ -1354,6 +1374,8 @@ public class Node implements Closeable {
         toClose.add(nodeService.getMonitorService());
         toClose.add(() -> stopWatch.stop().start("fsHealth"));
         toClose.add(injector.getInstance(FsHealthService.class));
+        toClose.add(() -> stopWatch.stop().start("indicesWriteLoadStatsService"));
+        toClose.add(injector.getInstance(IndicesWriteLoadStatsService.class));
         toClose.add(() -> stopWatch.stop().start("gateway"));
         toClose.add(injector.getInstance(GatewayService.class));
         toClose.add(() -> stopWatch.stop().start("search"));

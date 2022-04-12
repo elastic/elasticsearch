@@ -3,3 +3,5 @@ apply plugin: 'elasticsearch.java'
 dependencies {
   compileOnly project(':server')
 }
+
+tasks.named("javadoc").configure { enabled = false }

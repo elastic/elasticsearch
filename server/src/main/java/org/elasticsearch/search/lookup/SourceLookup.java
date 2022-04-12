@@ -172,8 +172,7 @@ public class SourceLookup implements Map<String, Object> {
     /**
      * For the provided path, return its value in the source.
      *
-     * Note that in contrast with {@link SourceLookup#extractRawValues}, array and object values
-     * can be returned.
+     * Both array and object values can be returned.
      *
      * @param path the value's path in the source.
      * @param nullValue a value to return if the path exists, but the value is 'null'. This helps

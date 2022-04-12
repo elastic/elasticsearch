@@ -27,6 +27,7 @@ import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TextSearchInfo;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext.Field;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext.FieldOptions;
@@ -98,6 +99,7 @@ public class FastVectorHighlighter implements Highlighter {
             Function<SourceLookup, FragmentsBuilder> fragmentsBuilderSupplier = fragmentsBuilderSupplier(
                 field,
                 fieldType,
+                fieldContext.context.getSearchExecutionContext(),
                 forceSource,
                 fixBrokenAnalysis
             );
@@ -217,6 +219,7 @@ public class FastVectorHighlighter implements Highlighter {
     private Function<SourceLookup, FragmentsBuilder> fragmentsBuilderSupplier(
         SearchHighlightContext.Field field,
         MappedFieldType fieldType,
+        SearchExecutionContext context,
         boolean forceSource,
         boolean fixBrokenAnalysis
     ) {
@@ -239,6 +242,7 @@ public class FastVectorHighlighter implements Highlighter {
             if (options.numberOfFragments() != 0 && options.scoreOrdered()) {
                 supplier = lookup -> new SourceScoreOrderFragmentsBuilder(
                     fieldType,
+                    context,
                     fixBrokenAnalysis,
                     lookup,
                     options.preTags(),
@@ -248,6 +252,7 @@ public class FastVectorHighlighter implements Highlighter {
             } else {
                 supplier = lookup -> new SourceSimpleFragmentsBuilder(
                     fieldType,
+                    context,
                     fixBrokenAnalysis,
                     lookup,
                     options.preTags(),

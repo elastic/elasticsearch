@@ -1,3 +1,7 @@
+@echo off
+
+setlocal enabledelayedexpansion
+
 call "%~dp0elasticsearch-env.bat" || exit /b 1
 
 rem use a small heap size for the CLI tools, and thus the serial collector to
@@ -19,3 +23,5 @@ set LAUNCHER_CLASSPATH=%ES_HOME%/lib/*;%ES_HOME%/lib/cli-launcher/*
   %*
 
 exit /b %ERRORLEVEL%
+
+endlocal

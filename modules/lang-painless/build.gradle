@@ -14,7 +14,7 @@ apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
     description 'An easy, safe and fast scripting language for Elasticsearch'
-    classname 'org.elasticsearch.painless.PainlessPlugin'
+    classname 'org.elasticsearch.painless/org.elasticsearch.painless.PainlessPlugin'
 }
 
 testClusters.configureEach {
@@ -52,6 +52,10 @@ restResources {
         include '_common', 'cluster', 'nodes', 'indices', 'index', 'search', 'get', 'bulk', 'update',
                 'scripts_painless_execute', 'put_script', 'delete_script'
     }
+}
+
+tasks.named("compileJava").configure {
+  options.compilerArgs.add("-Xlint:-requires-automatic,-exports,-missing-explicit-ctor")
 }
 
 tasks.named("test").configure {

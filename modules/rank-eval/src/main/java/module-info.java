@@ -9,7 +9,7 @@
 module org.elasticsearch.module.rankeval {
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;
-    requires org.elasticsearch.core;
+    requires org.elasticsearch.base;
     requires java.naming;
 
     exports org.elasticsearch.index.rankeval;

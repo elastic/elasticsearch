@@ -6,10 +6,9 @@
  * Side Public License, v 1.
  */
 
-/** Elasticsearch Command Line Interface. */
-module org.elasticsearch.cli {
-    requires jopt.simple;
-    requires org.elasticsearch.base;
+module org.elasticsearch.painless.spi {
+    requires org.elasticsearch.server;
 
-    exports org.elasticsearch.cli;
+    exports org.elasticsearch.painless.spi;
+    exports org.elasticsearch.painless.spi.annotation;
 }

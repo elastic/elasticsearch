@@ -7,7 +7,7 @@
  */
 
 module org.elasticsearch.ssl.config {
-    requires org.elasticsearch.core;
+    requires org.elasticsearch.base;
 
     exports org.elasticsearch.common.ssl;
 }

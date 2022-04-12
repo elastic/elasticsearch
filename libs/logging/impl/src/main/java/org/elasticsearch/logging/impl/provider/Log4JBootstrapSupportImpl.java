@@ -67,6 +67,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -170,17 +171,18 @@ public class Log4JBootstrapSupportImpl implements LoggingBootstrapSupport {
             TraceIdConverter.class,
             HeaderWarningAppenderImpl.class
         );
+        // Copied from PluginRegistry#loadFromPackage
         final Map<String, List<PluginType<?>>> newPluginsByCategory = new HashMap<>();
         for (final Class<?> clazz : classes) {
             final Plugin plugin = clazz.getAnnotation(Plugin.class);
-            final String categoryLowerCase = plugin.category().toLowerCase();
+            final String categoryLowerCase = plugin.category().toLowerCase(Locale.ROOT);
             List<PluginType<?>> list = newPluginsByCategory.get(categoryLowerCase);
             if (list == null) {
                 newPluginsByCategory.put(categoryLowerCase, list = new ArrayList<>());
             }
             final PluginEntry mainEntry = new PluginEntry();
             final String mainElementName = plugin.elementType().equals(Plugin.EMPTY) ? plugin.name() : plugin.elementType();
-            mainEntry.setKey(plugin.name().toLowerCase());
+            mainEntry.setKey(plugin.name().toLowerCase(Locale.ROOT));
             mainEntry.setName(plugin.name());
             mainEntry.setCategory(plugin.category());
             mainEntry.setClassName(clazz.getName());
@@ -193,7 +195,7 @@ public class Log4JBootstrapSupportImpl implements LoggingBootstrapSupport {
                 for (final String alias : pluginAliases.value()) {
                     final PluginEntry aliasEntry = new PluginEntry();
                     final String aliasElementName = plugin.elementType().equals(Plugin.EMPTY) ? alias.trim() : plugin.elementType();
-                    aliasEntry.setKey(alias.trim().toLowerCase());
+                    aliasEntry.setKey(alias.trim().toLowerCase(Locale.ROOT));
                     aliasEntry.setName(plugin.name());
                     aliasEntry.setCategory(plugin.category());
                     aliasEntry.setClassName(clazz.getName());

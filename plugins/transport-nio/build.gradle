@@ -134,7 +134,13 @@ tasks.named("thirdPartyAudit").configure {
 	  'io.netty.internal.tcnative.SSLSessionCache',
 
     'reactor.blockhound.BlockHound$Builder',
-    'reactor.blockhound.integration.BlockHoundIntegration'
+    'reactor.blockhound.integration.BlockHoundIntegration',
+      'org.apache.logging.log4j.Level',
+      'org.apache.logging.log4j.LogManager',
+      'org.apache.logging.log4j.Logger',
+      'org.apache.logging.log4j.spi.ExtendedLoggerWrapper'
+
+
   )
 
   ignoreViolations(

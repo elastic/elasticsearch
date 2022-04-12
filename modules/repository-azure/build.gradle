@@ -272,7 +272,23 @@ tasks.named("thirdPartyAudit").configure {
     'com.sun.org.apache.xml.internal.resolver.Catalog',
     'com.sun.org.apache.xml.internal.resolver.tools.CatalogResolver',
     // [missing classes] SLF4j includes an optional class that depends on an extension class. see Log4jLogger#createConverter
-    'org.slf4j.ext.EventData'
+    'org.slf4j.ext.EventData',
+    'org.apache.logging.log4j.Level',
+    'org.apache.logging.log4j.LogManager',
+    'org.apache.logging.log4j.Logger',
+    'org.apache.logging.log4j.Marker',
+    'org.apache.logging.log4j.MarkerManager',
+    'org.apache.logging.log4j.ThreadContext',
+    'org.apache.logging.log4j.message.Message',
+    'org.apache.logging.log4j.message.StructuredDataMessage',
+    'org.apache.logging.log4j.spi.AbstractLoggerAdapter',
+    'org.apache.logging.log4j.spi.ExtendedLogger',
+    'org.apache.logging.log4j.spi.ExtendedLoggerWrapper',
+    'org.apache.logging.log4j.spi.LoggerContext',
+    'org.apache.logging.log4j.spi.LoggerContextFactory',
+    'org.apache.logging.log4j.status.StatusLogger',
+    'org.apache.logging.log4j.util.LoaderUtil',
+    'org.apache.logging.log4j.util.StackLocatorUtil'
   )
 
   ignoreViolations(
@@ -303,6 +319,7 @@ tasks.named("thirdPartyAudit").configure {
     'reactor.core.publisher.Traces$SharedSecretsCallSiteSupplierFactory$TracingException',
     'reactor.core.publisher.UnsafeSequence',
     'reactor.core.publisher.UnsafeSupport'
+
   )
 }
 boolean useFixture = false

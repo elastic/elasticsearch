@@ -76,7 +76,8 @@ public class ESLogMessage extends MapMessage<ESLogMessage, Object> implements ES
     }
 
     /**
-     * This method is used in order to support org.elasticsearch.logging.impl.ESJsonLayout which replaces %CustomMapFields from a pattern with JSON fields
+     * This method is used in order to support org.elasticsearch.logging.impl.ESJsonLayout
+     * which replaces %CustomMapFields from a pattern with JSON fields
      * It is a modified version of {@link MapMessage#asJson(StringBuilder)} where the curly brackets are not added
      *
      * @param sb a string builder where JSON fields will be attached

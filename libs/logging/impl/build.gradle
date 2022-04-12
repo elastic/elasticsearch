@@ -20,6 +20,14 @@ dependencies {
   compileOnly project(':libs:elasticsearch-logging')
   api project(':libs:elasticsearch-core')
 
+
+  testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  testImplementation "junit:junit:${versions.junit}"
+  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
+
+  testImplementation(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'elasticsearch-core'
+  }
 }
 
 tasks.named('forbiddenApisMain').configure {

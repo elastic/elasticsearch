@@ -57,6 +57,21 @@ tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
     // [missing classes] SLF4j includes an optional class that depends on an extension class (!)
     'org.slf4j.ext.EventData',
+    'org.apache.logging.log4j.Level',
+    'org.apache.logging.log4j.LogManager',
+    'org.apache.logging.log4j.Logger',
+    'org.apache.logging.log4j.Marker',
+    'org.apache.logging.log4j.MarkerManager',
+    'org.apache.logging.log4j.ThreadContext',
+    'org.apache.logging.log4j.message.Message',
+    'org.apache.logging.log4j.message.StructuredDataMessage',
+    'org.apache.logging.log4j.spi.AbstractLoggerAdapter',
+    'org.apache.logging.log4j.spi.ExtendedLogger',
+    'org.apache.logging.log4j.spi.LoggerContext',
+    'org.apache.logging.log4j.spi.LoggerContextFactory',
+    'org.apache.logging.log4j.status.StatusLogger',
+    'org.apache.logging.log4j.util.LoaderUtil',
+    'org.apache.logging.log4j.util.StackLocatorUtil'
   )
 }
 

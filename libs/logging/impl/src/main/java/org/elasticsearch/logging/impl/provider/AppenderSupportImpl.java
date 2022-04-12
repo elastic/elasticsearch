@@ -29,7 +29,6 @@ import org.elasticsearch.logging.impl.Util;
 import org.elasticsearch.logging.impl.testing.MockLogAppenderImpl;
 import org.elasticsearch.logging.spi.AppenderSupport;
 
-import java.io.Serializable;
 import java.util.List;
 
 public class AppenderSupportImpl implements AppenderSupport {
@@ -64,8 +63,8 @@ public class AppenderSupportImpl implements AppenderSupport {
     }
 
     @SuppressWarnings("unchecked")
-    private static org.apache.logging.log4j.core.Layout<? extends Serializable> mapLayout(Layout layout) {
-        return (org.apache.logging.log4j.core.Layout<? extends Serializable>) layout; // TODO PG sealed classes maybe...
+    private static org.apache.logging.log4j.core.Layout<?> mapLayout(Layout layout) {
+        return (org.apache.logging.log4j.core.Layout<?>) layout; // TODO PG sealed classes maybe...
     }
 
     private static org.apache.logging.log4j.core.Filter createLog4jFilter(org.elasticsearch.logging.core.Filter filter) {

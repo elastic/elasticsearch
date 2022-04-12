@@ -8,7 +8,6 @@
 package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.cli.MultiCommand;
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.cli.CommandLoggingConfigurator;
 import org.elasticsearch.env.NodeRepurposeCommand;
 import org.elasticsearch.env.OverrideNodeVersionCommand;
@@ -20,9 +19,9 @@ import org.elasticsearch.env.OverrideNodeVersionCommand;
 // Even if we avoid making a static reference to Logger class, there is no nice way to avoid declaring
 // UNSAFE_BOOTSTRAP, which depends on ClusterService, which in turn has static Logger.
 // TODO execute CommandLoggingConfigurator.configureLoggingWithoutConfig() in the constructor of commands, not in beforeMain
-public class NodeToolCli extends MultiCommand {
+class NodeToolCli extends MultiCommand {
 
-    public NodeToolCli() {
+    NodeToolCli() {
         super("A CLI tool to do unsafe cluster and index manipulations on current node", () -> {});
         CommandLoggingConfigurator.configureLoggingWithoutConfig();
         subcommands.put("repurpose", new NodeRepurposeCommand());
@@ -32,9 +31,4 @@ public class NodeToolCli extends MultiCommand {
         subcommands.put("remove-settings", new RemoveSettingsCommand());
         subcommands.put("remove-customs", new RemoveCustomsCommand());
     }
-
-    public static void main(String[] args) throws Exception {
-        exit(new NodeToolCli().main(args, Terminal.DEFAULT));
-    }
-
 }

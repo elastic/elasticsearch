@@ -39,10 +39,10 @@ import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
@@ -117,8 +117,15 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             }
         }
 
-        return new HealthIndicatorResult(name(), component(), status.getStatus(), status.getSummary(), status.getDetails(includeDetails),
-            status.getImpacts(), status.getUserActions(includeDetails));
+        return new HealthIndicatorResult(
+            name(),
+            component(),
+            status.getStatus(),
+            status.getSummary(),
+            status.getDetails(includeDetails),
+            status.getImpacts(),
+            status.getUserActions(includeDetails)
+        );
     }
 
     // TODO: #85572 Fill in help URLs once they are finalized
@@ -129,33 +136,38 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     );
     public static final UserAction.Definition ACTION_ENABLE_ALLOCATIONS = new UserAction.Definition(
         "enable_allocations",
-        "Elasticsearch isn't allowed to allocate shards from these indices because allocation for those shards has been disabled. " +
-            "Check that the [" + EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey() + "] index settings and " +
-            "the [" + EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey() + "] cluster setting are not set " +
-            "to [" + EnableAllocationDecider.Allocation.NONE.toString().toLowerCase(Locale.getDefault()) + "].",
+        "Elasticsearch isn't allowed to allocate shards from these indices because allocation for those shards has been disabled. "
+            + "Check that the ["
+            + EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey()
+            + "] index settings and the ["
+            + EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey()
+            + "] cluster setting are not set to ["
+            + EnableAllocationDecider.Allocation.NONE.toString().toLowerCase(Locale.getDefault())
+            + "].",
         null
     );
     public static final UserAction.Definition ACTION_SHARD_LIMIT = new UserAction.Definition(
         "increase_shard_limit",
-        "Elasticsearch isn't allowed to allocate this shard to any of the nodes in its data tier because each node in the tier has " +
-            "reached its shard limit. Increase the values for the [" +
-            ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey() + "] index setting on each index or add more " +
-            "nodes to the cluster.",
+        "Elasticsearch isn't allowed to allocate this shard to any of the nodes in its data tier because each node in the tier has "
+            + "reached its shard limit. Increase the values for the ["
+            + ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()
+            + "] index setting on each index or add more nodes to the cluster.",
         null
     );
     public static final UserAction.Definition ACTION_MIGRATE_TIERS = new UserAction.Definition(
         "migrate_data_tiers",
-        "Elasticsearch isn't allowed to allocate this shard to any of the nodes in its data tier because no nodes in the tier are " +
-            "compatible with the allocation filters in the index settings. Remove the conflicting allocation filters from each index's " +
-            "settings or try migrating to data tiers using the data tier migration action.",
+        "Elasticsearch isn't allowed to allocate this shard to any of the nodes in its data tier because no nodes in the tier are "
+            + "compatible with the allocation filters in the index settings. Remove the conflicting allocation filters from each index's "
+            + "settings or try migrating to data tiers using the data tier migration action.",
         null
     );
     public static final UserAction.Definition ACTION_INCREASE_TIER_CAPACITY = new UserAction.Definition(
         "increase_tier_capacity_for_allocations",
-        "Elasticsearch isn't allowed to allocate this shard to any of the nodes in its data tier because there are not enough nodes " +
-            "in the tier to allocate each shard copy on a different node. Increase the number of nodes in this tier or decrease the " +
-            "number of replicas your indices are using.",
+        "Elasticsearch isn't allowed to allocate this shard to any of the nodes in its data tier because there are not enough nodes "
+            + "in the tier to allocate each shard copy on a different node. Increase the number of nodes in this tier or decrease the "
+            + "number of replicas your indices are using.",
         null
+
     );
 
     private class ShardAllocationCounts {
@@ -256,19 +268,28 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         allocation.setDebugMode(RoutingAllocation.DebugMode.ON);
         ShardAllocationDecision shardAllocationDecision = allocationService.explainShardAllocation(shardRouting, allocation);
         AllocateUnassignedDecision allocateDecision = shardAllocationDecision.getAllocateDecision();
-        LOGGER.trace("[{}]: Obtained decision: [{}/{}]",
+        LOGGER.trace(
+            "[{}]: Obtained decision: [{}/{}]",
             shardRouting.shardId(),
             allocateDecision.isDecisionTaken(),
             allocateDecision.getAllocationDecision()
         );
         if (allocateDecision.isDecisionTaken() && AllocationDecision.NO == allocateDecision.getAllocationDecision()) {
             if (LOGGER.isTraceEnabled()) {
-                LOGGER.trace("[{}]: Working with decisions: [{}]", shardRouting.shardId(),
-                    allocateDecision.getNodeDecisions().stream()
-                        .map(n -> n.getCanAllocateDecision().getDecisions().stream()
-                            .map(d -> d.label() + ": " + d.type())
-                            .collect(Collectors.toList()))
-                        .collect(Collectors.toList()));
+                LOGGER.trace(
+                    "[{}]: Working with decisions: [{}]",
+                    shardRouting.shardId(),
+                    allocateDecision.getNodeDecisions()
+                        .stream()
+                        .map(
+                            n -> n.getCanAllocateDecision()
+                                .getDecisions()
+                                .stream()
+                                .map(d -> d.label() + ": " + d.type())
+                                .collect(Collectors.toList())
+                        )
+                        .collect(Collectors.toList())
+                );
             }
             List<NodeAllocationResult> nodeAllocationResults = allocateDecision.getNodeDecisions();
             IndexMetadata index = state.metadata().index(shardRouting.index());
@@ -280,7 +301,9 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     }
 
     private static Predicate<NodeAllocationResult> nodeHasDeciderResult(String deciderName, Decision.Type outcome) {
-        return (nodeResult) -> nodeResult.getCanAllocateDecision().getDecisions().stream()
+        return (nodeResult) -> nodeResult.getCanAllocateDecision()
+            .getDecisions()
+            .stream()
             .anyMatch(decision -> deciderName.equals(decision.label()) && outcome == decision.type());
     }
 

@@ -418,15 +418,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             .build();
 
         var clusterState = createClusterStateWith(
-            List.of(
-                indexMetadata
-            ),
-            List.of(
-                index(
-                    "red-index",
-                    new ShardAllocation(randomNodeId(), UNAVAILABLE, noShardCopy())
-                )
-            ),
+            List.of(indexMetadata),
+            List.of(index("red-index", new ShardAllocation(randomNodeId(), UNAVAILABLE, noShardCopy()))),
             List.of()
         );
         Map<ShardRoutingKey, ShardAllocationDecision> decisionMap = Map.of(); // Indicator won't call allocation service in this case
@@ -439,10 +432,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     RED,
                     "This cluster has 1 unavailable primary.",
                     List.of(
-                        new HealthIndicatorImpact(
-                            1,
-                            "Cannot add data to 1 index [red-index]. Searches might return incomplete results."
-                        )
+                        new HealthIndicatorImpact(1, "Cannot add data to 1 index [red-index]. Searches might return incomplete results.")
                     )
                 )
             )
@@ -457,15 +447,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             .build();
 
         var clusterState = createClusterStateWith(
-            List.of(
-                indexMetadata
-            ),
-            List.of(
-                index(
-                    "red-index",
-                    new ShardAllocation(randomNodeId(), UNAVAILABLE, noShardCopy())
-                )
-            ),
+            List.of(indexMetadata),
+            List.of(index("red-index", new ShardAllocation(randomNodeId(), UNAVAILABLE, noShardCopy()))),
             List.of()
         );
         Map<ShardRoutingKey, ShardAllocationDecision> decisionMap = Map.of(); // Indicator won't call allocation service in this case
@@ -477,28 +460,11 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     RED,
                     "This cluster has 1 unavailable primary.",
-                    Map.of(
-                        "unassigned_primaries",
-                        1,
-                        "started_primaries",
-                        0,
-                        "unassigned_replicas",
-                        0,
-                        "started_replicas",
-                        0
-                    ),
+                    Map.of("unassigned_primaries", 1, "started_primaries", 0, "unassigned_replicas", 0, "started_replicas", 0),
                     List.of(
-                        new HealthIndicatorImpact(
-                            1,
-                            "Cannot add data to 1 index [red-index]. Searches might return incomplete results."
-                        )
+                        new HealthIndicatorImpact(1, "Cannot add data to 1 index [red-index]. Searches might return incomplete results.")
                     ),
-                    List.of(
-                        new UserAction(
-                            ShardsAvailabilityHealthIndicatorService.ACTION_RESTORE_FROM_SNAPSHOT,
-                            Set.of("red-index")
-                        )
-                    )
+                    List.of(new UserAction(ShardsAvailabilityHealthIndicatorService.ACTION_RESTORE_FROM_SNAPSHOT, Set.of("red-index")))
                 )
             )
         );
@@ -512,15 +478,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             .build();
 
         var clusterState = createClusterStateWith(
-            List.of(
-                indexMetadata
-            ),
-            List.of(
-                index(
-                    "red-index",
-                    new ShardAllocation(randomNodeId(), UNAVAILABLE, decidersNo())
-                )
-            ),
+            List.of(indexMetadata),
+            List.of(index("red-index", new ShardAllocation(randomNodeId(), UNAVAILABLE, decidersNo()))),
             List.of()
         );
         Map<ShardRoutingKey, ShardAllocationDecision> decisionMap = Map.of(
@@ -548,28 +507,11 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     RED,
                     "This cluster has 1 unavailable primary.",
-                    Map.of(
-                        "unassigned_primaries",
-                        1,
-                        "started_primaries",
-                        0,
-                        "unassigned_replicas",
-                        0,
-                        "started_replicas",
-                        0
-                    ),
+                    Map.of("unassigned_primaries", 1, "started_primaries", 0, "unassigned_replicas", 0, "started_replicas", 0),
                     List.of(
-                        new HealthIndicatorImpact(
-                            1,
-                            "Cannot add data to 1 index [red-index]. Searches might return incomplete results."
-                        )
+                        new HealthIndicatorImpact(1, "Cannot add data to 1 index [red-index]. Searches might return incomplete results.")
                     ),
-                    List.of(
-                        new UserAction(
-                            ShardsAvailabilityHealthIndicatorService.ACTION_ENABLE_ALLOCATIONS,
-                            Set.of("red-index")
-                        )
-                    )
+                    List.of(new UserAction(ShardsAvailabilityHealthIndicatorService.ACTION_ENABLE_ALLOCATIONS, Set.of("red-index")))
                 )
             )
         );
@@ -577,24 +519,19 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
     public void testUserActionsIncreaseShardLimit() throws IOException {
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
-            .settings(Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(DataTier.TIER_PREFERENCE, DataTier.DATA_HOT)
-                .build())
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(DataTier.TIER_PREFERENCE, DataTier.DATA_HOT)
+                    .build()
+            )
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
 
         var clusterState = createClusterStateWith(
-            List.of(
-                indexMetadata
-            ),
-            List.of(
-                index(
-                    "red-index",
-                    new ShardAllocation(randomNodeId(), UNAVAILABLE, decidersNo())
-                )
-            ),
+            List.of(indexMetadata),
+            List.of(index("red-index", new ShardAllocation(randomNodeId(), UNAVAILABLE, decidersNo()))),
             List.of()
         );
         Map<ShardRoutingKey, ShardAllocationDecision> decisionMap = Map.of(
@@ -606,8 +543,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     List.of(
                         new NodeAllocationResult(
                             new DiscoveryNode(randomNodeId(), buildNewFakeTransportAddress(), Version.CURRENT),
-                            new Decision.Multi()
-                                .add(Decision.single(Decision.Type.YES, "data_tier", null))
+                            new Decision.Multi().add(Decision.single(Decision.Type.YES, "data_tier", null))
                                 .add(Decision.single(Decision.Type.NO, ShardsLimitAllocationDecider.NAME, null)),
                             1
                         )
@@ -624,28 +560,11 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     RED,
                     "This cluster has 1 unavailable primary.",
-                    Map.of(
-                        "unassigned_primaries",
-                        1,
-                        "started_primaries",
-                        0,
-                        "unassigned_replicas",
-                        0,
-                        "started_replicas",
-                        0
-                    ),
+                    Map.of("unassigned_primaries", 1, "started_primaries", 0, "unassigned_replicas", 0, "started_replicas", 0),
                     List.of(
-                        new HealthIndicatorImpact(
-                            1,
-                            "Cannot add data to 1 index [red-index]. Searches might return incomplete results."
-                        )
+                        new HealthIndicatorImpact(1, "Cannot add data to 1 index [red-index]. Searches might return incomplete results.")
                     ),
-                    List.of(
-                        new UserAction(
-                            ShardsAvailabilityHealthIndicatorService.ACTION_SHARD_LIMIT,
-                            Set.of("red-index")
-                        )
-                    )
+                    List.of(new UserAction(ShardsAvailabilityHealthIndicatorService.ACTION_SHARD_LIMIT, Set.of("red-index")))
                 )
             )
         );
@@ -653,24 +572,19 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
     public void testUserActionsMigrateToDataTiers() throws IOException {
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
-            .settings(Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(DataTier.TIER_PREFERENCE, DataTier.DATA_HOT)
-                .build())
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(DataTier.TIER_PREFERENCE, DataTier.DATA_HOT)
+                    .build()
+            )
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
 
         var clusterState = createClusterStateWith(
-            List.of(
-                indexMetadata
-            ),
-            List.of(
-                index(
-                    "red-index",
-                    new ShardAllocation(randomNodeId(), UNAVAILABLE, decidersNo())
-                )
-            ),
+            List.of(indexMetadata),
+            List.of(index("red-index", new ShardAllocation(randomNodeId(), UNAVAILABLE, decidersNo()))),
             List.of()
         );
         Map<ShardRoutingKey, ShardAllocationDecision> decisionMap = Map.of(
@@ -682,8 +596,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     List.of(
                         new NodeAllocationResult(
                             new DiscoveryNode(randomNodeId(), buildNewFakeTransportAddress(), Version.CURRENT),
-                            new Decision.Multi()
-                                .add(Decision.single(Decision.Type.YES, "data_tier", null))
+                            new Decision.Multi().add(Decision.single(Decision.Type.YES, "data_tier", null))
                                 .add(Decision.single(Decision.Type.NO, FilterAllocationDecider.NAME, null)),
                             1
                         )
@@ -700,28 +613,11 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     RED,
                     "This cluster has 1 unavailable primary.",
-                    Map.of(
-                        "unassigned_primaries",
-                        1,
-                        "started_primaries",
-                        0,
-                        "unassigned_replicas",
-                        0,
-                        "started_replicas",
-                        0
-                    ),
+                    Map.of("unassigned_primaries", 1, "started_primaries", 0, "unassigned_replicas", 0, "started_replicas", 0),
                     List.of(
-                        new HealthIndicatorImpact(
-                            1,
-                            "Cannot add data to 1 index [red-index]. Searches might return incomplete results."
-                        )
+                        new HealthIndicatorImpact(1, "Cannot add data to 1 index [red-index]. Searches might return incomplete results.")
                     ),
-                    List.of(
-                        new UserAction(
-                            ShardsAvailabilityHealthIndicatorService.ACTION_MIGRATE_TIERS,
-                            Set.of("red-index")
-                        )
-                    )
+                    List.of(new UserAction(ShardsAvailabilityHealthIndicatorService.ACTION_MIGRATE_TIERS, Set.of("red-index")))
                 )
             )
         );
@@ -729,24 +625,19 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
     public void testUserActionsIncreaseTierCapacity() throws IOException {
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
-            .settings(Settings.builder()
-                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put(DataTier.TIER_PREFERENCE, DataTier.DATA_HOT)
-                .build())
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(DataTier.TIER_PREFERENCE, DataTier.DATA_HOT)
+                    .build()
+            )
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
 
         var clusterState = createClusterStateWith(
-            List.of(
-                indexMetadata
-            ),
-            List.of(
-                index(
-                    "red-index",
-                    new ShardAllocation(randomNodeId(), UNAVAILABLE, decidersNo())
-                )
-            ),
+            List.of(indexMetadata),
+            List.of(index("red-index", new ShardAllocation(randomNodeId(), UNAVAILABLE, decidersNo()))),
             List.of()
         );
         Map<ShardRoutingKey, ShardAllocationDecision> decisionMap = Map.of(
@@ -758,8 +649,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     List.of(
                         new NodeAllocationResult(
                             new DiscoveryNode(randomNodeId(), buildNewFakeTransportAddress(), Version.CURRENT),
-                            new Decision.Multi()
-                                .add(Decision.single(Decision.Type.YES, "data_tier", null))
+                            new Decision.Multi().add(Decision.single(Decision.Type.YES, "data_tier", null))
                                 .add(Decision.single(Decision.Type.NO, SameShardAllocationDecider.NAME, null)),
                             1
                         )
@@ -776,28 +666,11 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 createExpectedResult(
                     RED,
                     "This cluster has 1 unavailable primary.",
-                    Map.of(
-                        "unassigned_primaries",
-                        1,
-                        "started_primaries",
-                        0,
-                        "unassigned_replicas",
-                        0,
-                        "started_replicas",
-                        0
-                    ),
+                    Map.of("unassigned_primaries", 1, "started_primaries", 0, "unassigned_replicas", 0, "started_replicas", 0),
                     List.of(
-                        new HealthIndicatorImpact(
-                            1,
-                            "Cannot add data to 1 index [red-index]. Searches might return incomplete results."
-                        )
+                        new HealthIndicatorImpact(1, "Cannot add data to 1 index [red-index]. Searches might return incomplete results.")
                     ),
-                    List.of(
-                        new UserAction(
-                            ShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_TIER_CAPACITY,
-                            Set.of("red-index")
-                        )
-                    )
+                    List.of(new UserAction(ShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_TIER_CAPACITY, Set.of("red-index")))
                 )
             )
         );
@@ -822,19 +695,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         return createExpectedResult(status, summary, new SimpleHealthIndicatorDetails(addDefaults(details)), impacts, actions);
     }
 
-    private HealthIndicatorResult createExpectedTruncatedResult(
-        HealthStatus status,
-        String summary,
-        List<HealthIndicatorImpact> impacts
-    ) {
-        return new HealthIndicatorResult(
-            NAME,
-            DATA,
-            status,
-            summary,
-            HealthIndicatorDetails.EMPTY,
-            impacts
-        );
+    private HealthIndicatorResult createExpectedTruncatedResult(HealthStatus status, String summary, List<HealthIndicatorImpact> impacts) {
+        return new HealthIndicatorResult(NAME, DATA, status, summary, HealthIndicatorDetails.EMPTY, impacts);
     }
 
     private HealthIndicatorResult createExpectedResult(
@@ -844,24 +706,18 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         List<HealthIndicatorImpact> impacts,
         List<UserAction> actions
     ) {
-        return new HealthIndicatorResult(
-            NAME,
-            DATA,
-            status,
-            summary,
-            details,
-            impacts,
-            actions
-        );
+        return new HealthIndicatorResult(NAME, DATA, status, summary, details, impacts, actions);
     }
 
     private static ClusterState createClusterStateWith(List<IndexRoutingTable> indexRoutes, List<NodeShutdown> nodeShutdowns) {
         List<IndexMetadata> indices = indexRoutes.stream()
-            .map(table -> IndexMetadata.builder(table.getIndex().getName())
-                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build())
-                .numberOfShards(1)
-                .numberOfReplicas(table.size() - 1)
-                .build())
+            .map(
+                table -> IndexMetadata.builder(table.getIndex().getName())
+                    .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build())
+                    .numberOfShards(1)
+                    .numberOfReplicas(table.size() - 1)
+                    .build()
+            )
             .collect(Collectors.toList());
         return createClusterStateWith(indices, indexRoutes, nodeShutdowns);
     }
@@ -949,11 +805,15 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     }
 
     private static IndexRoutingTable index(String name, ShardAllocation primaryState, ShardAllocation... replicaStates) {
-        return index(IndexMetadata.builder(name)
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build())
-            .numberOfShards(1)
-            .numberOfReplicas(replicaStates.length)
-            .build(), primaryState, replicaStates);
+        return index(
+            IndexMetadata.builder(name)
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build())
+                .numberOfShards(1)
+                .numberOfReplicas(replicaStates.length)
+                .build(),
+            primaryState,
+            replicaStates
+        );
     }
 
     private static IndexRoutingTable index(IndexMetadata indexMetadata, ShardAllocation primaryState, ShardAllocation... replicaStates) {

@@ -38,20 +38,16 @@ public class HealthIndicatorResultTests extends ESTestCase {
         String impact2Description = randomAlphaOfLength(30);
         impacts.add(new HealthIndicatorImpact(impact2Severity, impact2Description));
         List<UserAction> actions = new ArrayList<>();
-        UserAction action1 = new UserAction(new UserAction.Definition(
-            randomAlphaOfLength(10),
-            randomAlphaOfLength(50),
-            randomAlphaOfLength(30)),
+        UserAction action1 = new UserAction(
+            new UserAction.Definition(randomAlphaOfLength(10), randomAlphaOfLength(50), randomAlphaOfLength(30)),
             new HashSet<>()
         );
         for (int i = 0; i < randomInt(10); i++) {
             action1.affectedResources().add(randomAlphaOfLength(10));
         }
         actions.add(action1);
-        UserAction action2 = new UserAction(new UserAction.Definition(
-            randomAlphaOfLength(10),
-            randomAlphaOfLength(50),
-            randomAlphaOfLength(30)),
+        UserAction action2 = new UserAction(
+            new UserAction.Definition(randomAlphaOfLength(10), randomAlphaOfLength(50), randomAlphaOfLength(30)),
             new HashSet<>()
         );
         for (int i = 0; i < randomInt(10); i++) {

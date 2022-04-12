@@ -302,7 +302,6 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         );
         restoreRequest.addParameter("wait_for_completion", "true");
         Response restoreResponse = client().performRequest(restoreRequest);
-        // logger.info("--> BODY: {}", EntityUtils.toString(restoreResponse.getEntity()));
         ObjectPath restore = ObjectPath.createFromResponse(restoreResponse);
         assertEquals(numberOfShards, (int) restore.evaluate("snapshot.shards.total"));
         assertEquals(numberOfShards, (int) restore.evaluate("snapshot.shards.successful"));

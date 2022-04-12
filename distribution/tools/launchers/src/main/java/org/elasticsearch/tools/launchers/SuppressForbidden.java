@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.tools.java_version_checker;
+package org.elasticsearch.tools.launchers;
 
 import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;

@@ -42,7 +42,6 @@ public class BuildTests extends ESTestCase {
 
     public void testIsProduction() {
         Build build = new Build(
-            Build.CURRENT.flavor(),
             Build.CURRENT.type(),
             Build.CURRENT.hash(),
             Build.CURRENT.date(),
@@ -52,65 +51,31 @@ public class BuildTests extends ESTestCase {
         assertTrue(build.qualifiedVersion(), build.isProductionRelease());
 
         assertFalse(
-            new Build(
-                Build.CURRENT.flavor(),
-                Build.CURRENT.type(),
-                Build.CURRENT.hash(),
-                Build.CURRENT.date(),
-                Build.CURRENT.isSnapshot(),
-                "7.0.0-SNAPSHOT"
-            ).isProductionRelease()
+            new Build(Build.CURRENT.type(), Build.CURRENT.hash(), Build.CURRENT.date(), Build.CURRENT.isSnapshot(), "7.0.0-SNAPSHOT")
+                .isProductionRelease()
         );
 
         assertFalse(
-            new Build(
-                Build.CURRENT.flavor(),
-                Build.CURRENT.type(),
-                Build.CURRENT.hash(),
-                Build.CURRENT.date(),
-                Build.CURRENT.isSnapshot(),
-                "Unknown"
-            ).isProductionRelease()
+            new Build(Build.CURRENT.type(), Build.CURRENT.hash(), Build.CURRENT.date(), Build.CURRENT.isSnapshot(), "Unknown")
+                .isProductionRelease()
         );
     }
 
     public void testEqualsAndHashCode() {
         Build build = Build.CURRENT;
 
-        Build another = new Build(build.flavor(), build.type(), build.hash(), build.date(), build.isSnapshot(), build.qualifiedVersion());
+        Build another = new Build(build.type(), build.hash(), build.date(), build.isSnapshot(), build.qualifiedVersion());
         assertEquals(build, another);
         assertEquals(build.hashCode(), another.hashCode());
-
-        final Set<Build.Flavor> otherFlavors = Arrays.stream(Build.Flavor.values())
-            .filter(f -> f.equals(build.flavor()) == false)
-            .collect(Collectors.toSet());
-        final Build.Flavor otherFlavor = randomFrom(otherFlavors);
-        Build differentFlavor = new Build(
-            otherFlavor,
-            build.type(),
-            build.hash(),
-            build.date(),
-            build.isSnapshot(),
-            build.qualifiedVersion()
-        );
-        assertNotEquals(build, differentFlavor);
 
         final Set<Build.Type> otherTypes = Arrays.stream(Build.Type.values())
             .filter(f -> f.equals(build.type()) == false)
             .collect(Collectors.toSet());
         final Build.Type otherType = randomFrom(otherTypes);
-        Build differentType = new Build(
-            build.flavor(),
-            otherType,
-            build.hash(),
-            build.date(),
-            build.isSnapshot(),
-            build.qualifiedVersion()
-        );
+        Build differentType = new Build(otherType, build.hash(), build.date(), build.isSnapshot(), build.qualifiedVersion());
         assertNotEquals(build, differentType);
 
         Build differentHash = new Build(
-            build.flavor(),
             build.type(),
             randomAlphaOfLengthBetween(3, 10),
             build.date(),
@@ -119,18 +84,10 @@ public class BuildTests extends ESTestCase {
         );
         assertNotEquals(build, differentHash);
 
-        Build differentDate = new Build(
-            build.flavor(),
-            build.type(),
-            build.hash(),
-            "1970-01-01",
-            build.isSnapshot(),
-            build.qualifiedVersion()
-        );
+        Build differentDate = new Build(build.type(), build.hash(), "1970-01-01", build.isSnapshot(), build.qualifiedVersion());
         assertNotEquals(build, differentDate);
 
         Build differentSnapshot = new Build(
-            build.flavor(),
             build.type(),
             build.hash(),
             build.date(),
@@ -139,7 +96,7 @@ public class BuildTests extends ESTestCase {
         );
         assertNotEquals(build, differentSnapshot);
 
-        Build differentVersion = new Build(build.flavor(), build.type(), build.hash(), build.date(), build.isSnapshot(), "1.2.3");
+        Build differentVersion = new Build(build.type(), build.hash(), build.date(), build.isSnapshot(), "1.2.3");
         assertNotEquals(build, differentVersion);
     }
 
@@ -181,7 +138,6 @@ public class BuildTests extends ESTestCase {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             new WriteableBuild(
                 new Build(
-                    randomFrom(Build.Flavor.values()),
                     randomFrom(Build.Type.values()),
                     randomAlphaOfLength(6),
                     randomAlphaOfLength(6),
@@ -195,19 +151,11 @@ public class BuildTests extends ESTestCase {
                 switch (randomIntBetween(1, 6)) {
                     case 1:
                         return new WriteableBuild(
-                            new Build(
-                                randomValueOtherThan(b.build.flavor(), () -> randomFrom(Build.Flavor.values())),
-                                b.build.type(),
-                                b.build.hash(),
-                                b.build.date(),
-                                b.build.isSnapshot(),
-                                b.build.qualifiedVersion()
-                            )
+                            new Build(b.build.type(), b.build.hash(), b.build.date(), b.build.isSnapshot(), b.build.qualifiedVersion())
                         );
                     case 2:
                         return new WriteableBuild(
                             new Build(
-                                b.build.flavor(),
                                 randomValueOtherThan(b.build.type(), () -> randomFrom(Build.Type.values())),
                                 b.build.hash(),
                                 b.build.date(),
@@ -218,7 +166,6 @@ public class BuildTests extends ESTestCase {
                     case 3:
                         return new WriteableBuild(
                             new Build(
-                                b.build.flavor(),
                                 b.build.type(),
                                 randomStringExcept(b.build.hash()),
                                 b.build.date(),
@@ -229,7 +176,6 @@ public class BuildTests extends ESTestCase {
                     case 4:
                         return new WriteableBuild(
                             new Build(
-                                b.build.flavor(),
                                 b.build.type(),
                                 b.build.hash(),
                                 randomStringExcept(b.build.date()),
@@ -240,7 +186,6 @@ public class BuildTests extends ESTestCase {
                     case 5:
                         return new WriteableBuild(
                             new Build(
-                                b.build.flavor(),
                                 b.build.type(),
                                 b.build.hash(),
                                 b.build.date(),
@@ -251,7 +196,6 @@ public class BuildTests extends ESTestCase {
                     case 6:
                         return new WriteableBuild(
                             new Build(
-                                b.build.flavor(),
                                 b.build.type(),
                                 b.build.hash(),
                                 b.build.date(),
@@ -265,30 +209,11 @@ public class BuildTests extends ESTestCase {
         );
     }
 
-    public void testFlavorParsing() {
-        for (final Build.Flavor flavor : Build.Flavor.values()) {
-            // strict or not should not impact parsing at all here
-            assertThat(Build.Flavor.fromDisplayName(flavor.displayName(), randomBoolean()), sameInstance(flavor));
-        }
-    }
-
     public void testTypeParsing() {
         for (final Build.Type type : Build.Type.values()) {
             // strict or not should not impact parsing at all here
             assertThat(Build.Type.fromDisplayName(type.displayName(), randomBoolean()), sameInstance(type));
         }
-    }
-
-    public void testLenientFlavorParsing() {
-        final String displayName = randomAlphaOfLength(8);
-        assertThat(Build.Flavor.fromDisplayName(displayName, false), equalTo(Build.Flavor.UNKNOWN));
-    }
-
-    public void testStrictFlavorParsing() {
-        final String displayName = randomAlphaOfLength(8);
-        @SuppressWarnings("ResultOfMethodCallIgnored")
-        final IllegalStateException e = expectThrows(IllegalStateException.class, () -> Build.Flavor.fromDisplayName(displayName, true));
-        assertThat(e, hasToString(containsString("unexpected distribution flavor [" + displayName + "]; your distribution is broken")));
     }
 
     public void testLenientTypeParsing() {

@@ -112,6 +112,10 @@ tasks.named("thirdPartyAudit").configure {
     // from Log4j (deliberate, Netty will fallback to Log4j 2)
     'org.apache.log4j.Level',
     'org.apache.log4j.Logger',
+    'org.apache.logging.log4j.Level',
+    'org.apache.logging.log4j.LogManager',
+    'org.apache.logging.log4j.Logger',
+    'org.apache.logging.log4j.spi.ExtendedLoggerWrapper',
 
     // from io.netty.handler.ssl.OpenSslEngine (netty)
     'io.netty.internal.tcnative.Buffer',
@@ -182,6 +186,7 @@ tasks.named("thirdPartyAudit").configure {
     'org.eclipse.jetty.alpn.ALPN$ClientProvider',
     'org.eclipse.jetty.alpn.ALPN$ServerProvider',
     'org.eclipse.jetty.alpn.ALPN',
+
 
     'org.conscrypt.AllocatedBuffer',
     'org.conscrypt.BufferAllocator',

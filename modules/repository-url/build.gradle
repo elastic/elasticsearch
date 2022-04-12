@@ -31,7 +31,8 @@ dependencies {
   api "org.apache.httpcomponents:httpcore:${versions.httpcore}"
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
-
+  api "org.apache.logging.log4j:log4j-1.2-api:${vers
+    ions.log4j}"
 }
 
 tasks.named("thirdPartyAudit").configure {
@@ -40,8 +41,7 @@ tasks.named("thirdPartyAudit").configure {
     'javax.servlet.ServletContextListener',
     'org.apache.avalon.framework.logger.Logger',
     'org.apache.log.Hierarchy',
-    'org.apache.log.Logger',
-    'javax.jms.Message'
+    'org.apache.log.Logger'
   )
 }
 

@@ -20,7 +20,7 @@ Connect authentication in Kibana.
 
 TIP: If the front-end application does not exist, use `access` tokens instead. See <<token-authentication-services>>.
      Other bearer token options are available if accessing {es} directly, without a front-end application.
-     JWT realm is for when that front-end application already exists, and you want to integration that
+     JWT realm is for when that front-end application already exists, and you want to integrate that
      front-end application with {es}.
 
 A simple JWT realm configuration is as follows:
@@ -140,7 +140,7 @@ case-sensitive match to any of the CSV values in the realm setting `allowed_audi
 
 * The `auth_time` claim from the JWT is optional. If present, it is UTC milliseconds since epoch, and must be before wall clock.
 
-NOTE: Validation of time-based JWT claims can be relaxed via the realm setting `allowed_clock_skew`.
+NOTE: Validation of the JWT time-based claims `exp`, `iat`, `nbf`, and `auth_time` can be relaxed via the realm setting `allowed_clock_skew`.
 
 Elasticsearch claims `principal`, `groups`, `name`, `mail`, and `dn` are validated using {es} validation rules.
 Regular expression settings may be used.
@@ -151,13 +151,13 @@ An optional regular expression can be configured via the realm setting `claims.p
 * The _groups_ claim from the JWT is optional. It is configurable via the realm setting `claims.groups`.
 An optional regular expression can be configured via the realm setting `claims.groups_pattern` to extract a substring value.
 
-* The _name_ claim from the JWT is required. It is configurable via the realm setting `claims.name`.
+* The _name_ claim from the JWT is optional. It is configurable via the realm setting `claims.name`.
 An optional regular expression can be configured via the realm setting `claims.name_pattern` to extract a substring value.
 
-* The _mail_ claim from the JWT is required. It is configurable via the realm setting `claims.mail`.
+* The _mail_ claim from the JWT is optional. It is configurable via the realm setting `claims.mail`.
 An optional regular expression can be configured via the realm setting `claims.mail_pattern` to extract a substring value.
 
-* The _dn_ claim from the JWT is required. It is configurable via the realm setting `claims.dn`.
+* The _dn_ claim from the JWT is optional. It is configurable via the realm setting `claims.dn`.
 An optional regular expression can be configured via the realm setting `claims.dn_pattern` to extract a substring value.
 
 See <<ref-jwt-settings>>.
@@ -177,10 +177,10 @@ WARNING: JWT realm does not support using the role_mapping.yml file.
 ==== JWT Realm Authorization via Role Mapping API
 
 .If JWT realm role mapping is used for authorization, these claims are available for role mapping.
-* `principal` claim: JWT claim in the form of a string is used as the {es} user's principal value.
-* `dn` claim: JWT claim in the form of a Distinguished Name string is used as the {es} user's DN value.
-* `groups` claim: JWT claim in the form of a comma separate list is used as the {es} user's groups value.
-* `metadata` claims: JWTs claims in the form of strings, numbers, booleans, and collections are used as the {es} user's metadata, formatted as `jwt_claim_<key>` = `<value>`
+* `principal` claim: JWT claim in the form of a string is used as the {es} user's principal string value.
+* `dn` claim: JWT claim in the form of a Distinguished Name string is used as the {es} user's DN string value.
+* `groups` claim: JWT claim in the form of a comma separate list is used as the {es} user's groups list value.
+* `metadata` claims: JWTs claims in the form of strings, numbers, booleans, and collections are used as the {es} user's metadata, formatted as `metadata.jwt_claim_<key>` = `<value>` pairs.
 
 See <<ref-jwt-settings>>.
 
@@ -211,16 +211,20 @@ PUT /_security/role_mapping/jwt1_users
 
 See <<ref-jwt-settings>>.
 
+WARNING: When Delegated Authorization is enabled in JWT realm, claims for `groups`, `dn`, and `metadata` not used for the {es} user's values.
+         Only the JWT `principal` claim is passed through to Delegated Authorization realms.
+         The Delegated Authorization realms become responsible for populating all of the {es} user's values, not the JWT realm.
+
 ===== Example JWT Realm Delegated Authorization:
 
-Example JWT realm delegated authorization setting.
+Example JWT realm using Delegated Authorization to multiple other realms.
 
 [source,text]
 --------------------------------------------------
 xpack.security.authc.realms.jwt.jwt2.authorization_realms: file1,native1,ldap1,ad1
 --------------------------------------------------
 
-Example Native realm role mapping rule.
+Example role mapping in realm `native1` for principal `principalname1`.
 
 [source,text]
 --------------------------------------------------
@@ -228,12 +232,15 @@ PUT /_security/role_mapping/native1_users
 {
   "roles" : [ "user" ],
   "rules" : { "all" : [
-      { "field": { "realm.name": "jwt1" } },
+      { "field": { "realm.name": "native1" } },
       { "field": { "username": "principalname1" } }
   ] },
   "enabled": true
 }
 --------------------------------------------------
+
+If realm `jwt2` successfully authenticates a client, and a JWT for principal `principalname1`, and Delegates Authorization to realm `native1`,
+then realm `native1` can lookup that {es} user's values, including using this role mapping rule linked to realm `native1`.
 
 [[hmac-oidc-example]]
 ==== JWT Realm Example with OIDC HMAC Key
@@ -246,7 +253,7 @@ WARNING: HMAC UTF-8 keys need to be longer than HMAC random byte keys to achieve
 [[hmac-oidc-example-jwt-issuer]]
 ===== JWT issuer
 
-These values are for a bespoke authentication service; external to {es}.
+These values are for a bespoke authentication service which issues JWTs; external to {es}.
 
 [source,text]
 --------------------------------------------------
@@ -257,9 +264,9 @@ HMAC OIDC:  hmac-oidc-key-string-for-hs256-algorithm
 --------------------------------------------------
 
 [[hmac-oidc-example-jwt-realm]]
-===== JWT realm elasticsearch.yml settings
+===== JWT realm clear settings
 
-These settings are for {es}.
+These settings are for elasticsearch.yml.
 
 [source,yml]
 --------------------------------------------------
@@ -271,9 +278,9 @@ xpack.security.authc.realms.jwt.jwt8.claims.principal: sub
 xpack.security.authc.realms.jwt.jwt8.client_authentication.type: SHARED_SECRET
 --------------------------------------------------
 
-===== JWT realm elasticsearch-keystore secure settings
+===== JWT realm secure settings
 
-These settings are for {es}.
+These settings are for elasticsearch-keystore.
 
 [source,yml]
 --------------------------------------------------
@@ -283,11 +290,11 @@ xpack.security.authc.realms.jwt.jwt8.client_authentication.shared_secret: client
 
 ===== JWT realm role mapping rule
 
-These settings are for {es}.
+These settings are for {es} role mapping rules for realm `jwt8` user `principalname``.
 
 [source,text]
 --------------------------------------------------
-PUT /_security/role_mapping/native1_users
+PUT /_security/role_mapping/jwt8_users
 {
   "roles" : [ "user" ],
   "rules" : { "all" : [
@@ -312,7 +319,7 @@ Authorization: eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJpc3M4IiwiYXVkIjoi
 [[hmac-oidc-example-jwt-decoded]]
 ===== Decoded JWT
 
-This is a partial decoding of the JWT. It is for information only.
+This is a partial decoding of the example JWT. It is for information only.
 
 [source,text]
 --------------------------------------------------
@@ -324,4 +331,5 @@ Signature: UnnFmsoFKfNmKMsVoDQmKI_3-j95PCaKdgqqau3jPMY
 TIP: The validity period in this example is from 2000 to 2099, inclusive. JWTs typically have a shorter validity period than 100 years.
 
 TIP: The signature in this example is deterministic because the header, claims, and HMAC key are fixed.
-     {es} does not validate `nonce` claims, but adding it could inject entropy to vary the signature.
+     {es} does not validate `nonce` claims, but the bespoke JWT issuer should add a random `nonce` claim
+     to introduce entropy into the signature.

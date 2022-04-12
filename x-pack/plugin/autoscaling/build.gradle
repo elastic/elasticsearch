@@ -19,7 +19,6 @@ dependencies {
   testImplementation project(path: xpackModule('ilm'))
 
   testImplementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
-  testImplementation project(':plugins:transport-nio') // for http
 }
 
 addQaCheckDependencies()

@@ -16,7 +16,6 @@ archivesBaseName = 'x-pack-security'
 dependencies {
   compileOnly project(path: xpackModule('core'))
   api project(path: ':modules:transport-netty4')
-  api project(path: ':plugins:transport-nio')
 
   testImplementation project(path: xpackModule('ilm'))
   testImplementation project(path: xpackModule('monitoring'))

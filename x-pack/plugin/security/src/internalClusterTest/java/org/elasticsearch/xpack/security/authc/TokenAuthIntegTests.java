@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.apache.directory.api.util.Strings;
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -497,8 +498,8 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                             result.getRefreshToken()
                         );
                     } else {
-                        authStatuses.add(getAuthenticationResponseCode(result.getAccessToken()));
-                        tokens.add(MacaroonUtils.extractAccessTokenFromMacaroon(result.getAccessToken()) + result.getRefreshToken());
+                        authStatuses.add(getAuthenticationResponseCode(result.accessToken()));
+                        tokens.add(MacaroonUtils.extractAccessTokenFromMacaroon(result.accessToken()) + result.getRefreshToken());
                     }
                     logger.info("received access token [{}] and refresh token [{}]", result.accessToken(), result.getRefreshToken());
                     completedLatch.countDown();
@@ -628,10 +629,9 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             )
             .build();
         final RestHighLevelClient restClient = new TestRestHighLevelClient();
-        CreateTokenResponse createTokenResponse = restClient.security()
-            .createToken(CreateTokenRequest.clientCredentialsGrant(), superuserOptions);
+        OAuth2Token createTokenResponse = createToken(superuserOptions);
         final RequestOptions superuserTokenOptions = RequestOptions.DEFAULT.toBuilder()
-            .addHeader("Authorization", "Bearer " + createTokenResponse.getAccessToken())
+            .addHeader("Authorization", "Bearer " + createTokenResponse.accessToken())
             .build();
 
         restClient.index(new IndexRequest("twitter1").source("click", "1"), superuserOptions);
@@ -645,8 +645,8 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
             superuserOptions
         ).getPointInTimeId();
 
-        String accessTokenAttenuatedForPIT1 = MacaroonUtils.attenuateTokenForPITOnly(createTokenResponse.getAccessToken(), pit1);
-        String accessTokenAttenuatedForPIT2 = MacaroonUtils.attenuateTokenForPITOnly(createTokenResponse.getAccessToken(), pit2);
+        String accessTokenAttenuatedForPIT1 = MacaroonUtils.attenuateTokenForPITOnly(createTokenResponse.accessToken(), pit1);
+        String accessTokenAttenuatedForPIT2 = MacaroonUtils.attenuateTokenForPITOnly(createTokenResponse.accessToken(), pit2);
 
         SearchRequest searchRequest1 = new SearchRequest();
         SearchSourceBuilder source = new SearchSourceBuilder();

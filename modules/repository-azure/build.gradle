@@ -27,7 +27,8 @@ versions << [
   'azureCommon': '12.14.3',
   'azureCore': '1.25.0',
   'azureCoreHttpNetty': '1.11.7',
-  'azureJackson': '2.13.1',
+  'azureJackson': '2.13.2',
+  'azureJacksonDatabind': '2.13.2.2',
 
   'jakartaActivation': '1.2.1',
   'jakartaXMLBind': '2.3.2',
@@ -47,9 +48,8 @@ dependencies {
 
   // jackson
   api "com.fasterxml.jackson.core:jackson-core:${versions.azureJackson}"
-  api "com.fasterxml.jackson.core:jackson-databind:${versions.azureJackson}"
+  api "com.fasterxml.jackson.core:jackson-databind:${versions.azureJacksonDatabind}"
   api "com.fasterxml.jackson.core:jackson-annotations:${versions.azureJackson}"
-  api "com.fasterxml.jackson.core:jackson-databind:${versions.azureJackson}"
 
   // jackson xml
   api "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${versions.azureJackson}"

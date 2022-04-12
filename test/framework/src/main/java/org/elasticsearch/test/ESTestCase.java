@@ -1670,30 +1670,28 @@ public abstract class ESTestCase extends LuceneTestCase {
     private static final int MAX_PRIVATE_PORT = 36600;
 
     /**
-     * Wrap around at this worker ID
+     * Wrap around after reaching this worker ID.
      */
-    private static final int MAX_EFFECTIVE_WORKER_ID = (MAX_PRIVATE_PORT - MIN_PRIVATE_PORT + 1) / PORTS_PER_WORKER;
+    private static final int MAX_EFFECTIVE_WORKER_ID = (MAX_PRIVATE_PORT - MIN_PRIVATE_PORT - PORTS_PER_WORKER + 1) / PORTS_PER_WORKER - 1;
 
     static {
-        //noinspection ConstantConditions this is here to catch mistakes when changing other constants in this class
-        assert 0 < MAX_EFFECTIVE_WORKER_ID;
+        assert getWorkerBasePort(MAX_EFFECTIVE_WORKER_ID) + PORTS_PER_WORKER - 1 <= MAX_PRIVATE_PORT;
     }
 
     /**
      * Returns a port range for this JVM according to its Gradle worker ID. See also [NOTE: Port ranges for tests].
      */
     public static String getPortRange() {
-        final var firstPort = getBasePort();
+        final var firstPort = getWorkerBasePort();
         final var lastPort = firstPort + PORTS_PER_WORKER - 1; // upper bound is inclusive
-        assert MIN_PRIVATE_PORT <= firstPort && lastPort <= MAX_PRIVATE_PORT
-            : firstPort + "-" + lastPort + " vs " + MIN_PRIVATE_PORT + "-" + MAX_PRIVATE_PORT;
+        assert MIN_PRIVATE_PORT <= firstPort && lastPort <= MAX_PRIVATE_PORT;
         return firstPort + "-" + lastPort;
     }
 
     /**
      * Returns the start of the port range for this JVM according to its Gradle worker ID. See also [NOTE: Port ranges for tests].
      */
-    protected static int getBasePort() {
+    protected static int getWorkerBasePort() {
         final var workerIdStr = System.getProperty(ESTestCase.TEST_WORKER_SYS_PROPERTY);
         if (workerIdStr == null) {
             // running in IDE
@@ -1702,7 +1700,13 @@ public abstract class ESTestCase extends LuceneTestCase {
 
         final var workerId = Integer.parseInt(workerIdStr);
         assert workerId >= 1 : "Non positive gradle worker id: " + workerIdStr;
-        return MIN_PRIVATE_PORT + (workerId % MAX_EFFECTIVE_WORKER_ID) * PORTS_PER_WORKER;
+        return getWorkerBasePort(workerId % (MAX_EFFECTIVE_WORKER_ID + 1));
+    }
+
+    private static int getWorkerBasePort(int effectiveWorkerId) {
+        assert 0 <= effectiveWorkerId && effectiveWorkerId <= MAX_EFFECTIVE_WORKER_ID;
+        // the range [MIN_PRIVATE_PORT, MIN_PRIVATE_PORT+PORTS_PER_WORKER) is only for running outside of Gradle
+        return MIN_PRIVATE_PORT + PORTS_PER_WORKER + effectiveWorkerId * PORTS_PER_WORKER;
     }
 
     protected static InetAddress randomIp(boolean v4) {

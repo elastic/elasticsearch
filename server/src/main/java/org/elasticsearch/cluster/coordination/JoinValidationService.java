@@ -49,7 +49,33 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
+/**
+ * Coordinates the join validation process.
+ * <p>
+ * When a node requests to join an existing cluster, the master first sends it a copy of a recent cluster state to ensure that the new node
+ * can make sense of it (e.g. it has all the plugins it needs to even deserialize the state). Cluster states can be expensive to serialize:
+ * they are large, so we compress them, but the compression takes extra CPU. Also there may be many nodes all joining at once (e.g. after a
+ * full cluster restart or the healing of a large network partition). This component caches the serialized and compressed state that was
+ * sent to one joining node and reuses it to validate other join requests that arrive within the cache timeout, avoiding the need to
+ * allocate memory for each request and repeat all that serialization and compression work each time.
+ */
 public class JoinValidationService {
+
+    /*
+     * IMPLEMENTATION NOTES
+     *
+     * This component is based around a queue of actions which are processed in a single-threaded fashion on the CLUSTER_COORDINATION
+     * threadpool. The actions are either:
+     *
+     * - send a join validation request to a particular node, or
+     * - clear the cache
+     *
+     * The single-threadedness is arranged by tracking (a lower bound on) the size of the queue in a separate AtomicInteger, and only
+     * spawning a new processor when the tracked queue size changes from 0 to 1.
+     *
+     * The executeRefs ref counter is necessary to handle the possibility of a concurrent shutdown, ensuring that the cache is always
+     * cleared even if validateJoin is called concurrently to the shutdown.
+     */
 
     private static final Logger logger = LogManager.getLogger(JoinValidationService.class);
 
@@ -236,6 +262,8 @@ public class JoinValidationService {
 
         @Override
         protected void doRun() {
+            // NB this never runs concurrently to JoinValidation actions, nor to itself, (see IMPLEMENTATION NOTES above) so it is safe
+            // to do these (non-atomic) things to the (unsynchronized) statesByVersion map.
             for (final var bytes : statesByVersion.values()) {
                 bytes.decRef();
             }
@@ -260,6 +288,8 @@ public class JoinValidationService {
         @Override
         protected void doRun() throws Exception {
             assert discoveryNode.getVersion().onOrAfter(Version.V_8_3_0) : discoveryNode.getVersion();
+            // NB these things never run concurrently to each other, or to the cache cleaner (see IMPLEMENTATION NOTES above) so it is safe
+            // to do these (non-atomic) things to the (unsynchronized) statesByVersion map.
             final var cachedBytes = statesByVersion.get(discoveryNode.getVersion());
             final var bytes = Objects.requireNonNullElseGet(cachedBytes, () -> serializeClusterState(discoveryNode));
             assert bytes.hasReferences() : "already closed";

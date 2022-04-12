@@ -134,6 +134,7 @@ public class BuildTests extends ESTestCase {
         return randomAlphaOfLength(13 - s.length());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/85800")
     public void testSerialization() {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             new WriteableBuild(

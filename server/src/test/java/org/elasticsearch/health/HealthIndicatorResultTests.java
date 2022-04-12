@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -36,7 +37,29 @@ public class HealthIndicatorResultTests extends ESTestCase {
         int impact2Severity = randomIntBetween(1, 5);
         String impact2Description = randomAlphaOfLength(30);
         impacts.add(new HealthIndicatorImpact(impact2Severity, impact2Description));
-        HealthIndicatorResult result = new HealthIndicatorResult(name, component, status, summary, details, impacts);
+        List<UserAction> actions = new ArrayList<>();
+        UserAction action1 = new UserAction(new UserAction.Definition(
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(50),
+            randomAlphaOfLength(30)),
+            new HashSet<>()
+        );
+        for (int i = 0; i < randomInt(10); i++) {
+            action1.affectedResources().add(randomAlphaOfLength(10));
+        }
+        actions.add(action1);
+        UserAction action2 = new UserAction(new UserAction.Definition(
+            randomAlphaOfLength(10),
+            randomAlphaOfLength(50),
+            randomAlphaOfLength(30)),
+            new HashSet<>()
+        );
+        for (int i = 0; i < randomInt(10); i++) {
+            action2.affectedResources().add(randomAlphaOfLength(10));
+        }
+        actions.add(action2);
+        HealthIndicatorResult result = new HealthIndicatorResult(name, component, status, summary, details, impacts, actions);
+
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
         result.toXContent(builder, ToXContent.EMPTY_PARAMS);
         Map<String, Object> xContentMap = XContentHelper.convertToMap(BytesReference.bytes(builder), false, builder.contentType()).v2();
@@ -53,5 +76,21 @@ public class HealthIndicatorResultTests extends ESTestCase {
         expectedImpacts.add(expectedImpact1);
         expectedImpacts.add(expectedImpact2);
         assertEquals(expectedImpacts, xContentMap.get("impacts"));
+        List<Map<String, Object>> expectedUserActions = new ArrayList<>();
+        {
+            Map<String, Object> expectedAction1 = new HashMap<>();
+            expectedAction1.put("message", action1.definition().message());
+            expectedAction1.put("help_url", action1.definition().helpURL());
+            expectedAction1.put("affected_resources", action1.affectedResources().stream().toList());
+            expectedUserActions.add(expectedAction1);
+        }
+        {
+            Map<String, Object> expectedAction2 = new HashMap<>();
+            expectedAction2.put("message", action2.definition().message());
+            expectedAction2.put("help_url", action2.definition().helpURL());
+            expectedAction2.put("affected_resources", action2.affectedResources().stream().toList());
+            expectedUserActions.add(expectedAction2);
+        }
+        assertEquals(expectedUserActions, xContentMap.get("user_actions"));
     }
 }

@@ -11,7 +11,6 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.CreateTokenResponse;
-import org.elasticsearch.client.security.InvalidateApiKeyRequest;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -83,8 +82,7 @@ public abstract class SecurityOnTrialLicenseRestTestCase extends ESRestTestCase 
     }
 
     protected void invalidateApiKeysForUser(String username) throws IOException {
-        final RestHighLevelClient client = getHighLevelAdminClient();
-        client.security().invalidateApiKey(InvalidateApiKeyRequest.usingUserName(username), RequestOptions.DEFAULT);
+        getSecurityClient().invalidateApiKeysForUser(username);
     }
 
     protected ApiKey getApiKey(String id) throws IOException {

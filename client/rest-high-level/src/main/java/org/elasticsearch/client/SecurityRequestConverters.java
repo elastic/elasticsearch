@@ -13,7 +13,6 @@ import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.client.security.ClearRealmCacheRequest;
 import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.DelegatePkiAuthenticationRequest;
-import org.elasticsearch.client.security.InvalidateApiKeyRequest;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
 import org.elasticsearch.common.Strings;
 
@@ -58,12 +57,6 @@ final class SecurityRequestConverters {
     static Request invalidateToken(InvalidateTokenRequest invalidateTokenRequest) throws IOException {
         Request request = new Request(HttpDelete.METHOD_NAME, "/_security/oauth2/token");
         request.setEntity(createEntity(invalidateTokenRequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
-
-    static Request invalidateApiKey(final InvalidateApiKeyRequest invalidateApiKeyRequest) throws IOException {
-        final Request request = new Request(HttpDelete.METHOD_NAME, "/_security/api_key");
-        request.setEntity(createEntity(invalidateApiKeyRequest, REQUEST_BODY_CONTENT_TYPE));
         return request;
     }
 

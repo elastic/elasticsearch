@@ -140,6 +140,21 @@ public class TestSecurityClient {
     }
 
     /**
+     * Uses the REST API to invalidate an API Key.
+     * @see org.elasticsearch.xpack.security.rest.action.apikey.RestInvalidateApiKeyAction
+     */
+    public void invalidateApiKeysForUser(String username) throws IOException {
+        final String endpoint = "/_security/api_key/";
+        final Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+        request.setJsonEntity("""
+            {
+                "username":"%s"
+            }
+            """.formatted(username));
+        execute(request);
+    }
+
+    /**
      * Uses the REST API to get a Role descriptor
      * @see org.elasticsearch.xpack.security.rest.action.role.RestGetRolesAction
      */

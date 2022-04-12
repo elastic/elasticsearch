@@ -7,6 +7,7 @@
  */
 
 import org.elasticsearch.logging.spi.LoggingSupportProvider;
+import org.elasticsearch.logging.spi.ServerSupport;
 
 module org.elasticsearch.logging {
     requires org.elasticsearch.cli;
@@ -21,11 +22,9 @@ module org.elasticsearch.logging {
     opens org.elasticsearch.logging.core to org.apache.logging.log4j.core;
 
     exports org.elasticsearch.logging.bootstrap to org.elasticsearch.server;
-    // exports org.elasticsearch.logging.impl.testing;
-
-    // opens org.elasticsearch.logging.impl.testing to org.apache.logging.log4j.core;
     exports org.elasticsearch.logging.spi;
 
     uses LoggingSupportProvider;
+    uses ServerSupport;
 
 }

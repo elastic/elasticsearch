@@ -47,6 +47,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.AssociatedIndexDescriptor;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
@@ -347,6 +348,7 @@ import org.elasticsearch.xpack.ml.process.MlControllerHolder;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
 import org.elasticsearch.xpack.ml.process.NativeController;
 import org.elasticsearch.xpack.ml.process.NativeStorageProvider;
+import org.elasticsearch.xpack.ml.query.SemanticQueryBuilder;
 import org.elasticsearch.xpack.ml.rest.RestDeleteExpiredDataAction;
 import org.elasticsearch.xpack.ml.rest.RestMlInfoAction;
 import org.elasticsearch.xpack.ml.rest.RestMlMemoryAction;
@@ -1418,6 +1420,13 @@ public class MachineLearning extends Plugin
                 CategorizeTextAggregationBuilder.PARSER
             ).addResultReader(InternalCategorizationAggregation::new)
                 .setAggregatorRegistrar(s -> s.registerUsage(CategorizeTextAggregationBuilder.NAME))
+        );
+    }
+
+    @Override
+    public List<QuerySpec<?>> getQueries() {
+        return List.of(
+            new QuerySpec<QueryBuilder>(SemanticQueryBuilder.NAME, SemanticQueryBuilder::new, SemanticQueryBuilder::fromXContent)
         );
     }
 

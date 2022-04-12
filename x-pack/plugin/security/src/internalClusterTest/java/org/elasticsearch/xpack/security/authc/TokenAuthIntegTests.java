@@ -160,7 +160,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         final String refreshToken = response.getRefreshToken();
         Instant created = Instant.now();
 
-        TokenInvalidation invalidateResponse = invalidateAccessToken(accessToken, SECURITY_REQUEST_OPTIONS);
+        TokenInvalidation invalidateResponse = invalidateAccessToken(accessToken);
         assertThat(invalidateResponse.invalidated(), equalTo(1));
         assertThat(invalidateResponse.previouslyInvalidated(), equalTo(0));
         assertThat(invalidateResponse.errors(), empty());
@@ -189,7 +189,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         assertBusy(() -> {
             if (deleteTriggered.compareAndSet(false, true)) {
                 // invalidate a invalid token... doesn't matter that it is bad... we just want this action to trigger the deletion
-                TokenInvalidation invalidateResponseTwo = invalidateAccessToken("fooobar", SECURITY_REQUEST_OPTIONS);
+                TokenInvalidation invalidateResponseTwo = invalidateAccessToken("fooobar");
                 assertThat(invalidateResponseTwo.invalidated(), equalTo(0));
                 assertThat(invalidateResponseTwo.previouslyInvalidated(), equalTo(0));
                 assertThat(invalidateResponseTwo.errors(), empty());
@@ -205,7 +205,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         }, 30, TimeUnit.SECONDS);
 
         // Now the documents are deleted, try to invalidate the access token and refresh token again
-        TokenInvalidation invalidateAccessTokenResponse = invalidateAccessToken(accessToken, SECURITY_REQUEST_OPTIONS);
+        TokenInvalidation invalidateAccessTokenResponse = invalidateAccessToken(accessToken);
         assertThat(invalidateAccessTokenResponse.invalidated(), equalTo(0));
         assertThat(invalidateAccessTokenResponse.previouslyInvalidated(), equalTo(0));
         assertThat(invalidateAccessTokenResponse.errors(), empty());
@@ -217,14 +217,14 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         // Our assertion, therefore, is that an attempt to invalidate the refresh token must not actually invalidate
         // anything (concurrency controls must prevent that), nor may return any errors,
         // but it might _temporarily_ find an "already deleted" token.
-        TokenInvalidation invalidateRefreshTokenResponse = invalidateRefreshToken(refreshToken, SECURITY_REQUEST_OPTIONS);
+        TokenInvalidation invalidateRefreshTokenResponse = invalidateRefreshToken(refreshToken);
         assertThat(invalidateRefreshTokenResponse.invalidated(), equalTo(0));
         assertThat(invalidateRefreshTokenResponse.previouslyInvalidated(), equalTo(0));
 
         // 99% of the time, this will already be empty, but if not ensure it goes to empty within the allowed timeframe
         if (false == invalidateRefreshTokenResponse.errors().isEmpty()) {
             assertBusy(() -> {
-                var newResponse = invalidateRefreshToken(refreshToken, SECURITY_REQUEST_OPTIONS);
+                var newResponse = invalidateRefreshToken(refreshToken);
                 assertThat(newResponse.errors(), empty());
             });
         }
@@ -257,17 +257,15 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         for (int i = 0; i < numOfRequests; i++) {
             createToken(TEST_USER_NAME, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
         }
-        TokenInvalidation invalidateResponse = securityClient(
-            RequestOptions.DEFAULT.toBuilder()
-                .addHeader(
-                    "Authorization",
-                    UsernamePasswordToken.basicAuthHeaderValue(
-                        SecuritySettingsSource.ES_TEST_ROOT_USER,
-                        SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING
-                    )
+        TokenInvalidation invalidateResponse = super.getSecurityClient(RequestOptions.DEFAULT.toBuilder()
+            .addHeader(
+                "Authorization",
+                UsernamePasswordToken.basicAuthHeaderValue(
+                    SecuritySettingsSource.ES_TEST_ROOT_USER,
+                    SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING
                 )
-                .build()
-        ).invalidateTokensForUser(TEST_USER_NAME);
+            )
+            .build()).invalidateTokensForUser(TEST_USER_NAME);
         assertThat(invalidateResponse.invalidated(), equalTo(2 * (numOfRequests)));
         assertThat(invalidateResponse.previouslyInvalidated(), equalTo(0));
         assertThat(invalidateResponse.errors(), empty());
@@ -281,7 +279,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         final RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder()
             .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(ES_TEST_ROOT_USER, TEST_PASSWORD_SECURE_STRING))
             .build();
-        TokenInvalidation invalidateResponse = securityClient(requestOptions).invalidateTokensForRealm("file");
+        TokenInvalidation invalidateResponse = super.getSecurityClient(requestOptions).invalidateTokensForRealm("file");
         assertThat(invalidateResponse.invalidated(), equalTo(2 * (numOfRequests)));
         assertThat(invalidateResponse.previouslyInvalidated(), equalTo(0));
         assertThat(invalidateResponse.errors(), empty());
@@ -295,7 +293,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         final RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder()
             .addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(ES_TEST_ROOT_USER, TEST_PASSWORD_SECURE_STRING))
             .build();
-        TokenInvalidation invalidateResponse = securityClient(requestOptions).invalidateTokensForRealm("saml");
+        TokenInvalidation invalidateResponse = super.getSecurityClient(requestOptions).invalidateTokensForRealm("saml");
         assertThat(invalidateResponse.invalidated(), equalTo(0));
         assertThat(invalidateResponse.previouslyInvalidated(), equalTo(0));
         assertThat(invalidateResponse.errors(), empty());
@@ -710,7 +708,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
     }
 
     private OAuth2Token createToken(RequestOptions options) throws IOException {
-        return securityClient(options).createTokenWithClientCredentialsGrant();
+        return super.getSecurityClient(options).createTokenWithClientCredentialsGrant();
     }
 
     private OAuth2Token createToken(String user, SecureString password) throws IOException {
@@ -718,7 +716,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
     }
 
     private OAuth2Token createToken(String user, SecureString password, RequestOptions options) throws IOException {
-        return securityClient(options).createToken(new UsernamePasswordToken(user, password));
+        return super.getSecurityClient(options).createToken(new UsernamePasswordToken(user, password));
     }
 
     private OAuth2Token refreshToken(String refreshToken) throws IOException {
@@ -726,7 +724,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
     }
 
     private OAuth2Token refreshToken(String refreshToken, RequestOptions options) throws IOException {
-        return securityClient(options).refreshToken(refreshToken);
+        return super.getSecurityClient(options).refreshToken(refreshToken);
     }
 
     private TokenInvalidation invalidateAccessToken(String accessToken) throws IOException {
@@ -734,7 +732,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
     }
 
     private TokenInvalidation invalidateAccessToken(String accessToken, RequestOptions options) throws IOException {
-        return securityClient(options).invalidateAccessToken(accessToken);
+        return super.getSecurityClient(options).invalidateAccessToken(accessToken);
     }
 
     private TokenInvalidation invalidateRefreshToken(String refreshToken) throws IOException {
@@ -742,11 +740,7 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
     }
 
     private TokenInvalidation invalidateRefreshToken(String refreshToken, RequestOptions options) throws IOException {
-        return securityClient(options).invalidateRefreshToken(refreshToken);
-    }
-
-    private TestSecurityClient securityClient(RequestOptions options) {
-        return new TestSecurityClient(getRestClient(), options);
+        return super.getSecurityClient(options).invalidateRefreshToken(refreshToken);
     }
 
     private String generateAccessToken(Version version) throws Exception {

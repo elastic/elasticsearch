@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
@@ -73,7 +74,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     }
 
     @Override
-    public HealthIndicatorResult calculate() {
+    public HealthIndicatorResult calculate(boolean includeDetails) {
         var state = clusterService.state();
         var shutdown = state.getMetadata().custom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY);
         var status = new ShardAllocationStatus(state.getMetadata());
@@ -88,7 +89,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             }
         }
 
-        return createIndicator(status.getStatus(), status.getSummary(), status.getDetails(), status.getImpacts());
+        return createIndicator(status.getStatus(), status.getSummary(), status.getDetails(includeDetails), status.getImpacts());
     }
 
     private static class ShardAllocationCounts {
@@ -201,29 +202,33 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             };
         }
 
-        public SimpleHealthIndicatorDetails getDetails() {
-            return new SimpleHealthIndicatorDetails(
-                Map.of(
-                    "unassigned_primaries",
-                    primaries.unassigned,
-                    "initializing_primaries",
-                    primaries.initializing,
-                    "creating_primaries",
-                    primaries.unassigned_new,
-                    "restarting_primaries",
-                    primaries.unassigned_restarting,
-                    "started_primaries",
-                    primaries.started + primaries.relocating,
-                    "unassigned_replicas",
-                    replicas.unassigned,
-                    "initializing_replicas",
-                    replicas.initializing,
-                    "restarting_replicas",
-                    replicas.unassigned_restarting,
-                    "started_replicas",
-                    replicas.started + replicas.relocating
-                )
-            );
+        public HealthIndicatorDetails getDetails(boolean includeDetails) {
+            if (includeDetails) {
+                return new SimpleHealthIndicatorDetails(
+                    Map.of(
+                        "unassigned_primaries",
+                        primaries.unassigned,
+                        "initializing_primaries",
+                        primaries.initializing,
+                        "creating_primaries",
+                        primaries.unassigned_new,
+                        "restarting_primaries",
+                        primaries.unassigned_restarting,
+                        "started_primaries",
+                        primaries.started + primaries.relocating,
+                        "unassigned_replicas",
+                        replicas.unassigned,
+                        "initializing_replicas",
+                        replicas.initializing,
+                        "restarting_replicas",
+                        replicas.unassigned_restarting,
+                        "started_replicas",
+                        replicas.started + replicas.relocating
+                    )
+                );
+            } else {
+                return HealthIndicatorDetails.EMPTY;
+            }
         }
 
         public List<HealthIndicatorImpact> getImpacts() {

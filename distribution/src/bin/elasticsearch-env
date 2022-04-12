@@ -34,12 +34,20 @@ ES_HOME=`dirname "$ES_HOME"`
 
 # now set the classpath
 ES_CLASSPATH="$ES_HOME/lib/*"
-LAUNCHERS_CLASSPATH="$ES_CLASSPATH:$ES_HOME/lib/launchers/*"
+LAUNCHERS_CLASSPATH="$ES_CLASSPATH:$ES_HOME/lib/java-version-checker/*:$ES_HOME/lib/launchers/*"
 
 # now set the path to java
 if [ ! -z "$ES_JAVA_HOME" ]; then
   JAVA="$ES_JAVA_HOME/bin/java"
   JAVA_TYPE="ES_JAVA_HOME"
+
+  if [ ! -x "$JAVA" ]; then
+    echo "could not find java in $JAVA_TYPE at $JAVA" >&2
+    exit 1
+  fi
+
+  # check the user supplied jdk version
+  "$JAVA" -cp "$ES_HOME/lib/java-version-checker/*" org.elasticsearch.tools.java_version_checker.JavaVersionChecker
 else
   # use the bundled JDK (default)
   if [ "$(uname -s)" = "Darwin" ]; then
@@ -49,11 +57,6 @@ else
     JAVA="$ES_HOME/jdk/bin/java"
   fi
   JAVA_TYPE="bundled JDK"
-fi
-
-if [ ! -x "$JAVA" ]; then
-  echo "could not find java in $JAVA_TYPE at $JAVA" >&2
-  exit 1
 fi
 
 # do not let JAVA_TOOL_OPTIONS slip in (as the JVM does by default)
@@ -74,15 +77,6 @@ if [ ! -z "$JAVA_OPTS" ]; then
   echo "pass JVM parameters via ES_JAVA_OPTS"
 fi
 
-if [[ "$("$JAVA" -version 2>/dev/null)" =~ "Unable to map CDS archive" ]]; then
-  XSHARE="-Xshare:off"
-else
-  XSHARE="-Xshare:auto"
-fi
-
-# check the Java version
-"$JAVA" "$XSHARE" -cp "$LAUNCHERS_CLASSPATH" org.elasticsearch.tools.java_version_checker.JavaVersionChecker
-
 export HOSTNAME=$HOSTNAME
 
 @source.path.env@
@@ -95,13 +89,7 @@ fi
 # now make ES_PATH_CONF absolute
 ES_PATH_CONF=`cd "$ES_PATH_CONF"; pwd`
 
-ES_DISTRIBUTION_FLAVOR=@es.distribution.flavor@
 ES_DISTRIBUTION_TYPE=@es.distribution.type@
-ES_BUNDLED_JDK=@es.bundled_jdk@
-
-if [[ "$ES_BUNDLED_JDK" == "false" ]]; then
-  echo "warning: no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release" >&2
-fi
 
 if [[ "$ES_DISTRIBUTION_TYPE" == "docker" ]]; then
   # Allow environment variables to be set by creating a file with the

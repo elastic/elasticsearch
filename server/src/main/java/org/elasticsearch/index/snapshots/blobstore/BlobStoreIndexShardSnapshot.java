@@ -303,27 +303,23 @@ public class BlobStoreIndexShardSnapshot implements ToXContentFragment {
                     String currentFieldName = parser.currentName();
                     token = parser.nextToken();
                     if (token.isValue()) {
-                        if (NAME.equals(currentFieldName)) {
-                            name = parser.text();
-                        } else if (PHYSICAL_NAME.equals(currentFieldName)) {
-                            physicalName = parser.text();
-                        } else if (LENGTH.equals(currentFieldName)) {
-                            length = parser.longValue();
-                        } else if (CHECKSUM.equals(currentFieldName)) {
-                            checksum = parser.text();
-                        } else if (PART_SIZE.equals(currentFieldName)) {
-                            partSize = new ByteSizeValue(parser.longValue());
-                        } else if (WRITTEN_BY.equals(currentFieldName)) {
-                            writtenBy = parser.text();
-                        } else if (META_HASH.equals(currentFieldName)) {
-                            metaHash.bytes = parser.binaryValue();
-                            metaHash.offset = 0;
-                            metaHash.length = metaHash.bytes.length;
-                        } else if (WRITER_UUID.equals(currentFieldName)) {
-                            writerUuid = new BytesRef(parser.binaryValue());
-                            assert writerUuid.length > 0;
-                        } else {
-                            XContentParserUtils.throwUnknownField(currentFieldName, parser);
+                        switch (currentFieldName) {
+                            case NAME -> name = parser.text();
+                            case PHYSICAL_NAME -> physicalName = parser.text();
+                            case LENGTH -> length = parser.longValue();
+                            case CHECKSUM -> checksum = parser.text();
+                            case PART_SIZE -> partSize = new ByteSizeValue(parser.longValue());
+                            case WRITTEN_BY -> writtenBy = parser.text();
+                            case META_HASH -> {
+                                metaHash.bytes = parser.binaryValue();
+                                metaHash.offset = 0;
+                                metaHash.length = metaHash.bytes.length;
+                            }
+                            case WRITER_UUID -> {
+                                writerUuid = new BytesRef(parser.binaryValue());
+                                assert writerUuid.length > 0;
+                            }
+                            default -> XContentParserUtils.throwUnknownField(currentFieldName, parser);
                         }
                     } else {
                         XContentParserUtils.throwUnknownToken(token, parser);

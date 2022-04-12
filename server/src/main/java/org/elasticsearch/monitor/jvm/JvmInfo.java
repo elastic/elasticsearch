@@ -9,11 +9,11 @@
 package org.elasticsearch.monitor.jvm;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.node.ReportingService;
@@ -141,17 +141,13 @@ public class JvmInfo implements ReportingService.Info {
 
         }
 
-        final boolean bundledJdk = Booleans.parseBoolean(System.getProperty("es.bundled_jdk", Boolean.FALSE.toString()));
-        final Boolean usingBundledJdk = bundledJdk ? usingBundledJdk() : null;
-
         INSTANCE = new JvmInfo(
             ProcessHandle.current().pid(),
             System.getProperty("java.version"),
             runtimeMXBean.getVmName(),
             runtimeMXBean.getVmVersion(),
             runtimeMXBean.getVmVendor(),
-            bundledJdk,
-            usingBundledJdk,
+            usingBundledJdk(),
             runtimeMXBean.getStartTime(),
             configuredInitialHeapSize,
             configuredMaxHeapSize,
@@ -200,7 +196,6 @@ public class JvmInfo implements ReportingService.Info {
     private final String vmName;
     private final String vmVersion;
     private final String vmVendor;
-    private final boolean bundledJdk;
     private final Boolean usingBundledJdk;
     private final long startTime;
     private final long configuredInitialHeapSize;
@@ -225,7 +220,6 @@ public class JvmInfo implements ReportingService.Info {
         String vmName,
         String vmVersion,
         String vmVendor,
-        boolean bundledJdk,
         Boolean usingBundledJdk,
         long startTime,
         long configuredInitialHeapSize,
@@ -249,7 +243,6 @@ public class JvmInfo implements ReportingService.Info {
         this.vmName = vmName;
         this.vmVersion = vmVersion;
         this.vmVendor = vmVendor;
-        this.bundledJdk = bundledJdk;
         this.usingBundledJdk = usingBundledJdk;
         this.startTime = startTime;
         this.configuredInitialHeapSize = configuredInitialHeapSize;
@@ -275,7 +268,10 @@ public class JvmInfo implements ReportingService.Info {
         vmName = in.readString();
         vmVersion = in.readString();
         vmVendor = in.readString();
-        bundledJdk = in.readBoolean();
+        if (in.getVersion().before(Version.V_8_3_0)) {
+            // Before 8.0 the no-jdk distributions could have bundledJdk false, this is always true now.
+            in.readBoolean();
+        }
         usingBundledJdk = in.readOptionalBoolean();
         startTime = in.readLong();
         inputArguments = new String[in.readInt()];
@@ -306,7 +302,9 @@ public class JvmInfo implements ReportingService.Info {
         out.writeString(vmName);
         out.writeString(vmVersion);
         out.writeString(vmVendor);
-        out.writeBoolean(bundledJdk);
+        if (out.getVersion().before(Version.V_8_3_0)) {
+            out.writeBoolean(true);
+        }
         out.writeOptionalBoolean(usingBundledJdk);
         out.writeLong(startTime);
         out.writeInt(inputArguments.length);
@@ -422,10 +420,6 @@ public class JvmInfo implements ReportingService.Info {
         return this.vmVendor;
     }
 
-    public boolean getBundledJdk() {
-        return bundledJdk;
-    }
-
     public Boolean getUsingBundledJdk() {
         return usingBundledJdk;
     }
@@ -510,7 +504,6 @@ public class JvmInfo implements ReportingService.Info {
         builder.field(Fields.VM_NAME, vmName);
         builder.field(Fields.VM_VERSION, vmVersion);
         builder.field(Fields.VM_VENDOR, vmVendor);
-        builder.field(Fields.BUNDLED_JDK, bundledJdk);
         builder.field(Fields.USING_BUNDLED_JDK, usingBundledJdk);
         builder.timeField(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, startTime);
 
@@ -540,7 +533,6 @@ public class JvmInfo implements ReportingService.Info {
         static final String VM_NAME = "vm_name";
         static final String VM_VERSION = "vm_version";
         static final String VM_VENDOR = "vm_vendor";
-        static final String BUNDLED_JDK = "bundled_jdk";
         static final String USING_BUNDLED_JDK = "using_bundled_jdk";
         static final String START_TIME = "start_time";
         static final String START_TIME_IN_MILLIS = "start_time_in_millis";

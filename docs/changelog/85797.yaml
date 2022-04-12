@@ -1,0 +1,5 @@
+pr: 85797
+summary: "User Profile - Rename access to labels for request, response and mappings"
+area: Security
+type: enhancement
+issues: []

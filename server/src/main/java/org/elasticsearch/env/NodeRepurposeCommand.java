@@ -73,7 +73,7 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
         }
     }
 
-    private void processNoMasterNoDataNode(Terminal terminal, Path[] dataPaths, Environment env) throws IOException {
+    private static void processNoMasterNoDataNode(Terminal terminal, Path[] dataPaths, Environment env) throws IOException {
         NodeEnvironment.NodePath[] nodePaths = toNodePaths(dataPaths);
 
         terminal.println(Terminal.Verbosity.VERBOSE, "Collecting shard data paths");
@@ -113,7 +113,7 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
         terminal.println("Node successfully repurposed to no-master and no-data.");
     }
 
-    private void processMasterNoDataNode(Terminal terminal, Path[] dataPaths, Environment env) throws IOException {
+    private static void processMasterNoDataNode(Terminal terminal, Path[] dataPaths, Environment env) throws IOException {
         NodeEnvironment.NodePath[] nodePaths = toNodePaths(dataPaths);
 
         terminal.println(Terminal.Verbosity.VERBOSE, "Collecting shard data paths");
@@ -143,12 +143,17 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
         terminal.println("Node successfully repurposed to master and no-data.");
     }
 
-    private ClusterState loadClusterState(Terminal terminal, Environment env, PersistedClusterStateService psf) throws IOException {
+    private static ClusterState loadClusterState(Terminal terminal, Environment env, PersistedClusterStateService psf) throws IOException {
         terminal.println(Terminal.Verbosity.VERBOSE, "Loading cluster state");
         return clusterState(env, psf.loadBestOnDiskState());
     }
 
-    private void outputVerboseInformation(Terminal terminal, Collection<Path> pathsToCleanup, Set<String> indexUUIDs, Metadata metadata) {
+    private static void outputVerboseInformation(
+        Terminal terminal,
+        Collection<Path> pathsToCleanup,
+        Set<String> indexUUIDs,
+        Metadata metadata
+    ) {
         if (terminal.isPrintable(Terminal.Verbosity.VERBOSE)) {
             terminal.println(Terminal.Verbosity.VERBOSE, "Paths to clean up:");
             pathsToCleanup.forEach(p -> terminal.println(Terminal.Verbosity.VERBOSE, "  " + p.toString()));
@@ -157,13 +162,13 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
         }
     }
 
-    private void outputHowToSeeVerboseInformation(Terminal terminal) {
+    private static void outputHowToSeeVerboseInformation(Terminal terminal) {
         if (terminal.isPrintable(Terminal.Verbosity.VERBOSE) == false) {
             terminal.println("Use -v to see list of paths and indices affected");
         }
     }
 
-    private String toIndexName(String uuid, Metadata metadata) {
+    private static String toIndexName(String uuid, Metadata metadata) {
         if (metadata != null) {
             for (Map.Entry<String, IndexMetadata> indexMetadata : metadata.indices().entrySet()) {
                 if (indexMetadata.getValue().getIndexUUID().equals(uuid)) {
@@ -174,7 +179,7 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
         return "no name for uuid: " + uuid;
     }
 
-    private Set<String> indexUUIDsFor(Set<Path> indexPaths) {
+    private static Set<String> indexUUIDsFor(Set<Path> indexPaths) {
         return indexPaths.stream().map(Path::getFileName).map(Path::toString).collect(Collectors.toSet());
     }
 
@@ -186,12 +191,12 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
         return "Found " + shards + " shards in " + indices + " indices to clean up";
     }
 
-    private void removePaths(Terminal terminal, Collection<Path> paths) {
+    private static void removePaths(Terminal terminal, Collection<Path> paths) {
         terminal.println(Terminal.Verbosity.VERBOSE, "Removing data");
-        paths.forEach(this::removePath);
+        paths.forEach(NodeRepurposeCommand::removePath);
     }
 
-    private void removePath(Path path) {
+    private static void removePath(Path path) {
         try {
             IOUtils.rm(path);
         } catch (IOException e) {
@@ -201,7 +206,7 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
 
     @SafeVarargs
     @SuppressWarnings("varargs")
-    private Set<Path> uniqueParentPaths(Collection<Path>... paths) {
+    private static Set<Path> uniqueParentPaths(Collection<Path>... paths) {
         // equals on Path is good enough here due to the way these are collected.
         return Arrays.stream(paths).flatMap(Collection::stream).map(Path::getParent).collect(Collectors.toSet());
     }

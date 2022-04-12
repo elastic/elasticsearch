@@ -79,7 +79,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         List<TokenFilterFactory> previousTokenFilters,
         Function<String, TokenFilterFactory> allFilters
     ) {
-        final Analyzer analyzer = buildSynonymAnalyzer(tokenizer, charFilters, previousTokenFilters, allFilters);
+        final Analyzer analyzer = buildSynonymAnalyzer(tokenizer, charFilters, previousTokenFilters);
         final SynonymMap synonyms = buildSynonyms(analyzer, getRulesFromSettings(environment));
         final String name = name();
         return new TokenFilterFactory() {
@@ -108,11 +108,10 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         };
     }
 
-    Analyzer buildSynonymAnalyzer(
+    static Analyzer buildSynonymAnalyzer(
         TokenizerFactory tokenizer,
         List<CharFilterFactory> charFilters,
-        List<TokenFilterFactory> tokenFilters,
-        Function<String, TokenFilterFactory> allFilters
+        List<TokenFilterFactory> tokenFilters
     ) {
         return new CustomAnalyzer(
             tokenizer,

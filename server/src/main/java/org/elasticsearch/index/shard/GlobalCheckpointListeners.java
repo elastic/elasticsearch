@@ -233,7 +233,7 @@ public class GlobalCheckpointListeners implements Closeable {
         });
     }
 
-    private void assertNotification(final long globalCheckpoint, final Exception e) {
+    private static void assertNotification(final long globalCheckpoint, final Exception e) {
         if (Assertions.ENABLED) {
             assert globalCheckpoint >= UNASSIGNED_SEQ_NO : globalCheckpoint;
             if (globalCheckpoint != UNASSIGNED_SEQ_NO) {

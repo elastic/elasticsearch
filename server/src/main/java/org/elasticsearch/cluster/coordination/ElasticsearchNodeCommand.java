@@ -144,7 +144,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
         }
     }
 
-    protected void confirm(Terminal terminal, String msg) {
+    protected static void confirm(Terminal terminal, String msg) {
         terminal.println(msg);
         String text = terminal.readText("Confirm [y/N] ");
         if (text.equalsIgnoreCase("y") == false) {
@@ -180,7 +180,7 @@ public abstract class ElasticsearchNodeCommand extends EnvironmentAwareCommand {
     protected abstract void processNodePaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment env) throws IOException,
         UserException;
 
-    protected NodeEnvironment.NodePath[] toNodePaths(Path[] dataPaths) {
+    protected static NodeEnvironment.NodePath[] toNodePaths(Path[] dataPaths) {
         return Arrays.stream(dataPaths).map(ElasticsearchNodeCommand::createNodePath).toArray(NodeEnvironment.NodePath[]::new);
     }
 

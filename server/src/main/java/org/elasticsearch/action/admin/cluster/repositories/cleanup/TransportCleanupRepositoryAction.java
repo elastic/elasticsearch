@@ -64,14 +64,11 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
 
     private final RepositoriesService repositoriesService;
 
-    private final SnapshotsService snapshotsService;
-
     @Inject
     public TransportCleanupRepositoryAction(
         TransportService transportService,
         ClusterService clusterService,
         RepositoriesService repositoriesService,
-        SnapshotsService snapshotsService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver
@@ -88,7 +85,6 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
             ThreadPool.Names.SAME
         );
         this.repositoriesService = repositoriesService;
-        this.snapshotsService = snapshotsService;
         // We add a state applier that will remove any dangling repository cleanup actions on master failover.
         // This is safe to do since cleanups will increment the repository state id before executing any operations to prevent concurrent
         // operations from corrupting the repository. This is the same safety mechanism used by snapshot deletes.
@@ -234,7 +230,7 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                                     listener,
                                     l -> blobStoreRepository.cleanup(
                                         repositoryStateId,
-                                        snapshotsService.minCompatibleVersion(newState.nodes().getMinNodeVersion(), repositoryData, null),
+                                        SnapshotsService.minCompatibleVersion(newState.nodes().getMinNodeVersion(), repositoryData, null),
                                         ActionListener.wrap(result -> after(null, result), e -> after(e, null))
                                     )
                                 )

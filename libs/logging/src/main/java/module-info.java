@@ -11,7 +11,7 @@ import org.elasticsearch.logging.spi.ServerSupport;
 
 module org.elasticsearch.logging {
     requires org.elasticsearch.cli;
-    requires org.elasticsearch.core;
+    requires org.elasticsearch.base;
     requires org.elasticsearch.xcontent;
     requires org.hamcrest;
 

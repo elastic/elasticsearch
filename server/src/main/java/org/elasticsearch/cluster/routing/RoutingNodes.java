@@ -797,7 +797,7 @@ public class RoutingNodes extends AbstractCollection<RoutingNode> {
         shards.add(shard);
     }
 
-    private boolean assertInstanceNotInList(ShardRouting shard, List<ShardRouting> shards) {
+    private static boolean assertInstanceNotInList(ShardRouting shard, List<ShardRouting> shards) {
         for (ShardRouting s : shards) {
             assert s != shard;
         }

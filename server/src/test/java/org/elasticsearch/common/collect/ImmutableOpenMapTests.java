@@ -260,6 +260,19 @@ public class ImmutableOpenMapTests extends ESTestCase {
         assertTrue(map.containsValue("bar"));
     }
 
+    public void testBuilderUseAfterBuild() {
+        ImmutableOpenMap.Builder<String, Integer> builder = ImmutableOpenMap.<String, Integer>builder().fPut("foo", 1);
+        assertTrue(builder.build().get("foo") == 1);
+        expectThrows(NullPointerException.class, () -> builder.build());
+        expectThrows(NullPointerException.class, () -> builder.put("bar", 2));
+    }
+
+    public void testBuilderNoopReferencesUnchanged() {
+        ImmutableOpenMap<String, Integer> map = ImmutableOpenMap.<String, Integer>builder().fPut("foo", 1).build();
+        assertTrue(map == ImmutableOpenMap.builder(map).build());
+        assertFalse(map == ImmutableOpenMap.builder(map).fPut("bar", 2).build());
+    }
+
     private static <KType, VType> Map.Entry<KType, VType> entry(KType key, VType value) {
         Map<KType, VType> map = Maps.newMapWithExpectedSize(1);
         map.put(key, value);

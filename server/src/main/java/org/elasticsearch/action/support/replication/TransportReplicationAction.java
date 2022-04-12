@@ -313,13 +313,13 @@ public abstract class TransportReplicationAction<
         return null;
     }
 
-    protected boolean retryPrimaryException(final Throwable e) {
+    protected static boolean retryPrimaryException(final Throwable e) {
         return e.getClass() == ReplicationOperation.RetryOnPrimaryException.class
             || TransportActions.isShardNotAvailableException(e)
             || isRetryableClusterBlockException(e);
     }
 
-    boolean isRetryableClusterBlockException(final Throwable e) {
+    static boolean isRetryableClusterBlockException(final Throwable e) {
         if (e instanceof ClusterBlockException) {
             return ((ClusterBlockException) e).retryable();
         }

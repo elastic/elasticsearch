@@ -179,11 +179,11 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
         };
     }
 
-    private boolean isLoopback(InetAddress ip) {
+    private static boolean isLoopback(InetAddress ip) {
         return ip.isLoopbackAddress();
     }
 
-    private boolean isUnicast(InetAddress ip) {
+    private static boolean isUnicast(InetAddress ip) {
         return Arrays.equals(ip.getAddress(), BROADCAST_IP4) == false
             && isUnspecified(ip) == false
             && isLoopback(ip) == false
@@ -191,36 +191,36 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
             && isLinkLocalUnicast(ip) == false;
     }
 
-    private boolean isLinkLocalUnicast(InetAddress ip) {
+    private static boolean isLinkLocalUnicast(InetAddress ip) {
         return ip.isLinkLocalAddress();
     }
 
-    private boolean isInterfaceLocalMulticast(InetAddress ip) {
+    private static boolean isInterfaceLocalMulticast(InetAddress ip) {
         return ip.isMCNodeLocal();
     }
 
-    private boolean isLinkLocalMulticast(InetAddress ip) {
+    private static boolean isLinkLocalMulticast(InetAddress ip) {
         return ip.isMCLinkLocal();
     }
 
-    private boolean isMulticast(InetAddress ip) {
+    private static boolean isMulticast(InetAddress ip) {
         return ip.isMulticastAddress();
     }
 
-    private boolean isUnspecified(InetAddress ip) {
+    private static boolean isUnspecified(InetAddress ip) {
         var address = ip.getAddress();
         return Arrays.equals(UNDEFINED_IP4, address) || Arrays.equals(UNDEFINED_IP6, address);
     }
 
-    private boolean isPrivate(String ip) {
+    private static boolean isPrivate(String ip) {
         return CIDRUtils.isInRange(ip, "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fd00::/8");
     }
 
-    private boolean isPublic(String ip) {
+    private static boolean isPublic(String ip) {
         return isLocalOrPrivate(ip) == false;
     }
 
-    private boolean isLocalOrPrivate(String ip) {
+    private static boolean isLocalOrPrivate(String ip) {
         var address = InetAddresses.forString(ip);
         return isPrivate(ip)
             || isLoopback(address)

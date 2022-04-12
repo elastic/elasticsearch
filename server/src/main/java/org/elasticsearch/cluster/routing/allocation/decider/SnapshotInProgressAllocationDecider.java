@@ -51,7 +51,7 @@ public class SnapshotInProgressAllocationDecider extends AllocationDecider {
         return canAllocate(shardRouting, node, allocation);
     }
 
-    private Decision canMove(ShardRouting shardRouting, RoutingAllocation allocation) {
+    private static Decision canMove(ShardRouting shardRouting, RoutingAllocation allocation) {
         if (shardRouting.primary()) {
             // Only primary shards are snapshotted
 

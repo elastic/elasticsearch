@@ -12,7 +12,6 @@ import com.carrotsearch.randomizedtesting.ReproduceErrorMessageBuilder;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -169,7 +168,7 @@ public class ReproduceInfoPrinter extends RunListener {
             appendOpt("tests.locale", Locale.getDefault().toLanguageTag());
             appendOpt("tests.timezone", TimeZone.getDefault().getID());
             appendOpt("tests.distribution", System.getProperty("tests.distribution"));
-            appendOpt("runtime.java", Integer.toString(JavaVersion.current().getVersion().get(0)));
+            appendOpt("runtime.java", Integer.toString(Runtime.version().feature()));
             appendOpt("license.key", System.getProperty("licence.key"));
             appendOpt(ESTestCase.FIPS_SYSPROP, System.getProperty(ESTestCase.FIPS_SYSPROP));
             return this;

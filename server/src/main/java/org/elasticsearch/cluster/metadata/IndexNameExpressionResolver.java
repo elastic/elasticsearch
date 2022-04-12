@@ -489,10 +489,10 @@ public class IndexNameExpressionResolver {
             );
         }
         if (resolvedSystemDataStreams.isEmpty() == false) {
-            throw systemIndices.dataStreamAccessException(threadContext, resolvedSystemDataStreams);
+            throw SystemIndices.dataStreamAccessException(threadContext, resolvedSystemDataStreams);
         }
         if (resolvedNetNewSystemIndices.isEmpty() == false) {
-            throw systemIndices.netNewSystemIndexAccessException(threadContext, resolvedNetNewSystemIndices);
+            throw SystemIndices.netNewSystemIndexAccessException(threadContext, resolvedNetNewSystemIndices);
         }
     }
 
@@ -932,7 +932,7 @@ public class IndexNameExpressionResolver {
     }
 
     public SystemIndexAccessLevel getSystemIndexAccessLevel() {
-        final SystemIndexAccessLevel accessLevel = systemIndices.getSystemIndexAccessLevel(threadContext);
+        final SystemIndexAccessLevel accessLevel = SystemIndices.getSystemIndexAccessLevel(threadContext);
         assert accessLevel != SystemIndexAccessLevel.BACKWARDS_COMPATIBLE_ONLY
             : "BACKWARDS_COMPATIBLE_ONLY access level should never be used automatically, it should only be used in known special cases";
         return accessLevel;

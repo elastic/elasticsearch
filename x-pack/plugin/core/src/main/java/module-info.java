@@ -5,11 +5,11 @@
  * 2.0.
  */
 
-module org.elasticsearch.xpack.plugin.core {
+module org.elasticsearch.xcore {
     requires org.elasticsearch.cli;
-    requires org.elasticsearch.core;
-    requires org.elasticsearch.logging;
+    requires org.elasticsearch.base;
     requires org.elasticsearch.server;
+    requires org.elasticsearch.logging;
     requires org.elasticsearch.ssl.config;
     requires org.elasticsearch.xcontent;
     requires org.apache.httpcomponents.httpcore;

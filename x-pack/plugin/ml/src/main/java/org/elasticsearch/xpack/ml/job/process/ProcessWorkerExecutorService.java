@@ -117,7 +117,7 @@ public class ProcessWorkerExecutorService extends AbstractExecutorService {
                     } catch (Exception e) {
                         logger.error(() -> Message.createParameterizedMessage("error handling process [{}] operation", processName), e);
                     }
-                    EsExecutors.rethrowErrors(contextHolder.unwrap(runnable));
+                    EsExecutors.rethrowErrors(ThreadContext.unwrap(runnable));
                 }
             }
 

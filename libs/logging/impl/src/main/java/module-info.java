@@ -15,7 +15,7 @@ module org.elasticsearch.logging.impl {
     requires org.apache.logging.log4j;
     requires org.apache.logging.log4j.core;
     requires org.elasticsearch.logging;
-    requires org.elasticsearch.core;
+    requires org.elasticsearch.base;
 
     opens org.elasticsearch.logging.impl /*to org.apache.logging.log4j.core*/;
 

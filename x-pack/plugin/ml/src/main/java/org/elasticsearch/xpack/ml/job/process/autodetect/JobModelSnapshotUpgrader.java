@@ -102,7 +102,10 @@ public final class JobModelSnapshotUpgrader {
     }
 
     synchronized void start() {
-        task.setJobModelSnapshotUpgrader(this);
+        if (task.setJobModelSnapshotUpgrader(this) == false) {
+            this.killProcess(task.getReasonCancelled());
+            return;
+        }
 
         // A TP with no queue, so that we fail immediately if there are no threads available
         ExecutorService autodetectExecutorService = threadPool.executor(MachineLearning.JOB_COMMS_THREAD_POOL_NAME);

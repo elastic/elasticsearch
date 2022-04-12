@@ -257,7 +257,7 @@ public final class IndexSortConfig {
         return new Sort(sortFields);
     }
 
-    private void validateIndexSortField(SortField sortField) {
+    private static void validateIndexSortField(SortField sortField) {
         SortField.Type type = getSortFieldType(sortField);
         if (ALLOWED_INDEX_SORT_TYPES.contains(type) == false) {
             throw new IllegalArgumentException("invalid index sort field:[" + sortField.getField() + "]");

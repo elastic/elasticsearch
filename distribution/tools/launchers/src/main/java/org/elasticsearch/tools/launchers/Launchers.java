@@ -8,8 +8,6 @@
 
 package org.elasticsearch.tools.launchers;
 
-import org.elasticsearch.tools.java_version_checker.SuppressForbidden;
-
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

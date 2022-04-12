@@ -10,7 +10,6 @@ package org.elasticsearch.client;
 
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
-import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -273,13 +272,9 @@ public class RestHighLevelClient implements Closeable {
     /** Do not access directly but through getVersionValidationFuture() */
     private volatile ListenableFuture<Optional<String>> versionValidationFuture;
 
-    private final IndicesClient indicesClient = new IndicesClient(this);
-    private final IngestClient ingestClient = new IngestClient(this);
     private final SnapshotClient snapshotClient = new SnapshotClient(this);
     private final SecurityClient securityClient = new SecurityClient(this);
-    private final TransformClient transformClient = new TransformClient(this);
     private final EqlClient eqlClient = new EqlClient(this);
-    private final SearchableSnapshotsClient searchableSnapshotsClient = new SearchableSnapshotsClient(this);
 
     /**
      * Creates a {@link RestHighLevelClient} given the low level {@link RestClientBuilder} that allows to build the
@@ -352,40 +347,12 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Provides an {@link IndicesClient} which can be used to access the Indices API.
-     *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/indices.html">Indices API on elastic.co</a>
-     */
-    public final IndicesClient indices() {
-        return indicesClient;
-    }
-
-    /**
-     * Provides a {@link IngestClient} which can be used to access the Ingest API.
-     *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/ingest.html">Ingest API on elastic.co</a>
-     */
-    public final IngestClient ingest() {
-        return ingestClient;
-    }
-
-    /**
      * Provides a {@link SnapshotClient} which can be used to access the Snapshot API.
      *
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html">Snapshot API on elastic.co</a>
      */
     public final SnapshotClient snapshot() {
         return snapshotClient;
-    }
-
-    /**
-     * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Searchable Snapshots APIs.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/searchable-snapshots-apis.html">Searchable Snapshots
-     * APIs on elastic.co</a> for more information.
-     */
-    public SearchableSnapshotsClient searchableSnapshots() {
-        return searchableSnapshotsClient;
     }
 
     /**
@@ -400,20 +367,6 @@ public class RestHighLevelClient implements Closeable {
      */
     public SecurityClient security() {
         return securityClient;
-    }
-
-    /**
-     * Provides methods for accessing the Elastic Licensed Data Frame APIs that
-     * are shipped with the Elastic Stack distribution of Elasticsearch. All of
-     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/transform-apis.html">
-     *     Transform APIs on elastic.co</a> for more information.
-     *
-     * @return the client wrapper for making Data Frame API calls
-     */
-    public TransformClient transform() {
-        return transformClient;
     }
 
     /**
@@ -2620,17 +2573,6 @@ public class RestHighLevelClient implements Closeable {
         if (major == 6 || (major == 7 && minor < 14)) {
             if ("You Know, for Search".equalsIgnoreCase(mainResponse.getTagline()) == false) {
                 return Optional.of("Invalid or missing tagline [" + mainResponse.getTagline() + "]");
-            }
-
-            if (major == 7) {
-                // >= 7.0 and < 7.14
-                String responseFlavor = mainResponse.getVersion().getBuildFlavor();
-                if ("default".equals(responseFlavor) == false) {
-                    // Flavor is unknown when running tests, and non-mocked responses will return an unknown flavor
-                    if (Build.CURRENT.flavor() != Build.Flavor.UNKNOWN || "unknown".equals(responseFlavor) == false) {
-                        return Optional.of("Invalid or missing build flavor [" + responseFlavor + "]");
-                    }
-                }
             }
 
             return Optional.empty();

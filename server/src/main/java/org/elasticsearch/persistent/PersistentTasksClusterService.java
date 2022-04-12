@@ -455,7 +455,7 @@ public class PersistentTasksClusterService implements ClusterStateListener, Clos
     /**
      * Returns true if any persistent task is unassigned.
      */
-    private boolean isAnyTaskUnassigned(final PersistentTasksCustomMetadata tasks) {
+    private static boolean isAnyTaskUnassigned(final PersistentTasksCustomMetadata tasks) {
         return tasks != null && tasks.tasks().stream().anyMatch(task -> task.getAssignment().isAssigned() == false);
     }
 

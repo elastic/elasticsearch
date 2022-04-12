@@ -15,7 +15,7 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.tests.util.TimeUnits;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -28,8 +28,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.indices.CreateIndexRequest;
-import org.elasticsearch.client.indices.CreateIndexResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -171,14 +169,12 @@ public class CCSDuelIT extends ESRestTestCase {
         IndexResponse indexResponse = restHighLevelClient.index(indexRequest, RequestOptions.DEFAULT);
         assertEquals(201, indexResponse.status().getStatus());
 
-        CreateIndexRequest createEmptyIndexRequest = new CreateIndexRequest(INDEX_NAME + "_empty");
-        CreateIndexResponse response = restHighLevelClient.indices().create(createEmptyIndexRequest, RequestOptions.DEFAULT);
+        CreateIndexResponse response = createIndex(INDEX_NAME + "_empty");
         assertTrue(response.isAcknowledged());
 
         int numShards = randomIntBetween(1, 5);
-        CreateIndexRequest createIndexRequest = new CreateIndexRequest(INDEX_NAME);
-        createIndexRequest.settings(Settings.builder().put("index.number_of_shards", numShards).put("index.number_of_replicas", 0));
-        createIndexRequest.mapping("""
+        Settings settings = Settings.builder().put("index.number_of_shards", numShards).put("index.number_of_replicas", 0).build();
+        String mapping = """
             {
               "properties": {
                 "id": {
@@ -194,9 +190,9 @@ public class CCSDuelIT extends ESRestTestCase {
                   }
                 }
               }
-            }""", XContentType.JSON);
-        CreateIndexResponse createIndexResponse = restHighLevelClient.indices().create(createIndexRequest, RequestOptions.DEFAULT);
-        assertTrue(createIndexResponse.isAcknowledged());
+            }""";
+        response = createIndex(INDEX_NAME, settings, mapping);
+        assertTrue(response.isAcknowledged());
 
         BulkProcessor bulkProcessor = BulkProcessor.builder(
             (r, l) -> restHighLevelClient.bulkAsync(r, RequestOptions.DEFAULT, l),
@@ -227,7 +223,7 @@ public class CCSDuelIT extends ESRestTestCase {
         }
         assertTrue(bulkProcessor.awaitClose(30, TimeUnit.SECONDS));
 
-        RefreshResponse refreshResponse = restHighLevelClient.indices().refresh(new RefreshRequest(INDEX_NAME), RequestOptions.DEFAULT);
+        RefreshResponse refreshResponse = refresh(INDEX_NAME);
         ElasticsearchAssertions.assertNoFailures(refreshResponse);
     }
 

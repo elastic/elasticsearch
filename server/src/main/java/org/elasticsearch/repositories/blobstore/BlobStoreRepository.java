@@ -2020,7 +2020,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
         );
     }
 
-    private String previousWriterMessage(@Nullable Tuple<Long, String> previousWriterInfo) {
+    private static String previousWriterMessage(@Nullable Tuple<Long, String> previousWriterInfo) {
         return previousWriterInfo == null
             ? ""
             : " The last cluster to write to this repository was ["

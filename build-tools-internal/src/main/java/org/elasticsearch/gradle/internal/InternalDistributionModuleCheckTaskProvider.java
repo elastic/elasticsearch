@@ -96,8 +96,8 @@ public class InternalDistributionModuleCheckTaskProvider {
 
     /** List of the current Elasticsearch Java Modules, by name. */
     private static final List<String> EXPECTED_ES_MODUlES = List.of(
+        "org.elasticsearch.base",
         "org.elasticsearch.cli",
-        "org.elasticsearch.core",
         "org.elasticsearch.geo",
         "org.elasticsearch.lz4",
         "org.elasticsearch.plugin.classloader",

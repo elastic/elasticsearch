@@ -7,7 +7,7 @@
  */
 
 module org.elasticsearch.nio {
-    requires org.elasticsearch.core;
+    requires org.elasticsearch.base;
 
     exports org.elasticsearch.nio;
     exports org.elasticsearch.nio.utils;

@@ -756,7 +756,7 @@ public class NativeUsersStore {
     }
 
     @Nullable
-    private UserAndPassword transformUser(final String id, final Map<String, Object> sourceMap) {
+    private static UserAndPassword transformUser(final String id, final Map<String, Object> sourceMap) {
         if (sourceMap == null) {
             return null;
         }

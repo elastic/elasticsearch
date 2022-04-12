@@ -76,7 +76,6 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.core.HeaderWarningAppender;
 import org.elasticsearch.logging.spi.AppenderSupport;
 import org.elasticsearch.logging.spi.LoggingBootstrapSupport;
-import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.MockScriptEngine;
@@ -461,9 +460,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         );
         filtered.add("Configuring [path.data] with a list is deprecated. Instead specify as a string value");
         filtered.add("setting [path.shared_data] is deprecated and will be removed in a future release");
-        if (JvmInfo.jvmInfo().getBundledJdk() == false) {
-            filtered.add("no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release");
-        }
         return filtered;
     }
 
@@ -1722,5 +1718,4 @@ public abstract class ESTestCase extends LuceneTestCase {
         assumeTrue("Skipping test as it is waiting on a Lucene fix: " + message, currentVersionHasFix);
         fail("Remove call of skipTestWaitingForLuceneFix in " + RandomizedTest.getContext().getTargetMethod());
     }
-
 }

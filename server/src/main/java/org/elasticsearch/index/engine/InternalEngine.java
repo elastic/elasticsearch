@@ -600,7 +600,7 @@ public class InternalEngine extends Engine {
     /**
      * Reads the current stored history ID from the IW commit data.
      */
-    private String loadHistoryUUID(Map<String, String> commitData) {
+    private static String loadHistoryUUID(Map<String, String> commitData) {
         final String uuid = commitData.get(HISTORY_UUID_KEY);
         if (uuid == null) {
             throw new IllegalStateException("commit doesn't contain history uuid");
@@ -1221,7 +1221,7 @@ public class InternalEngine extends Engine {
      * If we hit any failure while processing an indexing on a replica, we should treat that error as tragic and fail the engine.
      * However, we prefer to fail a request individually (instead of a shard) if we hit a document failure on the primary.
      */
-    private boolean treatDocumentFailureAsTragicError(Index index) {
+    private static boolean treatDocumentFailureAsTragicError(Index index) {
         // TODO: can we enable this check for all origins except primary on the leader?
         return index.origin() == Operation.Origin.REPLICA
             || index.origin() == Operation.Origin.PEER_RECOVERY

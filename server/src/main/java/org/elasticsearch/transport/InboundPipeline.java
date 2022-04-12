@@ -156,7 +156,7 @@ public class InboundPipeline implements Releasable {
         }
     }
 
-    private boolean endOfMessage(Object fragment) {
+    private static boolean endOfMessage(Object fragment) {
         return fragment == InboundDecoder.PING || fragment == InboundDecoder.END_CONTENT || fragment instanceof Exception;
     }
 

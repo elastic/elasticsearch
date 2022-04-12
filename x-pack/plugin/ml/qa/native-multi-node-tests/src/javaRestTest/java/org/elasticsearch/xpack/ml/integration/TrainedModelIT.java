@@ -35,14 +35,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-/**
- * This test uses a mixture of HLRC and server side classes.
- *
- * The server classes have builders that set the one-time fields that
- * can only be set on creation e.g. create_time. The HLRC classes must
- * be used when creating PUT trained model requests as they do not set
- * these one-time fields.
- */
 public class TrainedModelIT extends ESRestTestCase {
 
     private static final String BASIC_AUTH_VALUE = UsernamePasswordToken.basicAuthHeaderValue(

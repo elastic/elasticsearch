@@ -862,7 +862,7 @@ public class MasterService extends AbstractLifecycleComponent {
         }
     }
 
-    private ClusterState executeTasks(
+    private static ClusterState executeTasks(
         ClusterState previousClusterState,
         List<ExecutionResult<ClusterStateTaskListener>> executionResults,
         ClusterStateTaskExecutor<ClusterStateTaskListener> executor,
@@ -890,7 +890,7 @@ public class MasterService extends AbstractLifecycleComponent {
         return (List<ClusterStateTaskExecutor.TaskContext<ClusterStateTaskListener>>) executionResults;
     }
 
-    private ClusterState innerExecuteTasks(
+    private static ClusterState innerExecuteTasks(
         ClusterState previousClusterState,
         List<ExecutionResult<ClusterStateTaskListener>> executionResults,
         ClusterStateTaskExecutor<ClusterStateTaskListener> executor,

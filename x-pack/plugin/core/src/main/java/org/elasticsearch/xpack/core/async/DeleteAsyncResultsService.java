@@ -83,7 +83,7 @@ public class DeleteAsyncResultsService {
         try {
             AsyncExecutionId searchId = AsyncExecutionId.decode(request.getId());
             AsyncTask task = hasCancelTaskPrivilege
-                ? store.getTask(taskManager, searchId, AsyncTask.class)
+                ? AsyncTaskIndexService.getTask(taskManager, searchId, AsyncTask.class)
                 : store.getTaskAndCheckAuthentication(taskManager, searchId, AsyncTask.class);
             if (task != null) {
                 // the task was found and gets cancelled. The response may or may not be found, but we will return 200 anyways.

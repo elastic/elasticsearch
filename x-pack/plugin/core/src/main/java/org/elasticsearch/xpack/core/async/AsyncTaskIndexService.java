@@ -365,7 +365,8 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
      * Returns the {@link AsyncTask} if the provided <code>asyncTaskId</code>
      * is registered in the task manager, <code>null</code> otherwise.
      */
-    public <T extends AsyncTask> T getTask(TaskManager taskManager, AsyncExecutionId asyncExecutionId, Class<T> tClass) throws IOException {
+    public static <T extends AsyncTask> T getTask(TaskManager taskManager, AsyncExecutionId asyncExecutionId, Class<T> tClass)
+        throws IOException {
         Task task = taskManager.getTask(asyncExecutionId.getTaskId().getId());
         if (tClass.isInstance(task) == false) {
             return null;

@@ -28,7 +28,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -639,81 +638,6 @@ public class BootstrapChecksTests extends AbstractBootstrapCheckTestCase {
         javaVersion.set(randomFrom("1.8.0_152", "9"));
         BootstrapChecks.check(emptyContext, true, checks);
 
-    }
-
-    public void testG1GCCheck() throws NodeValidationException {
-        final AtomicBoolean isG1GCEnabled = new AtomicBoolean(true);
-        final AtomicBoolean isJava8 = new AtomicBoolean(true);
-        final AtomicReference<String> jvmVersion = new AtomicReference<>(
-            String.format(Locale.ROOT, "25.%d-b%d", randomIntBetween(0, 39), randomIntBetween(1, 128))
-        );
-        final BootstrapChecks.G1GCCheck g1GCCheck = new BootstrapChecks.G1GCCheck() {
-
-            @Override
-            String jvmVendor() {
-                return "Oracle Corporation";
-            }
-
-            @Override
-            boolean isG1GCEnabled() {
-                return isG1GCEnabled.get();
-            }
-
-            @Override
-            String jvmVersion() {
-                return jvmVersion.get();
-            }
-
-            @Override
-            boolean isJava8() {
-                return isJava8.get();
-            }
-
-        };
-
-        final NodeValidationException e = expectThrows(
-            NodeValidationException.class,
-            () -> BootstrapChecks.check(emptyContext, true, Collections.singletonList(g1GCCheck))
-        );
-        assertThat(
-            e.getMessage(),
-            containsString(
-                "JVM version [" + jvmVersion.get() + "] can cause data corruption when used with G1GC; upgrade to at least Java 8u40"
-            )
-        );
-
-        // if G1GC is disabled, nothing should happen
-        isG1GCEnabled.set(false);
-        BootstrapChecks.check(emptyContext, true, Collections.singletonList(g1GCCheck));
-
-        // if on or after update 40, nothing should happen independent of whether or not G1GC is enabled
-        isG1GCEnabled.set(randomBoolean());
-        jvmVersion.set(String.format(Locale.ROOT, "25.%d-b%d", randomIntBetween(40, 112), randomIntBetween(1, 128)));
-        BootstrapChecks.check(emptyContext, true, Collections.singletonList(g1GCCheck));
-
-        final BootstrapChecks.G1GCCheck nonOracleCheck = new BootstrapChecks.G1GCCheck() {
-
-            @Override
-            String jvmVendor() {
-                return randomAlphaOfLength(8);
-            }
-
-        };
-
-        // if not on an Oracle JVM, nothing should happen
-        BootstrapChecks.check(emptyContext, true, Collections.singletonList(nonOracleCheck));
-
-        final BootstrapChecks.G1GCCheck nonJava8Check = new BootstrapChecks.G1GCCheck() {
-
-            @Override
-            boolean isJava8() {
-                return false;
-            }
-
-        };
-
-        // if not Java 8, nothing should happen
-        BootstrapChecks.check(emptyContext, true, Collections.singletonList(nonJava8Check));
     }
 
     public void testAllPermissionCheck() throws NodeValidationException {

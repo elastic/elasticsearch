@@ -119,7 +119,7 @@ public class HunspellService {
         return dictionary;
     }
 
-    private Path resolveHunspellDirectory(Environment env) {
+    private static Path resolveHunspellDirectory(Environment env) {
         return env.configFile().resolve("hunspell");
     }
 

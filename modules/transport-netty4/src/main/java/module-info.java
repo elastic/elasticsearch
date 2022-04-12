@@ -6,10 +6,10 @@
  * Side Public License, v 1.
  */
 
-module org.elasticsearch.module.transport.netty4 {
-    requires org.elasticsearch.core;
-    requires org.elasticsearch.logging;
+module org.elasticsearch.transport.netty4 {
+    requires org.elasticsearch.base;
     requires org.elasticsearch.server;
+    requires org.elasticsearch.logging;
     requires org.elasticsearch.xcontent;
     requires org.apache.lucene.core;
     requires io.netty.buffer;

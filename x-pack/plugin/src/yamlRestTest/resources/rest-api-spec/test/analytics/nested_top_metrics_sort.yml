@@ -835,7 +835,7 @@ teardown:
             search.aggs.rewrite_to_filter_by_filter: true
 
   - do:
-      catch: /Invalid aggregation order path \[field_exists>top_metrics\[unknown_metric\]\]. unknown metric \[unknown_metric\]/
+      catch: /Invalid aggregation order path \[field_exists>top_metrics\[score\]\]. unknown metric [score]/
       search:
         index: test_order_by_top_metrics
         body:
@@ -863,7 +863,7 @@ teardown:
                     top_metrics:
                       top_metrics:
                         metrics:
-                          field: unknown_metric
+                          field: price
                         size: 1
                         sort:
                           order_date: desc
@@ -1014,7 +1014,7 @@ teardown:
             search.aggs.rewrite_to_filter_by_filter: false
 
   - do:
-      catch: /Invalid aggregation order path \[field_exists>top_metrics\[unknown_metric\]\]. Unknown metric name \[unknown_metric\] on multi-value metrics aggregation \[top_metrics\]/
+      catch: /Invalid aggregation order path \[field_exists>top_metrics\[score\]\]. Unknown metric name \[score\] on multi-value metrics aggregation \[top_metrics\]/
       search:
         index: test_order_by_top_metrics
         body:
@@ -1042,7 +1042,7 @@ teardown:
                     top_metrics:
                       top_metrics:
                         metrics:
-                          field: unknown_metric
+                          field: price
                         size: 1
                         sort:
                           order_date: desc

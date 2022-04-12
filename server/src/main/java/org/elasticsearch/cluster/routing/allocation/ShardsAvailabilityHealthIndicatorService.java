@@ -125,7 +125,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     public static final UserAction.Definition ACTION_RESTORE_FROM_SNAPSHOT = new UserAction.Definition(
         "restore_from_snapshot",
         Explanations.Allocation.NO_COPIES,
-        ""
+        null
     );
     public static final UserAction.Definition ACTION_ENABLE_ALLOCATIONS = new UserAction.Definition(
         "enable_allocations",
@@ -133,7 +133,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             "Check that the [" + EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey() + "] index settings and " +
             "the [" + EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey() + "] cluster setting are not set " +
             "to [" + EnableAllocationDecider.Allocation.NONE.toString().toLowerCase(Locale.getDefault()) + "].",
-        ""
+        null
     );
     public static final UserAction.Definition ACTION_SHARD_LIMIT = new UserAction.Definition(
         "increase_shard_limit",
@@ -141,21 +141,21 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             "reached its shard limit. Increase the values for the [" +
             ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey() + "] index setting on each index or add more " +
             "nodes to the cluster.",
-        ""
+        null
     );
     public static final UserAction.Definition ACTION_MIGRATE_TIERS = new UserAction.Definition(
         "migrate_data_tiers",
         "Elasticsearch isn't allowed to allocate this shard to any of the nodes in its data tier because no nodes in the tier are " +
             "compatible with the allocation filters in the index settings. Remove the conflicting allocation filters from each index's " +
             "settings or try migrating to data tiers using the data tier migration action.",
-        ""
+        null
     );
     public static final UserAction.Definition ACTION_INCREASE_TIER_CAPACITY = new UserAction.Definition(
         "increase_tier_capacity_for_allocations",
         "Elasticsearch isn't allowed to allocate this shard to any of the nodes in its data tier because there are not enough nodes " +
             "in the tier to allocate each shard copy on a different node. Increase the number of nodes in this tier or decrease the " +
             "number of replicas your indices are using.",
-        ""
+        null
     );
 
     private class ShardAllocationCounts {

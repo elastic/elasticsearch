@@ -143,17 +143,17 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         }
     }
 
-    private void setHeaderField(HttpResponse response, String headerField, String value) {
+    private static void setHeaderField(HttpResponse response, String headerField, String value) {
         setHeaderField(response, headerField, value, true);
     }
 
-    private void setHeaderField(HttpResponse response, String headerField, String value, boolean override) {
+    private static void setHeaderField(HttpResponse response, String headerField, String value, boolean override) {
         if (override || response.containsHeader(headerField) == false) {
             response.addHeader(headerField, value);
         }
     }
 
-    private void addCustomHeaders(HttpResponse response, Map<String, List<String>> customHeaders) {
+    private static void addCustomHeaders(HttpResponse response, Map<String, List<String>> customHeaders) {
         if (customHeaders != null) {
             for (Map.Entry<String, List<String>> headerEntry : customHeaders.entrySet()) {
                 for (String headerValue : headerEntry.getValue()) {

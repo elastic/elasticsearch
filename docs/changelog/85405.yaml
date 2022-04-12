@@ -1,0 +1,6 @@
+pr: 85405
+summary: Speed up ILM cluster task execution
+area: ILM+SLM
+type: enhancement
+issues:
+ - 82708

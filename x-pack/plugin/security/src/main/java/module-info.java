@@ -9,8 +9,6 @@ module org.elasticsearch.xpack.plugin.security {
     requires org.elasticsearch.cli;
     requires org.elasticsearch.core;
     requires org.elasticsearch.module.transport.netty4;
-    requires org.elasticsearch.nio;
-    requires org.elasticsearch.plugin.transport.nio;
     requires org.elasticsearch.server;
     requires org.elasticsearch.ssl.config;
     requires org.elasticsearch.xcontent;

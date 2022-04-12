@@ -125,7 +125,7 @@ roundInline3
 SELECT ROUND(-345.123, 0) AS rounded;
 
 roundInline4
-SELECT ROUND(-345.123,-51231231) AS rounded;
+SELECT ROUND(-345.123,-100) AS rounded;
 
 roundInline5
 SELECT ROUND(134.51, 1) AS rounded;

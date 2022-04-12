@@ -259,15 +259,17 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
         for (int i = 0; i < numOfRequests; i++) {
             createToken(TEST_USER_NAME, SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING);
         }
-        TokenInvalidation invalidateResponse = super.getSecurityClient(RequestOptions.DEFAULT.toBuilder()
-            .addHeader(
-                "Authorization",
-                UsernamePasswordToken.basicAuthHeaderValue(
-                    SecuritySettingsSource.ES_TEST_ROOT_USER,
-                    SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING
+        TokenInvalidation invalidateResponse = super.getSecurityClient(
+            RequestOptions.DEFAULT.toBuilder()
+                .addHeader(
+                    "Authorization",
+                    UsernamePasswordToken.basicAuthHeaderValue(
+                        SecuritySettingsSource.ES_TEST_ROOT_USER,
+                        SecuritySettingsSourceField.TEST_PASSWORD_SECURE_STRING
+                    )
                 )
-            )
-            .build()).invalidateTokensForUser(TEST_USER_NAME);
+                .build()
+        ).invalidateTokensForUser(TEST_USER_NAME);
         assertThat(invalidateResponse.invalidated(), equalTo(2 * (numOfRequests)));
         assertThat(invalidateResponse.previouslyInvalidated(), equalTo(0));
         assertThat(invalidateResponse.errors(), empty());

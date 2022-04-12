@@ -110,15 +110,15 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         for (IndexRoutingTable indexShardRouting : state.routingTable()) {
             for (int i = 0; i < indexShardRouting.size(); i++) {
                 IndexShardRoutingTable shardRouting = indexShardRouting.shard(i);
-                status.addPrimary(shardRouting.primaryShard(), state, shutdown);
+                status.addPrimary(shardRouting.primaryShard(), state, shutdown, includeDetails);
                 for (ShardRouting replicaShard : shardRouting.replicaShards()) {
-                    status.addReplica(replicaShard, state, shutdown);
+                    status.addReplica(replicaShard, state, shutdown, includeDetails);
                 }
             }
         }
 
         return new HealthIndicatorResult(name(), component(), status.getStatus(), status.getSummary(), status.getDetails(includeDetails),
-            status.getImpacts(), status.getUserActions());
+            status.getImpacts(), status.getUserActions(includeDetails));
     }
 
     // TODO: Fill in messages and help URLs
@@ -140,7 +140,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         private final Set<String> indicesWithUnavailableShards = new HashSet<>();
         private final Map<String, UserAction> userActions = new HashMap<>();
 
-        public void increment(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns) {
+        public void increment(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean includeDetails) {
             boolean isNew = isUnassignedDueToNewInitialization(routing);
             boolean isRestarting = isUnassignedDueToTimelyRestart(routing, shutdowns);
             available &= routing.active() || isRestarting || isNew;
@@ -156,7 +156,9 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                         unassigned_restarting++;
                     } else {
                         unassigned++;
-                        diagnoseUnassigned(this::addUserAction, routing, state);
+                        if (includeDetails) {
+                            diagnoseUnassigned(this::addUserAction, routing, state);
+                        }
                     }
                 }
                 case INITIALIZING -> initializing++;
@@ -302,12 +304,12 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             this.clusterMetadata = clusterMetadata;
         }
 
-        public void addPrimary(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns) {
-            primaries.increment(routing, state, shutdowns);
+        public void addPrimary(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean includeDetails) {
+            primaries.increment(routing, state, shutdowns, includeDetails);
         }
 
-        public void addReplica(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns) {
-            replicas.increment(routing, state, shutdowns);
+        public void addReplica(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean includeDetails) {
+            replicas.increment(routing, state, shutdowns, includeDetails);
         }
 
         public HealthStatus getStatus() {
@@ -411,21 +413,25 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             return impacts;
         }
 
-        public List<UserAction> getUserActions() {
-            Map<String, UserAction> allActions = new HashMap<>();
-            primaries.userActions.forEach(allActions::put);
-            replicas.userActions.forEach((actionId, replicaUserActions) -> {
-                UserAction existingAction = allActions.get(actionId);
-                if (existingAction == null) {
-                    allActions.put(actionId, replicaUserActions);
+        public List<UserAction> getUserActions(boolean includeDetails) {
+            if (includeDetails) {
+                Map<String, UserAction> allActions = new HashMap<>();
+                primaries.userActions.forEach(allActions::put);
+                replicas.userActions.forEach((actionId, replicaUserActions) -> {
+                    UserAction existingAction = allActions.get(actionId);
+                    if (existingAction == null) {
+                        allActions.put(actionId, replicaUserActions);
+                    } else {
+                        existingAction.affectedResources().addAll(replicaUserActions.affectedResources());
+                    }
+                });
+                if (allActions.isEmpty()) {
+                    return null;
                 } else {
-                    existingAction.affectedResources().addAll(replicaUserActions.affectedResources());
+                    return allActions.values().stream().toList();
                 }
-            });
-            if (allActions.isEmpty()) {
-                return null;
             } else {
-                return allActions.values().stream().toList();
+                return null;
             }
         }
     }

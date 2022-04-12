@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
@@ -409,6 +410,45 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
     }
 
+    public void testUserActionsNotGeneratedWhenNotDrillingDown() throws IOException {
+        IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build())
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+
+        var clusterState = createClusterStateWith(
+            List.of(
+                indexMetadata
+            ),
+            List.of(
+                index(
+                    "red-index",
+                    new ShardAllocation(randomNodeId(), UNAVAILABLE, noShardCopy())
+                )
+            ),
+            List.of()
+        );
+        Map<ShardRoutingKey, ShardAllocationDecision> decisionMap = Map.of(); // Indicator won't call allocation service in this case
+        var service = createAllocationHealthIndicatorService(clusterState, decisionMap);
+
+        assertThat(
+            service.calculate(false),
+            equalTo(
+                createExpectedTruncatedResult(
+                    RED,
+                    "This cluster has 1 unavailable primary.",
+                    List.of(
+                        new HealthIndicatorImpact(
+                            1,
+                            "Cannot add data to 1 index [red-index]. Searches might return incomplete results."
+                        )
+                    )
+                )
+            )
+        );
+    }
+
     public void testUserActionsRestoreIndexAfterDataLoss() throws IOException {
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build())
@@ -779,12 +819,37 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         List<HealthIndicatorImpact> impacts,
         List<UserAction> actions
     ) {
+        return createExpectedResult(status, summary, new SimpleHealthIndicatorDetails(addDefaults(details)), impacts, actions);
+    }
+
+    private HealthIndicatorResult createExpectedTruncatedResult(
+        HealthStatus status,
+        String summary,
+        List<HealthIndicatorImpact> impacts
+    ) {
         return new HealthIndicatorResult(
             NAME,
             DATA,
             status,
             summary,
-            new SimpleHealthIndicatorDetails(addDefaults(details)),
+            HealthIndicatorDetails.EMPTY,
+            impacts
+        );
+    }
+
+    private HealthIndicatorResult createExpectedResult(
+        HealthStatus status,
+        String summary,
+        HealthIndicatorDetails details,
+        List<HealthIndicatorImpact> impacts,
+        List<UserAction> actions
+    ) {
+        return new HealthIndicatorResult(
+            NAME,
+            DATA,
+            status,
+            summary,
+            details,
             impacts,
             actions
         );

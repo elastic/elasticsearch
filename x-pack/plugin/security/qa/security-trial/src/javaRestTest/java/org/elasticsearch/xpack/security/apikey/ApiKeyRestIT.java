@@ -119,7 +119,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertThat(responseBody.get("id"), notNullValue());
         assertThat(responseBody.get("id"), instanceOf(String.class));
 
-        org.elasticsearch.xpack.core.security.action.apikey.ApiKey apiKey = getApiKey((String) responseBody.get("id"));
+        ApiKey apiKey = getApiKey((String) responseBody.get("id"));
         assertThat(apiKey.getUsername(), equalTo(END_USER));
     }
 

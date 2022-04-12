@@ -1697,8 +1697,7 @@ public abstract class ESTestCase extends LuceneTestCase {
 
         final var workerId = Integer.parseInt(workerIdStr);
         assert workerId >= 1 : "Non positive gradle worker id: " + workerIdStr;
-        final var effectiveWorkerId = workerId % MAX_EFFECTIVE_WORKER_ID;
-        return MIN_PRIVATE_PORT + (effectiveWorkerId * PORTS_PER_WORKER);
+        return MIN_PRIVATE_PORT + (workerId % MAX_EFFECTIVE_WORKER_ID) * PORTS_PER_WORKER;
     }
 
     protected static InetAddress randomIp(boolean v4) {

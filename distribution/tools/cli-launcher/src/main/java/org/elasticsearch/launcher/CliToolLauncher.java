@@ -44,12 +44,13 @@ class CliToolLauncher {
     public static void main(String[] args) throws Exception {
         Map<String, String> sysprops = getSystemProperties();
         String toolname = getToolName(sysprops);
-        String libs = System.getProperty("cli.libs", "");
+        String libs = sysprops.getOrDefault("cli.libs", "");
 
-        Command command = CliToolProvider.loadTool(toolname, libs).create();
+        Command command = CliToolProvider.load(toolname, libs).create();
         exit(command.main(args, Terminal.DEFAULT));
     }
 
+    // package private for tests
     static String getToolName(Map<String, String> sysprops) {
         String toolname = sysprops.getOrDefault("cli.name", "");
         if (toolname.isBlank()) {

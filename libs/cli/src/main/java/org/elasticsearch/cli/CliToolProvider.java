@@ -47,7 +47,7 @@ public interface CliToolProvider {
      * @return the instance of the loaded tool
      * @throws AssertionError if the given toolname cannot be found or there are more than one tools found with the same name
      */
-    static CliToolProvider loadTool(String toolname, String libs) {
+    static CliToolProvider load(String toolname, String libs) {
         // the ES homedir is always our working dir
         Path homeDir = Paths.get("").toAbsolutePath();
         final ClassLoader cliLoader;

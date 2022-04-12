@@ -15,6 +15,5 @@ CLI_JAR=$(ls "$ES_HOME"/bin/elasticsearch-sql-cli-*.jar)
 
 exec \
   "$JAVA" \
-  "$XSHARE" \
   -jar "$CLI_JAR" \
   $CLI_PARAMETERS

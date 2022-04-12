@@ -8,7 +8,7 @@
 beta::[]
 
 Disables a user profile so it's not visible in
-<<security-api-search-user-profile,user profile searches>>.
+<<security-api-suggest-user-profile,user profile searches>>.
 
 [[security-api-disable-user-profile-request]]
 ==== {api-request-title}

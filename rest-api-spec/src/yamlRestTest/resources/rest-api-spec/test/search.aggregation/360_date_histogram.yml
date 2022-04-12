@@ -312,3 +312,47 @@ setup:
   - match: { aggregations.date_histogram_no__tz.buckets.2.key: 1619906400000 }
   - match: { aggregations.date_histogram_no__tz.buckets.3.key: 1619910000000 }
 
+---
+"Multi-value date histogram":
+  - skip:
+      version: " - 8.1.99"
+      reason:  Bug fixed in 8.2.0
+
+  - do:
+      search:
+        index: test_date_hist
+        body:
+          query:
+            match:
+              date: "2021-04-01"
+          aggs:
+            datehisto:
+              date_histogram:
+                field: "date"
+                calendar_interval: "1M"
+
+  - match: { hits.total.value: 1 }
+  - length: { aggregations.datehisto.buckets: 2 }
+
+---
+"Multi-value date histogram docvalues only":
+  - skip:
+      version: " - 8.1.99"
+      reason: Bug fixed in 8.2.0
+
+  - do:
+      search:
+        index: test_date_hist
+        body:
+          profile: true
+          query:
+            match:
+              date_not_indexed: "2021-04-01"
+          aggs:
+            datehisto:
+              date_histogram:
+                field: "date_not_indexed"
+                calendar_interval: "1M"
+
+  - match: { hits.total.value: 1 }
+  - length: { aggregations.datehisto.buckets: 3 }

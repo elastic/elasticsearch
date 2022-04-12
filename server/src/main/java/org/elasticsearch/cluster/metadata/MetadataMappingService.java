@@ -225,9 +225,9 @@ public class MetadataMappingService {
         for (Index index : request.indices()) {
             final IndexMetadata indexMetadata = metadata.index(index);
             if (indexMetadata == null) {
-                // local store recovery sends a mapping update request during application of a cluster state on t he data node which
-                // might we receive here before the CS update that created the index has been applied on all nodes and thus the index
-                // isn't found in the state yet but will be visible to the CS update below
+                // local store recovery sends a mapping update request during application of a cluster state on the data node which we might
+                // receive here before the CS update that created the index has been applied on all nodes and thus the index isn't found in
+                // the state yet, but will be visible to the CS update below
                 noop = false;
                 break;
             }

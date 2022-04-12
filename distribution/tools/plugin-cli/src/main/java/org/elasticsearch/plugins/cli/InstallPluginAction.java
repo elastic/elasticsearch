@@ -225,7 +225,7 @@ public class InstallPluginAction implements Closeable {
             terminal.println(logPrefix + "Installing " + pluginId);
             try {
                 if ("x-pack".equals(pluginId)) {
-                    handleInstallXPack(buildFlavor());
+                    throw new UserException(ExitCodes.CONFIG, "this distribution of Elasticsearch contains X-Pack by default");
                 }
 
                 if (PLUGINS_CONVERTED_TO_MODULES.contains(pluginId)) {
@@ -273,21 +273,6 @@ public class InstallPluginAction implements Closeable {
         }
         if (terminal.isHeadless() == false) {
             terminal.println("-> Please restart Elasticsearch to activate any plugins installed");
-        }
-    }
-
-    Build.Flavor buildFlavor() {
-        return Build.CURRENT.flavor();
-    }
-
-    private static void handleInstallXPack(final Build.Flavor flavor) throws UserException {
-        switch (flavor) {
-            case DEFAULT -> throw new UserException(ExitCodes.CONFIG, "this distribution of Elasticsearch contains X-Pack by default");
-            case OSS -> throw new UserException(
-                ExitCodes.CONFIG,
-                "X-Pack is not available with the oss distribution; to use X-Pack features use the default distribution"
-            );
-            case UNKNOWN -> throw new IllegalStateException("your distribution is broken");
         }
     }
 
@@ -923,7 +908,6 @@ public class InstallPluginAction implements Closeable {
      */
     private PluginInfo installPlugin(PluginDescriptor descriptor, Path tmpRoot, List<Path> deleteOnFailure) throws Exception {
         final PluginInfo info = loadPluginInfo(tmpRoot);
-        checkCanInstallationProceed(terminal, Build.CURRENT.flavor(), info);
         PluginPolicyInfo pluginPolicy = PolicyUtil.getPluginPolicyInfo(tmpRoot, env.tmpFile());
         if (pluginPolicy != null) {
             Set<String> permissions = PluginSecurity.getPermissionDescriptions(pluginPolicy, env.tmpFile());
@@ -1091,26 +1075,5 @@ public class InstallPluginAction implements Closeable {
     @Override
     public void close() throws IOException {
         IOUtils.rm(pathsToDeleteOnShutdown.toArray(new Path[0]));
-    }
-
-    public static void checkCanInstallationProceed(Terminal terminal, Build.Flavor flavor, PluginInfo info) throws Exception {
-        if (info.isLicensed() == false) {
-            return;
-        }
-
-        if (flavor == Build.Flavor.DEFAULT) {
-            return;
-        }
-
-        List.of(
-            "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
-            "@            ERROR: This is a licensed plugin             @",
-            "@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@@",
-            "",
-            "This plugin is covered by the Elastic license, but this",
-            "installation of Elasticsearch is: [" + flavor + "]."
-        ).forEach(terminal::errorPrintln);
-
-        throw new UserException(ExitCodes.NOPERM, "Plugin license is incompatible with [" + flavor + "] installation");
     }
 }

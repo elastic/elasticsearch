@@ -22,18 +22,12 @@ public class CliToolLauncherTests extends ESTestCase {
     }
 
     public void testScriptNameSysprop() {
-        var sysprops = Map.of(
-            "cli.name", "",
-            "cli.script", "/foo/bar/elasticsearch-mycli",
-            "os.name", "Linux");
+        var sysprops = Map.of("cli.name", "", "cli.script", "/foo/bar/elasticsearch-mycli", "os.name", "Linux");
         assertThat(getToolName(sysprops), equalTo("mycli"));
     }
 
     public void testScriptNameSyspropWindows() {
-        var sysprops = Map.of(
-            "cli.name", "",
-            "cli.script", "C:\\foo\\bar\\elasticsearch-mycli.bat",
-            "os.name", "Windows XP");
+        var sysprops = Map.of("cli.name", "", "cli.script", "C:\\foo\\bar\\elasticsearch-mycli.bat", "os.name", "Windows XP");
         assertThat(getToolName(sysprops), equalTo("mycli"));
     }
 }

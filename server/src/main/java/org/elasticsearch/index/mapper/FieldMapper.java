@@ -12,6 +12,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.TriFunction;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
@@ -30,6 +31,7 @@ import org.elasticsearch.xcontent.support.AbstractXContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.EnumSet;
@@ -222,39 +224,59 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     public void parse(DocumentParserContext context) throws IOException {
         try {
             if (hasScript) {
-                throw new IllegalArgumentException("Cannot index data directly into a field with a [script] parameter");
+                throwIndexingWithScriptParam();
             }
             parseCreateField(context);
         } catch (Exception e) {
-            String valuePreview = "";
-            try {
-                XContentParser parser = context.parser();
-                Object complexValue = AbstractXContentParser.readValue(parser, HashMap::new);
-                if (complexValue == null) {
-                    valuePreview = "null";
-                } else {
-                    valuePreview = complexValue.toString();
-                }
-            } catch (Exception innerException) {
-                throw new MapperParsingException(
-                    "failed to parse field [{}] of type [{}] in {}. Could not parse field value preview,",
-                    e,
-                    fieldType().name(),
-                    fieldType().typeName(),
-                    context.documentDescription()
-                );
-            }
+            rethrowAsMapperParsingException(context, e);
+        }
+        // TODO: multi fields are really just copy fields, we just need to expose "sub fields" or something that can be part
+        // of the mappings
+        if (multiFields.mappers.length != 0) {
+            doParseMultiFields(context);
+        }
+    }
 
+    private void doParseMultiFields(DocumentParserContext context) throws IOException {
+        context.path().add(simpleName());
+        for (FieldMapper mapper : multiFields.mappers) {
+            mapper.parse(context);
+        }
+        context.path().remove();
+    }
+
+    private static void throwIndexingWithScriptParam() {
+        throw new IllegalArgumentException("Cannot index data directly into a field with a [script] parameter");
+    }
+
+    private void rethrowAsMapperParsingException(DocumentParserContext context, Exception e) {
+        String valuePreview;
+        try {
+            XContentParser parser = context.parser();
+            Object complexValue = AbstractXContentParser.readValue(parser, HashMap::new);
+            if (complexValue == null) {
+                valuePreview = "null";
+            } else {
+                valuePreview = complexValue.toString();
+            }
+        } catch (Exception innerException) {
             throw new MapperParsingException(
-                "failed to parse field [{}] of type [{}] in {}. Preview of field's value: '{}'",
+                "failed to parse field [{}] of type [{}] in {}. Could not parse field value preview,",
                 e,
                 fieldType().name(),
                 fieldType().typeName(),
-                context.documentDescription(),
-                valuePreview
+                context.documentDescription()
             );
         }
-        multiFields.parse(this, context, () -> context);
+
+        throw new MapperParsingException(
+            "failed to parse field [{}] of type [{}] in {}. Preview of field's value: '{}'",
+            e,
+            fieldType().name(),
+            fieldType().typeName(),
+            context.documentDescription(),
+            valuePreview
+        );
     }
 
     /**
@@ -318,18 +340,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
     @Override
     public Iterator<Mapper> iterator() {
-        Iterator<FieldMapper> multiFieldsIterator = multiFields.iterator();
-        return new Iterator<>() {
-            @Override
-            public boolean hasNext() {
-                return multiFieldsIterator.hasNext();
-            }
-
-            @Override
-            public Mapper next() {
-                return multiFieldsIterator.next();
-            }
-        };
+        return Iterators.forArray(multiFields.mappers);
     }
 
     @Override
@@ -352,7 +363,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 checkNestedScopeCompatibility(sourceScope, targetScope);
             }
         }
-        for (Mapper multiField : multiFields()) {
+        for (Mapper multiField : multiFields().mappers) {
             multiField.validate(mappers);
         }
         doValidate(mappers);
@@ -450,7 +461,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
     public static final class MultiFields implements Iterable<FieldMapper>, ToXContent {
 
-        private static final MultiFields EMPTY = new MultiFields(Collections.emptyMap());
+        private static final MultiFields EMPTY = new MultiFields(new FieldMapper[0]);
 
         public static MultiFields empty() {
             return EMPTY;
@@ -488,33 +499,34 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 if (mapperBuilders.isEmpty()) {
                     return empty();
                 } else {
-                    Map<String, FieldMapper> mappers = new HashMap<>();
+                    FieldMapper[] mappers = new FieldMapper[mapperBuilders.size()];
                     context = context.createChildContext(mainFieldBuilder.name());
+                    int i = 0;
                     for (Map.Entry<String, Function<MapperBuilderContext, FieldMapper>> entry : this.mapperBuilders.entrySet()) {
-                        String key = entry.getKey();
-                        FieldMapper mapper = entry.getValue().apply(context);
-                        mappers.put(key, mapper);
+                        mappers[i++] = entry.getValue().apply(context);
                     }
-                    return new MultiFields(Collections.unmodifiableMap(mappers));
+                    return new MultiFields(mappers);
                 }
             }
         }
 
-        private final Map<String, FieldMapper> mappers;
+        private final FieldMapper[] mappers;
 
-        private MultiFields(Map<String, FieldMapper> mappers) {
+        private MultiFields(FieldMapper[] mappers) {
             this.mappers = mappers;
+            // sort for consistent iteration order + serialization
+            Arrays.sort(this.mappers, Comparator.comparing(FieldMapper::name));
         }
 
         public void parse(FieldMapper mainField, DocumentParserContext context, Supplier<DocumentParserContext> multiFieldContextSupplier)
             throws IOException {
             // TODO: multi fields are really just copy fields, we just need to expose "sub fields" or something that can be part
             // of the mappings
-            if (mappers.isEmpty()) {
+            if (mappers.length == 0) {
                 return;
             }
             context.path().add(mainField.simpleName());
-            for (FieldMapper mapper : mappers.values()) {
+            for (FieldMapper mapper : mappers) {
                 mapper.parse(multiFieldContextSupplier.get());
             }
             context.path().remove();
@@ -522,17 +534,14 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         @Override
         public Iterator<FieldMapper> iterator() {
-            return mappers.values().iterator();
+            return Iterators.forArray(mappers);
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            if (mappers.isEmpty() == false) {
-                // sort the mappers so we get consistent serialization format
-                List<FieldMapper> sortedMappers = new ArrayList<>(mappers.values());
-                sortedMappers.sort(Comparator.comparing(FieldMapper::name));
+            if (mappers.length != 0) {
                 builder.startObject("fields");
-                for (Mapper mapper : sortedMappers) {
+                for (Mapper mapper : mappers) {
                     mapper.toXContent(builder, params);
                 }
                 builder.endObject();
@@ -1176,7 +1185,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             for (Parameter<?> param : getParameters()) {
                 param.init(initializer);
             }
-            for (FieldMapper subField : initializer.multiFields) {
+            for (FieldMapper subField : initializer.multiFields.mappers) {
                 multiFieldsBuilder.add(subField);
             }
             return this;
@@ -1186,7 +1195,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             for (Parameter<?> param : getParameters()) {
                 param.merge(in, conflicts);
             }
-            for (FieldMapper newSubField : in.multiFields) {
+            for (FieldMapper newSubField : in.multiFields.mappers) {
                 multiFieldsBuilder.update(newSubField, MapperBuilderContext.forPath(parentPath(newSubField.name())));
             }
             this.copyTo.reset(in.copyTo);

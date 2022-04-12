@@ -289,7 +289,8 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
             Stream.concat(Stream.of(getLocalNode()), StreamSupport.stream(peerFinder.getFoundPeers().spliterator(), false)).toList(),
             getCurrentTerm(),
             electionStrategy,
-            nodeHealthService.getHealth()
+            nodeHealthService.getHealth(),
+            joinHelper.getInFlightJoinStatuses()
         );
     }
 

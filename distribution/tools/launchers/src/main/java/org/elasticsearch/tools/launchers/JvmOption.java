@@ -95,7 +95,6 @@ class JvmOption {
         final List<String> command = Stream.of(
             Stream.of(java),
             userDefinedJvmOptions.stream(),
-            Stream.of("-Xshare:off"),
             Stream.of("-XX:+PrintFlagsFinal"),
             Stream.of("-version")
         ).reduce(Stream::concat).get().toList();

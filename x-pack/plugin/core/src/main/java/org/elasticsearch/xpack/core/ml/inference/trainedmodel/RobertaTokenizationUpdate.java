@@ -111,7 +111,7 @@ public class RobertaTokenizationUpdate implements TokenizationUpdate {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        RobertaTokenization that = (RobertaTokenization) o;
+        RobertaTokenizationUpdate that = (RobertaTokenizationUpdate) o;
         return Objects.equals(truncate, that.truncate) && Objects.equals(span, that.span);
     }
 

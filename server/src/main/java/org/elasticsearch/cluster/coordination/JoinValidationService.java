@@ -90,7 +90,7 @@ public class JoinValidationService {
             ThreadPool.Names.CLUSTER_COORDINATION,
             ValidateJoinRequest::new,
             (request, channel, task) -> {
-                final var remoteState = request.getState();
+                final var remoteState = request.getOrReadState();
                 final var localState = clusterStateSupplier.get();
                 if (localState.metadata().clusterUUIDCommitted()
                     && localState.metadata().clusterUUID().equals(remoteState.metadata().clusterUUID()) == false) {

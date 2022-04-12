@@ -74,7 +74,7 @@ public class ValidateJoinRequest extends TransportRequest {
         stateSupplier.get().writeTo(out);
     }
 
-    public ClusterState getState() throws IOException {
+    public ClusterState getOrReadState() throws IOException {
         return stateSupplier.get();
     }
 

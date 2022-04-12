@@ -20,7 +20,6 @@ set ES_JAVA_OPTS=-Xms4m -Xmx64m -XX:+UseSerialGC %ES_JAVA_OPTS%
   %ES_JAVA_OPTS% ^
   -Des.path.home="%ES_HOME%" ^
   -Des.path.conf="%ES_PATH_CONF%" ^
-  -Des.distribution.flavor="%ES_DISTRIBUTION_FLAVOR%" ^
   -Des.distribution.type="%ES_DISTRIBUTION_TYPE%" ^
   -cp "%ES_CLASSPATH%" ^
   "%ES_MAIN_CLASS%" ^

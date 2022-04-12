@@ -10,7 +10,6 @@ import org.apache.directory.api.util.Strings;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -18,6 +17,7 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestHighLevelClient;
@@ -194,7 +194,9 @@ public class TokenAuthIntegTests extends SecurityIntegTestCase {
                 assertThat(invalidateResponseTwo.previouslyInvalidated(), equalTo(0));
                 assertThat(invalidateResponseTwo.errors(), empty());
             }
-            restClient.indices().refresh(new RefreshRequest(SecuritySystemIndices.SECURITY_TOKENS_ALIAS), SECURITY_REQUEST_OPTIONS);
+            Request refreshRequest = new Request("POST", "/" + SecuritySystemIndices.SECURITY_TOKENS_ALIAS + "/_refresh");
+            refreshRequest.setOptions(SECURITY_REQUEST_OPTIONS);
+            restClient.getLowLevelClient().performRequest(refreshRequest);
             SearchResponse searchResponse = restClient.search(
                 new SearchRequest(SecuritySystemIndices.SECURITY_TOKENS_ALIAS).source(
                     SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("doc_type", "token")).terminateAfter(1)

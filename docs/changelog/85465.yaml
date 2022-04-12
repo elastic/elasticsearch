@@ -1,0 +1,5 @@
+pr: 85465
+summary: Disallow new trained model deployments when nodes are different versions
+area: Machine Learning
+type: bug
+issues: []

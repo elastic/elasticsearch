@@ -74,7 +74,7 @@ public abstract class EqlRestTestCase extends RemoteClusterAwareEqlRestTestCase 
             assertThat(response.getStatusLine().getStatusCode(), is(400));
         }
 
-        deleteIndex(defaultValidationIndexName);
+        deleteIndexWithProvisioningClient(defaultValidationIndexName);
     }
 
     @SuppressWarnings("unchecked")
@@ -121,8 +121,8 @@ public abstract class EqlRestTestCase extends RemoteClusterAwareEqlRestTestCase 
             assertEquals("2", events.get(1).get("_id"));
         }
 
-        deleteIndex("test1");
-        deleteIndex("test2");
+        deleteIndexWithProvisioningClient("test1");
+        deleteIndexWithProvisioningClient("test2");
     }
 
     @SuppressWarnings("unchecked")
@@ -164,7 +164,7 @@ public abstract class EqlRestTestCase extends RemoteClusterAwareEqlRestTestCase 
         assertEquals(1, events.size());
         assertEquals("2", events.get(0).get("_id"));
 
-        deleteIndex("test");
+        deleteIndexWithProvisioningClient("test");
     }
 
     private void bulkIndex(String bulk) throws IOException {

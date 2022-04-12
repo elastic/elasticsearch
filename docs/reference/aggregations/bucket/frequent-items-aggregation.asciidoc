@@ -4,7 +4,12 @@
 <titleabbrev>Frequent items</titleabbrev>
 ++++
 
-A bucket aggregation which finds frequent item sets. 
+A bucket aggregation which finds frequent item sets. Finding frequent item sets 
+is a form of association rules mining that identifies items that are often occur 
+together. Items that are frequently purchased together or log events that tend 
+to co-occur are examples of frequent item sets. Finding frequent item sets helps 
+to discover relationships between different data points (items) in a data set.
+
 
 ==== Syntax
 
@@ -25,15 +30,47 @@ A `frequent_items` aggregation looks like this in isolation:
 .`frequent_items` Parameters
 |===
 |Parameter Name |Description |Required |Default Value
-|`field` |(array) Fields to analyze. |Required |
-|`minimum_set_size` | (integer) The minimum size of one item set. |Optional | `1`
-|`minimum_support` | (integer) The minimum support of one item set. |Optional | `0.1`
-|`` | |Optional |
-|`` | |Optional |
-|`` | |Optional |
+|`field` |(array) Fields to analyze. | Required |
+|`minimum_set_size` | (integer) The minimum size of one item set. | Optional | `1`
+|`minimum_support` | (integer) The minimum support of one item set. | Optional | `0.1`
+|`size` | (integer) The number of top item sets to return. | Optional |
 |===
 
+
 [discrete]
-[[-frequent-items-minimum-support]]
+[[frequent-items-minimum-support]]
 ==== Minimum support
+
+Support represents the frequency of an item set normalized between 0 
+and 1. It is calculated by dividing the number of documents containing the item 
+set by the total number of documents.
+
+For example, if a given item set is contained by 5 documents and the total 
+number of documents is 20, then the support of the item set is 5/20 = 0.25. 
+Therefore, this set is returned only if the minimum support is 0.25 or lower. As 
+a lower minimum support prunes more items, the calculation is less resource 
+intensive. This parameter has an effect on memory and runtime.
+
+
+[discrete]
+[[frequent-items-minimum-set-size]]
+==== Minimum set size
+
+The minimum set size is the minimum number of item the set needs to contain. A 
+value of 1 returns the frequency of single items. The higher the minimum set 
+size the less items are returned. For example, the item set `apple, banana, 
+orange` is only returned if the minimum set size is 3 or lower.
+
+
+[discrete]
+[[frequent-items-size]]
+==== Size
+
+This parameter defines the maximum number of item sets to return. The result 
+contains top-k item sets; the item sets with the highest support values. This 
+parameter has a significant effect on memory and runtime.
+
+[discrete]
+[[frequent-items-example]]
+==== Example
 

@@ -274,7 +274,6 @@ public class RestHighLevelClient implements Closeable {
 
     private final SnapshotClient snapshotClient = new SnapshotClient(this);
     private final SecurityClient securityClient = new SecurityClient(this);
-    private final TransformClient transformClient = new TransformClient(this);
     private final EqlClient eqlClient = new EqlClient(this);
 
     /**
@@ -368,20 +367,6 @@ public class RestHighLevelClient implements Closeable {
      */
     public SecurityClient security() {
         return securityClient;
-    }
-
-    /**
-     * Provides methods for accessing the Elastic Licensed Data Frame APIs that
-     * are shipped with the Elastic Stack distribution of Elasticsearch. All of
-     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/transform-apis.html">
-     *     Transform APIs on elastic.co</a> for more information.
-     *
-     * @return the client wrapper for making Data Frame API calls
-     */
-    public TransformClient transform() {
-        return transformClient;
     }
 
     /**

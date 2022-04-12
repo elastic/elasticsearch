@@ -70,11 +70,36 @@ public class SerializableTokenListCategory implements Writeable {
         List<TokenListCategory.TokenAndWeight> commonUniqueTokenIds = category.getCommonUniqueTokenIds();
         this.commonUniqueTokenIndexes = commonUniqueTokenIds.stream().mapToInt(tw -> tokenIdToIndex.get(tw.getTokenId())).toArray();
         this.commonUniqueTokenWeights = commonUniqueTokenIds.stream().mapToInt(TokenListCategory.TokenAndWeight::getWeight).toArray();
-        // Build the terms we'll use as the key, and display to the end user eventually
+        // Get the terms that will be displayed in the results.
+        // When categorization was first written there were three aspects to the category definition:
+        // 1. Common unique terms
+        // 2. Common terms that appear in the same order for every string in the category
+        // 3. Max matching length
+        //
+        // The aim was to build a fast and accurate reverse search to find the original strings, so
+        // the idea was that you'd search for strings that contained all the unique terms (fast), then
+        // confirm those by using a regex that checked the order of the terms expected to be in order,
+        // and finally discard ridiculously long matches when the category contained few terms.
+        //
+        // This history can be seen in the member variables of the TokenListCategory class and the way
+        // it modifies them when new strings are added.
+        //
+        // However, over the years what actually got presented to users got changed. Instead of
+        // presenting the results of the reverse search a set of terms was presented that consisted of
+        // all base terms that are present in the common unique tokens, in the order they occur in the
+        // base tokens (potentially including duplicates). In the C++ code the length is capped at
+        // 10000 UTF-8 bytes (including separating spaces) and where the initially chosen tokens would
+        // exceed that length the rarest tokens (across all categories) are picked until the budget
+        // is reached. We cannot easily do this in the Java code, as the {@link CategorizationBytesRefHash}
+        // class does not store usage counts for each token. So instead we simply chop the sequence of
+        // tokens at an appropriate limit when mapping back to strings.
         List<Integer> keyTokenIndexes = new ArrayList<>();
         int budgetRemaining = KEY_BUDGET + 1;
-        for (TokenListCategory.TokenAndWeight keyTokenAndWeight : category.getKeyTokenIds()) {
-            int index = tokenIdToIndex.get(keyTokenAndWeight.getTokenId());
+        for (TokenListCategory.TokenAndWeight tokenAndWeight : category.getBaseWeightedTokenIds()) {
+            if (category.isTokenIdCommon(tokenAndWeight) == false) {
+                continue;
+            }
+            int index = tokenIdToIndex.get(tokenAndWeight.getTokenId());
             // For the space separator - not needed for the first token, but we took that into account by adding 1 to the budget
             --budgetRemaining;
             if (baseTokens[index].length > budgetRemaining) {

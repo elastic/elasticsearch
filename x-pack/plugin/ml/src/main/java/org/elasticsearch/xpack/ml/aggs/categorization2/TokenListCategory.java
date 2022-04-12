@@ -436,36 +436,6 @@ public class TokenListCategory implements Accountable {
         return List.copyOf(commonUniqueTokenIds);
     }
 
-    /**
-     * Get the terms that will be displayed in the results.
-     * When categorization was first written there were three aspects to the category definition:
-     * 1. Common unique terms
-     * 2. Common terms that appear in the same order for every string in the category
-     * 3. Max matching length
-     *
-     * The aim was to build a fast and accurate reverse search to find the original strings, so
-     * the idea was that you'd search for strings that contained all the unique terms (fast), then
-     * confirm those by using a regex that checked the order of the terms expected to be in order,
-     * and finally discard ridiculously long matches when the category contained few terms.
-     *
-     * This history can be seen in the member variables of this class and the way it modifies them
-     * when new strings are added.
-     *
-     * However, over the years what actually got presented to users got changed. Instead of
-     * presenting the results of the reverse search a set of terms was presented that consisted of
-     * all base terms that are present in the common unique tokens, in the order they occur in the
-     * base tokens (potentially including duplicates). In the C++ code the length is capped at
-     * 10000 UTF-8 bytes (including separating spaces) and where the initially chosen tokens would
-     * exceed that length the rarest tokens (across all categories) are picked until the budget
-     * is reached. We cannot easily do this in the Java code, as the {@link CategorizationBytesRefHash}
-     * class does not store usage counts for each token. So instead, we return the full list of
-     * token IDs here, then let downstream code simply chop it at an appropriate limit when mapping
-     * back to actual strings.
-     */
-    public List<TokenAndWeight> getKeyTokenIds() {
-        return baseWeightedTokenIds.stream().filter(this::isTokenIdCommon).collect(Collectors.toList());
-    }
-
     public int getCommonUniqueTokenWeight() {
         return commonUniqueTokenWeight;
     }

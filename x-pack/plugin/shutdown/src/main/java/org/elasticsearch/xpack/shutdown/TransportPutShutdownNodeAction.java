@@ -111,7 +111,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
 
                 if (shouldReroute) {
                     clusterService.getRerouteService()
-                        .reroute("node registered for removal from cluster", Priority.NORMAL, new ActionListener<>() {
+                        .reroute("node registered for removal from cluster", Priority.URGENT, new ActionListener<>() {
                             @Override
                             public void onResponse(ClusterState clusterState) {}
 

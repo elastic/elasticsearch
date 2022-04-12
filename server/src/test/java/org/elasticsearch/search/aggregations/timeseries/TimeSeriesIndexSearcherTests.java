@@ -30,6 +30,7 @@ import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -40,34 +41,35 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.index.IndexSortConfig.TIME_SERIES_SORT;
+
 public class TimeSeriesIndexSearcherTests extends ESTestCase {
 
     // Index a random set of docs with timestamp and tsid with the tsid/timestamp sort order
     // Open a searcher over a set of leaves
     // Collection should be in order
 
-    private static final int THREADS = 5;
-    private static final int DOCS_PER_THREAD = 500;
-
     public void testCollectInOrderAcrossSegments() throws IOException, InterruptedException {
 
         Directory dir = newDirectory();
         IndexWriterConfig iwc = newIndexWriterConfig();
-        iwc.setIndexSort(
-            new Sort(
-                new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING),
-                new SortField(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, SortField.Type.LONG, true)
-            )
+        boolean tsidReverse = TIME_SERIES_SORT[0].getOrder() == SortOrder.DESC;
+        boolean timestampReverse = TIME_SERIES_SORT[1].getOrder() == SortOrder.DESC;
+        Sort sort = new Sort(
+            new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING, tsidReverse),
+            new SortField(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, SortField.Type.LONG, timestampReverse)
         );
+        iwc.setIndexSort(sort);
         RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
 
         AtomicInteger clock = new AtomicInteger(0);
 
+        final int THREADS = 5;
         ExecutorService indexer = Executors.newFixedThreadPool(THREADS);
         for (int i = 0; i < THREADS; i++) {
             indexer.submit(() -> {
                 Document doc = new Document();
-                for (int j = 0; j < DOCS_PER_THREAD; j++) {
+                for (int j = 0; j < 500; j++) {
                     String tsid = "tsid" + randomIntBetween(0, 30);
                     long time = clock.addAndGet(randomIntBetween(0, 10));
                     doc.clear();
@@ -92,8 +94,8 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
 
         BucketCollector collector = new BucketCollector() {
 
-            BytesRef previousTSID = null;
-            long previousTimestamp = 0;
+            BytesRef currentTSID = null;
+            long currentTimestamp = 0;
             long total = 0;
 
             @Override
@@ -109,18 +111,22 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
                     public void collect(int doc, long owningBucketOrd) throws IOException {
                         assertTrue(tsid.advanceExact(doc));
                         assertTrue(timestamp.advanceExact(doc));
-                        BytesRef currentTSID = tsid.lookupOrd(tsid.ordValue());
-                        assertEquals(aggCtx.getTsid(), currentTSID);
-                        long currentTimestamp = timestamp.longValue();
-                        logger.info("{} -> {} / {} -> {}", previousTSID, currentTSID, previousTimestamp, currentTimestamp);
-                        if (previousTSID != null) {
-                            assertTrue(previousTSID + "->" + currentTSID.utf8ToString(), currentTSID.compareTo(previousTSID) >= 0);
-                            if (currentTSID.equals(previousTSID)) {
-                                assertTrue(previousTimestamp + "->" + currentTimestamp, currentTimestamp <= previousTimestamp);
+                        BytesRef latestTSID = tsid.lookupOrd(tsid.ordValue());
+                        long latestTimestamp = timestamp.longValue();
+                        if (currentTSID != null) {
+                            assertTrue(
+                                currentTSID + "->" + latestTSID.utf8ToString(),
+                                tsidReverse ? latestTSID.compareTo(currentTSID) <= 0 : latestTSID.compareTo(currentTSID) >= 0
+                            );
+                            if (latestTSID.equals(currentTSID)) {
+                                assertTrue(
+                                    currentTimestamp + "->" + latestTimestamp,
+                                    timestampReverse ? latestTimestamp <= currentTimestamp : latestTimestamp >= currentTimestamp
+                                );
                             }
                         }
-                        previousTimestamp = currentTimestamp;
-                        previousTSID = BytesRef.deepCopyOf(currentTSID);
+                        currentTimestamp = latestTimestamp;
+                        currentTSID = BytesRef.deepCopyOf(latestTSID);
                         total++;
                     }
                 };
@@ -133,7 +139,7 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
 
             @Override
             public void postCollection() throws IOException {
-                assertEquals(THREADS * DOCS_PER_THREAD, total);
+                assertEquals(2500, total);
             }
 
             @Override
@@ -149,5 +155,4 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
         dir.close();
 
     }
-
 }

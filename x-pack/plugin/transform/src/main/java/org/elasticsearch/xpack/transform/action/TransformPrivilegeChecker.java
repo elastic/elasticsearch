@@ -18,7 +18,6 @@ import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.support.Exceptions;
 import org.elasticsearch.xpack.core.transform.transforms.NullRetentionPolicyConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
@@ -26,6 +25,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import java.util.ArrayList;
 import java.util.List;
 
+import static java.util.stream.Collectors.joining;
 import static java.util.stream.Collectors.toList;
 
 /**
@@ -121,14 +121,24 @@ final class TransformPrivilegeChecker {
         if (privilegesResponse.isCompleteMatch()) {
             listener.onResponse(null);
         } else {
-            List<String> indices = privilegesResponse.getIndexPrivileges().stream().map(ResourcePrivileges::getResource).collect(toList());
+            List<String> missingPrivileges = privilegesResponse.getIndexPrivileges()
+                .stream()
+                .map(
+                    indexPrivileges -> indexPrivileges.getPrivileges()
+                        .entrySet()
+                        .stream()
+                        .filter(e -> Boolean.TRUE.equals(e.getValue()) == false)
+                        .map(e -> e.getKey())
+                        .collect(joining(", ", indexPrivileges.getResource() + ":[", "]"))
+                )
+                .collect(toList());
             listener.onFailure(
                 Exceptions.authorizationError(
-                    "Cannot {} transform [{}] because user {} lacks all the required permissions for indices: {}",
+                    "Cannot {} transform [{}] because user {} lacks the required permissions {}",
                     operationName,
                     transformId,
                     username,
-                    indices
+                    missingPrivileges
                 )
             );
         }

@@ -12,6 +12,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.xcontent.ToXContent;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.stream.Stream;
 
@@ -89,8 +90,9 @@ public interface MapReducer extends NamedWriteable, ToXContent {
 
     /**
      * Definition of code to execute after the reducer processed all input.
+     * @throws IOException
      */
-    default void reduceFinalize() {};
+    default void reduceFinalize() throws IOException {};
 
     /**
      * Forwarded from {@link InternalAggregation}:

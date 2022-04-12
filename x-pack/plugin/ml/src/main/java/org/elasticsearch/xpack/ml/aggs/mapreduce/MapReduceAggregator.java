@@ -23,23 +23,38 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public abstract class MapReduceAggregator extends AggregatorBase {
 
     public final class MapReduceContext {
         private final List<ValuesExtractor> extractors;
-        private final MapReducer mapReducer;
+        private final Supplier<MapReducer> mapReduceSupplier;
+        private final Map<Long, MapReducer> mapReducerByBucketOrdinal = new HashMap<>();
 
-        public MapReduceContext(List<ValuesExtractor> extractors, MapReducer mapReducer) {
+        public MapReduceContext(List<ValuesExtractor> extractors, Supplier<MapReducer> mapReduceSupplier) {
             this.extractors = extractors;
-            this.mapReducer = mapReducer;
+            this.mapReduceSupplier = mapReduceSupplier;
         }
 
-        public MapReducer getMapReducer() {
+        public MapReducer getMapReducer(long bucketOrd) {
+            // TODO: are bucketOrdinals arbitrary long values or a counter (so we can use a list instead)???
+            MapReducer mapReducer = mapReducerByBucketOrdinal.get(bucketOrd);
+            if (mapReducer == null) {
+                mapReducer = mapReduceSupplier.get();
+                mapReducerByBucketOrdinal.put(bucketOrd, mapReducer);
+                mapReducer.mapInit();
+            }
+
             return mapReducer;
+        }
+
+        public Supplier<MapReducer> getMapReduceSupplier() {
+            return mapReduceSupplier;
         }
 
         public List<ValuesExtractor> getExtractors() {
@@ -54,7 +69,7 @@ public abstract class MapReduceAggregator extends AggregatorBase {
         AggregationContext context,
         Aggregator parent,
         Map<String, Object> metadata,
-        MapReducer mapReducer,
+        Supplier<MapReducer> mapReducer,
         List<ValuesSourceConfig> configs
     ) throws IOException {
         super(name, AggregatorFactories.EMPTY, context, parent, CardinalityUpperBound.NONE, metadata);
@@ -79,21 +94,16 @@ public abstract class MapReduceAggregator extends AggregatorBase {
     @Override
     public InternalAggregation buildEmptyAggregation() {
         // TODO: handle empty MapReducer???
-        return new InternalMapReduceAggregation(name, metadata(), context.getMapReducer());
+        return new InternalMapReduceAggregation(name, metadata(), context.getMapReducer(0));
     }
 
     @Override
     public final InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
         InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
         for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-            results[ordIdx] = new InternalMapReduceAggregation(name, metadata(), context.getMapReducer());
+            results[ordIdx] = new InternalMapReduceAggregation(name, metadata(), context.getMapReducer(ordIdx));
         }
         return results;
-    }
-
-    @Override
-    protected void doPreCollection() throws IOException {
-        context.getMapReducer().mapInit();
     }
 
     @Override
@@ -101,7 +111,9 @@ public abstract class MapReduceAggregator extends AggregatorBase {
         return new LeafBucketCollectorBase(sub, context) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
-                context.getMapReducer().map(context.getExtractors().stream().map(extractor -> {
+
+                // TODO: partition by owningBucketOrd
+                context.getMapReducer(owningBucketOrd).map(context.getExtractors().stream().map(extractor -> {
                     try {
                         return extractor.collectValues(ctx, doc);
                     } catch (IOException e) {

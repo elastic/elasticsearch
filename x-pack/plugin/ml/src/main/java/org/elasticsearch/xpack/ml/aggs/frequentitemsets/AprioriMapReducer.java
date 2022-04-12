@@ -12,23 +12,27 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.Aggregation.CommonFields;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.ml.aggs.frequentitemsets.TransactionStore.TopItemIds;
+import org.elasticsearch.xpack.ml.aggs.frequentitemsets.TransactionStore.TopTransactionIds;
 import org.elasticsearch.xpack.ml.aggs.mapreduce.MapReducer;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.stream.Collectors;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
 public class AprioriMapReducer implements MapReducer {
@@ -42,19 +46,20 @@ public class AprioriMapReducer implements MapReducer {
 
     private final String aggregationWritableName;
 
-    private Map<String, Long> itemSets = null;
     private final double minimumSupport;
     private final int minimumSetSize;
     private final int size;
 
-    private StringBuilder stringBuilder = new StringBuilder();
     private List<FrequentItemSet> frequentSets = null;
+
+    private TransactionStore transactionStore;
 
     public AprioriMapReducer(String aggregationWritableName, double minimumSupport, int minimumSetSize, int size) {
         this.aggregationWritableName = aggregationWritableName;
         this.minimumSupport = minimumSupport;
         this.minimumSetSize = minimumSetSize;
         this.size = size;
+        this.transactionStore = new TransactionStore(BigArrays.NON_RECYCLING_INSTANCE);
     }
 
     public AprioriMapReducer(StreamInput in) throws IOException {
@@ -66,7 +71,7 @@ public class AprioriMapReducer implements MapReducer {
         this.size = in.readInt();
 
         // data
-        this.itemSets = in.readMap(StreamInput::readString, StreamInput::readLong);
+        this.transactionStore = new TransactionStore(in, BigArrays.NON_RECYCLING_INSTANCE);
 
         // not send over the wire
         this.frequentSets = null;
@@ -92,50 +97,30 @@ public class AprioriMapReducer implements MapReducer {
         out.writeInt(size);
 
         // data
-        out.writeMap(itemSets, StreamOutput::writeString, StreamOutput::writeLong);
-    }
-
-    @Override
-    public void mapInit() {
-        itemSets = new HashMap<>();
+        transactionStore.writeTo(out);
     }
 
     @Override
     public void map(Stream<Tuple<String, List<Object>>> keyValues) {
-
-        // dump encoding:
-        // key: [value1, value2, value3] -> "key!value1#key!value2#key!value3#"
-
-        stringBuilder.setLength(0);
-        keyValues.forEach(v -> {
-            v.v2().stream().sorted().forEach(fieldValue -> {
-                stringBuilder.append(v.v1());
-                stringBuilder.append("!");
-                stringBuilder.append(fieldValue);
-                stringBuilder.append("#");
-            });
-
-        });
-
-        String key = stringBuilder.toString();
-        itemSets.compute(key, (k, v) -> (v == null) ? 1 : v + 1);
+        transactionStore.add(keyValues);
     }
 
     @Override
     public void reduce(Stream<MapReducer> partitions) {
-        Map<String, Long> itemSetsReduced = new HashMap<>();
-
+        TransactionStore transactionsReduced = new TransactionStore(BigArrays.NON_RECYCLING_INSTANCE);
         partitions.forEach(p -> {
-            AprioriMapReducer apprioriPartition = (AprioriMapReducer) p;
-            apprioriPartition.itemSets.forEach((key, value) -> itemSetsReduced.merge(key, value, (v1, v2) -> v1 + v2));
+            AprioriMapReducer aprioriPartition = (AprioriMapReducer) p;
+            transactionsReduced.mergeAndClose(aprioriPartition.transactionStore);
         });
 
-        itemSets = itemSetsReduced;
+        transactionStore.close();
+        transactionStore = transactionsReduced;
     }
 
     @Override
-    public void reduceFinalize() {
-        aprioriSimple();
+    public void reduceFinalize() throws IOException {
+        transactionStore.prune(minimumSupport);
+        apriori();
     }
 
     @Override
@@ -144,6 +129,7 @@ public class AprioriMapReducer implements MapReducer {
             builder.field(CommonFields.BUCKETS.getPreferredName(), frequentSets);
         }
 
+        /*
         builder.startObject("frequencies_debug");
         List<Tuple<String, Long>> itemSetsSorted = itemSets.entrySet()
             .stream()
@@ -155,7 +141,7 @@ public class AprioriMapReducer implements MapReducer {
             builder.field(entry.v1(), entry.v2());
         }
         builder.endObject();
-
+        */
         return builder;
     }
 
@@ -202,139 +188,124 @@ public class AprioriMapReducer implements MapReducer {
 
     }
 
-    private void aprioriSimple() {
-        Map<String, Long> frequentItems = new HashMap<>();
-        logger.info("apriori simple");
-        // TODO; this should be reverse sorted
-        List<Tuple<List<String>, Long>> frequentSets = itemSets.entrySet()
-            .stream()
-            .map(
-                e -> { return new Tuple<List<String>, Long>(Arrays.asList(Strings.tokenizeToStringArray(e.getKey(), "#")), e.getValue()); }
-            )
-            .sorted((e1, e2) -> e2.v2().compareTo(e1.v2()))
-            .collect(Collectors.toList());
-        // logger.info("1st item count: " + frequentSets.get(0).v2());
+    private void apriori() throws IOException {
+        final long relativeStartNanos = System.nanoTime();
+        final long totalTransactionCount = transactionStore.getTotalTransactionCount();
 
-        // build a global item frequency list
-        long totalItemCount = 0;
-
-        // note: after the global frequency list is build it still contains items which have freq < min_support, we could prune that
-        for (Entry<String, Long> entry : itemSets.entrySet()) {
-            String[] items = Strings.tokenizeToStringArray(entry.getKey(), "#");
-            for (int i = 0; i < items.length; ++i) {
-                frequentItems.merge(items[i], entry.getValue(), (v1, v2) -> v1 + v2);
-            }
-            totalItemCount += entry.getValue();
-        }
-        logger.info("total item count: " + totalItemCount);
-        // logger.info("create start set");
-        // we iterate on a list of item sets, keys are flattened as in the global list
-        List<Tuple<String, Long>> startSet = new ArrayList<>();
-
-        // create a start set with single items that have at least minSupport
-        for (Entry<String, Long> entry : frequentItems.entrySet()) {
-            double support = entry.getValue().doubleValue() / totalItemCount;
-            // logger.info("item " + entry.getKey() + " support: " + support);
-
-            if (support > minimumSupport) {
-                startSet.add(new Tuple<>(entry.getKey(), entry.getValue()));
-            }
-        }
-
-        List<Tuple<String, Long>> lastIteration = startSet;
+        TopItemIds topIds = null;
+        TopTransactionIds topTransactionIds = null;
         List<FrequentItemSet> candidateSets = new ArrayList<>();
 
-        // frequentSets
-        for (int i = 0; i < maxSetSize; ++i) {
-            // logger.info("run " + i + " with " + lastIteration.size() + "sets");
-            Set<String> lookedAt = new HashSet<>();
-            List<Tuple<String, Long>> newIteration = new ArrayList<>();
+        try {
+            // top items
+            topIds = transactionStore.getTopItemIds();
 
-            for (Tuple<String, Long> entry : lastIteration) {
-                String[] itemsArray = Strings.tokenizeToStringArray(entry.v1(), "#");
-                List<String> items = itemsArray != null ? Arrays.asList(itemsArray) : Collections.singletonList(entry.v1());
+            // top transactions
+            topTransactionIds = transactionStore.getTopTransactionIds();
 
-                boolean addAsClosedSet = items.size() > minimumSetSize;
-                // iterate over the start set and try to add items
-                for (Tuple<String, Long> item : startSet) {
-
-                    // skip if already in the list
-                    if (items.contains(item.v1())) {
-                        continue;
-                    }
-
-                    // lets add the item
-                    List<String> newItemSet = new ArrayList<>(items);
-                    newItemSet.add(item.v1());
-
-                    // BOW it, and continue if we already considered this one
-                    Collections.sort(newItemSet);
-                    String newItemSetKey = Strings.collectionToDelimitedString(newItemSet, "#");
-                    if (lookedAt.add(newItemSetKey) == false) {
-                        continue;
-                    }
-
-                    long occurences = 0;
-                    long countDown = totalItemCount;
-                    long minCount = (long) (totalItemCount * minimumSupport);
-                    // calculate the new support for it
-                    for (Tuple<List<String>, Long> groundTruth : frequentSets) {
-                        // logger.info("Lookup " + newItemSet + " in " + groundTruth.v1());
-
-                        if (groundTruth.v1().containsAll(newItemSet)) {
-                            occurences += groundTruth.v2();
-                        }
-                        countDown -= groundTruth.v2();
-
-                        // exit early if min support can't be reached
-                        if (countDown + occurences < minCount) {
-                            break;
-                        }
-                    }
-
-                    // logger.info("Found " + occurences + " for " + newItemSet);
-
-                    double support = (double) occurences / totalItemCount;
-                    if (support > minimumSupport) {
-                        // logger.info("add item to forward set " + newItemSetKey + " occurences: " + occurences + " old: " + entry.v2());
-
-                        // if the new set has the same count, don't add it to closed sets
-
-                        if (occurences >= entry.v2()) {
-                            assert occurences == entry.v2() : "a grown item set can't have more occurences";
-                            addAsClosedSet = false;
-                        }
-
-                        newIteration.add(new Tuple<>(newItemSetKey, occurences));
-                    } else {
-                        // logger.info("drop " + newItemSetKey + " support: " + support);
-                    }
-                }
-
-                if (addAsClosedSet) {
-                    // logger.info("add to closed set: " + entry);
-                    candidateSets.add(toFrequentItemSet(totalItemCount, entry));
-                }
-
-            }
-            lastIteration = newIteration;
-        }
-
-        for (Tuple<String, Long> item : lastIteration) {
-            candidateSets.add(toFrequentItemSet(totalItemCount, item));
-        }
-        candidateSets.sort((e1, e2) -> {
-            int diff = Long.compare(e2.getDocCount(), e1.getDocCount());
-
-            // if 2 sets have the same doc count, prefer the larger over the smaller
-            if (diff == 0) {
-                diff = e2.getItems().size() - e1.getItems().size();
-                // TODO: if 2 sets have even the same size, do we need to compare the elements?
+            // start set
+            List<Tuple<List<Long>, Long>> startIteration = new ArrayList<>();
+            for (Long id : topIds) {
+                startIteration.add(new Tuple<>(List.of(id), transactionStore.getItemCount(id)));
             }
 
-            return diff;
-        });
+            List<Tuple<List<Long>, Long>> lastIteration = startIteration;
 
+            long minCount = (long) (minimumSupport * totalTransactionCount);
+            logger.info("total transaction count {}, min count: {}", totalTransactionCount, minCount);
+            logger.info("start iteration has {} items", startIteration.size());
+
+            for (int i = 0; i < maxSetSize; ++i) {
+                List<Tuple<List<Long>, Long>> newIteration = new ArrayList<>();
+
+                // logger.info("start new iteration");
+                Set<String> lookedAt = new HashSet<>();
+
+                for (Tuple<List<Long>, Long> entry : lastIteration) {
+                    boolean addAsClosedSet = entry.v1().size() >= minimumSetSize;
+
+                    // try to add new ids
+                    for (Long id : topIds) {
+                        // if the item is already in the list skip over
+                        if (entry.v1().contains(id)) {
+                            continue;
+                        }
+
+                        // lets add the item
+                        List<Long> newItemSet = new ArrayList<>(entry.v1());
+                        newItemSet.add(id);
+
+                        // sort for lookup and deduplication
+                        Collections.sort(newItemSet, Comparator.comparingLong(transactionStore::getItemCount).reversed());
+
+                        String newItemSetKey = Strings.collectionToDelimitedString(newItemSet, "#");
+                        if (lookedAt.add(newItemSetKey) == false) {
+                            continue;
+                        }
+
+                        long occurences = 0;
+                        long countDown = totalTransactionCount;
+
+                        // calculate the new support for it
+                        for (Long transactionId : topTransactionIds) {
+                            long transActionCount = transactionStore.getTransactionCount(transactionId);
+
+                            if (transactionStore.transactionContainAllIds(newItemSet, transactionId)) {
+                                occurences += transActionCount;
+                            }
+                            countDown -= transActionCount;
+
+                            // exit early if min support can't be reached
+                            if (countDown + occurences < minCount) {
+                                break;
+                            }
+                        }
+
+                        double support = (double) occurences / totalTransactionCount;
+                        if (support > minimumSupport) {
+                            // logger.info("add item to forward set " + newItemSetKey + " occurences: " + occurences + " old: " +
+                            // entry.v2());
+
+                            // if the new set has the same count, don't add it to closed sets
+
+                            if (occurences >= entry.v2()) {
+                                assert occurences == entry.v2() : "a grown item set can't have more occurences";
+                                addAsClosedSet = false;
+                            }
+
+                            newIteration.add(new Tuple<List<Long>, Long>(newItemSet, occurences));
+                        } else {
+                            // logger.info("drop " + newItemSetKey + " support: " + support);
+                        }
+                    }
+                    if (addAsClosedSet) {
+                        // logger.info("add to closed set: " + entry);
+                        candidateSets.add(toFrequentItemSet(totalTransactionCount, entry.v1(), entry.v2()));
+                    }
+
+                }
+                lastIteration = newIteration;
+
+            }
+
+            for (Tuple<List<Long>, Long> entry : lastIteration) {
+                candidateSets.add(toFrequentItemSet(totalTransactionCount, entry.v1(), entry.v2()));
+            }
+
+            candidateSets.sort((e1, e2) -> {
+                int diff = Long.compare(e2.getDocCount(), e1.getDocCount());
+
+                // if 2 sets have the same doc count, prefer the larger over the smaller
+                if (diff == 0) {
+                    diff = e2.getItems().size() - e1.getItems().size();
+                    // TODO: if 2 sets have even the same size, do we need to compare the elements?
+                }
+
+                return diff;
+            });
+        } finally {
+            Releasables.close(topIds, topTransactionIds);
+        }
         // because apriori goes many ways to build sets, we have to do some additional pruning to get to closed sets
         List<FrequentItemSet> closedSets = new ArrayList<>();
 
@@ -347,25 +318,50 @@ public class AprioriMapReducer implements MapReducer {
 
             last = e;
         }
-        this.frequentSets = closedSets;
-    }
 
-    private FrequentItemSet toFrequentItemSet(long totalItemCount, Tuple<String, Long> entry) {
-        Map<String, List<String>> frequentItemsKeyValues = new HashMap<>();
-        String[] closedSetItems = Strings.tokenizeToStringArray(entry.v1(), "#");
+        List<FrequentItemSet> setThatShareTheSameDocCount = new ArrayList<>();
 
-        // logger.info("toFrequentItem " + entry.v1());
+        for (FrequentItemSet e : candidateSets) {
+            if (setThatShareTheSameDocCount.isEmpty() || e.getDocCount() != setThatShareTheSameDocCount.get(0).getDocCount()) {
+                setThatShareTheSameDocCount.clear();
+                setThatShareTheSameDocCount.add(e);
+                closedSets.add(e);
+                continue;
+            }
 
-        for (String keyValue : closedSetItems) {
-            String[] closedSetKeyValue = Strings.tokenizeToStringArray(keyValue, "!");
-            if (frequentItemsKeyValues.containsKey(closedSetKeyValue[0])) {
-                frequentItemsKeyValues.get(closedSetKeyValue[0]).add(closedSetKeyValue[1]);
-            } else {
-                List<String> l = new ArrayList<>();
-                l.add(closedSetKeyValue[1]);
-                frequentItemsKeyValues.put(closedSetKeyValue[0], l);
+            boolean foundSuperSet = false;
+            for (FrequentItemSet otherItem : setThatShareTheSameDocCount) {
+                if (otherItem.getItems().entrySet().containsAll(e.getItems().entrySet())) {
+                    foundSuperSet = true;
+                    break;
+                }
+            }
+
+            if (foundSuperSet == false) {
+                setThatShareTheSameDocCount.add(e);
+                closedSets.add(e);
             }
         }
-        return new FrequentItemSet(frequentItemsKeyValues, entry.v2(), (double) entry.v2() / totalItemCount);
+
+        this.frequentSets = closedSets;
+        final long relativeEndNanos = System.nanoTime();
+
+        logger.info("apriori runtime {} ms", TimeUnit.NANOSECONDS.toMillis(relativeEndNanos - relativeStartNanos));
     }
+
+    private FrequentItemSet toFrequentItemSet(long totalItemCount, List<Long> items, long count) throws IOException {
+        Map<String, List<String>> frequentItemsKeyValues = new HashMap<>();
+        for (Long id : items) {
+            Tuple<String, String> item = transactionStore.getItem(id);
+            if (frequentItemsKeyValues.containsKey(item.v1())) {
+                frequentItemsKeyValues.get(item.v1()).add(item.v2());
+            } else {
+                List<String> l = new ArrayList<>();
+                l.add(item.v2());
+                frequentItemsKeyValues.put(item.v1(), l);
+            }
+        }
+        return new FrequentItemSet(frequentItemsKeyValues, count, (double) count / totalItemCount);
+    }
+
 }

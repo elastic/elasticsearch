@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ml.aggs.mapreduce;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -49,7 +50,11 @@ public final class InternalMapReduceAggregation extends InternalAggregation {
         if (reduceContext.isFinalReduce()) {
             mapReducer.reduceInit();
             mapReducer.reduce(aggregations.stream().map(agg -> ((InternalMapReduceAggregation) agg).mapReducer));
-            mapReducer.reduceFinalize();
+            try {
+                mapReducer.reduceFinalize();
+            } catch (IOException e) {
+                throw new AggregationExecutionException("Internal Map Reduce failure", e);
+            }
         } else {
             mapReducer.combine(aggregations.stream().map(agg -> ((InternalMapReduceAggregation) agg).mapReducer));
         }

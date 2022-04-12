@@ -279,6 +279,7 @@ import org.elasticsearch.xpack.ml.aggs.changepoint.ChangePointNamedContentProvid
 import org.elasticsearch.xpack.ml.aggs.correlation.BucketCorrelationAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.correlation.CorrelationNamedContentProvider;
 import org.elasticsearch.xpack.ml.aggs.frequentitemsets.AprioriMapReducer;
+import org.elasticsearch.xpack.ml.aggs.frequentitemsets.EclatMapReducer;
 import org.elasticsearch.xpack.ml.aggs.frequentitemsets.FrequentItemSetsAggregationBuilder;
 import org.elasticsearch.xpack.ml.aggs.heuristic.PValueScore;
 import org.elasticsearch.xpack.ml.aggs.inference.InferencePipelineAggregationBuilder;
@@ -1611,6 +1612,7 @@ public class MachineLearning extends Plugin
 
         // map reducers
         namedWriteables.add(new NamedWriteableRegistry.Entry(MapReducer.class, AprioriMapReducer.NAME, AprioriMapReducer::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(MapReducer.class, EclatMapReducer.NAME, EclatMapReducer::new));
 
         return namedWriteables;
     }

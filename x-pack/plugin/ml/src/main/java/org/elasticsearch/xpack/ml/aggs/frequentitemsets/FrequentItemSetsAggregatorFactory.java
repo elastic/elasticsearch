@@ -28,6 +28,9 @@ public class FrequentItemSetsAggregatorFactory extends AggregatorFactory {
     private final int minimumSetSize;
     private final int size;
 
+    // experimental
+    private final String algorithm;
+
     public FrequentItemSetsAggregatorFactory(
         String name,
         AggregationContext context,
@@ -37,13 +40,15 @@ public class FrequentItemSetsAggregatorFactory extends AggregatorFactory {
         List<MultiValuesSourceFieldConfig> fields,
         double minimumSupport,
         int minimumSetSize,
-        int size
+        int size,
+        String algorithm
     ) throws IOException {
         super(name, context, parent, subFactoriesBuilder, metadata);
         this.fields = fields;
         this.minimumSupport = minimumSupport;
         this.minimumSetSize = minimumSetSize;
         this.size = size;
+        this.algorithm = algorithm;
     }
 
     @Override
@@ -67,7 +72,7 @@ public class FrequentItemSetsAggregatorFactory extends AggregatorFactory {
 
         }
 
-        return new FrequentItemSetsAggregator(name, context, parent, metadata, configs, minimumSupport, minimumSetSize, size);
+        return new FrequentItemSetsAggregator(name, context, parent, metadata, configs, minimumSupport, minimumSetSize, size, algorithm);
     }
 
 }

@@ -12,10 +12,6 @@ esplugin {
   classname 'org.elasticsearch.datastreams.DataStreamsPlugin'
 }
 
-dependencies {
-  testImplementation project(path: ':plugins:transport-nio') // for http in SystemDataStreamIT
-}
-
 restResources {
   restApi {
     include 'bulk', 'count', 'search', '_common', 'indices', 'index', 'cluster', 'rank_eval', 'reindex', 'update_by_query', 'delete_by_query',

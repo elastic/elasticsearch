@@ -238,10 +238,10 @@ public class DesiredBalanceService {
             );
         }
 
-        final var unassigned = new HashMap<ShardId, UnassignedInfo>();
+        final var unassigned = new HashMap<ShardId, Integer>();
         for (var ignored : routingAllocation.routingNodes().unassigned().ignored()) {
             assert ignored.unassignedInfo() != null;
-            unassigned.put(ignored.shardId(), ignored.unassignedInfo());
+            unassigned.merge(ignored.shardId(), 1, Integer::sum);
         }
 
         logger.trace(

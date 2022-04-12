@@ -90,6 +90,9 @@
         },
         "bool" : {
             "type" : "boolean"
+        },
+        "version" : {
+            "type" : "version"
         }
     }
 }

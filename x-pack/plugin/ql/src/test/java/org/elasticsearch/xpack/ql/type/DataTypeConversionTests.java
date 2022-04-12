@@ -568,18 +568,18 @@ public class DataTypeConversionTests extends ESTestCase {
     public void testStringToVersion() {
         Converter conversion = converterFor(KEYWORD, VERSION);
         assertNull(conversion.convert(null));
-        assertEquals("2.1.4", conversion.convert("2.1.4"));
-        assertEquals("2.1.4-SNAPSHOT", conversion.convert("2.1.4-SNAPSHOT"));
+        assertEquals(new VersionFieldValue("2.1.4"), conversion.convert("2.1.4"));
+        assertEquals(new VersionFieldValue("2.1.4-SNAPSHOT"), conversion.convert("2.1.4-SNAPSHOT"));
     }
 
     public void testVersionToString() {
         Source s = new Source(Location.EMPTY, "2.1.4");
         Source s2 = new Source(Location.EMPTY, "2.1.4");
-        Converter ipToString = converterFor(VERSION, KEYWORD);
-        assertEquals("2.1.4", ipToString.convert(new Literal(s, "2.1.4", VERSION)));
-        assertEquals("2.1.4-SNAPSHOT", ipToString.convert(new Literal(s2, "2.1.4-SNAPSHOT", VERSION)));
+        Converter versionToString = converterFor(VERSION, KEYWORD);
+        assertEquals("2.1.4", versionToString.convert(new Literal(s, "2.1.4", VERSION)));
+        assertEquals("2.1.4-SNAPSHOT", versionToString.convert(new Literal(s2, "2.1.4-SNAPSHOT", VERSION)));
         Converter stringToIp = converterFor(KEYWORD, VERSION);
-        assertEquals("2.1.4", ipToString.convert(stringToIp.convert(new Literal(s, "2.1.4", KEYWORD))));
-        assertEquals("2.1.4-SNAPSHOT", ipToString.convert(stringToIp.convert(new Literal(s2, "2.1.4-SNAPSHOT", KEYWORD))));
+        assertEquals("2.1.4", versionToString.convert(stringToIp.convert(new Literal(s, "2.1.4", KEYWORD))));
+        assertEquals("2.1.4-SNAPSHOT", versionToString.convert(stringToIp.convert(new Literal(s2, "2.1.4-SNAPSHOT", KEYWORD))));
     }
 }

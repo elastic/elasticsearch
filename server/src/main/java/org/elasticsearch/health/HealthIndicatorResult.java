@@ -28,7 +28,9 @@ public record HealthIndicatorResult(
         builder.startObject();
         builder.field("status", status.xContentValue());
         builder.field("summary", summary);
-        builder.field("details", details, params);
+        if (details != null && HealthIndicatorDetails.EMPTY.equals(details) == false) {
+            builder.field("details", details, params);
+        }
         if (impacts != null && impacts.isEmpty() == false) {
             builder.field("impacts", impacts);
         }

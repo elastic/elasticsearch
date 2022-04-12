@@ -31,9 +31,9 @@ import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.time.Instant;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -294,7 +294,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
         final Thread[] threads = new Thread[randomIntBetween(5, 10)];
         final CountDownLatch readyLatch = new CountDownLatch(threads.length);
         final CountDownLatch startLatch = new CountDownLatch(1);
-        final Set<String> allUids = new HashSet<>();
+        final Set<String> allUids = ConcurrentHashMap.newKeySet();
         for (int i = 0; i < threads.length; i++) {
             threads[i] = new Thread(() -> {
                 try {

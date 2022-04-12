@@ -14,8 +14,6 @@ import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.CreateTokenResponse;
 import org.elasticsearch.client.security.DelegatePkiAuthenticationRequest;
 import org.elasticsearch.client.security.DelegatePkiAuthenticationResponse;
-import org.elasticsearch.client.security.GetApiKeyRequest;
-import org.elasticsearch.client.security.GetApiKeyResponse;
 import org.elasticsearch.client.security.InvalidateApiKeyRequest;
 import org.elasticsearch.client.security.InvalidateApiKeyResponse;
 import org.elasticsearch.client.security.InvalidateTokenRequest;
@@ -102,26 +100,6 @@ public final class SecurityClient {
             options,
             InvalidateTokenResponse::fromXContent,
             singleton(404)
-        );
-    }
-
-    /**
-     * Retrieve API Key(s) information.<br>
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-api-key.html">
-     * the docs</a> for more.
-     *
-     * @param request the request to retrieve API key(s)
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response from the get API key call
-     * @throws IOException in case there is a problem sending the request or parsing back the response
-     */
-    public GetApiKeyResponse getApiKey(final GetApiKeyRequest request, final RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(
-            request,
-            SecurityRequestConverters::getApiKey,
-            options,
-            GetApiKeyResponse::fromXContent,
-            emptySet()
         );
     }
 

@@ -11,11 +11,11 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.security.support.ApiKey;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.security.SecurityOnTrialLicenseRestTestCase;
 import org.junit.After;
@@ -119,7 +119,7 @@ public class ApiKeyRestIT extends SecurityOnTrialLicenseRestTestCase {
         assertThat(responseBody.get("id"), notNullValue());
         assertThat(responseBody.get("id"), instanceOf(String.class));
 
-        ApiKey apiKey = getApiKey((String) responseBody.get("id"));
+        org.elasticsearch.xpack.core.security.action.apikey.ApiKey apiKey = getApiKey((String) responseBody.get("id"));
         assertThat(apiKey.getUsername(), equalTo(END_USER));
     }
 

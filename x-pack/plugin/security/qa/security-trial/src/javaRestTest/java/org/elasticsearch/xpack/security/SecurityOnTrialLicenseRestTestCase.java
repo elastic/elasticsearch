@@ -11,19 +11,16 @@ import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.security.CreateTokenRequest;
 import org.elasticsearch.client.security.CreateTokenResponse;
-import org.elasticsearch.client.security.GetApiKeyRequest;
-import org.elasticsearch.client.security.GetApiKeyResponse;
 import org.elasticsearch.client.security.InvalidateApiKeyRequest;
-import org.elasticsearch.client.security.support.ApiKey;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.TestSecurityClient;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -91,10 +88,8 @@ public abstract class SecurityOnTrialLicenseRestTestCase extends ESRestTestCase 
     }
 
     protected ApiKey getApiKey(String id) throws IOException {
-        final RestHighLevelClient client = getHighLevelAdminClient();
-        final GetApiKeyResponse response = client.security().getApiKey(GetApiKeyRequest.usingApiKeyId(id, false), RequestOptions.DEFAULT);
-        assertThat(response.getApiKeyInfos(), Matchers.iterableWithSize(1));
-        return response.getApiKeyInfos().get(0);
+        final TestSecurityClient client = getSecurityClient();
+        return client.getApiKey(id);
     }
 
     private RestHighLevelClient getHighLevelAdminClient() {

@@ -325,7 +325,7 @@ public class AuthorizationService {
             threadContext
         );
         if (operatorException != null) {
-            throw requiresOperatorPrivileges(authentication, action, originalRequest, operatorException);
+            throw actionRequiresOperatorPrivileges(authentication, action, originalRequest, operatorException);
         }
         operatorPrivilegesService.maybeInterceptRequest(threadContext, originalRequest);
     }
@@ -859,7 +859,7 @@ public class AuthorizationService {
         );
     }
 
-    private ElasticsearchSecurityException requiresOperatorPrivileges(
+    private ElasticsearchSecurityException actionRequiresOperatorPrivileges(
         Authentication authentication,
         String action,
         TransportRequest request,

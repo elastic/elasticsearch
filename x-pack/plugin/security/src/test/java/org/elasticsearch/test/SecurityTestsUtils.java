@@ -20,6 +20,7 @@ import static org.hamcrest.CoreMatchers.either;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.nullValue;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.junit.Assert.assertThat;
 
 public class SecurityTestsUtils {
@@ -68,7 +69,17 @@ public class SecurityTestsUtils {
         assertThrowsAuthorizationException(
             "Expected authorization failure for user=[" + user + "], run-as=[" + runAs + "], action=[" + action + "]",
             throwingRunnable,
-            containsString("[" + user + "] is unauthorized to run as [" + runAs + "]")
+            matchesPattern(
+                "action \\["
+                    + action
+                    + ".* is unauthorized for .* \\["
+                    + user
+                    + "] because .* \\["
+                    + user
+                    + "] is unauthorized to run as \\["
+                    + runAs
+                    + "]"
+            )
         );
     }
 

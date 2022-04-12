@@ -928,7 +928,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             )
         );
         if (isRunAs) {
-            assertThat(securityException, throwableWithMessage(containsString("run as [" + finalUser.principal() + "] with roles [")));
+            assertThat(securityException, throwableWithMessage(containsString("run as [" + finalUser.principal() + "]")));
         }
         assertThat(securityException, throwableWithMessage(containsString("this action is granted by the index privileges [read,all]")));
         if (isRunAs && false == canRunAs) {

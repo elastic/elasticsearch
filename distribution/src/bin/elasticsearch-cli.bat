@@ -8,9 +8,9 @@ set LAUNCHER_CLASSPATH=%ES_HOME%/lib/*;%ES_HOME%/lib/cli-launcher/*
 
 %JAVA% ^
   %CLI_JAVA_OPTS% ^
-  -Dcli.name=%CLI_NAME% ^
-  -Dcli.script=%CLI_SCRIPT% ^
-  -Dcli.libs=%CLI_LIBS% ^
+  -Dcli.name="%CLI_NAME%" ^
+  -Dcli.script="%CLI_SCRIPT%" ^
+  -Dcli.libs="%CLI_LIBS%" ^
   -Des.path.home="%ES_HOME%" ^
   -Des.path.conf="%ES_PATH_CONF%" ^
   -Des.distribution.type="%ES_DISTRIBUTION_TYPE%" ^

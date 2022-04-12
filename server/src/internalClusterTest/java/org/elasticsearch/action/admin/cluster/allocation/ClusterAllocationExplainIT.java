@@ -24,6 +24,8 @@ import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.Explanations;
 import org.elasticsearch.cluster.routing.allocation.MoveDecision;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -419,94 +421,95 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             ActiveShardCount.NONE
         );
 
-        assertBusy(() -> {
-            boolean includeYesDecisions = randomBoolean();
-            boolean includeDiskInfo = randomBoolean();
-            ClusterAllocationExplanation explanation = runExplain(true, includeYesDecisions, includeDiskInfo);
+        if (internalCluster().getCurrentMasterNodeInstance(ShardsAllocator.class)instanceof DesiredBalanceShardsAllocator dbsa) {
+            assertBusy(() -> assertTrue(dbsa.isIdle()));
+        }
 
-            ShardId shardId = explanation.getShard();
-            boolean isPrimary = explanation.isPrimary();
-            ShardRoutingState shardRoutingState = explanation.getShardState();
-            DiscoveryNode currentNode = explanation.getCurrentNode();
-            UnassignedInfo unassignedInfo = explanation.getUnassignedInfo();
-            ClusterInfo clusterInfo = explanation.getClusterInfo();
-            AllocateUnassignedDecision allocateDecision = explanation.getShardAllocationDecision().getAllocateDecision();
-            MoveDecision moveDecision = explanation.getShardAllocationDecision().getMoveDecision();
+        boolean includeYesDecisions = randomBoolean();
+        boolean includeDiskInfo = randomBoolean();
+        ClusterAllocationExplanation explanation = runExplain(true, includeYesDecisions, includeDiskInfo);
 
-            // verify shard info
-            assertEquals("idx", shardId.getIndexName());
-            assertEquals(0, shardId.getId());
-            assertTrue(isPrimary);
+        ShardId shardId = explanation.getShard();
+        boolean isPrimary = explanation.isPrimary();
+        ShardRoutingState shardRoutingState = explanation.getShardState();
+        DiscoveryNode currentNode = explanation.getCurrentNode();
+        UnassignedInfo unassignedInfo = explanation.getUnassignedInfo();
+        ClusterInfo clusterInfo = explanation.getClusterInfo();
+        AllocateUnassignedDecision allocateDecision = explanation.getShardAllocationDecision().getAllocateDecision();
+        MoveDecision moveDecision = explanation.getShardAllocationDecision().getMoveDecision();
 
-            // verify current node info
-            assertNotEquals(ShardRoutingState.STARTED, shardRoutingState);
-            assertNull(currentNode);
+        // verify shard info
+        assertEquals("idx", shardId.getIndexName());
+        assertEquals(0, shardId.getId());
+        assertTrue(isPrimary);
 
-            // verify unassigned info
-            assertNotNull(unassignedInfo);
-            assertEquals(Reason.INDEX_CREATED, unassignedInfo.getReason());
-            assertEquals(AllocationStatus.DECIDERS_NO, unassignedInfo.getLastAllocationStatus());
+        // verify current node info
+        assertNotEquals(ShardRoutingState.STARTED, shardRoutingState);
+        assertNull(currentNode);
 
-            // verify cluster info
-            verifyClusterInfo(clusterInfo, includeDiskInfo, 2);
+        // verify unassigned info
+        assertNotNull(unassignedInfo);
+        assertEquals(Reason.INDEX_CREATED, unassignedInfo.getReason());
+        assertEquals(AllocationStatus.DECIDERS_NO, unassignedInfo.getLastAllocationStatus());
 
-            // verify decision objects
-            assertTrue(allocateDecision.isDecisionTaken());
-            assertFalse(moveDecision.isDecisionTaken());
-            assertEquals(AllocationDecision.NO, allocateDecision.getAllocationDecision());
-            assertEquals(Explanations.Allocation.ALL_NODES_FORBIDDEN, allocateDecision.getExplanation());
-            assertNull(allocateDecision.getAllocationId());
-            assertNull(allocateDecision.getTargetNode());
-            assertEquals(0L, allocateDecision.getConfiguredDelayInMillis());
-            assertEquals(0L, allocateDecision.getRemainingDelayInMillis());
-            assertEquals(2, allocateDecision.getNodeDecisions().size());
-            for (NodeAllocationResult result : allocateDecision.getNodeDecisions()) {
-                assertNotNull(result.getNode());
-                assertEquals(AllocationDecision.NO, result.getNodeDecision());
-                if (includeYesDecisions) {
-                    assertThat(result.getCanAllocateDecision().getDecisions().size(), greaterThan(1));
-                } else {
-                    assertEquals(1, result.getCanAllocateDecision().getDecisions().size());
-                }
-                for (Decision d : result.getCanAllocateDecision().getDecisions()) {
-                    if (d.label().equals("filter")) {
-                        assertEquals(Decision.Type.NO, d.type());
-                        assertEquals(
-                            "node does not match index setting [index.routing.allocation.include] filters "
-                                + "[_name:\"non_existent_node\"]",
-                            d.getExplanation()
-                        );
-                    }
+        // verify cluster info
+        verifyClusterInfo(clusterInfo, includeDiskInfo, 2);
+
+        // verify decision objects
+        assertTrue(allocateDecision.isDecisionTaken());
+        assertFalse(moveDecision.isDecisionTaken());
+        assertEquals(AllocationDecision.NO, allocateDecision.getAllocationDecision());
+        assertEquals(Explanations.Allocation.ALL_NODES_FORBIDDEN, allocateDecision.getExplanation());
+        assertNull(allocateDecision.getAllocationId());
+        assertNull(allocateDecision.getTargetNode());
+        assertEquals(0L, allocateDecision.getConfiguredDelayInMillis());
+        assertEquals(0L, allocateDecision.getRemainingDelayInMillis());
+        assertEquals(2, allocateDecision.getNodeDecisions().size());
+        for (NodeAllocationResult result : allocateDecision.getNodeDecisions()) {
+            assertNotNull(result.getNode());
+            assertEquals(AllocationDecision.NO, result.getNodeDecision());
+            if (includeYesDecisions) {
+                assertThat(result.getCanAllocateDecision().getDecisions().size(), greaterThan(1));
+            } else {
+                assertEquals(1, result.getCanAllocateDecision().getDecisions().size());
+            }
+            for (Decision d : result.getCanAllocateDecision().getDecisions()) {
+                if (d.label().equals("filter")) {
+                    assertEquals(Decision.Type.NO, d.type());
+                    assertEquals(
+                        "node does not match index setting [index.routing.allocation.include] filters " + "[_name:\"non_existent_node\"]",
+                        d.getExplanation()
+                    );
                 }
             }
+        }
 
-            // verify JSON output
-            try (XContentParser parser = getParser(explanation)) {
-                verifyShardInfo(parser, true, includeDiskInfo, ShardRoutingState.UNASSIGNED);
-                parser.nextToken();
-                assertEquals("can_allocate", parser.currentName());
-                parser.nextToken();
-                String allocationDecision = parser.text();
-                assertTrue(
-                    allocationDecision.equals(AllocationDecision.NO.toString())
-                        || allocationDecision.equals(AllocationDecision.AWAITING_INFO.toString())
-                );
-                parser.nextToken();
-                assertEquals("allocate_explanation", parser.currentName());
-                parser.nextToken();
-                if (allocationDecision.equals("awaiting_info")) {
-                    assertEquals(Explanations.Allocation.AWAITING_INFO, parser.text());
-                } else {
-                    assertEquals(Explanations.Allocation.ALL_NODES_FORBIDDEN, parser.text());
-                }
-                Map<String, AllocationDecision> nodeDecisions = new HashMap<>();
-                for (String nodeName : internalCluster().getNodeNames()) {
-                    nodeDecisions.put(nodeName, AllocationDecision.NO);
-                }
-                verifyNodeDecisions(parser, nodeDecisions, includeYesDecisions, false);
-                assertEquals(Token.END_OBJECT, parser.nextToken());
+        // verify JSON output
+        try (XContentParser parser = getParser(explanation)) {
+            verifyShardInfo(parser, true, includeDiskInfo, ShardRoutingState.UNASSIGNED);
+            parser.nextToken();
+            assertEquals("can_allocate", parser.currentName());
+            parser.nextToken();
+            String allocationDecision = parser.text();
+            assertTrue(
+                allocationDecision.equals(AllocationDecision.NO.toString())
+                    || allocationDecision.equals(AllocationDecision.AWAITING_INFO.toString())
+            );
+            parser.nextToken();
+            assertEquals("allocate_explanation", parser.currentName());
+            parser.nextToken();
+            if (allocationDecision.equals("awaiting_info")) {
+                assertEquals(Explanations.Allocation.AWAITING_INFO, parser.text());
+            } else {
+                assertEquals(Explanations.Allocation.ALL_NODES_FORBIDDEN, parser.text());
             }
-        });
+            Map<String, AllocationDecision> nodeDecisions = new HashMap<>();
+            for (String nodeName : internalCluster().getNodeNames()) {
+                nodeDecisions.put(nodeName, AllocationDecision.NO);
+            }
+            verifyNodeDecisions(parser, nodeDecisions, includeYesDecisions, false);
+            assertEquals(Token.END_OBJECT, parser.nextToken());
+        }
     }
 
     public void testAllocationFilteringPreventsShardMove() throws Exception {

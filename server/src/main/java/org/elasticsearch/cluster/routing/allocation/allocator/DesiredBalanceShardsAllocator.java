@@ -29,6 +29,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     private final ShardsAllocator delegateAllocator;
     private final ContinuousComputation<DesiredBalanceInput> desiredBalanceComputation;
     private final DesiredBalanceService desiredBalanceService;
+    private volatile boolean pendingReroute;
 
     public DesiredBalanceShardsAllocator(
         ShardsAllocator delegateAllocator,
@@ -41,7 +42,9 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             @Override
             protected void processInput(DesiredBalanceInput desiredBalanceInput) {
                 if (desiredBalanceService.updateDesiredBalanceAndReroute(desiredBalanceInput, this::isFresh)) {
-                    rerouteServiceSupplier.get().reroute("desired balance changed", Priority.NORMAL, ActionListener.wrap(() -> {}));
+                    pendingReroute = true;
+                    rerouteServiceSupplier.get()
+                        .reroute("desired balance changed", Priority.NORMAL, ActionListener.wrap(() -> pendingReroute = false));
                 }
             }
 
@@ -81,4 +84,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         return desiredBalanceService.getCurrentDesiredBalance();
     }
 
+    public boolean isIdle() {
+        return desiredBalanceComputation.isActive() == false && pendingReroute == false;
+    }
 }

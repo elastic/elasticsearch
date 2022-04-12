@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.security.cli;
 
-import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CliToolProvider;
+import org.elasticsearch.cli.Command;
 
 public class CertificateGenerateToolProvider implements CliToolProvider {
     @Override

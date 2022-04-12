@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.security.enrollment.tool;
 
-import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CliToolProvider;
+import org.elasticsearch.cli.Command;
 
 public class AutoConfigGenerateElasticPasswordHashToolProvider implements CliToolProvider {
     @Override

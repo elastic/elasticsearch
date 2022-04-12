@@ -8,8 +8,8 @@
 
 package org.elasticsearch.plugins.cli;
 
-import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CliToolProvider;
+import org.elasticsearch.cli.Command;
 
 public class PluginCliProvider implements CliToolProvider {
 

@@ -59,8 +59,7 @@ public interface CliToolProvider {
         }
 
         ServiceLoader<CliToolProvider> toolFinder = ServiceLoader.load(CliToolProvider.class, cliLoader);
-        List<CliToolProvider> tools = StreamSupport.stream(toolFinder.spliterator(), false)
-            .filter(p -> p.name().equals(toolname)).toList();
+        List<CliToolProvider> tools = StreamSupport.stream(toolFinder.spliterator(), false).filter(p -> p.name().equals(toolname)).toList();
         if (tools.size() > 1) {
             String names = tools.stream().map(t -> t.getClass().getName()).collect(Collectors.joining(", "));
             throw new AssertionError("Multiple ToolProviders found with name [" + toolname + "]: " + names);

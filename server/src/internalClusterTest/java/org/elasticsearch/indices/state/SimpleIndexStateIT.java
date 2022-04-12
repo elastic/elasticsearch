@@ -86,8 +86,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
         client().prepareIndex("test").setId("1").setSource("field1", "value1").get();
     }
 
-    @AwaitsFix(bugUrl = "TODO")
-    public void testFastCloseAfterCreateContinuesCreateAfterOpen() {
+    public void testFastCloseAfterCreateContinuesCreateAfterOpen() throws Exception {
         logger.info("--> creating test index that cannot be allocated");
         client().admin()
             .indices()
@@ -95,6 +94,8 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
             .setWaitForActiveShards(ActiveShardCount.NONE)
             .setSettings(Settings.builder().put("index.routing.allocation.include.tag", "no_such_node").build())
             .get();
+
+        awaitDesiredBalanceShardsAllocator();
 
         ClusterHealthResponse health = client().admin().cluster().prepareHealth("test").setWaitForNodes(">=2").get();
         assertThat(health.isTimedOut(), equalTo(false));

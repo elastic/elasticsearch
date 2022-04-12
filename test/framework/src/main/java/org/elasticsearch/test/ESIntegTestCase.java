@@ -70,6 +70,8 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -2393,5 +2395,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 return super.onNodeStopped(nodeName);
             }
         });
+    }
+
+    protected static void awaitDesiredBalanceShardsAllocator() throws Exception {
+        if (internalCluster().getCurrentMasterNodeInstance(ShardsAllocator.class)instanceof DesiredBalanceShardsAllocator dbsa) {
+            assertBusy(() -> assertTrue(dbsa.isIdle()));
+        }
     }
 }

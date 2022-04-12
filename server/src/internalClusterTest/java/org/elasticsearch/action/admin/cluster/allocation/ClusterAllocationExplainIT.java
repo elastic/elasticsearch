@@ -24,8 +24,6 @@ import org.elasticsearch.cluster.routing.allocation.AllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.Explanations;
 import org.elasticsearch.cluster.routing.allocation.MoveDecision;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
-import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
-import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -421,9 +419,7 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             ActiveShardCount.NONE
         );
 
-        if (internalCluster().getCurrentMasterNodeInstance(ShardsAllocator.class)instanceof DesiredBalanceShardsAllocator dbsa) {
-            assertBusy(() -> assertTrue(dbsa.isIdle()));
-        }
+        awaitDesiredBalanceShardsAllocator();
 
         boolean includeYesDecisions = randomBoolean();
         boolean includeDiskInfo = randomBoolean();

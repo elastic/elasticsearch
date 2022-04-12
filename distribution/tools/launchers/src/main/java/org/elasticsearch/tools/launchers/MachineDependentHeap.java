@@ -71,14 +71,8 @@ public final class MachineDependentHeap {
 
     List<String> determineHeapSettings(InputStream config) {
         MachineNodeRole nodeRole = NodeRoleParser.parse(config);
-
-        try {
-            long availableSystemMemory = systemMemoryInfo.availableSystemMemory();
-            return options(nodeRole.heap(availableSystemMemory));
-        } catch (SystemMemoryInfo.SystemMemoryInfoException e) {
-            // If unable to determine system memory (ex: incompatible jdk version) fallback to defaults
-            return options(DEFAULT_HEAP_SIZE_MB);
-        }
+        long availableSystemMemory = systemMemoryInfo.availableSystemMemory();
+        return options(nodeRole.heap(availableSystemMemory));
     }
 
     private static List<String> options(int heapSize) {

@@ -16,7 +16,6 @@ import org.elasticsearch.index.mapper.annotatedtext.AnnotatedTextFieldMapper.Ann
 import org.elasticsearch.lucene.search.uhighlight.Snippet;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightUtils;
 
-import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -119,38 +118,28 @@ public class AnnotatedPassageFormatter extends PassageFormatter {
 
     // Merge original annotations and search hits into a single set of markups for each passage
     static MarkupPassage mergeAnnotations(AnnotationToken[] annotations, Passage passage) {
-        try {
-            MarkupPassage markupPassage = new MarkupPassage();
+        MarkupPassage markupPassage = new MarkupPassage();
 
-            // Add search hits first - they take precedence over any other markup
-            for (int i = 0; i < passage.getNumMatches(); i++) {
-                int start = passage.getMatchStarts()[i];
-                int end = passage.getMatchEnds()[i];
-                String searchTerm = passage.getMatchTerms()[i].utf8ToString();
-                Markup markup = new Markup(
-                    start,
-                    end,
-                    SEARCH_HIT_TYPE + "=" + URLEncoder.encode(searchTerm, StandardCharsets.UTF_8.name())
-                );
+        // Add search hits first - they take precedence over any other markup
+        for (int i = 0; i < passage.getNumMatches(); i++) {
+            int start = passage.getMatchStarts()[i];
+            int end = passage.getMatchEnds()[i];
+            String searchTerm = passage.getMatchTerms()[i].utf8ToString();
+            Markup markup = new Markup(start, end, SEARCH_HIT_TYPE + "=" + URLEncoder.encode(searchTerm, StandardCharsets.UTF_8));
+            markupPassage.addUnlessOverlapping(markup);
+        }
+
+        // Now add original text's annotations - ignoring any that might conflict with the search hits markup.
+        for (AnnotationToken token : annotations) {
+            int start = token.offset();
+            int end = token.endOffset();
+            if (start >= passage.getStartOffset() && end <= passage.getEndOffset()) {
+                String escapedValue = URLEncoder.encode(token.value(), StandardCharsets.UTF_8);
+                Markup markup = new Markup(start, end, escapedValue);
                 markupPassage.addUnlessOverlapping(markup);
             }
-
-            // Now add original text's annotations - ignoring any that might conflict with the search hits markup.
-            for (AnnotationToken token : annotations) {
-                int start = token.offset();
-                int end = token.endOffset();
-                if (start >= passage.getStartOffset() && end <= passage.getEndOffset()) {
-                    String escapedValue = URLEncoder.encode(token.value(), StandardCharsets.UTF_8.name());
-                    Markup markup = new Markup(start, end, escapedValue);
-                    markupPassage.addUnlessOverlapping(markup);
-                }
-            }
-            return markupPassage;
-
-        } catch (UnsupportedEncodingException e) {
-            // We should always have UTF-8 support
-            throw new IllegalStateException(e);
         }
+        return markupPassage;
     }
 
     @Override

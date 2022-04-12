@@ -350,6 +350,11 @@ public class SimulateExecutionServiceTests extends ESTestCase {
             public String getType() {
                 return "none-of-your-business";
             }
+
+            @Override
+            public boolean isAsync() {
+                return true;
+            }
         };
         Pipeline pipeline = new Pipeline("_id", "_description", version, null, new CompoundProcessor(processor1));
         SimulatePipelineRequest.Parsed request = new SimulatePipelineRequest.Parsed(pipeline, documents, false);

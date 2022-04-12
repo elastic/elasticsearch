@@ -927,15 +927,17 @@ public class AuthorizationServiceTests extends ESTestCase {
                 containsString("[" + action + "] is unauthorized" + " for " + "service account" + " [" + serviceUser.principal() + "]")
             )
         );
-        if (isRunAs) {
-            assertThat(securityException, throwableWithMessage(containsString("run as [" + finalUser.principal() + "]")));
-        }
-        assertThat(securityException, throwableWithMessage(containsString("this action is granted by the index privileges [read,all]")));
         if (isRunAs && false == canRunAs) {
             verify(auditTrail).runAsDenied(eq(requestId), eq(authentication), eq(action), eq(request), authzInfoRoles(role.names()));
+            assertThat(securityException, throwableWithMessage(containsString("run as [" + finalUser.principal() + "]")));
         } else {
             if (canRunAs) {
                 verify(auditTrail).runAsGranted(eq(requestId), eq(authentication), eq(action), eq(request), authzInfoRoles(role.names()));
+                assertThat(securityException, throwableWithMessage(containsString("run as [" + finalUser.principal() + "] with roles [")));
+                assertThat(
+                    securityException,
+                    throwableWithMessage(containsString("this action is granted by the index privileges [read,all]"))
+                );
             }
             verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(action), eq(request), authzInfoRoles(role.names()));
         }

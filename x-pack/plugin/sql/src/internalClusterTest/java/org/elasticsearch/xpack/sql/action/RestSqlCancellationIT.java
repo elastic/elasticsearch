@@ -24,14 +24,12 @@ import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
-import org.elasticsearch.transport.nio.NioTransportPlugin;
 import org.elasticsearch.xpack.sql.proto.CoreProtocol;
 import org.elasticsearch.xpack.sql.proto.Mode;
 import org.elasticsearch.xpack.sql.proto.Payloads;
 import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import org.elasticsearch.xpack.sql.proto.SqlQueryRequest;
 import org.elasticsearch.xpack.sql.proto.content.ContentFactory;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -51,13 +49,6 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class RestSqlCancellationIT extends AbstractSqlBlockingIntegTestCase {
 
-    private static String nodeHttpTypeKey;
-
-    @BeforeClass
-    public static void setUpTransport() {
-        nodeHttpTypeKey = getHttpTypeKey(randomFrom(Netty4Plugin.class, NioTransportPlugin.class));
-    }
-
     @Override
     protected boolean addMockHttpTransport() {
         return false; // enable http
@@ -67,24 +58,15 @@ public class RestSqlCancellationIT extends AbstractSqlBlockingIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            .put(NetworkModule.HTTP_TYPE_KEY, nodeHttpTypeKey)
+            .put(NetworkModule.HTTP_TYPE_KEY, Netty4Plugin.NETTY_HTTP_TRANSPORT_NAME)
             .build();
-    }
-
-    private static String getHttpTypeKey(Class<? extends Plugin> clazz) {
-        if (clazz.equals(NioTransportPlugin.class)) {
-            return NioTransportPlugin.NIO_HTTP_TRANSPORT_NAME;
-        } else {
-            assert clazz.equals(Netty4Plugin.class);
-            return Netty4Plugin.NETTY_HTTP_TRANSPORT_NAME;
-        }
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
         plugins.add(getTestTransportPlugin());
-        plugins.add(NioTransportPlugin.class);
+        plugins.add(Netty4Plugin.class);
         return plugins;
     }
 

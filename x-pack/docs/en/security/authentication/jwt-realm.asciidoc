@@ -2,6 +2,8 @@
 [[jwt-realm]]
 === JWT Authentication
 
+beta::[]
+
 {es} can be configured to support user authentication using externally issued _JSON Web Tokens_ (JWTs).
 
 The JWT realm is intended for uses cases where an external service generates

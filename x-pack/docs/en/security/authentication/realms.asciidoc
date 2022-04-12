@@ -49,6 +49,7 @@ _oidc_::
 A realm that facilitates authentication using OpenID Connect. It enables {es} to serve as an OpenID Connect Relying Party (RP) and provide single sign-on (SSO) support in {kib}. See <<oidc-guide>>.
 
 _jwt_::
+beta::[]
 A realm that facilitates using JWT identity tokens as authentication bearer tokens.
 Compatible tokens are OpenID Connect ID Tokens, or bespoke JWTs containing the same claims.
 

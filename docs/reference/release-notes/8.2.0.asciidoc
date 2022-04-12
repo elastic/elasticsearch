@@ -59,6 +59,7 @@ Infra/REST API::
 * Correctly return `_type` field for documents in V7 compatiblity mode {es-pull}84873[#84873] (issue: {es-issue}84173[#84173])
 
 Ingest::
+* Bump commons-compress to 1.21 {es-pull}85581[#85581]
 * Mark `GeoIpDownloaderTask` as completed after cancellation {es-pull}84028[#84028]
 * `CompoundProcessor` should also catch exceptions when executing a processor {es-pull}84838[#84838] (issue: {es-issue}84781[#84781])
 
@@ -66,9 +67,11 @@ License::
 * Fix license downgrade warnings for API Keys and Tokens {es-pull}85276[#85276] (issue: {es-issue}75271[#75271])
 
 Machine Learning::
+* Allow retrieving `boolean` fields from `_source` in DFA jobs {es-pull}85672[#85672]
 * Avoid multiple queued quantiles documents in renormalizer {es-pull}85555[#85555] (issue: {es-issue}85539[#85539])
 * Disallow new trained model deployments when nodes are different versions {es-pull}85465[#85465]
 * Do not fetch source when finding index of last state docs {es-pull}85334[#85334]
+* Ensure that inference index primary shards are available before attempting to load model {es-pull}85569[#85569]
 * Fix Kibana date format and similar overrides in text structure endpoint {es-pull}84967[#84967]
 * Fix race condition when stopping a recently relocated datafeed {es-pull}84636[#84636]
 * Fixes for multi-line start patterns in text structure endpoint {es-pull}85066[#85066]
@@ -108,10 +111,11 @@ Security::
 * Ensure tokens represent effective user's identity in all cases {es-pull}84263[#84263]
 
 Snapshot/Restore::
-* Don't fail if there no symlink for AWS Web Identity Token {es-pull}84697[#84697]
+* Don't fail if there is no symlink for AWS Web Identity Token {es-pull}84697[#84697]
 * Fix atomic writes in HDFS {es-pull}85210[#85210]
 * Fix leaking listeners bug on frozen tier {es-pull}85239[#85239]
 * Fix snapshot status messages on node-left {es-pull}85021[#85021]
+* Ignore frozen shared cache file during data folder upgrades {es-pull}85638[#85638] (issue: {es-issue}85603[#85603])
 * [s3-repository] Lookup AWS Region for STS Client from STS endpoint {es-pull}84585[#84585] (issue: {es-issue}83826[#83826])
 
 Stats::
@@ -143,7 +147,7 @@ Audit::
 * User Profile - Audit security config change for profile APIs {es-pull}84785[#84785]
 
 Authentication::
-* Authentication under domains {es-pull}82639[#82639]
+* Adds domain information to authentication object {es-pull}82639[#82639]
 * Improve BWC for persisted authentication headers {es-pull}83913[#83913] (issue: {es-issue}83567[#83567])
 * Warn on SAML attributes with special attribute names {es-pull}85248[#85248] (issue: {es-issue}48613[#48613])
 

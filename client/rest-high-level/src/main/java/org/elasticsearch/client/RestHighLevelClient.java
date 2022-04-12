@@ -12,7 +12,6 @@ import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -2589,17 +2588,6 @@ public class RestHighLevelClient implements Closeable {
         if (major == 6 || (major == 7 && minor < 14)) {
             if ("You Know, for Search".equalsIgnoreCase(mainResponse.getTagline()) == false) {
                 return Optional.of("Invalid or missing tagline [" + mainResponse.getTagline() + "]");
-            }
-
-            if (major == 7) {
-                // >= 7.0 and < 7.14
-                String responseFlavor = mainResponse.getVersion().getBuildFlavor();
-                if ("default".equals(responseFlavor) == false) {
-                    // Flavor is unknown when running tests, and non-mocked responses will return an unknown flavor
-                    if (Build.CURRENT.flavor() != Build.Flavor.UNKNOWN || "unknown".equals(responseFlavor) == false) {
-                        return Optional.of("Invalid or missing build flavor [" + responseFlavor + "]");
-                    }
-                }
             }
 
             return Optional.empty();

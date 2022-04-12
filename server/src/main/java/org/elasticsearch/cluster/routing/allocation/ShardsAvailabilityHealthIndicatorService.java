@@ -259,7 +259,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     indicesWithUnavailableReplicasOnly.size() == 1 ? "index" : "indices",
                     getTruncatedIndicesString(indicesWithUnavailableReplicasOnly, clusterMetadata)
                 );
-                impacts.add(new HealthIndicatorImpact(3, impactDescription, List.of(ImpactArea.SEARCH)));
+                impacts.add(new HealthIndicatorImpact(2, impactDescription, List.of(ImpactArea.SEARCH)));
             }
             return impacts;
         }

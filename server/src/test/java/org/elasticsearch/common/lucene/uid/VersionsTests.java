@@ -29,6 +29,8 @@ import org.elasticsearch.test.VersionUtils;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.lucene.uid.VersionsAndSeqNoResolver.loadDocIdAndVersion;
 import static org.hamcrest.Matchers.equalTo;
@@ -137,7 +139,7 @@ public class VersionsTests extends ESTestCase {
 
     /** Test that version map cache works, is evicted on close, etc */
     public void testCache() throws Exception {
-        int size = VersionsAndSeqNoResolver.lookupStates.size();
+        assertEquals(0, VersionsAndSeqNoResolver.getCurrentThreadCacheSize());
 
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
@@ -150,21 +152,49 @@ public class VersionsTests extends ESTestCase {
         DirectoryReader reader = DirectoryReader.open(writer);
         // should increase cache size by 1
         assertEquals(87, loadDocIdAndVersion(reader, new Term(IdFieldMapper.NAME, "6"), randomBoolean()).version);
-        assertEquals(size + 1, VersionsAndSeqNoResolver.lookupStates.size());
+        assertEquals(1, VersionsAndSeqNoResolver.getCurrentThreadCacheSize());
         // should be cache hit
         assertEquals(87, loadDocIdAndVersion(reader, new Term(IdFieldMapper.NAME, "6"), randomBoolean()).version);
-        assertEquals(size + 1, VersionsAndSeqNoResolver.lookupStates.size());
+        assertEquals(1, VersionsAndSeqNoResolver.getCurrentThreadCacheSize());
 
-        reader.close();
-        writer.close();
+        final var barrier = new CyclicBarrier(2);
+        final var backgroundClose = randomBoolean();
+        final var otherThread = new Thread(() -> {
+            try {
+                assertEquals(0, VersionsAndSeqNoResolver.getCurrentThreadCacheSize());
+                assertEquals(87, loadDocIdAndVersion(reader, new Term(IdFieldMapper.NAME, "6"), randomBoolean()).version);
+                assertEquals(1, VersionsAndSeqNoResolver.getCurrentThreadCacheSize());
+                barrier.await(10, TimeUnit.SECONDS);
+                if (backgroundClose) {
+                    reader.close();
+                    writer.close();
+                }
+                barrier.await(10, TimeUnit.SECONDS);
+                assertEquals(0, VersionsAndSeqNoResolver.getCurrentThreadCacheSize());
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            }
+        }, "other-thread");
+        otherThread.start();
+
+        barrier.await(10, TimeUnit.SECONDS);
+        if (backgroundClose == false) {
+            reader.close();
+            writer.close();
+        }
+        barrier.await(10, TimeUnit.SECONDS);
+
         // core should be evicted from the map
-        assertEquals(size, VersionsAndSeqNoResolver.lookupStates.size());
+        assertEquals(0, VersionsAndSeqNoResolver.getCurrentThreadCacheSize());
+
+        otherThread.join();
+
         dir.close();
     }
 
     /** Test that version map cache behaves properly with a filtered reader */
     public void testCacheFilterReader() throws Exception {
-        int size = VersionsAndSeqNoResolver.lookupStates.size();
+        assertEquals(0, VersionsAndSeqNoResolver.getCurrentThreadCacheSize());
 
         Directory dir = newDirectory();
         IndexWriter writer = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
@@ -176,17 +206,17 @@ public class VersionsTests extends ESTestCase {
         writer.addDocument(doc);
         DirectoryReader reader = DirectoryReader.open(writer);
         assertEquals(87, loadDocIdAndVersion(reader, new Term(IdFieldMapper.NAME, "6"), randomBoolean()).version);
-        assertEquals(size + 1, VersionsAndSeqNoResolver.lookupStates.size());
+        assertEquals(1, VersionsAndSeqNoResolver.getCurrentThreadCacheSize());
         // now wrap the reader
         DirectoryReader wrapped = ElasticsearchDirectoryReader.wrap(reader, new ShardId("bogus", "_na_", 5));
         assertEquals(87, loadDocIdAndVersion(wrapped, new Term(IdFieldMapper.NAME, "6"), randomBoolean()).version);
         // same size map: core cache key is shared
-        assertEquals(size + 1, VersionsAndSeqNoResolver.lookupStates.size());
+        assertEquals(1, VersionsAndSeqNoResolver.getCurrentThreadCacheSize());
 
         reader.close();
         writer.close();
         // core should be evicted from the map
-        assertEquals(size, VersionsAndSeqNoResolver.lookupStates.size());
+        assertEquals(0, VersionsAndSeqNoResolver.getCurrentThreadCacheSize());
         dir.close();
     }
 

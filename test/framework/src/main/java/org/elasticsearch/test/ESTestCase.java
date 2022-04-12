@@ -1648,8 +1648,9 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Some tests involve interactions over the localhost interface of the machine running the tests. The tests run concurrently in multiple
      * JVMs, but all have access to the same network, so there's a risk that different tests will interact with each other in unexpected
      * ways and trigger spurious failures. Gradle numbers its workers sequentially starting at 1 and each worker can determine its own
-     * identity from the {@link #TEST_WORKER_SYS_PROPERTY} system property. We use this to assign disjoint port ranges to each test worker,
-     * avoiding any unexpected interactions.
+     * identity from the {@link #TEST_WORKER_SYS_PROPERTY} system property. We use this to try and assign disjoint port ranges to each test
+     * worker, avoiding any unexpected interactions, although if we spawn enough test workers then we will wrap around to the beginning
+     * again.
      */
 
     /**
@@ -1667,6 +1668,11 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Defines the maximum port that test workers should use. See also [NOTE: Port ranges for tests].
      */
     private static final int MAX_PRIVATE_PORT = 36600;
+
+    /**
+     * Wrap around at this worker ID
+     */
+    private static final int MAX_EFFECTIVE_WORKER_ID = (MAX_PRIVATE_PORT - MIN_PRIVATE_PORT + 1) / PORTS_PER_WORKER;
 
     /**
      * Returns a port range for this JVM according to its Gradle worker ID. See also [NOTE: Port ranges for tests].
@@ -1691,24 +1697,8 @@ public abstract class ESTestCase extends LuceneTestCase {
 
         final var workerId = Integer.parseInt(workerIdStr);
         assert workerId >= 1 : "Non positive gradle worker id: " + workerIdStr;
-        final var firstPort = MIN_PRIVATE_PORT + (workerId * PORTS_PER_WORKER);
-        final var lastPort = firstPort + PORTS_PER_WORKER - 1; // upper bound is inclusive;
-        if (lastPort > MAX_PRIVATE_PORT) {
-            throw new AssertionError(
-                String.format(
-                    Locale.ROOT,
-                    """
-                        worker ID %d would get port range %d-%d which is outside the range of available ports %d-%d; either reduce \
-                        ESTestCase#PORTS_PER_WORKER or run fewer Gradle workers""",
-                    workerId,
-                    firstPort,
-                    lastPort,
-                    MIN_PRIVATE_PORT,
-                    MAX_PRIVATE_PORT
-                )
-            );
-        }
-        return firstPort;
+        final var effectiveWorkerId = workerId % MAX_EFFECTIVE_WORKER_ID;
+        return MIN_PRIVATE_PORT + (effectiveWorkerId * PORTS_PER_WORKER);
     }
 
     protected static InetAddress randomIp(boolean v4) {

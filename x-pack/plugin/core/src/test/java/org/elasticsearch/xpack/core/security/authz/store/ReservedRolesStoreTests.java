@@ -872,7 +872,13 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 || indexName.startsWith("metrics-apm-")
                 || indexName.startsWith("metrics-apm.")
                 || indexName.startsWith("traces-apm-")
-                || indexName.startsWith("traces-apm.");
+                || indexName.startsWith("traces-apm.")
+                || indexName.startsWith("synthetics-http-*")
+                || indexName.startsWith("synthetics-tcp-*")
+                || indexName.startsWith("synthetics-icmp-*")
+                || indexName.startsWith("synthetics-browser-*")
+                || indexName.startsWith("synthetics-browser.network-*")
+                || indexName.startsWith("synthetics-browser.screenshot-*");
             assertThat(kibanaRole.indices().allowedIndicesMatcher(DeleteIndexAction.NAME).test(indexAbstraction), is(isAlsoIlmDeleteIndex));
         });
 
@@ -984,7 +990,13 @@ public class ReservedRolesStoreTests extends ESTestCase {
             "metrics-apm-" + randomAlphaOfLengthBetween(3, 8),
             "metrics-apm." + randomAlphaOfLengthBetween(3, 8) + "-" + randomAlphaOfLengthBetween(3, 8),
             "traces-apm-" + randomAlphaOfLengthBetween(3, 8),
-            "traces-apm." + randomAlphaOfLengthBetween(3, 8) + "-" + randomAlphaOfLengthBetween(3, 8)
+            "traces-apm." + randomAlphaOfLengthBetween(3, 8) + "-" + randomAlphaOfLengthBetween(3, 8),
+            "synthetics-http-" + randomAlphaOfLengthBetween(3, 8) + "-" + randomAlphaOfLengthBetween(3, 8),
+            "synthetics-icmp-" + randomAlphaOfLengthBetween(3, 8) + "-" + randomAlphaOfLengthBetween(3, 8),
+            "synthetics-tcp-" + randomAlphaOfLengthBetween(3, 8) + "-" + randomAlphaOfLengthBetween(3, 8),
+            "synthetics-browser-" + randomAlphaOfLengthBetween(3, 8) + "-" + randomAlphaOfLengthBetween(3, 8),
+            "synthetics-browser.network-" + randomAlphaOfLengthBetween(3, 8) + "-" + randomAlphaOfLengthBetween(3, 8),
+            "synthetics-browser.screenshot-" + randomAlphaOfLengthBetween(3, 8) + "-" + randomAlphaOfLengthBetween(3, 8)
         ).forEach(indexName -> {
             logger.info("index name [{}]", indexName);
             final IndexAbstraction indexAbstraction = mockIndexAbstraction(indexName);

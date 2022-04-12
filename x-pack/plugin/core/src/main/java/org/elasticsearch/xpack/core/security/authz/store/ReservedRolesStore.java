@@ -777,7 +777,13 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         "metrics-apm-*",
                         "metrics-apm.*-*",
                         "traces-apm-*",
-                        "traces-apm.*-*"
+                        "traces-apm.*-*",
+                        "synthetics-http-*",
+                        "synthetics-icmp-*",
+                        "synthetics-tcp-*",
+                        "synthetics-browser-*",
+                        "synthetics-browser.network-*",
+                        "synthetics-browser.screenshot-*"
                     )
                     .privileges(DeleteIndexAction.NAME)
                     .build(),

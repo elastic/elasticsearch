@@ -105,7 +105,6 @@ IF "%attemptautoconfig%"=="Y" (
     SET CLI_NAME=auto-configure-node
     SET CLI_LIBS=modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli
     ECHO.!KEYSTORE_PASSWORD!|call "%~dp0elasticsearch-cli.bat" !newparams!
-    ECHO.!KEYSTORE_PASSWORD!| %JAVA% %ES_JAVA_OPTS% ^
     SET SHOULDEXIT=Y
     IF !ERRORLEVEL! EQU 0 SET SHOULDEXIT=N
     IF !ERRORLEVEL! EQU 73 SET SHOULDEXIT=N

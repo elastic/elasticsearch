@@ -971,7 +971,7 @@ public class AuthorizationService {
             if (audit) {
                 auditTrailService.get().accessDenied(requestId, authentication, action, request, authzInfo);
             }
-            failureConsumer.accept(actionDenied(authentication, action, request, e));
+            failureConsumer.accept(actionDenied(authentication, action, request, context, e));
         }
     }
 

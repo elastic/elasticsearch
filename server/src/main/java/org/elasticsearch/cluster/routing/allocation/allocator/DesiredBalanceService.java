@@ -241,6 +241,9 @@ public class DesiredBalanceService {
         final var unassigned = new HashMap<ShardId, Integer>();
         for (var ignored : routingAllocation.routingNodes().unassigned().ignored()) {
             assert ignored.unassignedInfo() != null;
+            assert ignored.unassignedInfo().getLastAllocationStatus() == UnassignedInfo.AllocationStatus.DECIDERS_NO
+                || ignored.unassignedInfo().getLastAllocationStatus() == UnassignedInfo.AllocationStatus.NO_ATTEMPT
+                : "Unexpected status: " + ignored.unassignedInfo().getLastAllocationStatus();
             unassigned.merge(ignored.shardId(), 1, Integer::sum);
         }
 

@@ -5,7 +5,7 @@
 beta::[]
 
 Security domains are a method of grouping multiple <<realms,realms>>
-so that the {stack} can recognize when a single end-user authenticates with
+so that the {stack} can recognize when a single user authenticates with
 these realms.
 
 ==== How security domains work
@@ -13,32 +13,32 @@ these realms.
 Some types of resources in {es} are owned by a single user.
 For example <<async-search,async search contexts>>,
 <<security-api-create-api-key,API keys>>,
-and <<user-profile,user profiles>> each have an owning user.
+and <<user-profile,user profiles>> are each owned by a distinct user.
 
-When a user creates a resource, {es} captures the user's `username` and realm
+When a user creates a resource, {es} captures the user's username and realm
 information as part of the resource's metadata.
-When the user attempts to access the resource at a later time, {es} compares
-the captured `username` and realm information against those from the accessing
-user. The access is not allowed unless both the realm and `username` match.
-That is, if {es} detects that a `username` from two different realms is
+When a user later attempts to access the resource, {es} compares
+the captured username and realm information against those from the accessing
+user. {es} will deny access unless both the realm and username match.
+If {es} detects that a username from two different realms is
 attempting to access a resource, {es} assumes that these users are distinct and
-doesn't allow resources to be shared between them.
+doesn't allow resources to be shared between those users.
 
 However, there are cases where the same end-user can authenticate with
-multiple realms and needs to share the same set of resources across the realms.
+multiple realms and needs to share the same set of resources across realms.
 For example, an <<ldap-realm,LDAP realm>> and a <<saml-realm,SAML realm>> can
 be backed by the same directory service. Additionally,
 <<configuring-authorization-delegation,authorization delegation>> allows one
 realm to delegate authorization to another realm. If both realms authenticate
-users with the same `username`, it is reasonable to treat these users as the
-same end-user from a resource ownership point of view.
+users with the same username, it's reasonable to treat these users as the
+same user from a resource ownership perspective.
 
-With security domains, you group multiple realms to be under the same
-domain, end-users can authenticate with any of the realms and have access to the
-same set of resources regardless of which realm they authenticated with,
-(provided those realms are under the same domain).
+With security domains, you can group multiple realms under the same
+domain. Users can authenticate with any of the realms in the group, 
+(provided those realms are under the same domain) and have access to the
+same set of resources regardless of which realm they authenticated with.
 For example, a single <<user-profile,user profile>> is
-associated to the end-user, enabling preferences, notifications, and other
+associated with a user, enabling preferences, notifications, and other
 user data to be shared across realms. The user can view results from an
 asynchronous search request or a scrolling search across realms. If the user has the
 necessary privileges, they can also view and manage API keys across realms.
@@ -46,7 +46,7 @@ necessary privileges, they can also view and manage API keys across realms.
 ==== Configure a security domain
 
 You configure realms to be under a domain in `elasticsearch.yml`. The realms must
-be defined in `elasticsearch.yml` (but do not need to be enabled).
+be defined in `elasticsearch.yml` but do not need to be enabled.
 
 NOTE: The <<file-realm,file realm>> and <<native-realm,native realm>> are
 automatically enabled as `default_file`, and `default_native`, respectively,
@@ -71,14 +71,15 @@ contains two realms named `default_native` and `saml1`.
 
 . Restart {es}.
 
-{es} can fail to start on invalid domain configuration including the followings:
-* A single realm is configured to be under multiple domains
-* Any undefined realm, or synthetic realm, or the reserved realm is configured to
-  be under a domain
+NOTE: {es} can fail to start if domain configuration is invalid, such as:
+
+* A single realm is configured under multiple domains.
+* Any undefined realm, synthetic realm, or the reserved realm is configured to
+  be under a domain.
 
 
-[NOTE]
-====
+.Managing privileges across realms
+***
 Though it's possible to configure different <<roles,roles>> for the same user when
 authenticating with different realms, it is _not_ recommended.
 Using <<configuring-authorization-delegation,authorization delegation>>
@@ -87,13 +88,13 @@ is a good way to ensure that a user is assigned the same roles from multiple rea
 {es} always enforces the privileges associated with the currently authenticated user.
 Security domains don't bypass <<authorization,user authorization>> when
 resource sharing requires them. For example, a user requires the
-`manage_own_api_key` privilege to manage their own API keys. If that user does
-not have this privilege when authenticating with one realm, they won't be able
+`manage_own_api_key` privilege to manage their own API keys. If that user doesn't
+have this privilege when authenticating with one realm, they won't be able
 to manage API keys while authenticating with this realm.
-This behaviour might be unexpected since the same user may or may not be able
+This behavior might be unexpected since a single user may or may not be able
 to perform the same operation depending on the realm it authenticates with.
-But it is a safe behaviour that ensures actual actions always comply to
+However, it's a safe behavior that ensures actual actions always comply to
 authorization requirements.
-====
+****
 
 

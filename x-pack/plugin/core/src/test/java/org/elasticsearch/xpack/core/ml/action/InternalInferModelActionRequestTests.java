@@ -87,18 +87,26 @@ public class InternalInferModelActionRequestTests extends AbstractBWCWireSeriali
 
     @Override
     protected Request mutateInstanceForVersion(Request instance, Version version) {
+        InferenceConfigUpdate adjustedUpdate;
         InferenceConfigUpdate currentUpdate = instance.getUpdate();
-        InferenceConfigUpdate adjustedUpdate = currentUpdate;
-        if (adjustedUpdate instanceof NlpConfigUpdate nlpConfigUpdate) {
-            adjustedUpdate = switch (nlpConfigUpdate) {
-                case TextClassificationConfigUpdate update -> TextClassificationConfigUpdateTests.mutateForVersion(update, version);
-                case TextEmbeddingConfigUpdate update -> TextEmbeddingConfigUpdateTests.mutateForVersion(update, version);
-                case NerConfigUpdate update -> NerConfigUpdateTests.mutateForVersion(update, version);
-                case FillMaskConfigUpdate update -> FillMaskConfigUpdateTests.mutateForVersion(update, version);
-                case ZeroShotClassificationConfigUpdate update -> ZeroShotClassificationConfigUpdateTests.mutateForVersion(update, version);
-                case PassThroughConfigUpdate update -> PassThroughConfigUpdateTests.mutateForVersion(update, version);
-                default -> throw new IllegalArgumentException("Unknown update [" + currentUpdate.getName() + "]");
-            };
+        if (currentUpdate instanceof NlpConfigUpdate nlpConfigUpdate) {
+            if (nlpConfigUpdate instanceof TextClassificationConfigUpdate update) {
+                adjustedUpdate = TextClassificationConfigUpdateTests.mutateForVersion(update, version);
+            } else if (nlpConfigUpdate instanceof TextEmbeddingConfigUpdate update) {
+                adjustedUpdate = TextEmbeddingConfigUpdateTests.mutateForVersion(update, version);
+            } else if (nlpConfigUpdate instanceof NerConfigUpdate update) {
+                adjustedUpdate = NerConfigUpdateTests.mutateForVersion(update, version);
+            } else if (nlpConfigUpdate instanceof FillMaskConfigUpdate update) {
+                adjustedUpdate = FillMaskConfigUpdateTests.mutateForVersion(update, version);
+            } else if (nlpConfigUpdate instanceof ZeroShotClassificationConfigUpdate update) {
+                adjustedUpdate = ZeroShotClassificationConfigUpdateTests.mutateForVersion(update, version);
+            } else if (nlpConfigUpdate instanceof PassThroughConfigUpdate update) {
+                adjustedUpdate = PassThroughConfigUpdateTests.mutateForVersion(update, version);
+            } else {
+                throw new IllegalArgumentException("Unknown update [" + currentUpdate.getName() + "]");
+            }
+        } else {
+            adjustedUpdate = currentUpdate;
         }
         return new Request(instance.getModelId(), instance.getObjectsToInfer(), adjustedUpdate, instance.isPreviouslyLicensed());
     }

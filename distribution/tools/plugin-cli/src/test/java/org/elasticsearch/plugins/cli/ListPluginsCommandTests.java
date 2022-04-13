@@ -245,6 +245,7 @@ public class ListPluginsCommandTests extends CommandTestCase {
             protected Environment createEnv(Map<String, String> settings) {
                 return env;
             }
+
             @Override
             protected boolean addShutdownHook() {
                 return false;

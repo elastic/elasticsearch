@@ -15,7 +15,6 @@ import org.apache.commons.compress.archivers.tar.TarArchiveInputStream;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
-import org.elasticsearch.cli.UserException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;

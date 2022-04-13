@@ -56,8 +56,7 @@ public class ProfileIT extends ESRestTestCase {
                 "node_name": "node1"
               },
               "email": "foo@example.com",
-              "full_name": "User Foo",
-              "active": true
+              "full_name": "User Foo"
             },
             "last_synchronized": %s,
             "labels": {

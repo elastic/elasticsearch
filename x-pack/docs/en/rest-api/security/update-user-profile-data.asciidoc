@@ -147,8 +147,7 @@ If you run the request again, the consolidated profile data is returned:
       ],
       "realm_name": "native1",
       "full_name": "Jack Nicholson",
-      "email": "jacknich@example.com",
-      "active": true
+      "email": "jacknich@example.com"
     },
     "labels": {
       "app1": {

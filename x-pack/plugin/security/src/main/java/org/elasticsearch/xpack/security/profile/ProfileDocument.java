@@ -44,14 +44,9 @@ public record ProfileDocument(
     BytesReference applicationData
 ) implements ToXContentObject {
 
-    public record ProfileDocumentUser(
-        String username,
-        List<String> roles,
-        Authentication.RealmRef realm,
-        String email,
-        String fullName,
-        boolean active
-    ) implements ToXContent {
+    public record ProfileDocumentUser(String username, List<String> roles, Authentication.RealmRef realm, String email, String fullName)
+        implements
+            ToXContent {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -61,14 +56,13 @@ public record ProfileDocument(
             builder.field("realm", realm);
             builder.field("email", email);
             builder.field("full_name", fullName);
-            builder.field("active", active);
             builder.endObject();
             return builder;
         }
 
         public Profile.ProfileUser toProfileUser() {
             final String domainName = realm.getDomain() != null ? realm.getDomain().name() : null;
-            return new Profile.ProfileUser(username, roles, realm.getName(), domainName, email, fullName, active);
+            return new Profile.ProfileUser(username, roles, realm.getName(), domainName, email, fullName);
         }
     }
 
@@ -96,7 +90,7 @@ public record ProfileDocument(
 
     public Subject subject() {
         return new Subject(
-            new User(user.username, user.roles.toArray(String[]::new), user.fullName, user.email, Map.of(), user.active),
+            new User(user.username, user.roles.toArray(String[]::new), user.fullName, user.email, Map.of(), true),
             user.realm
         );
     }
@@ -118,8 +112,7 @@ public record ProfileDocument(
                 Arrays.asList(subjectUser.roles()),
                 subject.getRealm(),
                 subjectUser.email(),
-                subjectUser.fullName(),
-                subjectUser.enabled()
+                subjectUser.fullName()
             ),
             Map.of(),
             null
@@ -162,8 +155,7 @@ public record ProfileDocument(
             (List<String>) args[1],
             (Authentication.RealmRef) args[2],
             (String) args[3],
-            (String) args[4],
-            (Boolean) args[5]
+            (String) args[4]
         )
     );
 
@@ -193,7 +185,6 @@ public record ProfileDocument(
         PROFILE_DOC_USER_PARSER.declareObject(constructorArg(), (p, c) -> REALM_REF_PARSER.parse(p, c), new ParseField("realm"));
         PROFILE_DOC_USER_PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField("email"));
         PROFILE_DOC_USER_PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField("full_name"));
-        PROFILE_DOC_USER_PARSER.declareBoolean(constructorArg(), new ParseField("active"));
 
         PROFILE_DOC_PARSER.declareString(constructorArg(), new ParseField("uid"));
         PROFILE_DOC_PARSER.declareBoolean(constructorArg(), new ParseField("enabled"));

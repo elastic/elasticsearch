@@ -617,8 +617,7 @@ public class ProfileService {
                 subject.getRealm(),
                 // Replace with incoming information even when they are null
                 subjectUser.email(),
-                subjectUser.fullName(),
-                subjectUser.enabled()
+                subjectUser.fullName()
             ),
             doc.labels(),
             doc.applicationData()

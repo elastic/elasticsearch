@@ -11,7 +11,7 @@ apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
   description 'Percolator module adds capability to index queries and query these queries by specifying documents'
-  classname 'org.elasticsearch.module.percolator/org.elasticsearch.percolator.PercolatorPlugin'
+  classname 'org.elasticsearch.percolator.PercolatorPlugin'
 }
 
 dependencies {

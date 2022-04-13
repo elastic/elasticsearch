@@ -35,6 +35,7 @@ import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Copy;
+import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.Sync;
 import org.gradle.api.tasks.TaskProvider;
@@ -43,7 +44,10 @@ import org.gradle.api.tasks.bundling.Zip;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.Callable;
@@ -138,6 +142,39 @@ public class PluginBuildPlugin implements Plugin<Project> {
                 });
             }
         });
+        final var resolveModuleName = project.getTasks().register("resolveModuleName", t -> {
+            t.doLast(task -> {
+                var mainSourceSet = project.getExtensions().getByType(SourceSetContainer.class).getByName(SourceSet.MAIN_SOURCE_SET_NAME);
+                Path moduleInfoSource = null;
+                for (File srcDir : mainSourceSet.getAllJava().getSrcDirs()) {
+                    Path potentialModuleInfo = srcDir.toPath().resolve("module-info.java");
+                    if (Files.exists(potentialModuleInfo)) {
+                        moduleInfoSource = potentialModuleInfo;
+                        break;
+                    }
+                }
+
+                String moduleName = "";
+                if (moduleInfoSource != null) {
+                    try (var reader = Files.newBufferedReader(moduleInfoSource, StandardCharsets.UTF_8)) {
+                        String line;
+                        while ((line = reader.readLine()) != null) {
+                            if (line.startsWith("module")) {
+                                // This is a simple and hacky way to extract the module name from the module declaration.
+                                // We could properly parse the entire file, but the module keyword is unique in the file, and
+                                // the module name is guaranteed to not have spaces, so this is much simpler and quicker.
+                                moduleName = line.split(" ")[1];
+                                break;
+                            }
+                        }
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                }
+
+                t.getExtensions().add("resolvedModuleName", moduleName);
+            });
+        });
         final var buildProperties = project.getTasks().register("pluginProperties", Copy.class, copy -> {
             copy.dependsOn(copyPluginPropertiesTemplate);
             copy.from(templateFile);
@@ -168,6 +205,20 @@ public class PluginBuildPlugin implements Plugin<Project> {
             map.put("type", extension.getType().toString());
             map.put("javaOpts", extension.getJavaOpts());
             map.put("licensed", extension.isLicensed());
+
+            var lazyModuleName = new Callable<String>() {
+                @Override
+                public String call() {
+                    return resolveModuleName.map(t -> t.getExtensions().getByName("resolvedModuleName")).get().toString();
+                }
+
+                @Override
+                public String toString() {
+                    return call();
+                }
+            };
+            map.put("modulename", lazyModuleName);
+            copy.dependsOn(resolveModuleName);
 
             copy.expand(map);
             copy.getInputs().properties(map);

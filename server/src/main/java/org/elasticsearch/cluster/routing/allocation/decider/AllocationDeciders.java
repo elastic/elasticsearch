@@ -19,10 +19,9 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import java.util.Collection;
 
 /**
- * A composite {@link AllocationDecider} combining the "decision" of multiple
- * {@link AllocationDecider} implementations into a single allocation decision.
+ * Combines the decision of multiple {@link AllocationDecider} implementations into a single allocation decision.
  */
-public class AllocationDeciders extends AllocationDecider {
+public class AllocationDeciders {
 
     private static final Logger logger = LogManager.getLogger(AllocationDeciders.class);
 
@@ -32,7 +31,6 @@ public class AllocationDeciders extends AllocationDecider {
         this.allocations = allocations.toArray(AllocationDecider[]::new);
     }
 
-    @Override
     public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
         Decision.Multi ret = new Decision.Multi();
         for (AllocationDecider allocationDecider : allocations) {
@@ -51,7 +49,6 @@ public class AllocationDeciders extends AllocationDecider {
         return ret;
     }
 
-    @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (allocation.shouldIgnoreShardForNode(shardRouting.shardId(), node.nodeId())) {
             return Decision.NO;
@@ -82,7 +79,6 @@ public class AllocationDeciders extends AllocationDecider {
         return ret;
     }
 
-    @Override
     public Decision canRemain(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (allocation.shouldIgnoreShardForNode(shardRouting.shardId(), node.nodeId())) {
             if (logger.isTraceEnabled()) {
@@ -115,7 +111,6 @@ public class AllocationDeciders extends AllocationDecider {
         return ret;
     }
 
-    @Override
     public Decision canAllocate(IndexMetadata indexMetadata, RoutingNode node, RoutingAllocation allocation) {
         Decision.Multi ret = new Decision.Multi();
         for (AllocationDecider allocationDecider : allocations) {
@@ -134,7 +129,6 @@ public class AllocationDeciders extends AllocationDecider {
         return ret;
     }
 
-    @Override
     public Decision shouldAutoExpandToNode(IndexMetadata indexMetadata, DiscoveryNode node, RoutingAllocation allocation) {
         Decision.Multi ret = new Decision.Multi();
         for (AllocationDecider allocationDecider : allocations) {
@@ -153,7 +147,6 @@ public class AllocationDeciders extends AllocationDecider {
         return ret;
     }
 
-    @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
         Decision.Multi ret = new Decision.Multi();
         for (AllocationDecider allocationDecider : allocations) {
@@ -172,7 +165,6 @@ public class AllocationDeciders extends AllocationDecider {
         return ret;
     }
 
-    @Override
     public Decision canRebalance(RoutingAllocation allocation) {
         Decision.Multi ret = new Decision.Multi();
         for (AllocationDecider allocationDecider : allocations) {
@@ -191,7 +183,6 @@ public class AllocationDeciders extends AllocationDecider {
         return ret;
     }
 
-    @Override
     public Decision canForceAllocatePrimary(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         assert shardRouting.primary() : "must not call canForceAllocatePrimary on a non-primary shard routing " + shardRouting;
 
@@ -223,7 +214,6 @@ public class AllocationDeciders extends AllocationDecider {
         return ret;
     }
 
-    @Override
     public Decision canForceAllocateDuringReplace(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         Decision.Multi ret = new Decision.Multi();
         for (AllocationDecider allocationDecider : allocations) {
@@ -242,7 +232,6 @@ public class AllocationDeciders extends AllocationDecider {
         return ret;
     }
 
-    @Override
     public Decision canAllocateReplicaWhenThereIsRetentionLease(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (allocation.shouldIgnoreShardForNode(shardRouting.shardId(), node.nodeId())) {
             return Decision.NO;

@@ -196,8 +196,8 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs) throws IOException {
-            TopDocs topDocs = super.searchNearestVectors(field, target, k, acceptDocs);
+        public TopDocs searchNearestVectors(String field, float[] target, int k, Bits acceptDocs, int visitedLimit) throws IOException {
+            TopDocs topDocs = super.searchNearestVectors(field, target, k, acceptDocs, visitedLimit);
             if (topDocs != null) {
                 notifier.onKnnVectorsUsed(field);
             }

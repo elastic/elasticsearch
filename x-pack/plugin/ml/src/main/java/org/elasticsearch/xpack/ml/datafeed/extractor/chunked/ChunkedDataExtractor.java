@@ -234,9 +234,9 @@ public class ChunkedDataExtractor implements DataExtractor {
             if (totalHits > 0) {
                 Aggregations aggregations = searchResponse.getAggregations();
                 Min min = aggregations.get(EARLIEST_TIME);
-                earliestTime = (long) min.getValue();
+                earliestTime = (long) min.value();
                 Max max = aggregations.get(LATEST_TIME);
-                latestTime = (long) max.getValue();
+                latestTime = (long) max.value();
             }
             return new ScrolledDataSummary(earliestTime, latestTime, totalHits);
         }
@@ -259,7 +259,7 @@ public class ChunkedDataExtractor implements DataExtractor {
             }
             Min min = aggregations.get(EARLIEST_TIME);
             Max max = aggregations.get(LATEST_TIME);
-            return new AggregatedDataSummary(min.getValue(), max.getValue(), context.histogramInterval);
+            return new AggregatedDataSummary(min.value(), max.value(), context.histogramInterval);
         }
 
         private SearchSourceBuilder rangeSearchBuilder() {

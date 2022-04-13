@@ -232,11 +232,15 @@ public class Archives {
             .forEach(configFile -> assertThat(es.config(configFile), file(File, owner, owner, p660)));
     }
 
+    /**
+     * Starts an elasticsearch node from an attached terminal, optionally waiting for a specific string to be printed in stdout
+     */
     public static Shell.Result startElasticsearchWithTty(
         Installation installation,
         Shell sh,
         String keystorePassword,
         List<String> parameters,
+        String outputStringToMatch,
         boolean daemonize
     ) {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
@@ -256,14 +260,14 @@ public class Archives {
             expect "Elasticsearch keystore password:"
             send "%s\\r"
             """.formatted(keystorePassword);
-        String checkStartupScript = daemonize ? "" : """
+        String checkStartupScript = daemonize ? "expect eof" : """
             expect {
               "uncaught exception" { send_user "\\nStartup failed due to uncaught exception\\n"; exit 1 }
               timeout { send_user "\\nTimed out waiting for startup to succeed\\n"; exit 1 }
               eof { send_user "\\nFailed to determine if startup succeeded\\n"; exit 1 }
-              -re "o\\.e\\.n\\.Node.*] started"
+              %s
             }
-            """;
+            """.formatted(null == outputStringToMatch ? "-re \"o\\.e\\.n\\.Node.*] started\"" : "\"" + outputStringToMatch + "\"");
         String expectScript = """
             expect - <<EXPECT
             set timeout 60

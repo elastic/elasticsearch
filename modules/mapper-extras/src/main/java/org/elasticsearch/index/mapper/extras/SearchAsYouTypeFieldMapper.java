@@ -135,7 +135,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         final TextParams.Analyzers analyzers;
         final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> builder(m).similarity.get());
 
-        final Parameter<String> indexOptions = TextParams.indexOptions(m -> builder(m).indexOptions.get());
+        final Parameter<String> indexOptions = TextParams.textIndexOptions(m -> builder(m).indexOptions.get());
         final Parameter<Boolean> norms = TextParams.norms(true, m -> builder(m).norms.get());
         final Parameter<String> termVectors = TextParams.termVectors(m -> builder(m).termVectors.get());
 

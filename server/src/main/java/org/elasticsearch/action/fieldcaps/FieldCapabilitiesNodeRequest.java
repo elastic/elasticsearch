@@ -128,7 +128,7 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
         OriginalIndices.writeOriginalIndices(originalIndices, out);
         out.writeOptionalNamedWriteable(indexFilter);
         out.writeLong(nowInMillis);
-        out.writeMap(runtimeFields);
+        out.writeGenericMap(runtimeFields);
     }
 
     @Override

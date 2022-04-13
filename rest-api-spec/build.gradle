@@ -37,7 +37,6 @@ artifacts {
 testClusters.configureEach {
   module ':modules:mapper-extras'
   requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
-  requiresFeature 'es.random_sampler_feature_flag_registered', Version.fromString("8.1.0")
 }
 
 tasks.named("test").configure { enabled = false }
@@ -76,7 +75,7 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.skipTest("field_caps/30_filter/Field caps with index filter", "behaviour change after #63692 4digits dates are parsed as epoch and in quotes as year")
   task.skipTest("indices.forcemerge/10_basic/Check deprecation warning when incompatible only_expunge_deletes and max_num_segments values are both set", "#44761 bug fix")
   task.skipTest("search/340_type_query/type query", "#47207 type query throws exception in compatible mode")
-  task.skipTest("search.aggregation/200_top_hits_metric/top_hits aggregation with sequence numbers", "#42809 the use nested path and filter sort throws an exception")
+  task.skipTest("search.aggregation/210_top_hits_nested_metric/top_hits aggregation with sequence numbers", "#42809 the use nested path and filter sort throws an exception")
   task.skipTest("search/310_match_bool_prefix/multi_match multiple fields with cutoff_frequency throws exception", "#42654 cutoff_frequency, common terms are not supported. Throwing an exception")
   task.skipTest("search.aggregation/20_terms/string profiler via global ordinals filters implementation", "The profiler results aren't backwards compatible.")
   task.skipTest("search.aggregation/20_terms/string profiler via global ordinals native implementation", "The profiler results aren't backwards compatible.")

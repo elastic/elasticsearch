@@ -117,7 +117,7 @@ public class OperationRouting {
 
     private static final Map<String, Set<String>> EMPTY_ROUTING = Collections.emptyMap();
 
-    private Set<IndexShardRoutingTable> computeTargetedShards(
+    private static Set<IndexShardRoutingTable> computeTargetedShards(
         ClusterState clusterState,
         String[] concreteIndices,
         @Nullable Map<String, Set<String>> routing
@@ -135,8 +135,8 @@ public class OperationRouting {
                     indexRouting.collectSearchShards(r, s -> set.add(RoutingTable.shardRoutingTable(indexRoutingTable, s)));
                 }
             } else {
-                for (IndexShardRoutingTable indexShard : indexRoutingTable) {
-                    set.add(indexShard);
+                for (int i = 0; i < indexRoutingTable.size(); i++) {
+                    set.add(indexRoutingTable.shard(i));
                 }
             }
         }
@@ -223,7 +223,7 @@ public class OperationRouting {
         }
     }
 
-    protected IndexRoutingTable indexRoutingTable(ClusterState clusterState, String index) {
+    protected static IndexRoutingTable indexRoutingTable(ClusterState clusterState, String index) {
         IndexRoutingTable indexRouting = clusterState.routingTable().index(index);
         if (indexRouting == null) {
             throw new IndexNotFoundException(index);
@@ -231,7 +231,7 @@ public class OperationRouting {
         return indexRouting;
     }
 
-    private IndexMetadata indexMetadata(ClusterState clusterState, String index) {
+    private static IndexMetadata indexMetadata(ClusterState clusterState, String index) {
         IndexMetadata indexMetadata = clusterState.metadata().index(index);
         if (indexMetadata == null) {
             throw new IndexNotFoundException(index);

@@ -23,7 +23,7 @@ only be executed on local shards after the all operations up to and including th
 sequence number checkpoint are visible for search. Indexed operations become visible after a
 refresh. The checkpoints are indexed by shard.
 
-If a timeout occurs before the the checkpoint has been refreshed into Elasticsearch,
+If a timeout occurs before the checkpoint has been refreshed into Elasticsearch,
 the search request will timeout.
 
 The fleet search API only supports searches against a single target. If an index alias

@@ -15,7 +15,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.search.suggest.Suggest.COMPARATOR;
 import static org.hamcrest.Matchers.equalTo;
@@ -92,11 +91,7 @@ public class CompletionSuggestionTests extends ESTestCase {
             }
             shardSuggestions.add(suggestion);
         }
-        List<CompletionSuggestion.Entry.Option> expected = options.stream()
-            .sorted(COMPARATOR)
-            .distinct()
-            .limit(size)
-            .collect(Collectors.toList());
+        List<CompletionSuggestion.Entry.Option> expected = options.stream().sorted(COMPARATOR).distinct().limit(size).toList();
         CompletionSuggestion reducedSuggestion = (CompletionSuggestion) shardSuggestions.get(0).reduce(shardSuggestions);
         assertNotNull(reducedSuggestion);
         assertThat(reducedSuggestion.getOptions().size(), lessThanOrEqualTo(size));

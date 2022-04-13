@@ -16,9 +16,6 @@ restResources {
   }
 }
 
-tasks.named("yamlRestTest").configure {
-}
-
 testClusters.configureEach {
   testDistribution = 'DEFAULT'
   rolesFile file('roles.yml')

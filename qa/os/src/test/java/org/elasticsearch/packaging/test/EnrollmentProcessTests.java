@@ -45,7 +45,7 @@ public class EnrollmentProcessTests extends PackagingTestCase {
         setFileSuperuser("test_superuser", "test_superuser_password");
         sh.getEnv().put("ES_JAVA_OPTS", "-Xms1g -Xmx1g");
         Shell.Result startFirstNode = awaitElasticsearchStartupWithResult(
-            Archives.startElasticsearchWithTty(installation, sh, null, List.of(), false)
+            Archives.startElasticsearchWithTty(installation, sh, null, List.of(), null, false)
         );
         assertThat(startFirstNode.isSuccess(), is(true));
         // Verify that the first node was auto-configured for security
@@ -63,6 +63,7 @@ public class EnrollmentProcessTests extends PackagingTestCase {
             sh,
             null,
             List.of("--enrollment-token", "some-invalid-token-here"),
+            null,
             false
         );
         assertThat(
@@ -73,7 +74,7 @@ public class EnrollmentProcessTests extends PackagingTestCase {
 
         // auto-configure security using the enrollment token
         Shell.Result startSecondNode = awaitElasticsearchStartupWithResult(
-            Archives.startElasticsearchWithTty(installation, sh, null, List.of("--enrollment-token", enrollmentToken), false)
+            Archives.startElasticsearchWithTty(installation, sh, null, List.of("--enrollment-token", enrollmentToken), null, false)
         );
         // ugly hack, wait for the second node to actually start and join the cluster, all of our current tooling expects/assumes
         // a single installation listening on 9200

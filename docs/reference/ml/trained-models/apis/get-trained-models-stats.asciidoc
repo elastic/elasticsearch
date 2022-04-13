@@ -142,6 +142,12 @@ The deployment stats for each node that currently has the model allocated.
 `average_inference_time_ms`:::
 (double)
 The average time for each inference call to complete on this node.
+The average is calculated over the lifetime of the deployment.
+
+`average_inference_time_ms_last_minute`:::
+(double)
+The average time for each inference call to complete on this node
+in the last minute.
 
 `error_count`:::
 (integer)
@@ -198,6 +204,10 @@ include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-transport-address]
 (integer)
 The number of inference requests queued to be processed.
 
+`peak_throughput_per_minute`:::
+(integer)
+The peak number of requests processed in a 1 minute period.
+
 `routing_state`:::
 (object)
 The current routing state and reason for the current routing state for this allocation.
@@ -233,7 +243,16 @@ The epoch timestamp when the allocation started.
 `timeout_count`:::
 (integer)
 The number of inference requests that timed out before being processed.
+
+`throughput_last_minute`:::
+(integer)
+The number of requests processed in the last 1 minute.
 ======
+`peak_throughput_per_minute`:::
+(integer)
+The peak number of requests processed in a 1 minute period for
+all nodes in the deployment. This is calculated as the sum of
+each node's `peak_throughput_per_minute` value.
 
 `rejected_execution_count`:::
 (integer)

@@ -43,7 +43,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -109,7 +108,7 @@ public class MovFnAggrgatorTests extends AggregatorTestCase {
             List<? extends Histogram.Bucket> buckets = histogram.getBuckets();
             List<Double> actual = buckets.stream()
                 .map(bucket -> ((InternalSimpleValue) (bucket.getAggregations().get("mov_fn"))).value())
-                .collect(Collectors.toList());
+                .toList();
             assertThat(actual, equalTo(expected));
         });
     }

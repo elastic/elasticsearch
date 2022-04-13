@@ -25,7 +25,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -50,7 +49,7 @@ public class TaskBatcherTests extends TaskExecutorTests {
         @Override
         protected void run(Object batchingKey, List<? extends BatchedTask> tasks, String tasksSummary) {
             List<UpdateTask> updateTasks = (List<UpdateTask>) tasks;
-            ((TestExecutor<Object>) batchingKey).execute(updateTasks.stream().map(t -> t.task).collect(Collectors.toList()));
+            ((TestExecutor<Object>) batchingKey).execute(updateTasks.stream().map(t -> t.task).toList());
             updateTasks.forEach(updateTask -> updateTask.listener.processed());
         }
 
@@ -71,9 +70,7 @@ public class TaskBatcherTests extends TaskExecutorTests {
             @Override
             @SuppressWarnings("unchecked")
             public String describeTasks(List<? extends BatchedTask> tasks) {
-                return ((TestExecutor<Object>) batchingKey).describeTasks(
-                    tasks.stream().map(BatchedTask::getTask).collect(Collectors.toList())
-                );
+                return ((TestExecutor<Object>) batchingKey).describeTasks(tasks.stream().map(BatchedTask::getTask).toList());
             }
         }
 

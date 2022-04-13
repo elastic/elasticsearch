@@ -33,7 +33,6 @@ import java.util.ListIterator;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.DoubleConsumer;
-import java.util.stream.Collectors;
 
 /**
  * Implementation of {@link Histogram}.
@@ -473,7 +472,7 @@ public final class InternalHistogram extends InternalMultiBucketAggregation<Inte
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
         return new InternalHistogram(
             getName(),
-            buckets.stream().map(b -> b.finalizeSampling(samplingContext)).collect(Collectors.toList()),
+            buckets.stream().map(b -> b.finalizeSampling(samplingContext)).toList(),
             order,
             minDocCount,
             emptyBucketInfo,

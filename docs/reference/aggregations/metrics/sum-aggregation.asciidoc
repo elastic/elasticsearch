@@ -138,25 +138,34 @@ For example, for the following index that stores pre-aggregated histograms with 
 
 [source,console]
 --------------------------------------------------
-PUT metrics_index/_doc/1
+PUT metrics_index
+{
+  "mappings": {
+    "properties": {
+      "latency_histo": { "type": "histogram" }
+    }
+  }
+}
+
+PUT metrics_index/_doc/1?refresh
 {
   "network.name" : "net-1",
   "latency_histo" : {
-      "values" : [0.1, 0.2, 0.3, 0.4, 0.5], <1>
-      "counts" : [3, 7, 23, 12, 6] <2>
+      "values" : [0.1, 0.2, 0.3, 0.4, 0.5],
+      "counts" : [3, 7, 23, 12, 6]
    }
 }
 
-PUT metrics_index/_doc/2
+PUT metrics_index/_doc/2?refresh
 {
   "network.name" : "net-2",
   "latency_histo" : {
-      "values" :  [0.1, 0.2, 0.3, 0.4, 0.5], <1>
-      "counts" : [8, 17, 8, 7, 6] <2>
+      "values" :  [0.1, 0.2, 0.3, 0.4, 0.5],
+      "counts" : [8, 17, 8, 7, 6]
    }
 }
 
-POST /metrics_index/_search?size=0
+POST /metrics_index/_search?size=0&filter_path=aggregations
 {
   "aggs" : {
     "total_latency" : { "sum" : { "field" : "latency_histo" } }
@@ -164,13 +173,15 @@ POST /metrics_index/_search?size=0
 }
 --------------------------------------------------
 
-For each histogram field the `sum` aggregation will multiply each number in the `values` array <1> multiplied by its associated count
-in the `counts` array <2>. Eventually, it will add all values for all histograms and return the following result:
+For each histogram field, the `sum` aggregation will add each number in the
+`values` array, multiplied by its associated count in the `counts` array.
+
+Eventually, it will add all values for all histograms and return the following
+result:
 
 [source,console-result]
 --------------------------------------------------
 {
-  ...
   "aggregations": {
     "total_latency": {
       "value": 28.8
@@ -178,4 +189,3 @@ in the `counts` array <2>. Eventually, it will add all values for all histograms
   }
 }
 --------------------------------------------------
-// TESTRESPONSE[skip:test not setup]

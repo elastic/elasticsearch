@@ -304,7 +304,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
         }
     }
 
-    private void writeToPath(BytesReference bytes, Path tempBlobPath) throws IOException {
+    private static void writeToPath(BytesReference bytes, Path tempBlobPath) throws IOException {
         try (OutputStream outputStream = Files.newOutputStream(tempBlobPath, StandardOpenOption.CREATE_NEW)) {
             bytes.writeTo(outputStream);
         }

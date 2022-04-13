@@ -20,6 +20,7 @@ import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplat
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesAction;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.MultiGetAction;
@@ -31,6 +32,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.GetLifecycleAction;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
@@ -117,7 +119,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON;
+import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -147,7 +149,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
         final Role role = Role.builder(
             ElasticServiceAccounts.ACCOUNTS.get("elastic/fleet-server").roleDescriptor(),
             null,
-            RESTRICTED_INDICES_AUTOMATON
+            RESTRICTED_INDICES
         ).build();
         final Authentication authentication = mock(Authentication.class);
         assertThat(
@@ -304,7 +306,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
         final Role role = Role.builder(
             ElasticServiceAccounts.ACCOUNTS.get("elastic/enterprise-search-server").roleDescriptor(),
             null,
-            RESTRICTED_INDICES_AUTOMATON
+            RESTRICTED_INDICES
         ).build();
 
         final Authentication authentication = mock(Authentication.class);
@@ -345,6 +347,7 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             "enterprise-search-" + randomAlphaOfLengthBetween(1, 20),
             "logs-app_search.analytics-default",
             "logs-enterprise_search.api-default",
+            "logs-enterprise_search.audit-default",
             "logs-app_search.search_relevance_suggestions-default",
             "logs-crawler-default",
             "logs-workplace_search.analytics-default",
@@ -366,6 +369,19 @@ public class ElasticServiceAccountsTests extends ESTestCase {
             assertThat(role.indices().allowedIndicesMatcher(RefreshAction.NAME).test(enterpriseSearchIndex), is(true));
             assertThat(role.indices().allowedIndicesMatcher("indices:foo").test(enterpriseSearchIndex), is(false));
         });
+
+        final IndexAbstraction elasticsearchIndex = mockIndexAbstraction("search-" + randomAlphaOfLengthBetween(1, 20));
+        // read
+        assertThat(role.indices().allowedIndicesMatcher(GetAction.NAME).test(elasticsearchIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(MultiGetAction.NAME).test(elasticsearchIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(SearchAction.NAME).test(elasticsearchIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(MultiSearchAction.NAME).test(elasticsearchIndex), is(true));
+        // view_index_metadata
+        assertThat(role.indices().allowedIndicesMatcher(GetDataStreamAction.NAME).test(elasticsearchIndex), is(true));
+        assertThat(role.indices().allowedIndicesMatcher(ExplainLifecycleAction.NAME).test(elasticsearchIndex), is(true));
+        // ingestion and delete are forbidden
+        assertThat(role.indices().allowedIndicesMatcher(IndexAction.NAME).test(elasticsearchIndex), is(false));
+        assertThat(role.indices().allowedIndicesMatcher(DeleteAction.NAME).test(elasticsearchIndex), is(false));
     }
 
     private IndexAbstraction mockIndexAbstraction(String name) {

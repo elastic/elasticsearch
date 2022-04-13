@@ -10,8 +10,8 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
@@ -43,15 +43,15 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
         final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest("""
             { "properties": { "field": { "type": "text" }}}""");
         request.indices(new Index[] { indexService.index() });
-        final ClusterStateTaskExecutor.ClusterTasksResult<MetadataMappingService.PutMappingClusterStateUpdateTask> result =
-            mappingService.putMappingExecutor.execute(clusterService.state(), singleTask(request));
-        // the task completed successfully
-        assertThat(result.executionResults().size(), equalTo(1));
-        assertTrue(result.executionResults().values().iterator().next().isSuccess());
+        final var resultingState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            clusterService.state(),
+            mappingService.putMappingExecutor,
+            singleTask(request)
+        );
         // the task really was a mapping update
         assertThat(
             indexService.mapperService().documentMapper().mappingSource(),
-            not(equalTo(result.resultingState().metadata().index("test").mapping().source()))
+            not(equalTo(resultingState.metadata().index("test").mapping().source()))
         );
         // since we never committed the cluster state update, the in-memory state is unchanged
         assertThat(indexService.mapperService().documentMapper().mappingSource(), equalTo(currentMapping));
@@ -64,19 +64,17 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest("""
             { "properties": { "field": { "type": "text" }}}""").indices(new Index[] { indexService.index() });
-        ClusterStateTaskExecutor.ClusterTasksResult<?> result = mappingService.putMappingExecutor.execute(
+        final var resultingState1 = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
             clusterService.state(),
+            mappingService.putMappingExecutor,
             singleTask(request)
         );
-        assertTrue(result.executionResults().values().stream().noneMatch(res -> res.isSuccess() == false));
-
-        ClusterStateTaskExecutor.ClusterTasksResult<?> result2 = mappingService.putMappingExecutor.execute(
-            result.resultingState(),
+        final var resultingState2 = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            resultingState1,
+            mappingService.putMappingExecutor,
             singleTask(request)
         );
-        assertTrue(result.executionResults().values().stream().noneMatch(res -> res.isSuccess() == false));
-
-        assertSame(result2.resultingState(), result.resultingState());
+        assertSame(resultingState1, resultingState2);
     }
 
     public void testMappingVersion() throws Exception {
@@ -87,11 +85,12 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
         final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest("""
             { "properties": { "field": { "type": "text" }}}""");
         request.indices(new Index[] { indexService.index() });
-        final ClusterStateTaskExecutor.ClusterTasksResult<MetadataMappingService.PutMappingClusterStateUpdateTask> result =
-            mappingService.putMappingExecutor.execute(clusterService.state(), singleTask(request));
-        assertThat(result.executionResults().size(), equalTo(1));
-        assertTrue(result.executionResults().values().iterator().next().isSuccess());
-        assertThat(result.resultingState().metadata().index("test").getMappingVersion(), equalTo(1 + previousVersion));
+        final var resultingState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            clusterService.state(),
+            mappingService.putMappingExecutor,
+            singleTask(request)
+        );
+        assertThat(resultingState.metadata().index("test").getMappingVersion(), equalTo(1 + previousVersion));
     }
 
     public void testMappingVersionUnchanged() throws Exception {
@@ -101,11 +100,12 @@ public class MetadataMappingServiceTests extends ESSingleNodeTestCase {
         final ClusterService clusterService = getInstanceFromNode(ClusterService.class);
         final PutMappingClusterStateUpdateRequest request = new PutMappingClusterStateUpdateRequest("{ \"properties\": {}}");
         request.indices(new Index[] { indexService.index() });
-        final ClusterStateTaskExecutor.ClusterTasksResult<MetadataMappingService.PutMappingClusterStateUpdateTask> result =
-            mappingService.putMappingExecutor.execute(clusterService.state(), singleTask(request));
-        assertThat(result.executionResults().size(), equalTo(1));
-        assertTrue(result.executionResults().values().iterator().next().isSuccess());
-        assertThat(result.resultingState().metadata().index("test").getMappingVersion(), equalTo(previousVersion));
+        final var resultingState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            clusterService.state(),
+            mappingService.putMappingExecutor,
+            singleTask(request)
+        );
+        assertThat(resultingState.metadata().index("test").getMappingVersion(), equalTo(previousVersion));
     }
 
     private static List<MetadataMappingService.PutMappingClusterStateUpdateTask> singleTask(PutMappingClusterStateUpdateRequest request) {

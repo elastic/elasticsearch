@@ -16,7 +16,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map.Entry;
-import java.util.stream.Collectors;
 
 public class ParsedPercentilesBucket extends ParsedPercentiles implements Percentiles {
 
@@ -58,7 +57,7 @@ public class ParsedPercentilesBucket extends ParsedPercentiles implements Percen
 
     @Override
     public Iterable<String> valueNames() {
-        return percentiles.keySet().stream().map(d -> d.toString()).collect(Collectors.toList());
+        return percentiles.keySet().stream().map(d -> d.toString()).toList();
     }
 
     @Override

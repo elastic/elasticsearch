@@ -196,7 +196,7 @@ public class DependenciesInfoTask extends ConventionTask {
         if (licenseInfo.spdxLicense() == false) {
             // License has not be identified as SPDX.
             // As we have the license file, we create a Custom entry with the URL to this license file.
-            final String gitBranch = System.getProperty("build.branch", "master");
+            final String gitBranch = System.getProperty("build.branch", "main");
             final String githubBaseURL = "https://raw.githubusercontent.com/elastic/elasticsearch/" + gitBranch + "/";
             licenseType = licenseInfo.identifier()
                 + ";"

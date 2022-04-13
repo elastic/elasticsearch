@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
@@ -358,9 +359,20 @@ public class FollowersChecker {
         }
 
         void failNode(String reason) {
-            transportService.getThreadPool().executor(Names.CLUSTER_COORDINATION).execute(new Runnable() {
+            transportService.getThreadPool().executor(Names.CLUSTER_COORDINATION).execute(new AbstractRunnable() {
+
                 @Override
-                public void run() {
+                public void onRejection(Exception e) {
+                    logger.debug(new ParameterizedMessage("rejected task to fail node [{}] with reason [{}]", discoveryNode, reason), e);
+                    if (e instanceof EsRejectedExecutionException esRejectedExecutionException) {
+                        assert esRejectedExecutionException.isExecutorShutdown();
+                    } else {
+                        assert false : e;
+                    }
+                }
+
+                @Override
+                protected void doRun() {
                     synchronized (mutex) {
                         if (running() == false) {
                             logger.trace("{} no longer running, not marking faulty", FollowerChecker.this);
@@ -371,6 +383,15 @@ public class FollowersChecker {
                         followerCheckers.remove(discoveryNode);
                     }
                     onNodeFailure.accept(discoveryNode, reason);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    assert false : e;
+                    logger.error(
+                        new ParameterizedMessage("unexpected failure when failing node [{}] with reason [{}]", discoveryNode, reason),
+                        e
+                    );
                 }
 
                 @Override

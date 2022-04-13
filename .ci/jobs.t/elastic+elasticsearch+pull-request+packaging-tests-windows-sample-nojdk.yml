@@ -21,7 +21,7 @@
           github-hooks: true
           status-context: elasticsearch-ci/packaging-tests-windows-sample
           cancel-builds-on-update: true
-          # We've removed the no-jdk distribution on master as well
+          # We've removed the no-jdk distribution on main as well
           white-list-target-branches:
             - 7.17
             - 7.16

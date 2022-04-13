@@ -16,7 +16,6 @@ set CLI_JAR=%ES_HOME%/bin/*
 
 %JAVA% ^
   -cp "%CLI_JAR%" ^
-  -Des.distribution.flavor="%ES_DISTRIBUTION_FLAVOR%" ^
   -Des.distribution.type="%ES_DISTRIBUTION_TYPE%" ^
   org.elasticsearch.xpack.sql.cli.Cli ^
   %*

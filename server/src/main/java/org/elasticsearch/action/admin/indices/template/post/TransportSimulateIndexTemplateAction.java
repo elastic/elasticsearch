@@ -28,6 +28,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -112,14 +113,17 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
                 simulateTemplateToAdd,
                 request.getIndexTemplateRequest().indexTemplate()
             );
-            stateWithTemplate = indexTemplateService.addIndexTemplateV2(
-                state,
-                request.getIndexTemplateRequest().create(),
-                simulateTemplateToAdd,
-                request.getIndexTemplateRequest().indexTemplate()
+            stateWithTemplate = removeExistingAbstractions(
+                indexTemplateService.addIndexTemplateV2(
+                    state,
+                    request.getIndexTemplateRequest().create(),
+                    simulateTemplateToAdd,
+                    request.getIndexTemplateRequest().indexTemplate()
+                ),
+                request.getIndexName()
             );
         } else {
-            stateWithTemplate = state;
+            stateWithTemplate = removeExistingAbstractions(state, request.getIndexName());
         }
 
         String matchingTemplate = findV2Template(stateWithTemplate.metadata(), request.getIndexName(), false);
@@ -147,6 +151,16 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         overlapping.putAll(findConflictingV2Templates(tempClusterState, matchingTemplate, templateV2.indexPatterns()));
 
         listener.onResponse(new SimulateIndexTemplateResponse(template, overlapping));
+    }
+
+    /**
+     * Removes the alias, data stream, or existing index from the cluster state if it matches the given index name
+     */
+    private static ClusterState removeExistingAbstractions(ClusterState state, String indexName) {
+        Metadata metadata = state.metadata();
+        return ClusterState.builder(state)
+            .metadata(Metadata.builder(metadata).removeDataStream(indexName).removeAllIndices().build())
+            .build();
     }
 
     @Override
@@ -243,7 +257,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
                 // the context is only used for validation so it's fine to pass fake values for the
                 // shard id and the current timestamp
                 tempIndexService.newSearchExecutionContext(0, 0, null, () -> 0L, null, emptyMap()),
-                tempIndexService.dateMathExpressionResolverAt(),
+                IndexService.dateMathExpressionResolverAt(),
                 systemIndices::isSystemName
             )
         );

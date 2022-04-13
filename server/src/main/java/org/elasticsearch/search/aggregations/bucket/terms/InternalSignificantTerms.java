@@ -27,7 +27,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 /**
  * Result of the significant terms aggregation.
@@ -276,7 +275,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
                         b
                     )
                 )
-                .collect(Collectors.toList())
+                .toList()
         );
     }
 

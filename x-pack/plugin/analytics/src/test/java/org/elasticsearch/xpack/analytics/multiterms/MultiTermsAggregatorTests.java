@@ -39,7 +39,7 @@ import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.BucketOrder;
-import org.elasticsearch.search.aggregations.metrics.InternalMax;
+import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
@@ -458,19 +458,19 @@ public class MultiTermsAggregatorTests extends AggregatorTestCase {
 
             assertThat(h.getBuckets().get(0).getKey(), contains(equalTo(3L), equalTo("b")));
             assertThat(h.getBuckets().get(0).getDocCount(), equalTo(1L));
-            assertThat(((InternalMax) (h.getBuckets().get(0).getAggregations().get("max_float"))).value(), closeTo(2.0, 0.00001));
+            assertThat(((Max) (h.getBuckets().get(0).getAggregations().get("max_float"))).value(), closeTo(2.0, 0.00001));
 
             assertThat(h.getBuckets().get(1).getKey(), contains(equalTo(1L), equalTo("a")));
             assertThat(h.getBuckets().get(1).getDocCount(), equalTo(1L));
-            assertThat(((InternalMax) (h.getBuckets().get(1).getAggregations().get("max_float"))).value(), closeTo(3.0, 0.00001));
+            assertThat(((Max) (h.getBuckets().get(1).getAggregations().get("max_float"))).value(), closeTo(3.0, 0.00001));
 
             assertThat(h.getBuckets().get(2).getKey(), contains(equalTo(2L), equalTo("a")));
             assertThat(h.getBuckets().get(2).getDocCount(), equalTo(1L));
-            assertThat(((InternalMax) (h.getBuckets().get(2).getAggregations().get("max_float"))).value(), closeTo(4.0, 0.00001));
+            assertThat(((Max) (h.getBuckets().get(2).getAggregations().get("max_float"))).value(), closeTo(4.0, 0.00001));
 
             assertThat(h.getBuckets().get(3).getKey(), contains(equalTo(3L), equalTo("a")));
             assertThat(h.getBuckets().get(3).getDocCount(), equalTo(2L));
-            assertThat(((InternalMax) (h.getBuckets().get(3).getAggregations().get("max_float"))).value(), closeTo(5.0, 0.00001));
+            assertThat(((Max) (h.getBuckets().get(3).getAggregations().get("max_float"))).value(), closeTo(5.0, 0.00001));
         });
     }
 

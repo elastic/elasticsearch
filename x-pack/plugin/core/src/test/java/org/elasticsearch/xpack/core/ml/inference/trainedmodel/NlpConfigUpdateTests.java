@@ -30,7 +30,18 @@ public class NlpConfigUpdateTests extends ESTestCase {
                 put("tokenization", bert);
             }
         };
-        assertThat(NlpConfigUpdate.tokenizationFromMap(config), equalTo(new BertTokenizationUpdate(Tokenization.Truncate.FIRST)));
+        assertThat(NlpConfigUpdate.tokenizationFromMap(config), equalTo(new BertTokenizationUpdate(Tokenization.Truncate.FIRST, null)));
+        config = new HashMap<>() {
+            {
+                Map<String, Object> truncate = new HashMap<>();
+                truncate.put("truncate", "first");
+                truncate.put("span", 0);
+                Map<String, Object> bert = new HashMap<>();
+                bert.put("bert", truncate);
+                put("tokenization", bert);
+            }
+        };
+        assertThat(NlpConfigUpdate.tokenizationFromMap(config), equalTo(new BertTokenizationUpdate(Tokenization.Truncate.FIRST, 0)));
 
         config = new HashMap<>();
         assertThat(NlpConfigUpdate.tokenizationFromMap(config), nullValue());
@@ -60,7 +71,7 @@ public class NlpConfigUpdateTests extends ESTestCase {
             ElasticsearchStatusException.class,
             () -> NlpConfigUpdate.tokenizationFromMap(finalConfig)
         );
-        assertThat(e.getMessage(), containsString("unknown tokenization type expecting one of [bert, mpnet] got [not_bert]"));
+        assertThat(e.getMessage(), containsString("unknown tokenization type expecting one of [bert, mpnet, roberta] got [not_bert]"));
     }
 
     public void testTokenizationFromMap_MpNet() {
@@ -73,6 +84,43 @@ public class NlpConfigUpdateTests extends ESTestCase {
                 put("tokenization", tokenizer);
             }
         };
-        assertThat(NlpConfigUpdate.tokenizationFromMap(config), equalTo(new MPNetTokenizationUpdate(Tokenization.Truncate.FIRST)));
+        assertThat(NlpConfigUpdate.tokenizationFromMap(config), equalTo(new MPNetTokenizationUpdate(Tokenization.Truncate.FIRST, null)));
+
+        config = new HashMap<>() {
+            {
+                Map<String, Object> truncate = new HashMap<>();
+                truncate.put("truncate", "first");
+                truncate.put("span", 0);
+                Map<String, Object> tokenizer = new HashMap<>();
+                tokenizer.put("mpnet", truncate);
+                put("tokenization", tokenizer);
+            }
+        };
+        assertThat(NlpConfigUpdate.tokenizationFromMap(config), equalTo(new MPNetTokenizationUpdate(Tokenization.Truncate.FIRST, 0)));
+    }
+
+    public void testTokenizationFromMap_Roberta() {
+        Map<String, Object> config = new HashMap<>() {
+            {
+                Map<String, Object> truncate = new HashMap<>();
+                truncate.put("truncate", "first");
+                Map<String, Object> tokenizer = new HashMap<>();
+                tokenizer.put("roberta", truncate);
+                put("tokenization", tokenizer);
+            }
+        };
+        assertThat(NlpConfigUpdate.tokenizationFromMap(config), equalTo(new RobertaTokenizationUpdate(Tokenization.Truncate.FIRST, null)));
+
+        config = new HashMap<>() {
+            {
+                Map<String, Object> truncate = new HashMap<>();
+                truncate.put("truncate", "first");
+                truncate.put("span", 0);
+                Map<String, Object> tokenizer = new HashMap<>();
+                tokenizer.put("roberta", truncate);
+                put("tokenization", tokenizer);
+            }
+        };
+        assertThat(NlpConfigUpdate.tokenizationFromMap(config), equalTo(new RobertaTokenizationUpdate(Tokenization.Truncate.FIRST, 0)));
     }
 }

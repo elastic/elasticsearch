@@ -155,7 +155,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 7)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("wrong_number", 3)));
         }, min -> {
-            assertEquals(Double.POSITIVE_INFINITY, min.getValue(), 0);
+            assertEquals(Double.POSITIVE_INFINITY, min.value(), 0);
             assertFalse(AggregationInspectionHelper.hasValue(min));
         });
     }
@@ -166,7 +166,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 2)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 3)));
         }, min -> {
-            assertEquals(2, min.getValue(), 0);
+            assertEquals(2, min.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
         });
     }
@@ -177,7 +177,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new NumericDocValuesField("number", 2)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 3)));
         }, min -> {
-            assertEquals(2, min.getValue(), 0);
+            assertEquals(2, min.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
         });
     }
@@ -188,7 +188,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new SortedNumericDocValuesField("number2", 2)));
             iw.addDocument(singleton(new SortedNumericDocValuesField("number", 3)));
         }, min -> {
-            assertEquals(3, min.getValue(), 0);
+            assertEquals(3, min.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
         });
     }
@@ -199,7 +199,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
             iw.addDocument(singleton(new NumericDocValuesField("number2", 2)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 3)));
         }, min -> {
-            assertEquals(3, min.getValue(), 0);
+            assertEquals(3, min.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
         });
     }
@@ -210,7 +210,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
             iw.addDocument(Arrays.asList(new IntPoint("number", 1), new SortedNumericDocValuesField("number", 1)));
             iw.addDocument(Arrays.asList(new IntPoint("number", 3), new SortedNumericDocValuesField("number", 3)));
         }, min -> {
-            assertEquals(1, min.getValue(), 0);
+            assertEquals(1, min.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
         });
     }
@@ -221,7 +221,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
             iw.addDocument(Arrays.asList(new IntPoint("number", 1), new SortedNumericDocValuesField("number", 1)));
             iw.addDocument(Arrays.asList(new IntPoint("number", 3), new SortedNumericDocValuesField("number", 3)));
         }, min -> {
-            assertEquals(Double.POSITIVE_INFINITY, min.getValue(), 0);
+            assertEquals(Double.POSITIVE_INFINITY, min.value(), 0);
             assertFalse(AggregationInspectionHelper.hasValue(min));
         });
     }
@@ -246,8 +246,8 @@ public class MinAggregatorTests extends AggregatorTestCase {
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
-        }, (Consumer<InternalMin>) min -> {
-            assertEquals(0.0, min.getValue(), 0);
+        }, (Consumer<Min>) min -> {
+            assertEquals(0.0, min.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
         }, fieldType);
     }
@@ -263,7 +263,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
                 aggregationBuilder,
                 new MatchAllDocsQuery(),
                 iw -> { iw.addDocument(singleton(new SortedSetDocValuesField("string", new BytesRef("foo")))); },
-                (Consumer<InternalMin>) min -> { fail("Should have thrown exception"); },
+                (Consumer<Min>) min -> { fail("Should have thrown exception"); },
                 fieldType
             )
         );
@@ -278,7 +278,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
         expectThrows(NumberFormatException.class, () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
-        }, (Consumer<InternalMin>) min -> { fail("Should have thrown exception"); }, fieldType));
+        }, (Consumer<Min>) min -> { fail("Should have thrown exception"); }, fieldType));
     }
 
     public void testUnmappedWithBadMissingField() {
@@ -289,7 +289,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
         expectThrows(NumberFormatException.class, () -> testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
-        }, (Consumer<InternalMin>) min -> { fail("Should have thrown exception"); }, fieldType));
+        }, (Consumer<Min>) min -> { fail("Should have thrown exception"); }, fieldType));
     }
 
     public void testEmptyBucket() throws IOException {
@@ -307,18 +307,18 @@ public class MinAggregatorTests extends AggregatorTestCase {
             assertThat(histo.getBuckets().size(), equalTo(3));
 
             assertNotNull(histo.getBuckets().get(0).getAggregations().asMap().get("min"));
-            InternalMin min = (InternalMin) histo.getBuckets().get(0).getAggregations().asMap().get("min");
-            assertEquals(1.0, min.getValue(), 0);
+            Min min = (Min) histo.getBuckets().get(0).getAggregations().asMap().get("min");
+            assertEquals(1.0, min.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
 
             assertNotNull(histo.getBuckets().get(1).getAggregations().asMap().get("min"));
-            min = (InternalMin) histo.getBuckets().get(1).getAggregations().asMap().get("min");
-            assertEquals(Double.POSITIVE_INFINITY, min.getValue(), 0);
+            min = (Min) histo.getBuckets().get(1).getAggregations().asMap().get("min");
+            assertEquals(Double.POSITIVE_INFINITY, min.value(), 0);
             assertFalse(AggregationInspectionHelper.hasValue(min));
 
             assertNotNull(histo.getBuckets().get(2).getAggregations().asMap().get("min"));
-            min = (InternalMin) histo.getBuckets().get(2).getAggregations().asMap().get("min");
-            assertEquals(3.0, min.getValue(), 0);
+            min = (Min) histo.getBuckets().get(2).getAggregations().asMap().get("min");
+            assertEquals(3.0, min.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
 
         }, fieldType);
@@ -332,8 +332,8 @@ public class MinAggregatorTests extends AggregatorTestCase {
         testCase(aggregationBuilder, new MatchAllDocsQuery(), iw -> {
             iw.addDocument(singleton(new NumericDocValuesField("number", 7)));
             iw.addDocument(singleton(new NumericDocValuesField("number", 1)));
-        }, (Consumer<InternalMin>) min -> {
-            assertEquals(1.0, min.getValue(), 0);
+        }, (Consumer<Min>) min -> {
+            assertEquals(1.0, min.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
             assertEquals("0001.0", min.getValueAsString());
         }, fieldType);
@@ -354,8 +354,8 @@ public class MinAggregatorTests extends AggregatorTestCase {
             assertTrue(AggregationInspectionHelper.hasValue(global));
             assertNotNull(global.getAggregations().asMap().get("min"));
 
-            InternalMin min = (InternalMin) global.getAggregations().asMap().get("min");
-            assertEquals(1.0, min.getValue(), 0);
+            Min min = (Min) global.getAggregations().asMap().get("min");
+            assertEquals(1.0, min.value(), 0);
             assertThat(global.getProperty("min"), equalTo(min));
             assertThat(global.getProperty("min.value"), equalTo(1.0));
             assertThat(min.getProperty("value"), equalTo(1.0));
@@ -385,8 +385,8 @@ public class MinAggregatorTests extends AggregatorTestCase {
                 MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
                 IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
 
-                InternalMin min = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder, fieldType);
-                assertEquals(2.0, min.getValue(), 0);
+                Min min = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder, fieldType);
+                assertEquals(2.0, min.value(), 0);
                 assertTrue(AggregationInspectionHelper.hasValue(min));
             }
         }
@@ -416,8 +416,8 @@ public class MinAggregatorTests extends AggregatorTestCase {
                 MultiReader multiReader = new MultiReader(indexReader, unamappedIndexReader);
                 IndexSearcher indexSearcher = newSearcher(multiReader, true, true);
 
-                InternalMin min = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder, fieldType);
-                assertEquals(-19.0, min.getValue(), 0);
+                Min min = searchAndReduce(indexSearcher, new MatchAllDocsQuery(), aggregationBuilder, fieldType);
+                assertEquals(-19.0, min.value(), 0);
                 assertTrue(AggregationInspectionHelper.hasValue(min));
             }
         }
@@ -434,8 +434,8 @@ public class MinAggregatorTests extends AggregatorTestCase {
             for (int i = 0; i < numDocs; i++) {
                 iw.addDocument(singleton(new NumericDocValuesField("number", i + 1)));
             }
-        }, (Consumer<InternalMin>) min -> {
-            assertEquals(-10.0, min.getValue(), 0);
+        }, (Consumer<Min>) min -> {
+            assertEquals(-10.0, min.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
         }, fieldType);
     }
@@ -453,8 +453,8 @@ public class MinAggregatorTests extends AggregatorTestCase {
                 iw.addDocument(singleton(new NumericDocValuesField("number", i + 1)));
             }
             iw.addDocument(singleton(new NumericDocValuesField("unrelated", 1)));
-        }, (Consumer<InternalMin>) min -> {
-            assertEquals(-100.0, min.getValue(), 0); // Note: this comes straight from missing, and is not inverted from script
+        }, (Consumer<Min>) min -> {
+            assertEquals(-100.0, min.value(), 0); // Note: this comes straight from missing, and is not inverted from script
             assertTrue(AggregationInspectionHelper.hasValue(min));
         }, fieldType);
     }
@@ -470,8 +470,8 @@ public class MinAggregatorTests extends AggregatorTestCase {
             for (int i = 0; i < numDocs; i++) {
                 iw.addDocument(singleton(new NumericDocValuesField("number", i + 1)));
             }
-        }, (Consumer<InternalMin>) min -> {
-            assertEquals(6.0, min.getValue(), 0);
+        }, (Consumer<Min>) min -> {
+            assertEquals(6.0, min.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
         }, fieldType);
     }
@@ -488,8 +488,8 @@ public class MinAggregatorTests extends AggregatorTestCase {
             for (int i = 0; i < numDocs; i++) {
                 iw.addDocument(singleton(new NumericDocValuesField("number", i + 1)));
             }
-        }, (Consumer<InternalMin>) min -> {
-            assertEquals(19.0, min.getValue(), 0);
+        }, (Consumer<Min>) min -> {
+            assertEquals(19.0, min.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
         }, fieldType);
     }
@@ -507,8 +507,8 @@ public class MinAggregatorTests extends AggregatorTestCase {
                 document.add(new SortedNumericDocValuesField("number", i + 3));
                 iw.addDocument(document);
             }
-        }, (Consumer<InternalMin>) min -> {
-            assertEquals(2.0, min.getValue(), 0);
+        }, (Consumer<Min>) min -> {
+            assertEquals(2.0, min.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
         }, fieldType);
     }
@@ -527,8 +527,8 @@ public class MinAggregatorTests extends AggregatorTestCase {
                 document.add(new SortedNumericDocValuesField("number", i + 3));
                 iw.addDocument(document);
             }
-        }, (Consumer<InternalMin>) min -> {
-            assertEquals(-12.0, min.getValue(), 0);
+        }, (Consumer<Min>) min -> {
+            assertEquals(-12.0, min.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
         }, fieldType);
     }
@@ -547,8 +547,8 @@ public class MinAggregatorTests extends AggregatorTestCase {
                 document.add(new SortedNumericDocValuesField("number", i + 3));
                 iw.addDocument(document);
             }
-        }, (Consumer<InternalMin>) min -> {
-            assertEquals(7.0, min.getValue(), 0);
+        }, (Consumer<Min>) min -> {
+            assertEquals(7.0, min.value(), 0);
             assertTrue(AggregationInspectionHelper.hasValue(min));
         }, fieldType);
     }
@@ -581,9 +581,9 @@ public class MinAggregatorTests extends AggregatorTestCase {
                 assertNotNull(filter);
                 assertEquals(0L, filter.getDocCount());
 
-                InternalMin min = filter.getAggregations().get("min");
+                Min min = filter.getAggregations().get("min");
                 assertNotNull(min);
-                assertEquals(Double.POSITIVE_INFINITY, min.getValue(), 0);
+                assertEquals(Double.POSITIVE_INFINITY, min.value(), 0);
                 assertFalse(AggregationInspectionHelper.hasValue(min));
             }
         }, fieldType);
@@ -714,7 +714,7 @@ public class MinAggregatorTests extends AggregatorTestCase {
         directory.close();
     }
 
-    private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<InternalMin> verify)
+    private void testCase(Query query, CheckedConsumer<RandomIndexWriter, IOException> buildIndex, Consumer<Min> verify)
         throws IOException {
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.INTEGER);
         MinAggregationBuilder aggregationBuilder = new MinAggregationBuilder("min").field("number");

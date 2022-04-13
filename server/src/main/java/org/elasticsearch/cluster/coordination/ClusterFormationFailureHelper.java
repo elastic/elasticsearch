@@ -25,6 +25,7 @@ import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 
+import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -120,16 +121,23 @@ public class ClusterFormationFailureHelper {
         List<DiscoveryNode> foundPeers,
         long currentTerm,
         ElectionStrategy electionStrategy,
-        StatusInfo statusInfo
+        StatusInfo statusInfo,
+        List<JoinStatus> inFlightJoinStatuses
     ) {
-
         String getDescription() {
+            return getCoordinatorDescription() + getJoinStatusDescription();
+        }
+
+        private String getCoordinatorDescription() {
             if (statusInfo.getStatus() == UNHEALTHY) {
                 return String.format(Locale.ROOT, "this node is unhealthy: %s", statusInfo.getInfo());
             }
 
             final StringBuilder clusterStateNodes = new StringBuilder();
-            DiscoveryNodes.addCommaSeparatedNodesWithoutAttributes(clusterState.nodes().getMasterNodes().valuesIt(), clusterStateNodes);
+            DiscoveryNodes.addCommaSeparatedNodesWithoutAttributes(
+                clusterState.nodes().getMasterNodes().values().iterator(),
+                clusterStateNodes
+            );
 
             final String discoveryWillContinueDescription = String.format(
                 Locale.ROOT,
@@ -220,7 +228,7 @@ public class ClusterFormationFailureHelper {
             );
         }
 
-        private String describeQuorum(VotingConfiguration votingConfiguration) {
+        private static String describeQuorum(VotingConfiguration votingConfiguration) {
             final Set<String> nodeIds = votingConfiguration.getNodeIds();
             assert nodeIds.isEmpty() == false;
             final int requiredNodes = nodeIds.size() / 2 + 1;
@@ -244,6 +252,38 @@ public class ClusterFormationFailureHelper {
                 } else {
                     return requiredNodes + " nodes with ids " + realNodeIds;
                 }
+            }
+        }
+
+        private String getJoinStatusDescription() {
+            if (inFlightJoinStatuses.isEmpty()) {
+                return "";
+            }
+
+            final var stringBuilder = new StringBuilder();
+            inFlightJoinStatuses.stream()
+                .sorted(Comparator.comparing(JoinStatus::age).reversed())
+                .limit(10)
+                .forEachOrdered(
+                    joinStatus -> stringBuilder.append("; joining [")
+                        .append(joinStatus.remoteNode().descriptionWithoutAttributes())
+                        .append("] in term [")
+                        .append(joinStatus.term())
+                        .append("] has status [")
+                        .append(joinStatus.message())
+                        .append("] after [")
+                        .append(timeValueWithMillis(joinStatus.age()))
+                        .append("]")
+                );
+            return stringBuilder.toString();
+        }
+
+        private static String timeValueWithMillis(TimeValue timeValue) {
+            final var millis = timeValue.millis();
+            if (millis >= 1000) {
+                return timeValue + "/" + millis + "ms";
+            } else {
+                return millis + "ms";
             }
         }
     }

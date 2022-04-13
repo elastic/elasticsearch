@@ -60,6 +60,8 @@ include::bucket/nested-aggregation.asciidoc[]
 
 include::bucket/parent-aggregation.asciidoc[]
 
+include::bucket/random-sampler-aggregation.asciidoc[]
+
 include::bucket/range-aggregation.asciidoc[]
 
 include::bucket/rare-terms-aggregation.asciidoc[]

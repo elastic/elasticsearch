@@ -30,12 +30,12 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
 
 public class GatewayService extends AbstractLifecycleComponent implements ClusterStateListener {
     private static final Logger logger = LogManager.getLogger(GatewayService.class);
@@ -188,19 +188,13 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
             }
         } else {
             if (recoveryInProgress.compareAndSet(false, true)) {
-                threadPool.generic().execute(new AbstractRunnable() {
-                    @Override
-                    public void onFailure(final Exception e) {
-                        logger.warn("state recovery failed", e);
-                        resetRecoveredFlags();
-                    }
-
-                    @Override
-                    protected void doRun() {
-                        logger.debug("performing state recovery...");
-                        runRecovery();
-                    }
-                });
+                try {
+                    logger.debug("performing state recovery...");
+                    runRecovery();
+                } catch (Exception e) {
+                    logger.warn("state recovery failed", e);
+                    resetRecoveredFlags();
+                }
             }
         }
     }
@@ -220,11 +214,7 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
                 logger.debug("cluster is already recovered");
                 return currentState;
             }
-
-            return Function.<ClusterState>identity()
-                .andThen(ClusterStateUpdaters::updateRoutingTable)
-                .andThen(ClusterStateUpdaters::removeStateNotRecoveredBlock)
-                .apply(currentState);
+            return ClusterStateUpdaters.removeStateNotRecoveredBlock(ClusterStateUpdaters.updateRoutingTable(currentState));
         }
 
         @Override
@@ -254,6 +244,11 @@ public class GatewayService extends AbstractLifecycleComponent implements Cluste
     }
 
     private void runRecovery() {
-        clusterService.submitStateUpdateTask(TASK_SOURCE, new RecoverStateUpdateTask(), ClusterStateTaskExecutor.unbatched());
+        clusterService.submitStateUpdateTask(TASK_SOURCE, new RecoverStateUpdateTask(), newExecutor());
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 }

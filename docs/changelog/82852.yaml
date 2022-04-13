@@ -1,5 +1,0 @@
-pr: 82852
-summary: Fix condition on which the transform stops processing buckets
-area: Transform
-type: bug
-issues: []

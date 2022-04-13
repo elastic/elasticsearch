@@ -143,7 +143,7 @@ public class SourceConfig implements Writeable, ToXContentObject {
         out.writeStringArray(index);
         queryConfig.writeTo(out);
         if (out.getVersion().onOrAfter(Version.V_7_12_0)) {
-            out.writeMap(runtimeMappings);
+            out.writeGenericMap(runtimeMappings);
         }
     }
 

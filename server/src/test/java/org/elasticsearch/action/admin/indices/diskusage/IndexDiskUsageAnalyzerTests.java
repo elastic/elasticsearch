@@ -21,6 +21,8 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.IntPoint;
+import org.apache.lucene.document.LatLonShape;
+import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.document.SortedNumericDocValuesField;
@@ -35,6 +37,7 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentInfo;
 import org.apache.lucene.index.SegmentReader;
@@ -43,6 +46,7 @@ import org.apache.lucene.search.suggest.document.CompletionPostingsFormat;
 import org.apache.lucene.search.suggest.document.SuggestField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
+import org.apache.lucene.tests.geo.GeoTestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.internal.io.IOUtils;
@@ -56,7 +60,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -170,7 +173,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
         }
     }
 
-    public void testPoints() throws Exception {
+    public void testBinaryPoints() throws Exception {
         try (Directory dir = newDirectory()) {
             final CodecMode codec = randomFrom(CodecMode.values());
             indexRandomly(dir, codec, between(100, 1000), doc -> {
@@ -203,6 +206,59 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
                 stats.total().getPointsBytes() * 4 / 7,
                 0.01,
                 512
+            );
+        }
+    }
+
+    public void testTriangle() throws Exception {
+        try (Directory dir = newDirectory()) {
+            final CodecMode codec = randomFrom(CodecMode.values());
+            indexRandomly(dir, codec, between(100, 1000), doc -> {
+                final double ratio = randomDouble();
+                if (ratio <= 0.25) {
+                    addFieldsToDoc(
+                        doc,
+                        LatLonShape.createIndexableFields("triangle_1", GeoTestUtil.nextLatitude(), GeoTestUtil.nextLongitude())
+                    );
+                }
+                if (ratio <= 0.50) {
+                    addFieldsToDoc(
+                        doc,
+                        LatLonShape.createIndexableFields("triangle_2", GeoTestUtil.nextLatitude(), GeoTestUtil.nextLongitude())
+                    );
+                }
+                addFieldsToDoc(
+                    doc,
+                    LatLonShape.createIndexableFields("triangle_3", GeoTestUtil.nextLatitude(), GeoTestUtil.nextLongitude())
+                );
+            });
+            final IndexDiskUsageStats stats = IndexDiskUsageAnalyzer.analyze(testShardId(), lastCommit(dir), () -> {});
+            final IndexDiskUsageStats perField = collectPerFieldStats(dir);
+            logger.info("--> stats {} per field {}", stats, perField);
+            assertFieldStats("total", "points", stats.total().getPointsBytes(), perField.total().getPointsBytes(), 0.01, 2048);
+            assertFieldStats(
+                "triangle_1",
+                "points",
+                stats.getFields().get("triangle_1").getPointsBytes(),
+                stats.total().getPointsBytes() / 7,
+                0.01,
+                2048
+            );
+            assertFieldStats(
+                "triangle_2",
+                "triangle",
+                stats.getFields().get("triangle_2").getPointsBytes(),
+                stats.total().getPointsBytes() * 2 / 7,
+                0.01,
+                2048
+            );
+            assertFieldStats(
+                "triangle_3",
+                "triangle",
+                stats.getFields().get("triangle_3").getPointsBytes(),
+                stats.total().getPointsBytes() * 4 / 7,
+                0.01,
+                2048
             );
         }
     }
@@ -288,6 +344,12 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
         }
     }
 
+    private static void addFieldsToDoc(Document doc, IndexableField[] fields) {
+        for (IndexableField field : fields) {
+            doc.add(field);
+        }
+    }
+
     enum CodecMode {
         BEST_SPEED {
             @Override
@@ -366,10 +428,15 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
         }
     }
 
-    static void addRandomPoints(Document doc) {
+    static void addRandomIntLongPoints(Document doc) {
         final int numValues = random().nextInt(5);
         for (int i = 0; i < numValues; i++) {
-            doc.add(new IntPoint("pt-" + randomIntBetween(1, 2), random().nextInt()));
+            if (randomBoolean()) {
+                doc.add(new IntPoint("int_point_" + randomIntBetween(1, 2), random().nextInt()));
+            }
+            if (randomBoolean()) {
+                doc.add(new LongPoint("long_point_" + randomIntBetween(1, 2), random().nextLong()));
+            }
         }
     }
 
@@ -398,7 +465,20 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
             addRandomPostings(doc);
         }
         if (randomBoolean()) {
-            addRandomPoints(doc);
+            addRandomIntLongPoints(doc);
+        }
+        if (randomBoolean()) {
+            final int numValues = random().nextInt(5);
+            for (int i = 0; i < numValues; i++) {
+                addFieldsToDoc(
+                    doc,
+                    LatLonShape.createIndexableFields(
+                        "triangle_" + randomIntBetween(1, 2),
+                        GeoTestUtil.nextLatitude(),
+                        GeoTestUtil.nextLongitude()
+                    )
+                );
+            }
         }
         if (randomBoolean()) {
             addRandomStoredFields(doc, between(1, 3));
@@ -544,7 +624,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
     }
 
     private static void assertStats(IndexDiskUsageStats actualStats, IndexDiskUsageStats perFieldStats) {
-        final List<String> fields = actualStats.getFields().keySet().stream().sorted().collect(Collectors.toList());
+        final List<String> fields = actualStats.getFields().keySet().stream().sorted().toList();
         for (String field : fields) {
             IndexDiskUsageStats.PerFieldDiskUsage actualField = actualStats.getFields().get(field);
             IndexDiskUsageStats.PerFieldDiskUsage expectedField = perFieldStats.getFields().get(field);

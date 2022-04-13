@@ -30,7 +30,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyMap;
@@ -65,9 +64,7 @@ public class ExpandSearchPhaseTests extends ESTestCase {
                 .source(
                     new SearchSourceBuilder().collapse(
                         new CollapseBuilder("someField").setInnerHits(
-                            IntStream.range(0, numInnerHits)
-                                .mapToObj(hitNum -> new InnerHitBuilder().setName("innerHit" + hitNum))
-                                .collect(Collectors.toList())
+                            IntStream.range(0, numInnerHits).mapToObj(hitNum -> new InnerHitBuilder().setName("innerHit" + hitNum)).toList()
                         )
                     )
                 );

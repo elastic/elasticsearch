@@ -108,41 +108,59 @@ change this to reflect the logical name of the cluster.
 [[bootstrap-auto-bootstrap]]
 ==== Auto-bootstrapping in development mode
 
-If the cluster is running with a completely default configuration then it will
-automatically bootstrap a cluster based on the nodes that could be discovered to
-be running on the same host within a short time after startup. This means that
-by default it is possible to start up several nodes on a single machine and have
-them automatically form a cluster which is very useful for development
-environments and experimentation. However, since nodes may not always
-successfully discover each other quickly enough this automatic bootstrapping
-cannot be relied upon and cannot be used in production deployments.
-
-If any of the following settings are configured then auto-bootstrapping will not
-take place, and you must configure `cluster.initial_master_nodes` as described
-in the <<modules-discovery-bootstrap-cluster,section on cluster bootstrapping>>:
+By default each node will automatically bootstrap itself into a single-node
+cluster the first time it starts. If any of the following settings are
+configured then auto-bootstrapping will not take place:
 
 * `discovery.seed_providers`
 * `discovery.seed_hosts`
 * `cluster.initial_master_nodes`
 
+To add a new node into an existing cluster, configure `discovery.seed_hosts` or
+other relevant discovery settings so that the new node can discover the
+existing master-eligible nodes in the cluster. To bootstrap a new multi-node
+cluster, configure `cluster.initial_master_nodes` as described in the
+<<modules-discovery-bootstrap-cluster,section on cluster bootstrapping>> as
+well as `discovery.seed_hosts` or other relevant discovery settings.
+
 [[modules-discovery-bootstrap-cluster-joining]]
 .Forming a single cluster
 ****
-If you start an {es} node
-without configuring these settings then it will start up in development mode and
-auto-bootstrap itself into a new cluster. If you start some {es} nodes on
-different hosts then by default they will not discover each other and will form
-a different cluster on each host. {es} will not merge separate clusters together
-after they have formed, even if you subsequently try and configure all the nodes
-into a single cluster. This is because there is no way to merge these separate
-clusters together without a risk of data loss. You can tell that you have formed
-separate clusters by checking the cluster UUID reported by `GET /` on each node.
-If you intended to form a single cluster then you should start again:
+Once an {es} node has joined an existing cluster, or bootstrapped a new
+cluster, it will not join a different cluster. {es} will not merge separate
+clusters together after they have formed, even if you subsequently try and
+configure all the nodes into a single cluster. This is because there is no way
+to merge these separate clusters together without a risk of data loss. You can
+tell that you have formed separate clusters by checking the cluster UUID
+reported by `GET /` on each node.
 
-* Shut down all the nodes.
-* Completely wipe each node by deleting the contents of their
-  <<data-path,data folders>>.
-* Configure `cluster.initial_master_nodes` as described above.
-* Restart all the nodes and verify that they have formed a single cluster.
+If you intended to add a node into an existing cluster but instead bootstrapped
+a separate single-node cluster then you must start again:
+
+. Shut down the node.
+
+. Completely wipe the node by deleting the contents of its <<data-path,data
+folder>>.
+
+. Configure `discovery.seed_hosts` or `discovery.seed_providers` and other
+relevant discovery settings.
+
+. Restart the node and verify that it joins the existing cluster rather than
+forming its own one-node cluster.
+
+If you intended to form a new multi-node cluster but instead bootstrapped a
+collection of single-node clusters then you must start again:
+
+. Shut down all the nodes.
+
+. Completely wipe each node by deleting the contents of their <<data-path,data
+folders>>.
+
+. Configure `cluster.initial_master_nodes` as described above.
+
+. Configure `discovery.seed_hosts` or `discovery.seed_providers` and other
+relevant discovery settings.
+
+. Restart all the nodes and verify that they have formed a single cluster.
 
 ****

@@ -15,6 +15,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.test.readiness.ReadinessClientProbe;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -37,7 +38,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class NodeShutdownIT extends ESRestTestCase {
+public class NodeShutdownIT extends ESRestTestCase implements ReadinessClientProbe {
 
     public void testRestartCRUD() throws Exception {
         checkCRUD(randomFrom("restart", "RESTART"), randomPositiveTimeValue(), null);
@@ -51,10 +52,19 @@ public class NodeShutdownIT extends ESRestTestCase {
         checkCRUD(randomFrom("replace", "REPLACE"), null, randomAlphaOfLength(10));
     }
 
-    @SuppressWarnings("unchecked")
     public void checkCRUD(String type, @Nullable String allocationDelay, @Nullable String targetNodeName) throws Exception {
         String nodeIdToShutdown = getRandomNodeId();
+        checkCRUD(nodeIdToShutdown, type, allocationDelay, targetNodeName, true);
+    }
 
+    @SuppressWarnings("unchecked")
+    public void checkCRUD(
+        String nodeIdToShutdown,
+        String type,
+        @Nullable String allocationDelay,
+        @Nullable String targetNodeName,
+        boolean delete
+    ) throws Exception {
         // Ensure if we do a GET before the cluster metadata is set up, we don't get an error
         assertNoShuttingDownNodes(nodeIdToShutdown);
 
@@ -73,10 +83,61 @@ public class NodeShutdownIT extends ESRestTestCase {
             assertThat(nodesArray.get(0).get("target_node_name"), equalTo(targetNodeName));
         }
 
-        // Delete it and make sure it's deleted
-        Request deleteRequest = new Request("DELETE", "_nodes/" + nodeIdToShutdown + "/shutdown");
+        if (delete) {
+            // Delete it and make sure it's deleted
+            Request deleteRequest = new Request("DELETE", "_nodes/" + nodeIdToShutdown + "/shutdown");
+            assertOK(client().performRequest(deleteRequest));
+            assertNoShuttingDownNodes(nodeIdToShutdown);
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testShutdownReadinessService() throws Exception {
+        // Get a node from the cluster and find its readiness port
+        Request getNodes = new Request("GET", "_nodes");
+        Map<String, Object> nodesResponse = responseAsMap(client().performRequest(getNodes));
+        Map<String, Object> nodesObject = (Map<String, Object>) nodesResponse.get("nodes");
+
+        String nodeId = nodesObject.keySet().iterator().next();
+        Map<String, Object> nodeObject = (Map<String, Object>) nodesObject.get(nodeId);
+        Map<String, Object> httpObject = (Map<String, Object>) nodeObject.get("http");
+        String publishAddress = (String) httpObject.get("publish_address");
+
+        String readinessPorts = this.getTestReadinessPorts();
+        String restPorts = this.getTestRestCluster();
+
+        String[] restAddresses = restPorts.split(",");
+        int nodeIndex = 0;
+        for (String restAddress : restAddresses) {
+            // skip ipv6 if any
+            if (restAddress.startsWith("[")) {
+                continue;
+            }
+            if (restAddress.equals(publishAddress)) {
+                break;
+            }
+            nodeIndex++;
+        }
+
+        String[] readinessAddresses = readinessPorts.split(",");
+        String readinessAddress = readinessAddresses[nodeIndex];
+
+        String portStr = readinessAddress.split(":")[1];
+        Integer port = Integer.parseInt(portStr);
+
+        // Once we have the right port, check to see if it's ready, has to be for a properly started cluster
+        tcpReadinessProbeTrue(port);
+
+        // Mark the node for shutdown and check that it's not ready
+        checkCRUD(nodeId, randomFrom("restart", "RESTART"), "1ms", null, false);
+        tcpReadinessProbeFalse(port);
+
+        // Delete the shutdown request and verify that the node is ready again
+        Request deleteRequest = new Request("DELETE", "_nodes/" + nodeId + "/shutdown");
         assertOK(client().performRequest(deleteRequest));
-        assertNoShuttingDownNodes(nodeIdToShutdown);
+        assertNoShuttingDownNodes(nodeId);
+
+        tcpReadinessProbeTrue(port);
     }
 
     public void testPutShutdownIsIdempotentForRestart() throws Exception {

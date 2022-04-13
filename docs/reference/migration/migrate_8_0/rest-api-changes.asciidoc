@@ -182,20 +182,25 @@ parameters are ignored, and responses, where warranted, include `_type` :
 [%collapsible]
 ====
 *Details* +
-Elastic only supports searches from a local cluster to a remote cluster running:
+In 8.0+, Elastic supports searches from a local cluster to a remote cluster
+running:
 
 * The previous minor version.
 * The same version.
-* A newer version. This version must also be compatible with the local cluster
-as outlined in the
-{ref}/modules-cross-cluster-search.html#ccs-version-compatibility[compatibility
-matrix].
+* A newer minor version in the same major version.
+
+Elastic also supports searches from a local cluster running the last minor
+version of a major version to a remote cluster running any minor version in the
+following major version. For example, a local 7.17 cluster can search any
+remote 8.x cluster.
+
+include::{es-repo-dir}/search/search-your-data/ccs-version-compat-matrix.asciidoc[]
 
 IMPORTANT: For the {ref}/eql-search-api.html[EQL search API], the local and
 remote clusters must use the same {es} version.
 
-For example, a local 8.0 cluster can search a remote {prev-major-last}, 8.0, or
-8.1 cluster. However, a search from a local 8.0 cluster to a remote 7.16 or 6.8
+For example, a local 8.0 cluster can search a remote 7.17 or any remote 8.x
+cluster. However, a search from a local 8.0 cluster to a remote 7.16 or 6.8
 cluster is not supported.
 
 Previously, we also supported searches on remote clusters running:
@@ -203,8 +208,7 @@ Previously, we also supported searches on remote clusters running:
 * Any minor version of the local cluster's major version.
 * The last minor release of the previous major version.
 
-However, such searches can result in undefined behavior, particularly if the
-search uses a recent feature that's unsupported in the remote cluster.
+However, such searches can result in undefined behavior.
 
 *Impact* +
 If you only run cross-cluster searches on remote clusters using the same or a

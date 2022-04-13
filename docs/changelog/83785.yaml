@@ -1,6 +1,0 @@
-pr: 83785
-summary: '[GCE Discovery] Correcly handle large zones with 500 or more instances'
-area: Distributed
-type: bug
-issues:
-  - 83783

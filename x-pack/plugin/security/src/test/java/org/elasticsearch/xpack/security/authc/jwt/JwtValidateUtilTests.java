@@ -8,13 +8,12 @@ package org.elasticsearch.xpack.security.authc.jwt;
 
 import com.nimbusds.jose.JOSEException;
 import com.nimbusds.jose.JWSAlgorithm;
-import com.nimbusds.jose.JWSSigner;
-import com.nimbusds.jose.JWSVerifier;
 import com.nimbusds.jose.jwk.JWK;
 import com.nimbusds.jwt.SignedJWT;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 
 import java.time.Instant;
@@ -31,11 +30,9 @@ public class JwtValidateUtilTests extends JwtTestCase {
         LOGGER.info("Testing signature algorithm " + signatureAlgorithm);
         // randomSecretOrSecretKeyOrKeyPair() randomizes which JwtUtil methods to call, so it indirectly covers most JwtUtil code
         final JWK jwk = JwtTestCase.randomJwk(signatureAlgorithm);
-        final JWSSigner jwsSigner = JwtValidateUtil.createJwsSigner(jwk);
-        final JWSVerifier jwkVerifier = JwtValidateUtil.createJwsVerifier(jwk);
-        final String serializedJWTOriginal = JwtTestCase.randomValidSignedJWT(jwsSigner, signatureAlgorithm).serialize();
-        final SignedJWT parsedSignedJWT = SignedJWT.parse(serializedJWTOriginal);
-        return JwtValidateUtil.verifyJWT(jwkVerifier, parsedSignedJWT);
+        final SecureString serializedJWTOriginal = JwtTestCase.randomJwt(jwk, signatureAlgorithm);
+        final SignedJWT parsedSignedJWT = SignedJWT.parse(serializedJWTOriginal.toString());
+        return JwtValidateUtil.verifyJwt(jwk, parsedSignedJWT);
     }
 
     public void testJwtSignVerifyPassedForAllSupportedAlgorithms() throws Exception {

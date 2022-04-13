@@ -517,6 +517,10 @@ public abstract class BaseMlIntegTestCase extends ESIntegTestCase {
             .actionGet();
     }
 
+    protected void ensureStableCluster() {
+        ensureStableCluster(internalCluster().getNodeNames().length, TimeValue.timeValueSeconds(60));
+    }
+
     public static class MockPainlessScriptEngine extends MockScriptEngine {
 
         public static final String NAME = "painless";

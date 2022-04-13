@@ -2059,6 +2059,21 @@ If this setting is used, then the JWT realm does not perform role
 mapping and instead loads the user from the listed realms.
 See <<authorization_realms>>.
 
+`jwt.cache.ttl`::
+(<<static-cluster-setting,Static>>)
+Specifies the time-to-live for JWT cache entries.
+JWT entries will be cached for this period of time.
+JWTs can only be cached if client authentication is successful (or disabled).
+Use the standard {es} <<time-units,time units>>.
+Defaults to `20m`. Zero disables JWT cache.
+If clients use a different JWT for every request, set to 0 to disable JWT cache.
+
+`jwt.cache.size`::
+(<<static-cluster-setting,Static>>)
+Specifies the maximum number of JWT cache entries.
+Defaults to `100000`. Zero disables JWT cache.
+If clients use a different JWT for every request, set to 0 to disable JWT cache.
+
 // tag::jwt-http-connect-timeout-tag[]
 `http.connect_timeout` {ess-icon}::
 (<<static-cluster-setting,Static>>)

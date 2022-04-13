@@ -19,7 +19,7 @@ import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
 import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.global.InternalGlobal;
-import org.elasticsearch.search.aggregations.metrics.InternalMin;
+import org.elasticsearch.search.aggregations.metrics.Min;
 import org.elasticsearch.search.aggregations.metrics.MinAggregationBuilder;
 
 import java.io.IOException;
@@ -32,7 +32,7 @@ public class GlobalAggregatorTests extends AggregatorTestCase {
             // Intentionally not writing any docs
         }, new MatchAllDocsQuery(), (global, min) -> {
             assertEquals(0, global.getDocCount());
-            assertEquals(Double.POSITIVE_INFINITY, min.getValue(), 0);
+            assertEquals(Double.POSITIVE_INFINITY, min.value(), 0);
         });
     }
 
@@ -42,7 +42,7 @@ public class GlobalAggregatorTests extends AggregatorTestCase {
             iw.addDocument(List.of(new SortedNumericDocValuesField("number", 1)));
         }, new MatchAllDocsQuery(), (global, min) -> {
             assertEquals(2, global.getDocCount());
-            assertEquals(1, min.getValue(), 0);
+            assertEquals(1, min.value(), 0);
         });
     }
 
@@ -52,21 +52,21 @@ public class GlobalAggregatorTests extends AggregatorTestCase {
             iw.addDocument(List.of(new SortedNumericDocValuesField("number", 1)));
         }, LongPoint.newRangeQuery("number", 2, Long.MAX_VALUE), (global, min) -> {
             assertEquals(2, global.getDocCount());
-            assertEquals(1, min.getValue(), 0);
+            assertEquals(1, min.value(), 0);
         });
     }
 
     private void testCase(
         CheckedConsumer<RandomIndexWriter, IOException> buildIndex,
         Query topLevelQuery,
-        BiConsumer<InternalGlobal, InternalMin> verify
+        BiConsumer<InternalGlobal, Min> verify
     ) throws IOException {
         GlobalAggregationBuilder aggregationBuilder = new GlobalAggregationBuilder("_name");
         aggregationBuilder.subAggregation(new MinAggregationBuilder("in_global").field("number"));
         MappedFieldType fieldType = new NumberFieldMapper.NumberFieldType("number", NumberFieldMapper.NumberType.LONG);
 
         testCase(aggregationBuilder, topLevelQuery, buildIndex, (InternalGlobal result) -> {
-            InternalMin min = result.getAggregations().get("in_global");
+            Min min = result.getAggregations().get("in_global");
             verify.accept(result, min);
         }, fieldType);
     }

@@ -54,7 +54,6 @@ import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -113,7 +112,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
                 .map(DiscoveryNode::getName)
                 .filter(nodeName -> nodeWithoutRemoteClusterClientRole.equals(nodeName) == false)
                 .filter(nodeName -> nodeName.equals(pureDataNode) == false)
-                .collect(Collectors.toList())
+                .toList()
         );
 
         final SearchResponse resp = localCluster.client(nodeWithRemoteClusterClientRole)
@@ -182,7 +181,7 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
                 .stream()
                 .filter(DiscoveryNode::canContainData)
                 .map(DiscoveryNode::getName)
-                .collect(Collectors.toList());
+                .toList();
             assertThat(remoteDataNodes.size(), Matchers.greaterThanOrEqualTo(3));
             List<String> seedNodes = randomSubsetOf(between(1, remoteDataNodes.size() - 1), remoteDataNodes);
             disconnectFromRemoteClusters();

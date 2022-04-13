@@ -1,0 +1,6 @@
+pr: 84605
+summary: PIT for `GROUP BY` and `PIVOT` queries
+area: SQL
+type: enhancement
+issues:
+ - 84349

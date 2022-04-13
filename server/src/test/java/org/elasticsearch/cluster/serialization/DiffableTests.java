@@ -370,7 +370,7 @@ public class DiffableTests extends ESTestCase {
 
         @Override
         protected ImmutableOpenMap<Integer, V> createMap(Map<Integer, V> values) {
-            return ImmutableOpenMap.<Integer, V>builder().putAll(values).build();
+            return ImmutableOpenMap.<Integer, V>builder().putAllFromMap(values).build();
         }
 
         @Override

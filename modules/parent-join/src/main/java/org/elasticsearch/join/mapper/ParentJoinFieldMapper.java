@@ -70,10 +70,12 @@ public final class ParentJoinFieldMapper extends FieldMapper {
     }
 
     private static void checkIndexCompatibility(IndexSettings settings, String name) {
+        String indexName = settings.getIndex().getName();
         if (settings.getIndexMetadata().isRoutingPartitionedIndex()) {
-            throw new IllegalStateException(
-                "cannot create join field [" + name + "] " + "for the partitioned index " + "[" + settings.getIndex().getName() + "]"
-            );
+            throw new IllegalStateException("cannot create join field [" + name + "] for the partitioned index [" + indexName + "]");
+        }
+        if (settings.getIndexMetadata().getRoutingPaths().isEmpty() == false) {
+            throw new IllegalStateException("cannot create join field [" + name + "] for the index [" + indexName + "] with routing_path");
         }
     }
 
@@ -141,7 +143,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         }
     }
 
-    public static TypeParser PARSER = new TypeParser((n, c) -> {
+    public static final TypeParser PARSER = new TypeParser((n, c) -> {
         checkIndexCompatibility(c.getIndexSettings(), n);
         return new Builder(n);
     });
@@ -293,7 +295,7 @@ public final class ParentJoinFieldMapper extends FieldMapper {
         if (fieldType().joiner.parentTypeExists(name)) {
             // Index the document as a parent
             String fieldName = fieldType().joiner.childJoinField(name);
-            parentIdFields.get(fieldName).indexValue(context, context.sourceToParse().id());
+            parentIdFields.get(fieldName).indexValue(context, context.id());
         }
 
         BytesRef binaryValue = new BytesRef(name);

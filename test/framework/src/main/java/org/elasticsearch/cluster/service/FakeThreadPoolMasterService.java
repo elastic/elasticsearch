@@ -127,10 +127,13 @@ public class FakeThreadPoolMasterService extends MasterService {
     }
 
     @Override
-    protected void publish(ClusterStatePublicationEvent clusterStatePublicationEvent, TaskOutputs taskOutputs) {
+    protected void publish(
+        ClusterStatePublicationEvent clusterStatePublicationEvent,
+        AckListener ackListener,
+        ActionListener<Void> publicationListener
+    ) {
         assert waitForPublish == false;
         waitForPublish = true;
-        final AckListener ackListener = taskOutputs.createAckListener(clusterStatePublicationEvent.getNewState());
         final ActionListener<Void> publishListener = new ActionListener<>() {
 
             private boolean listenerCalled = false;
@@ -142,7 +145,7 @@ public class FakeThreadPoolMasterService extends MasterService {
                 assert waitForPublish;
                 waitForPublish = false;
                 try {
-                    onPublicationSuccess(clusterStatePublicationEvent, taskOutputs);
+                    publicationListener.onResponse(null);
                 } finally {
                     taskInProgress = false;
                     scheduleNextTaskIfNecessary();
@@ -156,7 +159,7 @@ public class FakeThreadPoolMasterService extends MasterService {
                 assert waitForPublish;
                 waitForPublish = false;
                 try {
-                    onPublicationFailed(clusterStatePublicationEvent, taskOutputs, e);
+                    publicationListener.onFailure(e);
                 } finally {
                     taskInProgress = false;
                     scheduleNextTaskIfNecessary();

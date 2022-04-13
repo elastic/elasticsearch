@@ -41,25 +41,23 @@ users with the same username, it's reasonable to treat these users as the
 same user from a resource ownership perspective.
 
 Security domains make resource sharing across realms possible by grouping those
-realms under the same domain.
+realms under the same domain. {es} always enforces the privileges that are 
+associated with the currently authenticated user, which remains true with 
+security domains. Security domains don't bypass
+<<authorization,user authorization>> when resource sharing requires them. For 
+example, a user requires the `manage_own_api_key` privilege to manage their own 
+API keys. If that user doesn't have this privilege when authenticating with one 
+realm, they won't be able to manage API keys while authenticating with another 
+realm.
 
 [[security-domain-realm-roles]]
 ===== Managing roles across realms
-Use <<configuring-authorization-delegation,authorization delegation>> to ensure 
-that a user is assigned the same roles from multiple realms. Though it's
-possible to configure different <<roles,roles>> for the same user when
-authenticating with different realms, it is _not_ recommended.
-
-{es} always enforces the privileges associated with the currently authenticated 
-user. Security domains don't bypass <<authorization,user authorization>> when
-resource sharing requires them. For example, a user requires the
-`manage_own_api_key` privilege to manage their own API keys. If that user doesn't
-have this privilege when authenticating with one realm, they won't be able
-to manage API keys while authenticating with this realm.
-This behavior might be unexpected because a single user may or may not be able
-to perform the same operation depending on the realm it authenticates with.
-However, it's a safe behavior that ensures actual actions always comply to
-authorization requirements.
+{es} provides multiple ways to consistently apply roles across realms. For example, you can use
+<<configuring-authorization-delegation,authorization delegation>> to 
+ensure that a user is assigned the same roles from multiple realms. You can also
+manually configure multiple realms that are backed by the same directory service.
+Though it's possible to configure different <<roles,roles>> for the same user
+when authenticating with different realms, it is _not_ recommended.
 
 [[security-domain-configure]]
 ==== Configure a security domain

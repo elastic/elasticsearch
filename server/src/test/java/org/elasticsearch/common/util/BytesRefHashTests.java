@@ -11,11 +11,13 @@ package org.elasticsearch.common.util;
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -240,5 +242,70 @@ public class BytesRefHashTests extends ESTestCase {
 
     public void testAllocation() {
         MockBigArrays.assertFitsIn(new ByteSizeValue(512), bigArrays -> new BytesRefHash(1, bigArrays));
+    }
+
+    private void assertEquality(BytesRefHash original, BytesRefHash copy) {
+        BytesRef scratch = new BytesRef();
+        int numberOfOriginalKeys = 0;
+        int numberOfCopyKeys = 0;
+
+        // check that all keys of original can be found in the copy
+        for (int i = 0; i < original.capacity(); ++i) {
+            long id = original.id(i);
+
+            if (id != -1) {
+                ++numberOfOriginalKeys;
+                original.get(id, scratch);
+                assertTrue(copy.find(scratch) >= 0);
+            }
+        }
+
+        // count number of keys in copy
+        for (int i = 0; i < copy.capacity(); ++i) {
+            long id = copy.id(i);
+
+            if (id != -1) {
+                ++numberOfCopyKeys;
+            }
+        }
+
+        assertEquals(numberOfOriginalKeys, numberOfCopyKeys);
+    }
+
+    public void testGetByteRefsAndSerialization() throws IOException {
+        BytesRefHash hash = randomHash();
+        BytesRefBuilder ref = new BytesRefBuilder();
+        int runs = randomIntBetween(2, 20);
+
+        for (int j = 0; j < runs; j++) {
+            Set<String> strings = new HashSet<>();
+            int entries = randomIntBetween(100, 5000);
+
+            for (int i = 0; i < entries; i++) {
+                String str = randomUnicodeOfLengthBetween(4, 20);
+                ref.copyChars(str);
+                hash.add(ref.get());
+                strings.add(str);
+            }
+
+            BytesRefArray refArray = hash.getBytesRefs();
+
+            BytesRefArray refArrayCopy = copyInstance(
+                refArray,
+                writableRegistry(),
+                (out, value) -> value.writeTo(out),
+                in -> new BytesRefArray(in, mockBigArrays()),
+                Version.CURRENT
+            );
+
+            BytesRefHash copy = new BytesRefHash(refArrayCopy, mockBigArrays());
+
+            assertEquality(hash, copy);
+            assertAllIn(strings, copy);
+            copy.close();
+            hash.close();
+            hash = randomHash();
+        }
+        hash.close();
     }
 }

@@ -20,8 +20,10 @@ if [[ ! -f config/elasticsearch.keystore ]]; then
   echo "password" | ./bin/elasticsearch-keystore add -x 'bootstrap.password'
 fi
 
-# export ES_JAVA_OPTS="-agentlib:jdwp=transport=dt_socket,server=n,suspend=n,address=*:5005 -ea "
+# export ES_JAVA_OPTS="-agentlib:jdwp=transport=dt_socket,server=n,suspend=y,address=*:5007 "
+export ES_JAVA_OPTS="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5007 "
+
 # export ES_JAVA_OPTS="-Djava.security.debug=failure"
 # export ES_JAVA_OPTS="-Djava.security.debug=access,failure"
 
-exec ./bin/elasticsearch -Expack.apm.tracing.enabled=true
+exec ./bin/elasticsearch -Expack.apm.tracing.enabled=true -Eingest.geoip.downloader.enabled=false

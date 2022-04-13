@@ -122,33 +122,31 @@ public class TaskManager implements ClusterStateApplier {
         long maxSize = maxHeaderSize.getBytes();
         ThreadContext threadContext = threadPool.getThreadContext();
 
-        try (var ignored = threadContext.newTraceContext()) {
-            for (String key : taskHeaders) {
-                String httpHeader = threadContext.getHeader(key);
-                if (httpHeader != null) {
-                    headerSize += key.length() * 2 + httpHeader.length() * 2;
-                    if (headerSize > maxSize) {
-                        throw new IllegalArgumentException("Request exceeded the maximum size of task headers " + maxHeaderSize);
-                    }
-                    headers.put(key, httpHeader);
+        for (String key : taskHeaders) {
+            String httpHeader = threadContext.getHeader(key);
+            if (httpHeader != null) {
+                headerSize += key.length() * 2 + httpHeader.length() * 2;
+                if (headerSize > maxSize) {
+                    throw new IllegalArgumentException("Request exceeded the maximum size of task headers " + maxHeaderSize);
                 }
+                headers.put(key, httpHeader);
             }
-            Task task = request.createTask(taskIdGenerator.incrementAndGet(), type, action, request.getParentTask(), headers);
-            Objects.requireNonNull(task);
-            assert task.getParentTaskId().equals(request.getParentTask()) : "Request [ " + request + "] didn't preserve it parentTaskId";
-            if (logger.isTraceEnabled()) {
-                logger.trace("register {} [{}] [{}] [{}]", task.getId(), type, action, task.getDescription());
-            }
-
-            if (task instanceof CancellableTask) {
-                registerCancellableTask(task);
-            } else {
-                Task previousTask = tasks.put(task.getId(), task);
-                assert previousTask == null;
-                taskTracer.onTaskRegistered(threadContext, task);
-            }
-            return task;
         }
+        Task task = request.createTask(taskIdGenerator.incrementAndGet(), type, action, request.getParentTask(), headers);
+        Objects.requireNonNull(task);
+        assert task.getParentTaskId().equals(request.getParentTask()) : "Request [ " + request + "] didn't preserve it parentTaskId";
+        if (logger.isTraceEnabled()) {
+            logger.trace("register {} [{}] [{}] [{}]", task.getId(), type, action, task.getDescription());
+        }
+
+        if (task instanceof CancellableTask) {
+            registerCancellableTask(task);
+        } else {
+            Task previousTask = tasks.put(task.getId(), task);
+            assert previousTask == null;
+            taskTracer.onTaskRegistered(threadContext, task);
+        }
+        return task;
     }
 
     public <Request extends ActionRequest, Response extends ActionResponse> Task registerAndExecute(

@@ -162,39 +162,42 @@ public class PrimaryReplicaSyncer {
     ) {
         ResyncRequest request = new ResyncRequest(shardId, primaryAllocationId);
         final TaskManager taskManager = transportService.getTaskManager();
-        ResyncTask resyncTask = (ResyncTask) taskManager.register("transport", "resync", request); // it's not transport :-)
-        ActionListener<Void> wrappedListener = new ActionListener<Void>() {
-            @Override
-            public void onResponse(Void ignore) {
-                resyncTask.setPhase("finished");
-                taskManager.unregister(resyncTask);
-                listener.onResponse(resyncTask);
-            }
 
-            @Override
-            public void onFailure(Exception e) {
-                resyncTask.setPhase("finished");
-                taskManager.unregister(resyncTask);
-                listener.onFailure(e);
+        try (var ignored = transportService.getThreadPool().getThreadContext().newTraceContext()) {
+            ResyncTask resyncTask = (ResyncTask) taskManager.register("transport", "resync", request); // it's not transport :-)
+            ActionListener<Void> wrappedListener = new ActionListener<Void>() {
+                @Override
+                public void onResponse(Void ignore) {
+                    resyncTask.setPhase("finished");
+                    taskManager.unregister(resyncTask);
+                    listener.onResponse(resyncTask);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    resyncTask.setPhase("finished");
+                    taskManager.unregister(resyncTask);
+                    listener.onFailure(e);
+                }
+            };
+            try {
+                new SnapshotSender(
+                    syncAction,
+                    resyncTask,
+                    shardId,
+                    primaryAllocationId,
+                    primaryTerm,
+                    snapshot,
+                    chunkSize.bytesAsInt(),
+                    startingSeqNo,
+                    maxSeqNo,
+                    maxSeenAutoIdTimestamp,
+                    transportService.getThreadPool().generic(),
+                    wrappedListener
+                ).run();
+            } catch (Exception e) {
+                wrappedListener.onFailure(e);
             }
-        };
-        try {
-            new SnapshotSender(
-                syncAction,
-                resyncTask,
-                shardId,
-                primaryAllocationId,
-                primaryTerm,
-                snapshot,
-                chunkSize.bytesAsInt(),
-                startingSeqNo,
-                maxSeqNo,
-                maxSeenAutoIdTimestamp,
-                transportService.getThreadPool().generic(),
-                wrappedListener
-            ).run();
-        } catch (Exception e) {
-            wrappedListener.onFailure(e);
         }
     }
 

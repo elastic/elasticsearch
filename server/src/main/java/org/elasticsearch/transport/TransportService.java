@@ -1037,6 +1037,7 @@ public class TransportService extends AbstractLifecycleComponent
         validateActionName(action);
         handler = interceptor.interceptHandler(action, executor, false, handler);
         RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(
+            threadPool,
             action,
             requestReader,
             taskManager,
@@ -1069,6 +1070,7 @@ public class TransportService extends AbstractLifecycleComponent
         validateActionName(action);
         handler = interceptor.interceptHandler(action, executor, forceExecution, handler);
         RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(
+            threadPool,
             action,
             requestReader,
             taskManager,

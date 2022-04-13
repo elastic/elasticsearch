@@ -4,45 +4,39 @@
 
 beta::[]
 
-User profiles provide persistent and stable representations of end users.
-A user profile exists even if the user is offline, so their profile persists across
-sessions. The unique identifier assigned to each profile doesn't change
+Because the {stack} supports externally-managed users (such as users who
+authenticate via SAML, or users stored in an LDAP directory), there's a
+distinction between _users_ and their _profile_.
+
+_Users_ refer to the entities that authenticate requests to the {stack}.
+Each user has a username and a set of privileges (represented by <<roles,roles>>)
+that determine which types of requests they can issue. Users can be ephemeral;
+they might exist only for the duration of a request to an {es} API or for the
+lifetime of a session in {kib}. These users cannot be retrieved after the session
+ends, and can't store preferences across sessions.
+
+_User profiles_ provide persistent and stable representations of users.
+A user profile exists even if the user is offline, so their profile persists across sessions.
+The unique identifier assigned to each profile doesn't change
 throughout the lifetime of a deployment, providing a stable way of referring
-to the associated user.
-The capability of uniquely referring to users regardless of whether they're actively
-online is a critical function that underpins important features like
+to the associated user. Each profile has a unique identifier, is searchable, and
+can store user data such as format and notification preferences.
+
+The capability of uniquely referring to users regardless of whether they're
+actively online is a critical function that underpins important features like
 personalization and collaboration in {kib}.
+
 
 ==== User profiles in {kib}
 
-A user profile is the persistent record that the {stack} stores for each interactive user
-that authenticates to {kib}.
-The {stack} assigns a unique identifier to each record, and uses this record to store user-level data
-such as format and notification preferences.
+A user profile is the persistent record that the {stack} stores for each
+interactive user that authenticates to {kib}.
 
-Because the {stack} supports externally-managed users (such as users who authenticate
-via SAML, or users stored in an LDAP directory), there's a distinction between the _user_ and their
-_profile_.
-
-_Users_ refer to the entities that authenticate requests to the {stack}.
-Each user has a username and a set of privileges (represented by <<roles,roles>>) that
-determine which types of requests they can issue.
-Users can be ephemeral; they might exist only for the duration of a request to
-an {es} API or for the lifetime of a session in {kib}. These users
-cannot be retrieved after the session ends, and can't store preferences
-across sessions.
-
-A _user profile_ is the long-term record associated with a user that persists even when
-the user has no active requests or sessions in the {stack}.
-Each profile has a unique identifier, is searchable, and can store user data such as
-format and notification preferences.
-
-When a user logs in to {kib}, a profile is automatically created for the user, or an
-existing profile is updated to reflect the user's new active session.
-By using the unique ID of the user profile, {kib} can store user preferences
-separately for each user, which is key to fine-grained level of customisation.
-This unique ID also offers a way to uniquely refer to a user so that
-{kib} can route messages and notifications to the appropriate user,
+When a user logs in to {kib}, a profile is automatically created for the user,
+or an existing profile is updated to reflect the user's active session.
+By using the unique ID of the user profile, {kib} can store user-level data such as preferences
+separately for each user, which is key to fine-grained levels of customization.
+{kib} uses this unique ID to route messages and notifications to a distinct user,
 regardless of whether they're logged in.
 
 ===== Usernames and user profiles

@@ -24,7 +24,7 @@ If {es} detects that a username from two different realms is
 attempting to access a resource, {es} assumes that these users are distinct and
 doesn't allow resources to be shared between those users.
 
-However, there are cases where the same end-user can authenticate with
+However, there are cases where the same user can authenticate with
 multiple realms and needs to share the same set of resources across realms.
 For example, an <<ldap-realm,LDAP realm>> and a <<saml-realm,SAML realm>> can
 be backed by the same directory service. Additionally,
@@ -34,7 +34,7 @@ users with the same username, it's reasonable to treat these users as the
 same user from a resource ownership perspective.
 
 With security domains, you can group multiple realms under the same
-domain. Users can authenticate with any of the realms in the group, 
+domain. Users can authenticate with any of the realms in the group,
 (provided those realms are under the same domain) and have access to the
 same set of resources regardless of which realm they authenticated with.
 For example, a single <<user-profile,user profile>> is

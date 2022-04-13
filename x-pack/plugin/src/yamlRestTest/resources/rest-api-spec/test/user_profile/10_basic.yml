@@ -60,6 +60,11 @@ teardown:
         uid: "$profile_uid"
         body: >
           {
+            "labels": {
+              "kibana": {
+                "spaces": "demo"
+              }
+            },
             "data": {
               "app1": {
                 "theme": "default"
@@ -103,6 +108,7 @@ teardown:
   - length: { $body: 1 }
   - is_true: "$profile_uid"
   - set: { $profile_uid: profile }
+  - match: { $profile.labels: { "kibana": { "spaces": "demo" } } }
   - match: { $profile.data: { "app1": { "theme": "default" }, "app2": { "theme": "dark"} } }
 
   # Attempting to get a non-existing profile leads to 404

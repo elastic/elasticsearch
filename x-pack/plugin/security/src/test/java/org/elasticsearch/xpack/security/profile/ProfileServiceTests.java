@@ -84,7 +84,7 @@ public class ProfileServiceTests extends ESTestCase {
               "active": true
             },
             "last_synchronized": %s,
-            "access": {
+            "labels": {
             },
             "application_data": {
               "app1": { "name": "app1" },

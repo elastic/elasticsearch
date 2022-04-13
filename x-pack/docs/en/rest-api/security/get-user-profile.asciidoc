@@ -79,7 +79,7 @@ The API returns the following response for a `uid` matching `u_kd2JMqwUQwSCCOxMv
       "email": "jacknich@example.com",
       "active": true
     },
-    "access": {},
+    "labels": {},
     "data": {}, <1>
     "_doc": {
       "_primary_term": 1,
@@ -120,7 +120,7 @@ GET /_security/profile/u_kd2JMqwUQwSCCOxMv7M1vw?data=app1.key1
       "email": "jacknich@example.com",
       "active": true
     },
-    "access": {},
+    "labels": {},
     "data": {
       "app1": {
         "key1": "value1"

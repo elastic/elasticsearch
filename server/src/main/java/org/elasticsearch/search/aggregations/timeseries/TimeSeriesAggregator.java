@@ -11,10 +11,8 @@ package org.elasticsearch.search.aggregations.timeseries;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.fielddata.plain.SortedSetBytesLeafFieldData;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
@@ -29,11 +27,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 public class TimeSeriesAggregator extends BucketsAggregator {
 
-    private final IndexFieldData<SortedSetBytesLeafFieldData> tsidFieldData;
     protected final BytesKeyedBucketOrds bucketOrds;
     private final boolean keyed;
 
@@ -49,10 +45,6 @@ public class TimeSeriesAggregator extends BucketsAggregator {
     ) throws IOException {
         super(name, factories, context, parent, bucketCardinality, metadata);
         this.keyed = keyed;
-        tsidFieldData = (IndexFieldData<SortedSetBytesLeafFieldData>) Objects.requireNonNull(
-            context.buildFieldContext("_tsid"),
-            "Cannot obtain tsid field"
-        ).indexFieldData();
         bucketOrds = BytesKeyedBucketOrds.build(bigArrays(), bucketCardinality);
     }
 
@@ -98,20 +90,22 @@ public class TimeSeriesAggregator extends BucketsAggregator {
 
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector sub) throws IOException {
-        final SortedBinaryDocValues tsids = tsidFieldData.load(context).getBytesValues();
+        // TODO: remove this method in a follow up PR
+        throw new UnsupportedOperationException("Shouldn't be here");
+    }
+
+    protected LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector sub, AggregationExecutionContext aggCtx)
+        throws IOException {
         return new LeafBucketCollectorBase(sub, null) {
 
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                if (tsids.advanceExact(doc)) {
-                    BytesRef newTsid = tsids.nextValue();
-                    long bucketOrdinal = bucketOrds.add(bucket, newTsid);
-                    if (bucketOrdinal < 0) { // already seen
-                        bucketOrdinal = -1 - bucketOrdinal;
-                        collectExistingBucket(sub, doc, bucketOrdinal);
-                    } else {
-                        collectBucket(sub, doc, bucketOrdinal);
-                    }
+                long bucketOrdinal = bucketOrds.add(bucket, aggCtx.getTsid());
+                if (bucketOrdinal < 0) { // already seen
+                    bucketOrdinal = -1 - bucketOrdinal;
+                    collectExistingBucket(sub, doc, bucketOrdinal);
+                } else {
+                    collectBucket(sub, doc, bucketOrdinal);
                 }
             }
         };

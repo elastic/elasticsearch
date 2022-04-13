@@ -9,8 +9,10 @@ package org.elasticsearch.snapshots;
 
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -24,6 +26,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.function.Function;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.READONLY_SETTING_KEY;
@@ -80,6 +83,19 @@ public class MultiClusterRepoAccessIT extends AbstractSnapshotIntegTestCase {
     @After
     public void stopSecondCluster() throws IOException {
         IOUtils.close(secondCluster);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(NetworkModule.TRANSPORT_TYPE_KEY, getTestTransportType())
+            .build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return CollectionUtils.appendToCopy(super.nodePlugins(), getTestTransportPlugin());
     }
 
     public void testConcurrentDeleteFromOtherCluster() throws InterruptedException {

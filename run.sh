@@ -2,12 +2,14 @@
 
 set -eo pipefail
 
+AGENT_VERSION=$(awk '/apm_agent/ { print $3 }' build-tools-internal/version.properties)
+
 # This is the path that `./gradlew localDistro` prints out at the end
 cd build/distribution/local/elasticsearch-8.3.0-SNAPSHOT
 
 # URL and token for sending traces
-SERVER_URL=""
-SECRET_TOKEN=""
+SERVER_URL="https://apm-testing.apm.us-west2.gcp.elastic-cloud.com"
+SECRET_TOKEN="bNJCAZxDjQwIFKxdk2"
 
 # Optional - override the agent jar
 # OVERRIDE_AGENT_JAR="$HOME/.m2/repository/co/elastic/apm/elastic-apm-agent/1.30.1-SNAPSHOT/elastic-apm-agent-1.30.1-SNAPSHOT.jar"
@@ -20,8 +22,6 @@ if [[ ! -f config/elasticsearch.keystore ]]; then
   # Use elastic:password for sending REST requests
   echo "password" | ./bin/elasticsearch-keystore add -x 'bootstrap.password'
 fi
-
-AGENT_VERSION=$(awk '/apm_agent/ { print $3 }' build-tools-internal/version.properties)
 
 AGENT_JAR="modules/apm-integration/elastic-apm-agent-${AGENT_VERSION}.jar"
 

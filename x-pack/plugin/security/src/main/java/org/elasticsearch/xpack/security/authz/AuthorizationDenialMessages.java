@@ -27,18 +27,18 @@ class AuthorizationDenialMessages {
     static String runAsDenied(Authentication authentication, String action) {
         assert authentication.getUser().isRunAs() : "constructing run as denied message but action was not run as";
 
-        String userText = authenticatedUserText(authentication);
+        String userText = authenticatedUserDescription(authentication);
 
-        String actionIsUnauthorizedText = actionIsUnauthorizedText(action, userText);
+        String actionIsUnauthorizedMessage = actionIsUnauthorizedMessage(action, userText);
 
         String runAsUserText = authentication.getUser().isRunAs() ? authentication.getUser().principal() : "";
         String runAsDeniedMessage = "because " + userText + " is unauthorized to run as [" + runAsUserText + "]";
 
-        return actionIsUnauthorizedText + " " + runAsDeniedMessage;
+        return actionIsUnauthorizedMessage + " " + runAsDeniedMessage;
     }
 
     static String actionDenied(Authentication authentication, String action, TransportRequest request, @Nullable String context) {
-        String userText = authenticatedUserText(authentication);
+        String userText = authenticatedUserDescription(authentication);
 
         if (authentication.getUser().isRunAs()) {
             userText = userText + " run as [" + authentication.getUser().principal() + "]";
@@ -51,7 +51,7 @@ class AuthorizationDenialMessages {
             userText = userText + " with roles [" + Strings.arrayToCommaDelimitedString(authentication.getUser().roles()) + "]";
         }
 
-        String message = actionIsUnauthorizedText(action, userText);
+        String message = actionIsUnauthorizedMessage(action, userText);
         if (context != null) {
             message = message + " " + context;
         }
@@ -77,7 +77,7 @@ class AuthorizationDenialMessages {
         return message;
     }
 
-    private static String authenticatedUserText(Authentication authentication) {
+    private static String authenticatedUserDescription(Authentication authentication) {
         String userText = (authentication.isAuthenticatedWithServiceAccount() ? "service account" : "user")
             + " ["
             + authentication.getUser().authenticatedUser().principal()
@@ -90,7 +90,7 @@ class AuthorizationDenialMessages {
         return userText;
     }
 
-    private static String actionIsUnauthorizedText(String action, String userText) {
+    private static String actionIsUnauthorizedMessage(String action, String userText) {
         return "action [" + action + "] is unauthorized for " + userText;
     }
 }

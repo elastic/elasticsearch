@@ -26,7 +26,11 @@ public class AggregationExecutionContext {
     private final CheckedSupplier<Long, IOException> timestampProvider;
     private final LeafReaderContext leafReaderContext;
 
-    public AggregationExecutionContext(LeafReaderContext leafReaderContext, CheckedSupplier<BytesRef, IOException> tsidProvider, CheckedSupplier<Long, IOException> timestampProvider) {
+    public AggregationExecutionContext(
+        LeafReaderContext leafReaderContext,
+        CheckedSupplier<BytesRef, IOException> tsidProvider,
+        CheckedSupplier<Long, IOException> timestampProvider
+    ) {
         this.leafReaderContext = leafReaderContext;
         this.tsidProvider = tsidProvider;
         this.timestampProvider = timestampProvider;

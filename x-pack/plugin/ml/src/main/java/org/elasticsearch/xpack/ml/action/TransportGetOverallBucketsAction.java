@@ -184,7 +184,7 @@ public class TransportGetOverallBucketsAction extends HandledTransportAction<
                 if (totalHits > 0) {
                     Aggregations aggregations = searchResponse.getAggregations();
                     Min min = aggregations.get(EARLIEST_TIME);
-                    long earliestTime = Intervals.alignToFloor((long) min.getValue(), maxBucketSpanMillis);
+                    long earliestTime = Intervals.alignToFloor((long) min.value(), maxBucketSpanMillis);
                     Max max = aggregations.get(LATEST_TIME);
                     long latestTime = Intervals.alignToCeil((long) max.value() + 1, maxBucketSpanMillis);
                     listener.onResponse(

@@ -451,7 +451,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     }
 
     /**
-     * Returns all mapped field types.
+     * Returns field types that have eager global ordinals.
      */
     public Iterable<MappedFieldType> getEagerGlobalOrdinalsFields() {
         DocumentMapper mapper = this.mapper;
@@ -505,6 +505,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return mapperRegistry.getMetadataMapperParsers(indexVersionCreated).containsKey(field);
     }
 
+    /**
+     * @return If this field is defined as a multifield of another field
+     */
     public boolean isMultiField(String field) {
         return mappingLookup().isMultiField(field);
     }

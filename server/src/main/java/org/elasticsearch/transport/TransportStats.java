@@ -174,7 +174,7 @@ public class TransportStats implements Writeable, ToXContentFragment {
         return builder;
     }
 
-    private void histogramToXContent(XContentBuilder builder, long[] bucketFrequencies, String fieldName) throws IOException {
+    private static void histogramToXContent(XContentBuilder builder, long[] bucketFrequencies, String fieldName) throws IOException {
         final int[] bucketBounds = HandlingTimeTracker.getBucketUpperBounds();
         assert bucketFrequencies.length == bucketBounds.length + 1;
         builder.startArray(fieldName);

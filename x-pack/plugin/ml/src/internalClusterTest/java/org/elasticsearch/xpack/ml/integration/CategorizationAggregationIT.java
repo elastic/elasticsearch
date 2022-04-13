@@ -95,11 +95,7 @@ public class CategorizationAggregationIT extends BaseMlIntegTestCase {
         assertThat(bucket.getKeyAsString(), equalTo(key));
         assertThat(bucket.getDocCount(), equalTo(docCount));
         assertThat(((Max) bucket.getAggregations().get("max")).value(), not(notANumber()));
-        assertThat(((Min) bucket.getAggregations().get("min")).getValue(), not(notANumber()));
-    }
-
-    private void ensureStableCluster() {
-        ensureStableCluster(internalCluster().getNodeNames().length, TimeValue.timeValueSeconds(60));
+        assertThat(((Min) bucket.getAggregations().get("min")).value(), not(notANumber()));
     }
 
     private void createSourceData() {

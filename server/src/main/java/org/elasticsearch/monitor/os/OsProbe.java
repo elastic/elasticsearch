@@ -252,7 +252,7 @@ public class OsProbe {
         return readSingleLine(PathUtils.get("/proc/loadavg"));
     }
 
-    public short getSystemCpuPercent() {
+    public static short getSystemCpuPercent() {
         return Probes.getLoadAndScaleToPercent(getSystemCpuLoad, osMxBean);
     }
 
@@ -263,7 +263,7 @@ public class OsProbe {
      * @return the single line
      * @throws IOException if an I/O exception occurs reading the file
      */
-    private String readSingleLine(final Path path) throws IOException {
+    private static String readSingleLine(final Path path) throws IOException {
         final List<String> lines = Files.readAllLines(path);
         assert lines.size() == 1 : String.join("\n", lines);
         return lines.get(0);

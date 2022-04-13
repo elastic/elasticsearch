@@ -21,8 +21,10 @@ import com.nimbusds.jose.jwk.RSAKey;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 
+import org.apache.http.HttpHost;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -34,12 +36,14 @@ import org.elasticsearch.test.TestSecurityClient;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.hamcrest.Matchers;
 import org.junit.BeforeClass;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Path;
 import java.text.ParseException;
@@ -50,8 +54,11 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.test.TestMatchers.hasStatusCode;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.hasKey;
@@ -66,11 +73,16 @@ public class JwtRestIT extends ESRestTestCase {
 
     @BeforeClass
     public static void findTrustStore() throws Exception {
-        final URL resource = JwtRestIT.class.getResource("/ssl/ca.crt");
+        JwtRestIT.httpCertificateAuthority = findResource("/ssl/ca.crt");
+    }
+
+    private static Path findResource(String name) throws FileNotFoundException, URISyntaxException {
+        final URL resource = JwtRestIT.class.getResource(name);
         if (resource == null) {
-            throw new FileNotFoundException("Cannot find classpath resource /ssl/ca.crt");
+            throw new FileNotFoundException("Cannot find classpath resource " + name);
         }
-        httpCertificateAuthority = PathUtils.get(resource.toURI());
+        final Path path = PathUtils.get(resource.toURI());
+        return path;
     }
 
     @Override
@@ -382,6 +394,54 @@ public class JwtRestIT extends ESRestTestCase {
         assertThat(assertMap(response, User.Fields.METADATA), hasEntry("jwt_claim_iss", "jwt3-issuer"));
     }
 
+    public void testAuthenticateToOtherRealmsInChain() throws IOException, URISyntaxException {
+        // File realm, order 0 (before JWT realms)
+        final Map<String, Object> fileUser = getSecurityClient(
+            new UsernamePasswordToken("test_file_user", new SecureString("test-password".toCharArray()))
+        ).authenticate();
+        assertThat(fileUser.get(User.Fields.USERNAME.getPreferredName()), is("test_file_user"));
+        assertThat(
+            assertMap(fileUser, User.Fields.AUTHENTICATION_REALM),
+            hasEntry(User.Fields.REALM_NAME.getPreferredName(), "admin_file")
+        );
+        assertThat(assertList(fileUser, User.Fields.ROLES), contains("viewer"));
+
+        // Native realm, order 2 (between JWT1 and JWT2 realms)
+        final String principal = randomPrincipal();
+        final SecureString password = new SecureString(randomAlphaOfLength(12).toCharArray());
+        final List<String> roles = randomRoles();
+        createUser(principal, password, roles, Map.of());
+        final Map<String, Object> nativeUser = getSecurityClient(new UsernamePasswordToken(principal, password)).authenticate();
+        assertThat(nativeUser.get(User.Fields.USERNAME.getPreferredName()), is(principal));
+        assertThat(
+            assertMap(nativeUser, User.Fields.AUTHENTICATION_REALM),
+            hasEntry(User.Fields.REALM_NAME.getPreferredName(), "lookup_native")
+        );
+        assertThat(assertList(nativeUser, User.Fields.ROLES), containsInAnyOrder(roles.toArray(String[]::new)));
+
+        // PKI realm, order 4 (between JWT2 and JWT3)
+        final Path pkiCert = findResource("/ssl/pki.crt");
+        final Path pkiKey = findResource("/ssl/pki.key");
+        try (
+            RestClient pkiClient = buildClient(
+                Settings.builder()
+                    .put(restClientSettings())
+                    .put(CLIENT_CERT_PATH, pkiCert)
+                    .put(CLIENT_KEY_PATH, pkiKey)
+                    .put(CLIENT_KEY_PASSWORD, "pki-password")
+                    .build(),
+                super.getClusterHosts().toArray(new HttpHost[0])
+            )
+        ) {
+            final Map<String, Object> pkiUser = new TestSecurityClient(pkiClient).authenticate();
+            assertThat(pkiUser.get(User.Fields.USERNAME.getPreferredName()), is("pki"));
+            assertThat(
+                assertMap(pkiUser, User.Fields.AUTHENTICATION_REALM),
+                hasEntry(User.Fields.REALM_NAME.getPreferredName(), "pki_realm")
+            );
+        }
+    }
+
     private String randomPrincipal() {
         // We append _test so that it cannot randomly conflict with builtin user
         return randomAlphaOfLengthBetween(4, 12) + "_test";
@@ -540,11 +600,22 @@ public class JwtRestIT extends ESRestTestCase {
     }
 
     private TestSecurityClient getSecurityClient(SignedJWT jwt, Optional<String> sharedSecret) {
-        final String bearerHeader = "Bearer " + jwt.serialize();
+        return getSecurityClient(options -> {
+            final String bearerHeader = "Bearer " + jwt.serialize();
+            options.addHeader("Authorization", bearerHeader);
+            sharedSecret.ifPresent(secret -> options.addHeader("ES-Client-Authentication", "SharedSecret " + secret));
+        });
+    }
 
-        final RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", bearerHeader);
-        sharedSecret.ifPresent(secret -> options.addHeader("X-Client-Authentication", "SharedSecret " + secret));
+    private TestSecurityClient getSecurityClient(UsernamePasswordToken basicAuth) {
+        return getSecurityClient(
+            options -> options.addHeader("Authorization", basicAuthHeaderValue(basicAuth.principal(), basicAuth.credentials()))
+        );
+    }
 
+    private TestSecurityClient getSecurityClient(Consumer<RequestOptions.Builder> configuration) {
+        final RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
+        configuration.accept(options);
         return new TestSecurityClient(client(), options.build());
     }
 

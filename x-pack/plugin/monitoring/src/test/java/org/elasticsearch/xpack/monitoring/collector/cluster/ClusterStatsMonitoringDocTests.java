@@ -353,10 +353,9 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
         when(mockJvmInfo.getVmName()).thenReturn("_jvm_vm_name");
         when(mockJvmInfo.getVmVersion()).thenReturn("_jvm_vm_version");
         when(mockJvmInfo.getVmVendor()).thenReturn("_jvm_vm_vendor");
-        when(mockJvmInfo.getBundledJdk()).thenReturn(true);
         when(mockJvmInfo.getUsingBundledJdk()).thenReturn(true);
 
-        final Build mockBuild = new Build(Build.Flavor.DEFAULT, Build.Type.DOCKER, "", "", false, "");
+        final Build mockBuild = new Build(Build.Type.DOCKER, "", "", false, "");
         when(mockNodeInfo.getBuild()).thenReturn(mockBuild);
 
         final NodeStats mockNodeStats = mock(NodeStats.class);

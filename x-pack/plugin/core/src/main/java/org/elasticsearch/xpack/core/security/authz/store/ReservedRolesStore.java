@@ -770,7 +770,15 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .build(),
                 // For ILM policy for APM & Endpoint packages that have delete action
                 RoleDescriptor.IndicesPrivileges.builder()
-                    .indices(".logs-endpoint.diagnostic.collection-*", "traces-apm.sampled-*")
+                    .indices(
+                        ".logs-endpoint.diagnostic.collection-*",
+                        "logs-apm-*",
+                        "logs-apm.*-*",
+                        "metrics-apm-*",
+                        "metrics-apm.*-*",
+                        "traces-apm-*",
+                        "traces-apm.*-*"
+                    )
                     .privileges(DeleteIndexAction.NAME)
                     .build(),
                 // For src/dest indices of the Endpoint package that ships a transform
@@ -785,11 +793,20 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         ".metrics-endpoint.metadata_united_default"
                     )
                     .privileges("create_index", "delete_index", "read", "index")
-                    .build(), },
+                    .build(),
+                // For src/dest indices of the Cloud Security Posture packages that ships a transform
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("logs-cis_kubernetes_benchmark.findings-*")
+                    .privileges("read", "view_index_metadata")
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("logs-cloud_security_posture.findings_latest-default", "logs-cloud_security_posture.scores-default")
+                    .privileges("create_index", "read", "index", "delete")
+                    .build() },
             null,
             new ConfigurableClusterPrivilege[] {
                 new ManageApplicationPrivileges(Set.of("kibana-*")),
-                new WriteProfileDataPrivileges(Set.of("kibana-*")) },
+                new WriteProfileDataPrivileges(Set.of("kibana*")) },
             null,
             MetadataUtils.DEFAULT_RESERVED_METADATA,
             null

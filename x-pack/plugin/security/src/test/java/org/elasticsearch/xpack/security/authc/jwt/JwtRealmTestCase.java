@@ -124,7 +124,6 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         MinMax usersRange,
         MinMax rolesRange,
         MinMax jwtCacheSizeRange,
-        MinMax userCacheSizeRange,
         boolean createHttpsServer
     ) throws Exception {
         assertThat(realmsRange.min(), is(greaterThanOrEqualTo(1)));
@@ -134,7 +133,6 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         assertThat(usersRange.min(), is(greaterThanOrEqualTo(1)));
         assertThat(rolesRange.min(), is(greaterThanOrEqualTo(0)));
         assertThat(jwtCacheSizeRange.min(), is(greaterThanOrEqualTo(0)));
-        assertThat(userCacheSizeRange.min(), is(greaterThanOrEqualTo(0)));
 
         // Create JWT authc realms and mocked authz realms. Initialize each JWT realm, and test ensureInitialized() before and after.
         final int realmsCount = randomIntBetween(realmsRange.min(), realmsRange.max());
@@ -147,12 +145,15 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
             final int usersCount = randomIntBetween(usersRange.min(), usersRange.max());
             final int rolesCount = randomIntBetween(rolesRange.min(), rolesRange.max());
             final int jwtCacheSize = randomIntBetween(jwtCacheSizeRange.min(), jwtCacheSizeRange.max());
-            final int usersCacheSize = randomIntBetween(userCacheSizeRange.min(), userCacheSizeRange.max());
 
             final JwtIssuer jwtIssuer = this.createJwtIssuer(i, algsCount, audiencesCount, usersCount, rolesCount, createHttpsServer);
             // If HTTPS server was created in JWT issuer, any exception after that point requires closing it to avoid a thread pool leak
             try {
-                final JwtRealmNameAndSettingsBuilder realmNameAndSettingsBuilder = this.createJwtRealmSettings(jwtIssuer, authzCount);
+                final JwtRealmNameAndSettingsBuilder realmNameAndSettingsBuilder = this.createJwtRealmSettings(
+                    jwtIssuer,
+                    authzCount,
+                    jwtCacheSize
+                );
                 final JwtRealm jwtRealm = this.createJwtRealm(allRealms, jwtIssuer, realmNameAndSettingsBuilder);
 
                 // verify exception before initialize()
@@ -212,7 +213,8 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
         return new JwtIssuer(issuer, audiences, algJwkPairsPkc, algJwkPairsHmac, algJwkPairHmacOidc, users, createHttpsServer);
     }
 
-    protected JwtRealmNameAndSettingsBuilder createJwtRealmSettings(final JwtIssuer jwtIssuer, final int authzCount) throws Exception {
+    protected JwtRealmNameAndSettingsBuilder createJwtRealmSettings(final JwtIssuer jwtIssuer, final int authzCount, final int jwtCacheSize)
+        throws Exception {
         final String authcRealmName = "realm_" + jwtIssuer.issuer;
         final String[] authzRealmNames = IntStream.range(0, authzCount).mapToObj(z -> authcRealmName + "_authz" + z).toArray(String[]::new);
 
@@ -318,6 +320,16 @@ public abstract class JwtRealmTestCase extends JwtTestCase {
                 String.join(",", authzRealmNames)
             );
         }
+
+        // JWT cache (on/off controlled by jwtCacheSize)
+        if (randomBoolean()) {
+            authcSettings.put(
+                RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.JWT_CACHE_TTL),
+                randomIntBetween(10, 120) + randomFrom("s", "m", "h")
+            );
+        }
+        authcSettings.put(RealmSettings.getFullSettingKey(authcRealmName, JwtRealmSettings.JWT_CACHE_SIZE), jwtCacheSize);
+
         // JWT authc realm secure settings
         final MockSecureSettings secureSettings = new MockSecureSettings();
         if (Strings.hasText(jwtIssuer.encodedJwkSetHmac)) {

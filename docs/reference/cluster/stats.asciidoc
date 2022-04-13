@@ -1041,7 +1041,7 @@ Vendor of the JVM.
 
 `bundled_jdk`::
 (Boolean)
-If `true`, the JVM includes a bundled Java Development Kit (JDK).
+Always `true`. All distributions come with a bundled Java Development Kit (JDK).
 
 `using_bundled_jdk`::
 (Boolean)
@@ -1235,8 +1235,7 @@ Contains statistics about {es} distributions installed on selected nodes.
 =====
 `flavor`:::
 (string)
-Type of {es} distribution, such as `default` or `OSS`, used by one or more
-selected nodes.
+Type of {es} distribution. This is always `default`.
 
 `type`:::
 (string)

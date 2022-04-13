@@ -67,30 +67,24 @@ public class JwtValidateUtil {
         final List<JWK> jwks
     ) throws Exception {
         final Date now = new Date();
-        LOGGER.debug(
-            "Validating JWT, now ["
-                + now
-                + "], alg ["
-                + jwt.getHeader().getAlgorithm()
-                + "], issuer ["
-                + jwt.getJWTClaimsSet().getIssuer()
-                + "], audiences ["
-                + jwt.getJWTClaimsSet().getAudience()
-                + "], typ ["
-                + jwt.getHeader().getType()
-                + "], auth_time ["
-                + jwt.getJWTClaimsSet().getDateClaim("auth_time")
-                + "], iat ["
-                + jwt.getJWTClaimsSet().getIssueTime()
-                + "], nbf ["
-                + jwt.getJWTClaimsSet().getIssueTime()
-                + "], exp ["
-                + jwt.getJWTClaimsSet().getExpirationTime()
-                + "], kid ["
-                + jwt.getHeader().getKeyID()
-                + "], jti ["
-                + jwt.getJWTClaimsSet().getJWTID()
-        );
+
+        if (LOGGER.isDebugEnabled()) {
+            LOGGER.debug(
+                "Validating JWT, now [{}], alg [{}], issuer [{}], audiences [{}], typ [{}],"
+                    + " auth_time [{}], iat [{}], nbf [{}], exp [{}], kid [{}], jti [{}]",
+                now,
+                jwt.getHeader().getAlgorithm(),
+                jwt.getJWTClaimsSet().getIssuer(),
+                jwt.getJWTClaimsSet().getAudience(),
+                jwt.getHeader().getType(),
+                jwt.getJWTClaimsSet().getDateClaim("auth_time"),
+                jwt.getJWTClaimsSet().getIssueTime(),
+                jwt.getJWTClaimsSet().getNotBeforeTime(),
+                jwt.getJWTClaimsSet().getExpirationTime(),
+                jwt.getHeader().getKeyID(),
+                jwt.getJWTClaimsSet().getJWTID()
+            );
+        }
         // validate claims before signature, because log messages about rejected claims can be more helpful than rejected signatures
         JwtValidateUtil.validateType(jwt);
         JwtValidateUtil.validateIssuer(jwt, allowedIssuer);
@@ -286,17 +280,17 @@ public class JwtValidateUtil {
         assert jwks != null && jwks.isEmpty() == false : "Caller must provide a non-empty JWK list";
         final String id = jwt.getHeader().getKeyID();
         final JWSAlgorithm alg = jwt.getHeader().getAlgorithm();
-        LOGGER.trace("JWKs [" + jwks.size() + "], JWT KID [ + id + ], and JWT Algorithm [" + alg.getName() + "] before filters.");
+        LOGGER.trace("JWKs [{}], JWT KID [{}], and JWT Algorithm [{}] before filters.", jwks.size(), id, alg.getName());
 
         // If JWT has optional kid header, and realm JWKs have optional kid attribute, any mismatches JWT.kid vs JWK.kid can be ignored.
         // Keep any JWKs if JWK optional kid attribute is missing. Keep all JWKs if JWT optional kid header is missing.
         final List<JWK> jwksKid = jwks.stream().filter(j -> ((id == null) || (j.getKeyID() == null) || (id.equals(j.getKeyID())))).toList();
-        LOGGER.trace("JWKs [" + jwksKid.size() + "] after KID [" + id + "||null] filter.");
+        LOGGER.trace("JWKs [{}] after KID [{}](|null) filter.", jwksKid.size(), id);
 
         // JWT has mandatory alg header. If realm JWKs have optional alg attribute, any mismatches JWT.alg vs JWK.alg can be ignored.
         // Keep any JWKs if JWK optional alg attribute is missing.
         final List<JWK> jwksAlg = jwksKid.stream().filter(j -> (j.getAlgorithm() == null) || (alg.equals(j.getAlgorithm()))).toList();
-        LOGGER.trace("JWKs [" + jwksAlg.size() + " after Algorithm [" + alg.getName() + "||null] filter.");
+        LOGGER.trace("JWKs [{}] after Algorithm [{}](|null) filter.", jwksAlg.size(), alg.getName());
 
         // PKC Example: Realm has five PKC JWKs RSA-2048, RSA-3072, EC-P256, EC-P384, and EC-P512. JWT alg allows ignoring some.
         // - If JWT alg is RS256, only RSA-2048 and RSA-3072 are valid for a JWT RS256 signature. Ignore three EC JWKs.
@@ -309,7 +303,7 @@ public class JwtValidateUtil {
         // - If JWT alg is HS384, only 384, 400, 512, and 1000 are valid for a JWT HS384 signature. Ignore two HMAC JWKs.
         // - If JWT alg is HS512, only 512 and 1000 are valid for a JWT HS512 signature. Ignore four HMAC JWKs.
         final List<JWK> jwksStrength = jwksAlg.stream().filter(j -> JwkValidateUtil.isMatch(j, alg.getName())).toList();
-        LOGGER.debug("JWKs [" + jwksStrength.size() + "] after Algorithm [" + alg + "] match filter.");
+        LOGGER.debug("JWKs [{}] after Algorithm [{}] match filter.", jwksStrength.size(), alg);
 
         for (final JWK jwk : jwksStrength) {
             if (jwt.verify(JwtValidateUtil.createJwsVerifier(jwk))) {

@@ -154,6 +154,7 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.repositories.RepositoriesModule;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
@@ -319,10 +320,9 @@ public class Node implements Closeable {
 
             final JvmInfo jvmInfo = JvmInfo.jvmInfo();
             logger.info(
-                "version[{}], pid[{}], build[{}/{}/{}/{}], OS[{}/{}/{}], JVM[{}/{}/{}/{}]",
+                "version[{}], pid[{}], build[{}/{}/{}], OS[{}/{}/{}], JVM[{}/{}/{}/{}]",
                 Build.CURRENT.qualifiedVersion(),
                 jvmInfo.pid(),
-                Build.CURRENT.flavor().displayName(),
                 Build.CURRENT.type().displayName(),
                 Build.CURRENT.hash(),
                 Build.CURRENT.date(),
@@ -334,16 +334,7 @@ public class Node implements Closeable {
                 Constants.JAVA_VERSION,
                 Constants.JVM_VERSION
             );
-            if (jvmInfo.getBundledJdk()) {
-                logger.info("JVM home [{}], using bundled JDK [{}]", System.getProperty("java.home"), jvmInfo.getUsingBundledJdk());
-            } else {
-                logger.info("JVM home [{}]", System.getProperty("java.home"));
-                deprecationLogger.warn(
-                    DeprecationCategory.OTHER,
-                    "no-jdk",
-                    "no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release"
-                );
-            }
+            logger.info("JVM home [{}], using bundled JDK [{}]", System.getProperty("java.home"), jvmInfo.getUsingBundledJdk());
             logger.info("JVM arguments {}", Arrays.toString(jvmInfo.getInputArguments()));
             if (Build.CURRENT.isProductionRelease() == false) {
                 logger.warn(
@@ -460,7 +451,7 @@ public class Node implements Closeable {
                 additionalSettingsFilter,
                 settingsUpgraders
             );
-            scriptModule.registerClusterSettingsListeners(scriptService, settingsModule.getClusterSettings());
+            ScriptModule.registerClusterSettingsListeners(scriptService, settingsModule.getClusterSettings());
             final NetworkService networkService = new NetworkService(
                 getCustomNameResolvers(pluginsService.filterPlugins(DiscoveryPlugin.class))
             );
@@ -469,6 +460,7 @@ public class Node implements Closeable {
             final ClusterService clusterService = new ClusterService(settings, settingsModule.getClusterSettings(), threadPool);
             clusterService.addStateApplier(scriptService);
             resourcesToClose.add(clusterService);
+
             final Set<Setting<?>> consistentSettings = settingsModule.getConsistentSettings();
             if (consistentSettings.isEmpty() == false) {
                 clusterService.addLocalNodeMasterListener(
@@ -1010,6 +1002,11 @@ public class Node implements Closeable {
                 b.bind(HealthService.class).toInstance(healthService);
                 b.bind(StatsRequestLimiter.class).toInstance(statsRequestLimiter);
             });
+
+            if (ReadinessService.enabled(environment)) {
+                modules.add(b -> b.bind(ReadinessService.class).toInstance(new ReadinessService(clusterService, environment)));
+            }
+
             injector = modules.createInjector();
 
             // We allocate copies of existing shards by looking for a viable copy of the shard in the cluster and assigning the shard there.
@@ -1150,6 +1147,9 @@ public class Node implements Closeable {
         logger.info("starting ...");
         pluginLifecycleComponents.forEach(LifecycleComponent::start);
 
+        if (ReadinessService.enabled(environment)) {
+            injector.getInstance(ReadinessService.class).start();
+        }
         injector.getInstance(MappingUpdatedAction.class).setClient(client);
         injector.getInstance(IndicesService.class).start();
         injector.getInstance(IndicesClusterStateService.class).start();
@@ -1268,9 +1268,14 @@ public class Node implements Closeable {
             writePortsFile("transport", transport.boundAddress());
             HttpServerTransport http = injector.getInstance(HttpServerTransport.class);
             writePortsFile("http", http.boundAddress());
+
+            if (ReadinessService.enabled(environment)) {
+                ReadinessService readiness = injector.getInstance(ReadinessService.class);
+                readiness.addBoundAddressListener(address -> writePortsFile("readiness", address));
+            }
         }
 
-        logger.info("started");
+        logger.info("started {}", transportService.getLocalNode());
 
         pluginsService.filterPlugins(ClusterPlugin.class).forEach(ClusterPlugin::onNodeStarted);
 
@@ -1290,6 +1295,9 @@ public class Node implements Closeable {
         }
         logger.info("stopping ...");
 
+        if (ReadinessService.enabled(environment)) {
+            injector.getInstance(ReadinessService.class).stop();
+        }
         injector.getInstance(ResourceWatcherService.class).close();
         injector.getInstance(HttpServerTransport.class).stop();
 
@@ -1370,6 +1378,9 @@ public class Node implements Closeable {
         toClose.add(injector.getInstance(SearchService.class));
         toClose.add(() -> stopWatch.stop().start("transport"));
         toClose.add(injector.getInstance(TransportService.class));
+        if (ReadinessService.enabled(environment)) {
+            toClose.add(injector.getInstance(ReadinessService.class));
+        }
 
         for (LifecycleComponent plugin : pluginLifecycleComponents) {
             toClose.add(() -> stopWatch.stop().start("plugin(" + plugin.getClass().getName() + ")"));

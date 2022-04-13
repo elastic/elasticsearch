@@ -21,6 +21,8 @@ public enum ByteUtils {
 
     public static final VarHandle LITTLE_ENDIAN_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.LITTLE_ENDIAN);
 
+    public static final VarHandle BIG_ENDIAN_LONG = MethodHandles.byteArrayViewVarHandle(long[].class, ByteOrder.BIG_ENDIAN);
+
     /** Zig-zag decode. */
     public static long zigZagDecode(long n) {
         return ((n >>> 1) ^ -(n & 1));
@@ -39,6 +41,16 @@ public enum ByteUtils {
     /** Write a long in little-endian format. */
     public static long readLongLE(byte[] arr, int offset) {
         return (long) LITTLE_ENDIAN_LONG.get(arr, offset);
+    }
+
+    /** Write a long in big-endian format. */
+    public static void writeLongBE(long l, byte[] arr, int offset) {
+        BIG_ENDIAN_LONG.set(arr, offset, l);
+    }
+
+    /** Write a long in big-endian format. */
+    public static long readLongBE(byte[] arr, int offset) {
+        return (long) BIG_ENDIAN_LONG.get(arr, offset);
     }
 
     /** Write an int in little-endian format. */

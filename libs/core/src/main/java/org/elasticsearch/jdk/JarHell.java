@@ -12,6 +12,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.IOException;
+import java.lang.Runtime.Version;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.URL;
@@ -224,21 +225,7 @@ public class JarHell {
         // give a nice error if jar requires a newer java version
         String targetVersion = manifest.getMainAttributes().getValue("X-Compile-Target-JDK");
         if (targetVersion != null) {
-            checkVersionFormat(targetVersion);
             checkJavaVersion(jar.toString(), targetVersion);
-        }
-    }
-
-    public static void checkVersionFormat(String targetVersion) {
-        if (JavaVersion.isValid(targetVersion) == false) {
-            throw new IllegalStateException(
-                String.format(
-                    Locale.ROOT,
-                    "version string must be a sequence of nonnegative decimal integers separated by \".\"'s and may have "
-                        + "leading zeros but was %s",
-                    targetVersion
-                )
-            );
         }
     }
 
@@ -247,16 +234,10 @@ public class JarHell {
      * required by {@code resource} is compatible with the current installation.
      */
     public static void checkJavaVersion(String resource, String targetVersion) {
-        JavaVersion version = JavaVersion.parse(targetVersion);
-        if (JavaVersion.current().compareTo(version) < 0) {
+        Version version = Version.parse(targetVersion);
+        if (Runtime.version().compareTo(version) < 0) {
             throw new IllegalStateException(
-                String.format(
-                    Locale.ROOT,
-                    "%s requires Java %s:, your system: %s",
-                    resource,
-                    targetVersion,
-                    JavaVersion.current().toString()
-                )
+                String.format(Locale.ROOT, "%s requires Java %s:, your system: %s", resource, targetVersion, Runtime.version().toString())
             );
         }
     }

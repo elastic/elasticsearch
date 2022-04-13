@@ -46,17 +46,17 @@ public abstract class CardinalityAggregator extends NumericMetricsAggregator.Sin
     protected ValuesSourceConfig valuesSourceConfig;
     private final ValuesSource valuesSource;
 
-    protected int emptyCollectorsUsed;
-    protected int numericCollectorsUsed;
-    protected int ordinalsCollectorsUsed;
-    protected int ordinalsCollectorsOverheadTooHigh;
-    protected int stringHashingCollectorsUsed;
-
     // Expensive to initialize, so we only initialize it when we have an actual value source
     @Nullable
     protected HyperLogLogPlusPlus counts;
 
     private Collector collector;
+
+    protected int emptyCollectorsUsed;
+    protected int numericCollectorsUsed;
+    protected int ordinalsCollectorsUsed;
+    protected int ordinalsCollectorsOverheadTooHigh;
+    protected int stringHashingCollectorsUsed;
 
     public CardinalityAggregator(
         String name,

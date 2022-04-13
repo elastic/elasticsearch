@@ -29,7 +29,6 @@ public class ProfilingAggregator extends Aggregator {
     public ProfilingAggregator(Aggregator delegate, AggregationProfiler profiler) throws IOException {
         this.profiler = profiler;
         this.delegate = delegate;
-        this.profileBreakdown = profiler.getQueryBreakdown(delegate);
     }
 
     public void addDebugInfo(String key, Object value) {
@@ -104,6 +103,7 @@ public class ProfilingAggregator extends Aggregator {
 
     @Override
     public void preCollection() throws IOException {
+        this.profileBreakdown = profiler.getQueryBreakdown(delegate);
         Timer timer = profileBreakdown.getTimer(AggregationTimingType.INITIALIZE);
         timer.start();
         try {

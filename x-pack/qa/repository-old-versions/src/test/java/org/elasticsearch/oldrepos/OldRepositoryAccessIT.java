@@ -47,6 +47,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -233,8 +234,10 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         getSnaps = new Request("GET", "/_snapshot/" + repoName + "/" + snapshotName + "/_status");
         getResponse = client().performRequest(getSnaps);
         getResp = ObjectPath.createFromResponse(getResponse);
+        assertThat(((List<?>) getResp.evaluate("snapshots")).size(), equalTo(1));
         assertThat(getResp.evaluate("snapshots.0.snapshot"), equalTo(snapshotName));
         assertThat(getResp.evaluate("snapshots.0.repository"), equalTo(repoName));
+        assertThat(((Map<?, ?>) getResp.evaluate("snapshots.0.indices")).keySet(), contains(indexName));
         assertThat(getResp.evaluate("snapshots.0.state"), equalTo(SnapshotState.SUCCESS.toString()));
         assertEquals(numberOfShards, (int) getResp.evaluate("snapshots.0.shards_stats.done"));
         assertEquals(numberOfShards, (int) getResp.evaluate("snapshots.0.shards_stats.total"));

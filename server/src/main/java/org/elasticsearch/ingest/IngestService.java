@@ -878,9 +878,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     mergedDynamicTemplates.putAll(map);
                     indexRequest.setDynamicTemplates(mergedDynamicTemplates);
                 }
-                handler.accept(null);
-
                 postIngest(ingestDocument, indexRequest);
+
+                handler.accept(null);
             }
         });
     }

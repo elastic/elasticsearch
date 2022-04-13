@@ -208,7 +208,8 @@ public class TimeSeriesIndexSearcher {
         }
 
         BytesRef getTsid() throws IOException {
-            scratch.copyBytes(tsids.lookupOrd(tsids.ordValue()));
+            tsidOrd = tsids.ordValue();
+            scratch.copyBytes(tsids.lookupOrd(tsidOrd));
             return scratch.get();
         }
 
@@ -221,13 +222,11 @@ public class TimeSeriesIndexSearcher {
 
         // true if the TSID ord has changed since the last time we checked
         boolean shouldPop() throws IOException {
-            if (tsidOrd == -1) {
-                tsidOrd = tsids.ordValue();
-            } else if (tsidOrd != tsids.ordValue()) {
-                tsidOrd = tsids.ordValue();
+            if (tsidOrd != tsids.ordValue()) {
                 return true;
+            } else {
+                return false;
             }
-            return false;
         }
     }
 }

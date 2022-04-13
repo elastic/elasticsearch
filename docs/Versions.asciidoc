@@ -5,7 +5,6 @@ include::{docs-root}/shared/versions/stack/{source_branch}.asciidoc[]
 :lucene_version_path:   9_1_0
 :jdk:                   11.0.2
 :jdk_major:             11
-:build_flavor:          default
 :build_type:            tar
 
 :docker-repo:     docker.elastic.co/elasticsearch/elasticsearch

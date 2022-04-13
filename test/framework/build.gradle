@@ -26,7 +26,7 @@ dependencies {
 
   // mockito
   api 'org.mockito:mockito-core:4.0.0'
-  api 'net.bytebuddy:byte-buddy:1.11.19'
+  api 'net.bytebuddy:byte-buddy:1.12.9'
   api 'org.objenesis:objenesis:3.2'
 
   api "org.elasticsearch:mocksocket:${versions.mocksocket}"

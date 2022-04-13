@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlocks;
-import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -102,9 +101,6 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
         // if the cluster is not fully-formed then the min version is not meaningful
         final boolean enforceVersionBarrier = currentState.getBlocks().hasGlobalBlock(STATE_NOT_RECOVERED_BLOCK) == false;
         // processing any joins
-        DesiredNodesMetadata desiredNodesMetadata = DesiredNodesMetadata.fromClusterState(currentState);
-        DesiredNodesMetadata.Builder desiredNodesBuilder = new DesiredNodesMetadata.Builder(desiredNodesMetadata);
-        boolean desiredNodesChanged = false;
         Map<String, String> joinedNodeIdsByNodeName = new HashMap<>();
         for (final var joinTaskContext : joinTaskContexts) {
             final var joinTask = joinTaskContext.getTask();
@@ -124,7 +120,6 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
                         ensureIndexCompatibility(node.getVersion(), currentState.getMetadata());
                         nodesBuilder.add(node);
                         nodesChanged = true;
-                        desiredNodesChanged |= desiredNodesBuilder.markDesiredNodeAsMemberIfPresent(node);
                         minClusterNodeVersion = Version.min(minClusterNodeVersion, node.getVersion());
                         maxClusterNodeVersion = Version.max(maxClusterNodeVersion, node.getVersion());
                         if (node.isMasterNode()) {
@@ -184,9 +179,7 @@ public class JoinTaskExecutor implements ClusterStateTaskExecutor<JoinTask> {
                 }
             }
 
-            final ClusterState updatedState = allocationService.adaptAutoExpandReplicas(
-                newState.nodes(nodesBuilder).build()
-            );
+            final ClusterState updatedState = allocationService.adaptAutoExpandReplicas(newState.nodes(nodesBuilder).build());
             assert enforceVersionBarrier == false
                 || updatedState.nodes().getMinNodeVersion().onOrAfter(currentState.nodes().getMinNodeVersion())
                 : "min node version decreased from ["

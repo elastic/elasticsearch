@@ -16,7 +16,6 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNodes;
 
@@ -41,14 +40,14 @@ public class DesiredNodesMetadataSerializationTests extends SimpleDiffableSerial
 
     @Override
     protected Writeable.Reader<Metadata.Custom> instanceReader() {
-        return DesiredNodesMetadata::readFrom;
+        return DesiredNodesMetadata::new;
     }
 
     @Override
     protected NamedWriteableRegistry getNamedWriteableRegistry() {
         return new NamedWriteableRegistry(
             Collections.singletonList(
-                new NamedWriteableRegistry.Entry(Metadata.Custom.class, DesiredNodesMetadata.TYPE, DesiredNodesMetadata::readFrom)
+                new NamedWriteableRegistry.Entry(Metadata.Custom.class, DesiredNodesMetadata.TYPE, DesiredNodesMetadata::new)
             )
         );
     }
@@ -59,9 +58,7 @@ public class DesiredNodesMetadataSerializationTests extends SimpleDiffableSerial
     }
 
     public static DesiredNodesMetadata randomDesiredNodesMetadata() {
-        final var desiredNodes = randomDesiredNodes();
-
-        return DesiredNodesMetadata.create(desiredNodes, Set.copyOf(randomSubsetOf(desiredNodes.nodes())));
+        return new DesiredNodesMetadata(randomDesiredNodes());
     }
 
     private DesiredNodesMetadata mutate(DesiredNodesMetadata base) {
@@ -69,12 +66,13 @@ public class DesiredNodesMetadataSerializationTests extends SimpleDiffableSerial
         if (randomBoolean()) {
             return randomDesiredNodesMetadata();
         }
-        final var latestDesiredNodes = base.getLatestDesiredNodes();
-        final var mutatedDesiredNodes = new DesiredNodes(
-            latestDesiredNodes.historyID(),
-            latestDesiredNodes.version() + 1,
-            randomList(1, 10, DesiredNodesTestCase::randomDesiredNodeWithRandomSettings)
+        DesiredNodes latestDesiredNodes = base.getLatestDesiredNodes();
+        return new DesiredNodesMetadata(
+            new DesiredNodes(
+                latestDesiredNodes.historyID(),
+                latestDesiredNodes.version() + 1,
+                randomList(1, 10, DesiredNodesTestCase::randomDesiredNodeWithRandomSettings)
+            )
         );
-        return DesiredNodesMetadata.create(mutatedDesiredNodes, Set.copyOf(randomSubsetOf(mutatedDesiredNodes.nodes())));
     }
 }

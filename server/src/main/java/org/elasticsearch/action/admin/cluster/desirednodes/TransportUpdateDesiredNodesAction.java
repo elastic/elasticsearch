@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.desirednodes.VersionConflictException;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
@@ -75,8 +74,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
         ActionListener<UpdateDesiredNodesResponse> listener
     ) throws Exception {
         try {
-            DesiredNodes proposedDesiredNodes = new DesiredNodes(request.getHistoryID(), request.getVersion(), request.getNodes());
-            settingsValidator.validate(proposedDesiredNodes);
+            settingsValidator.validate(request.getNodes());
 
             clusterService.submitStateUpdateTask(
                 "update-desired-nodes",
@@ -141,14 +139,8 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
             }
         }
 
-        DesiredNodesMetadata.Builder desiredNodesMetadataBuilder = new DesiredNodesMetadata.Builder(desiredNodesMetadata);
-        desiredNodesMetadataBuilder.withDesiredNodes(proposedDesiredNodes);
-        for (DiscoveryNode node : currentState.nodes()) {
-            desiredNodesMetadataBuilder.markDesiredNodeAsMemberIfPresent(node);
-        }
-
         return currentState.copyAndUpdateMetadata(
-            metadata -> metadata.putCustom(DesiredNodesMetadata.TYPE, desiredNodesMetadataBuilder.build())
+            metadata -> metadata.putCustom(DesiredNodesMetadata.TYPE, new DesiredNodesMetadata(proposedDesiredNodes))
         );
     }
 }

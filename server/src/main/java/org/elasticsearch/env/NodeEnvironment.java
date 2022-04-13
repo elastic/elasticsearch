@@ -263,7 +263,10 @@ public final class NodeEnvironment implements Closeable {
 
             for (Path path : environment.dataFiles()) {
                 // Call to toRealPath required to resolve symlinks
-                Files.createDirectories(path.toRealPath());
+                if (Files.exists(path)) {
+                    path = path.toRealPath();
+                }
+                Files.createDirectories(path);
             }
 
             final NodeLock nodeLock;

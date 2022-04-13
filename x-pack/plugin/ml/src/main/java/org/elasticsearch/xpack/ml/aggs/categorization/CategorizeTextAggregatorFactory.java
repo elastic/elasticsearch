@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.ml.aggs.categorization;
 
+import org.elasticsearch.index.mapper.KeywordScriptFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -68,6 +70,26 @@ public class CategorizeTextAggregatorFactory extends AggregatorFactory {
         throws IOException {
         if (fieldType == null) {
             return createUnmapped(parent, metadata);
+        }
+        // Most of the text and keyword family of fields use a bespoke TextSearchInfo that doesn't match any
+        // of the static final ones created in the TextSearchInfo class definition. KeywordScriptFieldType is
+        // the exception that we do want to support, so we need to check for that separately. (It's not a
+        // complete disaster if we end up analyzing an inappropriate field, for example if the user has added
+        // a new field type via a plugin that also creates a bespoke TextSearchInfo member - it will just get
+        // converted to a string and then likely the analyzer won't create any tokens, so the categorizer
+        // will see an empty token list.)
+        if (fieldType.getTextSearchInfo() == TextSearchInfo.NONE
+            || (fieldType.getTextSearchInfo() == TextSearchInfo.SIMPLE_MATCH_WITHOUT_TERMS
+                && fieldType instanceof KeywordScriptFieldType == false)) {
+            throw new IllegalArgumentException(
+                "categorize_text agg ["
+                    + name
+                    + "] only works on text and keyword fields. Cannot aggregate field type ["
+                    + fieldType.name()
+                    + "] via ["
+                    + fieldType.getClass().getSimpleName()
+                    + "]"
+            );
         }
         TermsAggregator.BucketCountThresholds bucketCountThresholds = new TermsAggregator.BucketCountThresholds(this.bucketCountThresholds);
         if (bucketCountThresholds.getShardSize() == CategorizeTextAggregationBuilder.DEFAULT_BUCKET_COUNT_THRESHOLDS.getShardSize()) {

@@ -35,6 +35,7 @@ import java.util.List;
 import static org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesRequestSerializationTests.randomUpdateDesiredNodesRequest;
 import static org.elasticsearch.cluster.metadata.DesiredNodesMetadataSerializationTests.randomDesiredNodesMetadata;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -153,7 +154,7 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
         assertThat(desiredNodes, is(notNullValue()));
         assertThat(desiredNodes.historyID(), is(equalTo(request.getHistoryID())));
         assertThat(desiredNodes.version(), is(equalTo(request.getVersion())));
-        assertThat(desiredNodes.nodes(), contains(request.getNodes().toArray()));
+        assertThat(desiredNodes.nodes(), containsInAnyOrder(request.getNodes().toArray()));
     }
 
     public void testUpdatesAreIdempotent() {

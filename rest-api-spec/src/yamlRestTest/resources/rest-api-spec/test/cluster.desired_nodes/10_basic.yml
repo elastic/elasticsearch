@@ -198,9 +198,9 @@ teardown:
 ---
 "Test update desired nodes is idempotent with different order":
   - skip:
-      version: " - 8.1.99"
+      version: " - 8.2.99"
       features: contains
-      reason: "Bug fixed in 8.2.0 and uses contains feature"
+      reason: "Bug fixed in 8.3.0 and uses contains feature"
   - do:
       cluster.state: {}
 
@@ -406,8 +406,8 @@ teardown:
 ---
 "Test external_id or node.name is required":
   - skip:
-      version: " - 8.1.99"
-      reason: "Change error code in 8.2"
+      version: " - 8.2.99"
+      reason: "Change error code in 8.3"
   - do:
       cluster.state: {}
 
@@ -431,8 +431,8 @@ teardown:
 ---
 "Test external_id must have content":
   - skip:
-      version: " - 8.1.99"
-      reason: "Change error code in 8.2"
+      version: " - 8.2.99"
+      reason: "Change error code in 8.3"
   - do:
       cluster.state: {}
 

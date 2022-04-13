@@ -27,7 +27,7 @@ public final class OverridableSystemMemoryInfo implements SystemMemoryInfo {
     }
 
     @Override
-    public long availableSystemMemory() throws SystemMemoryInfoException {
+    public long availableSystemMemory() {
 
         return userDefinedJvmOptions.stream()
             .filter(option -> option.startsWith("-Des.total_memory_bytes="))

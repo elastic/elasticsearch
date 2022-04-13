@@ -1,0 +1,5 @@
+pr: 85863
+summary: Fix serialisation of text embedding updates
+area: Machine Learning
+type: bug
+issues: []

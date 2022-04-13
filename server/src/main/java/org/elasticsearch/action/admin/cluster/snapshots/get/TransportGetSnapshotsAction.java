@@ -477,7 +477,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         );
     }
 
-    private boolean isCurrentSnapshotsOnly(String[] snapshots) {
+    private static boolean isCurrentSnapshotsOnly(String[] snapshots) {
         return (snapshots.length == 1 && GetSnapshotsRequest.CURRENT_SNAPSHOT.equalsIgnoreCase(snapshots[0]));
     }
 

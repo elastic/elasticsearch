@@ -278,7 +278,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
 
         assertNull(cursor);
 
-        deleteIndex("test_date_timezone");
+        deleteIndexWithProvisioningClient("test_date_timezone");
     }
 
     @AwaitsFix(bugUrl = "Unclear status, https://github.com/elastic/x-pack-elasticsearch/issues/2074")
@@ -1152,7 +1152,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         expected.put("rows", singletonList(singletonList(nullId)));
         assertResponse(expected, runSql(mode, "SELECT id FROM " + indexPattern("test_binary") + " WHERE binary IS NULL", false));
 
-        deleteIndex("test_binary");
+        deleteIndexWithProvisioningClient("test_binary");
     }
 
     public void testPreventedUnsignedLongMaskedAccess() throws IOException {
@@ -1565,6 +1565,51 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         for (String v : expectedValues) {
             assertThat(results, containsString(v));
         }
+    }
+
+    public void testDataStreamInShowTables() throws IOException {
+        // TODO: list aliases and data streams in CCS setups
+        assumeTrue("Data streams in remote clusters are not available", provisioningClient().equals(client()));
+        expectDataStreamInShowTables("test-datastream", "SHOW TABLES");
+    }
+
+    public void testDataStreamInShowTablesFiltered() throws IOException {
+        assumeTrue("Data streams in remote clusters are not available", provisioningClient().equals(client()));
+        String dataStreamName = "test-datastream";
+        expectDataStreamInShowTables(dataStreamName, "SHOW TABLES \\\"" + dataStreamName + "*\\\"");
+    }
+
+    private void expectDataStreamInShowTables(String dataStreamName, String sql) throws IOException {
+        try {
+            createDataStream(dataStreamName);
+
+            String mode = randomMode();
+            Map<String, Object> answer = toMap(runSql(query(sql).mode(mode)), mode);
+            List<String> expected = Arrays.asList("integTest", dataStreamName, "VIEW", "ALIAS");
+            @SuppressWarnings("unchecked")
+            List<List<String>> rows = (List<List<String>>) (answer.get("rows"));
+            assertTrue(rows.contains(expected));
+        } finally {
+            deleteDataStream(dataStreamName);
+        }
+    }
+
+    public void testQueryDataStream() throws IOException {
+        assumeTrue("Data streams in remote clusters are not available", provisioningClient().equals(client()));
+        String dataStreamName = "test-datastream";
+        try {
+            createDataStream(dataStreamName);
+            indexWithIndexName(dataStreamName, "{\"@timestamp\": \"2001-01-01T01:01:01Z\", \"foo\":\"bar\"}");
+
+            String mode = randomMode();
+            Map<String, Object> expected = new HashMap<>();
+            expected.put("columns", singletonList(columnInfo(mode, "foo", "text", JDBCType.VARCHAR, Integer.MAX_VALUE)));
+            expected.put("rows", singletonList(singletonList("bar")));
+            assertResponse(expected, runSql(mode, "SELECT foo FROM \\\"" + dataStreamName + "\\\"", false));
+        } finally {
+            deleteDataStream(dataStreamName);
+        }
+
     }
 
     static Map<String, Object> runSql(RequestObjectBuilder builder, String mode) throws IOException {

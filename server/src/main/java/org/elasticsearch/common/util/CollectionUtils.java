@@ -8,13 +8,6 @@
 
 package org.elasticsearch.common.util;
 
-import com.carrotsearch.hppc.ObjectArrayList;
-
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefArray;
-import org.apache.lucene.util.BytesRefBuilder;
-import org.apache.lucene.util.InPlaceMergeSorter;
-import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 
@@ -27,6 +20,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.ListIterator;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -48,6 +42,33 @@ public class CollectionUtils {
     }
 
     /**
+     * Eliminate duplicates from a sorted list in-place.
+     *
+     * @param list A sorted list, which will be modified in place.
+     * @param cmp A comparator the list is already sorted by.
+     */
+    public static <T> void uniquify(List<T> list, Comparator<T> cmp) {
+        if (list.size() <= 1) {
+            return;
+        }
+
+        ListIterator<T> uniqueItr = list.listIterator();
+        ListIterator<T> existingItr = list.listIterator();
+        T uniqueValue = uniqueItr.next(); // get first element to compare with
+        existingItr.next(); // advance the existing iterator to the second element, where we will begin comparing
+        do {
+            T existingValue = existingItr.next();
+            if (cmp.compare(existingValue, uniqueValue) != 0 && (uniqueValue = uniqueItr.next()) != existingValue) {
+                uniqueItr.set(existingValue);
+            }
+        } while (existingItr.hasNext());
+
+        // Lop off the rest of the list. Note with LinkedList this requires advancing back to this index,
+        // but Java provides no way to efficiently remove from the end of a non random-access list.
+        list.subList(uniqueItr.nextIndex(), list.size()).clear();
+    }
+
+    /**
      * Return a rotated view of the given list with the given distance.
      */
     public static <T> List<T> rotate(final List<T> list, int distance) {
@@ -65,61 +86,6 @@ public class CollectionUtils {
         }
 
         return new RotatedList<>(list, d);
-    }
-
-    public static void sortAndDedup(final ObjectArrayList<byte[]> array) {
-        int len = array.size();
-        if (len > 1) {
-            sort(array);
-            int uniqueCount = 1;
-            for (int i = 1; i < len; ++i) {
-                if (Arrays.equals(array.get(i), array.get(i - 1)) == false) {
-                    array.set(uniqueCount++, array.get(i));
-                }
-            }
-            array.elementsCount = uniqueCount;
-        }
-    }
-
-    public static void sort(final ObjectArrayList<byte[]> array) {
-        new IntroSorter() {
-
-            byte[] pivot;
-
-            @Override
-            protected void swap(int i, int j) {
-                final byte[] tmp = array.get(i);
-                array.set(i, array.get(j));
-                array.set(j, tmp);
-            }
-
-            @Override
-            protected int compare(int i, int j) {
-                return compare(array.get(i), array.get(j));
-            }
-
-            @Override
-            protected void setPivot(int i) {
-                pivot = array.get(i);
-            }
-
-            @Override
-            protected int comparePivot(int j) {
-                return compare(pivot, array.get(j));
-            }
-
-            private int compare(byte[] left, byte[] right) {
-                for (int i = 0, j = 0; i < left.length && j < right.length; i++, j++) {
-                    int a = left[i] & 0xFF;
-                    int b = right[j] & 0xFF;
-                    if (a != b) {
-                        return a - b;
-                    }
-                }
-                return left.length - right.length;
-            }
-
-        }.sort(0, array.size());
     }
 
     public static int[] toArray(Collection<Integer> ints) {
@@ -204,65 +170,6 @@ public class CollectionUtils {
         public int size() {
             return in.size();
         }
-    }
-
-    public static void sort(final BytesRefArray bytes, final int[] indices) {
-        sort(new BytesRefBuilder(), new BytesRefBuilder(), bytes, indices);
-    }
-
-    private static void sort(
-        final BytesRefBuilder scratch,
-        final BytesRefBuilder scratch1,
-        final BytesRefArray bytes,
-        final int[] indices
-    ) {
-
-        final int numValues = bytes.size();
-        assert indices.length >= numValues;
-        if (numValues > 1) {
-            new InPlaceMergeSorter() {
-                final Comparator<BytesRef> comparator = Comparator.naturalOrder();
-
-                @Override
-                protected int compare(int i, int j) {
-                    return comparator.compare(bytes.get(scratch, indices[i]), bytes.get(scratch1, indices[j]));
-                }
-
-                @Override
-                protected void swap(int i, int j) {
-                    int value_i = indices[i];
-                    indices[i] = indices[j];
-                    indices[j] = value_i;
-                }
-            }.sort(0, numValues);
-        }
-
-    }
-
-    public static int sortAndDedup(final BytesRefArray bytes, final int[] indices) {
-        final BytesRefBuilder scratch = new BytesRefBuilder();
-        final BytesRefBuilder scratch1 = new BytesRefBuilder();
-        final int numValues = bytes.size();
-        assert indices.length >= numValues;
-        if (numValues <= 1) {
-            return numValues;
-        }
-        sort(scratch, scratch1, bytes, indices);
-        int uniqueCount = 1;
-        BytesRefBuilder previous = scratch;
-        BytesRefBuilder current = scratch1;
-        bytes.get(previous, indices[0]);
-        for (int i = 1; i < numValues; ++i) {
-            bytes.get(current, indices[i]);
-            if (previous.get().equals(current.get()) == false) {
-                indices[uniqueCount++] = indices[i];
-            }
-            BytesRefBuilder tmp = previous;
-            previous = current;
-            current = tmp;
-        }
-        return uniqueCount;
-
     }
 
     @SuppressWarnings("unchecked")

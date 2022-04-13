@@ -200,8 +200,7 @@ public record ProfileDocument(
         PROFILE_DOC_PARSER.declareLong(constructorArg(), new ParseField("last_synchronized"));
         PROFILE_DOC_PARSER.declareObject(constructorArg(), (p, c) -> PROFILE_DOC_USER_PARSER.parse(p, null), new ParseField("user"));
         PROFILE_DOC_PARSER.declareObject(constructorArg(), (p, c) -> p.map(), new ParseField("access"));
-        ObjectParserHelper<ProfileDocument, Void> parserHelper = new ObjectParserHelper<>();
-        parserHelper.declareRawObject(PROFILE_DOC_PARSER, constructorArg(), new ParseField("application_data"));
+        ObjectParserHelper.declareRawObject(PROFILE_DOC_PARSER, constructorArg(), new ParseField("application_data"));
 
         PARSER.declareObject(constructorArg(), (p, c) -> PROFILE_DOC_PARSER.parse(p, null), new ParseField("user_profile"));
     }

@@ -18,7 +18,7 @@ dependencies {
   implementation "com.networknt:json-schema-validator:${versions.networknt_json_schema_validator}"
   implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
   implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
-  implementation "org.apache.commons:commons-compress:1.19"
+  implementation "org.apache.commons:commons-compress:1.21"
   implementation "org.apache.commons:commons-lang3:${versions.commons_lang3}"
 }
 
@@ -38,16 +38,22 @@ tasks.named("testingConventions").configure { enabled = false }
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
           // classes are missing
+          'com.github.luben.zstd.BufferPool',
           'com.github.luben.zstd.ZstdInputStream',
           'com.github.luben.zstd.ZstdOutputStream',
-          'java.util.jar.Pack200',
-          'java.util.jar.Pack200$Packer',
-          'java.util.jar.Pack200$Unpacker',
           'org.brotli.dec.BrotliInputStream',
           'org.jcodings.specific.UTF8Encoding',
           'org.joni.Matcher',
           'org.joni.Regex',
           'org.joni.Syntax',
+          'org.objectweb.asm.AnnotationVisitor',
+          'org.objectweb.asm.Attribute',
+          'org.objectweb.asm.ClassReader',
+          'org.objectweb.asm.ClassVisitor',
+          'org.objectweb.asm.FieldVisitor',
+          'org.objectweb.asm.Label',
+          'org.objectweb.asm.MethodVisitor',
+          'org.objectweb.asm.Type',
           'org.slf4j.Logger',
           'org.slf4j.LoggerFactory',
           'org.tukaani.xz.DeltaOptions',

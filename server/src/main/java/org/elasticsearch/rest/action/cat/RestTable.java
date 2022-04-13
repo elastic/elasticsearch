@@ -416,7 +416,7 @@ public class RestTable {
         }
 
         @SuppressWarnings("unchecked")
-        private int compareCell(Object o1, Object o2) {
+        private static int compareCell(Object o1, Object o2) {
             if (o1 == null && o2 == null) {
                 return 0;
             } else if (o1 == null) {

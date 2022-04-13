@@ -106,7 +106,7 @@ public class RestCatComponentTemplateAction extends AbstractCatAction {
         return table;
     }
 
-    private Map<String, Set<String>> buildReverseIndexOnComposedOfToIndexName(Metadata metadata) {
+    private static Map<String, Set<String>> buildReverseIndexOnComposedOfToIndexName(Metadata metadata) {
         Map<String, ComposableIndexTemplate> allTemplates = metadata.templatesV2();
         Map<String, Set<String>> reverseIndex = new HashMap<>();
 
@@ -118,7 +118,7 @@ public class RestCatComponentTemplateAction extends AbstractCatAction {
         return reverseIndex;
     }
 
-    private int countMappingInTemplate(Template template) throws Exception {
+    private static int countMappingInTemplate(Template template) throws Exception {
         if (template.mappings() == null) {
             return 0;
         }
@@ -146,7 +146,7 @@ public class RestCatComponentTemplateAction extends AbstractCatAction {
         return count;
     }
 
-    private int countSubAttributes(Object mapping) {
+    private static int countSubAttributes(Object mapping) {
         int count = 0;
         if (mapping instanceof List) {
             for (Object subObject : (List) mapping) {

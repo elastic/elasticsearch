@@ -8,10 +8,6 @@
 
 package org.elasticsearch.common.util;
 
-import com.carrotsearch.hppc.ObjectLongHashMap;
-import com.carrotsearch.hppc.ObjectLongMap;
-import com.carrotsearch.hppc.cursors.ObjectLongCursor;
-
 import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
@@ -44,7 +40,7 @@ public class BytesRefHashTests extends ESTestCase {
             for (int i = 0; i < values.length; ++i) {
                 values[i] = new BytesRef(randomAlphaOfLength(5));
             }
-            final ObjectLongMap<BytesRef> valueToId = new ObjectLongHashMap<>();
+            final Map<BytesRef, Integer> valueToId = new HashMap<>();
             final BytesRef[] idToValue = new BytesRef[values.length];
             final int iters = randomInt(1000000);
             for (int i = 0; i < iters; ++i) {
@@ -59,8 +55,8 @@ public class BytesRefHashTests extends ESTestCase {
             }
 
             assertEquals(valueToId.size(), hash.size());
-            for (final ObjectLongCursor<BytesRef> next : valueToId) {
-                assertEquals(next.value, hash.find(next.key, next.key.hashCode()));
+            for (var entry : valueToId.entrySet()) {
+                assertEquals(entry.getValue().longValue(), hash.find(entry.getKey(), entry.getKey().hashCode()));
             }
 
             for (long i = 0; i < hash.capacity(); ++i) {

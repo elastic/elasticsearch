@@ -426,7 +426,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             return in;
         }
 
-        private boolean isNormalizable(double coord) {
+        private static boolean isNormalizable(double coord) {
             return Double.isNaN(coord) == false && Double.isInfinite(coord) == false;
         }
 

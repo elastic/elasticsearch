@@ -26,7 +26,6 @@ import java.util.function.BiConsumer;
 public class NumericCardinalityAggregator extends CardinalityAggregator {
 
     private ValuesSource.Numeric source;
-    private int numericCollectorsUsed;
 
     public NumericCardinalityAggregator(
         String name,

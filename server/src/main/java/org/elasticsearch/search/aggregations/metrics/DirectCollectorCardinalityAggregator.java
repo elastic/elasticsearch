@@ -23,7 +23,6 @@ import java.util.function.BiConsumer;
  * all, such as Range Fields.
  */
 public class DirectCollectorCardinalityAggregator extends CardinalityAggregator {
-    private int stringHashingCollectorsUsed;
 
     public DirectCollectorCardinalityAggregator(
         String name,

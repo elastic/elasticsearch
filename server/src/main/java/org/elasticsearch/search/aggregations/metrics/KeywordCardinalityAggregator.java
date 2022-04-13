@@ -28,10 +28,6 @@ import java.util.function.BiConsumer;
 public class KeywordCardinalityAggregator extends CardinalityAggregator {
 
     ValuesSource.Bytes.WithOrdinals source;
-    private int emptyCollectorsUsed;
-    private int ordinalsCollectorsUsed;
-    private int ordinalsCollectorsOverheadTooHigh;
-    private int stringHashingCollectorsUsed;
 
     public KeywordCardinalityAggregator(
         String name,

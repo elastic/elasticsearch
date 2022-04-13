@@ -35,6 +35,7 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.function.BiConsumer;
 
 /**
  * An aggregator that computes approximate counts of unique values.
@@ -44,6 +45,12 @@ public abstract class CardinalityAggregator extends NumericMetricsAggregator.Sin
     protected final int precision;
     protected ValuesSourceConfig valuesSourceConfig;
     private final ValuesSource valuesSource;
+
+    protected int emptyCollectorsUsed;
+    protected int numericCollectorsUsed;
+    protected int ordinalsCollectorsUsed;
+    protected int ordinalsCollectorsOverheadTooHigh;
+    protected int stringHashingCollectorsUsed;
 
     // Expensive to initialize, so we only initialize it when we have an actual value source
     @Nullable
@@ -115,6 +122,16 @@ public abstract class CardinalityAggregator extends NumericMetricsAggregator.Sin
     @Override
     protected void doClose() {
         Releasables.close(counts, collector);
+    }
+
+    @Override
+    public void collectDebugInfo(BiConsumer<String, Object> add) {
+        super.collectDebugInfo(add);
+        add.accept("empty_collectors_used", emptyCollectorsUsed);
+        add.accept("numeric_collectors_used", numericCollectorsUsed);
+        add.accept("ordinals_collectors_used", ordinalsCollectorsUsed);
+        add.accept("ordinals_collectors_overhead_too_high", ordinalsCollectorsOverheadTooHigh);
+        add.accept("string_hashing_collectors_used", stringHashingCollectorsUsed);
     }
 
     protected abstract static class Collector extends LeafBucketCollector implements Releasable {

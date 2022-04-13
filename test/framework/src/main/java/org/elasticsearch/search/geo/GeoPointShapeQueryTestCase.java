@@ -749,19 +749,4 @@ public abstract class GeoPointShapeQueryTestCase extends ESSingleNodeTestCase {
         SearchHits searchHits = searchResponse.getHits();
         assertThat(searchHits.getTotalHits().value, equalTo((long) linearRing.length()));
     }
-
-    public void testMaxEncodedValue() throws Exception {
-        createMapping(defaultIndexName, defaultGeoFieldName);
-
-        Point point = new Point(180, 90);
-        client().prepareIndex(defaultIndexName)
-            .setSource(jsonBuilder().startObject().field(defaultGeoFieldName, WellKnownText.toWKT(point)).endObject())
-            .setRefreshPolicy(IMMEDIATE)
-            .get();
-
-        SearchResponse response = client().prepareSearch(defaultIndexName)
-            .setQuery(QueryBuilders.geoShapeQuery(defaultGeoFieldName, point))
-            .get();
-        assertEquals(1, response.getHits().getTotalHits().value);
-    }
 }

@@ -162,7 +162,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 xContentRegistry(),
                 dispatcher,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                tracers
+                List.of()
             ) {
 
                 @Override
@@ -277,7 +277,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 }
             },
             clusterSettings,
-            tracers
+            List.of()
         ) {
             @Override
             protected HttpServerChannel bind(InetSocketAddress hostAddress) {
@@ -328,7 +328,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                     }
                 },
                 clusterSettings,
-                tracers
+                List.of()
             ) {
                 @Override
                 protected HttpServerChannel bind(InetSocketAddress hostAddress) {
@@ -482,7 +482,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                     }
                 },
                 clusterSettings,
-                tracers
+                List.of()
             ) {
                 @Override
                 protected HttpServerChannel bind(InetSocketAddress hostAddress) {
@@ -539,7 +539,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                     }
                 },
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                tracers
+                List.of()
             ) {
 
                 @Override
@@ -615,7 +615,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                     }
                 },
                 clusterSettings,
-                tracers
+                List.of()
             ) {
 
                 @Override

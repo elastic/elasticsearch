@@ -180,12 +180,12 @@ public class ESTestCaseTests extends ESTestCase {
     public void testBasePortGradle() {
         assumeTrue("requires running tests with Gradle", System.getProperty("tests.gradle") != null);
         // Gradle worker IDs are 1 based
-        assertNotEquals(10300, ESTestCase.getBasePort());
+        assertNotEquals(ESTestCase.MIN_PRIVATE_PORT, ESTestCase.getWorkerBasePort());
     }
 
     public void testBasePortIDE() {
         assumeTrue("requires running tests without Gradle", System.getProperty("tests.gradle") == null);
-        assertEquals(10300, ESTestCase.getBasePort());
+        assertEquals(ESTestCase.MIN_PRIVATE_PORT, ESTestCase.getWorkerBasePort());
     }
 
     public void testRandomDateFormatterPattern() {

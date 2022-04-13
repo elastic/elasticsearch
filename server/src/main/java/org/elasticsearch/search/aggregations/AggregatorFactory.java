@@ -8,15 +8,12 @@
 
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
-import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.BiConsumer;
 
 import static org.elasticsearch.search.aggregations.support.AggregationUsageService.OTHER_SUBTYPE;
 
@@ -104,16 +101,4 @@ public abstract class AggregatorFactory {
         return OTHER_SUBTYPE;
     }
 
-    /**
-     * Collect debug information to add to the profiling results. This will
-     * only be called if the aggregation is being profiled.
-     * <p>
-     * Well behaved implementations will always call the superclass
-     * implementation just in case it has something interesting. They will
-     * also only add objects which can be serialized with
-     * {@link StreamOutput#writeGenericValue(Object)} and
-     * {@link XContentBuilder#value(Object)}. And they'll have an integration
-     * test.
-     */
-    public void collectDebugInfo(BiConsumer<String, Object> add) {}
 }

@@ -23,7 +23,6 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.Pipelin
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.aggregations.support.AggregationPath.PathElement;
-import org.elasticsearch.search.profile.aggregation.ProfilingAggregator;
 import org.elasticsearch.xcontent.NamedObjectNotFoundException;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -232,9 +231,6 @@ public class AggregatorFactories {
         Aggregator[] aggregators = new Aggregator[countAggregators()];
         for (int i = 0; i < factories.length; ++i) {
             aggregators[i] = context.profileIfEnabled(factories[i].create(parent, cardinality));
-            if (context.profiling() && aggregators[i]instanceof ProfilingAggregator profAgg) {
-                factories[i].collectDebugInfo(profAgg::addDebugInfo);
-            }
         }
         return aggregators;
     }

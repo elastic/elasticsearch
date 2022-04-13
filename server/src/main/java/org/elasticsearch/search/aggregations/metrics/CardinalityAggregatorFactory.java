@@ -24,7 +24,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
-import java.util.function.BiConsumer;
 
 class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
 
@@ -94,16 +93,6 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
             },
             true
         );
-    }
-
-    @Override
-    public void collectDebugInfo(BiConsumer<String, Object> add) {
-        super.collectDebugInfo(add);
-        add.accept("empty_collectors_used", emptyCollectorsUsed);
-        add.accept("numeric_collectors_used", numericCollectorsUsed);
-        add.accept("ordinals_collectors_used", ordinalsCollectorsUsed);
-        add.accept("ordinals_collectors_overhead_too_high", ordinalsCollectorsOverheadTooHigh);
-        add.accept("string_hashing_collectors_used", stringHashingCollectorsUsed);
     }
 
     private static boolean useGlobalOrds(AggregationContext context, ValuesSource.Bytes.WithOrdinals source, int precision)

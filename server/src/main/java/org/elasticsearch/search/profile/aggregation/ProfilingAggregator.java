@@ -31,10 +31,6 @@ public class ProfilingAggregator extends Aggregator {
         this.delegate = delegate;
     }
 
-    public void addDebugInfo(String key, Object value) {
-        profileBreakdown.addDebugInfo(key, value);
-    }
-
     @Override
     public void close() {
         delegate.close();

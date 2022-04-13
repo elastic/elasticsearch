@@ -25,7 +25,7 @@ class AuthorizationDenialMessages {
     private AuthorizationDenialMessages() {}
 
     static String runAsDenied(Authentication authentication, String action) {
-        assert authentication.getUser().isRunAs() : "constructing run as denied message but action was not run as";
+        assert authentication.getUser().isRunAs() : "constructing run as denied message but authentication for action was not run as";
 
         String userText = authenticatedUserDescription(authentication);
 

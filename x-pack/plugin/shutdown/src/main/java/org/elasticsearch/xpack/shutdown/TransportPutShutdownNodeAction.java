@@ -104,7 +104,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 // the cluster state update was complete, so we can acknowledge the request
                 listener.onResponse(AcknowledgedResponse.TRUE);
-                boolean shouldReroute = switch(request.getType()) {
+                boolean shouldReroute = switch (request.getType()) {
                     case REMOVE, REPLACE -> true;
                     default -> false;
                 };
@@ -121,8 +121,8 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
                             }
                         });
                 } else {
-                    logger.trace(() ->
-                        "not starting reroute after registering node ["
+                    logger.trace(
+                        () -> "not starting reroute after registering node ["
                             + request.getNodeId()
                             + "] for shutdown of type ["
                             + request.getType()

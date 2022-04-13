@@ -3,7 +3,7 @@
 set -eo pipefail
 
 # This is the path that `./gradlew localDistro` prints out at the end
-cd build/distribution/local/elasticsearch-8.2.0-SNAPSHOT
+cd build/distribution/local/elasticsearch-8.3.0-SNAPSHOT
 
 # URL and token for sending traces
 SERVER_URL=""

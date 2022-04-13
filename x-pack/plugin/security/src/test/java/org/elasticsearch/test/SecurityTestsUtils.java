@@ -72,7 +72,7 @@ public class SecurityTestsUtils {
             matchesPattern(
                 "action \\["
                     + action
-                    + ".* is unauthorized for .* \\["
+                    + "] is unauthorized for .* \\["
                     + user
                     + "] because .* \\["
                     + user

@@ -37,8 +37,7 @@ public record Profile(
         String realmName,
         @Nullable String domainName,
         String email,
-        String fullName,
-        boolean active
+        String fullName
     ) implements Writeable, ToXContent {
 
         public ProfileUser(StreamInput in) throws IOException {
@@ -48,8 +47,7 @@ public record Profile(
                 in.readString(),
                 in.readOptionalString(),
                 in.readOptionalString(),
-                in.readOptionalString(),
-                in.readBoolean()
+                in.readOptionalString()
             );
         }
 
@@ -72,7 +70,6 @@ public record Profile(
             if (fullName != null) {
                 builder.field("full_name", fullName);
             }
-            builder.field("active", active);
             builder.endObject();
             return builder;
         }
@@ -85,7 +82,6 @@ public record Profile(
             out.writeOptionalString(domainName);
             out.writeOptionalString(email);
             out.writeOptionalString(fullName);
-            out.writeBoolean(active);
         }
     }
 

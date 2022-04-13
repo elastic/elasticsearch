@@ -10,9 +10,12 @@ package org.elasticsearch.upgrades;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -261,13 +264,11 @@ public class MultiVersionRepositoryAccessIT extends ESRestTestCase {
     private static void createRepository(String repoName, boolean readOnly, boolean verify) throws IOException {
         Request repoReq = new Request("PUT", "/_snapshot/" + repoName);
         repoReq.setJsonEntity(
-            "{\"type\": \"fs\",\"settings\": {\"location\": \"./"
-                + repoName
-                + "\", \"readonly\": "
-                + readOnly
-                + "}, \"verify\": "
-                + verify
-                + "}"
+            Strings.toString(
+                new PutRepositoryRequest().type("fs")
+                    .verify(verify)
+                    .settings(Settings.builder().put("location", repoName).put("readonly", readOnly).build())
+            )
         );
         assertAcknowledged(client().performRequest(repoReq));
     }

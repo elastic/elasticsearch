@@ -11,6 +11,7 @@ import org.apache.http.HttpHost;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -194,12 +195,9 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
             repoSettingsBuilder.put("delegate_type", "fs");
         }
         Request createRepo = new Request("PUT", "/_snapshot/" + repoName);
-        String body = "{\"type\":\""
-            + (sourceOnlyRepository ? "source" : "fs")
-            + "\",\"settings\":"
-            + Strings.toString(repoSettingsBuilder.build())
-            + "}";
-        createRepo.setJsonEntity(body);
+        createRepo.setJsonEntity(
+            Strings.toString(new PutRepositoryRequest().type(sourceOnlyRepository ? "source" : "fs").settings(repoSettingsBuilder.build()))
+        );
         assertAcknowledged(client().performRequest(createRepo));
 
         // list snapshots on new ES

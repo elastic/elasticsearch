@@ -14,10 +14,13 @@ import org.apache.http.client.CredentialsProvider;
 import org.apache.http.impl.client.BasicCredentialsProvider;
 import org.apache.http.impl.nio.client.HttpAsyncClientBuilder;
 import org.apache.logging.log4j.core.config.plugins.util.PluginManager;
+import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder.HttpClientConfigCallback;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 
@@ -71,13 +74,16 @@ public class EqlDataLoader {
         if (status == 404) {
             Request createRepo = new Request("PUT", "/_snapshot/" + cfg.getProperty("gcs_repo_name"));
             createRepo.setJsonEntity(
-                "{\"type\": \"gcs\",\"settings\":{\"bucket\": \""
-                    + cfg.getProperty("gcs_bucket_name")
-                    + "\",\"base_path\":\""
-                    + cfg.getProperty("gcs_base_path")
-                    + "\",\"client\":\""
-                    + cfg.getProperty("gcs_client_name")
-                    + "\"}}"
+                Strings.toString(
+                    new PutRepositoryRequest().type("gcs")
+                        .settings(
+                            Settings.builder()
+                                .put("bucket", cfg.getProperty("gcs_bucket_name"))
+                                .put("base_path", cfg.getProperty("gcs_base_path"))
+                                .put("client", cfg.getProperty("gcs_client_name"))
+                                .build()
+                        )
+                )
             );
             client.performRequest(createRepo);
 

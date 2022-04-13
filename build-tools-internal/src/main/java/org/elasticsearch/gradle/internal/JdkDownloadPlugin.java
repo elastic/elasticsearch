@@ -91,17 +91,25 @@ public class JdkDownloadPlugin implements Plugin<Project> {
 
         if (jdk.getVendor().equals(VENDOR_ADOPTIUM)) {
             repoUrl = "https://api.adoptium.net/v3/binary/version/";
-            if (jdk.getMajor().equals("8")) {
+            int major = Integer.parseInt(jdk.getMajor());
+            if (major == 8) {
                 // legacy pattern for JDK 8
                 artifactPattern = "jdk"
                     + jdk.getBaseVersion()
                     + "-"
                     + jdk.getBuild()
                     + "/[module]/[classifier]/jdk/hotspot/normal/adoptium";
-            } else {
+            } else if (major <= 17) {
                 // current pattern since JDK 9
                 artifactPattern = "jdk-"
                     + jdk.getBaseVersion()
+                    + "+"
+                    + jdk.getBuild()
+                    + "/[module]/[classifier]/jdk/hotspot/normal/adoptium";
+            } else {
+                // pattern since JDK 18
+                artifactPattern = "jdk-"
+                    + jdk.getMajor()
                     + "+"
                     + jdk.getBuild()
                     + "/[module]/[classifier]/jdk/hotspot/normal/adoptium";

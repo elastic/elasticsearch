@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.security.enrollment.tool;
 
+import joptsimple.OptionSet;
+
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
 
@@ -28,7 +30,6 @@ import java.io.IOException;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Map;
 
 import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
 import static org.elasticsearch.xpack.security.authc.esnative.ReservedRealm.AUTOCONFIG_ELASTIC_PASSWORD_HASH;
@@ -86,7 +87,7 @@ public class AutoConfigGenerateElasticPasswordHashTests extends CommandTestCase 
     protected Command newCommand() {
         return new AutoConfigGenerateElasticPasswordHash() {
             @Override
-            protected Environment createEnv(Map<String, String> settings) throws UserException {
+            protected Environment createEnv(OptionSet options) throws UserException {
                 return env;
             }
         };

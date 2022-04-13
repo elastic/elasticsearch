@@ -30,7 +30,7 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -249,7 +249,7 @@ public class IndexRequestTests extends ESTestCase {
         }
     }
 
-    public void testToStringSizeLimit() throws UnsupportedEncodingException {
+    public void testToStringSizeLimit() {
         IndexRequest request = new IndexRequest("index");
 
         String source = "{\"name\":\"value\"}";
@@ -260,7 +260,7 @@ public class IndexRequestTests extends ESTestCase {
             {"name":"%s"}
             """.formatted(randomUnicodeOfLength(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING));
         request.source(source, XContentType.JSON);
-        int actualBytes = source.getBytes("UTF-8").length;
+        int actualBytes = source.getBytes(StandardCharsets.UTF_8).length;
         assertEquals(
             "index {[index][null], source[n/a, actual length: ["
                 + new ByteSizeValue(actualBytes).toString()

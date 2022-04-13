@@ -242,7 +242,7 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
         return autoGenerateSynonymsPhraseQuery;
     }
 
-    private void validateFieldBoost(float boost) {
+    private static void validateFieldBoost(float boost) {
         if (boost < 1.0f) {
             throw new IllegalArgumentException("[" + NAME + "] requires field boosts to be >= 1.0");
         }
@@ -334,7 +334,7 @@ public class CombinedFieldsQueryBuilder extends AbstractQueryBuilder<CombinedFie
         return query;
     }
 
-    private void validateSimilarity(SearchExecutionContext context, Map<String, Float> fields) {
+    private static void validateSimilarity(SearchExecutionContext context, Map<String, Float> fields) {
         for (Map.Entry<String, Float> entry : fields.entrySet()) {
             String name = entry.getKey();
             MappedFieldType fieldType = context.getFieldType(name);

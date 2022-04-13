@@ -2113,7 +2113,10 @@ public class DocumentParserTests extends MapperServiceTestCase {
                 protected RuntimeField createRuntimeField(MappingParserContext parserContext) {
                     return new TestRuntimeField(
                         n,
-                        List.of(new KeywordFieldMapper.KeywordFieldType(n + ".foo"), new KeywordFieldMapper.KeywordFieldType(n + ".bar"))
+                        List.of(
+                            new TestRuntimeField.TestRuntimeFieldType(n + ".foo", KeywordFieldMapper.CONTENT_TYPE),
+                            new TestRuntimeField.TestRuntimeFieldType(n + ".bar", KeywordFieldMapper.CONTENT_TYPE)
+                        )
                     );
                 }
 

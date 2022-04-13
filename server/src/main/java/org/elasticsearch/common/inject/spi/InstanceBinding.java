@@ -26,7 +26,7 @@ import java.util.Set;
  * @author jessewilson@google.com (Jesse Wilson)
  * @since 2.0
  */
-public interface InstanceBinding<T> extends Binding<T>, HasDependencies {
+public interface InstanceBinding<T> extends Binding<T> {
 
     /**
      * Returns the user-supplied instance.

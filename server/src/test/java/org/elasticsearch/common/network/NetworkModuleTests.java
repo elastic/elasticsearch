@@ -293,7 +293,8 @@ public class NetworkModuleTests extends ESTestCase {
             xContentRegistry(),
             null,
             new NullDispatcher(),
-            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
+            new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
+            List.of()
         );
     }
 }

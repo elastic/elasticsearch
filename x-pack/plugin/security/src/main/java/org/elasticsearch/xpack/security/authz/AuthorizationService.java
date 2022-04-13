@@ -222,10 +222,7 @@ public class AuthorizationService {
         final TransportRequest originalRequest,
         final ActionListener<Void> listener
     ) {
-
         final AuthorizationContext enclosingContext = extractAuthorizationContext(threadContext, action);
-
-        Runnable stopTracing = null;
 
         /* authorization fills in certain transient headers, which must be observed in the listener (action handler execution)
          * as well, but which must not bleed across different action context (eg parent-child action contexts).
@@ -237,9 +234,7 @@ public class AuthorizationService {
          * We also clear tracing-related headers
          */
         try (ThreadContext.StoredContext ignore = threadContext.newStoredContext(false, ACTION_SCOPE_AUTHORIZATION_KEYS)) {
-            // FIXME improve this
-            try (var ignore2 = threadContext.newTraceContext()) {
-                stopTracing = maybeStartTracing(enclosingContext, authentication, action, originalRequest);
+            try (var ignored = maybeStartTracing(enclosingContext, authentication, action, originalRequest)) {
                 // this does not clear {@code AuthorizationServiceField.ORIGINATING_ACTION_KEY}
                 // prior to doing any authorization lets set the originating action in the thread context
                 // the originating action is the current action if no originating action has yet been set in the current thread context
@@ -271,16 +266,15 @@ public class AuthorizationService {
                 } else {
                     final RequestInfo requestInfo = new RequestInfo(authentication, unwrappedRequest, action, enclosingContext);
                     final AuthorizationEngine engine = getAuthorizationEngine(authentication);
-                    final ActionListener<AuthorizationInfo> authzInfoListener = wrapPreservingContext(ActionListener.wrap(authorizationInfo -> {
-                        threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfo);
-                        maybeAuthorizeRunAs(requestInfo, auditId, authorizationInfo, listener);
-                    }, listener::onFailure), threadContext);
+                    final ActionListener<AuthorizationInfo> authzInfoListener = wrapPreservingContext(
+                        ActionListener.wrap(authorizationInfo -> {
+                            threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfo);
+                            maybeAuthorizeRunAs(requestInfo, auditId, authorizationInfo, listener);
+                        }, listener::onFailure),
+                        threadContext
+                    );
                     engine.resolveAuthorizationInfo(requestInfo, authzInfoListener);
                 }
-            }
-        } finally {
-            if (stopTracing != null) {
-                stopTracing.run();
             }
         }
     }
@@ -335,46 +329,57 @@ public class AuthorizationService {
         return new ElasticsearchSecurityException(message);
     }
 
-    private Runnable maybeStartTracing(
+    // FIXME this isn't actually what we return but AutClose#close() declares an exception
+    private ThreadContext.StoredContext maybeStartTracing(
         AuthorizationContext enclosingContext,
         Authentication authentication,
         String action,
         TransportRequest originalRequest
     ) {
-        // Not tracing system actions
-        if (false == tracingEnabled || SystemUser.is(authentication.getUser()) || threadContext.isSystemContext()) {
+        // Not tracing system actions. Also if we're not tracing system actions, we mustn't start a new trace context.
+        if (shouldTrace(authentication) == false) {
             return () -> {};
-        } else {
-            return authorizationTracer.startTracing(new Traceable() {
-                @Override
-                public String getSpanId() {
-                    return "authorize_" + System.identityHashCode(originalRequest);
-                }
-
-                @Override
-                public String getSpanName() {
-                    return "authorize(" + action + ")";
-                }
-
-                @Override
-                public Map<String, Object> getAttributes() {
-                    final HashMap<String, Object> attributes = new HashMap<>(
-                        Map.of(
-                            "es.principal",
-                            authentication.getUser().principal(),
-                            "es.authentication.realm.name",
-                            authentication.getAuthenticatedBy().getName(),
-                            "es.node.name",
-                            clusterService.getNodeName()
-                        )
-                    );
-                    if (enclosingContext != null) {
-                        attributes.put("originating_action", enclosingContext.getAction());
-                    }
-                    return Map.copyOf(attributes);
-                }
-            });
         }
+
+        final ThreadContext.StoredContext context = threadContext.newTraceContext();
+        final Runnable stopTracing = authorizationTracer.startTracing(new Traceable() {
+            @Override
+            public String getSpanId() {
+                return "authorize_" + System.identityHashCode(originalRequest);
+            }
+
+            @Override
+            public String getSpanName() {
+                return "authorize(" + action + ")";
+            }
+
+            @Override
+            public Map<String, Object> getAttributes() {
+                final HashMap<String, Object> attributes = new HashMap<>(
+                    Map.of(
+                        "es.principal",
+                        authentication.getUser().principal(),
+                        "es.authentication.realm.name",
+                        authentication.getAuthenticatedBy().getName(),
+                        "es.node.name",
+                        clusterService.getNodeName()
+                    )
+                );
+                if (enclosingContext != null) {
+                    attributes.put("originating_action", enclosingContext.getAction());
+                }
+                return Map.copyOf(attributes);
+            }
+        });
+
+        return () -> {
+            context.restore();
+            stopTracing.run();
+        };
+    }
+
+    private boolean shouldTrace(Authentication authentication) {
+        return false == (false == tracingEnabled || SystemUser.is(authentication.getUser()) || threadContext.isSystemContext());
     }
 
     private void checkOperatorPrivileges(Authentication authentication, String action, TransportRequest originalRequest)
@@ -474,7 +479,7 @@ public class AuthorizationService {
         } else if (isIndexAction(action)) {
             final Metadata metadata = clusterService.state().metadata();
             final AsyncSupplier<ResolvedIndices> resolvedIndicesAsyncSupplier = new CachingAsyncSupplier<>(resolvedIndicesListener -> {
-                final ResolvedIndices resolvedIndices = indicesAndAliasesResolver.tryResolveWithoutWildcards(action, request);
+                final ResolvedIndices resolvedIndices = IndicesAndAliasesResolver.tryResolveWithoutWildcards(action, request);
                 if (resolvedIndices != null) {
                     resolvedIndicesListener.onResponse(resolvedIndices);
                 } else {
@@ -766,7 +771,7 @@ public class AuthorizationService {
             for (BulkItemRequest item : request.items()) {
                 final String itemAction = getAction(item);
                 String resolvedIndex = resolvedIndexNames.computeIfAbsent(item.index(), key -> {
-                    final ResolvedIndices resolvedIndices = indicesAndAliasesResolver.resolveIndicesAndAliasesWithoutWildcards(
+                    final ResolvedIndices resolvedIndices = IndicesAndAliasesResolver.resolveIndicesAndAliasesWithoutWildcards(
                         itemAction,
                         item.request()
                     );

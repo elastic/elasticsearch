@@ -442,7 +442,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
     private static void ensureSnapshotNameNotRunning(SnapshotsInProgress runningSnapshots, String repositoryName, String snapshotName) {
         if (runningSnapshots.forRepo(repositoryName).stream().anyMatch(s -> s.snapshot().getSnapshotId().getName().equals(snapshotName))) {
-            throw new InvalidSnapshotNameException(repositoryName, snapshotName, "snapshot with the same name is already in-progress");
+            throw new SnapshotNameAlreadyInUseException(repositoryName, snapshotName, "snapshot with the same name is already in-progress");
         }
     }
 
@@ -568,7 +568,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
     private static void ensureSnapshotNameAvailableInRepo(RepositoryData repositoryData, String snapshotName, Repository repository) {
         // check if the snapshot name already exists in the repository
         if (repositoryData.getSnapshotIds().stream().anyMatch(s -> s.getName().equals(snapshotName))) {
-            throw new InvalidSnapshotNameException(
+            throw new SnapshotNameAlreadyInUseException(
                 repository.getMetadata().name(),
                 snapshotName,
                 "snapshot with the same name already exists"
@@ -1618,7 +1618,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * @param finalIndices The final list of indices in the snapshot, after any indices that were concurrently deleted are removed.
      * @return The list of feature states which were completed successfully in the given entry.
      */
-    private List<SnapshotFeatureInfo> onlySuccessfulFeatureStates(SnapshotsInProgress.Entry entry, List<String> finalIndices) {
+    private static List<SnapshotFeatureInfo> onlySuccessfulFeatureStates(SnapshotsInProgress.Entry entry, List<String> finalIndices) {
         assert entry.partial() : "should not try to filter feature states from a non-partial entry";
 
         // Figure out which indices have unsuccessful shards
@@ -2303,7 +2303,11 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      *                       (used to use newer metadata version after a snapshot delete)
      * @return minimum node version that must still be able to read the repository metadata
      */
-    public Version minCompatibleVersion(Version minNodeVersion, RepositoryData repositoryData, @Nullable Collection<SnapshotId> excluded) {
+    public static Version minCompatibleVersion(
+        Version minNodeVersion,
+        RepositoryData repositoryData,
+        @Nullable Collection<SnapshotId> excluded
+    ) {
         Version minCompatVersion = minNodeVersion;
         final Collection<SnapshotId> snapshotIds = repositoryData.getSnapshotIds();
         for (SnapshotId snapshotId : snapshotIds.stream()
@@ -2746,7 +2750,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             return changed ? snapshotsInProgress.withUpdatedEntriesForRepo(repoName, snapshotEntries) : null;
         }
 
-        private void markShardReassigned(RepositoryShardId shardId, Set<RepositoryShardId> reassignments) {
+        private static void markShardReassigned(RepositoryShardId shardId, Set<RepositoryShardId> reassignments) {
             final boolean added = reassignments.add(shardId);
             assert added : "should only ever reassign each shard once but assigned [" + shardId + "] multiple times";
         }

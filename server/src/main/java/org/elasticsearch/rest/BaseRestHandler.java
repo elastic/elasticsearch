@@ -108,7 +108,7 @@ public abstract class BaseRestHandler implements RestHandler {
         return request.getXContentType() != null;
     }
 
-    protected final String unrecognized(
+    protected static String unrecognized(
         final RestRequest request,
         final Set<String> invalids,
         final Set<String> candidates,

@@ -188,13 +188,11 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
             threadContext.putHeader(spanHeaders);
 
-            // logGraphviz(span);
+//             logGraphviz(span);
 
             return span;
         }));
     }
-
-    private static final Set<String> CACHE = new HashSet<>();
 
     @Override
     public void onTraceException(Traceable traceable, Throwable throwable) {
@@ -295,6 +293,8 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         return TRACE_HEADERS.contains(key);
     }
 
+    private static final Set<String> GRAPHVIZ_CACHE = new HashSet<>();
+
     private static void logGraphviz(Span span) {
         final String spanStr = span.toString();
 
@@ -313,23 +313,24 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         j = spanStr.indexOf(",", i);
         String spanName = spanStr.substring(i + 5, j);
 
-        if (CACHE.add(spanId)) {
-            Map<String, String> attrs = new HashMap<>();
-            attrs.put("label", spanName);
-            if (spanName.startsWith("internal:")) {
-                attrs.put("style", "filled");
-                attrs.put("fillcolor", "pink");
+        if (spanName.startsWith("internal:") == false) {
+            if (GRAPHVIZ_CACHE.add(spanId)) {
+                Map<String, String> attrs = new HashMap<>();
+                attrs.put("label", spanName);
+                if (spanName.startsWith("internal:")) {
+                    attrs.put("style", "filled");
+                    attrs.put("fillcolor", "pink");
+                }
+                final String attrsString = attrs.entrySet()
+                    .stream()
+                    .map(each -> each.getKey() + "=\"" + each.getValue() + "\"")
+                    .collect(Collectors.joining(","));
+                LOGGER.warn("BADGER: __{} [{}]", spanId, attrsString);
             }
-            final String attrsString = attrs.entrySet()
-                .stream()
-                .map(each -> each.getKey() + "=\"" + each.getValue() + "\"")
-                .collect(Collectors.joining(","));
-            LOGGER.warn("BADGER: __{} [{}]", spanId, attrsString);
-        }
 
-        if (parentSpanId != null) {
-            LOGGER.warn("BADGER: __{} -> __{}", spanId, parentSpanId);
+            if (parentSpanId != null) {
+                LOGGER.warn("BADGER: __{} -> __{}", spanId, parentSpanId);
+            }
         }
-
     }
 }

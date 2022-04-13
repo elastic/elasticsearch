@@ -93,7 +93,7 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 clusterService.getRerouteService()
-                    .reroute("node registered for removal from cluster", Priority.NORMAL, new ActionListener<ClusterState>() {
+                    .reroute("node registered for removal from cluster", Priority.URGENT, new ActionListener<ClusterState>() {
                         @Override
                         public void onResponse(ClusterState clusterState) {
                             logger.trace("started reroute after deleting node [{}}] shutdown", request.getNodeId());

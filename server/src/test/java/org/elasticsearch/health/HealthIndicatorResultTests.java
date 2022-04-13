@@ -32,10 +32,12 @@ public class HealthIndicatorResultTests extends ESTestCase {
         List<HealthIndicatorImpact> impacts = new ArrayList<>();
         int impact1Severity = randomIntBetween(1, 5);
         String impact1Description = randomAlphaOfLength(30);
-        impacts.add(new HealthIndicatorImpact(impact1Severity, impact1Description));
+        ImpactArea firstImpactArea = randomFrom(ImpactArea.values());
+        impacts.add(new HealthIndicatorImpact(impact1Severity, impact1Description, List.of(firstImpactArea)));
         int impact2Severity = randomIntBetween(1, 5);
         String impact2Description = randomAlphaOfLength(30);
-        impacts.add(new HealthIndicatorImpact(impact2Severity, impact2Description));
+        ImpactArea secondImpactArea = randomFrom(ImpactArea.values());
+        impacts.add(new HealthIndicatorImpact(impact2Severity, impact2Description, List.of(secondImpactArea)));
         HealthIndicatorResult result = new HealthIndicatorResult(name, component, status, summary, details, impacts);
         XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
         result.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -47,9 +49,11 @@ public class HealthIndicatorResultTests extends ESTestCase {
         Map<String, Object> expectedImpact1 = new HashMap<>();
         expectedImpact1.put("severity", impact1Severity);
         expectedImpact1.put("description", impact1Description);
+        expectedImpact1.put("impact_areas", List.of(firstImpactArea.displayValue()));
         Map<String, Object> expectedImpact2 = new HashMap<>();
         expectedImpact2.put("severity", impact2Severity);
         expectedImpact2.put("description", impact2Description);
+        expectedImpact2.put("impact_areas", List.of(secondImpactArea.displayValue()));
         expectedImpacts.add(expectedImpact1);
         expectedImpacts.add(expectedImpact2);
         assertEquals(expectedImpacts, xContentMap.get("impacts"));

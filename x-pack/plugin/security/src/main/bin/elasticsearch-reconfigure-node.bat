@@ -10,7 +10,7 @@ setlocal enableextensions
 
 set CLI_SCRIPT=%~0
 set CLI_LIBS=modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli
-call "%~dp0elasticsearch-cli.bat" "--reconfigure" ^
+call "%~dp0elasticsearch-cli.bat" ^
   %%* ^
   || goto exit
 

@@ -14,7 +14,9 @@ import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
@@ -27,6 +29,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteTransportException;
 
+import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -82,6 +85,23 @@ public final class NodeHealthCacheTaskExecutor extends PersistentTasksExecutor<N
             parentTaskId,
             headers
         );
+    }
+
+    /**
+     * Returns the node id from the eligible health nodes and updates the cluster state with the chosen health node
+     */
+    @Override
+    public PersistentTasksCustomMetadata.Assignment getAssignment(
+        NodeHealthCacheTaskParams params,
+        Collection<DiscoveryNode> candidateNodes,
+        ClusterState clusterState
+    ) {
+        DiscoveryNode discoveryNode = selectLeastLoadedNode(clusterState, candidateNodes, DiscoveryNode::isHealthNode);
+        if (discoveryNode == null) {
+            return NO_NODE_FOUND;
+        } else {
+            return new PersistentTasksCustomMetadata.Assignment(discoveryNode.getId(), "");
+        }
     }
 
     private void startTask() {

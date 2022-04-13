@@ -80,6 +80,10 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         return hasRole(settings, DiscoveryNodeRole.INGEST_ROLE);
     }
 
+    public static boolean isHealthNode(final Settings settings) {
+        return hasRole(settings, DiscoveryNodeRole.HEALTH_ROLE);
+    }
+
     public static boolean isRemoteClusterClient(final Settings settings) {
         return hasRole(settings, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE);
     }
@@ -364,6 +368,13 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
      */
     public boolean isIngestNode() {
         return roles.contains(DiscoveryNodeRole.INGEST_ROLE);
+    }
+
+    /**
+     * Can this node become master or not.
+     */
+    public boolean isHealthNode() {
+        return roles.contains(DiscoveryNodeRole.HEALTH_ROLE);
     }
 
     /**

@@ -134,6 +134,7 @@ public class BuildTests extends ESTestCase {
         return randomAlphaOfLength(13 - s.length());
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/85800")
     public void testSerialization() {
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             new WriteableBuild(
@@ -148,12 +149,8 @@ public class BuildTests extends ESTestCase {
             // Note: the cast of the Copy- and MutateFunction is needed for some IDE (specifically Eclipse 4.10.0) to infer the right type
             (WriteableBuild b) -> copyWriteable(b, writableRegistry(), WriteableBuild::new, Version.CURRENT),
             (WriteableBuild b) -> {
-                switch (randomIntBetween(1, 6)) {
+                switch (randomIntBetween(1, 5)) {
                     case 1:
-                        return new WriteableBuild(
-                            new Build(b.build.type(), b.build.hash(), b.build.date(), b.build.isSnapshot(), b.build.qualifiedVersion())
-                        );
-                    case 2:
                         return new WriteableBuild(
                             new Build(
                                 randomValueOtherThan(b.build.type(), () -> randomFrom(Build.Type.values())),
@@ -163,7 +160,7 @@ public class BuildTests extends ESTestCase {
                                 b.build.qualifiedVersion()
                             )
                         );
-                    case 3:
+                    case 2:
                         return new WriteableBuild(
                             new Build(
                                 b.build.type(),
@@ -173,7 +170,7 @@ public class BuildTests extends ESTestCase {
                                 b.build.qualifiedVersion()
                             )
                         );
-                    case 4:
+                    case 3:
                         return new WriteableBuild(
                             new Build(
                                 b.build.type(),
@@ -183,7 +180,7 @@ public class BuildTests extends ESTestCase {
                                 b.build.qualifiedVersion()
                             )
                         );
-                    case 5:
+                    case 4:
                         return new WriteableBuild(
                             new Build(
                                 b.build.type(),
@@ -193,7 +190,7 @@ public class BuildTests extends ESTestCase {
                                 b.build.qualifiedVersion()
                             )
                         );
-                    case 6:
+                    case 5:
                         return new WriteableBuild(
                             new Build(
                                 b.build.type(),

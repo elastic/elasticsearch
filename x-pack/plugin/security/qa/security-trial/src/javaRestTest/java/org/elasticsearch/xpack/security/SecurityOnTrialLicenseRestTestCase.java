@@ -9,8 +9,6 @@ package org.elasticsearch.xpack.security;
 
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.security.CreateTokenRequest;
-import org.elasticsearch.client.security.CreateTokenResponse;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -18,6 +16,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.TestSecurityClient;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
+import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -67,10 +66,11 @@ public abstract class SecurityOnTrialLicenseRestTestCase extends ESRestTestCase 
      * @return A tuple of (access-token, refresh-token)
      */
     protected Tuple<String, String> createOAuthToken(String username, SecureString password) throws IOException {
-        final RestHighLevelClient client = getHighLevelAdminClient();
-        final CreateTokenRequest request = CreateTokenRequest.passwordGrant(username, password.getChars());
-        final CreateTokenResponse response = client.security().createToken(request, RequestOptions.DEFAULT);
-        return Tuple.tuple(response.getAccessToken(), response.getRefreshToken());
+        final TestSecurityClient securityClient = new TestSecurityClient(adminClient());
+        final TestSecurityClient.OAuth2Token token = securityClient.createToken(
+            new UsernamePasswordToken(username, new SecureString(password.getChars()))
+        );
+        return new Tuple<>(token.accessToken(), token.getRefreshToken());
     }
 
     protected void deleteUser(String username) throws IOException {

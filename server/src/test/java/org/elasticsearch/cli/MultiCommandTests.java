@@ -40,6 +40,11 @@ public class MultiCommandTests extends CommandTestCase {
                 throw new IllegalStateException("DummyMultiCommand already closed");
             }
         }
+
+        @Override
+        protected boolean addShutdownHook() {
+            return false;
+        }
     }
 
     static class DummySubCommand extends Command {
@@ -196,17 +201,6 @@ public class MultiCommandTests extends CommandTestCase {
 
     // Tests for multicommand error logging
 
-    static class ErrorHandlingMultiCommand extends MultiCommand {
-        ErrorHandlingMultiCommand() {
-            super("error catching", () -> {});
-        }
-
-        @Override
-        protected boolean addShutdownHook() {
-            return false;
-        }
-    }
-
     static class ErrorThrowingSubCommand extends Command {
         ErrorThrowingSubCommand() {
             super("error throwing", () -> {});
@@ -224,24 +218,20 @@ public class MultiCommandTests extends CommandTestCase {
     }
 
     public void testErrorDisplayedWithDefault() throws Exception {
-        MockTerminal terminal = new MockTerminal();
-        MultiCommand mc = new ErrorHandlingMultiCommand();
-        mc.subcommands.put("throw", new ErrorThrowingSubCommand());
-        mc.main(new String[] { "throw", "--silent" }, terminal);
+        multiCommand.subcommands.put("throw", new ErrorThrowingSubCommand());
+        executeMain("throw", "--silent");
         assertThat(terminal.getOutput(), is(emptyString()));
         assertThat(terminal.getErrorOutput(), equalTo("ERROR: Dummy error\n"));
     }
 
     public void testNullErrorMessageSuppressesErrorOutput() throws Exception {
-        MockTerminal terminal = new MockTerminal();
-        MultiCommand mc = new ErrorHandlingMultiCommand();
-        mc.subcommands.put("throw", new ErrorThrowingSubCommand() {
+        multiCommand.subcommands.put("throw", new ErrorThrowingSubCommand() {
             @Override
             protected void execute(Terminal terminal, OptionSet options) throws Exception {
                 throw new UserException(1, null);
             }
         });
-        mc.main(new String[] { "throw", "--silent" }, terminal);
+        executeMain("throw", "--silent");
         assertThat(terminal.getOutput(), is(emptyString()));
         assertThat(terminal.getErrorOutput(), is(emptyString()));
     }

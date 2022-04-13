@@ -51,7 +51,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -208,7 +208,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         assertThat(1, equalTo(getResp.evaluate("total")));
         assertThat(snapshotName, equalTo(getResp.evaluate("snapshots.0.snapshot")));
         assertThat(repoName, equalTo(getResp.evaluate("snapshots.0.repository")));
-        assertThat(getResp.evaluate("snapshots.0.indices"), containsInAnyOrder(indexName));
+        assertThat(getResp.evaluate("snapshots.0.indices"), contains(indexName));
         assertThat(SnapshotState.SUCCESS.toString(), equalTo(getResp.evaluate("snapshots.0.state")));
         assertEquals(numberOfShards, (int) getResp.evaluate("snapshots.0.shards.successful"));
         assertEquals(numberOfShards, (int) getResp.evaluate("snapshots.0.shards.total"));
@@ -222,7 +222,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         assertThat(1, equalTo(getResp.evaluate("total")));
         assertThat(snapshotName, equalTo(getResp.evaluate("snapshots.0.snapshot")));
         assertThat(repoName, equalTo(getResp.evaluate("snapshots.0.repository")));
-        assertThat(getResp.evaluate("snapshots.0.indices"), containsInAnyOrder(indexName));
+        assertThat(getResp.evaluate("snapshots.0.indices"), contains(indexName));
         assertThat(SnapshotState.SUCCESS.toString(), equalTo(getResp.evaluate("snapshots.0.state")));
         assertEquals(numberOfShards, (int) getResp.evaluate("snapshots.0.shards.successful"));
         assertEquals(numberOfShards, (int) getResp.evaluate("snapshots.0.shards.total"));

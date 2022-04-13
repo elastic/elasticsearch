@@ -1434,7 +1434,11 @@ public abstract class ESRestTestCase extends ESTestCase {
     public static void assertDocCount(RestClient client, String indexName, long docCount) throws IOException {
         Request countReq = new Request("GET", "/" + indexName + "/_count");
         ObjectPath resp = ObjectPath.createFromResponse(client.performRequest(countReq));
-        assertEquals("expected " + docCount + " documents but it was a different number", docCount, (long) resp.evaluate("count"));
+        assertEquals(
+            "expected " + docCount + " documents but it was a different number",
+            docCount,
+            Long.parseLong(resp.evaluate("count").toString())
+        );
     }
 
     public static void assertAcknowledged(Response response) throws IOException {

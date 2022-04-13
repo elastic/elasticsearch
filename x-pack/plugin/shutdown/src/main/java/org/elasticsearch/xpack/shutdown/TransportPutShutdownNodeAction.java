@@ -102,8 +102,6 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
 
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                // the cluster state update was complete, so we can acknowledge the request
-                listener.onResponse(AcknowledgedResponse.TRUE);
                 boolean shouldReroute = switch (request.getType()) {
                     case REMOVE, REPLACE -> true;
                     default -> false;
@@ -129,6 +127,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
                             + "]"
                     );
                 }
+                listener.onResponse(AcknowledgedResponse.TRUE);
             }
         }, newExecutor());
     }

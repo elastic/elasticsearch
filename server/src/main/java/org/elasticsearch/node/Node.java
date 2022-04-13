@@ -900,7 +900,7 @@ public class Node implements Closeable {
                 clusterService.getClusterSettings()
             );
 
-            HealthService healthService = createHealthService(clusterService);
+            HealthService healthService = createHealthService(clusterService, discoveryModule);
 
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);
@@ -1039,12 +1039,12 @@ public class Node implements Closeable {
         }
     }
 
-    private HealthService createHealthService(ClusterService clusterService) {
+    private HealthService createHealthService(ClusterService clusterService, DiscoveryModule discoveryModule) {
         var serverHealthIndicatorServices = List.of(
             new InstanceHasMasterHealthIndicatorService(clusterService),
             new RepositoryIntegrityHealthIndicatorService(clusterService),
             new ShardsAvailabilityHealthIndicatorService(clusterService),
-            new StableMasterHealthIndicatorService(clusterService)
+            new StableMasterHealthIndicatorService(clusterService, discoveryModule)
         );
         var pluginHealthIndicatorServices = pluginsService.filterPlugins(HealthPlugin.class)
             .stream()

@@ -66,20 +66,6 @@ public class NodeRoleParserTests extends LaunchersTestCase {
         assertThat(nodeRole, equalTo(DATA));
     }
 
-    public void testLegacySettings() throws IOException {
-        MachineDependentHeap.MachineNodeRole nodeRole = parseConfig(sb -> sb.append("node.ml: true"));
-        assertThat(nodeRole, equalTo(UNKNOWN));
-
-        nodeRole = parseConfig(sb -> sb.append("node.master: true"));
-        assertThat(nodeRole, equalTo(UNKNOWN));
-
-        nodeRole = parseConfig(sb -> sb.append("node.data: false"));
-        assertThat(nodeRole, equalTo(UNKNOWN));
-
-        nodeRole = parseConfig(sb -> sb.append("node.ingest: false"));
-        assertThat(nodeRole, equalTo(UNKNOWN));
-    }
-
     public void testYamlSyntax() throws IOException {
         MachineDependentHeap.MachineNodeRole nodeRole = parseConfig(sb -> sb.append("""
             node:

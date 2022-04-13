@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.desirednodes.VersionConflictException;
+import org.elasticsearch.cluster.metadata.DesiredNode;
 import org.elasticsearch.cluster.metadata.DesiredNodes;
 import org.elasticsearch.cluster.metadata.DesiredNodesMetadata;
 import org.elasticsearch.cluster.metadata.DesiredNodesTestCase;
@@ -23,30 +24,25 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.After;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNode;
 import static org.elasticsearch.cluster.metadata.DesiredNodesTestCase.randomDesiredNodes;
 import static org.elasticsearch.common.util.concurrent.EsExecutors.NODE_PROCESSORS_SETTING;
 import static org.elasticsearch.http.HttpTransportSettings.SETTING_HTTP_TCP_KEEP_IDLE;
-import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
-import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -69,10 +65,16 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
 
     public void testUpdateDesiredNodesIsIdempotent() {
         final DesiredNodes desiredNodes = putRandomDesiredNodes();
-        updateDesiredNodes(desiredNodes);
+
+        final List<DesiredNode> desiredNodesList = new ArrayList<>(desiredNodes.nodes());
+        if (randomBoolean()) {
+            Collections.shuffle(desiredNodesList, random());
+        }
+
+        updateDesiredNodes(new DesiredNodes(desiredNodes.historyID(), desiredNodes.version(), desiredNodesList));
 
         final ClusterState state = client().admin().cluster().prepareState().get().getState();
-        final DesiredNodesMetadata metadata = state.metadata().custom(DesiredNodesMetadata.TYPE);
+        final DesiredNodesMetadata metadata = DesiredNodesMetadata.fromClusterState(state);
         assertThat(metadata, is(notNullValue()));
         final DesiredNodes latestDesiredNodes = metadata.getLatestDesiredNodes();
         assertThat(latestDesiredNodes, is(equalTo(desiredNodes)));
@@ -252,10 +254,9 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
             final DesiredNodes latestDesiredNodes = metadata.getLatestDesiredNodes();
             assertThat(latestDesiredNodes, is(equalTo(desiredNodes)));
             assertThat(latestDesiredNodes.nodes().isEmpty(), is(equalTo(false)));
-            assertThat(
-                latestDesiredNodes.nodes().get(0).settings().get(NODE_PROCESSORS_SETTING.getKey()),
-                is(equalTo(Integer.toString(numProcessors)))
-            );
+            for (DesiredNode desiredNode : latestDesiredNodes.nodes()) {
+                assertThat(desiredNode.settings().get(NODE_PROCESSORS_SETTING.getKey()), is(equalTo(Integer.toString(numProcessors))));
+            }
         }
     }
 
@@ -268,7 +269,7 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
             final UpdateDesiredNodesRequest request = new UpdateDesiredNodesRequest(
                 desiredNodes.historyID(),
                 desiredNodes.version(),
-                desiredNodes.nodes()
+                List.copyOf(desiredNodes.nodes())
             );
             // Use the master client to ensure the same updates ordering as in proposedDesiredNodesList
             updateDesiredNodesFutures.add(internalCluster().masterClient().execute(UpdateDesiredNodesAction.INSTANCE, request));
@@ -333,110 +334,6 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         expectThrows(ResourceNotFoundException.class, this::getLatestDesiredNodes);
     }
 
-    public void testDesiredNodesMembershipIsUpdated() throws Exception {
-        final List<String> currentNodeMembersExternalIds = randomList(1, 4, UUIDs::randomBase64UUID);
-        final List<String> futureNodeMembersExternalIds = randomList(1, 4, UUIDs::randomBase64UUID);
-
-        for (String nodeExternalId : currentNodeMembersExternalIds) {
-            internalCluster().startDataOnlyNode(Settings.builder().put(NODE_EXTERNAL_ID_SETTING.getKey(), nodeExternalId).build());
-        }
-
-        final DesiredNodes desiredNodes = new DesiredNodes(
-            UUIDs.randomBase64UUID(),
-            randomIntBetween(1, 20),
-            Stream.concat(currentNodeMembersExternalIds.stream(), futureNodeMembersExternalIds.stream())
-                .map(externalId -> randomDesiredNode(Version.CURRENT, settings -> {
-                    settings.remove(NODE_NAME_SETTING.getKey());
-                    settings.put(NODE_EXTERNAL_ID_SETTING.getKey(), externalId);
-                }))
-                .toList()
-        );
-        updateDesiredNodes(desiredNodes);
-
-        {
-            final var latestDesiredNodes = getLatestDesiredNodes();
-            final var clusterState = client().admin().cluster().prepareState().get().getState();
-            final var desiredNodesMetadata = DesiredNodesMetadata.fromClusterState(clusterState);
-            final var members = desiredNodesMetadata.getClusterMembers();
-            final var notClusterMembers = desiredNodesMetadata.getNotClusterMembers();
-
-            for (String nodeExternalId : currentNodeMembersExternalIds) {
-                final var desiredNode = latestDesiredNodes.find(nodeExternalId);
-                assertThat(desiredNode, is(not(nullValue())));
-                assertThat(members.contains(desiredNode), is(equalTo(true)));
-                assertThat(notClusterMembers.contains(desiredNode), is(equalTo(false)));
-            }
-
-            for (String nodeExternalId : futureNodeMembersExternalIds) {
-                final var desiredNode = latestDesiredNodes.find(nodeExternalId);
-                assertThat(desiredNode, is(not(nullValue())));
-                assertThat(members.contains(desiredNode), is(equalTo(false)));
-                assertThat(notClusterMembers.contains(desiredNode), is(equalTo(true)));
-            }
-        }
-
-        String latestStartedNode = null;
-        for (String nodeExternalId : futureNodeMembersExternalIds) {
-            latestStartedNode = internalCluster().startDataOnlyNode(
-                Settings.builder().put(NODE_EXTERNAL_ID_SETTING.getKey(), nodeExternalId).build()
-            );
-        }
-
-        {
-            final DesiredNodes latestDesiredNodes = getLatestDesiredNodes();
-            final var clusterState = client().admin().cluster().prepareState().get().getState();
-            final var desiredNodesMetadata = DesiredNodesMetadata.fromClusterState(clusterState);
-            final var members = desiredNodesMetadata.getClusterMembers();
-            assertThat(desiredNodesMetadata.getNotClusterMembers(), is(empty()));
-
-            for (String nodeExternalId : Iterables.concat(currentNodeMembersExternalIds, futureNodeMembersExternalIds)) {
-                final var desiredNode = latestDesiredNodes.find(nodeExternalId);
-                assertThat(desiredNode, is(not(nullValue())));
-                assertThat(members.contains(desiredNode), is(equalTo(true)));
-            }
-        }
-
-        assertTrue(internalCluster().stopNode(latestStartedNode));
-
-        {
-            final DesiredNodes latestDesiredNodes = getLatestDesiredNodes();
-            final var clusterState = client().admin().cluster().prepareState().get().getState();
-            final var desiredNodesMetadata = DesiredNodesMetadata.fromClusterState(clusterState);
-            final var members = desiredNodesMetadata.getClusterMembers();
-            assertThat(desiredNodesMetadata.getNotClusterMembers(), is(empty()));
-
-            for (String nodeExternalId : Iterables.concat(currentNodeMembersExternalIds, futureNodeMembersExternalIds)) {
-                final var desiredNode = latestDesiredNodes.find(nodeExternalId);
-                assertThat(desiredNode, is(not(nullValue())));
-                assertThat(members.contains(desiredNode), is(equalTo(true)));
-            }
-        }
-
-        final DesiredNodes updatedDesiredNodes = new DesiredNodes(
-            desiredNodes.historyID(),
-            desiredNodes.version() + 1,
-            desiredNodes.nodes()
-        );
-
-        updateDesiredNodes(updatedDesiredNodes);
-
-        // Ensure that nodes that are in the desired nodes state and were considered as member
-        // at some point, are considered members after they leave (it might be a temporary issue)
-        {
-            final DesiredNodes latestDesiredNodes = getLatestDesiredNodes();
-            final var clusterState = client().admin().cluster().prepareState().get().getState();
-            final var desiredNodesMetadata = DesiredNodesMetadata.fromClusterState(clusterState);
-            final var members = desiredNodesMetadata.getClusterMembers();
-            assertThat(desiredNodesMetadata.getNotClusterMembers(), is(empty()));
-
-            for (String nodeExternalId : Iterables.concat(currentNodeMembersExternalIds, futureNodeMembersExternalIds)) {
-                final var desiredNode = latestDesiredNodes.find(nodeExternalId);
-                assertThat(desiredNode, is(not(nullValue())));
-                assertThat(members.contains(desiredNode), is(equalTo(true)));
-            }
-        }
-    }
-
     private void deleteDesiredNodes() {
         final DeleteDesiredNodesAction.Request request = new DeleteDesiredNodesAction.Request();
         client().execute(DeleteDesiredNodesAction.INSTANCE, request).actionGet();
@@ -458,7 +355,7 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         final UpdateDesiredNodesRequest request = new UpdateDesiredNodesRequest(
             desiredNodes.historyID(),
             desiredNodes.version(),
-            desiredNodes.nodes()
+            List.copyOf(desiredNodes.nodes())
         );
         return client().execute(UpdateDesiredNodesAction.INSTANCE, request).actionGet();
     }

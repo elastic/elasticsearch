@@ -6,14 +6,19 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.client.transform.transforms;
+package org.elasticsearch.health;
 
-import org.elasticsearch.xcontent.ToXContentObject;
+public enum ImpactArea {
+    SEARCH("search"),
+    INGEST("ingest");
 
-public interface SyncConfig extends ToXContentObject {
+    private final String displayValue;
 
-    /**
-     * Returns the name of the writeable object
-     */
-    String getName();
+    ImpactArea(String displayValue) {
+        this.displayValue = displayValue;
+    }
+
+    public String displayValue() {
+        return displayValue;
+    }
 }

@@ -5,12 +5,12 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.aggs.categorization2;
+package org.elasticsearch.xpack.ml.aggs.categorization;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BytesRefHash;
-import org.elasticsearch.xpack.ml.aggs.categorization2.TokenListCategory.TokenAndWeight;
+import org.elasticsearch.xpack.ml.aggs.categorization.TokenListCategory.TokenAndWeight;
 
 import java.util.ArrayList;
 import java.util.List;

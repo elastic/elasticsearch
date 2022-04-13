@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.aggs.categorization2;
+package org.elasticsearch.xpack.ml.aggs.categorization;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -25,7 +25,7 @@ import java.util.stream.Stream;
  */
 public class CategorizationPartOfSpeechDictionary {
 
-    static final String DICTIONARY_FILE_PATH = "/org/elasticsearch/xpack/ml/aggs/categorization2/ml-en.dict";
+    static final String DICTIONARY_FILE_PATH = "/org/elasticsearch/xpack/ml/aggs/categorization/ml-en.dict";
 
     static final String PART_OF_SPEECH_SEPARATOR = "@";
 

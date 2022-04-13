@@ -5,10 +5,10 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.aggs.categorization2;
+package org.elasticsearch.xpack.ml.aggs.categorization;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.ml.aggs.categorization2.CategorizationPartOfSpeechDictionary.PartOfSpeech;
+import org.elasticsearch.xpack.ml.aggs.categorization.CategorizationPartOfSpeechDictionary.PartOfSpeech;
 
 import java.io.IOException;
 

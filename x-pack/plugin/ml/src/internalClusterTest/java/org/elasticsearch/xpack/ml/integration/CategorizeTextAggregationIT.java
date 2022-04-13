@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notANumber;
 
-public class CategorizationAggregationIT extends BaseMlIntegTestCase {
+public class CategorizeTextAggregationIT extends BaseMlIntegTestCase {
 
     private static final String DATA_INDEX = "categorization-agg-data";
 
@@ -77,9 +77,9 @@ public class CategorizationAggregationIT extends BaseMlIntegTestCase {
             .setSize(0)
             .setTrackTotalHits(false)
             .addAggregation(
+                // Overriding the similarity threshold to just 11% (default is 70%) results in the
+                // "Node started" and "Node stopped" messages being grouped in the same category
                 new CategorizeTextAggregationBuilder("categorize", "msg").setSimilarityThreshold(11)
-                    .setMaxUniqueTokens(2)
-                    .setMaxMatchedTokens(1)
                     .subAggregation(AggregationBuilders.max("max").field("time"))
                     .subAggregation(AggregationBuilders.min("min").field("time"))
             )
@@ -87,7 +87,7 @@ public class CategorizationAggregationIT extends BaseMlIntegTestCase {
         InternalCategorizationAggregation agg = response.getAggregations().get("categorize");
         assertThat(agg.getBuckets(), hasSize(2));
 
-        assertCategorizationBucket(agg.getBuckets().get(0), "Node *", 4);
+        assertCategorizationBucket(agg.getBuckets().get(0), "Node", 4);
         assertCategorizationBucket(agg.getBuckets().get(1), "Failed to shutdown error org.aaaa.bbbb.Cccc line caused by foo exception", 2);
     }
 

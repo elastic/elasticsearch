@@ -9,10 +9,8 @@ package org.elasticsearch.xpack.ml.aggs.categorization;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
-import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Releasables;
@@ -29,18 +27,15 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.xpack.core.ml.job.config.CategorizationAnalyzerConfig;
+import org.elasticsearch.xpack.ml.aggs.categorization.InternalCategorizationAggregation.Bucket;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-
-import static org.elasticsearch.xpack.ml.aggs.categorization.CategorizeTextAggregationBuilder.MAX_MAX_MATCHED_TOKENS;
 
 public class CategorizeTextAggregator extends DeferableBucketAggregator {
 
@@ -49,12 +44,11 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
     private final MappedFieldType fieldType;
     private final CategorizationAnalyzer analyzer;
     private final String sourceFieldName;
-    private ObjectArray<CategorizationTokenTree> categorizers;
-    private final int maxUniqueTokens;
-    private final int maxMatchTokens;
+    private ObjectArray<TokenListCategorizer> categorizers;
     private final int similarityThreshold;
     private final LongKeyedBucketOrds bucketOrds;
     private final CategorizationBytesRefHash bytesRefHash;
+    private final CategorizationPartOfSpeechDictionary partOfSpeechDictionary;
 
     protected CategorizeTextAggregator(
         String name,
@@ -64,8 +58,6 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
         String sourceFieldName,
         MappedFieldType fieldType,
         TermsAggregator.BucketCountThresholds bucketCountThresholds,
-        int maxUniqueTokens,
-        int maxMatchTokens,
         int similarityThreshold,
         CategorizationAnalyzerConfig categorizationAnalyzerConfig,
         Map<String, Object> metadata
@@ -75,7 +67,7 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
         this.sourceFieldName = sourceFieldName;
         this.fieldType = fieldType;
         CategorizationAnalyzerConfig analyzerConfig = Optional.ofNullable(categorizationAnalyzerConfig)
-            .orElse(CategorizationAnalyzerConfig.buildStandardCategorizationAnalyzer(Collections.emptyList()));
+            .orElse(CategorizationAnalyzerConfig.buildStandardCategorizationAnalyzer(List.of()));
         final String analyzerName = analyzerConfig.getAnalyzer();
         if (analyzerName != null) {
             Analyzer globalAnalyzer = context.getNamedAnalyzer(analyzerName);
@@ -96,12 +88,12 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
             );
         }
         this.categorizers = bigArrays().newObjectArray(1);
-        this.maxUniqueTokens = maxUniqueTokens;
-        this.maxMatchTokens = maxMatchTokens;
         this.similarityThreshold = similarityThreshold;
         this.bucketOrds = LongKeyedBucketOrds.build(bigArrays(), CardinalityUpperBound.MANY);
         this.bucketCountThresholds = bucketCountThresholds;
         this.bytesRefHash = new CategorizationBytesRefHash(new BytesRefHash(2048, bigArrays()));
+        // TODO: make it possible to choose a language instead of or as well as English for the part-of-speech dictionary
+        this.partOfSpeechDictionary = CategorizationPartOfSpeechDictionary.getInstance();
     }
 
     @Override
@@ -112,42 +104,26 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
 
     @Override
     public InternalAggregation[] buildAggregations(long[] ordsToCollect) throws IOException {
-        InternalCategorizationAggregation.Bucket[][] topBucketsPerOrd =
-            new InternalCategorizationAggregation.Bucket[ordsToCollect.length][];
+        Bucket[][] topBucketsPerOrd = new Bucket[ordsToCollect.length][];
         for (int ordIdx = 0; ordIdx < ordsToCollect.length; ordIdx++) {
-            final CategorizationTokenTree categorizationTokenTree = categorizers.get(ordsToCollect[ordIdx]);
-            if (categorizationTokenTree == null) {
-                topBucketsPerOrd[ordIdx] = new InternalCategorizationAggregation.Bucket[0];
+            final TokenListCategorizer categorizer = categorizers.get(ordsToCollect[ordIdx]);
+            if (categorizer == null) {
+                topBucketsPerOrd[ordIdx] = new Bucket[0];
                 continue;
             }
             int size = (int) Math.min(bucketOrds.bucketsInOrd(ordIdx), bucketCountThresholds.getShardSize());
-            PriorityQueue<InternalCategorizationAggregation.Bucket> ordered =
-                new InternalCategorizationAggregation.BucketCountPriorityQueue(size);
-            for (InternalCategorizationAggregation.Bucket bucket : categorizationTokenTree.toIntermediateBuckets(bytesRefHash)) {
-                if (bucket.docCount < bucketCountThresholds.getShardMinDocCount()) {
-                    continue;
-                }
-                ordered.insertWithOverflow(bucket);
-            }
-            topBucketsPerOrd[ordIdx] = new InternalCategorizationAggregation.Bucket[ordered.size()];
-            for (int i = ordered.size() - 1; i >= 0; --i) {
-                topBucketsPerOrd[ordIdx][i] = ordered.pop();
-            }
+            topBucketsPerOrd[ordIdx] = categorizer.toOrderedBuckets(size);
         }
-        buildSubAggsForAllBuckets(topBucketsPerOrd, b -> b.bucketOrd, (b, a) -> b.aggregations = a);
+        buildSubAggsForAllBuckets(topBucketsPerOrd, Bucket::getBucketOrd, Bucket::setAggregations);
         InternalAggregation[] results = new InternalAggregation[ordsToCollect.length];
         for (int ordIdx = 0; ordIdx < ordsToCollect.length; ordIdx++) {
-            InternalCategorizationAggregation.Bucket[] bucketArray = topBucketsPerOrd[ordIdx];
-            Arrays.sort(bucketArray, Comparator.naturalOrder());
             results[ordIdx] = new InternalCategorizationAggregation(
                 name,
                 bucketCountThresholds.getRequiredSize(),
                 bucketCountThresholds.getMinDocCount(),
-                maxUniqueTokens,
-                maxMatchTokens,
                 similarityThreshold,
                 metadata(),
-                Arrays.asList(bucketArray)
+                Arrays.asList(topBucketsPerOrd[ordIdx])
             );
         }
         return results;
@@ -159,8 +135,6 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
             name,
             bucketCountThresholds.getRequiredSize(),
             bucketCountThresholds.getMinDocCount(),
-            maxUniqueTokens,
-            maxMatchTokens,
             similarityThreshold,
             metadata()
         );
@@ -172,66 +146,50 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
                 categorizers = bigArrays().grow(categorizers, owningBucketOrd + 1);
-                CategorizationTokenTree categorizer = categorizers.get(owningBucketOrd);
+                TokenListCategorizer categorizer = categorizers.get(owningBucketOrd);
                 if (categorizer == null) {
-                    categorizer = new CategorizationTokenTree(maxUniqueTokens, maxMatchTokens, similarityThreshold);
+                    categorizer = new TokenListCategorizer(bytesRefHash, partOfSpeechDictionary, (float) similarityThreshold / 100.0f);
                     addRequestCircuitBreakerBytes(categorizer.ramBytesUsed());
                     categorizers.set(owningBucketOrd, categorizer);
                 }
                 collectFromSource(doc, owningBucketOrd, categorizer);
             }
 
-            private void collectFromSource(int doc, long owningBucketOrd, CategorizationTokenTree categorizer) throws IOException {
+            private void collectFromSource(int doc, long owningBucketOrd, TokenListCategorizer categorizer) throws IOException {
                 sourceLookup.setSegmentAndDocument(ctx, doc);
                 Iterator<String> itr = sourceLookup.extractRawValuesWithoutCaching(sourceFieldName).stream().map(obj -> {
-                    if (obj == null) {
-                        return null;
-                    }
                     if (obj instanceof BytesRef) {
                         return fieldType.valueForDisplay(obj).toString();
                     }
-                    return obj.toString();
+                    return (obj == null) ? null : obj.toString();
                 }).iterator();
                 while (itr.hasNext()) {
-                    TokenStream ts = analyzer.tokenStream(fieldType.name(), itr.next());
-                    processTokenStream(owningBucketOrd, ts, doc, categorizer);
+                    String string = itr.next();
+                    try (TokenStream ts = analyzer.tokenStream(fieldType.name(), string)) {
+                        processTokenStream(owningBucketOrd, ts, string.length(), doc, categorizer);
+                    }
                 }
             }
 
-            private void processTokenStream(long owningBucketOrd, TokenStream ts, int doc, CategorizationTokenTree categorizer)
-                throws IOException {
-                ArrayList<Integer> tokens = new ArrayList<>();
-                try (ts) {
-                    CharTermAttribute termAtt = ts.addAttribute(CharTermAttribute.class);
-                    ts.reset();
-                    int numTokens = 0;
-                    // Only categorize the first MAX_MAX_MATCHED_TOKENS tokens
-                    while (ts.incrementToken() && numTokens < MAX_MAX_MATCHED_TOKENS) {
-                        if (termAtt.length() > 0) {
-                            tokens.add(bytesRefHash.put(new BytesRef(termAtt)));
-                            numTokens++;
-                        }
-                    }
-                    if (tokens.isEmpty()) {
-                        return;
-                    }
-                }
+            private void processTokenStream(
+                long owningBucketOrd,
+                TokenStream ts,
+                int unfilteredLength,
+                int doc,
+                TokenListCategorizer categorizer
+            ) throws IOException {
                 long previousSize = categorizer.ramBytesUsed();
-                TextCategorization lg = categorizer.parseTokens(
-                    tokens.stream().mapToInt(Integer::valueOf).toArray(),
-                    docCountProvider.getDocCount(doc)
-                );
-                long newSize = categorizer.ramBytesUsed();
-                if (newSize - previousSize > 0) {
-                    addRequestCircuitBreakerBytes(newSize - previousSize);
+                TokenListCategory category = categorizer.computeCategory(ts, unfilteredLength, docCountProvider.getDocCount(doc));
+                if (category == null) {
+                    return;
                 }
-
-                long bucketOrd = bucketOrds.add(owningBucketOrd, lg.getId());
+                long sizeDiff = categorizer.ramBytesUsed() - previousSize;
+                addRequestCircuitBreakerBytes(sizeDiff);
+                long bucketOrd = bucketOrds.add(owningBucketOrd, category.getId());
                 if (bucketOrd < 0) { // already seen
-                    bucketOrd = -1 - bucketOrd;
-                    collectExistingBucket(sub, doc, bucketOrd);
+                    collectExistingBucket(sub, doc, -1 - bucketOrd);
                 } else {
-                    lg.bucketOrd = bucketOrd;
+                    category.setBucketOrd(bucketOrd);
                     collectBucket(sub, doc, bucketOrd);
                 }
             }

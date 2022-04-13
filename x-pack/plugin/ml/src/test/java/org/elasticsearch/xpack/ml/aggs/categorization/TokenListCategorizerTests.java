@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.ml.aggs.categorization2;
+package org.elasticsearch.xpack.ml.aggs.categorization;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;

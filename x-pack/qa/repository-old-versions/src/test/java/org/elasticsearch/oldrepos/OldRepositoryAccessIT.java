@@ -12,6 +12,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -296,7 +297,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         // restore index
         Request restoreRequest = new Request("POST", "/_snapshot/" + repoName + "/" + snapshotName + "/_restore");
         restoreRequest.setJsonEntity(
-            "{\"indices\": \"" + indexName + "\", \"rename_pattern\":\"(.+)\",\"rename_replacement\":\"restored_$1\"}"
+            Strings.toString(new RestoreSnapshotRequest().indices(indexName).renamePattern("(.+)").renameReplacement("restored_$1"))
         );
         restoreRequest.addParameter("wait_for_completion", "true");
         Response restoreResponse = client().performRequest(restoreRequest);

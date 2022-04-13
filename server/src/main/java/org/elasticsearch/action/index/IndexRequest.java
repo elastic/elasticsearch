@@ -112,6 +112,9 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
 
     private Map<String, String> dynamicTemplates = Map.of();
 
+    /**
+     * rawTimestamp field is used on the coordinate node, it doesn't need to be serialised.
+     */
     private Object rawTimestamp;
 
     public IndexRequest(StreamInput in) throws IOException {
@@ -769,6 +772,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     public void setRawTimestamp(Object rawTimestamp) {
+        assert this.rawTimestamp == null : "rawTimestamp only set in ingest phase, it can't be set twice";
         this.rawTimestamp = rawTimestamp;
     }
 }

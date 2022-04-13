@@ -879,15 +879,16 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     indexRequest.setDynamicTemplates(mergedDynamicTemplates);
                 }
                 handler.accept(null);
+
+                postIngest(ingestDocument, indexRequest);
             }
         });
-        postExecute(ingestDocument, indexRequest);
     }
 
-    private void postExecute(IngestDocument ingestDocument, IndexRequest indexRequest) {
+    private void postIngest(IngestDocument ingestDocument, IndexRequest indexRequest) {
         // cache timestamp from ingest source map
         Object rawTimestamp = ingestDocument.getSourceAndMetadata().get(TimestampField.FIXED_TIMESTAMP_FIELD);
-        if (rawTimestamp != null) {
+        if (rawTimestamp != null && indexRequest.getRawTimestamp() == null) {
             indexRequest.setRawTimestamp(rawTimestamp);
         }
     }

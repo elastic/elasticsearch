@@ -18,7 +18,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.function.BiConsumer;
 
 /**
  * Specialization of the cardinality aggregator to collect numeric values.
@@ -51,11 +50,5 @@ public class NumericCardinalityAggregator extends CardinalityAggregator {
             ? MurmurHash3Values.hash(source.doubleValues(ctx))
             : MurmurHash3Values.hash(source.longValues(ctx));
         return new DirectCollector(counts, hashValues);
-    }
-
-    @Override
-    public void collectDebugInfo(BiConsumer<String, Object> add) {
-        super.collectDebugInfo(add);
-        add.accept("numeric_collectors_used", numericCollectorsUsed);
     }
 }

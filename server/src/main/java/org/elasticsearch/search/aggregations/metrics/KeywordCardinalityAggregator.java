@@ -19,7 +19,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.function.BiConsumer;
 
 /**
  * This aggregator uses a heuristic to decide between direct collection and using segment ordinals, based on the expected memory overhead
@@ -65,14 +64,5 @@ public class KeywordCardinalityAggregator extends CardinalityAggregator {
         ordinalsCollectorsOverheadTooHigh++;
         stringHashingCollectorsUsed++;
         return new DirectCollector(counts, MurmurHash3Values.hash(source.bytesValues(ctx)));
-    }
-
-    @Override
-    public void collectDebugInfo(BiConsumer<String, Object> add) {
-        super.collectDebugInfo(add);
-        add.accept("segment_ords_empty_collector_used", emptyCollectorsUsed);
-        add.accept("ordinals_collectors_used", ordinalsCollectorsUsed);
-        add.accept("ordinals_collectors_overhead_too_high", ordinalsCollectorsOverheadTooHigh);
-        add.accept("string_hashing_collectors_used", stringHashingCollectorsUsed);
     }
 }

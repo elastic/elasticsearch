@@ -16,7 +16,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.function.BiConsumer;
 
 /**
  * Cardinality aggregator that operates directly on the bytes values of a field.  This is necessary for fields that don't use ordinals at
@@ -40,11 +39,5 @@ public class DirectCollectorCardinalityAggregator extends CardinalityAggregator 
         postCollectLastCollector();
         stringHashingCollectorsUsed++;
         return new DirectCollector(counts, MurmurHash3Values.hash(valuesSourceConfig.getValuesSource().bytesValues(ctx)));
-    }
-
-    @Override
-    public void collectDebugInfo(BiConsumer<String, Object> add) {
-        super.collectDebugInfo(add);
-        add.accept("string_hashing_collectors_used", stringHashingCollectorsUsed);
     }
 }

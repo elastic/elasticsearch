@@ -40,7 +40,7 @@ public record ProfileDocument(
     boolean enabled,
     long lastSynchronized,
     ProfileDocumentUser user,
-    Map<String, Object> access,
+    Map<String, Object> labels,
     BytesReference applicationData
 ) implements ToXContentObject {
 
@@ -80,10 +80,10 @@ public record ProfileDocument(
         builder.field("last_synchronized", lastSynchronized);
         user.toXContent(builder, params);
 
-        if (params.paramAsBoolean("include_access", true) && access != null) {
-            builder.field("access", access);
+        if (params.paramAsBoolean("include_labels", true) && labels != null) {
+            builder.field("labels", labels);
         } else {
-            builder.startObject("access").endObject();
+            builder.startObject("labels").endObject();
         }
         if (params.paramAsBoolean("include_data", true) && applicationData != null) {
             builder.field("application_data", applicationData);
@@ -199,7 +199,7 @@ public record ProfileDocument(
         PROFILE_DOC_PARSER.declareBoolean(constructorArg(), new ParseField("enabled"));
         PROFILE_DOC_PARSER.declareLong(constructorArg(), new ParseField("last_synchronized"));
         PROFILE_DOC_PARSER.declareObject(constructorArg(), (p, c) -> PROFILE_DOC_USER_PARSER.parse(p, null), new ParseField("user"));
-        PROFILE_DOC_PARSER.declareObject(constructorArg(), (p, c) -> p.map(), new ParseField("access"));
+        PROFILE_DOC_PARSER.declareObject(constructorArg(), (p, c) -> p.map(), new ParseField("labels"));
         ObjectParserHelper.declareRawObject(PROFILE_DOC_PARSER, constructorArg(), new ParseField("application_data"));
 
         PARSER.declareObject(constructorArg(), (p, c) -> PROFILE_DOC_PARSER.parse(p, null), new ParseField("user_profile"));

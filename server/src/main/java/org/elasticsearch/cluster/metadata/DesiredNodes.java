@@ -20,15 +20,14 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -58,7 +57,7 @@ public class DesiredNodes implements Writeable, ToXContentObject {
     private final long version;
     private final Map<String, DesiredNode> nodes;
 
-    public DesiredNodes(String historyID, long version, Collection<DesiredNode> nodes) {
+    public DesiredNodes(String historyID, long version, List<DesiredNode> nodes) {
         assert historyID != null && historyID.isBlank() == false;
         assert version != Long.MIN_VALUE;
         checkForDuplicatedExternalIDs(nodes);
@@ -109,7 +108,7 @@ public class DesiredNodes implements Writeable, ToXContentObject {
         return historyID.equals(other.historyID);
     }
 
-    private static void checkForDuplicatedExternalIDs(Collection<DesiredNode> nodes) {
+    private static void checkForDuplicatedExternalIDs(List<DesiredNode> nodes) {
         Set<String> nodeIDs = new HashSet<>(nodes.size());
         Set<String> duplicatedIDs = new HashSet<>();
         for (DesiredNode node : nodes) {
@@ -157,8 +156,8 @@ public class DesiredNodes implements Writeable, ToXContentObject {
         return version;
     }
 
-    public Collection<DesiredNode> nodes() {
-        return nodes.values();
+    public List<DesiredNode> nodes() {
+        return List.copyOf(nodes.values());
     }
 
     @Nullable
@@ -166,13 +165,13 @@ public class DesiredNodes implements Writeable, ToXContentObject {
         return nodes.get(externalId);
     }
 
-    private static Map<String, DesiredNode> toMap(final Collection<DesiredNode> desiredNodes) {
+    private static Map<String, DesiredNode> toMap(final List<DesiredNode> desiredNodes) {
         // use a linked hash map to preserve order
         return Collections.unmodifiableMap(
             desiredNodes.stream().collect(Collectors.toMap(DesiredNode::externalId, Function.identity(), (left, right) -> {
-                assert left.externalId().equals(right.externalId());
+                assert left.externalId().equals(right.externalId()) == false;
                 throw new IllegalStateException("duplicate desired node external id [" + left.externalId() + "]");
-            }, LinkedHashMap::new))
+            }, TreeMap::new))
         );
     }
 }

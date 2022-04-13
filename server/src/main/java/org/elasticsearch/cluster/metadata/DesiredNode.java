@@ -35,7 +35,7 @@ import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 
-public final class DesiredNode implements Writeable, ToXContentObject {
+public final class DesiredNode implements Writeable, ToXContentObject, Comparable<DesiredNode> {
 
     private static final ParseField SETTINGS_FIELD = new ParseField("settings");
     private static final ParseField PROCESSORS_FIELD = new ParseField("processors");
@@ -185,6 +185,10 @@ public final class DesiredNode implements Writeable, ToXContentObject {
         if (obj == this) return true;
         if (obj == null || obj.getClass() != this.getClass()) return false;
         var that = (DesiredNode) obj;
+        // Note that we might consider a DesiredNode different if the order
+        // in some settings is different, i.e. we convert node roles to a set in this class,
+        // so it can be confusing if we compare two DesiredNode instances that only differ
+        // in the node.roles setting order, but that's the semantics provided by the Settings class.
         return Objects.equals(this.settings, that.settings)
             && this.processors == that.processors
             && Objects.equals(this.memory, that.memory)
@@ -195,6 +199,11 @@ public final class DesiredNode implements Writeable, ToXContentObject {
     @Override
     public int hashCode() {
         return Objects.hash(settings, processors, memory, storage, version);
+    }
+
+    @Override
+    public int compareTo(DesiredNode o) {
+        return externalId.compareTo(o.externalId);
     }
 
     @Override
@@ -216,5 +225,4 @@ public final class DesiredNode implements Writeable, ToXContentObject {
             + version
             + ']';
     }
-
 }

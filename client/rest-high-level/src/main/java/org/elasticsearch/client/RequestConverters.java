@@ -45,7 +45,6 @@ import org.elasticsearch.client.core.MultiTermVectorsRequest;
 import org.elasticsearch.client.core.TermVectorsRequest;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.client.security.RefreshPolicy;
-import org.elasticsearch.client.tasks.TaskId;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -581,24 +580,12 @@ final class RequestConverters {
         return prepareReindexRequest(reindexRequest, true);
     }
 
-    static Request submitReindex(ReindexRequest reindexRequest) throws IOException {
-        return prepareReindexRequest(reindexRequest, false);
-    }
-
     static Request deleteByQuery(DeleteByQueryRequest deleteByQueryRequest) throws IOException {
         return prepareDeleteByQueryRequest(deleteByQueryRequest, true);
     }
 
-    static Request submitDeleteByQuery(DeleteByQueryRequest deleteByQueryRequest) throws IOException {
-        return prepareDeleteByQueryRequest(deleteByQueryRequest, false);
-    }
-
     static Request updateByQuery(UpdateByQueryRequest updateByQueryRequest) throws IOException {
         return prepareUpdateByQueryRequest(updateByQueryRequest, true);
-    }
-
-    static Request submitUpdateByQuery(UpdateByQueryRequest updateByQueryRequest) throws IOException {
-        return prepareUpdateByQueryRequest(updateByQueryRequest, false);
     }
 
     private static Request prepareReindexRequest(ReindexRequest reindexRequest, boolean waitForCompletion) throws IOException {
@@ -1133,34 +1120,6 @@ final class RequestConverters {
         Params withActions(List<String> actions) {
             if (actions != null && actions.size() > 0) {
                 return putParam("actions", String.join(",", actions));
-            }
-            return this;
-        }
-
-        Params withTaskId(org.elasticsearch.tasks.TaskId taskId) {
-            if (taskId != null && taskId.isSet()) {
-                return putParam("task_id", taskId.toString());
-            }
-            return this;
-        }
-
-        Params withParentTaskId(org.elasticsearch.tasks.TaskId parentTaskId) {
-            if (parentTaskId != null && parentTaskId.isSet()) {
-                return putParam("parent_task_id", parentTaskId.toString());
-            }
-            return this;
-        }
-
-        Params withTaskId(TaskId taskId) {
-            if (taskId != null && taskId.isSet()) {
-                return putParam("task_id", taskId.toString());
-            }
-            return this;
-        }
-
-        Params withParentTaskId(TaskId parentTaskId) {
-            if (parentTaskId != null && parentTaskId.isSet()) {
-                return putParam("parent_task_id", parentTaskId.toString());
             }
             return this;
         }

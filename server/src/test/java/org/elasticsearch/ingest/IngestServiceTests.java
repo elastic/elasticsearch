@@ -1286,8 +1286,11 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testExecuteFailureWithNestedOnFailure() throws Exception {
         final Processor processor = mock(Processor.class);
+        when(processor.isAsync()).thenReturn(true);
         final Processor onFailureProcessor = mock(Processor.class);
+        when(onFailureProcessor.isAsync()).thenReturn(true);
         final Processor onFailureOnFailureProcessor = mock(Processor.class);
+        when(onFailureOnFailureProcessor.isAsync()).thenReturn(true);
         final List<Processor> processors = Collections.singletonList(onFailureProcessor);
         final List<Processor> onFailureProcessors = Collections.singletonList(onFailureOnFailureProcessor);
         final CompoundProcessor compoundProcessor = new CompoundProcessor(
@@ -1358,6 +1361,7 @@ public class IngestServiceTests extends ESTestCase {
         }
 
         CompoundProcessor processor = mock(CompoundProcessor.class);
+        when(processor.isAsync()).thenReturn(true);
         when(processor.getProcessors()).thenReturn(Collections.singletonList(mock(Processor.class)));
         Exception error = new RuntimeException();
         doAnswer(args -> {
@@ -1460,6 +1464,8 @@ public class IngestServiceTests extends ESTestCase {
         final Processor processorFailure = mock(Processor.class);
         when(processor.getType()).thenReturn("mock");
         when(processor.getTag()).thenReturn("mockTag");
+        when(processor.isAsync()).thenReturn(true);
+        when(processorFailure.isAsync()).thenReturn(true);
         when(processorFailure.getType()).thenReturn("failure-mock");
         // avoid returning null and dropping the document
         doAnswer(args -> {
@@ -1574,9 +1580,9 @@ public class IngestServiceTests extends ESTestCase {
         assertPipelineStats(afterThirdRequestStats.getPipelineStats(), "_id1", 2, 0, 0);
         assertPipelineStats(afterThirdRequestStats.getPipelineStats(), "_id2", 1, 0, 0);
         // The number of processors for the "id1" pipeline changed, so the per-processor metrics are not carried forward. This is
-        // due to the parallel array's used to identify which metrics to carry forward. With out unique ids or semantic equals for each
+        // due to the parallel array's used to identify which metrics to carry forward. Without unique ids or semantic equals for each
         // processor, parallel arrays are the best option for of carrying forward metrics between pipeline changes. However, in some cases,
-        // like this one it may not readily obvious why the metrics were not carried forward.
+        // like this one it may not be readily obvious why the metrics were not carried forward.
         assertProcessorStats(0, afterThirdRequestStats, "_id1", 1, 0, 0);
         assertProcessorStats(1, afterThirdRequestStats, "_id1", 1, 0, 0);
         assertProcessorStats(0, afterThirdRequestStats, "_id2", 1, 0, 0);
@@ -2197,6 +2203,7 @@ public class IngestServiceTests extends ESTestCase {
 
     private CompoundProcessor mockCompoundProcessor() {
         CompoundProcessor processor = mock(CompoundProcessor.class);
+        doAnswer(args -> true).when(processor).isAsync();
         doAnswer(args -> {
             @SuppressWarnings("unchecked")
             BiConsumer<IngestDocument, Exception> handler = (BiConsumer) args.getArguments()[1];

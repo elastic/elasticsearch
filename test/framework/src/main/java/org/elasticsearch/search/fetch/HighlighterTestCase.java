@@ -71,7 +71,7 @@ public class HighlighterTestCase extends MapperServiceTestCase {
      * Given a set of highlights, assert that any particular field has the expected fragments
      */
     protected static void assertHighlights(Map<String, HighlightField> highlights, String field, String... fragments) {
-        assertNotNull(highlights.get(field));
+        assertNotNull("No highlights reported for field [" + field + "]", highlights.get(field));
         Set<String> actualFragments = Arrays.stream(highlights.get(field).getFragments()).map(Text::toString).collect(Collectors.toSet());
         Set<String> expectedFragments = Set.of(fragments);
         assertEquals(expectedFragments, actualFragments);

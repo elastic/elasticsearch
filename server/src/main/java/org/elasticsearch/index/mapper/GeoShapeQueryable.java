@@ -10,6 +10,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.geo.LatLonGeometry;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.GeometryNormalizer;
 import org.elasticsearch.common.geo.Orientation;
@@ -40,17 +41,25 @@ import java.util.List;
  */
 public interface GeoShapeQueryable {
 
-    Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context);
+    Query geoShapeQuery(SearchExecutionContext context, String fieldName, ShapeRelation relation, LatLonGeometry... luceneGeometries);
+
+    default Query geoShapeQuery(SearchExecutionContext context, String fieldName, ShapeRelation relation, Geometry shape) {
+        final LatLonGeometry[] luceneGeometries = toQuantizeLuceneGeometry(fieldName, context, shape, relation);
+        if (luceneGeometries.length == 0) {
+            return new MatchNoDocsQuery();
+        }
+        return geoShapeQuery(context, fieldName, relation, luceneGeometries);
+    }
 
     @Deprecated
     default Query geoShapeQuery(
-        Geometry shape,
+        SearchExecutionContext context,
         String fieldName,
         SpatialStrategy strategy,
         ShapeRelation relation,
-        SearchExecutionContext context
+        Geometry shape
     ) {
-        return geoShapeQuery(shape, fieldName, relation, context);
+        return geoShapeQuery(context, fieldName, relation, shape);
     }
 
     private static double quantizeLat(double lat) {
@@ -73,7 +82,7 @@ public interface GeoShapeQueryable {
      * transforms an Elasticsearch {@link Geometry} into a lucene {@link LatLonGeometry} and quantize
      * the latitude and longitude values to match the values on the index.
      */
-    static LatLonGeometry[] toQuantizeLuceneGeometry(
+    private static LatLonGeometry[] toQuantizeLuceneGeometry(
         String name,
         SearchExecutionContext context,
         Geometry geometry,

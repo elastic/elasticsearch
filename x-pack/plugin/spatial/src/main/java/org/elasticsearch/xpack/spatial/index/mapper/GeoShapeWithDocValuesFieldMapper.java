@@ -11,7 +11,6 @@ import org.apache.lucene.document.LatLonShape;
 import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
@@ -191,7 +190,7 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         }
 
         @Override
-        public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
+        public Query geoShapeQuery(SearchExecutionContext context, String fieldName, ShapeRelation relation, LatLonGeometry... geometries) {
             // CONTAINS queries are not supported by VECTOR strategy for indices created before version 7.5.0 (Lucene 8.3.0)
             if (relation == ShapeRelation.CONTAINS && context.indexVersionCreated().before(Version.V_7_5_0)) {
                 throw new QueryShardException(
@@ -199,13 +198,9 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
                     ShapeRelation.CONTAINS + " query relation not supported for Field [" + fieldName + "]."
                 );
             }
-            final LatLonGeometry[] luceneGeometries = GeoShapeQueryable.toQuantizeLuceneGeometry(fieldName, context, shape, relation);
-            if (luceneGeometries.length == 0) {
-                return new MatchNoDocsQuery();
-            }
-            Query query = LatLonShape.newGeometryQuery(fieldName, relation.getLuceneRelation(), luceneGeometries);
+            Query query = LatLonShape.newGeometryQuery(fieldName, relation.getLuceneRelation(), geometries);
             if (hasDocValues()) {
-                final Query queryDocValues = new LatLonShapeDocValuesQuery(fieldName, relation.getLuceneRelation(), luceneGeometries);
+                final Query queryDocValues = new LatLonShapeDocValuesQuery(fieldName, relation.getLuceneRelation(), geometries);
                 query = new IndexOrDocValuesQuery(query, queryDocValues);
             }
             return query;

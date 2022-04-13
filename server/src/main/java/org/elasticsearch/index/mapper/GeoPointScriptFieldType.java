@@ -9,15 +9,12 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.geo.LatLonGeometry;
-import org.apache.lucene.geo.Point;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.index.fielddata.GeoPointScriptFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.CompositeFieldScript;
@@ -30,7 +27,6 @@ import org.elasticsearch.search.runtime.GeoPointScriptFieldExistsQuery;
 import org.elasticsearch.search.runtime.GeoPointScriptFieldGeoShapeQuery;
 
 import java.time.ZoneId;
-import java.util.Arrays;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -106,13 +102,8 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
     }
 
     @Override
-    public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
-        final LatLonGeometry[] luceneGeometries = GeoShapeQueryable.toQuantizeLuceneGeometry(fieldName, context, shape, relation);
-        if (luceneGeometries.length == 0
-            || (relation == ShapeRelation.CONTAINS && Arrays.stream(luceneGeometries).anyMatch(g -> (g instanceof Point) == false))) {
-            return new MatchNoDocsQuery();
-        }
-        return new GeoPointScriptFieldGeoShapeQuery(script, leafFactory(context), fieldName, relation, luceneGeometries);
+    public Query geoShapeQuery(SearchExecutionContext context, String fieldName, ShapeRelation relation, LatLonGeometry... geometries) {
+        return new GeoPointScriptFieldGeoShapeQuery(script, leafFactory(context), fieldName, relation, geometries);
     }
 
     @Override

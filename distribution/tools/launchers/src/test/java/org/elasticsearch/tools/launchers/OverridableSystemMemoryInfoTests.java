@@ -8,8 +8,6 @@
 
 package org.elasticsearch.tools.launchers;
 
-import org.elasticsearch.tools.launchers.SystemMemoryInfo.SystemMemoryInfoException;
-
 import java.util.List;
 
 import static org.hamcrest.Matchers.is;
@@ -20,17 +18,17 @@ public class OverridableSystemMemoryInfoTests extends LaunchersTestCase {
 
     private static final long FALLBACK = -1L;
 
-    public void testNoOptions() throws SystemMemoryInfoException {
+    public void testNoOptions() {
         final SystemMemoryInfo memoryInfo = new OverridableSystemMemoryInfo(List.of(), fallbackSystemMemoryInfo());
         assertThat(memoryInfo.availableSystemMemory(), is(FALLBACK));
     }
 
-    public void testNoOverrides() throws SystemMemoryInfoException {
+    public void testNoOverrides() {
         final SystemMemoryInfo memoryInfo = new OverridableSystemMemoryInfo(List.of("-Da=b", "-Dx=y"), fallbackSystemMemoryInfo());
         assertThat(memoryInfo.availableSystemMemory(), is(FALLBACK));
     }
 
-    public void testValidSingleOverride() throws SystemMemoryInfoException {
+    public void testValidSingleOverride() {
         final SystemMemoryInfo memoryInfo = new OverridableSystemMemoryInfo(
             List.of("-Des.total_memory_bytes=123456789"),
             fallbackSystemMemoryInfo()
@@ -38,7 +36,7 @@ public class OverridableSystemMemoryInfoTests extends LaunchersTestCase {
         assertThat(memoryInfo.availableSystemMemory(), is(123456789L));
     }
 
-    public void testValidOverrideInList() throws SystemMemoryInfoException {
+    public void testValidOverrideInList() {
         final SystemMemoryInfo memoryInfo = new OverridableSystemMemoryInfo(
             List.of("-Da=b", "-Des.total_memory_bytes=987654321", "-Dx=y"),
             fallbackSystemMemoryInfo()
@@ -46,7 +44,7 @@ public class OverridableSystemMemoryInfoTests extends LaunchersTestCase {
         assertThat(memoryInfo.availableSystemMemory(), is(987654321L));
     }
 
-    public void testMultipleValidOverridesInList() throws SystemMemoryInfoException {
+    public void testMultipleValidOverridesInList() {
         final SystemMemoryInfo memoryInfo = new OverridableSystemMemoryInfo(
             List.of("-Des.total_memory_bytes=123456789", "-Da=b", "-Des.total_memory_bytes=987654321", "-Dx=y"),
             fallbackSystemMemoryInfo()
@@ -54,7 +52,7 @@ public class OverridableSystemMemoryInfoTests extends LaunchersTestCase {
         assertThat(memoryInfo.availableSystemMemory(), is(987654321L));
     }
 
-    public void testNegativeOverride() throws SystemMemoryInfoException {
+    public void testNegativeOverride() {
         final SystemMemoryInfo memoryInfo = new OverridableSystemMemoryInfo(
             List.of("-Da=b", "-Des.total_memory_bytes=-123", "-Dx=y"),
             fallbackSystemMemoryInfo()
@@ -67,7 +65,7 @@ public class OverridableSystemMemoryInfoTests extends LaunchersTestCase {
         }
     }
 
-    public void testUnparsableOverride() throws SystemMemoryInfoException {
+    public void testUnparsableOverride() {
         final SystemMemoryInfo memoryInfo = new OverridableSystemMemoryInfo(
             List.of("-Da=b", "-Des.total_memory_bytes=invalid", "-Dx=y"),
             fallbackSystemMemoryInfo()

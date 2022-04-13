@@ -184,8 +184,8 @@ public class InferenceProcessor extends AbstractProcessor {
     }
 
     @Override
-    public IngestDocument execute(IngestDocument ingestDocument) {
-        throw new UnsupportedOperationException("should never be called");
+    public boolean isAsync() {
+        return true;
     }
 
     @Override

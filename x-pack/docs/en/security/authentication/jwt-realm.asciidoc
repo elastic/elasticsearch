@@ -1,6 +1,6 @@
 [role="xpack"]
 [[jwt-realm]]
-=== JWT Authentication
+=== JWT authentication
 
 beta::[]
 
@@ -9,7 +9,7 @@ beta::[]
 The JWT realm is intended for uses cases where an external service generates
 JSON Web Tokens, and {es} should trust these JWTs as an authentication credential.
 
-A common scenario that leads to this use case is where a front-end application uses
+A common scenario is when an existing front-end application uses
 OpenID Connect (OIDC) as an authentication method, and then accesses {es} on
 behalf of the logged in user.
 
@@ -20,6 +20,9 @@ Connect authentication in Kibana.
 
 TIP: If the front-end application does not exist, the <<token-authentication-services>> can be used instead.
 
+[[jwt-realm-configuration]]
+==== Configuring a JWT realm
+
 A simple JWT realm configuration is as follows:
 
 [source, yaml]
@@ -28,9 +31,9 @@ xpack.security.authc.realms.jwt.jwt1:
   order: 3 <1>
   client_authentication.type: shared_secret <2>
   allowed_issuer: "https://issuer.example.com/jwt/" <3>
-  allowed_audiences: [ "https://app.example.net/" ]
+  allowed_audiences: [ "8fb85eba-979c-496c-8ae2-a57fde3f12d0" ]
   allowed_signature_algorithms: [RS256] <4>
-  pkc_jwkset_path: example.jwkset
+  pkc_jwkset_path: jwt/jwkset.json
   claims.principal: sub <5>
 ------------------------------------------------------------
 <1> The realm `order` controls the order in which the configured realms are checked
@@ -41,6 +44,7 @@ xpack.security.authc.realms.jwt.jwt1:
 <4> The `allowed_signature_algorithms` and `pkc_jwkset_path` settings are
     described below in <<jws-signature-validation>>
 <5> The `claims.principal` setting is described below in <<jwt-authorization>>
+
 [[external-workflow-requirements]]
 ==== External Workflow Requirements
 

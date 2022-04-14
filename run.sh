@@ -2,52 +2,43 @@
 
 set -eo pipefail
 
-ES_VERSION=$(awk '/^elasticsearch/ { print $3 }' build-tools-internal/version.properties)
+# Clear this so that ES doesn't repeatedly complain about ignoring it
+export JAVA_HOME=''
+
 AGENT_VERSION=$(awk '/apm_agent/ { print $3 }' build-tools-internal/version.properties)
 
 # This is the path that `./gradlew localDistro` prints out at the end
 cd build/distribution/local/elasticsearch-8.3.0-SNAPSHOT
 
-sed -i.bak -e "s|<ES_HOME>|$PWD|" modules/apm-integration/plugin-security.policy
-
 # URL and token for sending traces
 SERVER_URL=""
 SECRET_TOKEN=""
 
-# Optional - override the agent jar
-# OVERRIDE_AGENT_JAR="$HOME/.m2/repository/co/elastic/apm/elastic-apm-agent/1.30.2-SNAPSHOT/elastic-apm-agent-1.30.2-SNAPSHOT.jar"
-
-# Clear this so that ES doesn't repeatedly complain about ignoring it
-export JAVA_HOME=''
-
+# Configure the ES keystore, so that we can use `elastic:password` for REST
+# requests
 if [[ ! -f config/elasticsearch.keystore ]]; then
   ./bin/elasticsearch-keystore create
-  # Use elastic:password for sending REST requests
   echo "password" | ./bin/elasticsearch-keystore add -x 'bootstrap.password'
 fi
 
-AGENT_JAR="modules/apm-integration/elastic-apm-agent-${AGENT_VERSION}.jar"
+
+# Optional - override the agent jar
+# OVERRIDE_AGENT_JAR="$HOME/.m2/repository/co/elastic/apm/elastic-apm-agent/1.30.2-SNAPSHOT/elastic-apm-agent-1.30.2-SNAPSHOT.jar"
 
 if [[ -n "$OVERRIDE_AGENT_JAR" ]]; then
   # Copy in WIP agent
-  cp "$OVERRIDE_AGENT_JAR" "$AGENT_JAR"
+  cp "$OVERRIDE_AGENT_JAR" "modules/apm-integration/elastic-apm-agent-${AGENT_VERSION}.jar"
 fi
 
-AGENT_OPTS=""
-AGENT_OPTS="$AGENT_OPTS -Delastic.apm.service_name=elasticsearch"
-AGENT_OPTS="$AGENT_OPTS -Delastic.apm.instrument=false"
-AGENT_OPTS="$AGENT_OPTS -Delastic.apm.server_url=$SERVER_URL"
-AGENT_OPTS="$AGENT_OPTS -Delastic.apm.secret_token=$SECRET_TOKEN"
-AGENT_OPTS="$AGENT_OPTS -Delastic.apm.service_version=$ES_VERSION-SNAPSHOT"
-AGENT_OPTS="$AGENT_OPTS -Delastic.apm.environment=dev"
-AGENT_OPTS="$AGENT_OPTS -Delastic.apm.log_level=debug"
-AGENT_OPTS="$AGENT_OPTS -Delastic.apm.log_file=$PWD/apm.log"
-AGENT_OPTS="$AGENT_OPTS -Delastic.apm.enable_experimental_instrumentations=true"
+# Configure the agent
+#   1. Enable the agent
+#   2. Set the server URL
+#   3. Set the secret token
+perl -p -i -e " s|enabled: false|enabled: true| ; s|# server_url.*|server_url: $SERVER_URL| ; s|# secret_token.*|secret_token: $SECRET_TOKEN|" config/elasticapm.properties
 
-export ES_SERVER_OPTS="-ea -javaagent:$AGENT_JAR $AGENT_OPTS"
 
 # export ES_JAVA_OPTS="-agentlib:jdwp=transport=dt_socket,server=n,suspend=y,address=*:5007 "
-export ES_JAVA_OPTS="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5007 "
+# export ES_JAVA_OPTS="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5007 "
 
 # export ES_JAVA_OPTS="-Djava.security.debug=failure"
 # export ES_JAVA_OPTS="-Djava.security.debug=access,failure"

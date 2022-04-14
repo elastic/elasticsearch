@@ -13,15 +13,9 @@ grant {
 };
 
 grant codeBase "${codebase.elastic-apm-agent}" {
-    permission java.lang.RuntimePermission "setFactory";
+    permission java.lang.RuntimePermission "accessDeclaredMembers";
     permission java.lang.RuntimePermission "setContextClassLoader";
+    permission java.lang.RuntimePermission "setFactory";
+    permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
     permission java.net.SocketPermission "*", "connect,resolve";
-
-    // If you want to write APM logs to a file, then the following
-    // permissions are also required. You'll need to set a value for
-    // ES_HOME
-    // permission java.lang.RuntimePermission "accessDeclaredMembers";
-    // permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-    // permission java.io.FilePermission "<ES_HOME>", "read";
-    // permission java.io.FilePermission "<ES_HOME>", "write";
 };

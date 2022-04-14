@@ -10,6 +10,7 @@ package org.elasticsearch.gradle.plugin;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.IOUtils;
+import org.apache.tools.ant.filters.ReplaceTokens;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin;
@@ -224,6 +225,7 @@ public class PluginBuildPlugin implements Plugin<Project> {
 
     private static CopySpec createBundleSpec(Project project, File pluginMetadata, TaskProvider<Copy> buildProperties) {
         var bundleSpec = project.copySpec();
+
         bundleSpec.from(buildProperties);
         bundleSpec.from(pluginMetadata, copySpec -> {
             // metadata (eg custom security policy)
@@ -246,6 +248,7 @@ public class PluginBuildPlugin implements Plugin<Project> {
         bundleSpec.from("src/main", copySpec -> {
             copySpec.include("config/**");
             copySpec.include("bin/**");
+            copySpec.filter(Map.of("tokens", Map.of("es.version", VersionProperties.getElasticsearch())), ReplaceTokens.class);
         });
         return bundleSpec;
     }

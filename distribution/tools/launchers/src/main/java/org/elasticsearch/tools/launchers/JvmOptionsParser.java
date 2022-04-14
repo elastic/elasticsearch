@@ -9,6 +9,7 @@
 package org.elasticsearch.tools.launchers;
 
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -79,6 +80,8 @@ final class JvmOptionsParser {
         final String environmentPathConf = System.getenv("ES_PATH_CONF");
         if (environmentPathConf != null) {
             substitutions.put("ES_PATH_CONF", environmentPathConf);
+        } else {
+            substitutions.put("ES_PATH_CONF",  System.getenv("ES_HOME") + File.separator +  "config");
         }
 
         try {

@@ -28,10 +28,13 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.action.admin.cluster.desirednodes.UpdateDesiredNodesRequestSerializationTests.randomUpdateDesiredNodesRequest;
 import static org.elasticsearch.cluster.metadata.DesiredNodesMetadataSerializationTests.randomDesiredNodesMetadata;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -47,7 +50,7 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
 
     public static final DesiredNodesSettingsValidator NO_OP_SETTINGS_VALIDATOR = new DesiredNodesSettingsValidator(null) {
         @Override
-        public void validate(DesiredNodes desiredNodes) {}
+        public void validate(List<DesiredNode> desiredNodes) {}
     };
 
     public void testWriteBlocks() {
@@ -93,7 +96,7 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
     public void testSettingsGetValidated() throws Exception {
         DesiredNodesSettingsValidator validator = new DesiredNodesSettingsValidator(null) {
             @Override
-            public void validate(DesiredNodes desiredNodes) {
+            public void validate(List<DesiredNode> desiredNodes) {
                 throw new IllegalArgumentException("Invalid settings");
             }
         };
@@ -150,7 +153,7 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
         assertThat(desiredNodes, is(notNullValue()));
         assertThat(desiredNodes.historyID(), is(equalTo(request.getHistoryID())));
         assertThat(desiredNodes.version(), is(equalTo(request.getVersion())));
-        assertThat(desiredNodes.nodes(), is(equalTo(request.getNodes())));
+        assertThat(desiredNodes.nodes(), containsInAnyOrder(request.getNodes().toArray()));
     }
 
     public void testUpdatesAreIdempotent() {
@@ -160,10 +163,15 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
             .build();
 
         final DesiredNodes latestDesiredNodes = desiredNodesMetadata.getLatestDesiredNodes();
+
+        final List<DesiredNode> equivalentDesiredNodesList = new ArrayList<>(latestDesiredNodes.nodes());
+        if (randomBoolean()) {
+            Collections.shuffle(equivalentDesiredNodesList, random());
+        }
         final UpdateDesiredNodesRequest request = new UpdateDesiredNodesRequest(
             latestDesiredNodes.historyID(),
             latestDesiredNodes.version(),
-            latestDesiredNodes.nodes()
+            equivalentDesiredNodesList
         );
 
         final ClusterState updatedClusterState = TransportUpdateDesiredNodesAction.updateDesiredNodes(currentClusterState, request);
@@ -203,7 +211,7 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
         final UpdateDesiredNodesRequest request = new UpdateDesiredNodesRequest(
             latestDesiredNodes.historyID(),
             latestDesiredNodes.version() - 1,
-            latestDesiredNodes.nodes()
+            List.copyOf(latestDesiredNodes.nodes())
         );
 
         VersionConflictException exception = expectThrows(

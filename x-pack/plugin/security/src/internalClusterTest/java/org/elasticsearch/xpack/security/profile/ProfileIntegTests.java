@@ -94,7 +94,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
             "properties"
         );
 
-        assertThat(userProfileProperties.keySet(), hasItems("uid", "enabled", "last_synchronized", "user", "access", "application_data"));
+        assertThat(userProfileProperties.keySet(), hasItems("uid", "enabled", "last_synchronized", "user", "labels", "application_data"));
     }
 
     public void testActivateProfile() {
@@ -123,7 +123,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
         assertThat(profile3.user().email(), equalTo(RAC_USER_NAME + "@example.com"));
         assertThat(profile3.user().fullName(), nullValue());
         assertThat(profile3.user().roles(), contains(RAC_ROLE));
-        assertThat(profile3.access(), anEmptyMap());
+        assertThat(profile3.labels(), anEmptyMap());
         // Get by ID immediately should get the same document and content as the response to activate
         assertThat(getProfile(profile3.uid(), Set.of()), equalTo(profile3));
 
@@ -132,7 +132,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
             .setDoc("""
                 {
                     "user_profile": {
-                      "access": {
+                      "labels": {
                         "my_app": {
                           "tag": "prod"
                         }
@@ -151,7 +151,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
         // Above manual update should be successful
         final Profile profile4 = getProfile(profile3.uid(), Set.of("my_app"));
         assertThat(profile4.uid(), equalTo(profile3.uid()));
-        assertThat(profile4.access(), equalTo(Map.of("my_app", Map.of("tag", "prod"))));
+        assertThat(profile4.labels(), equalTo(Map.of("my_app", Map.of("tag", "prod"))));
         assertThat(profile4.applicationData(), equalTo(Map.of("my_app", Map.of("theme", "default"))));
 
         // Update native rac user
@@ -168,8 +168,8 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
         assertThat(profile5.user().email(), nullValue());
         assertThat(profile5.user().fullName(), equalTo("Native RAC User"));
         assertThat(profile5.user().roles(), containsInAnyOrder(RAC_ROLE, "superuser"));
-        // Re-activate should not change access
-        assertThat(profile5.access(), equalTo(Map.of("my_app", Map.of("tag", "prod"))));
+        // Re-activate should not change labels
+        assertThat(profile5.labels(), equalTo(Map.of("my_app", Map.of("tag", "prod"))));
         // Get by ID immediately should get the same document and content as the response to activate
         assertThat(getProfile(profile5.uid(), Set.of()), equalTo(profile5));
         // Re-activate should not change application data
@@ -192,7 +192,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
         final Profile profile2 = getProfile(profile1.uid(), Set.of("app1", "app2"));
 
         assertThat(profile2.uid(), equalTo(profile1.uid()));
-        assertThat(profile2.access(), equalTo(Map.of("app1", List.of("tab1", "tab2"))));
+        assertThat(profile2.labels(), equalTo(Map.of("app1", List.of("tab1", "tab2"))));
         assertThat(profile2.applicationData(), equalTo(Map.of("app1", Map.of("name", "app1", "type", "app"))));
 
         // Update again should be incremental
@@ -208,7 +208,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
 
         final Profile profile3 = getProfile(profile1.uid(), Set.of("app1", "app2"));
         assertThat(profile3.uid(), equalTo(profile1.uid()));
-        assertThat(profile3.access(), equalTo(profile2.access()));
+        assertThat(profile3.labels(), equalTo(profile2.labels()));
         assertThat(
             profile3.applicationData(),
             equalTo(Map.of("app1", Map.of("name", "app1_take2", "type", "app", "active", false), "app2", Map.of("name", "app2")))
@@ -217,7 +217,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
         // Activate profile again should not affect the data section
         doActivateProfile(RAC_USER_NAME, TEST_PASSWORD_SECURE_STRING);
         final Profile profile4 = getProfile(profile1.uid(), Set.of("app1", "app2"));
-        assertThat(profile4.access(), equalTo(profile3.access()));
+        assertThat(profile4.labels(), equalTo(profile3.labels()));
         assertThat(profile4.applicationData(), equalTo(profile3.applicationData()));
 
         // Update non-existent profile should throw error

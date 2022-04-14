@@ -52,10 +52,7 @@ public class ElasticsearchCliTests extends CommandTestCase {
     }
 
     private void assertMutuallyExclusiveOptions(String... args) throws Exception {
-        assertUsage(
-            allOf(containsString("ERROR:"),
-                containsString("are unavailable given other options on the command line")),
-            args);
+        assertUsage(allOf(containsString("ERROR:"), containsString("are unavailable given other options on the command line")), args);
     }
 
     public void testVersion() throws Exception {
@@ -80,7 +77,8 @@ public class ElasticsearchCliTests extends CommandTestCase {
         Matcher<String> versionOutput = allOf(
             containsString("Version: " + Build.CURRENT.qualifiedVersion()),
             containsString(expectedBuildOutput),
-            containsString("JVM: " + JvmInfo.jvmInfo().version()));
+            containsString("JVM: " + JvmInfo.jvmInfo().version())
+        );
         assertOkWithOutput(versionOutput, "-V");
         assertOkWithOutput(versionOutput, "--version");
     }
@@ -96,9 +94,7 @@ public class ElasticsearchCliTests extends CommandTestCase {
         Path tmpDir = createTempDir();
         Path pidFileArg = tmpDir.resolve("pid");
         assertUsage(containsString("Option p/pidfile requires an argument"), "-p");
-        initCallback = (daemonize, pidFile, quiet, env) -> {
-            assertThat(pidFile.toString(), equalTo(pidFileArg.toString()));
-        };
+        initCallback = (daemonize, pidFile, quiet, env) -> { assertThat(pidFile.toString(), equalTo(pidFileArg.toString())); };
         terminal.reset();
         assertOk("-p", pidFileArg.toString());
         terminal.reset();
@@ -183,12 +179,14 @@ public class ElasticsearchCliTests extends CommandTestCase {
                 }
                 return mockSystemProperties(homeDir);
             }
+
             @Override
             void init(boolean daemonize, Path pidFile, boolean quiet, Environment initialEnv) {
                 if (initCallback != null) {
                     initCallback.init(daemonize, pidFile, quiet, initialEnv);
                 }
             }
+
             @Override
             public boolean addShutdownHook() {
                 return false;

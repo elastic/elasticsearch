@@ -1,5 +1,5 @@
 pr: 85890
-summary: User Profile - Add hint supprot `SuggestProfile` API
+summary: User Profile - Add hint support tp SuggestProfiles API
 area: Security
 type: enhancement
 issues: []

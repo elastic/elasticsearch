@@ -32,7 +32,7 @@ xpack.security.authc.realms.jwt.jwt1:
   client_authentication.type: shared_secret <2>
   allowed_issuer: "https://issuer.example.com/jwt/" <3>
   allowed_audiences: [ "8fb85eba-979c-496c-8ae2-a57fde3f12d0" ]
-  allowed_signature_algorithms: [RS256] <4>
+  allowed_signature_algorithms: [RS256,HS256] <4>
   pkc_jwkset_path: jwt/jwkset.json
   claims.principal: sub <5>
 ------------------------------------------------------------
@@ -44,6 +44,23 @@ xpack.security.authc.realms.jwt.jwt1:
 <4> The `allowed_signature_algorithms` and `pkc_jwkset_path` settings are
     described below in <<jws-signature-validation>>
 <5> The `claims.principal` setting is described below in <<jwt-authorization>>
+
+Use this command to store the shared secret value corresponding to `client_authentication.type: shared_secret` in the example.
+
+[source, test]
+------------------------------------------------------------
+bin/elasticsearch-keystore add xpack.security.authc.realms.jwt.jwt1.client_authentication.shared_secret
+------------------------------------------------------------
+
+Use one of these commands to store the HMAC keys/key corresponding to `HS256` in the example.
+
+TIP: Only one HMAC format is allowed at a time, not both.
+
+[source, test]
+------------------------------------------------------------
+bin/elasticsearch-keystore add-file xpack.security.authc.realms.jwt.jwt1.hmac_jwkset <path>
+bin/elasticsearch-keystore add xpack.security.authc.realms.jwt.jwt1.hmac_key
+------------------------------------------------------------
 
 [[external-workflow-requirements]]
 ==== External Workflow Requirements

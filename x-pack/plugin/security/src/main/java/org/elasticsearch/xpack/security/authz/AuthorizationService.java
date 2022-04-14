@@ -325,7 +325,7 @@ public class AuthorizationService {
             threadContext
         );
         if (operatorException != null) {
-            throw actionRequiresOperatorPrivileges(authentication, action, originalRequest, operatorException);
+            throw actionDenied(authentication, action, originalRequest, "because it requires operator privileges", operatorException);
         }
         operatorPrivilegesService.maybeInterceptRequest(threadContext, originalRequest);
     }
@@ -673,9 +673,9 @@ public class AuthorizationService {
      * and then checks whether that action is allowed on the targeted index. Items
      * that fail this checks are {@link BulkItemRequest#abort(String, Exception)
      * aborted}, with an
-     * {@link #bulkItemActionDenied(Authentication, String, TransportRequest, String) access
-     * denied} exception. Because a shard level request is for exactly 1 index, and
-     * there are a small number of possible item {@link DocWriteRequest.OpType
+     * {@link #actionDenied(Authentication, String, TransportRequest, String, Exception)
+     * access denied} exception. Because a shard level request is for exactly 1 index,
+     * and there are a small number of possible item {@link DocWriteRequest.OpType
      * types}, the number of distinct authorization checks that need to be performed
      * is very small, but the results must be cached, to avoid adding a high
      * overhead to each bulk request.
@@ -770,7 +770,16 @@ public class AuthorizationService {
                                 request.remoteAddress(),
                                 authzInfo
                             );
-                            item.abort(resolvedIndex, bulkItemActionDenied(authentication, itemAction, request, resolvedIndex));
+                            item.abort(
+                                resolvedIndex,
+                                actionDenied(
+                                    authentication,
+                                    itemAction,
+                                    request,
+                                    IndexAuthorizationResult.getFailureDescription(List.of(resolvedIndex), restrictedIndices),
+                                    null
+                                )
+                            );
                         } else if (audit.get()) {
                             auditTrail.explicitIndexAccessEvent(
                                 requestId,
@@ -842,30 +851,6 @@ public class AuthorizationService {
 
     private ElasticsearchSecurityException runAsDenied(Authentication authentication, String action) {
         return denialException(authentication, action, () -> AuthorizationDenialMessages.runAsDenied(authentication, action), null);
-    }
-
-    private ElasticsearchSecurityException bulkItemActionDenied(
-        Authentication authentication,
-        String action,
-        TransportRequest request,
-        String resolvedIndex
-    ) {
-        return actionDenied(
-            authentication,
-            action,
-            request,
-            IndexAuthorizationResult.getFailureDescription(List.of(resolvedIndex), restrictedIndices),
-            null
-        );
-    }
-
-    private ElasticsearchSecurityException actionRequiresOperatorPrivileges(
-        Authentication authentication,
-        String action,
-        TransportRequest request,
-        Exception cause
-    ) {
-        return actionDenied(authentication, action, request, "because it requires operator privileges", cause);
     }
 
     private ElasticsearchSecurityException actionDenied(Authentication authentication, String action, TransportRequest request) {

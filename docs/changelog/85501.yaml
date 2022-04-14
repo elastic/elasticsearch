@@ -1,5 +1,5 @@
 pr: 85501
-summary: Authorization denial message specifies when run as is unauthorized
+summary: Better error message for run-as denials
 area: Authorization
 type: enhancement
 issues:

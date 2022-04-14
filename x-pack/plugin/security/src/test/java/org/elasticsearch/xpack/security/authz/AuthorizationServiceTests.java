@@ -927,7 +927,10 @@ public class AuthorizationServiceTests extends ESTestCase {
         );
         if (isRunAs && false == canRunAs) {
             verify(auditTrail).runAsDenied(eq(requestId), eq(authentication), eq(action), eq(request), authzInfoRoles(role.names()));
-            assertThat(securityException, throwableWithMessage(containsString("run as [" + finalUser.principal() + "]")));
+            assertThat(
+                securityException,
+                throwableWithMessage(containsString("is unauthorized to run as [" + finalUser.principal() + "]"))
+            );
         } else {
             if (canRunAs) {
                 verify(auditTrail).runAsGranted(eq(requestId), eq(authentication), eq(action), eq(request), authzInfoRoles(role.names()));

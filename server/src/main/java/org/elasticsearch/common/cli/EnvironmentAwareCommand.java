@@ -12,6 +12,7 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import joptsimple.util.KeyValuePair;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
@@ -29,6 +30,9 @@ import java.util.Map;
 
 /** A cli command which requires an {@link org.elasticsearch.env.Environment} to use current paths and settings. */
 public abstract class EnvironmentAwareCommand extends Command {
+
+    // the env var prefix used for passing settings in docker
+    private static final String DOCKER_SETTING_PREFIX = "ES_SETTING_";
 
     private final OptionSpec<KeyValuePair> settingOption;
 
@@ -59,6 +63,37 @@ public abstract class EnvironmentAwareCommand extends Command {
         execute(terminal, options, createEnv(options));
     }
 
+    // Note, isUpperCase is used so that non-letters are considered lowercase
+    private static boolean isLowerCase(String s) {
+        for (int i = 0; i < s.length(); ++i) {
+            if (Character.isUpperCase(s.charAt(i))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private void putDockerEnvSettings(Map<String, String> settings, Map<String, String> envVars) {
+        for (var envVar : envVars.entrySet()) {
+            String key = envVar.getKey();
+            if (isLowerCase(key)) {
+                // all lowercase, like cluster.name, so just put directly
+                settings.put(key, envVar.getValue());
+            } else if (key.startsWith(DOCKER_SETTING_PREFIX)) {
+                // remove prefix
+                key = key.substring(DOCKER_SETTING_PREFIX.length());
+                // insert dots for underscores
+                key = key.replace('_', '.');
+                // unescape double dots, which were originally double underscores
+                key = key.replace("..", "_");
+                // lowercase the whole thing
+                key = key.toLowerCase(Locale.ROOT);
+
+                settings.put(key, envVar.getValue());
+            }
+        }
+    }
+
     /** Create an {@link Environment} for the command to use. Overrideable for tests. */
     protected Environment createEnv(OptionSet options) throws UserException {
         final Map<String, String> settings = new HashMap<>();
@@ -79,6 +114,10 @@ public abstract class EnvironmentAwareCommand extends Command {
             settings.put(kvp.key, kvp.value);
         }
 
+        if (getBuildType() == Build.Type.DOCKER) {
+            putDockerEnvSettings(settings, envVars);
+        }
+
         putSystemPropertyIfSettingIsMissing(sysprops, settings, "path.data", "es.path.data");
         putSystemPropertyIfSettingIsMissing(sysprops, settings, "path.home", "es.path.home");
         putSystemPropertyIfSettingIsMissing(sysprops, settings, "path.logs", "es.path.logs");
@@ -94,6 +133,11 @@ public abstract class EnvironmentAwareCommand extends Command {
             // HOSTNAME is set by elasticsearch-env and elasticsearch-env.bat so it is always available
             () -> envVars.get("HOSTNAME")
         );
+    }
+
+    // protected to allow tests to override
+    protected Build.Type getBuildType() {
+        return Build.CURRENT.type();
     }
 
     @SuppressForbidden(reason = "need path to construct environment")

@@ -202,7 +202,10 @@ public class DockerTests extends PackagingTestCase {
 
         // Stuff the proxy settings with garbage, so any attempt to go out to the internet would fail
         sh.getEnv()
-            .put("ES_JAVA_OPTS", "-Dhttp.proxyHost=example.org -Dhttp.proxyPort=9999 -Dhttps.proxyHost=example.org -Dhttps.proxyPort=9999");
+            .put(
+                "CLI_JAVA_OPTS",
+                "-Dhttp.proxyHost=example.org -Dhttp.proxyPort=9999 -Dhttps.proxyHost=example.org -Dhttps.proxyPort=9999"
+            );
         sh.run(bin.pluginTool + " install --batch analysis-icu");
 
         assertThat("Expected " + plugin + " to be installed", listPlugins(), hasItems(plugin));
@@ -228,7 +231,7 @@ public class DockerTests extends PackagingTestCase {
                 .volume(Path.of(EXAMPLE_PLUGIN_PATH), "/analysis-icu.zip")
                 .envVar("ELASTIC_PASSWORD", PASSWORD)
                 .envVar(
-                    "ES_JAVA_OPTS",
+                    "CLI_JAVA_OPTS",
                     "-Dhttp.proxyHost=example.org -Dhttp.proxyPort=9999 -Dhttps.proxyHost=example.org -Dhttps.proxyPort=9999"
                 )
         );
@@ -260,7 +263,7 @@ public class DockerTests extends PackagingTestCase {
             builder().volume(tempDir.resolve(filename), installation.config.resolve(filename))
                 .envVar("ELASTIC_PASSWORD", PASSWORD)
                 .envVar(
-                    "ES_JAVA_OPTS",
+                    "CLI_JAVA_OPTS",
                     "-Dhttp.proxyHost=example.org -Dhttp.proxyPort=9999 -Dhttps.proxyHost=example.org -Dhttps.proxyPort=9999"
                 )
         );
@@ -298,7 +301,7 @@ public class DockerTests extends PackagingTestCase {
                     .extraArgs("--link " + mockServer.getContainerId() + ":mockserver");
 
                 if (useConfigFile == false) {
-                    builder.envVar("ES_JAVA_OPTS", "-Dhttp.proxyHost=mockserver -Dhttp.proxyPort=" + mockServer.getPort());
+                    builder.envVar("CLI_JAVA_OPTS", "-Dhttp.proxyHost=mockserver -Dhttp.proxyPort=" + mockServer.getPort());
                 }
 
                 // Restart the container. This will sync plugins automatically, which will fail because
@@ -355,7 +358,7 @@ public class DockerTests extends PackagingTestCase {
             builder().volume(tempDir.resolve(filename), installation.config.resolve(filename))
                 .envVar("ELASTIC_PASSWORD", PASSWORD)
                 .envVar(
-                    "ES_JAVA_OPTS",
+                    "CLI_JAVA_OPTS",
                     "-Dhttp.proxyHost=example.org -Dhttp.proxyPort=9999 -Dhttps.proxyHost=example.org -Dhttps.proxyPort=9999"
                 )
         );

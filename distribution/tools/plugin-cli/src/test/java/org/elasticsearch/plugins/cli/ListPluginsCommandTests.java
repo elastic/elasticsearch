@@ -8,6 +8,8 @@
 
 package org.elasticsearch.plugins.cli;
 
+import joptsimple.OptionSet;
+
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.Command;
@@ -24,7 +26,6 @@ import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 @LuceneTestCase.SuppressFileSystems("*")
@@ -242,7 +243,7 @@ public class ListPluginsCommandTests extends CommandTestCase {
     protected Command newCommand() {
         return new ListPluginsCommand() {
             @Override
-            protected Environment createEnv(Map<String, String> settings) {
+            protected Environment createEnv(OptionSet options) {
                 return env;
             }
 

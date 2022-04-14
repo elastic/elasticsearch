@@ -156,6 +156,12 @@ queries execute on the data in the local cluster only.
 experimental:[] See <<modules-cross-cluster-search,{ccs}>>.
 
 [discrete]
+==== Error handling
+
+`allow_partial_search_results` (default `false`):: How to handle shard failures: return partial results, if `true`, or fail the
+entire search, if `false`.
+
+[discrete]
 ==== Additional
 
 `validate.properties` (default `true`):: If disabled, it will ignore any misspellings or unrecognizable properties. When enabled, an exception

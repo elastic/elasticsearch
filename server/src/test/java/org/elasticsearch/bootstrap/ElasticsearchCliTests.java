@@ -13,15 +13,12 @@ import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.core.PathUtilsForTesting;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -32,7 +29,6 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.hasSize;
 
 public class ElasticsearchCliTests extends CommandTestCase {
     private void assertOk(String... args) throws Exception {
@@ -40,6 +36,7 @@ public class ElasticsearchCliTests extends CommandTestCase {
     }
 
     private void assertOkWithOutput(Matcher<String> matcher, String... args) throws Exception {
+        terminal.reset();
         int status = executeMain(args);
         assertThat(status, equalTo(ExitCodes.OK));
         assertThat(terminal.getErrorOutput(), emptyString());
@@ -47,6 +44,7 @@ public class ElasticsearchCliTests extends CommandTestCase {
     }
 
     private void assertUsage(Matcher<String> matcher, String... args) throws Exception {
+        terminal.reset();
         initCallback = FAIL_INIT;
         int status = executeMain(args);
         assertThat(status, equalTo(ExitCodes.USAGE));
@@ -101,7 +99,9 @@ public class ElasticsearchCliTests extends CommandTestCase {
         initCallback = (daemonize, pidFile, quiet, env) -> {
             assertThat(pidFile.toString(), equalTo(pidFileArg.toString()));
         };
+        terminal.reset();
         assertOk("-p", pidFileArg.toString());
+        terminal.reset();
         assertOk("--pidfile", pidFileArg.toString());
     }
 

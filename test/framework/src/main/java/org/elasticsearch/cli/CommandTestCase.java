@@ -29,7 +29,16 @@ public abstract class CommandTestCase extends ESTestCase {
     protected abstract Command newCommand();
 
     /**
-     * Runs a command with the given args.
+     * Run the main method of a new command with the given args.
+     *
+     * Output can be found in {@link #terminal}.
+     */
+    public int executeMain(String... args) throws Exception {
+        return newCommand().main(args, terminal);
+    }
+
+    /**
+     * Runs a new command with the given args.
      *
      * Output can be found in {@link #terminal}.
      */
@@ -38,7 +47,7 @@ public abstract class CommandTestCase extends ESTestCase {
     }
 
     /**
-     * Runs the specified command with the given args.
+     * Runs the specified command with the given args, throwing exceptions on errors.
      * <p>
      * Output can be found in {@link #terminal}.
      */

@@ -17,6 +17,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
+import org.apache.lucene.sandbox.search.DocValuesTermsQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreMode;
@@ -30,6 +31,7 @@ import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -40,6 +42,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.index.IndexSortConfig.TIME_SERIES_SORT;
+
 public class TimeSeriesIndexSearcherTests extends ESTestCase {
 
     // Index a random set of docs with timestamp and tsid with the tsid/timestamp sort order
@@ -47,25 +51,18 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
     // Collection should be in order
 
     public void testCollectInOrderAcrossSegments() throws IOException, InterruptedException {
-
         Directory dir = newDirectory();
-        IndexWriterConfig iwc = newIndexWriterConfig();
-        iwc.setIndexSort(
-            new Sort(
-                new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING),
-                new SortField(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, SortField.Type.LONG)
-            )
-        );
-        RandomIndexWriter iw = new RandomIndexWriter(random(), dir, iwc);
+        RandomIndexWriter iw = getIndexWriter(dir);
 
         AtomicInteger clock = new AtomicInteger(0);
 
         final int THREADS = 5;
+        final int DOC_COUNTS = 500;
         ExecutorService indexer = Executors.newFixedThreadPool(THREADS);
         for (int i = 0; i < THREADS; i++) {
             indexer.submit(() -> {
                 Document doc = new Document();
-                for (int j = 0; j < 500; j++) {
+                for (int j = 0; j < DOC_COUNTS; j++) {
                     String tsid = "tsid" + randomIntBetween(0, 30);
                     long time = clock.addAndGet(randomIntBetween(0, 10));
                     doc.clear();
@@ -88,8 +85,98 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
 
         TimeSeriesIndexSearcher indexSearcher = new TimeSeriesIndexSearcher(searcher, List.of());
 
-        BucketCollector collector = new BucketCollector() {
+        BucketCollector collector = getBucketCollector(THREADS * DOC_COUNTS);
 
+        indexSearcher.search(new MatchAllDocsQuery(), collector);
+        collector.postCollection();
+
+        reader.close();
+        dir.close();
+    }
+
+    /**
+     * this test fixed the wrong init value of tsidOrd
+     * See https://github.com/elastic/elasticsearch/issues/85711
+     */
+    public void testCollectFromMiddle() throws IOException {
+        Directory dir = newDirectory();
+        RandomIndexWriter iw = getIndexWriter(dir);
+
+        Document doc = new Document();
+        final int DOC_COUNTS = 500;
+
+        // segment 1
+        // pre add a value
+        doc.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, new BytesRef("tsid")));
+        doc.add(new NumericDocValuesField(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, 1));
+        iw.addDocument(doc);
+
+        // segment 1 add value, timestamp is all large then segment 2
+        for (int j = 0; j < DOC_COUNTS; j++) {
+            String tsid = "tsid" + randomIntBetween(0, 1);
+            doc.clear();
+            doc.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, new BytesRef(tsid)));
+            doc.add(new NumericDocValuesField(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, randomIntBetween(20, 25)));
+            try {
+                iw.addDocument(doc);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+        iw.commit();
+
+        // segment 2
+        // pre add a value
+        doc.clear();
+        doc.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, new BytesRef("tsid")));
+        doc.add(new NumericDocValuesField(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, 1));
+        iw.addDocument(doc);
+        for (int j = 0; j < DOC_COUNTS; j++) {
+            String tsid = "tsid" + randomIntBetween(0, 1);
+            doc.clear();
+            doc.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, new BytesRef(tsid)));
+            doc.add(new NumericDocValuesField(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, randomIntBetween(10, 15)));
+            try {
+                iw.addDocument(doc);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+
+        iw.close();
+        IndexReader reader = DirectoryReader.open(dir);
+        IndexSearcher searcher = new IndexSearcher(reader);
+
+        TimeSeriesIndexSearcher indexSearcher = new TimeSeriesIndexSearcher(searcher, List.of());
+
+        BucketCollector collector = getBucketCollector(2 * DOC_COUNTS);
+
+        // skip the first doc of segment 1 and 2
+        indexSearcher.search(new DocValuesTermsQuery("_tsid", List.of(new BytesRef("tsid0"), new BytesRef("tsid1"))), collector);
+        collector.postCollection();
+
+        reader.close();
+        dir.close();
+    }
+
+    private RandomIndexWriter getIndexWriter(Directory dir) throws IOException {
+
+        IndexWriterConfig iwc = newIndexWriterConfig();
+        boolean tsidReverse = TIME_SERIES_SORT[0].getOrder() == SortOrder.DESC;
+        boolean timestampReverse = TIME_SERIES_SORT[1].getOrder() == SortOrder.DESC;
+        Sort sort = new Sort(
+            new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING, tsidReverse),
+            new SortField(DataStream.TimestampField.FIXED_TIMESTAMP_FIELD, SortField.Type.LONG, timestampReverse)
+        );
+        iwc.setIndexSort(sort);
+        return new RandomIndexWriter(random(), dir, iwc);
+    }
+
+    private BucketCollector getBucketCollector(long totalCount) {
+        return new BucketCollector() {
+
+            boolean tsidReverse = TIME_SERIES_SORT[0].getOrder() == SortOrder.DESC;
+            boolean timestampReverse = TIME_SERIES_SORT[1].getOrder() == SortOrder.DESC;
             BytesRef currentTSID = null;
             long currentTimestamp = 0;
             long total = 0;
@@ -110,9 +197,15 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
                         BytesRef latestTSID = tsid.lookupOrd(tsid.ordValue());
                         long latestTimestamp = timestamp.longValue();
                         if (currentTSID != null) {
-                            assertTrue(currentTSID + "->" + latestTSID.utf8ToString(), latestTSID.compareTo(currentTSID) >= 0);
+                            assertTrue(
+                                currentTSID + "->" + latestTSID.utf8ToString(),
+                                tsidReverse ? latestTSID.compareTo(currentTSID) <= 0 : latestTSID.compareTo(currentTSID) >= 0
+                            );
                             if (latestTSID.equals(currentTSID)) {
-                                assertTrue(currentTimestamp + "->" + latestTimestamp, latestTimestamp >= currentTimestamp);
+                                assertTrue(
+                                    currentTimestamp + "->" + latestTimestamp,
+                                    timestampReverse ? latestTimestamp <= currentTimestamp : latestTimestamp >= currentTimestamp
+                                );
                             }
                         }
                         currentTimestamp = latestTimestamp;
@@ -129,7 +222,7 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
 
             @Override
             public void postCollection() throws IOException {
-                assertEquals(2500, total);
+                assertEquals(totalCount, total);
             }
 
             @Override
@@ -137,13 +230,5 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
                 return ScoreMode.COMPLETE;
             }
         };
-
-        indexSearcher.search(new MatchAllDocsQuery(), collector);
-        collector.postCollection();
-
-        reader.close();
-        dir.close();
-
     }
-
 }

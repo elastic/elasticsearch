@@ -25,6 +25,9 @@ public class RestDeprecationInfoAction extends BaseRestHandler {
 
     private static final Logger esLogger = LogManager.getLogger(RestDeprecationInfoAction.class);
     private static final org.slf4j.Logger slf4jLogger = org.slf4j.LoggerFactory.getLogger(RestDeprecationInfoAction.class);
+    private static final org.apache.logging.log4j.Logger log4jLogger = org.apache.logging.log4j.LogManager.getLogger(
+        RestDeprecationInfoAction.class
+    );
 
     @Override
     public List<Route> routes() {
@@ -45,6 +48,7 @@ public class RestDeprecationInfoAction extends BaseRestHandler {
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         esLogger.info("heee info es logger");
         slf4jLogger.info("heee info slf4jLogger");
+        log4jLogger.info("heee info log4jLogger");
         if (request.method().equals(GET)) {
             return handleGet(request, client);
         } else {

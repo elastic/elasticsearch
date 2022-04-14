@@ -1,0 +1,59 @@
+import org.elasticsearch.gradle.internal.conventions.precommit.LicenseHeadersTask
+
+/*
+ * Licensed to Elasticsearch B.V. under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch B.V. licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.publish'
+String log4jVersion = "2.17.1"
+
+dependencies {
+
+  implementation "org.apache.logging.log4j:log4j-api:${log4jVersion}"
+  api project(':libs:elasticsearch-core')
+  api project(':libs:elasticsearch-logging')
+
+  testImplementation(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'elasticsearch-slf4j-es-logging'
+  }
+  testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+  testImplementation "junit:junit:${versions.junit}"
+  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
+}
+
+tasks.named('forbiddenApisMain').configure {
+  // geo does not depend on server
+  // TODO: Need to decide how we want to handle for forbidden signatures with the changes to core
+  replaceSignatureFiles 'jdk-signatures'
+}
+
+//TODO PG fix
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+      'org.osgi.framework.Bundle',
+      'org.osgi.framework.BundleActivator',
+      'org.osgi.framework.BundleContext',
+      'org.osgi.framework.BundleEvent',
+      'org.osgi.framework.SynchronousBundleListener',
+      'org.osgi.framework.wiring.BundleWire',
+      'org.osgi.framework.wiring.BundleWiring'
+
+  )
+}
+
+

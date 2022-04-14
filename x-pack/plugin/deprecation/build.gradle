@@ -9,12 +9,29 @@ esplugin {
 archivesBaseName = 'x-pack-deprecation'
 
 addQaCheckDependencies()
+String log4jVersion = "2.17.1"
 
 dependencies {
   compileOnly project(":x-pack:plugin:core")
   api project(":libs:elasticsearch-slf4j-es-logging")//TODO PG maybe runtime?
+  api project(":libs:elasticsearch-log4j2-es-logging")//TODO PG maybe runtime?
 
   api "org.slf4j:slf4j-api:${versions.slf4j}"
+  api "org.apache.logging.log4j:log4j-api:${log4jVersion}"
 
+}
+
+//TODO PG fix
+tasks.named("thirdPartyAudit").configure {
+  ignoreMissingClasses(
+    'org.osgi.framework.Bundle',
+    'org.osgi.framework.BundleActivator',
+    'org.osgi.framework.BundleContext',
+    'org.osgi.framework.BundleEvent',
+    'org.osgi.framework.SynchronousBundleListener',
+    'org.osgi.framework.wiring.BundleWire',
+    'org.osgi.framework.wiring.BundleWiring'
+
+  )
 }
 

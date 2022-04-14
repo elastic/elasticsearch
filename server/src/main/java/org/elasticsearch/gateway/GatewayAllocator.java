@@ -12,6 +12,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -379,19 +380,19 @@ public class GatewayAllocator implements ExistingShardsAllocator {
             final CountDownLatch nodeRequestLatch = new CountDownLatch(queuedRequests.size());
             for (DiscoveryNode node : queuedRequests.keySet()) {
                 Map<ShardId, ShardRequestInfo<NodeGatewayStartedShards>> shardRequests = queuedRequests.get(node);
-                Map<ShardId, String> shards = new HashMap<>();
+                Map<ShardId, String> targetShards = new HashMap<>();
                 for (ShardId shardId : shardRequests.keySet()) {
-                    shards.put(shardId, shardRequests.get(shardId).getCustomDataPath());
+                    targetShards.put(shardId, shardRequests.get(shardId).getCustomDataPath());
                 }
 
-                assert shards.isEmpty() == false;
-                logger.debug("Batch sending number of {} primary shard async fetch requests to node {}", shards.size(), node.getId());
+                assert targetShards.isEmpty() == false;
+                logger.debug("Batch sending number of {} primary shard async fetch requests to node {}", targetShards.size(), node.getId());
 
                 // send shards fetch request per node
                 final var curNodeRequests = queuedRequests.get(node);
                 client.executeLocally(
                     TransportNodesBatchListGatewayStartedShards.TYPE,
-                    new TransportNodesBatchListGatewayStartedShards.Request(shards, new DiscoveryNode[] { node }),
+                    new TransportNodesBatchListGatewayStartedShards.Request(targetShards, new DiscoveryNode[] { node }),
                     new ActionListener<>() {
                         @Override
                         public void onResponse(NodesGatewayBatchStartedShards nodesBatchStartedShards) {
@@ -444,6 +445,21 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                                 } else {
                                     logger.debug("primary shard {} fetching has failed, listener has been cleared", shard.getShardId());
                                 }
+
+                                targetShards.remove(shard.getShardId());
+                            }
+
+                            // some shards may not respond
+                            for (ShardId shard : targetShards.keySet()) {
+                                curNodeRequests.get(shard)
+                                    .getListener()
+                                    .onFailure(
+                                        new FailedNodeException(
+                                            node.getId(),
+                                            "Failed node [" + node.getId() + "]",
+                                            new Exception("Failed to fetch " + shard)
+                                        )
+                                    );
                             }
                         }
 
@@ -583,20 +599,20 @@ public class GatewayAllocator implements ExistingShardsAllocator {
             logger.debug("flushing {} replica fetching requests", queuedRequests.size());
             final CountDownLatch nodeRequestLatch = new CountDownLatch(queuedRequests.size());
             for (DiscoveryNode node : queuedRequests.keySet()) {
-                Map<ShardId, String> shards = new HashMap<>();
+                Map<ShardId, String> targetShards = new HashMap<>();
                 var nodeRequest = queuedRequests.get(node);
                 for (var shardRequest : nodeRequest.entrySet()) {
-                    shards.put(shardRequest.getKey(), shardRequest.getValue().getCustomDataPath());
+                    targetShards.put(shardRequest.getKey(), shardRequest.getValue().getCustomDataPath());
                 }
 
-                assert shards.isEmpty() == false;
-                logger.debug("Batch sending number of {} replica shard async fetch requests to node {}", shards.size(), node.getId());
+                assert targetShards.isEmpty() == false;
+                logger.debug("Batch sending number of {} replica shard async fetch requests to node {}", targetShards.size(), node.getId());
 
                 // send shards fetch request per node
                 final var curNodeRequests = queuedRequests.get(node);
                 client.executeLocally(
                     TransportNodesBatchListShardStoreMetadata.TYPE,
-                    new TransportNodesBatchListShardStoreMetadata.Request(shards, new DiscoveryNode[] { node }),
+                    new TransportNodesBatchListShardStoreMetadata.Request(targetShards, new DiscoveryNode[] { node }),
                     new ActionListener<>() {
                         @Override
                         public void onResponse(NodesBatchStoreFilesMetadata nodesBatchStoreFilesMetadata) {
@@ -642,6 +658,21 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                                 } else {
                                     logger.debug("replica shard {} fetching has failed, listener has been cleared", shard.shardId());
                                 }
+
+                                targetShards.remove(shard.shardId());
+                            }
+
+                            // some shards may not respond
+                            for (ShardId shard : targetShards.keySet()) {
+                                curNodeRequests.get(shard)
+                                    .getListener()
+                                    .onFailure(
+                                        new FailedNodeException(
+                                            node.getId(),
+                                            "Failed node [" + node.getId() + "]",
+                                            new Exception("Failed to fetch " + shard)
+                                        )
+                                    );
                             }
                         }
 

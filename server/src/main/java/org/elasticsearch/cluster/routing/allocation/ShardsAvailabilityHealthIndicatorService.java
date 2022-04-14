@@ -151,7 +151,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         "Elasticsearch isn't allowed to allocate this shard to any of the nodes in its data tier because each node in the tier has "
             + "reached its shard limit. Increase the values for the ["
             + ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()
-            + "] index setting on each index or add more nodes to the cluster.",
+            + "] index setting on each index or add more nodes to the target tiers.",
         null
     );
     public static final UserAction.Definition ACTION_MIGRATE_TIERS = new UserAction.Definition(

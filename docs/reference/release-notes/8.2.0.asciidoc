@@ -3,7 +3,7 @@
 
 coming[8.2.0]
 
-// Also see <<breaking-changes-8.2,Breaking changes in 8.2>>.
+Also see <<breaking-changes-8.2,Breaking changes in 8.2>>.
 
 [[bug-8.2.0]]
 [float]
@@ -47,6 +47,7 @@ Indices APIs::
 
 Infra/Core::
 * Fix `NullPointerException` in `SystemIndexMetadataUpgradeService` hidden alias handling {es-pull}84780[#84780] (issue: {es-issue}81411[#81411])
+* Prevent `ThreadContext` header leak when sending response {es-pull}68649[#68649] (issue: {es-issue}68278[#68278])
 * Require and preserve content type for filtered rest requests {es-pull}84914[#84914] (issue: {es-issue}84784[#84784])
 * Return empty version instead of blowing up if we cannot find it {es-pull}85244[#85244]
 * Validate index format agreement for system index descriptors {es-pull}85173[#85173]
@@ -59,7 +60,6 @@ Infra/REST API::
 * Correctly return `_type` field for documents in V7 compatiblity mode {es-pull}84873[#84873] (issue: {es-issue}84173[#84173])
 
 Ingest::
-* Bump commons-compress to 1.21 {es-pull}85581[#85581]
 * Mark `GeoIpDownloaderTask` as completed after cancellation {es-pull}84028[#84028]
 * `CompoundProcessor` should also catch exceptions when executing a processor {es-pull}84838[#84838] (issue: {es-issue}84781[#84781])
 
@@ -74,6 +74,7 @@ Machine Learning::
 * Ensure that inference index primary shards are available before attempting to load model {es-pull}85569[#85569]
 * Fix Kibana date format and similar overrides in text structure endpoint {es-pull}84967[#84967]
 * Fix race condition when stopping a recently relocated datafeed {es-pull}84636[#84636]
+* Fix serialisation of text embedding updates {es-pull}85863[#85863]
 * Fixes for multi-line start patterns in text structure endpoint {es-pull}85066[#85066]
 * Fixes to making old ML indices hidden {es-pull}85383[#85383]
 * Reallocate model deployments on node shutdown events {es-pull}85310[#85310]
@@ -111,7 +112,8 @@ Security::
 * Ensure tokens represent effective user's identity in all cases {es-pull}84263[#84263]
 
 Snapshot/Restore::
-* Don't fail if there is no symlink for AWS Web Identity Token {es-pull}84697[#84697]
+* Don't fail if there no symlink for AWS Web Identity Token {es-pull}84697[#84697]
+* Expose proxy settings for GCS repositories {es-pull}85785[#85785] (issue: {es-issue}84569[#84569])
 * Fix atomic writes in HDFS {es-pull}85210[#85210]
 * Fix leaking listeners bug on frozen tier {es-pull}85239[#85239]
 * Fix snapshot status messages on node-left {es-pull}85021[#85021]
@@ -147,13 +149,14 @@ Audit::
 * User Profile - Audit security config change for profile APIs {es-pull}84785[#84785]
 
 Authentication::
-* Adds domain information to authentication object {es-pull}82639[#82639]
+* Authentication under domains {es-pull}82639[#82639]
 * Improve BWC for persisted authentication headers {es-pull}83913[#83913] (issue: {es-issue}83567[#83567])
 * Warn on SAML attributes with special attribute names {es-pull}85248[#85248] (issue: {es-issue}48613[#48613])
 
 Authorization::
 * Add elastic/enterprise-search-server service account {es-pull}83325[#83325]
 * Add index privileges for logs-enterprise_search.api-default to the enterprise-search-server service account {es-pull}84965[#84965]
+* Add indices permissions to Enterprise Search service account {es-pull}85726[#85726]
 * Note restricted indices in access denied message {es-pull}85013[#85013]
 * Security global privilege for updating profile data of applications {es-pull}83728[#83728]
 * [Osquery] Extend `kibana_system` role with an access to `osquery_manager` indices {es-pull}84279[#84279]
@@ -325,8 +328,14 @@ TSDB::
 Infra/Core::
 * Upgrade jackson for x-content to 2.13.2 {es-pull}84905[#84905]
 
+Ingest::
+* Bump commons-compress to 1.21 {es-pull}85581[#85581]
+
 Network::
 * Upgrade Netty to 4.1.74 {es-pull}84562[#84562]
+
+Packaging::
+* Upgrade to JDK 18.0.0+36 {es-pull}85376[#85376] (issue: {es-issue}85357[#85357])
 
 Search::
 * Upgrade to lucene 9.1.0-snapshot-5b522487ba8 {es-pull}85025[#85025]

@@ -95,23 +95,17 @@ When a JWT realm is used for authentication into {es}, a distinction is made bet
 _client_ that is connecting to {es}, and the _end-user_ on whose behalf the request should execute.
 The JWT identifies the user, and a separate credential should be used to authenticate the client itself.
 
-See <<jwt-client-authentication>> and <<jwt-validation>>.
-
 [[jwt-client-authentication]]
 ==== Client authentication
 
-Client authentication is one of two credentials required by JWT realms.
-See <<jwt-validation>> for the other credential.
-
-JWT realms support two client authentication settings: `shared_secret` and `none`.
+There are two client authentication settings: `shared_secret` and `none`.
 
 IMPORTANT: Client authentication is enabled by default in JWT realms.
 
 If client authentication type is `shared_secret`, the client is authenticated
 using a HTTP request header that must match a pre-configured secret value.
 The client must provide this shared secret with every request in the `ES-Client-Authentication` header.
-The value must be a case-insensitive match to the realm's <<secure-settings,secure setting>>.
- `client_authentication.shared_secret`.
+The value must be a case-insensitive match to the realm's <<secure-settings,secure setting>> `client_authentication.shared_secret`.
 See <<ref-jwt-settings>>.
 
 If client authentication type is `none`, the request header `ES-Client-Authentication` is ignored.
@@ -121,29 +115,17 @@ WARNING: Disabling client authentication is possible, but strongly discouraged.
 [[jwt-validation]]
 ==== JWT validation
 
-JWT is one of two credentials required by JWT realms.
-See <<jwt-client-authentication>> for the other credential.
+The supported JWT encoding is JSON Web Signature (JWS). The JWS header and JWS signature are validated using OpenID Token validation rules.
+Some validation is customizable via <<ref-jwt-settings>>.
 
-The supported JWT encoding is JSON Web Signature (JWS).
-See <<jws-header-validation>> and <<jws-signature-validation>>.
+JWS header `alg` is required, and must be in the realm's allow list. JWS header `typ` is optional.
 
-The supported JWT payload is an OpenID Token claims set. See <<jwt-claims-set-validation>>.
-
-[[jws-header-validation]]
-==== JWS header validation
-
-Values `alg` and `typ` are validated using OpenID Token validation rules.
-
-TIP: `alg` is required. `alg` must be allowed in JWT realm settings.
-
-See `allowed_signature_algorithms` in <<ref-jwt-settings>>.
-
-[[jwt-claims-set-validation]]
-==== JWT claims set validation
-
-OpenID Token claims `iss`, `aud`, `sub`, `exp`, `iat`, `nbf`, and `auth_time` are validated using OpenID Token validation rules.
+JWT claims `iss`, `aud`, `sub`, `exp`, `iat`, `nbf`, and `auth_time` are validated using OpenID Token validation rules.
+JWT Claims `principal`, `groups`, `name`, `mail`, and `dn` are validated using {es} validation rules.
 
 IMPORTANT: `nonce` claim is ignored; it is only applicable inside an OIDC workflow, not application to JWT realm.
+
+NOTE: Validation of the JWT time-based claims `exp`, `iat`, `nbf`, and `auth_time` can be relaxed via the realm setting `allowed_clock_skew`.
 
 * The `iss` claim from the JWT is required. It must be an exact, case-sensitive match to the realm setting `allowed_issuer`.
 
@@ -157,11 +139,6 @@ case-sensitive match to any of the CSV values in the realm setting `allowed_audi
 * The `nbf` claim from the JWT is optional. If present, it is UTC milliseconds since epoch, and must be before wall clock.
 
 * The `auth_time` claim from the JWT is optional. If present, it is UTC milliseconds since epoch, and must be before wall clock.
-
-NOTE: Validation of the JWT time-based claims `exp`, `iat`, `nbf`, and `auth_time` can be relaxed via the realm setting `allowed_clock_skew`.
-
-Elasticsearch claims `principal`, `groups`, `name`, `mail`, and `dn` are validated using {es} validation rules.
-Regular expression settings may be used.
 
 * The _principal_ claim from the JWT is required, and defaults to `sub`. It is configurable via the realm setting `claims.principal`.
 An optional regular expression can be configured via the realm setting `claims.principal_pattern` to extract a substring.
@@ -177,13 +154,6 @@ An optional regular expression can be configured via the realm setting `claims.m
 
 * The _dn_ claim from the JWT is optional. It is configurable via the realm setting `claims.dn`.
 An optional regular expression can be configured via the realm setting `claims.dn_pattern` to extract a substring value.
-
-See <<ref-jwt-settings>>.
-
-[[jws-signature-validation]]
-==== JWS signature validation
-
-Signatures are validated using JWS (JSON Web Signature) validation rules.
 
 [[jwt-authorization]]
 ==== JWT Realm Authorization

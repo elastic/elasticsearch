@@ -206,7 +206,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             if (false == inEnrollmentMode) {
                 throw new UserException(ExitCodes.USAGE, "enrollment-token is a mandatory parameter when reconfiguring the node");
             }
-            env = possiblyReconfigureNode(env, terminal);
+            env = possiblyReconfigureNode(env, terminal, options);
         }
 
         // only perform auto-configuration if the existing configuration is not conflicting (eg Security already enabled)
@@ -874,7 +874,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         return false;
     }
 
-    private Environment possiblyReconfigureNode(Environment env, Terminal terminal) throws UserException {
+    private Environment possiblyReconfigureNode(Environment env, Terminal terminal, OptionSet options) throws UserException {
         // We remove the existing auto-configuration stanza from elasticsearch.yml, the elastisearch.keystore and
         // the directory with the auto-configured TLS key material, and then proceed as if elasticsearch is started
         // with --enrolment-token token, in the first place.
@@ -917,7 +917,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 );
             }
             // rebuild the environment after removing the settings that were added in auto-configuration.
-            return createEnv(Map.of("path.home", env.settings().get("path.home")));
+            return createEnv(options);
         } else {
             throw new UserException(
                 ExitCodes.USAGE,

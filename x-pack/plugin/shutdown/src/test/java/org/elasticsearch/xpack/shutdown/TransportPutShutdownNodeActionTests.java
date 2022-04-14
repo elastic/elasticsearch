@@ -59,7 +59,7 @@ public class TransportPutShutdownNodeActionTests extends ESTestCase {
         var request = new PutShutdownNodeAction.Request("node1", type, "sunsetting", allocationDelay, targetNodeName);
         action.masterOperation(null, request, ClusterState.EMPTY_STATE, ActionListener.noop());
         var updateTaskCapture = ArgumentCaptor.forClass(ClusterStateUpdateTask.class);
-        verify(clusterService).submitStateUpdateTask(anyString(), updateTaskCapture.capture(), any(ClusterStateTaskExecutor.class));
+        verify(clusterService).submitStateUpdateTask(any(), updateTaskCapture.capture(), any());
         ClusterState stableState = updateTaskCapture.getValue().execute(ClusterState.EMPTY_STATE);
 
         // run the request again, there should be no call to submit an update task
@@ -69,7 +69,7 @@ public class TransportPutShutdownNodeActionTests extends ESTestCase {
 
         // run the request again with empty state, the update task should return the same state
         action.masterOperation(null, request, ClusterState.EMPTY_STATE, ActionListener.noop());
-        verify(clusterService).submitStateUpdateTask(anyString(), updateTaskCapture.capture(), any(ClusterStateTaskExecutor.class));
+        verify(clusterService).submitStateUpdateTask(any(), updateTaskCapture.capture(), any());
         ClusterState gotState = updateTaskCapture.getValue().execute(stableState);
         assertThat(gotState, sameInstance(stableState));
     }

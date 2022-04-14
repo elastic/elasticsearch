@@ -62,7 +62,7 @@ public class TransportDeleteShutdownNodeActionTests extends ESTestCase {
         var request = new DeleteShutdownNodeAction.Request("node1");
         action.masterOperation(null, request, clusterStateWithShutdown, ActionListener.noop());
         var updateTaskCapture = ArgumentCaptor.forClass(ClusterStateUpdateTask.class);
-        verify(clusterService).submitStateUpdateTask(anyString(), updateTaskCapture.capture(), any(ClusterStateTaskExecutor.class));
+        verify(clusterService).submitStateUpdateTask(any(), updateTaskCapture.capture(), any());
         ClusterState gotState = updateTaskCapture.getValue().execute(ClusterState.EMPTY_STATE);
         assertThat(gotState, sameInstance(ClusterState.EMPTY_STATE));
     }

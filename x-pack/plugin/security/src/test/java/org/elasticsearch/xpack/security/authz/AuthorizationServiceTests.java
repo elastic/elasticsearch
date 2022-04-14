@@ -935,12 +935,12 @@ public class AuthorizationServiceTests extends ESTestCase {
             if (canRunAs) {
                 verify(auditTrail).runAsGranted(eq(requestId), eq(authentication), eq(action), eq(request), authzInfoRoles(role.names()));
                 assertThat(securityException, throwableWithMessage(containsString("run as [" + finalUser.principal() + "] with roles [")));
-                assertThat(
-                    securityException,
-                    throwableWithMessage(containsString("this action is granted by the index privileges [read,all]"))
-                );
             }
             verify(auditTrail).accessDenied(eq(requestId), eq(authentication), eq(action), eq(request), authzInfoRoles(role.names()));
+            assertThat(
+                securityException,
+                throwableWithMessage(containsString("this action is granted by the index privileges [read,all]"))
+            );
         }
         verifyNoMoreInteractions(auditTrail);
     }

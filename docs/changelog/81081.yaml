@@ -1,0 +1,5 @@
+pr: 81081
+summary: Batch async fetch shards data to reduce memory consumption.
+area: Allocation
+type: enhancement
+issues: [80694]

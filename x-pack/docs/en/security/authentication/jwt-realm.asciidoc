@@ -18,7 +18,7 @@ provides stronger security guarantees and should be preferred for any use case w
 as an OIDC _Relying Party_ (RP). In particular the `oidc` realm is the only supported way to enable OpenID
 Connect authentication in Kibana.
 
-TIP: If the front-end application does not exist, use `access` tokens instead. See <<token-authentication-services>>.
+TIP: If the front-end application does not exist, the <<token-authentication-services>> can be used instead.
      Other bearer token options are available if accessing {es} directly, without a front-end application.
      JWT realm is for when that front-end application already exists, and you want to integrate that
      front-end application with {es}.

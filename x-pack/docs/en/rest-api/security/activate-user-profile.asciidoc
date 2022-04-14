@@ -1,5 +1,5 @@
 [role="xpack"]
-[[security-api-activiate-user-profile]]
+[[security-api-activate-user-profile]]
 === Activate user profile API
 ++++
 <titleabbrev>Activate user profile</titleabbrev>
@@ -27,7 +27,7 @@ users with information that is extracted from the user's authentication object,
 including `username`, `full_name`, `roles`, and the authentication realm.
 
 When updating a profile document, the API enables the document if it was
-disabled. Any updates do not change existing content for either the `access` or
+disabled. Any updates do not change existing content for either the `labels` or
 `data` fields.
 
 This API is intended only for use by applications (such as {kib}) that need to
@@ -113,10 +113,9 @@ The API returns the following response:
     ],
     "realm_name": "native",
     "full_name": "Jack Nicholson",
-    "email": "jacknich@example.com",
-    "active": true
+    "email": "jacknich@example.com"
   },
-  "access": {},
+  "labels": {},
   "data": {},
   "_doc": {
     "_primary_term": 88,

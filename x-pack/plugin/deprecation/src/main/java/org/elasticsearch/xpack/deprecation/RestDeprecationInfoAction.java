@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.deprecation;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -20,6 +22,9 @@ import java.util.List;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
 public class RestDeprecationInfoAction extends BaseRestHandler {
+
+    private static final Logger esLogger = LogManager.getLogger(RestDeprecationInfoAction.class);
+    private static final org.slf4j.Logger slf4jLogger = org.slf4j.LoggerFactory.getLogger(RestDeprecationInfoAction.class);
 
     @Override
     public List<Route> routes() {
@@ -38,6 +43,8 @@ public class RestDeprecationInfoAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        esLogger.info("heee info es logger");
+        slf4jLogger.info("heee info slf4jLogger");
         if (request.method().equals(GET)) {
             return handleGet(request, client);
         } else {

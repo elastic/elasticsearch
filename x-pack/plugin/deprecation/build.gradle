@@ -12,5 +12,9 @@ addQaCheckDependencies()
 
 dependencies {
   compileOnly project(":x-pack:plugin:core")
+  api project(":libs:elasticsearch-slf4j-es-logging")//TODO PG maybe runtime?
+
+  api "org.slf4j:slf4j-api:${versions.slf4j}"
+
 }
 

@@ -30,7 +30,7 @@ xpack.security.authc.realms.jwt.jwt1:
   allowed_issuer: "https://issuer.example.com/jwt/" <3>
   allowed_audiences: [ "8fb85eba-979c-496c-8ae2-a57fde3f12d0" ]
   allowed_signature_algorithms: [RS256] <4>
-  pkc_jwkset_path: example.jwkset
+  pkc_jwkset_path: jwt/jwkset.json
   claims.principal: sub <5>
 ------------------------------------------------------------
 <1> The realm `order` controls the order in which the configured realms are checked

@@ -31,13 +31,9 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Predicate;
 
-public class FileTokensTool extends LoggingAwareMultiCommand {
+class FileTokensTool extends LoggingAwareMultiCommand {
 
-    public static void main(String[] args) throws Exception {
-        exit(new FileTokensTool().main(args, Terminal.DEFAULT));
-    }
-
-    public FileTokensTool() {
+    FileTokensTool() {
         super("Manages elasticsearch service account file-tokens");
         subcommands.put("create", newCreateFileTokenCommand());
         subcommands.put("delete", newDeleteFileTokenCommand());

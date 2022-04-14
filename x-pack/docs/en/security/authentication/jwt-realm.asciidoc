@@ -20,6 +20,9 @@ Connect authentication in Kibana.
 
 TIP: If the front-end application does not exist, the <<token-authentication-services>> can be used instead.
 
+[[jwt-realm-configuration]]
+==== Configuring a JWT realm
+
 A simple JWT realm configuration is as follows:
 
 [source, yaml]

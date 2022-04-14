@@ -42,7 +42,7 @@ xpack.security.authc.realms.jwt.jwt1:
 <3> The `allowed_issuer` and `allowed_audiences` settings are described below in
     <<jwt-validation>>
 <4> The `allowed_signature_algorithms` and `pkc_jwkset_path` settings are
-    described below in <<jws-signature-validation>>
+    described below in <<jwt-validation>>
 <5> The `claims.principal` setting is described below in <<jwt-authorization>>
 
 Use this command to store the shared secret value corresponding to `client_authentication.type: shared_secret` in the example.

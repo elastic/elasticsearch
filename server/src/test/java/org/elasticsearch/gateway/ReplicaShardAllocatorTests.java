@@ -683,7 +683,8 @@ public class ReplicaShardAllocatorTests extends ESAllocationTestCase {
             }
             data.put(
                 node,
-                new TransportNodesListShardStoreMetadata.StoreFilesMetadata(shardId,
+                new TransportNodesListShardStoreMetadata.StoreFilesMetadata(
+                    shardId,
                     new Store.MetadataSnapshot(unmodifiableMap(filesAsMap), unmodifiableMap(commitData), randomInt()),
                     peerRecoveryRetentionLeases
                 )

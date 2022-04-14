@@ -1,6 +1,6 @@
 [role="xpack"]
 [[jwt-realm]]
-=== JWT Authentication
+=== JWT authentication
 
 beta::[]
 

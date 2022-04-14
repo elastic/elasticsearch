@@ -76,10 +76,9 @@ The API returns the following response for a `uid` matching `u_kd2JMqwUQwSCCOxMv
       ],
       "realm_name": "native1",
       "full_name": "Jack Nicholson",
-      "email": "jacknich@example.com",
-      "active": true
+      "email": "jacknich@example.com"
     },
-    "access": {},
+    "labels": {},
     "data": {}, <1>
     "_doc": {
       "_primary_term": 1,
@@ -117,10 +116,9 @@ GET /_security/profile/u_kd2JMqwUQwSCCOxMv7M1vw?data=app1.key1
       ],
       "realm_name": "native1",
       "full_name": "Jack Nicholson",
-      "email": "jacknich@example.com",
-      "active": true
+      "email": "jacknich@example.com"
     },
-    "access": {},
+    "labels": {},
     "data": {
       "app1": {
         "key1": "value1"

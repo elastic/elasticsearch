@@ -90,6 +90,7 @@ public class DesiredNodeTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/85882")
     public void testGetRoles() {
         final var settings = Settings.builder().put(NODE_NAME_SETTING.getKey(), randomAlphaOfLength(10));
 

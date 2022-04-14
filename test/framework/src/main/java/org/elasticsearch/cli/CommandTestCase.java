@@ -41,6 +41,7 @@ public abstract class CommandTestCase extends ESTestCase {
      * Output can be found in {@link #terminal}.
      */
     public int executeMain(String... args) throws Exception {
+        terminal.reset();
         return newCommand().main(args, terminal);
     }
 
@@ -59,6 +60,7 @@ public abstract class CommandTestCase extends ESTestCase {
      * Output can be found in {@link #terminal}.
      */
     public String execute(Command command, String... args) throws Exception {
+        terminal.reset();
         command.mainWithoutErrorHandling(args, terminal);
         return terminal.getOutput();
     }

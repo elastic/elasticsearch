@@ -19,9 +19,6 @@ as an OIDC _Relying Party_ (RP). In particular the `oidc` realm is the only supp
 Connect authentication in Kibana.
 
 TIP: If the front-end application does not exist, the <<token-authentication-services>> can be used instead.
-     Other bearer token options are available if accessing {es} directly, without a front-end application.
-     JWT realm is for when that front-end application already exists, and you want to integrate that
-     front-end application with {es}.
 
 A simple JWT realm configuration is as follows:
 

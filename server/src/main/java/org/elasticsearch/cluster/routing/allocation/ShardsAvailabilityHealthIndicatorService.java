@@ -136,7 +136,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     );
     public static final UserAction.Definition ACTION_ENABLE_ALLOCATIONS = new UserAction.Definition(
         "enable_allocations",
-        "Elasticsearch isn't allowed to allocate shards from these indices because allocation for those shards has been disabled. "
+        "Elasticsearch isn't allowed to allocate some shards from these indices because allocation for those shards has been disabled. "
             + "Check that the ["
             + EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey()
             + "] index settings and the ["
@@ -148,24 +148,25 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     );
     public static final UserAction.Definition ACTION_SHARD_LIMIT = new UserAction.Definition(
         "increase_shard_limit",
-        "Elasticsearch isn't allowed to allocate this shard to any of the nodes in its data tier because each node in the tier has "
-            + "reached its shard limit. Increase the values for the ["
+        "Elasticsearch isn't allowed to allocate some shards from these indices to any of the nodes in its data tier because each node in "
+            + "the tier has reached its shard limit. Increase the values for the ["
             + ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()
             + "] index setting on each index or add more nodes to the target tiers.",
         null
     );
     public static final UserAction.Definition ACTION_MIGRATE_TIERS = new UserAction.Definition(
         "migrate_data_tiers",
-        "Elasticsearch isn't allowed to allocate this shard to any of the nodes in its data tier because no nodes in the tier are "
-            + "compatible with the allocation filters in the index settings. Remove the conflicting allocation filters from each index's "
-            + "settings or try migrating to data tiers using the data tier migration action.",
+        "Elasticsearch isn't allowed to allocate some shards from these indices to any of the nodes in their data tiers because no nodes "
+            + "in the tiers are compatible with the allocation filters in the index settings. Remove the conflicting allocation filters "
+            + "from each index's settings or try migrating to data tiers using the data tier migration action "
+            + "[POST /_ilm/migrate_to_data_tiers].",
         null
     );
     public static final UserAction.Definition ACTION_INCREASE_TIER_CAPACITY = new UserAction.Definition(
         "increase_tier_capacity_for_allocations",
-        "Elasticsearch isn't allowed to allocate this shard to any of the nodes in its data tier because there are not enough nodes "
-            + "in the tier to allocate each shard copy on a different node. Increase the number of nodes in this tier or decrease the "
-            + "number of replicas your indices are using.",
+        "Elasticsearch isn't allowed to allocate some shards from these indices to any of the nodes in their data tiers because there are "
+            + "not enough nodes in the tier to allocate each shard copy on a different node. Increase the number of nodes in this tier or "
+            + "decrease the number of replicas your indices are using.",
         null
 
     );

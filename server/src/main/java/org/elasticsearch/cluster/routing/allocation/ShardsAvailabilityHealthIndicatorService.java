@@ -157,13 +157,13 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     public static final UserAction.Definition ACTION_ENABLE_TIERS = new UserAction.Definition(
         "enable_data_tiers",
         "Elasticsearch isn't allowed to allocate shards from these indices because the indices expect to be allocated to data tier nodes, "
-        + "but none were found in the cluster. Add nodes with data tier roles ("
-        + DataTier.DATA_HOT
-        + ", "
-        + DataTier.DATA_WARM
-        + ", "
-        + DataTier.DATA_COLD
-        + ", etc.) to the cluster.",
+            + "but none were found in the cluster. Add nodes with data tier roles ("
+            + DataTier.DATA_HOT
+            + ", "
+            + DataTier.DATA_WARM
+            + ", "
+            + DataTier.DATA_COLD
+            + ", etc.) to the cluster.",
         null
     );
     public static final UserAction.Definition ACTION_SHARD_LIMIT = new UserAction.Definition(

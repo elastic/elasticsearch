@@ -492,8 +492,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     List.of(
                         new NodeAllocationResult(
                             new DiscoveryNode(randomNodeId(), buildNewFakeTransportAddress(), Version.CURRENT),
-                            new Decision.Multi()
-                                .add(Decision.single(Decision.Type.YES, EnableAllocationDecider.NAME, null))
+                            new Decision.Multi().add(Decision.single(Decision.Type.YES, EnableAllocationDecider.NAME, null))
                                 .add(Decision.single(Decision.Type.YES, "data_tier", null))
                                 .add(Decision.single(Decision.Type.YES, ShardsLimitAllocationDecider.NAME, null))
                                 .add(Decision.single(Decision.Type.YES, FilterAllocationDecider.NAME, null))

@@ -134,6 +134,14 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         Explanations.Allocation.NO_COPIES,
         null
     );
+    public static final UserAction.Definition ACTION_CHECK_ALLOCATION_EXPLAIN_API = new UserAction.Definition(
+        "explain_allocations",
+        "Elasticsearch isn't allowed to allocate some shards from these indices to any of the nodes in the cluster. Diagnose the issue by "
+            + "calling the allocation explain api for an index [GET _cluster/allocation/explain]. Choose a node to which you expect a "
+            + "shard to be allocated, find this node in the node-by-node explanation, and address the reasons which prevent Elasticsearch "
+            + "from allocating a shard there.",
+        null
+    );
     public static final UserAction.Definition ACTION_ENABLE_ALLOCATIONS = new UserAction.Definition(
         "enable_allocations",
         "Elasticsearch isn't allowed to allocate some shards from these indices because allocation for those shards has been disabled. "
@@ -305,10 +313,13 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 );
             }
             List<NodeAllocationResult> nodeAllocationResults = allocateDecision.getNodeDecisions();
+            boolean diagnosisFound = checkIsAllocationDisabled(diagnosisOutput, shardRouting, nodeAllocationResults);
             IndexMetadata index = state.metadata().index(shardRouting.index());
             if (index != null) {
-                checkIsAllocationDisabled(diagnosisOutput, shardRouting, nodeAllocationResults);
-                checkDataTierRelatedIssues(diagnosisOutput, index, shardRouting, nodeAllocationResults);
+                diagnosisFound |= checkDataTierRelatedIssues(diagnosisOutput, index, shardRouting, nodeAllocationResults);
+            }
+            if (diagnosisFound == false) {
+                diagnosisOutput.accept(ACTION_CHECK_ALLOCATION_EXPLAIN_API, shardRouting);
             }
         }
     }
@@ -320,45 +331,53 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             .anyMatch(decision -> deciderName.equals(decision.label()) && outcome == decision.type());
     }
 
-    private void checkIsAllocationDisabled(
+    private boolean checkIsAllocationDisabled(
         BiConsumer<UserAction.Definition, ShardRouting> diagnosisOutput,
         ShardRouting shardRouting,
         List<NodeAllocationResult> nodeAllocationResults
     ) {
         if (nodeAllocationResults.stream().allMatch(nodeHasDeciderResult(EnableAllocationDecider.NAME, Decision.Type.NO))) {
             diagnosisOutput.accept(ACTION_ENABLE_ALLOCATIONS, shardRouting);
+            return true;
         }
+        return false;
     }
 
-    private void checkDataTierRelatedIssues(
+    private boolean checkDataTierRelatedIssues(
         BiConsumer<UserAction.Definition, ShardRouting> diagnosisOutput,
         IndexMetadata indexMetadata,
         ShardRouting shardRouting,
         List<NodeAllocationResult> nodeAllocationResults
     ) {
+        boolean diagnosisFound = false;
         if (indexMetadata.getTierPreference().size() > 0) {
             List<NodeAllocationResult> dataTierNodes = nodeAllocationResults.stream()
                 .filter(nodeHasDeciderResult(DATA_TIER_ALLOCATION_DECIDER_NAME, Decision.Type.YES))
                 .collect(Collectors.toList());
             if (dataTierNodes.isEmpty()) {
                 diagnosisOutput.accept(ACTION_ENABLE_TIERS, shardRouting);
+                diagnosisFound = true;
             } else {
                 // All tier nodes at shards limit?
                 if (dataTierNodes.stream().allMatch(nodeHasDeciderResult(ShardsLimitAllocationDecider.NAME, Decision.Type.NO))) {
                     diagnosisOutput.accept(ACTION_SHARD_LIMIT, shardRouting);
+                    diagnosisFound = true;
                 }
 
                 // All tier nodes conflict with allocation filters?
                 if (dataTierNodes.stream().allMatch(nodeHasDeciderResult(FilterAllocationDecider.NAME, Decision.Type.NO))) {
                     diagnosisOutput.accept(ACTION_MIGRATE_TIERS, shardRouting);
+                    diagnosisFound = true;
                 }
 
                 // Not enough tier nodes to hold shards on different nodes?
                 if (dataTierNodes.stream().allMatch(nodeHasDeciderResult(SameShardAllocationDecider.NAME, Decision.Type.NO))) {
                     diagnosisOutput.accept(ACTION_INCREASE_TIER_CAPACITY, shardRouting);
+                    diagnosisFound = true;
                 }
             }
         }
+        return diagnosisFound;
     }
 
     private class ShardAllocationStatus {

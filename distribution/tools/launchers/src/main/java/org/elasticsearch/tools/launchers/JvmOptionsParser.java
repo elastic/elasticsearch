@@ -8,8 +8,6 @@
 
 package org.elasticsearch.tools.launchers;
 
-import org.elasticsearch.tools.java_version_checker.JavaVersion;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -170,7 +168,7 @@ final class JvmOptionsParser {
                 Reader reader = new InputStreamReader(is, StandardCharsets.UTF_8);
                 BufferedReader br = new BufferedReader(reader)
             ) {
-                parse(JavaVersion.majorVersion(JavaVersion.CURRENT), br, jvmOptions::add, invalidLines::put);
+                parse(Runtime.version().feature(), br, jvmOptions::add, invalidLines::put);
             }
             if (invalidLines.isEmpty() == false) {
                 throw new JvmOptionsFileParserException(jvmOptionsFile, invalidLines);

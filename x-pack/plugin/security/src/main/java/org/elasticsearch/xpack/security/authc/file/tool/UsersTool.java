@@ -43,11 +43,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class UsersTool extends LoggingAwareMultiCommand {
-
-    public static void main(String[] args) throws Exception {
-        exit(new UsersTool().main(args, Terminal.DEFAULT));
-    }
+class UsersTool extends LoggingAwareMultiCommand {
 
     UsersTool() {
         super("Manages elasticsearch file users");

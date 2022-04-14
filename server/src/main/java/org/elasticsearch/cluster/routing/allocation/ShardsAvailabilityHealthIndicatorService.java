@@ -33,6 +33,7 @@ import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthStatus;
+import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.health.UserAction;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
@@ -476,7 +477,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     primaries.indicesWithUnavailableShards.size() == 1 ? "index" : "indices",
                     getTruncatedIndicesString(primaries.indicesWithUnavailableShards, clusterMetadata)
                 );
-                impacts.add(new HealthIndicatorImpact(1, impactDescription));
+                impacts.add(new HealthIndicatorImpact(1, impactDescription, List.of(ImpactArea.INGEST, ImpactArea.SEARCH)));
             }
             /*
              * It is possible that we're working with an intermediate cluster state, and that for an index we have no primary but a replica
@@ -493,7 +494,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     indicesWithUnavailableReplicasOnly.size() == 1 ? "index" : "indices",
                     getTruncatedIndicesString(indicesWithUnavailableReplicasOnly, clusterMetadata)
                 );
-                impacts.add(new HealthIndicatorImpact(3, impactDescription));
+                impacts.add(new HealthIndicatorImpact(2, impactDescription, List.of(ImpactArea.SEARCH)));
             }
             return impacts;
         }

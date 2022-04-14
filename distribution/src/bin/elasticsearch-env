@@ -77,12 +77,6 @@ if [ ! -z "$JAVA_OPTS" ]; then
   echo "pass JVM parameters via ES_JAVA_OPTS"
 fi
 
-if [[ "$("$JAVA" -version 2>/dev/null)" =~ "Unable to map CDS archive" ]]; then
-  XSHARE="-Xshare:off"
-else
-  XSHARE="-Xshare:auto"
-fi
-
 export HOSTNAME=$HOSTNAME
 
 @source.path.env@
@@ -95,13 +89,7 @@ fi
 # now make ES_PATH_CONF absolute
 ES_PATH_CONF=`cd "$ES_PATH_CONF"; pwd`
 
-ES_DISTRIBUTION_FLAVOR=@es.distribution.flavor@
 ES_DISTRIBUTION_TYPE=@es.distribution.type@
-ES_BUNDLED_JDK=@es.bundled_jdk@
-
-if [[ "$ES_BUNDLED_JDK" == "false" ]]; then
-  echo "warning: no-jdk distributions that do not bundle a JDK are deprecated and will be removed in a future release" >&2
-fi
 
 if [[ "$ES_DISTRIBUTION_TYPE" == "docker" ]]; then
   # Allow environment variables to be set by creating a file with the

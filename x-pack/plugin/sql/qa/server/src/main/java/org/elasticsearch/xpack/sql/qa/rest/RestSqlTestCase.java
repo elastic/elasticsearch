@@ -1640,7 +1640,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         for (int i = 0; i < maxWarningHeaders - 1 + okShards + extraBadShards; i++) {
             Request request = new Request("PUT", "/test" + i);
             boolean indexWithDocVals = i < okShards;
-            request.setJsonEntity(String.format(mappingTemplate, indexWithDocVals, indexWithDocVals));
+            request.setJsonEntity(String.format(Locale.ROOT, mappingTemplate, indexWithDocVals, indexWithDocVals));
             assertOK(provisioningClient().performRequest(request));
             indexWithIndexName("test" + i, "{\"bool\": " + randomBoolean() + "}");
         }

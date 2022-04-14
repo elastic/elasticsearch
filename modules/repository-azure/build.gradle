@@ -23,50 +23,47 @@ esplugin {
 }
 
 versions << [
-  'azure': '12.9.0',
-  'azureCore': '1.10.0',
-  'azureCoreHttpNetty': '1.6.3',
+  'azure': '12.14.4',
+  'azureCommon': '12.14.3',
+  'azureCore': '1.25.0',
+  'azureCoreHttpNetty': '1.11.7',
+  'azureJackson': '2.13.2',
+  'azureJacksonDatabind': '2.13.2.2',
 
   'jakartaActivation': '1.2.1',
   'jakartaXMLBind': '2.3.2',
-  'stax2API': '4.2',
-  'woodstox': '6.0.2',
+  'stax2API': '4.2.1',
+  'woodstox': '6.2.7',
 
-  'reactorNetty': '0.9.12.RELEASE',
-  'reactorCore': '3.3.10.RELEASE',
+  'reactorNetty': '1.0.14',
+  'reactorCore': '3.4.13',
   'reactiveStreams': '1.0.3',
 ]
 
 dependencies {
-  api project(path: 'azure-storage-blob', configuration: 'shadow')
-  if (isEclipse) {
-    /*
-     * Eclipse can't pick up the shadow dependency so we point it at *something*
-     * so it can compile things.
-     */
-    api project(path: 'azure-storage-blob')
-  }
-  api "com.azure:azure-storage-common:${versions.azure}"
+  api "com.azure:azure-storage-blob:${versions.azure}"
+  api "com.azure:azure-storage-common:${versions.azureCommon}"
   api "com.azure:azure-core-http-netty:${versions.azureCoreHttpNetty}"
   api "com.azure:azure-core:${versions.azureCore}"
 
   // jackson
-  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
-  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
-  api "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
-  api "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  api "com.fasterxml.jackson.core:jackson-core:${versions.azureJackson}"
+  api "com.fasterxml.jackson.core:jackson-databind:${versions.azureJacksonDatabind}"
+  api "com.fasterxml.jackson.core:jackson-annotations:${versions.azureJackson}"
 
   // jackson xml
-  api "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${versions.jackson}"
-  api "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}"
-  api "com.fasterxml.jackson.module:jackson-module-jaxb-annotations:${versions.jackson}"
+  api "com.fasterxml.jackson.dataformat:jackson-dataformat-xml:${versions.azureJackson}"
+  api "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.azureJackson}"
+  api "com.fasterxml.jackson.module:jackson-module-jaxb-annotations:${versions.azureJackson}"
   api "jakarta.activation:jakarta.activation-api:${versions.jakartaActivation}"
+  // The SDK uses javax.xml bindings
   api "jakarta.xml.bind:jakarta.xml.bind-api:${versions.jakartaXMLBind}"
   api "org.codehaus.woodstox:stax2-api:${versions.stax2API}"
   api "com.fasterxml.woodstox:woodstox-core:${versions.woodstox}"
 
   // netty
   api "io.netty:netty-buffer:${versions.netty}"
+  api "io.netty:netty-codec-dns:${versions.netty}"
   api "io.netty:netty-codec-http:${versions.netty}"
   api "io.netty:netty-codec-http2:${versions.netty}"
   api "io.netty:netty-codec-socks:${versions.netty}"
@@ -75,10 +72,13 @@ dependencies {
   api "io.netty:netty-handler-proxy:${versions.netty}"
   api "io.netty:netty-handler:${versions.netty}"
   api "io.netty:netty-resolver:${versions.netty}"
+  api "io.netty:netty-resolver-dns:${versions.netty}"
   api "io.netty:netty-transport:${versions.netty}"
+  api "io.netty:netty-transport-native-unix-common:${versions.netty}"
 
   // reactor
-  api "io.projectreactor.netty:reactor-netty:${versions.reactorNetty}"
+  api "io.projectreactor.netty:reactor-netty-core:${versions.reactorNetty}"
+  api "io.projectreactor.netty:reactor-netty-http:${versions.reactorNetty}"
   api "io.projectreactor:reactor-core:${versions.reactorCore}"
   api "org.reactivestreams:reactive-streams:${versions.reactiveStreams}"
 
@@ -110,6 +110,7 @@ tasks.named("dependencyLicenses").configure {
   mapping from: /netty-.*/, to: 'netty'
   mapping from: /jaxb-.*/, to: 'jaxb'
   mapping from: /stax-.*/, to: 'stax'
+  mapping from: /reactor-netty-.*/, to: 'reactor-netty'
   mapping from: /reactive-streams.*/, to: 'reactive-streams'
 }
 
@@ -121,6 +122,11 @@ tasks.named("thirdPartyAudit").configure {
     'com.aayushatharva.brotli4j.encoder.Encoder',
     'com.aayushatharva.brotli4j.encoder.Encoder$Mode',
     'com.aayushatharva.brotli4j.encoder.Encoder$Parameters',
+
+    'com.azure.storage.internal.avro.implementation.AvroObject',
+    'com.azure.storage.internal.avro.implementation.AvroReader',
+    'com.azure.storage.internal.avro.implementation.AvroReaderFactory',
+    'com.azure.storage.internal.avro.implementation.schema.AvroSchema',
 
     // from reactory-netty metric collection
     'io.micrometer.core.instrument.Clock',
@@ -255,10 +261,16 @@ tasks.named("thirdPartyAudit").configure {
     'io.netty.channel.kqueue.KQueueDatagramChannel',
     'io.netty.channel.kqueue.KQueueServerSocketChannel',
     'io.netty.channel.kqueue.KQueueSocketChannel',
+
     'io.netty.channel.epoll.Epoll',
     'io.netty.channel.epoll.EpollDatagramChannel',
     'io.netty.channel.epoll.EpollServerSocketChannel',
     'io.netty.channel.epoll.EpollSocketChannel',
+
+    'io.netty.incubator.channel.uring.IOUring',
+    'io.netty.incubator.channel.uring.IOUringDatagramChannel',
+    'io.netty.incubator.channel.uring.IOUringServerSocketChannel',
+    'io.netty.incubator.channel.uring.IOUringSocketChannel',
 
     // from reactor.netty.http.server.HttpServer (reactor-netty)
     'io.netty.handler.codec.haproxy.HAProxyMessage',
@@ -269,8 +281,7 @@ tasks.named("thirdPartyAudit").configure {
     'org.osgi.framework.BundleContext',
 
     // from com.ctc.wstx.shaded.msv_core.driver.textui.Driver (woodstox-core)
-    'com.sun.org.apache.xml.internal.resolver.Catalog',
-    'com.sun.org.apache.xml.internal.resolver.tools.CatalogResolver',
+    'com.ctc.wstx.shaded.msv_core.driver.textui.Driver',
     // [missing classes] SLF4j includes an optional class that depends on an extension class. see Log4jLogger#createConverter
     'org.slf4j.ext.EventData'
   )
@@ -297,12 +308,7 @@ tasks.named("thirdPartyAudit").configure {
 
     'javax.activation.MailcapCommandMap',
     'javax.activation.MimetypesFileTypeMap',
-
-    'reactor.core.publisher.MultiProducerRingBuffer',
-    'reactor.core.publisher.RingBufferFields',
     'reactor.core.publisher.Traces$SharedSecretsCallSiteSupplierFactory$TracingException',
-    'reactor.core.publisher.UnsafeSequence',
-    'reactor.core.publisher.UnsafeSupport'
   )
 }
 boolean useFixture = false

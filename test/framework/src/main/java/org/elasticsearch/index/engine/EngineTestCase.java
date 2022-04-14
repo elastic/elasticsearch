@@ -1137,22 +1137,18 @@ public abstract class EngineTestCase extends ESTestCase {
             );
             if (op instanceof Engine.Index) {
                 Engine.IndexResult result = replicaEngine.index((Engine.Index) op);
-                // replicas don't really care to about creation status of documents
-                // this allows to ignore the case where a document was found in the live version maps in
-                // a delete state and return false for the created flag in favor of code simplicity
-                // as deleted or not. This check is just signal regression so a decision can be made if it's
-                // intentional
+                // Replicas don't really care about the creation status of documents. This allows us to ignore the case where a document was
+                // found in the live version maps in a delete state and return false for the created flag in favor of code simplicity as
+                // deleted or not. This check is just to signal a regression so a decision can be made if it's intentional.
                 assertThat(result.isCreated(), equalTo(firstOp));
                 assertThat(result.getVersion(), equalTo(op.version()));
                 assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));
 
             } else {
                 Engine.DeleteResult result = replicaEngine.delete((Engine.Delete) op);
-                // Replicas don't really care to about found status of documents
-                // this allows to ignore the case where a document was found in the live version maps in
-                // a delete state and return true for the found flag in favor of code simplicity
-                // his check is just signal regression so a decision can be made if it's
-                // intentional
+                // Replicas don't really care about the "found" status of documents. This allows us to ignore the case where a document was
+                // found in the live version maps in a delete state and return true for the found flag in favor of code simplicity. This
+                // check is just to signal a regression so a decision can be made if it's intentional.
                 assertThat(result.isFound(), equalTo(firstOp == false));
                 assertThat(result.getVersion(), equalTo(op.version()));
                 assertThat(result.getResultType(), equalTo(Engine.Result.Type.SUCCESS));

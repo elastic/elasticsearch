@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
@@ -314,11 +315,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
         assert DiscoveryNodeRole.roleNames().stream().noneMatch(attributes::containsKey)
             : "Node roles must not be provided as attributes but saw attributes " + attributes;
         this.roles = Collections.unmodifiableSortedSet(new TreeSet<>(roles));
-        if (externalId != null) {
-            this.externalId = externalId;
-        } else {
-            this.externalId = "";
-        }
+        this.externalId = Objects.requireNonNullElse(externalId, this.nodeName);
     }
 
     /** Creates a DiscoveryNode representing the local node. */

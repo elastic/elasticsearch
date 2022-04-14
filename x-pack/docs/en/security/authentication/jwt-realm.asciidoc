@@ -28,7 +28,7 @@ xpack.security.authc.realms.jwt.jwt1:
   order: 3 <1>
   client_authentication.type: shared_secret <2>
   allowed_issuer: "https://issuer.example.com/jwt/" <3>
-  allowed_audiences: [ "https://app.example.net/" ]
+  allowed_audiences: [ "8fb85eba-979c-496c-8ae2-a57fde3f12d0" ]
   allowed_signature_algorithms: [RS256] <4>
   pkc_jwkset_path: example.jwkset
   claims.principal: sub <5>

@@ -82,6 +82,7 @@ import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -181,9 +182,24 @@ public class AuthorizationService {
     ) {
         getAuthorizationEngineForSubject(subject).checkPrivileges(
             getAuthorizationInfoFromContext(),
-            request,
+            new AuthorizationEngine.PrivilegesToCheck(
+                Arrays.asList(request.clusterPrivileges()),
+                Arrays.asList(request.indexPrivileges()),
+                Arrays.asList(request.applicationPrivileges())
+            ),
             applicationPrivilegeDescriptors,
-            wrapPreservingContext(listener, threadContext)
+            wrapPreservingContext(
+                listener.map(
+                    privilegesCheckResult -> new HasPrivilegesResponse(
+                        request.username(),
+                        privilegesCheckResult.allMatch(),
+                        privilegesCheckResult.cluster(),
+                        privilegesCheckResult.index().values(),
+                        privilegesCheckResult.application()
+                    )
+                ),
+                threadContext
+            )
         );
     }
 

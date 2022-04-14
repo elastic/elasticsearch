@@ -53,7 +53,9 @@ import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesCheckResult;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
@@ -402,31 +404,28 @@ public class RBACEngineTests extends ESTestCase {
             .build();
         RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
 
-        final HasPrivilegesRequest request = new HasPrivilegesRequest();
-        request.username(user.principal());
-        request.clusterPrivileges(ClusterHealthAction.NAME);
-        request.indexPrivileges(
-            RoleDescriptor.IndicesPrivileges.builder().indices("academy").privileges(DeleteAction.NAME, IndexAction.NAME).build()
+        final AuthorizationEngine.PrivilegesToCheck privilegesToCheck = new AuthorizationEngine.PrivilegesToCheck(
+            List.of(ClusterHealthAction.NAME),
+            List.of(RoleDescriptor.IndicesPrivileges.builder().indices("academy").privileges(DeleteAction.NAME, IndexAction.NAME).build()),
+            List.of(new RoleDescriptor.ApplicationResourcePrivileges[0])
         );
-        request.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
 
-        final PlainActionFuture<HasPrivilegesResponse> future = new PlainActionFuture<>();
-        engine.checkPrivileges(authzInfo, request, Collections.emptyList(), future);
+        final PlainActionFuture<PrivilegesCheckResult> future = new PlainActionFuture<>();
+        engine.checkPrivileges(authzInfo, privilegesToCheck, Collections.emptyList(), future);
 
-        final HasPrivilegesResponse response = future.get();
-        assertThat(response, notNullValue());
-        assertThat(response.getUsername(), is(user.principal()));
-        assertThat(response.isCompleteMatch(), is(true));
+        final PrivilegesCheckResult result = future.get();
+        assertThat(result, notNullValue());
+        assertThat(result.allMatch(), is(true));
 
-        assertThat(response.getClusterPrivileges(), aMapWithSize(1));
-        assertThat(response.getClusterPrivileges().get(ClusterHealthAction.NAME), equalTo(true));
+        assertThat(result.cluster(), aMapWithSize(1));
+        assertThat(result.cluster().get(ClusterHealthAction.NAME), equalTo(true));
 
-        assertThat(response.getIndexPrivileges(), Matchers.iterableWithSize(1));
-        final ResourcePrivileges result = response.getIndexPrivileges().iterator().next();
-        assertThat(result.getResource(), equalTo("academy"));
-        assertThat(result.getPrivileges(), aMapWithSize(2));
-        assertThat(result.getPrivileges().get(DeleteAction.NAME), equalTo(true));
-        assertThat(result.getPrivileges().get(IndexAction.NAME), equalTo(true));
+        assertThat(result.index().values(), Matchers.iterableWithSize(1));
+        final ResourcePrivileges resourcePrivileges = result.index().values().iterator().next();
+        assertThat(resourcePrivileges.getResource(), equalTo("academy"));
+        assertThat(resourcePrivileges.getPrivileges(), aMapWithSize(2));
+        assertThat(resourcePrivileges.getPrivileges().get(DeleteAction.NAME), equalTo(true));
+        assertThat(resourcePrivileges.getPrivileges().get(IndexAction.NAME), equalTo(true));
     }
 
     /**

@@ -13,10 +13,9 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
-import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
-import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -189,15 +188,15 @@ public interface AuthorizationEngine {
      *
      * @param authorizationInfo information needed from authorization that was previously retrieved
      *                          from {@link #resolveAuthorizationInfo(RequestInfo, ActionListener)}
-     * @param hasPrivilegesRequest the request that contains the privileges to check for the user
+     * @param privilegesToCheck the object that contains the privileges to check for the user
      * @param applicationPrivilegeDescriptors a collection of application privilege descriptors
      * @param listener the listener to be notified of the has privileges response
      */
     void checkPrivileges(
         AuthorizationInfo authorizationInfo,
-        HasPrivilegesRequest hasPrivilegesRequest,
+        PrivilegesToCheck privilegesToCheck,
         Collection<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors,
-        ActionListener<HasPrivilegesResponse> listener
+        ActionListener<PrivilegesCheckResult> listener
     );
 
     /**
@@ -238,6 +237,19 @@ public interface AuthorizationEngine {
             return this;
         }
     }
+
+    record PrivilegesToCheck(
+        Collection<String> cluster,
+        Collection<RoleDescriptor.IndicesPrivileges> index,
+        Collection<RoleDescriptor.ApplicationResourcePrivileges> application
+    ) {}
+
+    record PrivilegesCheckResult(
+        boolean allMatch,
+        Map<String, Boolean> cluster,
+        Map<String, ResourcePrivileges> index,
+        Map<String, Collection<ResourcePrivileges>> application
+    ) {}
 
     /**
      * Implementation of authorization info that is used in cases where we were not able to resolve

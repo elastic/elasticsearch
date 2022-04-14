@@ -123,8 +123,6 @@ import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
-import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
-import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureHandler;
@@ -2729,9 +2727,9 @@ public class AuthorizationServiceTests extends ESTestCase {
             @Override
             public void checkPrivileges(
                 AuthorizationInfo authorizationInfo,
-                HasPrivilegesRequest hasPrivilegesRequest,
+                PrivilegesToCheck privilegesToCheck,
                 Collection<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors,
-                ActionListener<HasPrivilegesResponse> listener
+                ActionListener<PrivilegesCheckResult> listener
             ) {
                 throw new UnsupportedOperationException("not implemented");
             }

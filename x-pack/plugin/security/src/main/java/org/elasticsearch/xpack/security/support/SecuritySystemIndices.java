@@ -844,7 +844,7 @@ public class SecuritySystemIndices {
                             builder.endObject();
 
                             // Searchable application specific data
-                            builder.startObject("access");
+                            builder.startObject("labels");
                             builder.field("type", "flattened");
                             builder.endObject();
 

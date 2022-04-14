@@ -83,7 +83,7 @@ public class ProfileServiceTests extends ESTestCase {
               "full_name": "User Foo"
             },
             "last_synchronized": %s,
-            "access": {
+            "labels": {
             },
             "application_data": {
               "app1": { "name": "app1" },

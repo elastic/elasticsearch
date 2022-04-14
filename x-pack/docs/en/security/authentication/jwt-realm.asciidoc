@@ -44,6 +44,7 @@ xpack.security.authc.realms.jwt.jwt1:
 <4> The `allowed_signature_algorithms` and `pkc_jwkset_path` settings are
     described below in <<jws-signature-validation>>
 <5> The `claims.principal` setting is described below in <<jwt-authorization>>
+
 [[external-workflow-requirements]]
 ==== External Workflow Requirements
 

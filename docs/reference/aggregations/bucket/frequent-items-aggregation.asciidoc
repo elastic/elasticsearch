@@ -74,3 +74,78 @@ parameter has a significant effect on memory and runtime.
 [[frequent-items-example]]
 ==== Example
 
+In this example, we use the e-commerce {kib} sample data set. The goal is to 
+find out from what product categories customers frequently purchase products 
+together based on transaction data. We are interested in sets with two items, 
+and want to see the first three frequent item setes with the highest support. 
+
+[source,console]
+-------------------------------------------------
+GET kibana_sample_data_ecommerce / _search 
+{
+ "size": 0,
+	"aggs": {
+		"my_agg": {
+			"frequent_items": {
+				"minimum_set_size": 2,
+				"fields": [ 
+          {"field": "category.keyword"}
+				],
+				"size": 3
+			}
+		}
+	}
+}
+-------------------------------------------------
+// TEST[skip:setup kibana sample data]
+
+The API returns a response similar to the following one:
+
+[source,console-result]
+-------------------------------------------------
+(...)
+"aggregations" : {
+    "frequ" : {
+      "buckets" : [
+        {
+          "key" : {
+            "category.keyword" : [
+              "Women's Clothing",
+              "Women's Shoes"
+            ]
+          },
+          "doc_count" : 738,
+          "support" : 0.15786096256684493
+        },
+        {
+          "key" : {
+            "category.keyword" : [
+              "Men's Clothing",
+              "Men's Shoes"
+            ]
+          },
+          "doc_count" : 695,
+          "support" : 0.14866310160427806
+        },
+        {
+          "key" : {
+            "category.keyword" : [
+              "Women's Clothing",
+              "Women's Accessories"
+            ]
+          },
+          "doc_count" : 449,
+          "support" : 0.0960427807486631
+        }
+      ],
+    (...) 
+  }
+}
+-------------------------------------------------
+
+The response shows that the categories customers purcashe from most frequently 
+together are `Women's Clothing` and `Women's Shoes`. It means that customers who 
+buy products labelled Women's Clothing more likely buy products also from the 
+Women's Shoes category. The item set with the second highest support is 
+`Men's Clothing` and `Men's Shoes`. Finally, the item set with the third highest 
+support is `Women's Clothing` and `Women's Accessories`.

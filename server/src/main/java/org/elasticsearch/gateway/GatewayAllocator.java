@@ -662,17 +662,24 @@ public class GatewayAllocator implements ExistingShardsAllocator {
                                 targetShards.remove(shard.shardId());
                             }
 
-                            // some shards may not respond
+                            // some shards don't have copy on this node
                             for (ShardId shard : targetShards.keySet()) {
-                                curNodeRequests.get(shard)
-                                    .getListener()
-                                    .onFailure(
-                                        new FailedNodeException(
-                                            node.getId(),
-                                            "Failed node [" + node.getId() + "]",
-                                            new Exception("Failed to fetch " + shard)
-                                        )
-                                    );
+                                // transfer to NodeStoreFilesMetadata to bwc.
+                                List<NodeStoreFilesMetadata> listStoreFiles = new ArrayList<>(1);
+                                listStoreFiles.add(new NodeStoreFilesMetadata(node, StoreFilesMetadata.EMPTY));
+
+                                NodesStoreFilesMetadata newNodesResponse = new NodesStoreFilesMetadata(
+                                    nodesBatchStoreFilesMetadata.getClusterName(),
+                                    listStoreFiles,
+                                    nodesBatchStoreFilesMetadata.failures()
+                                );
+
+                                ShardRequestInfo<NodeStoreFilesMetadata> requestInfo = curNodeRequests.get(shard);
+                                if (requestInfo != null) {
+                                    requestInfo.getListener().onResponse(newNodesResponse);
+                                } else {
+                                    logger.debug("replica shard {} fetching has failed, listener has been cleared", shard);
+                                }
                             }
                         }
 

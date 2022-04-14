@@ -10,6 +10,7 @@ package org.elasticsearch.indices.store;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -202,15 +203,24 @@ public class TransportNodesListShardStoreMetadata extends TransportNodesAction<
         public static final StoreFilesMetadata EMPTY = new StoreFilesMetadata(FAKE_SHARD_ID, Store.MetadataSnapshot.EMPTY, emptyList());
 
         public static StoreFilesMetadata readFrom(StreamInput in) throws IOException {
-            final var shardId = new ShardId(in);
+            ShardId shardId = FAKE_SHARD_ID;
+            if (in.getVersion().onOrAfter(Version.V_8_3_0)) {
+                shardId = new ShardId(in);
+            }
             final var metadataSnapshot = Store.MetadataSnapshot.readFrom(in);
             final var peerRecoveryRetentionLeases = in.readList(RetentionLease::new);
-            return new StoreFilesMetadata(shardId, metadataSnapshot, peerRecoveryRetentionLeases);
+            if (metadataSnapshot == Store.MetadataSnapshot.EMPTY && peerRecoveryRetentionLeases.isEmpty()) {
+                return EMPTY;
+            } else {
+                return new StoreFilesMetadata(shardId, metadataSnapshot, peerRecoveryRetentionLeases);
+            }
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            shardId.writeTo(out);
+            if (out.getVersion().onOrAfter(Version.V_8_3_0)) {
+                shardId.writeTo(out);
+            }
             metadataSnapshot.writeTo(out);
             out.writeList(peerRecoveryRetentionLeases);
         }

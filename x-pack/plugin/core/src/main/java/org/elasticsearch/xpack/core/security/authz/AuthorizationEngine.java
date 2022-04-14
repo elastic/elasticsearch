@@ -187,7 +187,6 @@ public interface AuthorizationEngine {
      * request. This provides a way for an application to ask if a user has permission to perform
      * an action or if they have permissions to an application resource.
      *
-     * @param authentication the authentication that is associated with this request
      * @param authorizationInfo information needed from authorization that was previously retrieved
      *                          from {@link #resolveAuthorizationInfo(RequestInfo, ActionListener)}
      * @param hasPrivilegesRequest the request that contains the privileges to check for the user
@@ -195,7 +194,6 @@ public interface AuthorizationEngine {
      * @param listener the listener to be notified of the has privileges response
      */
     void checkPrivileges(
-        Authentication authentication,
         AuthorizationInfo authorizationInfo,
         HasPrivilegesRequest hasPrivilegesRequest,
         Collection<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors,

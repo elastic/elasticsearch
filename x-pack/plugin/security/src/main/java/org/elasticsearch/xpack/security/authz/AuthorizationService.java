@@ -49,8 +49,10 @@ import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRespon
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationContext;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AsyncSupplier;
@@ -172,13 +174,12 @@ public class AuthorizationService {
     }
 
     public void checkPrivileges(
-        Authentication authentication,
+        Subject subject,
         HasPrivilegesRequest request,
         Collection<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors,
         ActionListener<HasPrivilegesResponse> listener
     ) {
-        getAuthorizationEngine(authentication).checkPrivileges(
-            authentication,
+        getAuthorizationEngineForSubject(subject).checkPrivileges(
             getAuthorizationInfoFromContext(),
             request,
             applicationPrivilegeDescriptors,
@@ -579,12 +580,18 @@ public class AuthorizationService {
 
     // pkg-private for testing
     AuthorizationEngine getRunAsAuthorizationEngine(final Authentication authentication) {
-        return getAuthorizationEngineForUser(authentication.getUser().authenticatedUser());
+        final Subject subject = AuthenticationContext.fromAuthentication(authentication).getAuthenticatingSubject();
+        return getAuthorizationEngineForSubject(subject);
     }
 
     // pkg-private for testing
     AuthorizationEngine getAuthorizationEngine(final Authentication authentication) {
-        return getAuthorizationEngineForUser(authentication.getUser());
+        final Subject subject = AuthenticationContext.fromAuthentication(authentication).getEffectiveSubject();
+        return getAuthorizationEngineForSubject(subject);
+    }
+
+    AuthorizationEngine getAuthorizationEngineForSubject(final Subject subject) {
+        return getAuthorizationEngineForUser(subject.getUser());
     }
 
     private AuthorizationEngine getAuthorizationEngineForUser(final User user) {

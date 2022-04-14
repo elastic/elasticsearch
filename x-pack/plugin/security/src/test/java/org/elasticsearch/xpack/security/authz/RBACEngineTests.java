@@ -396,8 +396,6 @@ public class RBACEngineTests extends ESTestCase {
      */
     public void testNamedIndexPrivilegesMatchApplicableActions() throws Exception {
         User user = new User(randomAlphaOfLengthBetween(4, 12));
-        Authentication authentication = mock(Authentication.class);
-        when(authentication.getUser()).thenReturn(user);
         Role role = Role.builder(RESTRICTED_INDICES, "test1")
             .cluster(Collections.singleton("all"), Collections.emptyList())
             .add(IndexPrivilege.WRITE, "academy")
@@ -413,7 +411,7 @@ public class RBACEngineTests extends ESTestCase {
         request.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
 
         final PlainActionFuture<HasPrivilegesResponse> future = new PlainActionFuture<>();
-        engine.checkPrivileges(authentication, authzInfo, request, Collections.emptyList(), future);
+        engine.checkPrivileges(authzInfo, request, Collections.emptyList(), future);
 
         final HasPrivilegesResponse response = future.get();
         assertThat(response, notNullValue());
@@ -437,8 +435,6 @@ public class RBACEngineTests extends ESTestCase {
      */
     public void testMatchSubsetOfPrivileges() throws Exception {
         User user = new User(randomAlphaOfLengthBetween(4, 12));
-        Authentication authentication = mock(Authentication.class);
-        when(authentication.getUser()).thenReturn(user);
         Role role = Role.builder(RESTRICTED_INDICES, "test2")
             .cluster(Set.of("monitor"), Set.of())
             .add(IndexPrivilege.INDEX, "academy")
@@ -457,7 +453,7 @@ public class RBACEngineTests extends ESTestCase {
         );
         request.applicationPrivileges(new RoleDescriptor.ApplicationResourcePrivileges[0]);
         final PlainActionFuture<HasPrivilegesResponse> future = new PlainActionFuture<>();
-        engine.checkPrivileges(authentication, authzInfo, request, Collections.emptyList(), future);
+        engine.checkPrivileges(authzInfo, request, Collections.emptyList(), future);
 
         final HasPrivilegesResponse response = future.get();
         assertThat(response, notNullValue());
@@ -553,8 +549,6 @@ public class RBACEngineTests extends ESTestCase {
             "space:view/*"
         );
         User user = new User(randomAlphaOfLengthBetween(4, 12));
-        Authentication authentication = mock(Authentication.class);
-        when(authentication.getUser()).thenReturn(user);
         Role role = Role.builder(RESTRICTED_INDICES, "test3")
             .add(IndexPrivilege.ALL, "logstash-*", "foo?")
             .add(IndexPrivilege.READ, "abc*")
@@ -612,7 +606,7 @@ public class RBACEngineTests extends ESTestCase {
         );
 
         final PlainActionFuture<HasPrivilegesResponse> future = new PlainActionFuture<>();
-        engine.checkPrivileges(authentication, authzInfo, request, privs, future);
+        engine.checkPrivileges(authzInfo, request, privs, future);
 
         final HasPrivilegesResponse response = future.get();
         assertThat(response, notNullValue());
@@ -1579,7 +1573,7 @@ public class RBACEngineTests extends ESTestCase {
         request.indexPrivileges(indicesPrivileges);
         request.applicationPrivileges(appPrivileges);
         final PlainActionFuture<HasPrivilegesResponse> future = new PlainActionFuture<>();
-        engine.checkPrivileges(authentication, authorizationInfo, request, applicationPrivilegeDescriptors, future);
+        engine.checkPrivileges(authorizationInfo, request, applicationPrivilegeDescriptors, future);
         final HasPrivilegesResponse response = future.get();
         assertThat(response, notNullValue());
         return response;

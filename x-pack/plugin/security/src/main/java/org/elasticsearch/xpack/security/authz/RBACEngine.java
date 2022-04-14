@@ -507,7 +507,6 @@ public class RBACEngine implements AuthorizationEngine {
 
     @Override
     public void checkPrivileges(
-        Authentication authentication,
         AuthorizationInfo authorizationInfo,
         HasPrivilegesRequest request,
         Collection<ApplicationPrivilegeDescriptor> applicationPrivileges,

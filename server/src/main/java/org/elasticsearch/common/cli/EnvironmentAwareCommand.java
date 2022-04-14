@@ -106,7 +106,8 @@ public abstract class EnvironmentAwareCommand extends Command {
         final Map<String, String> sysprops,
         final Map<String, String> settings,
         final String setting,
-        final String key) {
+        final String key
+    ) {
         final String value = sysprops.get(key);
         if (value != null) {
             if (settings.containsKey(setting)) {

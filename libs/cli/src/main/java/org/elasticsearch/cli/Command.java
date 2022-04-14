@@ -166,8 +166,9 @@ public abstract class Command implements Closeable {
     @SuppressForbidden(reason = "capture system properties")
     protected Map<String, String> captureSystemProperties() {
         Properties properties = AccessController.doPrivileged((PrivilegedAction<Properties>) System::getProperties);
-        return properties.entrySet().stream().collect(
-            Collectors.toUnmodifiableMap(e -> e.getKey().toString(), e -> e.getValue().toString()));
+        return properties.entrySet()
+            .stream()
+            .collect(Collectors.toUnmodifiableMap(e -> e.getKey().toString(), e -> e.getValue().toString()));
     }
 
     // protected to allow for tests to override

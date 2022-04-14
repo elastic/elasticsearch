@@ -76,7 +76,7 @@ NOTE: Since JWTs are acquired external to {es}, a bespoke workflow can be used i
 
 When a JWT realm is used for authentication into {es}, a distinction is made between the
 _client_ that is connecting to {es}, and the _end-user_ on whose behalf the request should execute.
-The JWT identifies the user, but a separate credential must be used to authenticate the client itself.
+The JWT identifies the user, and a separate credential should be used to authenticate the client itself.
 
 See <<jwt-client-authentication>> and <<jwt-validation>>.
 

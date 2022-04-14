@@ -1,5 +1,5 @@
 [role="xpack"]
-[[security-api-activiate-user-profile]]
+[[security-api-activate-user-profile]]
 === Activate user profile API
 ++++
 <titleabbrev>Activate user profile</titleabbrev>

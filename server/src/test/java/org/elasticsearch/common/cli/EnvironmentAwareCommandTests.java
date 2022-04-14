@@ -47,14 +47,17 @@ public class EnvironmentAwareCommandTests extends CommandTestCase {
                     callback.accept(env);
                 }
             }
+
             @Override
             protected Map<String, String> captureSystemProperties() {
                 return mockSystemProperties(createTempDir());
             }
+
             @Override
             protected Map<String, String> captureEnvironmentVariables() {
                 return mockEnvVars;
             }
+
             @Override
             protected Build.Type getBuildType() {
                 return buildType;

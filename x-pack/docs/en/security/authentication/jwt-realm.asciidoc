@@ -44,28 +44,28 @@ xpack.security.authc.realms.jwt.jwt1:
 [[external-workflow-requirements]]
 ==== External Workflow Requirements
 
-JWT realm functionality is derived from OIDC ID Connect (OIDC) workflows. A high-level understanding of OIDC Tokens helps with JWT realm.
+JWT realm functionality is derived from OpenID Connect (OIDC) workflows. A high-level understanding of OIDC Tokens helps with JWT realm.
 
 In OIDC workflows, end-users initiates contact with an OIDC Relying Party (RP), and are redirected to authenticate to an OIDC Provider (OP).
 Separate tokens are issued at different steps to represent authentication, authorization, and identification.
 
 .OIDC Tokens
 * Grant Token: End-users authenticate to the OIDC OP, receive an OIDC Grant Token, and present it to the OIDC RP as proof of authentication.
-* ID Token: OIDC RPs ask the OIDC OP to verify the OIDC Grant Token, and exchange it for two tokens. One is an OIDC ID Token.
+* ID Token: OIDC RPs ask the OIDC OP to verify the OIDC Grant Token, and exchange it for two tokens. One is an OpenID Token.
 * Access Token: OIDC RPs ask the OIDC OP to verify the OIDC Grant Token, and exchange it for two tokens. One is an OIDC Access Token.
 
-IMPORTANT: The OIDC ID Token is a JWT. The encoding is transparent to the OIDC RP, the Grant and Access tokens are opaque values.
+IMPORTANT: The OpenID Token is a JWT. The encoding is transparent to the OIDC RP, the Grant and Access tokens are opaque values.
 
 When the OIDC RP performs actions on behalf of the end-user, it can make calls into some back-end applications.
 
 .If the back-end application is:
 * part of OIDC OP workflow, the OIDC RP presents the OIDC Access token, and the back-end application asks the OIDC OP to verify authorization.
-* {es} (not part of OIDC OP work), the OIDC RP must present the OIDC ID Token.
+* {es} (not part of OIDC OP work), the OIDC RP must present the OpenID Token.
 
-A JWT realm will validate the contents of the OIDC ID Token, and use it to authenticate, identify, and authorize the end-user.
+A JWT realm will validate the contents of the OpenID Token, and use it to authenticate, identify, and authorize the end-user.
 
 NOTE: Since JWTs are acquired external to {es}, a bespoke workflow can be used instead of OIDC workflow.
-      However, the JWT format must still be similar to OIDC ID Tokens. See <<jwt-validation>>.
+      However, the JWT format must still be similar to OpenID Tokens. See <<jwt-validation>>.
 
 [[jwt-authentication-requirements]]
 ==== JWT Authentication Requirements
@@ -106,12 +106,12 @@ See <<jwt-client-authentication>> for the other credential.
 The supported JWT encoding is JSON Web Signature (JWS).
 See <<jws-header-validation>> and <<jws-signature-validation>>.
 
-The supported JWT payload is an OIDC ID Token claims set. See <<jwt-claims-set-validation>>.
+The supported JWT payload is an OpenID Token claims set. See <<jwt-claims-set-validation>>.
 
 [[jws-header-validation]]
 ==== JWS header validation
 
-Values `alg` and `typ` are validated using OIDC ID Token validation rules.
+Values `alg` and `typ` are validated using OpenID Token validation rules.
 
 TIP: `alg` is required. `alg` must be allowed in JWT realm settings.
 
@@ -120,7 +120,7 @@ See `allowed_signature_algorithms` in <<ref-jwt-settings>>.
 [[jwt-claims-set-validation]]
 ==== JWT claims set validation
 
-OIDC ID Token claims `iss`, `aud`, `sub`, `exp`, `iat`, `nbf`, and `auth_time` are validated using OIDC ID Token validation rules.
+OpenID Token claims `iss`, `aud`, `sub`, `exp`, `iat`, `nbf`, and `auth_time` are validated using OpenID Token validation rules.
 
 IMPORTANT: `nonce` claim is ignored; it is only applicable inside an OIDC workflow, not application to JWT realm.
 

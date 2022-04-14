@@ -400,7 +400,6 @@ public class AggregatorFactories {
             AggregatorFactory[] aggFactories = new AggregatorFactory[aggregationBuilders.size()];
             int i = 0;
             for (AggregationBuilder agg : aggregationBuilders) {
-                // TODO: Wrap with profiling factory
                 aggFactories[i] = agg.build(context, parent);
                 ++i;
             }

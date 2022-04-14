@@ -14,7 +14,7 @@ Highlighting::
 * Fix wildcard highlighting on `match_only_text` {es-pull}85500[#85500] (issue: {es-issue}85493[#85493])
 
 Machine Learning::
-* Allow retrieving `boolean` fields from `_source` in DFA jobs {es-pull}85672[#85672]
+* Allow retrieving `boolean` fields from `_source` in data frame analytics jobs {es-pull}85672[#85672]
 * Avoid multiple queued quantiles documents in renormalizer {es-pull}85555[#85555] (issue: {es-issue}85539[#85539])
 
 Search::

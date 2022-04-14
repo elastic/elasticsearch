@@ -129,11 +129,11 @@ public class JdbcShardFailureIT extends JdbcIntegrationTestCase {
             assertEquals(maxWarningHeaders - 1, failedShards);
             assertTrue(hasSupressMessage);
 
-            int results = 0;
+            int rows = 0;
             while (rs.next()) {
-                results++;
+                rows++;
             }
-            assertTrue(results >= okShards);
+            assertTrue(rows >= okShards);
         }
     }
 }

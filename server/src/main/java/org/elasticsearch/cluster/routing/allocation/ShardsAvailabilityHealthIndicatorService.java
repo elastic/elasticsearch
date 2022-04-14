@@ -146,6 +146,18 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             + "].",
         null
     );
+    public static final UserAction.Definition ACTION_ENABLE_TIERS = new UserAction.Definition(
+        "enable_data_tiers",
+        "Elasticsearch isn't allowed to allocate shards from these indices because the indices expect to be allocated to data tier nodes, "
+        + "but none were found in the cluster. Add nodes with data tier roles ("
+        + DataTier.DATA_HOT
+        + ", "
+        + DataTier.DATA_WARM
+        + ", "
+        + DataTier.DATA_COLD
+        + ", etc.) to the cluster.",
+        null
+    );
     public static final UserAction.Definition ACTION_SHARD_LIMIT = new UserAction.Definition(
         "increase_shard_limit",
         "Elasticsearch isn't allowed to allocate some shards from these indices to any of the nodes in its data tier because each node in "
@@ -328,7 +340,9 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             List<NodeAllocationResult> dataTierNodes = nodeAllocationResults.stream()
                 .filter(nodeHasDeciderResult(DATA_TIER_ALLOCATION_DECIDER_NAME, Decision.Type.YES))
                 .collect(Collectors.toList());
-            if (dataTierNodes.isEmpty() == false) {
+            if (dataTierNodes.isEmpty()) {
+                diagnosisOutput.accept(ACTION_ENABLE_TIERS, shardRouting);
+            } else {
                 // All tier nodes at shards limit?
                 if (dataTierNodes.stream().allMatch(nodeHasDeciderResult(ShardsLimitAllocationDecider.NAME, Decision.Type.NO))) {
                     diagnosisOutput.accept(ACTION_SHARD_LIMIT, shardRouting);

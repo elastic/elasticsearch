@@ -517,6 +517,58 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
     }
 
+    public void testUserActionsEnableDataTiers() throws IOException {
+        IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(DataTier.TIER_PREFERENCE, DataTier.DATA_HOT)
+                    .build()
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+
+        var clusterState = createClusterStateWith(
+            List.of(indexMetadata),
+            List.of(index("red-index", new ShardAllocation(randomNodeId(), UNAVAILABLE, decidersNo()))),
+            List.of()
+        );
+        Map<ShardRoutingKey, ShardAllocationDecision> decisionMap = Map.of(
+            new ShardRoutingKey("red-index", 0, true),
+            new ShardAllocationDecision(
+                AllocateUnassignedDecision.fromDecision(
+                    Decision.NO,
+                    null,
+                    List.of(
+                        new NodeAllocationResult(
+                            new DiscoveryNode(randomNodeId(), buildNewFakeTransportAddress(), Version.CURRENT),
+                            new Decision.Multi().add(Decision.single(Decision.Type.NO, "data_tier", null)),
+                            1
+                        )
+                    )
+                ),
+                MoveDecision.NOT_TAKEN
+            )
+        );
+        var service = createAllocationHealthIndicatorService(clusterState, decisionMap);
+
+        assertThat(
+            service.calculate(true),
+            equalTo(
+                createExpectedResult(
+                    RED,
+                    "This cluster has 1 unavailable primary.",
+                    Map.of("unassigned_primaries", 1, "started_primaries", 0, "unassigned_replicas", 0, "started_replicas", 0),
+                    List.of(
+                        new HealthIndicatorImpact(1, "Cannot add data to 1 index [red-index]. Searches might return incomplete results.")
+                    ),
+                    List.of(new UserAction(ShardsAvailabilityHealthIndicatorService.ACTION_ENABLE_TIERS, Set.of("red-index")))
+                )
+            )
+        );
+    }
+
     public void testUserActionsIncreaseShardLimit() throws IOException {
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(

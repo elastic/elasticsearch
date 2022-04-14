@@ -1190,7 +1190,20 @@ public class PluginsServiceTests extends ESTestCase {
                     extensiblePlugin
                 ),
                 Tuple.tuple(
-                    new PluginInfo("test", null, null, null, null, null, null, List.of("extensible"), false, PluginType.ISOLATED, "", false),
+                    new PluginInfo(
+                        "test",
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        null,
+                        List.of("extensible"),
+                        false,
+                        PluginType.ISOLATED,
+                        "",
+                        false
+                    ),
                     testPlugin
                 )
             )

@@ -137,7 +137,7 @@ public class MasterHistoryTests extends ESTestCase {
         Metadata.Builder metadataBuilder = Metadata.builder();
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
         if (masterNodeId != null) {
-            DiscoveryNode node = new DiscoveryNode(masterNodeId, new TransportAddress(InetAddress.getLocalHost(), 9200), Version.CURRENT);
+            DiscoveryNode node = new DiscoveryNode(masterNodeId, buildNewFakeTransportAddress(), Version.CURRENT);
             nodesBuilder.masterNodeId(masterNodeId);
             nodesBuilder.add(node);
         }

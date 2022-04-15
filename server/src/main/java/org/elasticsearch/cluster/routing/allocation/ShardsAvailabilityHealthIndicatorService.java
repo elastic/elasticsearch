@@ -346,24 +346,24 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         List<NodeAllocationResult> nodeAllocationResults
     ) {
         if (indexMetadata.getTierPreference().size() > 0) {
-            List<NodeAllocationResult> dataTierNodes = nodeAllocationResults.stream()
+            List<NodeAllocationResult> dataTierAllocationResults = nodeAllocationResults.stream()
                 .filter(nodeHasDeciderResult(DATA_TIER_ALLOCATION_DECIDER_NAME, Decision.Type.YES))
                 .collect(Collectors.toList());
-            if (dataTierNodes.isEmpty()) {
+            if (dataTierAllocationResults.isEmpty()) {
                 actions.add(ACTION_ENABLE_TIERS);
             } else {
                 // All tier nodes at shards limit?
-                if (dataTierNodes.stream().allMatch(nodeHasDeciderResult(ShardsLimitAllocationDecider.NAME, Decision.Type.NO))) {
+                if (dataTierAllocationResults.stream().allMatch(nodeHasDeciderResult(ShardsLimitAllocationDecider.NAME, Decision.Type.NO))) {
                     actions.add(ACTION_SHARD_LIMIT);
                 }
 
                 // All tier nodes conflict with allocation filters?
-                if (dataTierNodes.stream().allMatch(nodeHasDeciderResult(FilterAllocationDecider.NAME, Decision.Type.NO))) {
+                if (dataTierAllocationResults.stream().allMatch(nodeHasDeciderResult(FilterAllocationDecider.NAME, Decision.Type.NO))) {
                     actions.add(ACTION_MIGRATE_TIERS);
                 }
 
                 // Not enough tier nodes to hold shards on different nodes?
-                if (dataTierNodes.stream().allMatch(nodeHasDeciderResult(SameShardAllocationDecider.NAME, Decision.Type.NO))) {
+                if (dataTierAllocationResults.stream().allMatch(nodeHasDeciderResult(SameShardAllocationDecider.NAME, Decision.Type.NO))) {
                     actions.add(ACTION_INCREASE_TIER_CAPACITY);
                 }
             }

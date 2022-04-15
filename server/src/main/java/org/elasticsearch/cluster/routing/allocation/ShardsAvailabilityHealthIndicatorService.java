@@ -46,7 +46,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiConsumer;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -220,7 +219,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     } else {
                         unassigned++;
                         if (includeDetails) {
-                            diagnoseUnassigned(this::addUserAction, routing, state);
+                            diagnoseUnassigned(routing, state).forEach(definition -> addUserAction(definition, routing.getIndexName()));
                         }
                     }
                 }
@@ -230,10 +229,10 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             }
         }
 
-        public void addUserAction(UserAction.Definition actionDef, ShardRouting routing) {
+        private void addUserAction(UserAction.Definition actionDef, String indexName) {
             userActions.computeIfAbsent(actionDef.id(), (k) -> new UserAction(actionDef, new HashSet<>()))
                 .affectedResources()
-                .add(routing.getIndexName());
+                .add(indexName);
         }
     }
 
@@ -255,30 +254,25 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         return routing.primary() && routing.active() == false && getInactivePrimaryHealth(routing) == ClusterHealthStatus.YELLOW;
     }
 
-    private void diagnoseUnassigned(
-        BiConsumer<UserAction.Definition, ShardRouting> diagnosisOutput,
-        ShardRouting shardRouting,
-        ClusterState state
-    ) {
+    private List<UserAction.Definition> diagnoseUnassigned(ShardRouting shardRouting, ClusterState state) {
+        List<UserAction.Definition> actions = new ArrayList<>();
         switch (shardRouting.unassignedInfo().getLastAllocationStatus()) {
             case NO_VALID_SHARD_COPY:
                 if (UnassignedInfo.Reason.NODE_LEFT == shardRouting.unassignedInfo().getReason()) {
-                    diagnosisOutput.accept(ACTION_RESTORE_FROM_SNAPSHOT, shardRouting);
+                    actions.add(ACTION_RESTORE_FROM_SNAPSHOT);
                 }
                 break;
             case DECIDERS_NO:
-                diagnoseDeciders(diagnosisOutput, shardRouting, state);
+                actions.addAll(diagnoseDeciders(shardRouting, state));
                 break;
             default:
                 break;
         }
+        return actions;
     }
 
-    private void diagnoseDeciders(
-        BiConsumer<UserAction.Definition, ShardRouting> diagnosisOutput,
-        ShardRouting shardRouting,
-        ClusterState state
-    ) {
+    private List<UserAction.Definition> diagnoseDeciders(ShardRouting shardRouting, ClusterState state) {
+        List<UserAction.Definition> actions = new ArrayList<>();
         LOGGER.trace("Diagnosing shard [{}]", shardRouting.shardId());
         RoutingAllocation allocation = new RoutingAllocation(
             allocationDeciders,
@@ -314,15 +308,19 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 );
             }
             List<NodeAllocationResult> nodeAllocationResults = allocateDecision.getNodeDecisions();
-            boolean diagnosisFound = checkIsAllocationDisabled(diagnosisOutput, shardRouting, nodeAllocationResults);
+            UserAction.Definition definition = checkIsAllocationDisabled(nodeAllocationResults);
+            if (definition != null) {
+                actions.add(definition);
+            }
             IndexMetadata index = state.metadata().index(shardRouting.index());
             if (index != null) {
-                diagnosisFound |= checkDataTierRelatedIssues(diagnosisOutput, index, shardRouting, nodeAllocationResults);
+                actions.addAll(checkDataTierRelatedIssues(index, nodeAllocationResults));
             }
-            if (diagnosisFound == false) {
-                diagnosisOutput.accept(ACTION_CHECK_ALLOCATION_EXPLAIN_API, shardRouting);
+            if (actions.isEmpty()) {
+                actions.add(ACTION_CHECK_ALLOCATION_EXPLAIN_API);
             }
         }
+        return actions;
     }
 
     private static Predicate<NodeAllocationResult> nodeHasDeciderResult(String deciderName, Decision.Type outcome) {
@@ -332,53 +330,42 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             .anyMatch(decision -> deciderName.equals(decision.label()) && outcome == decision.type());
     }
 
-    private boolean checkIsAllocationDisabled(
-        BiConsumer<UserAction.Definition, ShardRouting> diagnosisOutput,
-        ShardRouting shardRouting,
-        List<NodeAllocationResult> nodeAllocationResults
-    ) {
+    private UserAction.Definition checkIsAllocationDisabled(List<NodeAllocationResult> nodeAllocationResults) {
         if (nodeAllocationResults.stream().allMatch(nodeHasDeciderResult(EnableAllocationDecider.NAME, Decision.Type.NO))) {
-            diagnosisOutput.accept(ACTION_ENABLE_ALLOCATIONS, shardRouting);
-            return true;
+            return ACTION_ENABLE_ALLOCATIONS;
         }
-        return false;
+        return null;
     }
 
-    private boolean checkDataTierRelatedIssues(
-        BiConsumer<UserAction.Definition, ShardRouting> diagnosisOutput,
+    private List<UserAction.Definition> checkDataTierRelatedIssues(
         IndexMetadata indexMetadata,
-        ShardRouting shardRouting,
         List<NodeAllocationResult> nodeAllocationResults
     ) {
-        boolean diagnosisFound = false;
+        List<UserAction.Definition> actions = new ArrayList<>();
         if (indexMetadata.getTierPreference().size() > 0) {
             List<NodeAllocationResult> dataTierNodes = nodeAllocationResults.stream()
                 .filter(nodeHasDeciderResult(DATA_TIER_ALLOCATION_DECIDER_NAME, Decision.Type.YES))
                 .collect(Collectors.toList());
             if (dataTierNodes.isEmpty()) {
-                diagnosisOutput.accept(ACTION_ENABLE_TIERS, shardRouting);
-                diagnosisFound = true;
+                actions.add(ACTION_ENABLE_TIERS);
             } else {
                 // All tier nodes at shards limit?
                 if (dataTierNodes.stream().allMatch(nodeHasDeciderResult(ShardsLimitAllocationDecider.NAME, Decision.Type.NO))) {
-                    diagnosisOutput.accept(ACTION_SHARD_LIMIT, shardRouting);
-                    diagnosisFound = true;
+                    actions.add(ACTION_SHARD_LIMIT);
                 }
 
                 // All tier nodes conflict with allocation filters?
                 if (dataTierNodes.stream().allMatch(nodeHasDeciderResult(FilterAllocationDecider.NAME, Decision.Type.NO))) {
-                    diagnosisOutput.accept(ACTION_MIGRATE_TIERS, shardRouting);
-                    diagnosisFound = true;
+                    actions.add(ACTION_MIGRATE_TIERS);
                 }
 
                 // Not enough tier nodes to hold shards on different nodes?
                 if (dataTierNodes.stream().allMatch(nodeHasDeciderResult(SameShardAllocationDecider.NAME, Decision.Type.NO))) {
-                    diagnosisOutput.accept(ACTION_INCREASE_TIER_CAPACITY, shardRouting);
-                    diagnosisFound = true;
+                    actions.add(ACTION_INCREASE_TIER_CAPACITY);
                 }
             }
         }
-        return diagnosisFound;
+        return actions;
     }
 
     private class ShardAllocationStatus {

@@ -27,12 +27,13 @@ import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /** A cli command which requires an {@link org.elasticsearch.env.Environment} to use current paths and settings. */
 public abstract class EnvironmentAwareCommand extends Command {
 
-    // the env var prefix used for passing settings in docker
-    private static final String DOCKER_SETTING_PREFIX = "ES_SETTING_";
+    private static final String DOCKER_UPPERCASE_SETTING_PREFIX = "ES_SETTING_";
+    private static final Pattern DOCKER_LOWERCASE_SETTING_REGEX = Pattern.compile("[-a-z0-9_]+(\\.[-a-z0-9_]+)+");
 
     private final OptionSpec<KeyValuePair> settingOption;
 
@@ -63,25 +64,17 @@ public abstract class EnvironmentAwareCommand extends Command {
         execute(terminal, options, createEnv(options));
     }
 
-    // Note, isUpperCase is used so that non-letters are considered lowercase
-    private static boolean isLowerCase(String s) {
-        for (int i = 0; i < s.length(); ++i) {
-            if (Character.isUpperCase(s.charAt(i))) {
-                return false;
-            }
-        }
-        return true;
-    }
-
     private void putDockerEnvSettings(Map<String, String> settings, Map<String, String> envVars) {
         for (var envVar : envVars.entrySet()) {
             String key = envVar.getKey();
-            if (isLowerCase(key)) {
+            if (DOCKER_LOWERCASE_SETTING_REGEX.matcher(key).matches()) {
+                System.out.println("======== Found docker lowercase env: " + key + "=" + envVar.getValue() + " ============");
                 // all lowercase, like cluster.name, so just put directly
                 settings.put(key, envVar.getValue());
-            } else if (key.startsWith(DOCKER_SETTING_PREFIX)) {
+            } else if (key.startsWith(DOCKER_UPPERCASE_SETTING_PREFIX)) {
+                System.out.println("======== Found docker uppercase env: " + key + "=" + envVar.getValue() + " ============");
                 // remove prefix
-                key = key.substring(DOCKER_SETTING_PREFIX.length());
+                key = key.substring(DOCKER_UPPERCASE_SETTING_PREFIX.length());
                 // insert dots for underscores
                 key = key.replace('_', '.');
                 // unescape double dots, which were originally double underscores
@@ -111,6 +104,7 @@ public abstract class EnvironmentAwareCommand extends Command {
                 );
                 throw new UserException(ExitCodes.USAGE, message);
             }
+            System.out.println("got -E: " + kvp.key + "=" + kvp.value);
             settings.put(kvp.key, kvp.value);
         }
 
@@ -125,6 +119,10 @@ public abstract class EnvironmentAwareCommand extends Command {
         final String esPathConf = sysprops.get("es.path.conf");
         if (esPathConf == null) {
             throw new UserException(ExitCodes.CONFIG, "the system property [es.path.conf] must be set");
+        }
+        System.out.println("===== Initial settings =====");
+        for (var e : settings.entrySet()) {
+            System.out.println("  " + e.getKey() + ": " + e.getValue());
         }
         return InternalSettingsPreparer.prepareEnvironment(
             Settings.EMPTY,

@@ -78,7 +78,7 @@ public class Docker {
      * but that appeared to cause problems with repeatedly destroying and recreating containers with
      * the same name.
      */
-    static String containerId = null;
+    public static String containerId = null;
 
     /**
      * Checks whether the required Docker image exists. If not, the image is loaded from disk. No check is made

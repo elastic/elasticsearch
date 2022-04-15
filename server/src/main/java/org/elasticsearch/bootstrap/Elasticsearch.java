@@ -124,11 +124,6 @@ class Elasticsearch extends EnvironmentAwareCommand {
 
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws UserException {
-        System.out.println("SETTINGS");
-        for (String settingName : env.settings().keySet().stream().sorted().toList()) {
-            System.out.println("  " + settingName + "=" + env.settings().get(settingName));
-        }
-
         if (options.nonOptionArguments().isEmpty() == false) {
             throw new UserException(ExitCodes.USAGE, "Positional arguments not allowed, found " + options.nonOptionArguments());
         }

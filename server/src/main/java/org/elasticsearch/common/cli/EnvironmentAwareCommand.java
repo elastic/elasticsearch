@@ -68,11 +68,9 @@ public abstract class EnvironmentAwareCommand extends Command {
         for (var envVar : envVars.entrySet()) {
             String key = envVar.getKey();
             if (DOCKER_LOWERCASE_SETTING_REGEX.matcher(key).matches()) {
-                //System.out.println("======== Found docker lowercase env: " + key + "=" + envVar.getValue() + " ============");
                 // all lowercase, like cluster.name, so just put directly
                 settings.put(key, envVar.getValue());
             } else if (key.startsWith(DOCKER_UPPERCASE_SETTING_PREFIX)) {
-                //System.out.println("======== Found docker uppercase env: " + key + "=" + envVar.getValue() + " ============");
                 // remove prefix
                 key = key.substring(DOCKER_UPPERCASE_SETTING_PREFIX.length());
                 // insert dots for underscores
@@ -104,7 +102,6 @@ public abstract class EnvironmentAwareCommand extends Command {
                 );
                 throw new UserException(ExitCodes.USAGE, message);
             }
-            //System.out.println("got -E: " + kvp.key + "=" + kvp.value);
             settings.put(kvp.key, kvp.value);
         }
 
@@ -120,10 +117,6 @@ public abstract class EnvironmentAwareCommand extends Command {
         if (esPathConf == null) {
             throw new UserException(ExitCodes.CONFIG, "the system property [es.path.conf] must be set");
         }
-        /*System.out.println("===== Initial settings =====");
-        for (var e : settings.entrySet()) {
-            System.out.println("  " + e.getKey() + ": " + e.getValue());
-        }*/
         return InternalSettingsPreparer.prepareEnvironment(
             Settings.EMPTY,
             settings,

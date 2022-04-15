@@ -19,6 +19,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
 import java.time.temporal.TemporalAccessor;
+import java.util.Locale;
 
 /**
  * <p> This class implements {@link TimestampConverter} using the {@link DateTimeFormatter}
@@ -52,7 +53,7 @@ public class DateTimeFormatterTimestampConverter implements TimestampConverter {
         DateTimeFormatter formatter = new DateTimeFormatterBuilder().parseLenient()
             .appendPattern(pattern)
             .parseDefaulting(ChronoField.YEAR_OF_ERA, LocalDate.now(defaultTimezone).getYear())
-            .toFormatter();
+            .toFormatter(Locale.ROOT);
 
         String formattedTime = formatter.format(ZonedDateTime.ofInstant(Instant.ofEpochSecond(0), ZoneOffset.UTC));
         try {

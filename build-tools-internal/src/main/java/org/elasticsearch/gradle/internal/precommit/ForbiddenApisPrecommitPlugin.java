@@ -15,7 +15,6 @@ import org.elasticsearch.gradle.internal.ExportElasticsearchBuildResourcesTask;
 import org.elasticsearch.gradle.internal.InternalPlugin;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitPlugin;
 import org.elasticsearch.gradle.internal.info.BuildParams;
-import org.gradle.api.JavaVersion;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
@@ -55,6 +54,7 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin implements Int
         resourcesTask.configure(t -> {
             t.setOutputDir(resourcesDir.toFile());
             t.copy("forbidden/jdk-signatures.txt");
+            t.copy("forbidden/jdk-deprecated.txt");
             t.copy("forbidden/es-all-signatures.txt");
             t.copy("forbidden/es-test-signatures.txt");
             t.copy("forbidden/http-signatures.txt");
@@ -71,15 +71,12 @@ public class ForbiddenApisPrecommitPlugin extends PrecommitPlugin implements Int
                 t.dependsOn(resourcesTask);
                 t.setClasspath(sourceSet.getRuntimeClasspath().plus(sourceSet.getCompileClasspath()).plus(sourceSet.getOutput()));
                 t.setTargetCompatibility(BuildParams.getMinimumRuntimeVersion().getMajorVersion());
-                if (BuildParams.getRuntimeJavaVersion().compareTo(JavaVersion.VERSION_14) > 0) {
-                    // TODO: forbidden apis does not yet support java 15, rethink using runtime version
-                    t.setTargetCompatibility(JavaVersion.VERSION_14.getMajorVersion());
-                }
                 t.setBundledSignatures(Set.of("jdk-unsafe", "jdk-non-portable", "jdk-system-out"));
                 t.setSignaturesFiles(
                     project.files(
                         resourcesDir.resolve("forbidden/jdk-signatures.txt"),
-                        resourcesDir.resolve("forbidden/es-all-signatures.txt")
+                        resourcesDir.resolve("forbidden/es-all-signatures.txt"),
+                        resourcesDir.resolve("forbidden/jdk-deprecated.txt")
                     )
                 );
                 t.setSuppressAnnotations(Set.of("**.SuppressForbidden"));

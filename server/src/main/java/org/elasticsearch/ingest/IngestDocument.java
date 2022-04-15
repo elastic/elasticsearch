@@ -898,6 +898,8 @@ public final class IngestDocument {
 
     private class FieldPath {
 
+        private static final String[] EMPTY_STRING_ARRAY = new String[0];
+
         private final String[] pathElements;
         private final Object initialContext;
 
@@ -917,12 +919,22 @@ public final class IngestDocument {
                     newPath = path;
                 }
             }
-            this.pathElements = newPath.split("\\.");
+            this.pathElements = split(newPath, '.');
             if (pathElements.length == 1 && pathElements[0].isEmpty()) {
                 throw new IllegalArgumentException("path [" + path + "] is not valid");
             }
         }
 
+        private static String[] split(String input, char separator) {
+            List<String> l = new ArrayList<>();
+            int offset = 0;
+            for (int index = input.indexOf(separator); index != -1; index = input.indexOf(separator, offset)) {
+                l.add(input.substring(offset, index));
+                offset = index + 1;
+            }
+            l.add(input.substring(offset));
+            return l.toArray(EMPTY_STRING_ARRAY);
+        }
     }
 
     private static class ResolveResult {

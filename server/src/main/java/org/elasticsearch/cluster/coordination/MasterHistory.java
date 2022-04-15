@@ -16,8 +16,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -31,7 +29,7 @@ import java.util.stream.Collectors;
  * This class represents a node's view of the history of which nodes have been elected master over the last 30 minutes. It is kept in
  * memory, so when a node comes up it does not have any knowledge of previous master history before that point.
  */
-public class MasterHistory implements ClusterStateListener, Writeable, ToXContent, Writeable.Reader<MasterHistory> {
+public class MasterHistory implements ClusterStateListener, Writeable, Writeable.Reader<MasterHistory> {
     private List<TimeAndMaster> masterHistory;
     Supplier<Long> nowSupplier = System::currentTimeMillis; // Can be changed for testing
 
@@ -147,21 +145,6 @@ public class MasterHistory implements ClusterStateListener, Writeable, ToXConten
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeList(masterHistory);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("master_history");
-        builder.startArray();
-        for (TimeAndMaster timeAndMaster : masterHistory) {
-            builder.startObject();
-            builder.field("time", timeAndMaster.time);
-            builder.field("master", timeAndMaster.master);
-            builder.endObject();
-        }
-        builder.endArray();
-        builder.endObject();
-        return builder;
     }
 
     @Override

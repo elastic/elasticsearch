@@ -15,8 +15,6 @@ import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.cluster.coordination.MasterHistory;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xcontent.ToXContentObject;
-import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -66,7 +64,7 @@ public class MasterHistoryAction extends ActionType<MasterHistoryAction.Response
 
     }
 
-    public static class Response extends ActionResponse implements ToXContentObject {
+    public static class Response extends ActionResponse {
 
         private final MasterHistory masterHistory;
 
@@ -85,12 +83,6 @@ public class MasterHistoryAction extends ActionType<MasterHistoryAction.Response
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             masterHistory.writeTo(out);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            masterHistory.toXContent(builder, params);
-            return builder;
         }
 
         @Override

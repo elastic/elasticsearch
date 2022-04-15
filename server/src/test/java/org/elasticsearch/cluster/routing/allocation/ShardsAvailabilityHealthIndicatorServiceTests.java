@@ -90,6 +90,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     GREEN,
                     "This cluster has all shards available.",
                     Map.of("started_primaries", 2, "started_replicas", 1),
+                    Collections.emptyList(),
                     Collections.emptyList()
                 )
             )
@@ -134,7 +135,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                             "Searches might return slower than usual. Fewer redundant copies of the data exist on 1 index [yellow-index].",
                             List.of(ImpactArea.SEARCH)
                         )
-                    )
+                    ),
+                    Collections.emptyList()
                 )
             )
         );
@@ -160,7 +162,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                             "Cannot add data to 1 index [red-index]. Searches might return incomplete results.",
                             List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
                         )
-                    )
+                    ),
+                    Collections.emptyList()
                 )
             )
         );
@@ -183,7 +186,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                             "Cannot add data to 1 index [red-index]. Searches might return incomplete results.",
                             List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
                         )
-                    )
+                    ),
+                    Collections.emptyList()
                 )
             )
         );
@@ -303,6 +307,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     GREEN,
                     "This cluster has 1 restarting replica.",
                     Map.of("started_primaries", 1, "restarting_replicas", 1),
+                    Collections.emptyList(),
                     Collections.emptyList()
                 )
             )
@@ -323,6 +328,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     GREEN,
                     "This cluster has all shards available.",
                     Map.of("started_primaries", 1),
+                    Collections.emptyList(),
                     Collections.emptyList()
                 )
             )
@@ -356,7 +362,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                                 + "[restarting-index].",
                             List.of(ImpactArea.SEARCH)
                         )
-                    )
+                    ),
+                    Collections.emptyList()
                 )
             )
         );
@@ -376,6 +383,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     GREEN,
                     "This cluster has 1 creating primary.",
                     Map.of("creating_primaries", 1),
+                    Collections.emptyList(),
                     Collections.emptyList()
                 )
             )
@@ -396,6 +404,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     GREEN,
                     "This cluster has 1 restarting primary.",
                     Map.of("restarting_primaries", 1),
+                    Collections.emptyList(),
                     Collections.emptyList()
                 )
             )
@@ -427,7 +436,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                             "Cannot add data to 1 index [restarting-index]. Searches might return incomplete results.",
                             List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
                         )
-                    )
+                    ),
+                    Collections.emptyList()
                 )
             )
         );
@@ -841,33 +851,22 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         HealthStatus status,
         String summary,
         Map<String, Object> details,
-        List<HealthIndicatorImpact> impacts
-    ) {
-        return createExpectedResult(status, summary, details, impacts, null);
-    }
-
-    private HealthIndicatorResult createExpectedResult(
-        HealthStatus status,
-        String summary,
-        Map<String, Object> details,
         List<HealthIndicatorImpact> impacts,
         List<UserAction> actions
     ) {
-        return createExpectedResult(status, summary, new SimpleHealthIndicatorDetails(addDefaults(details)), impacts, actions);
+        return new HealthIndicatorResult(
+            NAME,
+            DATA,
+            status,
+            summary,
+            new SimpleHealthIndicatorDetails(addDefaults(details)),
+            impacts,
+            actions
+        );
     }
 
     private HealthIndicatorResult createExpectedTruncatedResult(HealthStatus status, String summary, List<HealthIndicatorImpact> impacts) {
-        return new HealthIndicatorResult(NAME, DATA, status, summary, HealthIndicatorDetails.EMPTY, impacts);
-    }
-
-    private HealthIndicatorResult createExpectedResult(
-        HealthStatus status,
-        String summary,
-        HealthIndicatorDetails details,
-        List<HealthIndicatorImpact> impacts,
-        List<UserAction> actions
-    ) {
-        return new HealthIndicatorResult(NAME, DATA, status, summary, details, impacts, actions);
+        return new HealthIndicatorResult(NAME, DATA, status, summary, HealthIndicatorDetails.EMPTY, impacts, Collections.emptyList());
     }
 
     private static ClusterState createClusterStateWith(List<IndexRoutingTable> indexRoutes, List<NodeShutdown> nodeShutdowns) {

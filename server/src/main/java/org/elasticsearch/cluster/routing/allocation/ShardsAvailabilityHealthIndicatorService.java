@@ -39,6 +39,7 @@ import org.elasticsearch.health.UserAction;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -69,7 +70,7 @@ import static org.elasticsearch.health.ServerHealthComponents.DATA;
  * Each shard needs to be available and replicated in order to guarantee high availability and prevent data loses.
  * Shards allocated on nodes scheduled for restart (using nodes shutdown API) will not degrade this indicator health.
  */
-public class  ShardsAvailabilityHealthIndicatorService implements HealthIndicatorService {
+public class ShardsAvailabilityHealthIndicatorService implements HealthIndicatorService {
 
     private static final Logger LOGGER = LogManager.getLogger(ShardsAvailabilityHealthIndicatorService.class);
 
@@ -116,10 +117,7 @@ public class  ShardsAvailabilityHealthIndicatorService implements HealthIndicato
                 }
             }
         }
-
-        return new HealthIndicatorResult(
-            name(),
-            component(),
+        return createIndicator(
             status.getStatus(),
             status.getSummary(),
             status.getDetails(includeDetails),
@@ -503,12 +501,12 @@ public class  ShardsAvailabilityHealthIndicatorService implements HealthIndicato
                     }
                 });
                 if (allActions.isEmpty()) {
-                    return null;
+                    return Collections.emptyList();
                 } else {
                     return allActions.values().stream().toList();
                 }
             } else {
-                return null;
+                return Collections.emptyList();
             }
         }
     }

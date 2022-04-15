@@ -8,7 +8,6 @@
 
 package org.elasticsearch.health;
 
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -22,19 +21,8 @@ public record HealthIndicatorResult(
     String summary,
     HealthIndicatorDetails details,
     List<HealthIndicatorImpact> impacts,
-    @Nullable List<UserAction> userActions
+    List<UserAction> userActions
 ) implements ToXContentObject {
-
-    public HealthIndicatorResult(
-        String name,
-        String component,
-        HealthStatus status,
-        String summary,
-        HealthIndicatorDetails details,
-        List<HealthIndicatorImpact> impacts
-    ) {
-        this(name, component, status, summary, details, impacts, null);
-    }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -48,7 +36,7 @@ public record HealthIndicatorResult(
             builder.field("impacts", impacts);
         }
         // TODO 83303: Add detail / documentation
-        if (userActions != null && userActions.size() > 0) {
+        if (userActions != null && userActions.isEmpty() == false) {
             builder.field("user_actions", userActions);
         }
         return builder.endObject();

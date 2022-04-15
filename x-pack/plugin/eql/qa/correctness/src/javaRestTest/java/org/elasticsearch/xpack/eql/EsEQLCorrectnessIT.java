@@ -73,7 +73,7 @@ public class EsEQLCorrectnessIT extends ESRestTestCase {
 
     @Before
     public void restoreDataFromGcsRepo() throws Exception {
-        EqlDataLoader.restoreSnapshot(highLevelClient(), CFG);
+        EqlDataLoader.restoreSnapshot(client(), CFG);
     }
 
     @After

@@ -66,9 +66,8 @@ then
 fi
 
 if [[ $ENROLL_TO_CLUSTER = true ]]; then
-  ES_MAIN_CLASS=org.elasticsearch.xpack.security.cli.AutoConfigureNode \
-  ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
-  ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
+  CLI_NAME="auto-configure-node" \
+  CLI_LIBS="modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli" \
   bin/elasticsearch-cli "${ARG_LIST[@]}" <<<"$KEYSTORE_PASSWORD"
 elif [[ $ATTEMPT_SECURITY_AUTO_CONFIG = true ]]; then
   # It is possible that an auto-conf failure prevents the node from starting, but this is only the exceptional case (exit code 1).
@@ -76,9 +75,8 @@ elif [[ $ATTEMPT_SECURITY_AUTO_CONFIG = true ]]; then
   # if the error is uncommon or unexpected, but it should otherwise let the node to start as usual.
   # It is passed in all the command line options in order to read the node settings ones (-E), while the other parameters are ignored
   # (a small caveat is that it also inspects the -v option in order to provide more information on how auto config went)
-  if ES_MAIN_CLASS=org.elasticsearch.xpack.security.cli.AutoConfigureNode \
-    ES_ADDITIONAL_SOURCES="x-pack-env;x-pack-security-env" \
-    ES_ADDITIONAL_CLASSPATH_DIRECTORIES=lib/tools/security-cli \
+  if CLI_NAME="auto-configure-node" \
+    CLI_LIBS="modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli" \
     bin/elasticsearch-cli "${ARG_LIST[@]}" <<<"$KEYSTORE_PASSWORD"; then
       :
   else

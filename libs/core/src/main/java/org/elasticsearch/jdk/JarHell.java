@@ -235,7 +235,7 @@ public class JarHell {
      */
     public static void checkJavaVersion(String resource, String targetVersion) {
         Version version = Version.parse(targetVersion);
-        if (Runtime.version().compareTo(version) < 0) {
+        if (Runtime.version().feature() < version.feature()) {
             throw new IllegalStateException(
                 String.format(Locale.ROOT, "%s requires Java %s:, your system: %s", resource, targetVersion, Runtime.version().toString())
             );

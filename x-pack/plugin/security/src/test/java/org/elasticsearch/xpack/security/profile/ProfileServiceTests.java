@@ -80,11 +80,10 @@ public class ProfileServiceTests extends ESTestCase {
                 "node_name": "node1"
               },
               "email": "foo@example.com",
-              "full_name": "User Foo",
-              "active": true
+              "full_name": "User Foo"
             },
             "last_synchronized": %s,
-            "access": {
+            "labels": {
             },
             "application_data": {
               "app1": { "name": "app1" },
@@ -161,15 +160,7 @@ public class ProfileServiceTests extends ESTestCase {
                     uid,
                     true,
                     lastSynchronized,
-                    new Profile.ProfileUser(
-                        "Foo",
-                        List.of("role1", "role2"),
-                        "realm_name_1",
-                        "domainA",
-                        "foo@example.com",
-                        "User Foo",
-                        true
-                    ),
+                    new Profile.ProfileUser("Foo", List.of("role1", "role2"), "realm_name_1", "domainA", "foo@example.com", "User Foo"),
                     Map.of(),
                     applicationData,
                     new Profile.VersionControl(1, 0)
@@ -253,8 +244,7 @@ public class ProfileServiceTests extends ESTestCase {
                 List.of(),
                 AuthenticationTests.randomRealmRef(randomBoolean()),
                 "foo@example.com",
-                null,
-                true
+                null
             ),
             Map.of(),
             null

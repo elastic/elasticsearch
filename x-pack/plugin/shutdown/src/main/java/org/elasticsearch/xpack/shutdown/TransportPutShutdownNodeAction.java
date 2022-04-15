@@ -102,38 +102,32 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
 
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                if (SingleNodeShutdownMetadata.Type.REMOVE.equals(request.getType())
-                    || SingleNodeShutdownMetadata.Type.REPLACE.equals(request.getType())) {
+                boolean shouldReroute = switch (request.getType()) {
+                    case REMOVE, REPLACE -> true;
+                    default -> false;
+                };
+
+                if (shouldReroute) {
                     clusterService.getRerouteService()
-                        .reroute("node registered for removal from cluster", Priority.NORMAL, new ActionListener<ClusterState>() {
+                        .reroute("node registered for removal from cluster", Priority.URGENT, new ActionListener<>() {
                             @Override
-                            public void onResponse(ClusterState clusterState) {
-                                logger.trace("started reroute after registering node [{}] for removal", request.getNodeId());
-                                listener.onResponse(AcknowledgedResponse.TRUE);
-                            }
+                            public void onResponse(ClusterState clusterState) {}
 
                             @Override
                             public void onFailure(Exception e) {
-                                logger.warn(
-                                    new ParameterizedMessage(
-                                        "failed to start reroute after registering node [{}] for removal",
-                                        request.getNodeId()
-                                    ),
-                                    e
-                                );
-                                listener.onFailure(e);
+                                logger.warn(() -> "failed to reroute after registering node [" + request.getNodeId() + "] for shutdown", e);
                             }
                         });
                 } else {
                     logger.trace(
-                        "not starting reroute after registering node ["
+                        () -> "not starting reroute after registering node ["
                             + request.getNodeId()
                             + "] for shutdown of type ["
                             + request.getType()
                             + "]"
                     );
-                    listener.onResponse(AcknowledgedResponse.TRUE);
                 }
+                listener.onResponse(AcknowledgedResponse.TRUE);
             }
         }, newExecutor());
     }

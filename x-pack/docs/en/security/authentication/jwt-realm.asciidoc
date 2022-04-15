@@ -4,21 +4,27 @@
 
 beta::[]
 
-{es} can be configured to support user authentication using externally issued _JSON Web Tokens_ (JWTs).
+{es} can be configured to trust JSON Web Tokens (JWTs) that are issued from an
+external service as an authentication credential.
 
-The JWT realm is intended for uses cases where an external service generates
-JSON Web Tokens, and {es} should trust these JWTs as an authentication credential.
+When a JWT realm is used for authenticating with {es}, a distinction is made
+between the _client_ that is connecting to {es}, and the _user_ on whose behalf
+the request should run. The JWT identifies the user, and a separate credential
+should be used to authenticate the client.
 
-A common scenario is when an existing front-end application uses
-OpenID Connect (OIDC) as an authentication method, and then accesses {es} on
-behalf of the logged in user.
+A common scenario for using JWTs is when an existing front-end application that
+uses OpenID Connect (OIDC) as an authentication method, and then accesses {es}
+on behalf of the authenticated user.
 
-NOTE: {es} provides a <<oidc-realm,OpenID Connect realm>> as well as the JWT realm. The `oidc` realm
-provides stronger security guarantees and should be preferred for any use case where {es} is able to act
-as an OIDC _Relying Party_ (RP). In particular the `oidc` realm is the only supported way to enable OpenID
-Connect authentication in Kibana.
+TIP: If the front-end application does not exist, you can use the
+<<token-authentication-services>> can be used instead.
 
-TIP: If the front-end application does not exist, the <<token-authentication-services>> can be used instead.
+{es} provides an <<oidc-realm,OpenID Connect realm>> as well as the JWT realm.
+The `oidc` realm provides stronger security guarantees and is preferred for any
+use case where {es} can act as an OIDC _Relying Party_ (RP).
+
+IMPORTANT: The `oidc` realm is the only supported way to enable OIDC
+authentication in {kib}.
 
 [[jwt-realm-configuration]]
 ==== Configuring a JWT realm
@@ -81,13 +87,6 @@ If the ID Token is presented to a JWT realm, {es} can use it to authenticate, id
 
 NOTE: Since JWTs are acquired external to {es}, a bespoke workflow can be used instead of OIDC workflow.
       However, the JWT format must still be similar to OpenID Connect ID Tokens. See <<jwt-validation>>.
-
-[[jwt-authentication-requirements]]
-==== JWT Authentication Requirements
-
-When a JWT realm is used for authentication into {es}, a distinction is made between the
-_client_ that is connecting to {es}, and the _end-user_ on whose behalf the request should execute.
-The JWT identifies the user, and a separate credential should be used to authenticate the client itself.
 
 [[jwt-client-authentication]]
 ==== Client authentication

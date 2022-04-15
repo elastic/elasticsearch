@@ -325,12 +325,23 @@ public class  ShardsAvailabilityHealthIndicatorService implements HealthIndicato
             .anyMatch(decision -> deciderName.equals(decision.label()) && outcome == decision.type());
     }
 
+    /**
+     * Generates a user action if a shard cannot be allocated anywhere because allocation is disabled for that shard
+     * @param actions Any user actions generated from this method will be added to this list.
+     * @param nodeAllocationResults allocation decision results for all nodes in the cluster.
+     */
     private void checkIsAllocationDisabled(List<UserAction.Definition> actions, List<NodeAllocationResult> nodeAllocationResults) {
         if (nodeAllocationResults.stream().allMatch(nodeHasDeciderResult(EnableAllocationDecider.NAME, Decision.Type.NO))) {
             actions.add(ACTION_ENABLE_ALLOCATIONS);
         }
     }
 
+    /**
+     * Generates user actions for common problems that keep a shard from allocating to nodes in a data tier.
+     * @param actions Any user actions generated from this method will be added to this list.
+     * @param indexMetadata Index metadata for the shard being diagnosed.
+     * @param nodeAllocationResults allocation decision results for all nodes in the cluster.
+     */
     private void checkDataTierRelatedIssues(
         List<UserAction.Definition> actions,
         IndexMetadata indexMetadata,

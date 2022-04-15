@@ -855,9 +855,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 try {
                     CollectionUtils.ensureNoSelfReferences(result.getSourceAndMetadata(), "ingest pipeline [" +
                         pipeline.getId() + "]");
-                } catch (IllegalArgumentException e) {
+                } catch (IllegalArgumentException ex) {
                     totalMetrics.ingestFailed();
-                    handler.accept(e);
+                    handler.accept(ex);
                 }
                 Map<IngestDocument.Metadata, Object> metadataMap = ingestDocument.extractMetadata();
 

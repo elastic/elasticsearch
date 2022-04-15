@@ -43,7 +43,6 @@ import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.InstanceHasMasterHealthIndicatorService;
 import org.elasticsearch.cluster.coordination.MasterHistoryService;
-import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
 import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
@@ -902,7 +901,7 @@ public class Node implements Closeable {
             );
 
             MasterHistoryService masterHistoryService = new MasterHistoryService(client, clusterService);
-            HealthService healthService = createHealthService(clusterService, discoveryModule, masterHistoryService);
+            HealthService healthService = createHealthService(clusterService);
 
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);
@@ -1042,16 +1041,11 @@ public class Node implements Closeable {
         }
     }
 
-    private HealthService createHealthService(
-        ClusterService clusterService,
-        DiscoveryModule discoveryModule,
-        MasterHistoryService masterHistoryService
-    ) {
+    private HealthService createHealthService(ClusterService clusterService) {
         var serverHealthIndicatorServices = List.of(
             new InstanceHasMasterHealthIndicatorService(clusterService),
             new RepositoryIntegrityHealthIndicatorService(clusterService),
-            new ShardsAvailabilityHealthIndicatorService(clusterService),
-            new StableMasterHealthIndicatorService(clusterService, discoveryModule, masterHistoryService)
+            new ShardsAvailabilityHealthIndicatorService(clusterService)
         );
         var pluginHealthIndicatorServices = pluginsService.filterPlugins(HealthPlugin.class)
             .stream()

@@ -103,7 +103,7 @@ public class CollectionUtils {
     public static void ensureNoSelfReferences(Object value, String messageHint) {
         Iterable<?> it = convert(value);
         final Set<Object> ancestors = Collections.newSetFromMap(new IdentityHashMap<>());
-        //tracking all nodes to prevent duplicate traversal
+        // tracking all nodes to prevent duplicate traversal
         final Set<Object> allNodes = Collections.newSetFromMap(new IdentityHashMap<>());
         if (it != null) {
             ensureNoSelfReferences(it, value, ancestors, allNodes, messageHint);

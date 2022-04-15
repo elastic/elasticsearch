@@ -853,8 +853,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 handler.accept(null);
             } else {
                 try {
-                    CollectionUtils.ensureNoSelfReferences(result.getSourceAndMetadata(), "ingest pipeline [" +
-                        pipeline.getId() + "]");
+                    CollectionUtils.ensureNoSelfReferences(result.getSourceAndMetadata(), "ingest pipeline [" + pipeline.getId() + "]");
                 } catch (IllegalArgumentException ex) {
                     totalMetrics.ingestFailed();
                     handler.accept(ex);

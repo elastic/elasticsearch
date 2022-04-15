@@ -69,7 +69,7 @@ import static org.elasticsearch.health.ServerHealthComponents.DATA;
  * Each shard needs to be available and replicated in order to guarantee high availability and prevent data loses.
  * Shards allocated on nodes scheduled for restart (using nodes shutdown API) will not degrade this indicator health.
  */
-public class ShardsAvailabilityHealthIndicatorService implements HealthIndicatorService {
+public class  ShardsAvailabilityHealthIndicatorService implements HealthIndicatorService {
 
     private static final Logger LOGGER = LogManager.getLogger(ShardsAvailabilityHealthIndicatorService.class);
 
@@ -263,7 +263,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 }
                 break;
             case DECIDERS_NO:
-                actions.addAll(diagnoseDeciders(shardRouting, state));
+                diagnoseDeciders(actions, shardRouting, state);
                 break;
             default:
                 break;
@@ -271,8 +271,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         return actions;
     }
 
-    private List<UserAction.Definition> diagnoseDeciders(ShardRouting shardRouting, ClusterState state) {
-        List<UserAction.Definition> actions = new ArrayList<>();
+    private void diagnoseDeciders(List<UserAction.Definition> actions, ShardRouting shardRouting, ClusterState state) {
         LOGGER.trace("Diagnosing shard [{}]", shardRouting.shardId());
         RoutingAllocation allocation = new RoutingAllocation(
             allocationDeciders,
@@ -308,19 +307,15 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 );
             }
             List<NodeAllocationResult> nodeAllocationResults = allocateDecision.getNodeDecisions();
-            UserAction.Definition definition = checkIsAllocationDisabled(nodeAllocationResults);
-            if (definition != null) {
-                actions.add(definition);
-            }
+            checkIsAllocationDisabled(actions, nodeAllocationResults);
             IndexMetadata index = state.metadata().index(shardRouting.index());
             if (index != null) {
-                actions.addAll(checkDataTierRelatedIssues(index, nodeAllocationResults));
+                checkDataTierRelatedIssues(actions, index, nodeAllocationResults);
             }
             if (actions.isEmpty()) {
                 actions.add(ACTION_CHECK_ALLOCATION_EXPLAIN_API);
             }
         }
-        return actions;
     }
 
     private static Predicate<NodeAllocationResult> nodeHasDeciderResult(String deciderName, Decision.Type outcome) {
@@ -330,18 +325,17 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             .anyMatch(decision -> deciderName.equals(decision.label()) && outcome == decision.type());
     }
 
-    private UserAction.Definition checkIsAllocationDisabled(List<NodeAllocationResult> nodeAllocationResults) {
+    private void checkIsAllocationDisabled(List<UserAction.Definition> actions, List<NodeAllocationResult> nodeAllocationResults) {
         if (nodeAllocationResults.stream().allMatch(nodeHasDeciderResult(EnableAllocationDecider.NAME, Decision.Type.NO))) {
-            return ACTION_ENABLE_ALLOCATIONS;
+            actions.add(ACTION_ENABLE_ALLOCATIONS);
         }
-        return null;
     }
 
-    private List<UserAction.Definition> checkDataTierRelatedIssues(
+    private void checkDataTierRelatedIssues(
+        List<UserAction.Definition> actions,
         IndexMetadata indexMetadata,
         List<NodeAllocationResult> nodeAllocationResults
     ) {
-        List<UserAction.Definition> actions = new ArrayList<>();
         if (indexMetadata.getTierPreference().size() > 0) {
             List<NodeAllocationResult> dataTierNodes = nodeAllocationResults.stream()
                 .filter(nodeHasDeciderResult(DATA_TIER_ALLOCATION_DECIDER_NAME, Decision.Type.YES))
@@ -365,7 +359,6 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 }
             }
         }
-        return actions;
     }
 
     private class ShardAllocationStatus {

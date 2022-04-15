@@ -56,6 +56,11 @@ public abstract class EnvironmentAwareCommand extends Command {
 
     @Override
     protected void execute(Terminal terminal, OptionSet options) throws Exception {
+        execute(terminal, options, createEnv(options));
+    }
+
+    /** Create an {@link Environment} for the command to use. Overrideable for tests. */
+    protected Environment createEnv(OptionSet options) throws UserException {
         final Map<String, String> settings = new HashMap<>();
         for (final KeyValuePair kvp : settingOption.values(options)) {
             if (kvp.value.isEmpty()) {
@@ -74,30 +79,20 @@ public abstract class EnvironmentAwareCommand extends Command {
             settings.put(kvp.key, kvp.value);
         }
 
-        putSystemPropertyIfSettingIsMissing(settings, "path.data", "es.path.data");
-        putSystemPropertyIfSettingIsMissing(settings, "path.home", "es.path.home");
-        putSystemPropertyIfSettingIsMissing(settings, "path.logs", "es.path.logs");
+        putSystemPropertyIfSettingIsMissing(sysprops, settings, "path.data", "es.path.data");
+        putSystemPropertyIfSettingIsMissing(sysprops, settings, "path.home", "es.path.home");
+        putSystemPropertyIfSettingIsMissing(sysprops, settings, "path.logs", "es.path.logs");
 
-        execute(terminal, options, createEnv(settings));
-    }
-
-    /** Create an {@link Environment} for the command to use. Overrideable for tests. */
-    protected Environment createEnv(final Map<String, String> settings) throws UserException {
-        return createEnv(Settings.EMPTY, settings);
-    }
-
-    /** Create an {@link Environment} for the command to use. Overrideable for tests. */
-    protected static Environment createEnv(final Settings baseSettings, final Map<String, String> settings) throws UserException {
-        final String esPathConf = System.getProperty("es.path.conf");
+        final String esPathConf = sysprops.get("es.path.conf");
         if (esPathConf == null) {
             throw new UserException(ExitCodes.CONFIG, "the system property [es.path.conf] must be set");
         }
         return InternalSettingsPreparer.prepareEnvironment(
-            baseSettings,
+            Settings.EMPTY,
             settings,
             getConfigPath(esPathConf),
             // HOSTNAME is set by elasticsearch-env and elasticsearch-env.bat so it is always available
-            () -> System.getenv("HOSTNAME")
+            () -> envVars.get("HOSTNAME")
         );
     }
 
@@ -107,8 +102,13 @@ public abstract class EnvironmentAwareCommand extends Command {
     }
 
     /** Ensure the given setting exists, reading it from system properties if not already set. */
-    private static void putSystemPropertyIfSettingIsMissing(final Map<String, String> settings, final String setting, final String key) {
-        final String value = System.getProperty(key);
+    private static void putSystemPropertyIfSettingIsMissing(
+        final Map<String, String> sysprops,
+        final Map<String, String> settings,
+        final String setting,
+        final String key
+    ) {
+        final String value = sysprops.get(key);
         if (value != null) {
             if (settings.containsKey(setting)) {
                 final String message = String.format(

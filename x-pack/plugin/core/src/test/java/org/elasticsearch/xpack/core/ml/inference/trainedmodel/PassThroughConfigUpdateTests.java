@@ -26,6 +26,24 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class PassThroughConfigUpdateTests extends AbstractNlpConfigUpdateTestCase<PassThroughConfigUpdate> {
 
+    public static PassThroughConfigUpdate randomUpdate() {
+        PassThroughConfigUpdate.Builder builder = new PassThroughConfigUpdate.Builder();
+        if (randomBoolean()) {
+            builder.setResultsField(randomAlphaOfLength(8));
+        }
+        if (randomBoolean()) {
+            builder.setTokenizationUpdate(new BertTokenizationUpdate(randomFrom(Tokenization.Truncate.values()), null));
+        }
+        return builder.build();
+    }
+
+    public static PassThroughConfigUpdate mutateForVersion(PassThroughConfigUpdate instance, Version version) {
+        if (version.before(Version.V_8_1_0)) {
+            return new PassThroughConfigUpdate(instance.getResultsField(), null);
+        }
+        return instance;
+    }
+
     @Override
     Tuple<Map<String, Object>, PassThroughConfigUpdate> fromMapTestInstances(TokenizationUpdate expectedTokenization) {
         PassThroughConfigUpdate expected = new PassThroughConfigUpdate("ml-results", expectedTokenization);
@@ -76,22 +94,12 @@ public class PassThroughConfigUpdateTests extends AbstractNlpConfigUpdateTestCas
 
     @Override
     protected PassThroughConfigUpdate createTestInstance() {
-        PassThroughConfigUpdate.Builder builder = new PassThroughConfigUpdate.Builder();
-        if (randomBoolean()) {
-            builder.setResultsField(randomAlphaOfLength(8));
-        }
-        if (randomBoolean()) {
-            builder.setTokenizationUpdate(new BertTokenizationUpdate(randomFrom(Tokenization.Truncate.values()), null));
-        }
-        return builder.build();
+        return randomUpdate();
     }
 
     @Override
     protected PassThroughConfigUpdate mutateInstanceForVersion(PassThroughConfigUpdate instance, Version version) {
-        if (version.before(Version.V_8_1_0)) {
-            return new PassThroughConfigUpdate(instance.getResultsField(), null);
-        }
-        return instance;
+        return mutateForVersion(instance, version);
     }
 
     @Override

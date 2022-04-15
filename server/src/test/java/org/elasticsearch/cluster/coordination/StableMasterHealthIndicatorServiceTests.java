@@ -52,60 +52,48 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testNoMaster() {
-        StableMasterHealthIndicatorService service = createAllocationHealthIndicatorService(nullMasterClusterState);
-        service.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, nullMasterClusterState));
+        MasterHistoryService masterHistoryService = createMasterHistoryService();
+        MasterHistory localMasterHistory = masterHistoryService.getLocalMasterHistory();
+        StableMasterHealthIndicatorService service = createAllocationHealthIndicatorService(nullMasterClusterState, masterHistoryService);
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, nullMasterClusterState));
         HealthIndicatorResult result = service.calculate(true);
         assertThat(result.status(), equalTo(HealthStatus.RED));
     }
 
     public void testThreeMasters() {
-        StableMasterHealthIndicatorService service = createAllocationHealthIndicatorService(nullMasterClusterState);
-        service.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
+        MasterHistoryService masterHistoryService = createMasterHistoryService();
+        MasterHistory localMasterHistory = masterHistoryService.getLocalMasterHistory();
+        StableMasterHealthIndicatorService service = createAllocationHealthIndicatorService(nullMasterClusterState, masterHistoryService);
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
         HealthIndicatorResult result = service.calculate(true);
         assertThat(result.status(), equalTo(HealthStatus.GREEN));
 
-        service.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node2MasterClusterState, node1MasterClusterState));
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node2MasterClusterState, node1MasterClusterState));
         result = service.calculate(true);
         assertThat(result.status(), equalTo(HealthStatus.GREEN));
 
-        service.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, node2MasterClusterState));
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, node2MasterClusterState));
         result = service.calculate(true);
         assertThat(result.status(), equalTo(HealthStatus.GREEN));
 
-        service.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node3MasterClusterState, node2MasterClusterState));
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node3MasterClusterState, node2MasterClusterState));
         result = service.calculate(true);
         assertThat(result.status(), equalTo(HealthStatus.YELLOW));
     }
 
     public void testMasterGoesNull() {
-        StableMasterHealthIndicatorService service = createAllocationHealthIndicatorService(nullMasterClusterState);
-        service.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, nullMasterClusterState));
-        service.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
-        service.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
+        MasterHistoryService masterHistoryService = createMasterHistoryService();
+        MasterHistory localMasterHistory = masterHistoryService.getLocalMasterHistory();
+        StableMasterHealthIndicatorService service = createAllocationHealthIndicatorService(nullMasterClusterState, masterHistoryService);
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, nullMasterClusterState));
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
         HealthIndicatorResult result = service.calculate(true);
         assertThat(result.status(), equalTo(HealthStatus.GREEN));
-        service.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
-        service.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
         result = service.calculate(true);
         assertThat(result.status(), equalTo(HealthStatus.GREEN)); // It has gone null 3 times, but the master reports that it's ok
-    }
-
-    /**
-     * Tests that a cluster goes back to green after it has been stable long enough
-     */
-    public void test30MinutesExpires() {
-        StableMasterHealthIndicatorService service = createAllocationHealthIndicatorService(nullMasterClusterState);
-        long oneHourAgo = System.currentTimeMillis() - (60 * 60 * 1000);
-        service.nowSupplier = () -> oneHourAgo;
-        service.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, nullMasterClusterState));
-        service.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
-        service.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node2MasterClusterState, node1MasterClusterState));
-        service.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node3MasterClusterState, node2MasterClusterState));
-        HealthIndicatorResult result = service.calculate(true);
-        assertThat(result.status(), equalTo(HealthStatus.YELLOW));
-        service.nowSupplier = System::currentTimeMillis;
-        result = service.calculate(true);
-        assertThat(result.status(), equalTo(HealthStatus.GREEN));
     }
 
     private static ClusterState createClusterState(String masterNodeId) throws UnknownHostException {
@@ -128,7 +116,15 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
         return UUID.randomUUID().toString();
     }
 
-    private static StableMasterHealthIndicatorService createAllocationHealthIndicatorService(ClusterState clusterState) {
+    private static MasterHistoryService createMasterHistoryService() {
+        var clusterService = mock(ClusterService.class);
+        return new MasterHistoryService(null, clusterService);
+    }
+
+    private static StableMasterHealthIndicatorService createAllocationHealthIndicatorService(
+        ClusterState clusterState,
+        MasterHistoryService masterHistoryService
+    ) {
         var clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
         DiscoveryNode localNode = mock(DiscoveryNode.class);
@@ -138,6 +134,6 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
         Coordinator coordinator = mock(Coordinator.class);
         when(discoveryModule.getCoordinator()).thenReturn(coordinator);
         when(coordinator.getFoundPeers()).thenReturn(Collections.emptyList());
-        return new StableMasterHealthIndicatorService(clusterService, discoveryModule);
+        return new StableMasterHealthIndicatorService(clusterService, discoveryModule, masterHistoryService);
     }
 }

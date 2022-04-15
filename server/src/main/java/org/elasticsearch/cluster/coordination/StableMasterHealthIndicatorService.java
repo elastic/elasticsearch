@@ -8,8 +8,8 @@
 
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterStateListener;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -22,29 +22,29 @@ import org.elasticsearch.health.HealthStatus;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import java.util.concurrent.TimeoutException;
-import java.util.function.Supplier;
-import java.util.stream.Collectors;
+import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.health.ServerHealthComponents.CLUSTER_COORDINATION;
 
-public class StableMasterHealthIndicatorService implements HealthIndicatorService, ClusterStateListener {
+public class StableMasterHealthIndicatorService implements HealthIndicatorService {
 
     public static final String NAME = "stable_master";
 
     private final ClusterService clusterService;
     private final DiscoveryModule discoveryModule;
-    private List<TimeAndMaster> masterHistory = new ArrayList<>();
+    private final MasterHistoryService masterHistoryService;
+    private static final Logger logger = LogManager.getLogger(StableMasterHealthIndicatorService.class);
 
-    Supplier<Long> nowSupplier = System::currentTimeMillis; // Can be changed for testing
-
-    public StableMasterHealthIndicatorService(ClusterService clusterService, DiscoveryModule discoveryModule) {
+    public StableMasterHealthIndicatorService(
+        ClusterService clusterService,
+        DiscoveryModule discoveryModule,
+        MasterHistoryService masterHistoryService
+    ) {
         this.clusterService = clusterService;
         this.discoveryModule = discoveryModule;
-        clusterService.addListener(this);
+        this.masterHistoryService = masterHistoryService;
     }
 
     @Override
@@ -59,40 +59,43 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
 
     @Override
     public HealthIndicatorResult calculate(boolean includeDetails) {
-        removeOldMasterHistory(true);
         HealthStatus stableMasterStatus;
         String summary;
         Collection<HealthIndicatorImpact> impacts = new ArrayList<>();
+        MasterHistory localMasterHistory = masterHistoryService.getLocalMasterHistory();
         if (hasSeenMasterInLast30Seconds()) {
-            Set<DiscoveryNode> mastersInLast30Minutes = getDistinctMastersIn30Minutes();
+            logger.info("Have seen a master in the last 30 seconds");
+            Set<DiscoveryNode> mastersInLast30Minutes = localMasterHistory.getDistinctMastersSeen();
             if (mastersInLast30Minutes.size() > 2) {
+                logger.info("Have seen " + mastersInLast30Minutes.size() + " masters in the last 30 seconds");
                 stableMasterStatus = HealthStatus.YELLOW;
                 summary = String.format(Locale.ROOT, "%d nodes have acted as master in the last 30 minutes", mastersInLast30Minutes.size());
-            } else if (hasMasterGoneNullThreeTimesIn30Mintutes()) {
-                List<TimeAndMaster> nonNullMasters = masterHistory.stream()
-                    .filter(timeAndMaster -> timeAndMaster.master != null)
-                    .collect(Collectors.toList());
-                TimeAndMaster timeAndMaster = nonNullMasters.get(nonNullMasters.size() - 1);
+            } else if (localMasterHistory.hasSameMasterGoneNullNTimes(3)) {
+                DiscoveryNode master = localMasterHistory.getMostRecentNonNullMaster();
+                logger.info("One master has gone null 3 or more times recently: " + master);
                 try {
-                    if (masterThinksItIsUnstable(timeAndMaster.master)) {
+                    if (masterThinksItIsUnstable(master)) {
+                        logger.info("The master node " + master + " thinks it is unstable");
                         stableMasterStatus = HealthStatus.YELLOW;
-                        summary = String.format(
-                            Locale.ROOT,
-                            "Master %s has gone null multiple times in the last 30 minutes",
-                            timeAndMaster.master.toString()
-                        );
+                        summary = String.format(Locale.ROOT, "Master %s has gone null multiple times in the last 30 minutes", master);
                         impacts.add(new HealthIndicatorImpact(3, "Cluster is at risk of becoming unstable"));
                     } else {
+                        logger.info("This node thinks the master is unstable, but the master node " + master + " thinks it is stable");
                         stableMasterStatus = HealthStatus.GREEN;
                         summary = "The cluster has had a stable master node";
                     }
-                } catch (TimeoutException e) {
+                } catch (ExecutionException e) {
+                    logger.error("Exception trying to reach the master", e);
                     stableMasterStatus = HealthStatus.YELLOW;
-                    summary = "The cluster has had a master node recently, but timed out attempting to find out if the master had been "
+                    summary = "The cluster has had a master node recently, but erred while attempting to find out if the master had been "
                         + "stable";
                     impacts.add(new HealthIndicatorImpact(3, "Cluster is at risk of becoming unstable"));
+                } catch (InterruptedException e) {
+                    logger.error("Interrupted while trying to reach the master", e);
+                    throw new RuntimeException(e);
                 }
             } else {
+                logger.info("The cluster has had a stable master node");
                 stableMasterStatus = HealthStatus.GREEN;
                 summary = "The cluster has had a stable master node";
             }
@@ -123,34 +126,15 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         } : HealthIndicatorDetails.EMPTY, impacts);
     }
 
-    private boolean masterThinksItIsUnstable(DiscoveryNode master) throws TimeoutException {
-        return false; // TODO: reach out to master
-    }
-
-    private boolean hasMasterGoneNullThreeTimesIn30Mintutes() {
-        return masterHistory.stream().filter(timeAndMaster -> timeAndMaster.master == null).count() > 2
-            && getDistinctMastersIn30Minutes().size() == 1;
-    }
-
-    private Set<DiscoveryNode> getDistinctMastersIn30Minutes() {
-        return masterHistory.stream()
-            .filter(timeAndMaster -> timeAndMaster.master != null)
-            .map(TimeAndMaster::master)
-            .collect(Collectors.toSet());
+    private boolean masterThinksItIsUnstable(DiscoveryNode master) throws ExecutionException, InterruptedException {
+        return masterHistoryService.getRemoteMasterHistory(master).hasSameMasterGoneNullNTimes(3);
     }
 
     private boolean hasSeenMasterInLast30Seconds() {
         if (clusterService.state().nodes().getMasterNode() != null) {
             return true;
         }
-        long now = nowSupplier.get();
-        long thirtySecondsAgo = now - (30 * 1000);
-        return getCurrentMaster() != null
-            || masterHistory.stream().anyMatch(timeAndMaster -> timeAndMaster.time > thirtySecondsAgo && timeAndMaster.master != null);
-    }
-
-    private DiscoveryNode getCurrentMaster() {
-        return masterHistory.isEmpty() ? null : masterHistory.get(masterHistory.size() - 1).master;
+        return masterHistoryService.getLocalMasterHistory().hasSeenMasterInLastNSeconds(30);
     }
 
     private Collection<DiscoveryNode> getMasterEligibleNodes() {
@@ -162,35 +146,4 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         });
         return masterEligibleNodes;
     }
-
-    @Override
-    public void clusterChanged(ClusterChangedEvent event) {
-        DiscoveryNode currentMaster = event.state().nodes().getMasterNode();
-        DiscoveryNode previousMaster = event.previousState().nodes().getMasterNode();
-        removeOldMasterHistory(false);
-        if (currentMaster == null || currentMaster.equals(previousMaster) == false || masterHistory.isEmpty()) {
-            masterHistory.add(new TimeAndMaster(nowSupplier.get(), currentMaster));
-        }
-    }
-
-    /**
-     * Clears out anything from masterHistory that is from more than 30 minutes before now. If leaveNewestEvenIfOld is true, the newest
-     * entry in masterHistory will reamin in masterHistory even if it is from more than 30 minutes before now.
-     * @param leaveNewestEvenIfOld If true, the most recent entry will not be removed from watcherHistory even if it is older than 30
-     *                             minutes
-     */
-    private void removeOldMasterHistory(boolean leaveNewestEvenIfOld) {
-        if (leaveNewestEvenIfOld && masterHistory.size() < 2) {
-            return;
-        }
-        long now = nowSupplier.get();
-        long thirtyMinutesAgo = now - (30 * 60 * 1000);
-        TimeAndMaster mostRecent = masterHistory.isEmpty() ? null : masterHistory.get(masterHistory.size() - 1);
-        masterHistory = masterHistory.stream().filter(timeAndMaster -> timeAndMaster.time > thirtyMinutesAgo).collect(Collectors.toList());
-        if (masterHistory.isEmpty() && leaveNewestEvenIfOld) { // The most recent entry was more than 30 minutes ago
-            masterHistory.add(mostRecent);
-        }
-    }
-
-    private static record TimeAndMaster(long time, DiscoveryNode master) {}
 }

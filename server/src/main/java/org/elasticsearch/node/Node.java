@@ -42,6 +42,7 @@ import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.InstanceHasMasterHealthIndicatorService;
+import org.elasticsearch.cluster.coordination.MasterHistoryService;
 import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
 import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
@@ -900,7 +901,8 @@ public class Node implements Closeable {
                 clusterService.getClusterSettings()
             );
 
-            HealthService healthService = createHealthService(clusterService, discoveryModule);
+            MasterHistoryService masterHistoryService = new MasterHistoryService(client, clusterService);
+            HealthService healthService = createHealthService(clusterService, discoveryModule, masterHistoryService);
 
             modules.add(b -> {
                 b.bind(Node.class).toInstance(this);
@@ -983,6 +985,7 @@ public class Node implements Closeable {
                 b.bind(IndexSettingProviders.class).toInstance(indexSettingProviders);
                 b.bind(DesiredNodesSettingsValidator.class).toInstance(desiredNodesSettingsValidator);
                 b.bind(HealthService.class).toInstance(healthService);
+                b.bind(MasterHistoryService.class).toInstance(masterHistoryService);
                 b.bind(StatsRequestLimiter.class).toInstance(statsRequestLimiter);
             });
 
@@ -1039,12 +1042,16 @@ public class Node implements Closeable {
         }
     }
 
-    private HealthService createHealthService(ClusterService clusterService, DiscoveryModule discoveryModule) {
+    private HealthService createHealthService(
+        ClusterService clusterService,
+        DiscoveryModule discoveryModule,
+        MasterHistoryService masterHistoryService
+    ) {
         var serverHealthIndicatorServices = List.of(
             new InstanceHasMasterHealthIndicatorService(clusterService),
             new RepositoryIntegrityHealthIndicatorService(clusterService),
             new ShardsAvailabilityHealthIndicatorService(clusterService),
-            new StableMasterHealthIndicatorService(clusterService, discoveryModule)
+            new StableMasterHealthIndicatorService(clusterService, discoveryModule, masterHistoryService)
         );
         var pluginHealthIndicatorServices = pluginsService.filterPlugins(HealthPlugin.class)
             .stream()

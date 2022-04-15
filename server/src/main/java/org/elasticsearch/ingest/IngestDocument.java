@@ -55,6 +55,7 @@ public final class IngestDocument {
 
     // Contains all pipelines that have been executed for this document
     private final Set<String> executedPipelines = new LinkedHashSet<>();
+    private boolean skipCurrentPipeline = false;
 
     public IngestDocument(String index, String id, String routing, Long version, VersionType versionType, Map<String, Object> source) {
         // source + at max 5 extra fields
@@ -821,6 +822,7 @@ public final class IngestDocument {
         if (executedPipelines.add(pipeline.getId())) {
             Object previousPipeline = ingestMetadata.put("pipeline", pipeline.getId());
             pipeline.execute(this, (result, e) -> {
+                skipCurrentPipeline = false;
                 executedPipelines.remove(pipeline.getId());
                 if (previousPipeline != null) {
                     ingestMetadata.put("pipeline", previousPipeline);
@@ -841,6 +843,18 @@ public final class IngestDocument {
         List<String> pipelineStack = new ArrayList<>(executedPipelines);
         Collections.reverse(pipelineStack);
         return pipelineStack;
+    }
+
+    /**
+     * Skips the remaining processors in the current pipeline, except for on failure processors.
+     * If the current pipeline is executed via a pipeline processor, the caller pipeline will not be skipped.
+     */
+    public void skipCurrentPipeline() {
+        this.skipCurrentPipeline = true;
+    }
+
+    boolean isSkipCurrentPipeline() {
+        return skipCurrentPipeline;
     }
 
     @Override

@@ -19,7 +19,6 @@ import org.elasticsearch.packaging.util.ProcessInfo;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
-import org.elasticsearch.packaging.util.docker.Docker;
 import org.elasticsearch.packaging.util.docker.DockerRun;
 import org.elasticsearch.packaging.util.docker.DockerShell;
 import org.elasticsearch.packaging.util.docker.MockServer;

@@ -71,7 +71,6 @@ import static org.elasticsearch.packaging.util.docker.Docker.verifyContainerInst
 import static org.elasticsearch.packaging.util.docker.Docker.waitForElasticsearch;
 import static org.elasticsearch.packaging.util.docker.DockerFileMatcher.file;
 import static org.elasticsearch.packaging.util.docker.DockerRun.builder;
-import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;

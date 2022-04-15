@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.versionfield;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 
 public final class VersionScriptDocValues extends ScriptDocValues<String> {
@@ -17,6 +18,10 @@ public final class VersionScriptDocValues extends ScriptDocValues<String> {
 
     public String getValue() {
         return get(0);
+    }
+
+    public BytesRef getBytes() {
+        return VersionEncoder.encodeVersion(get(0)).bytesRef;
     }
 
     @Override

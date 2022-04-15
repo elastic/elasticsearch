@@ -33,6 +33,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.BytesRefSortScript;
 import org.elasticsearch.script.DocValuesDocReader;
 import org.elasticsearch.script.NumberSortScript;
 import org.elasticsearch.script.Script;
@@ -355,6 +356,53 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                     }
                 };
             }
+            case CUSTOM -> {
+                final BytesRefSortScript.Factory factory = context.compile(script, BytesRefSortScript.CONTEXT);
+                final BytesRefSortScript.LeafFactory searchScript = factory.newFactory(script.getParams());
+                return new BytesRefFieldComparatorSource(null, null, valueMode, nested) {
+                    BytesRefSortScript leafScript;
+
+                    @Override
+                    protected SortedBinaryDocValues getValues(LeafReaderContext context) throws IOException {
+                        leafScript = searchScript.newInstance(new DocValuesDocReader(searchLookup, context));
+                        final BinaryDocValues values = new AbstractBinaryDocValues() {
+
+                            @Override
+                            public boolean advanceExact(int doc) throws IOException {
+                                leafScript.setDocument(doc);
+                                return true;
+                            }
+
+                            @Override
+                            public BytesRef binaryValue() {
+                                return leafScript.execute();
+                            }
+                        };
+                        return FieldData.singleton(values);
+                    }
+
+                    @Override
+                    protected void setScorer(Scorable scorer) {
+                        leafScript.setScorer(scorer);
+                    }
+
+                    @Override
+                    public BucketedSort newBucketedSort(
+                        BigArrays bigArrays,
+                        SortOrder sortOrder,
+                        DocValueFormat format,
+                        int bucketSize,
+                        BucketedSort.ExtraData extra
+                    ) {
+                        throw new IllegalArgumentException(
+                            "error building sort for [_script]: "
+                                + "script sorting only supported on [numeric] scripts but was ["
+                                + type
+                                + "]"
+                        );
+                    }
+                };
+            }
             default -> throw new QueryShardException(context, "custom script sort type [" + type + "] not supported");
         }
     }
@@ -394,7 +442,9 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         /** script sort for a string value **/
         STRING,
         /** script sort for a numeric value **/
-        NUMBER;
+        NUMBER,
+        /** script sort for a BytesRef field value **/
+        CUSTOM;
 
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
@@ -413,6 +463,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
             return switch (str.toLowerCase(Locale.ROOT)) {
                 case ("string") -> ScriptSortType.STRING;
                 case ("number") -> ScriptSortType.NUMBER;
+                case ("custom") -> ScriptSortType.CUSTOM;
                 default -> throw new IllegalArgumentException("Unknown ScriptSortType [" + str + "]");
             };
         }

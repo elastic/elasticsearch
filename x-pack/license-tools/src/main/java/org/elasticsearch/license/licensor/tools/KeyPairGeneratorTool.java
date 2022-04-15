@@ -36,10 +36,6 @@ public class KeyPairGeneratorTool extends LoggingAwareCommand {
         this.privateKeyPathOption = parser.accepts("privateKeyPath", "private key path").withRequiredArg().required();
     }
 
-    public static void main(String[] args) throws Exception {
-        exit(new KeyPairGeneratorTool().main(args, Terminal.DEFAULT));
-    }
-
     @Override
     protected void printAdditionalHelp(Terminal terminal) {
         terminal.println("This tool generates and saves a key pair to the provided publicKeyPath");

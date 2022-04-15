@@ -44,10 +44,6 @@ public class LicenseVerificationTool extends LoggingAwareCommand {
         licenseFileOption = parser.accepts("licenseFile", "license json spec file").withRequiredArg();
     }
 
-    public static void main(String[] args) throws Exception {
-        exit(new LicenseVerificationTool().main(args, Terminal.DEFAULT));
-    }
-
     @Override
     protected void execute(Terminal terminal, OptionSet options) throws Exception {
         Path publicKeyPath = parsePath(publicKeyPathOption.value(options));

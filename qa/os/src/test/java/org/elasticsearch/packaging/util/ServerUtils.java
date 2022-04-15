@@ -39,11 +39,9 @@ import java.security.cert.CertificateFactory;
 import java.security.cert.X509Certificate;
 import java.util.List;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManagerFactory;
@@ -77,16 +75,13 @@ public class ServerUtils {
             String configFile = Files.readString(configFilePath, StandardCharsets.UTF_8);
             securityEnabled = configFile.contains(SECURITY_DISABLED) == false;
         } else {
-            final Optional<String> commandLine = dockerShell.run("bash -c 'COLUMNS=2000 ps ax'")
+            securityEnabled = dockerShell.run("bash -c 'env | grep xpack.security.enabled'")
                 .stdout()
                 .lines()
-                .filter(line -> line.contains("org.elasticsearch.bootstrap.Elasticsearch"))
-                .findFirst();
-            if (commandLine.isPresent() == false) {
-                throw new RuntimeException("Installation distribution is docker but a docker container is not running");
-            }
-            // security is enabled by default, the only way for it to be disabled is to be explicitly disabled
-            securityEnabled = commandLine.get().contains("-Expack.security.enabled=false") == false;
+                .findFirst()
+                .map(line -> Boolean.parseBoolean(line.split("=")[1]))
+                // security is enabled by default, the only way for it to be disabled is to be explicitly disabled
+                .orElse(true);
         }
 
         if (securityEnabled) {

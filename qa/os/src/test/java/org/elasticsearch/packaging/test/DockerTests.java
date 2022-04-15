@@ -151,15 +151,10 @@ public class DockerTests extends PackagingTestCase {
         // restart container with security disabled
         // We need to set discovery to single-node as with security disabled, autoconfiguration won't run and we won't set
         // cluster.initial_master_nodes
-        runContainer(distribution(), builder().envVar("ES_LOG_STYLE", "file").envVar("xpack.security.enabled", "false").envVar("discovery.type", "single-node"));
+        runContainer(distribution(), builder().envVar("xpack.security.enabled", "false").envVar("discovery.type", "single-node"));
         waitForElasticsearch(installation);
-        try {
-            final int unauthStatusCode = ServerUtils.makeRequestAndGetStatus(Request.Get("http://localhost:9200"), null, null, null);
-            assertThat(unauthStatusCode, equalTo(200));
-            fail("request succeeded");
-        } finally {
-            Docker.containerId = null;
-        }
+        final int unauthStatusCode = ServerUtils.makeRequestAndGetStatus(Request.Get("http://localhost:9200"), null, null, null);
+        assertThat(unauthStatusCode, equalTo(200));
     }
 
     /**

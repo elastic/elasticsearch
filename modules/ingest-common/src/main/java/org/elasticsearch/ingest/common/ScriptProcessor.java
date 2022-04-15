@@ -79,7 +79,6 @@ public final class ScriptProcessor extends AbstractProcessor {
             ingestScript = precompiledIngestScript;
         }
         ingestScript.execute(document.getSourceAndMetadata());
-        CollectionUtils.ensureNoSelfReferences(document.getSourceAndMetadata(), "ingest script");
         return document;
     }
 

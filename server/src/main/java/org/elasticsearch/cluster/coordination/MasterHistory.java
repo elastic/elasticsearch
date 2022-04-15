@@ -172,7 +172,7 @@ public class MasterHistory implements ClusterStateListener, Writeable, Writeable
             this.master = master;
         }
 
-        public TimeAndMaster(StreamInput streamInput) throws IOException {
+        TimeAndMaster(StreamInput streamInput) throws IOException {
             this(streamInput.readLong(), streamInput.readOptionalWriteable(DiscoveryNode::new));
         }
 

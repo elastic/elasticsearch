@@ -23,6 +23,11 @@ public class InternalAdjacencyMatrixTests extends InternalMultiBucketAggregation
     private List<String> keys;
 
     @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
     protected int maxNumberOfBuckets() {
         return 10;
     }

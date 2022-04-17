@@ -23,6 +23,7 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 
+import java.time.Instant;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Iterator;
@@ -237,7 +238,7 @@ public class DataTier {
             String dataStreamName,
             IndexMode templateIndexMode,
             Metadata metadata,
-            long resolvedAt,
+            Instant resolvedAt,
             Settings allSettings
         ) {
             Set<String> settings = allSettings.keySet();

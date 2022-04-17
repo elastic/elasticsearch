@@ -78,7 +78,7 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
             .metadata(metadata)
             .routingTable(routingTable.build())
             .build();
-        for (int i = 0; i < clusterState.routingTable().index(index).shards().size(); i++) {
+        for (int i = 0; i < clusterState.routingTable().index(index).size(); i++) {
             IndexShardRoutingTable shardRouting = clusterState.routingTable().index(index).shard(i);
             assertThat(shardRouting.size(), equalTo(2));
             assertThat(shardRouting.primaryShard().state(), equalTo(UNASSIGNED));
@@ -118,7 +118,7 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
             .metadata(metadata)
             .routingTable(routingTable.build())
             .build();
-        for (int i = 0; i < clusterState.routingTable().index(index).shards().size(); i++) {
+        for (int i = 0; i < clusterState.routingTable().index(index).size(); i++) {
             IndexShardRoutingTable shardRouting = clusterState.routingTable().index(index).shard(i);
             assertThat(shardRouting.size(), equalTo(2));
             assertThat(shardRouting.primaryShard().state(), equalTo(UNASSIGNED));
@@ -154,7 +154,7 @@ public class CcrPrimaryFollowerAllocationDeciderTests extends ESAllocationTestCa
             .metadata(metadata)
             .routingTable(routingTable.build())
             .build();
-        for (int i = 0; i < clusterState.routingTable().index(index).shards().size(); i++) {
+        for (int i = 0; i < clusterState.routingTable().index(index).size(); i++) {
             IndexShardRoutingTable shardRouting = clusterState.routingTable().index(index).shard(i);
             assertThat(shardRouting.size(), equalTo(2));
             assertThat(shardRouting.primaryShard().state(), equalTo(UNASSIGNED));

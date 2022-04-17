@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.profile;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
@@ -22,6 +23,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.profile.Profile;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
+import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -33,6 +35,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
 
+import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.HashMap;
@@ -59,7 +62,7 @@ public class ProfileServiceTests extends ESTestCase {
             "uid": "%s",
             "enabled": true,
             "user": {
-              "username": "foo",
+              "username": "Foo",
               "roles": [
                 "role1",
                 "role2"
@@ -77,12 +80,10 @@ public class ProfileServiceTests extends ESTestCase {
                 "node_name": "node1"
               },
               "email": "foo@example.com",
-              "full_name": "User Foo",
-              "display_name": "Curious Foo",
-              "active": true
+              "full_name": "User Foo"
             },
             "last_synchronized": %s,
-            "access": {
+            "labels": {
             },
             "application_data": {
               "app1": { "name": "app1" },
@@ -137,7 +138,7 @@ public class ProfileServiceTests extends ESTestCase {
 
         final PlainActionFuture<Profile> future = new PlainActionFuture<>();
 
-        final Set<String> dataKeys = randomFrom(Set.of("app1"), Set.of("app2"), Set.of("app1", "app2"), Set.of(), null);
+        final Set<String> dataKeys = randomFrom(Set.of("app1"), Set.of("app2"), Set.of("app1", "app2"), Set.of());
 
         profileService.getProfile(uid, dataKeys, future);
         final Profile profile = future.actionGet();
@@ -159,16 +160,7 @@ public class ProfileServiceTests extends ESTestCase {
                     uid,
                     true,
                     lastSynchronized,
-                    new Profile.ProfileUser(
-                        "foo",
-                        List.of("role1", "role2"),
-                        "realm_name_1",
-                        null,
-                        "foo@example.com",
-                        "User Foo",
-                        "Curious Foo",
-                        true
-                    ),
+                    new Profile.ProfileUser("Foo", List.of("role1", "role2"), "realm_name_1", "domainA", "foo@example.com", "User Foo"),
                     Map.of(),
                     applicationData,
                     new Profile.VersionControl(1, 0)
@@ -207,9 +199,55 @@ public class ProfileServiceTests extends ESTestCase {
         assertThat(e1.getMessage(), containsString("profile should not be created for internal user"));
     }
 
+    public void testFailureForParsingDifferentiator() throws IOException {
+        final PlainActionFuture<Profile> future1 = new PlainActionFuture<>();
+        profileService.incrementDifferentiatorAndCreateNewProfile(
+            mock(Subject.class),
+            randomProfileDocument(randomAlphaOfLength(20)),
+            future1
+        );
+        final ElasticsearchException e1 = expectThrows(ElasticsearchException.class, future1::actionGet);
+        assertThat(e1.getMessage(), containsString("does not contain any underscore character"));
+
+        final PlainActionFuture<Profile> future2 = new PlainActionFuture<>();
+        profileService.incrementDifferentiatorAndCreateNewProfile(
+            mock(Subject.class),
+            randomProfileDocument(randomAlphaOfLength(20) + "_"),
+            future2
+        );
+        final ElasticsearchException e2 = expectThrows(ElasticsearchException.class, future2::actionGet);
+        assertThat(e2.getMessage(), containsString("does not contain a differentiator"));
+
+        final PlainActionFuture<Profile> future3 = new PlainActionFuture<>();
+        profileService.incrementDifferentiatorAndCreateNewProfile(
+            mock(Subject.class),
+            randomProfileDocument(randomAlphaOfLength(20) + "_" + randomAlphaOfLengthBetween(1, 3)),
+            future3
+        );
+        final ElasticsearchException e3 = expectThrows(ElasticsearchException.class, future3::actionGet);
+        assertThat(e3.getMessage(), containsString("differentiator is not a number"));
+    }
+
     private void mockGetRequest(String uid, long lastSynchronized) {
         final String source = SAMPLE_PROFILE_DOCUMENT_TEMPLATE.formatted(uid, lastSynchronized);
 
         SecurityMocks.mockGetRequest(client, SECURITY_PROFILE_ALIAS, "profile_" + uid, new BytesArray(source));
+    }
+
+    private ProfileDocument randomProfileDocument(String uid) {
+        return new ProfileDocument(
+            uid,
+            true,
+            randomLong(),
+            new ProfileDocument.ProfileDocumentUser(
+                randomAlphaOfLengthBetween(3, 8),
+                List.of(),
+                AuthenticationTests.randomRealmRef(randomBoolean()),
+                "foo@example.com",
+                null
+            ),
+            Map.of(),
+            null
+        );
     }
 }

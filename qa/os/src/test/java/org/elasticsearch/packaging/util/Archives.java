@@ -211,10 +211,7 @@ public class Archives {
             "elasticsearch-sql-cli",
             "elasticsearch-syskeygen",
             "elasticsearch-users",
-            "elasticsearch-service-tokens",
-            "x-pack-env",
-            "x-pack-security-env",
-            "x-pack-watcher-env"
+            "elasticsearch-service-tokens"
         ).forEach(executable -> {
 
             assertThat(es.bin(executable), file(File, owner, owner, p755));
@@ -232,13 +229,17 @@ public class Archives {
             .forEach(configFile -> assertThat(es.config(configFile), file(File, owner, owner, p660)));
     }
 
+    /**
+     * Starts an elasticsearch node from an attached terminal, optionally waiting for a specific string to be printed in stdout
+     */
     public static Shell.Result startElasticsearchWithTty(
         Installation installation,
         Shell sh,
         String keystorePassword,
         List<String> parameters,
+        String outputStringToMatch,
         boolean daemonize
-    ) throws Exception {
+    ) {
         final Path pidFile = installation.home.resolve("elasticsearch.pid");
         final Installation.Executables bin = installation.executables();
 
@@ -252,25 +253,32 @@ public class Archives {
         if (parameters != null && parameters.isEmpty() == false) {
             command.addAll(parameters);
         }
-        String script = String.format(
-            Locale.ROOT,
-            "expect -c \"$(cat<<EXPECT\n"
-                + "spawn -ignore HUP "
-                + String.join(" ", command)
-                + "\n"
-                + "expect \"Elasticsearch keystore password:\"\n"
-                + "send \"%s\\r\"\n"
-                + "expect eof\n"
-                + "EXPECT\n"
-                + ")\"",
-            ARCHIVE_OWNER,
-            bin.elasticsearch,
-            pidFile,
-            keystorePassword
+        String keystoreScript = keystorePassword == null ? "" : """
+            expect "Elasticsearch keystore password:"
+            send "%s\\r"
+            """.formatted(keystorePassword);
+        String checkStartupScript = daemonize ? "expect eof" : """
+            expect {
+              "uncaught exception" { send_user "\\nStartup failed due to uncaught exception\\n"; exit 1 }
+              timeout { send_user "\\nTimed out waiting for startup to succeed\\n"; exit 1 }
+              eof { send_user "\\nFailed to determine if startup succeeded\\n"; exit 1 }
+              %s
+            }
+            """.formatted(null == outputStringToMatch ? "-re \"o\\.e\\.n\\.Node.*] started\"" : "\"" + outputStringToMatch + "\"");
+        String expectScript = """
+            expect - <<EXPECT
+            set timeout 60
+            spawn -ignore HUP %s
+            %s
+            %s
+            EXPECT
+            """.formatted(
+            String.join(" ", command).formatted(ARCHIVE_OWNER, bin.elasticsearch, pidFile),
+            keystoreScript,
+            checkStartupScript
         );
-
         sh.getEnv().put("ES_STARTUP_SLEEP_TIME", ES_STARTUP_SLEEP_TIME_SECONDS);
-        return sh.runIgnoreExitCode(script);
+        return sh.runIgnoreExitCode(expectScript);
     }
 
     public static Shell.Result runElasticsearchStartCommand(

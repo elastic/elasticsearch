@@ -11,12 +11,12 @@ setup:
   - do:
       index:
         index:  test
-        id:     1
+        id:     "1"
         body:   { "test": 1 }
   - do:
       index:
         index:  test
-        id:     2
+        id:     "2"
         body:   { "test": 2 }
   - do:
       indices.refresh: {}

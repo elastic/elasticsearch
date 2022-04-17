@@ -398,8 +398,8 @@ end::ignore_throttled[]
 
 tag::index-ignore-unavailable[]
 `ignore_unavailable`::
-(Optional, Boolean) If `true`, missing or closed indices are not included in the
-response. Defaults to `false`.
+(Optional, Boolean) If `false`, the request returns an error if it targets a
+missing or closed index. Defaults to `false`.
 end::index-ignore-unavailable[]
 
 tag::include-defaults[]

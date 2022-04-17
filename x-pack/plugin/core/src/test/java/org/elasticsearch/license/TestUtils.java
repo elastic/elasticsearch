@@ -39,7 +39,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomBoolean;
 import static com.carrotsearch.randomizedtesting.RandomizedTest.randomInt;
-import static org.apache.lucene.util.LuceneTestCase.createTempFile;
+import static org.apache.lucene.tests.util.LuceneTestCase.createTempFile;
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;

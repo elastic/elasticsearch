@@ -20,7 +20,7 @@ public final class ChannelActionListener<Response extends TransportResponse, Req
     implements
         ActionListener<Response> {
 
-    private static final Logger logger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger(ChannelActionListener.class);
 
     private final TransportChannel channel;
     private final Request request;

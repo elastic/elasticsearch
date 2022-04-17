@@ -300,6 +300,13 @@ public class ClusterBlocks implements SimpleDiffable<ClusterBlocks> {
         return new Builder();
     }
 
+    /**
+     * Convenience method, equivalent to: {@code builder().blocks(blocks)}
+     */
+    public static Builder builder(ClusterBlocks blocks) {
+        return builder().blocks(blocks);
+    }
+
     public static class Builder {
 
         private final Set<ClusterBlock> global = new HashSet<>();

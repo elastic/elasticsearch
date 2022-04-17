@@ -374,6 +374,13 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return mapperService.isMetadataField(field);
     }
 
+    public boolean isMultiField(String field) {
+        if (runtimeMappings.containsKey(field)) {
+            return false;
+        }
+        return mapperService.isMultiField(field);
+    }
+
     public Set<String> sourcePath(String fullName) {
         return mappingLookup.sourcePaths(fullName);
     }
@@ -604,7 +611,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
         return client;
     }
 
-    public QueryBuilder parseInnerQueryBuilder(XContentParser parser) throws IOException {
+    public static QueryBuilder parseInnerQueryBuilder(XContentParser parser) throws IOException {
         return AbstractQueryBuilder.parseInnerQueryBuilder(parser);
     }
 

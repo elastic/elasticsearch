@@ -12,9 +12,14 @@ import org.elasticsearch.gradle.internal.precommit.LicenseAnalyzer.LicenseInfo;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.GradleException;
 import org.gradle.api.InvalidUserDataException;
+import org.gradle.api.file.Directory;
+import org.gradle.api.file.DirectoryProperty;
 import org.gradle.api.file.FileCollection;
+import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
+import org.gradle.api.model.ObjectFactory;
+import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.InputFiles;
@@ -42,6 +47,8 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
+import javax.inject.Inject;
 
 /**
  * A task to check licenses for dependencies.
@@ -103,7 +110,7 @@ public class DependencyLicensesTask extends DefaultTask {
     /**
      * The directory to find the license and sha files in.
      */
-    private File licensesDir = new File(getProject().getProjectDir(), "licenses");
+    private final DirectoryProperty licensesDir;
 
     /**
      * A map of patterns to prefix, used to find the LICENSE and NOTICE file.
@@ -119,6 +126,7 @@ public class DependencyLicensesTask extends DefaultTask {
      *  Names of files that should be ignored by the check
      */
     private LinkedHashSet<String> ignoreFiles = new LinkedHashSet<>();
+    private ProjectLayout projectLayout;
 
     /**
      * Add a mapping from a regex pattern for the jar name, to a prefix to find
@@ -139,6 +147,12 @@ public class DependencyLicensesTask extends DefaultTask {
         mappings.put(from, to);
     }
 
+    @Inject
+    public DependencyLicensesTask(ObjectFactory objects, ProjectLayout projectLayout) {
+        this.projectLayout = projectLayout;
+        licensesDir = objects.directoryProperty().convention(projectLayout.getProjectDirectory().dir("licenses"));
+    }
+
     @InputFiles
     public FileCollection getDependencies() {
         return dependencies;
@@ -151,15 +165,16 @@ public class DependencyLicensesTask extends DefaultTask {
     @Optional
     @InputDirectory
     public File getLicensesDir() {
-        if (licensesDir.exists()) {
-            return licensesDir;
+        File asFile = licensesDir.get().getAsFile();
+        if (asFile.exists()) {
+            return asFile;
         }
 
         return null;
     }
 
     public void setLicensesDir(File licensesDir) {
-        this.licensesDir = licensesDir;
+        this.licensesDir.set(licensesDir);
     }
 
     /**
@@ -182,26 +197,25 @@ public class DependencyLicensesTask extends DefaultTask {
         if (dependencies == null) {
             throw new GradleException("No dependencies variable defined.");
         }
-
+        File licensesDirAsFile = licensesDir.get().getAsFile();
         if (dependencies.isEmpty()) {
-            if (licensesDir.exists()) {
-                throw new GradleException("Licenses dir " + licensesDir + " exists, but there are no dependencies");
+            if (licensesDirAsFile.exists()) {
+                throw new GradleException("Licenses dir " + licensesDirAsFile + " exists, but there are no dependencies");
             }
             return; // no dependencies to check
-        } else if (licensesDir.exists() == false) {
+        } else if (licensesDirAsFile.exists() == false) {
             String deps = "";
             for (File file : dependencies) {
                 deps += file.getName() + "\n";
             }
-            throw new GradleException("Licences dir " + licensesDir + " does not exist, but there are dependencies: " + deps);
+            throw new GradleException("Licences dir " + licensesDirAsFile + " does not exist, but there are dependencies: " + deps);
         }
 
         Map<String, Boolean> licenses = new HashMap<>();
         Map<String, Boolean> notices = new HashMap<>();
         Map<String, Boolean> sources = new HashMap<>();
         Set<File> shaFiles = new HashSet<>();
-
-        for (File file : licensesDir.listFiles()) {
+        for (File file : licensesDirAsFile.listFiles()) {
             String name = file.getName();
             if (name.endsWith(SHA_EXTENSION)) {
                 shaFiles.add(file);
@@ -237,8 +251,8 @@ public class DependencyLicensesTask extends DefaultTask {
     // The check logic is exception driven so a failed tasks will not be defined
     // by this output but when successful we can safely mark the task as up-to-date.
     @OutputDirectory
-    public File getOutputMarker() {
-        return new File(getProject().getBuildDir(), "dependencyLicense");
+    public Provider<Directory> getOutputMarker() {
+        return projectLayout.getBuildDirectory().dir("dependencyLicense");
     }
 
     private void failIfAnyMissing(String item, Boolean exists, String type) {
@@ -264,7 +278,7 @@ public class DependencyLicensesTask extends DefaultTask {
             checkFile(dependencyName, jarName, licenses, "LICENSE");
             checkFile(dependencyName, jarName, notices, "NOTICE");
 
-            File licenseFile = new File(licensesDir, getFileName(dependencyName, licenses, "LICENSE"));
+            File licenseFile = new File(licensesDir.get().getAsFile(), getFileName(dependencyName, licenses, "LICENSE"));
             LicenseInfo licenseInfo = LicenseAnalyzer.licenseType(licenseFile);
             if (licenseInfo.sourceRedistributionRequired()) {
                 checkFile(dependencyName, jarName, sources, "SOURCES");
@@ -362,14 +376,15 @@ public class DependencyLicensesTask extends DefaultTask {
     }
 
     File getShaFile(String jarName) {
-        return new File(licensesDir, jarName + SHA_EXTENSION);
+        return new File(licensesDir.get().getAsFile(), jarName + SHA_EXTENSION);
     }
 
     @Internal
     Set<File> getShaFiles() {
-        File[] array = licensesDir.listFiles();
+        File licenseDirAsFile = licensesDir.get().getAsFile();
+        File[] array = licenseDirAsFile.listFiles();
         if (array == null) {
-            throw new GradleException("\"" + licensesDir.getPath() + "\" isn't a valid directory");
+            throw new GradleException("\"" + licenseDirAsFile.getPath() + "\" isn't a valid directory");
         }
 
         return Arrays.stream(array).filter(file -> file.getName().endsWith(SHA_EXTENSION)).collect(Collectors.toSet());

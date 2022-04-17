@@ -55,7 +55,7 @@ public class ScriptConfig implements SimpleDiffable<ScriptConfig>, Writeable, To
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(source);
+        out.writeGenericMap(source);
         out.writeOptionalWriteable(script);
     }
 

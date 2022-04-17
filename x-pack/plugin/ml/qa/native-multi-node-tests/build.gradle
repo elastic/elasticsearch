@@ -9,7 +9,7 @@ dependencies {
   javaRestTestImplementation project(path: ':modules:reindex')
   javaRestTestImplementation project(path: ':modules:transport-netty4')
   javaRestTestImplementation project(path: xpackModule('autoscaling'))
-  javaRestTestImplementation project(path: xpackModule('data-streams'))
+  javaRestTestImplementation project(':modules:data-streams')
   javaRestTestImplementation project(path: xpackModule('ilm'))
   javaRestTestImplementation project(path: xpackModule('monitoring'))
   javaRestTestImplementation project(path: xpackModule('transform'))

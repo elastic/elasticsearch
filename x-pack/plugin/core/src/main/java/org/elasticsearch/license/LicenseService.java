@@ -16,19 +16,23 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
+import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
+import org.elasticsearch.protocol.xpack.license.LicenseStatus;
 import org.elasticsearch.protocol.xpack.license.LicensesStatus;
 import org.elasticsearch.protocol.xpack.license.PutLicenseResponse;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -37,6 +41,7 @@ import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.scheduler.SchedulerEngine;
 
+import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -70,11 +75,11 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         Setting.Property.NodeScope
     );
 
-    static final List<License.LicenseType> ALLOWABLE_UPLOAD_TYPES = getAllowableUploadTypes();
+    public static final List<License.LicenseType> ALLOWABLE_UPLOAD_TYPES = getAllowableUploadTypes();
 
     public static final Setting<List<License.LicenseType>> ALLOWED_LICENSE_TYPES_SETTING = Setting.listSetting(
         "xpack.license.upload.types",
-        ALLOWABLE_UPLOAD_TYPES.stream().map(License.LicenseType::getTypeName).collect(Collectors.toUnmodifiableList()),
+        ALLOWABLE_UPLOAD_TYPES.stream().map(License.LicenseType::getTypeName).toList(),
         License.LicenseType::parse,
         LicenseService::validateUploadTypesSetting,
         Setting.Property.NodeScope
@@ -210,15 +215,38 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         expirationCallbacks.add(new ExpirationCallback.Pre(days(0), days(25), days(1)) {
             @Override
             public void on(License license) {
-                logExpirationWarning(license.expiryDate(), false);
+                logExpirationWarning(getExpiryDate(license), false);
             }
         });
         expirationCallbacks.add(new ExpirationCallback.Post(days(0), null, TimeValue.timeValueMinutes(10)) {
             @Override
             public void on(License license) {
-                logExpirationWarning(license.expiryDate(), true);
+                logExpirationWarning(getExpiryDate(license), true);
             }
         });
+    }
+
+    /**
+     * Gets the effective expiry date of the given license, including any overrides.
+     */
+    public static long getExpiryDate(License license) {
+        String licenseUidHash = MessageDigests.toHexString(MessageDigests.sha256().digest(license.uid().getBytes(StandardCharsets.UTF_8)));
+        return LicenseOverrides.overrideDateForLicense(licenseUidHash)
+            .map(date -> date.toInstant().toEpochMilli())
+            .orElse(license.expiryDate());
+    }
+
+    /**
+     * Gets the current status of a license
+     */
+    public static LicenseStatus status(License license) {
+        long now = System.currentTimeMillis();
+        if (license.issueDate() > now) {
+            return LicenseStatus.INVALID;
+        } else if (LicenseService.getExpiryDate(license) < now) {
+            return LicenseStatus.EXPIRED;
+        }
+        return LicenseStatus.ACTIVE;
     }
 
     /**
@@ -245,7 +273,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
             listener.onFailure(
                 new IllegalArgumentException("Registering [" + licenseType.getTypeName() + "] licenses is not allowed on this cluster")
             );
-        } else if (newLicense.expiryDate() < now) {
+        } else if (getExpiryDate(newLicense) < now) {
             listener.onResponse(new PutLicenseResponse(true, LicensesStatus.EXPIRED));
         } else {
             if (request.acknowledged() == false) {
@@ -303,9 +331,14 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                         return ClusterState.builder(currentState).metadata(mdBuilder).build();
                     }
                 },
-                ClusterStateTaskExecutor.unbatched()
+                newExecutor()
             );
         }
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 
     private static boolean licenseIsCompatible(License license, Version version) {
@@ -370,7 +403,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
             "delete license",
             listener
         );
-        clusterService.submitStateUpdateTask(task.getDescription(), task, ClusterStateTaskExecutor.unbatched());
+        clusterService.submitStateUpdateTask(task.getDescription(), task, newExecutor());
     }
 
     public License getLicense() {
@@ -394,7 +427,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
             );
         }
         StartTrialClusterTask task = new StartTrialClusterTask(logger, clusterService.getClusterName().value(), clock, request, listener);
-        clusterService.submitStateUpdateTask(StartTrialClusterTask.TASK_SOURCE, task, ClusterStateTaskExecutor.unbatched());
+        clusterService.submitStateUpdateTask(StartTrialClusterTask.TASK_SOURCE, task, newExecutor());
     }
 
     void startBasicLicense(PostStartBasicRequest request, final ActionListener<PostStartBasicResponse> listener) {
@@ -406,7 +439,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
             "start basic license",
             listener
         );
-        clusterService.submitStateUpdateTask(task.getDescription(), task, ClusterStateTaskExecutor.unbatched());
+        clusterService.submitStateUpdateTask(task.getDescription(), task, newExecutor());
     }
 
     /**
@@ -419,7 +452,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         clusterService.submitStateUpdateTask(
             StartupSelfGeneratedLicenseTask.TASK_SOURCE,
             new StartupSelfGeneratedLicenseTask(settings, clock, clusterService),
-            ClusterStateTaskExecutor.unbatched()
+            newExecutor()
         );
     }
 
@@ -538,17 +571,17 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         long time = clock.millis();
         if (license == LicensesMetadata.LICENSE_TOMBSTONE) {
             // implies license has been explicitly deleted
-            licenseState.update(License.OperationMode.MISSING, false, getExpiryWarning(license.expiryDate(), time));
+            licenseState.update(License.OperationMode.MISSING, false, getExpiryWarning(getExpiryDate(license), time));
             return;
         }
         if (license != null) {
             final boolean active;
-            if (license.expiryDate() == BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS) {
+            if (getExpiryDate(license) == BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS) {
                 active = true;
             } else {
-                active = time >= license.issueDate() && time < license.expiryDate();
+                active = time >= license.issueDate() && time < getExpiryDate(license);
             }
-            licenseState.update(license.operationMode(), active, getExpiryWarning(license.expiryDate(), time));
+            licenseState.update(license.operationMode(), active, getExpiryWarning(getExpiryDate(license), time));
 
             if (active) {
                 logger.debug("license [{}] - valid", license.uid());
@@ -578,7 +611,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                     scheduler.add(
                         new SchedulerEngine.Job(
                             expirationCallback.getId(),
-                            (startTime, now) -> expirationCallback.nextScheduledTimeForExpiry(license.expiryDate(), startTime, now)
+                            (startTime, now) -> expirationCallback.nextScheduledTimeForExpiry(getExpiryDate(license), startTime, now)
                         )
                     );
                 }
@@ -602,10 +635,10 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                 // so the license is notified once it is valid
                 // see https://github.com/elastic/x-plugins/issues/983
                 return license.issueDate();
-            } else if (time < license.expiryDate()) {
+            } else if (time < getExpiryDate(license)) {
                 // Re-check the license every day during the warning period up to the license expiration.
                 // This will cause the warning message to be updated that is emitted on soon-expiring license use.
-                long nextTime = license.expiryDate() - LICENSE_EXPIRATION_WARNING_PERIOD.getMillis();
+                long nextTime = getExpiryDate(license) - LICENSE_EXPIRATION_WARNING_PERIOD.getMillis();
                 while (nextTime <= time) {
                     nextTime += TimeValue.timeValueDays(1).getMillis();
                 }
@@ -635,7 +668,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     }
 
     private static List<License.LicenseType> getAllowableUploadTypes() {
-        return Stream.of(License.LicenseType.values()).filter(t -> t != License.LicenseType.BASIC).collect(Collectors.toUnmodifiableList());
+        return Stream.of(License.LicenseType.values()).filter(t -> t != License.LicenseType.BASIC).toList();
     }
 
     private static void validateUploadTypesSetting(List<License.LicenseType> value) {

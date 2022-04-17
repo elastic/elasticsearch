@@ -71,7 +71,7 @@ public class FilterPath {
      * @param matchFieldNamesWithDots support dot in field name or not
      * @return true if the name equal a final node, otherwise return false
      */
-    boolean matches(String name, List<FilterPath> nextFilters, boolean matchFieldNamesWithDots) {
+    public boolean matches(String name, List<FilterPath> nextFilters, boolean matchFieldNamesWithDots) { // << here
         if (nextFilters == null) {
             return false;
         }
@@ -131,7 +131,7 @@ public class FilterPath {
     }
 
     private static class FilterPathBuilder {
-        private class BuildNode {
+        private static class BuildNode {
             private final Map<String, BuildNode> children;
             private final boolean isFinalNode;
 
@@ -141,7 +141,7 @@ public class FilterPath {
             }
         }
 
-        private BuildNode root = new BuildNode(false);
+        private final BuildNode root = new BuildNode(false);
 
         void insert(String filter) {
             insertNode(filter, root);

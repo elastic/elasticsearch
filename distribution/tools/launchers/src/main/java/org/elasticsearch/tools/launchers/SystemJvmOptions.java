@@ -8,8 +8,6 @@
 
 package org.elasticsearch.tools.launchers;
 
-import org.elasticsearch.tools.java_version_checker.JavaVersion;
-
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -44,13 +42,10 @@ final class SystemJvmOptions {
              * debugging.
              */
             "-XX:-OmitStackTraceInFastThrow",
-            // enable helpful NullPointerExceptions (https://openjdk.java.net/jeps/358), if they are supported
-            maybeShowCodeDetailsInExceptionMessages(),
             // flags to configure Netty
             "-Dio.netty.noUnsafe=true",
             "-Dio.netty.noKeySetOptimization=true",
             "-Dio.netty.recycler.maxCapacityPerThread=0",
-            "-Dio.netty.allocator.numDirectArenas=0",
             // log4j 2
             "-Dlog4j.shutdownHookEnabled=false",
             "-Dlog4j2.disable.jmx=true",
@@ -69,13 +64,4 @@ final class SystemJvmOptions {
             "--add-opens=java.base/java.io=ALL-UNNAMED"
         ).stream().filter(e -> e.isEmpty() == false).collect(Collectors.toList());
     }
-
-    private static String maybeShowCodeDetailsInExceptionMessages() {
-        if (JavaVersion.majorVersion(JavaVersion.CURRENT) >= 14) {
-            return "-XX:+ShowCodeDetailsInExceptionMessages";
-        } else {
-            return "";
-        }
-    }
-
 }

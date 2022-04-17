@@ -137,7 +137,7 @@ class AggProvider implements Writeable, ToXContentObject {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(aggs);
+        out.writeGenericMap(aggs);
         out.writeOptionalWriteable(parsedAggs);
         out.writeException(parsingException);
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {

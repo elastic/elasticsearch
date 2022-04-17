@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.sql.common.io;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -23,22 +25,25 @@ import java.util.Base64;
  */
 public class SqlStreamInput extends NamedWriteableAwareStreamInput {
 
-    private final ZoneId zoneId;
+    public static SqlStreamInput fromString(String base64encoded, NamedWriteableRegistry namedWriteableRegistry, Version version)
+        throws IOException {
+        byte[] bytes = Base64.getDecoder().decode(base64encoded);
+        StreamInput in = StreamInput.wrap(bytes);
+        Version inVersion = Version.readVersion(in);
+        if (version.compareTo(inVersion) != 0) {
+            throw new SqlIllegalArgumentException("Unsupported cursor version [{}], expected [{}]", inVersion, version);
+        }
 
-    public SqlStreamInput(String base64encoded, NamedWriteableRegistry namedWriteableRegistry, Version version) throws IOException {
-        this(Base64.getDecoder().decode(base64encoded), namedWriteableRegistry, version);
+        InputStreamStreamInput uncompressingIn = new InputStreamStreamInput(CompressorFactory.COMPRESSOR.threadLocalInputStream(in));
+        return new SqlStreamInput(uncompressingIn, namedWriteableRegistry, inVersion);
     }
 
-    public SqlStreamInput(byte[] input, NamedWriteableRegistry namedWriteableRegistry, Version version) throws IOException {
-        super(StreamInput.wrap(input), namedWriteableRegistry);
+    private final ZoneId zoneId;
 
-        // version check first
-        Version ver = Version.readVersion(delegate);
-        if (version.compareTo(ver) != 0) {
-            throw new SqlIllegalArgumentException("Unsupported cursor version [{}], expected [{}]", ver, version);
-        }
+    private SqlStreamInput(StreamInput input, NamedWriteableRegistry namedWriteableRegistry, Version version) throws IOException {
+        super(input, namedWriteableRegistry);
+
         delegate.setVersion(version);
-        // configuration settings
         zoneId = delegate.readZoneId();
     }
 

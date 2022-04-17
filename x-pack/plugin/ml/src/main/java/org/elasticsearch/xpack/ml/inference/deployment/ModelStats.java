@@ -19,5 +19,8 @@ public record ModelStats(
     int rejectedExecutionCount,
     int timeoutCount,
     Integer inferenceThreads,
-    Integer modelThreads
+    Integer modelThreads,
+    long peakThroughput,
+    long throughputLastPeriod,
+    Double avgInferenceTimeLastPeriod
 ) {}

@@ -13,6 +13,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public record ThreadSettings(int inferenceThreads, int modelThreads) implements ToXContentObject {
 
@@ -36,5 +37,18 @@ public record ThreadSettings(int inferenceThreads, int modelThreads) implements 
         builder.field(MODEL_THREADS.getPreferredName(), modelThreads);
         builder.endObject();
         return builder;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        ThreadSettings that = (ThreadSettings) o;
+        return inferenceThreads == that.inferenceThreads && modelThreads == that.modelThreads;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(inferenceThreads, modelThreads);
     }
 }

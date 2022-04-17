@@ -15,7 +15,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * Information about a currently running task and all its subtasks.
@@ -49,7 +48,7 @@ public record TaskGroup(TaskInfo task, List<TaskGroup> childTasks) implements To
         }
 
         public TaskGroup build() {
-            return new TaskGroup(taskInfo, childTasks.stream().map(Builder::build).collect(Collectors.toList()));
+            return new TaskGroup(taskInfo, childTasks.stream().map(Builder::build).toList());
         }
     }
 

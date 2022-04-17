@@ -8,7 +8,7 @@
 
 package org.elasticsearch.bootstrap;
 
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 
 import static org.hamcrest.Matchers.is;
 

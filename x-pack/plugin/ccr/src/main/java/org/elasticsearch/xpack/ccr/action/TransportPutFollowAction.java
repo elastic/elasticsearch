@@ -197,7 +197,11 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
             .masterNodeTimeout(request.masterNodeTimeout())
             .indexSettings(overrideSettings);
 
-        final Client clientWithHeaders = CcrLicenseChecker.wrapClient(this.client, threadPool.getThreadContext().getHeaders());
+        final Client clientWithHeaders = CcrLicenseChecker.wrapClient(
+            this.client,
+            threadPool.getThreadContext().getHeaders(),
+            clusterService.state()
+        );
         threadPool.executor(ThreadPool.Names.SNAPSHOT).execute(new AbstractRunnable() {
 
             @Override
@@ -268,7 +272,8 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                     assert restoreInfo.failedShards() > 0 : "Should have failed shards";
                     delegatedListener.onResponse(new PutFollowAction.Response(true, false, false));
                 }
-            })
+            }),
+            threadPool.getThreadContext()
         );
     }
 
@@ -304,7 +309,6 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
             // just copying the data stream is in this case safe.
             return new DataStream(
                 remoteDataStream.getName(),
-                remoteDataStream.getTimeStampField(),
                 List.of(backingIndexToFollow),
                 remoteDataStream.getGeneration(),
                 remoteDataStream.getMetadata(),
@@ -336,7 +340,6 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
 
             return new DataStream(
                 localDataStream.getName(),
-                localDataStream.getTimeStampField(),
                 backingIndices,
                 remoteDataStream.getGeneration(),
                 remoteDataStream.getMetadata(),

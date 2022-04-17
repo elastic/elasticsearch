@@ -128,6 +128,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
     }
 
     public void testBootstrapNotBootstrappedCluster() throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(InternalTestCluster.BOOTSTRAP_MASTER_NODE_INDEX_DONE); // explicitly skip bootstrap
         String node = internalCluster().startNode(
             Settings.builder()
                 .put(Node.INITIAL_STATE_TIMEOUT_SETTING.getKey(), "0s") // to ensure quick node startup
@@ -153,7 +154,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         String node = internalCluster().startNode();
         Settings dataPathSettings = internalCluster().dataPathSettings(node);
         ensureStableCluster(1);
-        NodeEnvironment nodeEnvironment = internalCluster().getMasterNodeInstance(NodeEnvironment.class);
+        NodeEnvironment nodeEnvironment = internalCluster().getAnyMasterNodeInstance(NodeEnvironment.class);
         internalCluster().stopRandomDataNode();
         Environment environment = TestEnvironment.newEnvironment(
             Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build()
@@ -168,7 +169,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         String node = internalCluster().startNode();
         Settings dataPathSettings = internalCluster().dataPathSettings(node);
         ensureStableCluster(1);
-        NodeEnvironment nodeEnvironment = internalCluster().getMasterNodeInstance(NodeEnvironment.class);
+        NodeEnvironment nodeEnvironment = internalCluster().getAnyMasterNodeInstance(NodeEnvironment.class);
         internalCluster().stopRandomDataNode();
         Environment environment = TestEnvironment.newEnvironment(
             Settings.builder().put(internalCluster().getDefaultSettings()).put(dataPathSettings).build()
@@ -257,7 +258,7 @@ public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
         expectThrows(() -> unsafeBootstrap(environmentMaster1), UnsafeBootstrapMasterCommand.FAILED_TO_OBTAIN_NODE_LOCK_MSG);
 
         logger.info("--> stop 1st master-eligible node and data-only node");
-        NodeEnvironment nodeEnvironment = internalCluster().getMasterNodeInstance(NodeEnvironment.class);
+        NodeEnvironment nodeEnvironment = internalCluster().getAnyMasterNodeInstance(NodeEnvironment.class);
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(masterNodes.get(0)));
         assertBusy(() -> internalCluster().getInstance(GatewayMetaState.class, dataNode).allPendingAsyncStatesWritten());
         internalCluster().stopRandomDataNode();

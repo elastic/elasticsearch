@@ -68,8 +68,8 @@ public class DerivativePipelineAggregator extends PipelineAggregator {
                     xDiff = (thisBucketKey.doubleValue() - lastBucketKey.doubleValue()) / xAxisUnits;
                 }
                 final List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false)
-                    .map((p) -> { return (InternalAggregation) p; })
-                    .collect(Collectors.toList());
+                    .map((p) -> (InternalAggregation) p)
+                    .collect(Collectors.toCollection(ArrayList::new));
                 aggs.add(new InternalDerivative(name(), gradient, xDiff, formatter, metadata()));
                 Bucket newBucket = factory.createBucket(factory.getKey(bucket), bucket.getDocCount(), InternalAggregations.from(aggs));
                 newBuckets.add(newBucket);

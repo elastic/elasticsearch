@@ -67,7 +67,7 @@ public class BytesRefFieldComparatorSource extends IndexFieldData.XFieldComparat
     protected void setScorer(Scorable scorer) {}
 
     @Override
-    public FieldComparator<?> newComparator(String fieldname, int numHits, int sortPos, boolean reversed) {
+    public FieldComparator<?> newComparator(String fieldname, int numHits, boolean enableSkipping, boolean reversed) {
         assert indexFieldData == null || fieldname.equals(indexFieldData.getFieldName());
 
         final boolean sortMissingLast = sortMissingLast(missingValue) ^ reversed;

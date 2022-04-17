@@ -3,6 +3,7 @@
   "version": ${xpack.stack.monitoring.template.release.version},
   "template": {
     "mappings": {
+      "dynamic": false,
       "properties": {
         "beat": {
           "properties": {
@@ -1509,6 +1510,49 @@
                           }
                         }
                       }
+                    },
+                    "sampling": {
+                      "properties": {
+                        "transactions_dropped": {
+                          "type": "long"
+                        },
+                        "tail": {
+                          "properties": {
+                            "dynamic_service_groups": {
+                              "type": "long"
+                            },
+                            "storage": {
+                              "properties": {
+                                "lsm_size": {
+                                  "type": "long"
+                                },
+                                "value_log_size": {
+                                  "type": "long"
+                                }
+                              }
+                            },
+                            "events": {
+                              "properties": {
+                                "processed": {
+                                  "type": "long"
+                                },
+                                "dropped": {
+                                  "type": "long"
+                                },
+                                "stored": {
+                                  "type": "long"
+                                },
+                                "sampled": {
+                                  "type": "long"
+                                },
+                                "head_unsampled": {
+                                  "type": "long"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
                     }
                   }
                 },
@@ -2194,6 +2238,7 @@
       }
     },
     "settings": {
+      "index.mapping.total_fields.limit": 2000,
       "index.lifecycle.name": "${xpack.stack.monitoring.policy.name}"
     }
   },

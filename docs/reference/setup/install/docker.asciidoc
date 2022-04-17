@@ -72,8 +72,15 @@ token, which is valid for 30 minutes. This token automatically applies the
 security settings from your {es} cluster, authenticates to {es} with the
 `kibana_system` user, and writes the security configuration to `kibana.yml`.
 
-The following command starts a single-node {es} cluster for development or
+The following commands start a single-node {es} cluster for development or
 testing.
+
+. Create a new docker network for {es} and {kib}
++
+[source,sh]
+----
+docker network create elastic
+----
 
 . Start {es} in Docker. A password is generated for the `elastic` user and
 output to the terminal, plus an enrollment token for enrolling {kib}.
@@ -201,25 +208,7 @@ serious development or go into production with {es}, review the
 <<docker-prod-prerequisites,requirements and recommendations>> to apply when running {es} in Docker in production.
 
 [[elasticsearch-security-certificates]]
-===== Security certificates and keys
-
-When you start {es} for the first time, the following certificates and keys are
-generated in the
-`/usr/share/elasticsearch/config/certs`
-directory in the Docker container, and allow you to connect a {kib} instance
-to your secured {es} cluster and encrypt internode communication. The files are
-listed here for reference.
-
-`http_ca.crt`::
-The CA certificate that is used to sign the certificates for the HTTP layer of
-this {es} cluster.
-
-`http.p12`::
-Keystore that contains the key and certificate for the HTTP layer for this node.
-
-`transport.p12`::
-Keystore that contains the key and certificate for the transport layer for all
-the nodes in your cluster.
+include::security-files-reference.asciidoc[]
 
 [[docker-compose-file]]
 ==== Start a multi-node cluster with Docker Compose
@@ -249,7 +238,7 @@ Settings (Windows).
 
 Create the following configuration files in a new, empty directory. These files
 are also available from the
-https://github.com/elastic/elasticsearch/tree/master/docs/reference/setup/install[elasticsearch]
+https://github.com/elastic/elasticsearch/tree/master/docs/reference/setup/install/docker[elasticsearch]
 repository on GitHub.
 
 --
@@ -276,7 +265,7 @@ referenced by the `docker-compose.yml` file.
 
 ["source","txt",subs="attributes"]
 ----
-include::.env[]
+include::docker/.env[]
 ----
 
 [discrete]
@@ -297,7 +286,7 @@ then only be accessible from the host machine itself.
 
 [source,yaml,subs="attributes"]
 ----
-include::docker-compose.yml[]
+include::docker/docker-compose.yml[]
 ----
 
 endif::[]
@@ -514,7 +503,7 @@ includes your desired <<set-jvm-heap-size,heap size>> settings.
 For testing, you can also manually set the heap size using the `ES_JAVA_OPTS`
 environment variable. For example, to use 16GB, specify `-e
 ES_JAVA_OPTS="-Xms16g -Xmx16g"` with `docker run`. The `ES_JAVA_OPTS` variable
-overrides all other JVM options. We do not recommend using `ES_JAVA_OPTS` in 
+overrides all other JVM options. We do not recommend using `ES_JAVA_OPTS` in
 production. The `docker-compose.yml` file above sets the heap size to 512MB.
 
 

@@ -147,7 +147,7 @@ public final class ApiKey implements ToXContentObject, Writeable {
         out.writeString(username);
         out.writeString(realm);
         if (out.getVersion().onOrAfter(Version.V_8_0_0)) {
-            out.writeMap(metadata);
+            out.writeGenericMap(metadata);
         }
     }
 

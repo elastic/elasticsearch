@@ -20,7 +20,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -60,7 +59,7 @@ public class HotThreadsTests extends ESTestCase {
         return names.stream().map(e -> {
             // Cannot mock StackTraceElement because it's final
             return new StackTraceElement(e[0], e[1], "Some_File", 1);
-        }).collect(Collectors.toList());
+        }).toList();
     }
 
     public void testIdleThreadsDetection() {
@@ -201,14 +200,14 @@ public class HotThreadsTests extends ESTestCase {
             when(threadTwo.getThreadName()).thenReturn("Thread Two");
             when(threadTwo.getStackTrace()).thenReturn(testCase.two);
 
-            assertEquals(testCase.similarityScore, hotThreads.similarity(threadOne, threadTwo));
+            assertEquals(testCase.similarityScore, HotThreads.similarity(threadOne, threadTwo));
         }
 
         ThreadInfo threadOne = mock(ThreadInfo.class);
         when(threadOne.getThreadName()).thenReturn("Thread One");
         when(threadOne.getStackTrace()).thenReturn(testCases[0].one);
 
-        assertEquals(0, hotThreads.similarity(threadOne, null));
+        assertEquals(0, HotThreads.similarity(threadOne, null));
     }
 
     private ThreadInfo makeThreadInfoMocksHelper(ThreadMXBean mockedMXBean, long threadId) {
@@ -270,7 +269,7 @@ public class HotThreadsTests extends ESTestCase {
         return mockedMXBean;
     }
 
-    private SunThreadInfo makeMockSunThreadInfoHelper() {
+    private static SunThreadInfo makeMockSunThreadInfoHelper() {
         SunThreadInfo mockedSunThreadInfo = mock(SunThreadInfo.class);
         when(mockedSunThreadInfo.isThreadAllocatedMemorySupported()).thenReturn(true);
         when(mockedSunThreadInfo.isThreadAllocatedMemoryEnabled()).thenReturn(true);

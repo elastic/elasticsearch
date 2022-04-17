@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.test.test;
 
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -163,13 +163,15 @@ public class InternalTestClusterTests extends ESTestCase {
             masterNodes = randomBoolean();
             minNumDataNodes = randomIntBetween(0, 3);
             maxNumDataNodes = randomIntBetween(minNumDataNodes, 4);
-            bootstrapMasterNodeIndex = -1;
+            bootstrapMasterNodeIndex = InternalTestCluster.BOOTSTRAP_MASTER_NODE_INDEX_AUTO;
         } else {
             // if we manage min master nodes, we need to lock down the number of nodes
             minNumDataNodes = randomIntBetween(0, 4);
             maxNumDataNodes = minNumDataNodes;
             masterNodes = false;
-            bootstrapMasterNodeIndex = maxNumDataNodes == 0 ? -1 : randomIntBetween(0, maxNumDataNodes - 1);
+            bootstrapMasterNodeIndex = maxNumDataNodes == 0
+                ? InternalTestCluster.BOOTSTRAP_MASTER_NODE_INDEX_AUTO
+                : randomIntBetween(0, maxNumDataNodes - 1);
         }
         final int numClientNodes = randomIntBetween(0, 2);
         NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {

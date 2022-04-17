@@ -101,17 +101,17 @@ public class ClusterInfo implements ToXContentFragment, Writeable {
         }
 
         ImmutableOpenMap.Builder<String, DiskUsage> leastBuilder = ImmutableOpenMap.builder();
-        this.leastAvailableSpaceUsage = leastBuilder.putAll(leastMap).build();
+        this.leastAvailableSpaceUsage = leastBuilder.putAllFromMap(leastMap).build();
         ImmutableOpenMap.Builder<String, DiskUsage> mostBuilder = ImmutableOpenMap.builder();
-        this.mostAvailableSpaceUsage = mostBuilder.putAll(mostMap).build();
+        this.mostAvailableSpaceUsage = mostBuilder.putAllFromMap(mostMap).build();
         ImmutableOpenMap.Builder<String, Long> sizeBuilder = ImmutableOpenMap.builder();
-        this.shardSizes = sizeBuilder.putAll(sizeMap).build();
+        this.shardSizes = sizeBuilder.putAllFromMap(sizeMap).build();
         ImmutableOpenMap.Builder<ShardId, Long> dataSetSizeBuilder = ImmutableOpenMap.builder();
-        this.shardDataSetSizes = dataSetSizeBuilder.putAll(dataSetSizeMap).build();
+        this.shardDataSetSizes = dataSetSizeBuilder.putAllFromMap(dataSetSizeMap).build();
         ImmutableOpenMap.Builder<ShardRouting, String> routingBuilder = ImmutableOpenMap.builder();
-        this.routingToDataPath = routingBuilder.putAll(routingMap).build();
+        this.routingToDataPath = routingBuilder.putAllFromMap(routingMap).build();
         ImmutableOpenMap.Builder<NodeAndPath, ReservedSpace> reservedSpaceBuilder = ImmutableOpenMap.builder();
-        this.reservedSpace = reservedSpaceBuilder.putAll(reservedSpaceMap).build();
+        this.reservedSpace = reservedSpaceBuilder.putAllFromMap(reservedSpaceMap).build();
     }
 
     @Override

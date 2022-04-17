@@ -35,7 +35,7 @@ import static org.elasticsearch.xpack.ql.type.DateUtils.UTC;
 
 public class EqlParser {
 
-    private static final Logger log = LogManager.getLogger();
+    private static final Logger log = LogManager.getLogger(EqlParser.class);
 
     private final boolean DEBUG = false;
 

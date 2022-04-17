@@ -17,7 +17,13 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Properties;
+import java.util.stream.Collectors;
 
 /**
  * An action to execute within a cli.
@@ -28,6 +34,13 @@ public abstract class Command implements Closeable {
     protected final String description;
 
     private final Runnable beforeMain;
+
+    // these are the system properties and env vars from the environment,
+    // but they can be overriden by tests. Really though Command should be stateless,
+    // so the signature of main should take them in, which can happen once the entrypoint
+    // is unified.
+    protected final Map<String, String> sysprops;
+    protected final Map<String, String> envVars;
 
     /** The option parser for this command. */
     protected final OptionParser parser = new OptionParser();
@@ -46,6 +59,8 @@ public abstract class Command implements Closeable {
     public Command(final String description, final Runnable beforeMain) {
         this.description = description;
         this.beforeMain = beforeMain;
+        this.sysprops = captureSystemProperties();
+        this.envVars = captureEnvironmentVariables();
     }
 
     private Thread shutdownHookThread;
@@ -146,6 +161,21 @@ public abstract class Command implements Closeable {
      *
      * Any runtime user errors (like an input file that does not exist), should throw a {@link UserException}. */
     protected abstract void execute(Terminal terminal, OptionSet options) throws Exception;
+
+    // protected to allow for tests to override
+    @SuppressForbidden(reason = "capture system properties")
+    protected Map<String, String> captureSystemProperties() {
+        Properties properties = AccessController.doPrivileged((PrivilegedAction<Properties>) System::getProperties);
+        return properties.entrySet()
+            .stream()
+            .collect(Collectors.toUnmodifiableMap(e -> e.getKey().toString(), e -> e.getValue().toString()));
+    }
+
+    // protected to allow for tests to override
+    @SuppressForbidden(reason = "capture environment variables")
+    protected Map<String, String> captureEnvironmentVariables() {
+        return Collections.unmodifiableMap(System.getenv());
+    }
 
     /**
      * Return whether or not to install the shutdown hook to cleanup resources on exit. This method should only be overridden in test

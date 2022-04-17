@@ -63,7 +63,7 @@ public class ApplicationActionsResolver extends AbstractLifecycleComponent {
         Setting.Property.NodeScope
     );
 
-    private final Logger logger = LogManager.getLogger();
+    private final Logger logger = LogManager.getLogger(ApplicationActionsResolver.class);
 
     private final ServiceProviderDefaults defaults;
     private final Client client;

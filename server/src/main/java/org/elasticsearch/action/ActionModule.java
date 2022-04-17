@@ -195,8 +195,6 @@ import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction
 import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
-import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
-import org.elasticsearch.action.datastreams.ModifyDataStreamsTransportAction;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.explain.ExplainAction;
@@ -257,6 +255,8 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.gateway.TransportNodesListGatewayStartedShards;
+import org.elasticsearch.health.GetHealthAction;
+import org.elasticsearch.health.RestGetHealthAction;
 import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.indices.SystemIndices;
@@ -366,6 +366,7 @@ import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.rest.action.cat.RestAliasAction;
 import org.elasticsearch.rest.action.cat.RestAllocationAction;
 import org.elasticsearch.rest.action.cat.RestCatAction;
+import org.elasticsearch.rest.action.cat.RestCatComponentTemplateAction;
 import org.elasticsearch.rest.action.cat.RestCatRecoveryAction;
 import org.elasticsearch.rest.action.cat.RestFielddataAction;
 import org.elasticsearch.rest.action.cat.RestHealthAction;
@@ -381,7 +382,6 @@ import org.elasticsearch.rest.action.cat.RestSnapshotAction;
 import org.elasticsearch.rest.action.cat.RestTasksAction;
 import org.elasticsearch.rest.action.cat.RestTemplatesAction;
 import org.elasticsearch.rest.action.cat.RestThreadPoolAction;
-import org.elasticsearch.rest.action.datastreams.RestModifyDataStreamsAction;
 import org.elasticsearch.rest.action.document.RestBulkAction;
 import org.elasticsearch.rest.action.document.RestDeleteAction;
 import org.elasticsearch.rest.action.document.RestGetAction;
@@ -495,10 +495,10 @@ public class ActionModule extends AbstractModule {
             }
         }
         mappingRequestValidators = new RequestValidators<>(
-            actionPlugins.stream().flatMap(p -> p.mappingRequestValidators().stream()).collect(Collectors.toList())
+            actionPlugins.stream().flatMap(p -> p.mappingRequestValidators().stream()).toList()
         );
         indicesAliasesRequestRequestValidators = new RequestValidators<>(
-            actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).collect(Collectors.toList())
+            actionPlugins.stream().flatMap(p -> p.indicesAliasesRequestValidators().stream()).toList()
         );
 
         restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService);
@@ -537,6 +537,7 @@ public class ActionModule extends AbstractModule {
         actions.register(ListTasksAction.INSTANCE, TransportListTasksAction.class);
         actions.register(GetTaskAction.INSTANCE, TransportGetTaskAction.class);
         actions.register(CancelTasksAction.INSTANCE, TransportCancelTasksAction.class);
+        actions.register(GetHealthAction.INSTANCE, GetHealthAction.TransportAction.class);
 
         actions.register(AddVotingConfigExclusionsAction.INSTANCE, TransportAddVotingConfigExclusionsAction.class);
         actions.register(ClearVotingConfigExclusionsAction.INSTANCE, TransportClearVotingConfigExclusionsAction.class);
@@ -628,9 +629,6 @@ public class ActionModule extends AbstractModule {
         actions.register(AnalyzeIndexDiskUsageAction.INSTANCE, TransportAnalyzeIndexDiskUsageAction.class);
         actions.register(FieldUsageStatsAction.INSTANCE, TransportFieldUsageAction.class);
 
-        // Data streams
-        actions.register(ModifyDataStreamsAction.INSTANCE, ModifyDataStreamsTransportAction.class);
-
         // Indexed scripts
         actions.register(PutStoredScriptAction.INSTANCE, TransportPutStoredScriptAction.class);
         actions.register(GetStoredScriptAction.INSTANCE, TransportGetStoredScriptAction.class);
@@ -682,7 +680,7 @@ public class ActionModule extends AbstractModule {
         return unmodifiableMap(actions.getRegistry());
     }
 
-    private ActionFilters setupActionFilters(List<ActionPlugin> actionPlugins) {
+    private static ActionFilters setupActionFilters(List<ActionPlugin> actionPlugins) {
         return new ActionFilters(
             Collections.unmodifiableSet(actionPlugins.stream().flatMap(p -> p.getActionFilters().stream()).collect(Collectors.toSet()))
         );
@@ -745,6 +743,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestCloseIndexAction());
         registerHandler.accept(new RestOpenIndexAction());
         registerHandler.accept(new RestAddIndexBlockAction());
+        registerHandler.accept(new RestGetHealthAction());
 
         registerHandler.accept(new RestUpdateSettingsAction());
         registerHandler.accept(new RestGetSettingsAction());
@@ -801,9 +800,6 @@ public class ActionModule extends AbstractModule {
 
         registerHandler.accept(new RestReloadSecureSettingsAction());
 
-        // Data streams
-        registerHandler.accept(new RestModifyDataStreamsAction());
-
         // Scripts API
         registerHandler.accept(new RestGetStoredScriptAction());
         registerHandler.accept(new RestPutStoredScriptAction());
@@ -851,6 +847,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestRepositoriesAction());
         registerHandler.accept(new RestSnapshotAction());
         registerHandler.accept(new RestTemplatesAction());
+        registerHandler.accept(new RestCatComponentTemplateAction());
         registerHandler.accept(new RestAnalyzeIndexDiskUsageAction());
         registerHandler.accept(new RestFieldUsageStatsAction());
 

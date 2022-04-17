@@ -6,7 +6,9 @@
  */
 package org.elasticsearch.xpack.security.authz.store;
 
-import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsAction;
@@ -23,12 +25,12 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
@@ -39,6 +41,7 @@ import org.elasticsearch.license.LicenseStateListener;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequest;
@@ -73,7 +76,6 @@ import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReferenceIntersection;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.index.IndexAuditTrailField;
-import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
 import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
@@ -91,6 +93,7 @@ import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -117,6 +120,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
+import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.core.security.SecurityField.DOCUMENT_LEVEL_SECURITY_FEATURE;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ID_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
@@ -126,6 +130,7 @@ import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -153,11 +158,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
     private static final Settings SECURITY_ENABLED_SETTINGS = Settings.builder().put(XPackSettings.SECURITY_ENABLED.getKey(), true).build();
 
-    private final IndexNameExpressionResolver resolver = TestRestrictedIndices.RESOLVER;
     private final FieldPermissionsCache cache = new FieldPermissionsCache(Settings.EMPTY);
     private final String concreteSecurityIndexName = randomFrom(
-        RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_6,
-        RestrictedIndicesNames.INTERNAL_SECURITY_MAIN_INDEX_7
+        TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_6,
+        TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7
     );
 
     public void testRolesWhenDlsFlsUnlicensed() throws IOException {
@@ -214,25 +218,25 @@ public class CompositeRolesStoreTests extends ESTestCase {
             null,
             null,
             null,
-            rds -> effectiveRoleDescriptors.set(rds)
+            effectiveRoleDescriptors::set
         );
 
         PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
         getRoleForRoleNames(compositeRolesStore, Collections.singleton("fls"), roleFuture);
         assertEquals(Role.EMPTY, roleFuture.actionGet());
-        assertThat(effectiveRoleDescriptors.get().isEmpty(), is(true));
+        assertThat(effectiveRoleDescriptors.get(), empty());
         effectiveRoleDescriptors.set(null);
 
         roleFuture = new PlainActionFuture<>();
         getRoleForRoleNames(compositeRolesStore, Collections.singleton("dls"), roleFuture);
         assertEquals(Role.EMPTY, roleFuture.actionGet());
-        assertThat(effectiveRoleDescriptors.get().isEmpty(), is(true));
+        assertThat(effectiveRoleDescriptors.get(), empty());
         effectiveRoleDescriptors.set(null);
 
         roleFuture = new PlainActionFuture<>();
         getRoleForRoleNames(compositeRolesStore, Collections.singleton("fls_dls"), roleFuture);
         assertEquals(Role.EMPTY, roleFuture.actionGet());
-        assertThat(effectiveRoleDescriptors.get().isEmpty(), is(true));
+        assertThat(effectiveRoleDescriptors.get(), empty());
         effectiveRoleDescriptors.set(null);
 
         roleFuture = new PlainActionFuture<>();
@@ -240,6 +244,60 @@ public class CompositeRolesStoreTests extends ESTestCase {
         assertNotEquals(Role.EMPTY, roleFuture.actionGet());
         assertThat(effectiveRoleDescriptors.get(), containsInAnyOrder(noFlsDlsRole));
         effectiveRoleDescriptors.set(null);
+    }
+
+    public void testLoggingWarnWhenDlsUnlicensed() throws IOException, IllegalAccessException {
+        MockLicenseState licenseState = mock(MockLicenseState.class);
+        when(licenseState.isAllowed(DOCUMENT_LEVEL_SECURITY_FEATURE)).thenReturn(false);
+        BytesReference matchAllBytes = XContentHelper.toXContent(QueryBuilders.matchAllQuery(), XContentType.JSON, false);
+        RoleDescriptor dlsRole = new RoleDescriptor(
+            "dls",
+            null,
+            new IndicesPrivileges[] { IndicesPrivileges.builder().indices("*").privileges("read").query(matchAllBytes).build() },
+            null
+        );
+
+        FileRolesStore fileRolesStore = mock(FileRolesStore.class);
+        doCallRealMethod().when(fileRolesStore).accept(anySet(), anyActionListener());
+
+        when(fileRolesStore.roleDescriptors(Collections.singleton("dls"))).thenReturn(Collections.singleton(dlsRole));
+        final AtomicReference<Collection<RoleDescriptor>> effectiveRoleDescriptors = new AtomicReference<>();
+        CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
+            Settings.EMPTY,
+            fileRolesStore,
+            null,
+            null,
+            null,
+            licenseState,
+            null,
+            null,
+            null,
+            effectiveRoleDescriptors::set
+        );
+
+        final MockLogAppender mockAppender = new MockLogAppender();
+        final Logger logger = LogManager.getLogger(RoleDescriptorStore.class);
+        mockAppender.start();
+        try {
+            Loggers.addAppender(logger, mockAppender);
+            mockAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "disabled role warning",
+                    RoleDescriptorStore.class.getName(),
+                    Level.WARN,
+                    "User roles [dls] are disabled because they require field or document level security. "
+                        + "The current license is non-compliant for [field and document level security]."
+                )
+            );
+            PlainActionFuture<Role> roleFuture = new PlainActionFuture<>();
+            getRoleForRoleNames(compositeRolesStore, Collections.singleton("dls"), roleFuture);
+            assertEquals(Role.EMPTY, roleFuture.actionGet());
+            assertThat(effectiveRoleDescriptors.get(), empty());
+            mockAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(logger, mockAppender);
+            mockAppender.stop();
+        }
     }
 
     public void testRolesWhenDlsFlsLicensed() throws IOException {
@@ -324,6 +382,59 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testSuperuserIsEffectiveWhenOtherRolesUnavailable() {
+        final boolean criticalFailure = randomBoolean();
+        final Consumer<ActionListener<RoleRetrievalResult>> rolesHandler = callback -> {
+            final RuntimeException exception = new RuntimeException("Test(" + getTestName() + ") - native roles unavailable");
+            if (criticalFailure) {
+                callback.onFailure(exception);
+            } else {
+                callback.onResponse(RoleRetrievalResult.failure(exception));
+            }
+        };
+        final Consumer<ActionListener<Collection<ApplicationPrivilegeDescriptor>>> privilegesHandler = callback -> callback.onResponse(
+            Collections.emptyList()
+        );
+
+        final CompositeRolesStore compositeRolesStore = setupRolesStore(rolesHandler, privilegesHandler);
+        trySuccessfullyLoadSuperuserRole(compositeRolesStore);
+        if (criticalFailure) {
+            // A failure RoleRetrievalResult doesn't block role building, only a throw exception does
+            tryFailOnNonSuperuserRole(compositeRolesStore, throwableWithMessage(containsString("native roles unavailable")));
+        }
+    }
+
+    public void testSuperuserIsEffectiveWhenApplicationPrivilegesAreUnavailable() {
+        final RoleDescriptor role = new RoleDescriptor(
+            "_mock_role",
+            new String[0],
+            new IndicesPrivileges[0],
+            new RoleDescriptor.ApplicationResourcePrivileges[] {
+                RoleDescriptor.ApplicationResourcePrivileges.builder()
+                    .application(randomAlphaOfLengthBetween(5, 12))
+                    .privileges("all")
+                    .resources("*")
+                    .build() },
+            new ConfigurableClusterPrivilege[0],
+            new String[0],
+            Map.of(),
+            Map.of()
+        );
+        final Consumer<ActionListener<RoleRetrievalResult>> rolesHandler = callback -> callback.onResponse(
+            RoleRetrievalResult.success(Set.of(role))
+        );
+        final Consumer<ActionListener<Collection<ApplicationPrivilegeDescriptor>>> privilegesHandler = callback -> callback.onFailure(
+            new RuntimeException("No privileges for you!")
+        );
+
+        final CompositeRolesStore compositeRolesStore = setupRolesStore(rolesHandler, privilegesHandler);
+        trySuccessfullyLoadSuperuserRole(compositeRolesStore);
+        tryFailOnNonSuperuserRole(compositeRolesStore, throwableWithMessage(containsString("No privileges for you!")));
+    }
+
+    private CompositeRolesStore setupRolesStore(
+        Consumer<ActionListener<RoleRetrievalResult>> rolesHandler,
+        Consumer<ActionListener<Collection<ApplicationPrivilegeDescriptor>>> privilegesHandler
+    ) {
         final FileRolesStore fileRolesStore = mock(FileRolesStore.class);
         doCallRealMethod().when(fileRolesStore).accept(anySet(), anyActionListener());
         when(fileRolesStore.roleDescriptors(anySet())).thenReturn(Collections.emptySet());
@@ -333,13 +444,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         doAnswer((invocationOnMock) -> {
             @SuppressWarnings("unchecked")
             ActionListener<RoleRetrievalResult> callback = (ActionListener<RoleRetrievalResult>) invocationOnMock.getArguments()[1];
-            final RuntimeException exception = new RuntimeException("Test(" + getTestName() + ") - native roles unavailable");
-            if (randomBoolean()) {
-                callback.onFailure(exception);
-            } else {
-                callback.onResponse(RoleRetrievalResult.failure(exception));
-
-            }
+            rolesHandler.accept(callback);
             return null;
         }).when(nativeRolesStore).getRoleDescriptors(isASet(), anyActionListener());
 
@@ -349,7 +454,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             @SuppressWarnings("unchecked")
             ActionListener<Collection<ApplicationPrivilegeDescriptor>> callback = (ActionListener<
                 Collection<ApplicationPrivilegeDescriptor>>) invocationOnMock.getArguments()[2];
-            callback.onResponse(Collections.emptyList());
+            privilegesHandler.accept(callback);
             return null;
         }).when(nativePrivilegeStore).getPrivileges(anySet(), anySet(), anyActionListener());
 
@@ -365,7 +470,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
             null,
             null
         );
+        return compositeRolesStore;
+    }
 
+    private void trySuccessfullyLoadSuperuserRole(CompositeRolesStore compositeRolesStore) {
         final Set<String> roles = Set.of(randomAlphaOfLengthBetween(1, 6), "superuser", randomAlphaOfLengthBetween(7, 12));
         PlainActionFuture<Role> future = new PlainActionFuture<>();
         getRoleForRoleNames(compositeRolesStore, roles, future);
@@ -386,6 +494,14 @@ public class CompositeRolesStoreTests extends ESTestCase {
         final Predicate<String> securityActionPredicate = Automatons.predicate(role.indices().allowedActionsMatcher(".security"));
         assertThat(securityActionPredicate.test(SearchAction.NAME), is(true));
         assertThat(securityActionPredicate.test(IndexAction.NAME), is(false));
+    }
+
+    private void tryFailOnNonSuperuserRole(CompositeRolesStore compositeRolesStore, Matcher<? super Exception> exceptionMatcher) {
+        final Set<String> roles = Set.of(randomAlphaOfLengthBetween(1, 6), randomAlphaOfLengthBetween(7, 12));
+        PlainActionFuture<Role> future = new PlainActionFuture<>();
+        getRoleForRoleNames(compositeRolesStore, roles, future);
+        final Exception exception = expectThrows(Exception.class, future::actionGet);
+        assertThat(exception, exceptionMatcher);
     }
 
     public void testNegativeLookupsAreCached() {
@@ -430,7 +546,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         PlainActionFuture<Role> future = new PlainActionFuture<>();
         getRoleForRoleNames(compositeRolesStore, Collections.singleton(roleName), future);
         final Role role = future.actionGet();
-        assertThat(effectiveRoleDescriptors.get().isEmpty(), is(true));
+        assertThat(effectiveRoleDescriptors.get(), empty());
         effectiveRoleDescriptors.set(null);
         assertEquals(Role.EMPTY, role);
         verify(reservedRolesStore).accept(eq(Set.of(roleName)), anyActionListener());
@@ -503,7 +619,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         PlainActionFuture<Role> future = new PlainActionFuture<>();
         getRoleForRoleNames(compositeRolesStore, Collections.singleton(roleName), future);
         final Role role = future.actionGet();
-        assertThat(effectiveRoleDescriptors.get().isEmpty(), is(true));
+        assertThat(effectiveRoleDescriptors.get(), empty());
         effectiveRoleDescriptors.set(null);
         assertEquals(Role.EMPTY, role);
         verify(reservedRolesStore).accept(anySet(), anyActionListener());
@@ -544,8 +660,8 @@ public class CompositeRolesStoreTests extends ESTestCase {
             mock(ApiKeyService.class),
             mock(ServiceAccountService.class),
             documentSubsetBitsetCache,
-            resolver,
-            rds -> effectiveRoleDescriptors.set(rds)
+            TestRestrictedIndices.RESTRICTED_INDICES,
+            effectiveRoleDescriptors::set
         );
         verify(fileRolesStore).addListener(anyConsumer()); // adds a listener in ctor
 
@@ -553,7 +669,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         PlainActionFuture<Role> future = new PlainActionFuture<>();
         getRoleForRoleNames(compositeRolesStore, Collections.singleton(roleName), future);
         final Role role = future.actionGet();
-        assertThat(effectiveRoleDescriptors.get().isEmpty(), is(true));
+        assertThat(effectiveRoleDescriptors.get(), empty());
         effectiveRoleDescriptors.set(null);
         assertEquals(Role.EMPTY, role);
         verify(reservedRolesStore).accept(anySet(), anyActionListener());
@@ -568,7 +684,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             future = new PlainActionFuture<>();
             getRoleForRoleNames(compositeRolesStore, names, future);
             future.actionGet();
-            assertThat(effectiveRoleDescriptors.get().isEmpty(), is(true));
+            assertThat(effectiveRoleDescriptors.get(), empty());
             effectiveRoleDescriptors.set(null);
         }
 
@@ -679,7 +795,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             getRoleForRoleNames(compositeRolesStore, Collections.singleton("unknown"), future);
             future.actionGet();
             if (i == 0) {
-                assertThat(effectiveRoleDescriptors.get().isEmpty(), is(true));
+                assertThat(effectiveRoleDescriptors.get(), empty());
             } else {
                 assertThat(effectiveRoleDescriptors.get(), is(nullValue()));
             }
@@ -726,7 +842,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             Sets.newHashSet(flsRole, addsL1Fields),
             cache,
             null,
-            TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON,
+            TestRestrictedIndices.RESTRICTED_INDICES,
             future
         );
         Role role = future.actionGet();
@@ -834,7 +950,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             Sets.newHashSet(role1, role2),
             cache,
             privilegeStore,
-            TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON,
+            TestRestrictedIndices.RESTRICTED_INDICES,
             future
         );
         Role role = future.actionGet();
@@ -1795,15 +1911,14 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testXPackUserCanAccessNonRestrictedIndices() {
-        CharacterRunAutomaton restrictedAutomaton = new CharacterRunAutomaton(TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON);
         for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, SearchAction.NAME, IndexAction.NAME)) {
             Predicate<IndexAbstraction> predicate = getXPackUserRole().indices().allowedIndicesMatcher(action);
             IndexAbstraction index = mockIndexAbstraction(randomAlphaOfLengthBetween(3, 12));
-            if (false == restrictedAutomaton.run(index.getName())) {
+            if (false == TestRestrictedIndices.RESTRICTED_INDICES.isRestricted(index.getName())) {
                 assertThat(predicate.test(index), Matchers.is(true));
             }
             index = mockIndexAbstraction("." + randomAlphaOfLengthBetween(3, 12));
-            if (false == restrictedAutomaton.run(index.getName())) {
+            if (false == TestRestrictedIndices.RESTRICTED_INDICES.isRestricted(index.getName())) {
                 assertThat(predicate.test(index), Matchers.is(true));
             }
         }
@@ -1812,7 +1927,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
     public void testXPackUserCannotAccessSecurityOrAsyncSearch() {
         for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, SearchAction.NAME, IndexAction.NAME)) {
             Predicate<IndexAbstraction> predicate = getXPackUserRole().indices().allowedIndicesMatcher(action);
-            for (String index : RestrictedIndicesNames.RESTRICTED_NAMES) {
+            for (String index : TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES) {
                 assertThat(predicate.test(mockIndexAbstraction(index)), Matchers.is(false));
             }
             assertThat(
@@ -1835,15 +1950,14 @@ public class CompositeRolesStoreTests extends ESTestCase {
     }
 
     public void testAsyncSearchUserCannotAccessNonRestrictedIndices() {
-        CharacterRunAutomaton restrictedAutomaton = new CharacterRunAutomaton(TestRestrictedIndices.RESTRICTED_INDICES_AUTOMATON);
         for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, SearchAction.NAME, IndexAction.NAME)) {
             Predicate<IndexAbstraction> predicate = getAsyncSearchUserRole().indices().allowedIndicesMatcher(action);
             IndexAbstraction index = mockIndexAbstraction(randomAlphaOfLengthBetween(3, 12));
-            if (false == restrictedAutomaton.run(index.getName())) {
+            if (false == TestRestrictedIndices.RESTRICTED_INDICES.isRestricted(index.getName())) {
                 assertThat(predicate.test(index), Matchers.is(false));
             }
             index = mockIndexAbstraction("." + randomAlphaOfLengthBetween(3, 12));
-            if (false == restrictedAutomaton.run(index.getName())) {
+            if (false == TestRestrictedIndices.RESTRICTED_INDICES.isRestricted(index.getName())) {
                 assertThat(predicate.test(index), Matchers.is(false));
             }
         }
@@ -1852,7 +1966,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
     public void testAsyncSearchUserCanAccessOnlyAsyncSearchRestrictedIndices() {
         for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, SearchAction.NAME, IndexAction.NAME)) {
             final Predicate<IndexAbstraction> predicate = getAsyncSearchUserRole().indices().allowedIndicesMatcher(action);
-            for (String index : RestrictedIndicesNames.RESTRICTED_NAMES) {
+            for (String index : TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES) {
                 assertThat(predicate.test(mockIndexAbstraction(index)), Matchers.is(false));
             }
             assertThat(
@@ -1891,6 +2005,34 @@ public class CompositeRolesStoreTests extends ESTestCase {
                 Matchers.is(true)
             );
         }
+    }
+
+    public void testGetRoleDescriptorsListForInternalUsers() {
+        final CompositeRolesStore compositeRolesStore = buildCompositeRolesStore(
+            SECURITY_ENABLED_SETTINGS,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            mock(ServiceAccountService.class),
+            null,
+            null
+        );
+
+        final Subject subject = mock(Subject.class);
+        when(subject.getUser()).thenReturn(SystemUser.INSTANCE);
+        final IllegalArgumentException e1 = expectThrows(
+            IllegalArgumentException.class,
+            () -> compositeRolesStore.getRoleDescriptorsList(subject, new PlainActionFuture<>())
+        );
+        assertThat(e1.getMessage(), containsString("system user and we should never try to get its role descriptors"));
+
+        when(subject.getUser()).thenReturn(XPackSecurityUser.INSTANCE);
+        final PlainActionFuture<Collection<Set<RoleDescriptor>>> future2 = new PlainActionFuture<>();
+        compositeRolesStore.getRoleDescriptorsList(subject, future2);
+        assertThat(future2.actionGet(), equalTo(List.of(Set.of(XPackSecurityUser.ROLE_DESCRIPTOR))));
     }
 
     private void getRoleForRoleNames(CompositeRolesStore rolesStore, Collection<String> roleNames, ActionListener<Role> listener) {
@@ -2019,7 +2161,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
             apiKeyService,
             serviceAccountService,
             documentSubsetBitsetCache,
-            resolver,
+            TestRestrictedIndices.RESTRICTED_INDICES,
             roleConsumer
         ) {
             @Override

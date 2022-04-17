@@ -34,7 +34,6 @@ import org.elasticsearch.common.settings.Settings;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.UnaryOperator;
-import java.util.stream.StreamSupport;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonList;
@@ -1098,7 +1097,8 @@ public class AwarenessAllocationTests extends ESAllocationTestCase {
             new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
 
-        final RoutingNode emptyNode = StreamSupport.stream(clusterState.getRoutingNodes().spliterator(), false)
+        final RoutingNode emptyNode = clusterState.getRoutingNodes()
+            .stream()
             .filter(RoutingNode::isEmpty)
             .findFirst()
             .orElseThrow(AssertionError::new);

@@ -11,6 +11,8 @@ package org.elasticsearch.index;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 
+import java.time.Instant;
+
 /**
  * An {@link IndexSettingProvider} is a provider for index level settings that can be set
  * explicitly as a default value (so they show up as "set" for newly created indices)
@@ -32,7 +34,7 @@ public interface IndexSettingProvider {
         String dataStreamName,
         IndexMode templateIndexMode,
         Metadata metadata,
-        long resolvedAt,
+        Instant resolvedAt,
         Settings allSettings
     );
 }

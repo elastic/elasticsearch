@@ -39,7 +39,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
-import static org.junit.Assert.assertThat;
 
 public abstract class TransformRestTestCase extends ESRestTestCase {
 
@@ -88,7 +87,7 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
                 min = 10 + (i % 49);
             }
             int sec = 10 + (i % 49);
-            String location = (user + 10) + "," + (user + 15);
+            String location = (((user + 10) % 180) - 90) + "," + (((user + 15) % 360) - 180);
 
             String date_string = "2017-01-" + day + "T" + hour + ":" + min + ":" + sec;
             if (dateType.equals("date_nanos")) {
@@ -123,21 +122,33 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
 
             if (i % 50 == 0) {
                 bulk.append("\r\n");
-                final Request bulkRequest = new Request("POST", "/_bulk");
-                bulkRequest.addParameter("refresh", "true");
-                bulkRequest.setJsonEntity(bulk.toString());
-                client().performRequest(bulkRequest);
+                doBulk(bulk.toString(), true);
                 // clear the builder
                 bulk.setLength(0);
                 day += 1;
             }
         }
-        bulk.append("\r\n");
 
-        final Request bulkRequest = new Request("POST", "/_bulk");
-        bulkRequest.addParameter("refresh", "true");
-        bulkRequest.setJsonEntity(bulk.toString());
-        client().performRequest(bulkRequest);
+        bulk.append("\r\n");
+        doBulk(bulk.toString(), true);
+    }
+
+    @SuppressWarnings("unchecked")
+    protected void doBulk(String bulkDocuments, boolean refresh) throws IOException {
+        Request bulkRequest = new Request("POST", "/_bulk");
+        if (refresh) {
+            bulkRequest.addParameter("refresh", "true");
+        }
+        bulkRequest.setJsonEntity(bulkDocuments);
+        bulkRequest.setOptions(RequestOptions.DEFAULT);
+        Response bulkResponse = client().performRequest(bulkRequest);
+        assertOK(bulkResponse);
+        var bulkMap = entityAsMap(bulkResponse);
+        var hasErrors = (boolean) bulkMap.get("errors");
+        if (hasErrors) {
+            var items = (List<Map<String, Object>>) bulkMap.get("items");
+            fail("Bulk item failures: " + items.toString());
+        }
     }
 
     protected void putReviewsIndex(String indexName, String dateType, boolean isDataStream) throws IOException {
@@ -463,6 +474,13 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
         return transformConfigs == null ? Collections.emptyList() : transformConfigs;
     }
 
+    @SuppressWarnings("unchecked")
+    protected static Map<String, Object> getTransforms(int from, int size) throws IOException {
+        Request request = new Request("GET", getTransformEndpoint() + "_all?from=" + from + "&size=" + size);
+        Response response = adminClient().performRequest(request);
+        return entityAsMap(response);
+    }
+
     protected static String getTransformState(String transformId) throws IOException {
         Map<?, ?> transformStatsAsMap = getTransformStateAndStats(transformId);
         return transformStatsAsMap == null ? null : (String) XContentMapValues.extractValue("state", transformStatsAsMap);
@@ -475,6 +493,13 @@ public abstract class TransformRestTestCase extends ESRestTestCase {
             return null;
         }
         return (Map<?, ?>) transforms.get(0);
+    }
+
+    protected static Map<String, Object> getTransformsStateAndStats(int from, int size) throws IOException {
+        Response statsResponse = client().performRequest(
+            new Request("GET", getTransformEndpoint() + "_stats?from=" + from + "&size=" + size)
+        );
+        return entityAsMap(statsResponse);
     }
 
     protected static void deleteTransform(String transformId) throws IOException {

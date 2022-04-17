@@ -35,7 +35,7 @@ import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction;
-import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction.DatafeedTask.StoppedOrIsolatedBeforeRunning;
+import org.elasticsearch.xpack.ml.action.TransportStartDatafeedAction.DatafeedTask.StoppedOrIsolated;
 import org.elasticsearch.xpack.ml.job.process.autodetect.AutodetectProcessManager;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 
@@ -97,9 +97,11 @@ public class DatafeedRunner {
         ActionListener<DatafeedJob> datafeedJobHandler = ActionListener.wrap(datafeedJob -> {
             String jobId = datafeedJob.getJobId();
             Holder holder = new Holder(task, task.getDatafeedId(), datafeedJob, new ProblemTracker(auditor, jobId), finishHandler);
-            if (task.getStoppedOrIsolatedBeforeRunning() == StoppedOrIsolatedBeforeRunning.NEITHER) {
-                runningDatafeedsOnThisNode.put(task.getAllocationId(), holder);
-                task.updatePersistentTaskState(DatafeedState.STARTED, new ActionListener<PersistentTask<?>>() {
+            StoppedOrIsolated stoppedOrIsolated = task.executeIfNotStoppedOrIsolated(
+                () -> runningDatafeedsOnThisNode.put(task.getAllocationId(), holder)
+            );
+            if (stoppedOrIsolated == StoppedOrIsolated.NEITHER) {
+                task.updatePersistentTaskState(DatafeedState.STARTED, new ActionListener<>() {
                     @Override
                     public void onResponse(PersistentTask<?> persistentTask) {
                         taskRunner.runWhenJobIsOpened(task, jobId);
@@ -121,20 +123,21 @@ public class DatafeedRunner {
                 logger.info(
                     "[{}] Datafeed has been {} before running",
                     task.getDatafeedId(),
-                    task.getStoppedOrIsolatedBeforeRunning().toString().toLowerCase(Locale.ROOT)
+                    stoppedOrIsolated.toString().toLowerCase(Locale.ROOT)
                 );
                 finishHandler.accept(null);
             }
         }, finishHandler);
 
         ActionListener<DatafeedContext> datafeedContextListener = ActionListener.wrap(datafeedContext -> {
-            if (task.getStoppedOrIsolatedBeforeRunning() == StoppedOrIsolatedBeforeRunning.NEITHER) {
+            StoppedOrIsolated stoppedOrIsolated = task.getStoppedOrIsolated();
+            if (stoppedOrIsolated == StoppedOrIsolated.NEITHER) {
                 datafeedJobBuilder.build(task, datafeedContext, datafeedJobHandler);
             } else {
                 logger.info(
                     "[{}] Datafeed has been {} while building context",
                     task.getDatafeedId(),
-                    task.getStoppedOrIsolatedBeforeRunning().toString().toLowerCase(Locale.ROOT)
+                    stoppedOrIsolated.toString().toLowerCase(Locale.ROOT)
                 );
                 finishHandler.accept(null);
             }
@@ -180,10 +183,10 @@ public class DatafeedRunner {
         }
     }
 
-    public void isolateDatafeed(long allocationId) {
+    public void isolateDatafeed(TransportStartDatafeedAction.DatafeedTask task) {
         // This calls get() rather than remove() because we expect that the persistent task will
         // be removed shortly afterwards and that operation needs to be able to find the holder
-        Holder holder = runningDatafeedsOnThisNode.get(allocationId);
+        Holder holder = runningDatafeedsOnThisNode.get(task.getAllocationId());
         if (holder != null) {
             holder.isolateDatafeed();
         }
@@ -372,8 +375,8 @@ public class DatafeedRunner {
     /**
      * Visible for testing
      */
-    boolean isRunning(long allocationId) {
-        return runningDatafeedsOnThisNode.containsKey(allocationId);
+    boolean isRunning(TransportStartDatafeedAction.DatafeedTask task) {
+        return runningDatafeedsOnThisNode.containsKey(task.getAllocationId());
     }
 
     public class Holder {
@@ -582,33 +585,27 @@ public class DatafeedRunner {
                             for the close job api call.
                         */
                         closeJobRequest.setLocal(true);
-                        executeAsyncWithOrigin(
-                            client,
-                            ML_ORIGIN,
-                            CloseJobAction.INSTANCE,
-                            closeJobRequest,
-                            new ActionListener<CloseJobAction.Response>() {
+                        executeAsyncWithOrigin(client, ML_ORIGIN, CloseJobAction.INSTANCE, closeJobRequest, new ActionListener<>() {
 
-                                @Override
-                                public void onResponse(CloseJobAction.Response response) {
-                                    if (response.isClosed() == false) {
-                                        logger.error("[{}] job close action was not acknowledged", getJobId());
-                                    }
-                                }
-
-                                @Override
-                                public void onFailure(Exception e) {
-                                    // Given that the UI force-deletes the datafeed and then force-deletes the job, it's
-                                    // quite likely that the auto-close here will get interrupted by a process kill request,
-                                    // and it's misleading/worrying to log an error in this case.
-                                    if (e instanceof ElasticsearchStatusException exception && exception.status() == RestStatus.CONFLICT) {
-                                        logger.debug("[{}] {}", getJobId(), e.getMessage());
-                                    } else {
-                                        logger.error("[" + getJobId() + "] failed to auto-close job", e);
-                                    }
+                            @Override
+                            public void onResponse(CloseJobAction.Response response) {
+                                if (response.isClosed() == false) {
+                                    logger.error("[{}] job close action was not acknowledged", getJobId());
                                 }
                             }
-                        );
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                // Given that the UI force-deletes the datafeed and then force-deletes the job, it's
+                                // quite likely that the auto-close here will get interrupted by a process kill request,
+                                // and it's misleading/worrying to log an error in this case.
+                                if (e instanceof ElasticsearchStatusException exception && exception.status() == RestStatus.CONFLICT) {
+                                    logger.debug("[{}] {}", getJobId(), e.getMessage());
+                                } else {
+                                    logger.error("[" + getJobId() + "] failed to auto-close job", e);
+                                }
+                            }
+                        });
                     }
 
                     @Override

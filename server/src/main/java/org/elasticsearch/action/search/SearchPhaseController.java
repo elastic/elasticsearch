@@ -8,9 +8,6 @@
 
 package org.elasticsearch.action.search;
 
-import com.carrotsearch.hppc.IntArrayList;
-import com.carrotsearch.hppc.ObjectObjectHashMap;
-
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.FieldDoc;
@@ -23,7 +20,6 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.TotalHits.Relation;
 import org.elasticsearch.common.breaker.CircuitBreaker;
-import org.elasticsearch.common.collect.HppcMaps;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
@@ -59,7 +55,6 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.IntFunction;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 
 public final class SearchPhaseController {
     private static final ScoreDoc[] EMPTY_DOCS = new ScoreDoc[0];
@@ -72,9 +67,9 @@ public final class SearchPhaseController {
         this.requestToAggReduceContextBuilder = requestToAggReduceContextBuilder;
     }
 
-    public AggregatedDfs aggregateDfs(Collection<DfsSearchResult> results) {
-        ObjectObjectHashMap<Term, TermStatistics> termStatistics = HppcMaps.newNoNullKeysMap();
-        ObjectObjectHashMap<String, CollectionStatistics> fieldStatistics = HppcMaps.newNoNullKeysMap();
+    public static AggregatedDfs aggregateDfs(Collection<DfsSearchResult> results) {
+        Map<Term, TermStatistics> termStatistics = new HashMap<>();
+        Map<String, CollectionStatistics> fieldStatistics = new HashMap<>();
         long aggMaxDoc = 0;
         for (DfsSearchResult lEntry : results) {
             final Term[] terms = lEntry.terms();
@@ -103,29 +98,25 @@ public final class SearchPhaseController {
             }
 
             assert lEntry.fieldStatistics().containsKey(null) == false;
-            final Object[] keys = lEntry.fieldStatistics().keys;
-            final Object[] values = lEntry.fieldStatistics().values;
-            for (int i = 0; i < keys.length; i++) {
-                if (keys[i] != null) {
-                    String key = (String) keys[i];
-                    CollectionStatistics value = (CollectionStatistics) values[i];
-                    if (value == null) {
-                        continue;
-                    }
-                    assert key != null;
-                    CollectionStatistics existing = fieldStatistics.get(key);
-                    if (existing != null) {
-                        CollectionStatistics merged = new CollectionStatistics(
-                            key,
-                            existing.maxDoc() + value.maxDoc(),
-                            existing.docCount() + value.docCount(),
-                            existing.sumTotalTermFreq() + value.sumTotalTermFreq(),
-                            existing.sumDocFreq() + value.sumDocFreq()
-                        );
-                        fieldStatistics.put(key, merged);
-                    } else {
-                        fieldStatistics.put(key, value);
-                    }
+            for (var entry : lEntry.fieldStatistics().entrySet()) {
+                String key = entry.getKey();
+                CollectionStatistics value = entry.getValue();
+                if (value == null) {
+                    continue;
+                }
+                assert key != null;
+                CollectionStatistics existing = fieldStatistics.get(key);
+                if (existing != null) {
+                    CollectionStatistics merged = new CollectionStatistics(
+                        key,
+                        existing.maxDoc() + value.maxDoc(),
+                        existing.docCount() + value.docCount(),
+                        existing.sumTotalTermFreq() + value.sumTotalTermFreq(),
+                        existing.sumDocFreq() + value.sumDocFreq()
+                    );
+                    fieldStatistics.put(key, merged);
+                } else {
+                    fieldStatistics.put(key, value);
                 }
             }
             aggMaxDoc += lEntry.maxDoc();
@@ -223,7 +214,7 @@ public final class SearchPhaseController {
         }
     }
 
-    public ScoreDoc[] getLastEmittedDocPerShard(ReducedQueryPhase reducedQueryPhase, int numShards) {
+    public static ScoreDoc[] getLastEmittedDocPerShard(ReducedQueryPhase reducedQueryPhase, int numShards) {
         final ScoreDoc[] lastEmittedDocPerShard = new ScoreDoc[numShards];
         if (reducedQueryPhase.isEmptyResult == false) {
             final ScoreDoc[] sortedScoreDocs = reducedQueryPhase.sortedTopDocs.scoreDocs;
@@ -242,12 +233,13 @@ public final class SearchPhaseController {
     /**
      * Builds an array, with potential null elements, with docs to load.
      */
-    public IntArrayList[] fillDocIdsToLoad(int numShards, ScoreDoc[] shardDocs) {
-        IntArrayList[] docIdsToLoad = new IntArrayList[numShards];
+    public static List<Integer>[] fillDocIdsToLoad(int numShards, ScoreDoc[] shardDocs) {
+        @SuppressWarnings("unchecked")
+        List<Integer>[] docIdsToLoad = (List<Integer>[]) new ArrayList<?>[numShards];
         for (ScoreDoc shardDoc : shardDocs) {
-            IntArrayList shardDocIdsToLoad = docIdsToLoad[shardDoc.shardIndex];
+            List<Integer> shardDocIdsToLoad = docIdsToLoad[shardDoc.shardIndex];
             if (shardDocIdsToLoad == null) {
-                shardDocIdsToLoad = docIdsToLoad[shardDoc.shardIndex] = new IntArrayList();
+                shardDocIdsToLoad = docIdsToLoad[shardDoc.shardIndex] = new ArrayList<>();
             }
             shardDocIdsToLoad.add(shardDoc.doc);
         }
@@ -261,7 +253,7 @@ public final class SearchPhaseController {
      * Expects sortedDocs to have top search docs across all shards, optionally followed by top suggest docs for each named
      * completion suggestion ordered by suggestion name
      */
-    public InternalSearchResponse merge(
+    public static InternalSearchResponse merge(
         boolean ignoreFrom,
         ReducedQueryPhase reducedQueryPhase,
         Collection<? extends SearchPhaseResult> fetchResults,
@@ -305,7 +297,7 @@ public final class SearchPhaseController {
         return reducedQueryPhase.buildResponse(hits, fetchResults);
     }
 
-    private SearchHits getHits(
+    private static SearchHits getHits(
         ReducedQueryPhase reducedQueryPhase,
         boolean ignoreFrom,
         Collection<? extends SearchPhaseResult> fetchResults,
@@ -375,7 +367,7 @@ public final class SearchPhaseController {
      * Reduces the given query results and consumes all aggregations and profile results.
      * @param queryResults a list of non-null query shard results
      */
-    ReducedQueryPhase reducedScrollQueryPhase(Collection<? extends SearchPhaseResult> queryResults) {
+    static ReducedQueryPhase reducedScrollQueryPhase(Collection<? extends SearchPhaseResult> queryResults) {
         AggregationReduceContext.Builder aggReduceContextBuilder = new AggregationReduceContext.Builder() {
             @Override
             public AggregationReduceContext forPartialReduction() {
@@ -412,7 +404,7 @@ public final class SearchPhaseController {
      * @see QuerySearchResult#consumeAggs()
      * @see QuerySearchResult#consumeProfileResult()
      */
-    ReducedQueryPhase reducedQueryPhase(
+    static ReducedQueryPhase reducedQueryPhase(
         Collection<? extends SearchPhaseResult> queryResults,
         List<InternalAggregations> bufferedAggs,
         List<TopDocs> bufferedTopDocs,
@@ -444,7 +436,7 @@ public final class SearchPhaseController {
             );
         }
         int total = queryResults.size();
-        queryResults = queryResults.stream().filter(res -> res.queryResult().isNull() == false).collect(Collectors.toList());
+        queryResults = queryResults.stream().filter(res -> res.queryResult().isNull() == false).toList();
         String errorMsg = "must have at least one non-empty search result, got 0 out of " + total;
         assert queryResults.isEmpty() == false : errorMsg;
         if (queryResults.isEmpty()) {

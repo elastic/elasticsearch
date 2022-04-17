@@ -20,7 +20,8 @@ required in {kib} to activate the SAML authentication provider.
 NOTE: The SAML support in {kib} is designed on the expectation that it will be
 the primary (or sole) authentication method for users of that {kib} instance.
 Once you enable SAML authentication in {kib} it will affect all users who try
-to login. The <<saml-kibana>> section provides more detail about how this works.
+to login. The <<saml-configure-kibana>> section provides more detail about how
+this works.
 
 [[saml-guide-idp]]
 === The identity provider

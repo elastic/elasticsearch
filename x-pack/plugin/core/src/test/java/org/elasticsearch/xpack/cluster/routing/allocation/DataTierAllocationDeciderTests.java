@@ -63,10 +63,9 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
     private static final DiscoveryNode DATA_NODE = newNode("node-data", Collections.singleton(DiscoveryNodeRole.DATA_ROLE));
 
     private final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
-    private final DataTierAllocationDecider decider = new DataTierAllocationDecider();
     private final AllocationDeciders allocationDeciders = new AllocationDeciders(
         Arrays.asList(
-            decider,
+            DataTierAllocationDecider.INSTANCE,
             new SameShardAllocationDecider(Settings.EMPTY, clusterSettings),
             new ReplicaAfterPrimaryActiveAllocationDecider()
         )
@@ -113,7 +112,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
 
         for (DiscoveryNode n : Arrays.asList(HOT_NODE, WARM_NODE, COLD_NODE)) {
             node = new RoutingNode(n.getId(), n, shard);
-            d = decider.canAllocate(shard, node, allocation);
+            d = DataTierAllocationDecider.INSTANCE.canAllocate(shard, node, allocation);
             assertThat(node.toString(), d.type(), equalTo(Decision.Type.NO));
             assertThat(
                 node.toString(),
@@ -123,7 +122,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                         + "but no nodes for any of those tiers are available in the cluster"
                 )
             );
-            d = decider.canRemain(shard, node, allocation);
+            d = DataTierAllocationDecider.INSTANCE.canRemain(shard, node, allocation);
             assertThat(node.toString(), d.type(), equalTo(Decision.Type.NO));
             assertThat(
                 node.toString(),
@@ -159,7 +158,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
 
         for (DiscoveryNode n : Arrays.asList(HOT_NODE, WARM_NODE)) {
             node = new RoutingNode(n.getId(), n, shard);
-            d = decider.canAllocate(shard, node, allocation);
+            d = DataTierAllocationDecider.INSTANCE.canAllocate(shard, node, allocation);
             assertThat(node.toString(), d.type(), equalTo(Decision.Type.NO));
             assertThat(
                 node.toString(),
@@ -168,7 +167,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                     "index has a preference for tiers [data_warm,data_cold] " + "and node does not meet the required [data_cold] tier"
                 )
             );
-            d = decider.canRemain(shard, node, allocation);
+            d = DataTierAllocationDecider.INSTANCE.canRemain(shard, node, allocation);
             assertThat(node.toString(), d.type(), equalTo(Decision.Type.NO));
             assertThat(
                 node.toString(),
@@ -179,23 +178,21 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             );
         }
 
-        for (DiscoveryNode n : Arrays.asList(COLD_NODE)) {
-            node = new RoutingNode(n.getId(), n, shard);
-            d = decider.canAllocate(shard, node, allocation);
-            assertThat(node.toString(), d.type(), equalTo(Decision.Type.YES));
-            assertThat(
-                node.toString(),
-                d.getExplanation(),
-                containsString("index has a preference for tiers [data_warm,data_cold] and node has tier [data_cold]")
-            );
-            d = decider.canRemain(shard, node, allocation);
-            assertThat(node.toString(), d.type(), equalTo(Decision.Type.YES));
-            assertThat(
-                node.toString(),
-                d.getExplanation(),
-                containsString("index has a preference for tiers [data_warm,data_cold] and node has tier [data_cold]")
-            );
-        }
+        node = new RoutingNode(COLD_NODE.getId(), COLD_NODE, shard);
+        d = DataTierAllocationDecider.INSTANCE.canAllocate(shard, node, allocation);
+        assertThat(node.toString(), d.type(), equalTo(Decision.Type.YES));
+        assertThat(
+            node.toString(),
+            d.getExplanation(),
+            containsString("index has a preference for tiers [data_warm,data_cold] and node has tier [data_cold]")
+        );
+        d = DataTierAllocationDecider.INSTANCE.canRemain(shard, node, allocation);
+        assertThat(node.toString(), d.type(), equalTo(Decision.Type.YES));
+        assertThat(
+            node.toString(),
+            d.getExplanation(),
+            containsString("index has a preference for tiers [data_warm,data_cold] and node has tier [data_cold]")
+        );
     }
 
     public void testTierNodesPresent() {

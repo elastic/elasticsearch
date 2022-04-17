@@ -1,0 +1,9 @@
+apply plugin: 'elasticsearch.java'
+
+dependencies {
+  compileOnly project(':server')
+
+  testImplementation project(":test:framework")
+}
+
+tasks.named("javadoc").configure { enabled = false }

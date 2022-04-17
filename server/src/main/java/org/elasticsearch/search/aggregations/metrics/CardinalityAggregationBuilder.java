@@ -178,4 +178,9 @@ public final class CardinalityAggregationBuilder extends ValuesSourceAggregation
     protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
         return REGISTRY_KEY;
     }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
+    }
 }

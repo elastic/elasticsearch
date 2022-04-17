@@ -22,6 +22,7 @@ import org.elasticsearch.common.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.env.Environment;
@@ -50,7 +51,6 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -72,7 +72,7 @@ import static java.util.Arrays.asList;
  * elastic user and the ChangePassword API for setting the password of the rest of the built-in users when needed.
  */
 @Deprecated
-public class SetupPasswordTool extends LoggingAwareMultiCommand {
+class SetupPasswordTool extends LoggingAwareMultiCommand {
 
     private static final char[] CHARS = ("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789").toCharArray();
     public static final List<String> USERS = asList(
@@ -122,10 +122,6 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
 
     protected InteractiveSetup newInteractiveSetup() {
         return new InteractiveSetup();
-    }
-
-    public static void main(String[] args) throws Exception {
-        exit(new SetupPasswordTool().main(args, Terminal.DEFAULT));
     }
 
     // Visible for testing
@@ -535,7 +531,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
             terminal.println(Verbosity.VERBOSE, "");
             terminal.println(Verbosity.VERBOSE, "Trying user password change call " + route.toString());
             try {
-                // supplier should own his resources
+                // supplier should own its resources
                 SecureString supplierPassword = password.clone();
                 final HttpResponse httpResponse = client.execute("PUT", route, elasticUser, elasticUserPassword, () -> {
                     try {
@@ -586,7 +582,7 @@ public class SetupPasswordTool extends LoggingAwareMultiCommand {
             CheckedBiConsumer<String, SecureString, Exception> successCallback,
             Terminal terminal
         ) throws Exception {
-            Map<String, SecureString> passwordsMap = new LinkedHashMap<>(USERS.size());
+            Map<String, SecureString> passwordsMap = Maps.newLinkedHashMapWithExpectedSize(USERS.size());
             try {
                 for (String user : USERS) {
                     if (USERS_WITH_SHARED_PASSWORDS.containsValue(user)) {

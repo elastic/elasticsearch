@@ -213,7 +213,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     }
 
     /**
-     * Add a listener for updated cluster states
+     * Add a listener for updated cluster states. Listeners are executed in the system thread context.
      */
     public void addListener(ClusterStateListener listener) {
         clusterStateListeners.add(listener);
@@ -222,7 +222,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
     /**
      * Removes a listener for updated cluster states.
      */
-    public void removeListener(ClusterStateListener listener) {
+    public void removeListener(final ClusterStateListener listener) {
         clusterStateListeners.remove(listener);
     }
 
@@ -551,7 +551,7 @@ public class ClusterApplierService extends AbstractLifecycleComponent implements
         callClusterStateListener(clusterChangedEvent, stopWatch, timeoutClusterStateListeners.keySet());
     }
 
-    private void callClusterStateListener(
+    private static void callClusterStateListener(
         ClusterChangedEvent clusterChangedEvent,
         Recorder stopWatch,
         Collection<? extends ClusterStateListener> listeners

@@ -51,7 +51,9 @@ public class GeoShapeIndexer {
         if (geometry == null) {
             return Collections.emptyList();
         }
-        geometry = GeometryNormalizer.apply(orientation, geometry);
+        if (GeometryNormalizer.needsNormalize(orientation, geometry)) {
+            geometry = GeometryNormalizer.apply(orientation, geometry);
+        }
         LuceneGeometryIndexer visitor = new LuceneGeometryIndexer(name);
         geometry.visit(visitor);
         return visitor.fields();
@@ -125,7 +127,7 @@ public class GeoShapeIndexer {
 
         @Override
         public Void visit(Polygon polygon) {
-            addFields(LatLonShape.createIndexableFields(name, GeoShapeUtils.toLucenePolygon(polygon)));
+            addFields(LatLonShape.createIndexableFields(name, GeoShapeUtils.toLucenePolygon(polygon), true));
             return null;
         }
 

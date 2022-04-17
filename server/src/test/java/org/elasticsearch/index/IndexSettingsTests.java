@@ -154,6 +154,22 @@ public class IndexSettingsTests extends ESTestCase {
             assertTrue(ex.getMessage(), ex.getMessage().startsWith("version mismatch on settings update expected: "));
         }
 
+        try {
+            settings.updateIndexMetadata(
+                newIndexMeta(
+                    "index",
+                    Settings.builder()
+                        .put(IndexMetadata.SETTING_VERSION_CREATED, version)
+                        .put(IndexMetadata.SETTING_VERSION_COMPATIBILITY, Version.CURRENT)
+                        .put("index.test.setting.int", 42)
+                        .build()
+                )
+            );
+            fail("version has changed");
+        } catch (IllegalArgumentException ex) {
+            assertTrue(ex.getMessage(), ex.getMessage().startsWith("compatibility version mismatch on settings update expected: "));
+        }
+
         // use version number that is unknown
         metadata = newIndexMeta("index", Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.fromId(999999)).build());
         settings = new IndexSettings(metadata, Settings.EMPTY);

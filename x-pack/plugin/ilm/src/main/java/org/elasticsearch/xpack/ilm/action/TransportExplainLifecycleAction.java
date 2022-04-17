@@ -24,15 +24,14 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleRequest;
 import org.elasticsearch.xpack.core.ilm.ExplainLifecycleResponse;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleExplainResponse;
-import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.PhaseExecutionInfo;
 import org.elasticsearch.xpack.core.ilm.action.ExplainLifecycleAction;
 import org.elasticsearch.xpack.ilm.IndexLifecycleService;
@@ -114,7 +113,7 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
     ) throws IOException {
         Settings idxSettings = indexMetadata.getSettings();
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
-        String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(idxSettings);
+        String policyName = indexMetadata.getLifecyclePolicyName();
         String currentPhase = lifecycleState.phase();
         String stepInfo = lifecycleState.stepInfo();
         BytesArray stepInfoBytes = null;
@@ -130,8 +129,7 @@ public class TransportExplainLifecycleAction extends TransportClusterInfoAction<
         if (Strings.isNullOrEmpty(phaseDef) == false) {
             try (
                 XContentParser parser = JsonXContent.jsonXContent.createParser(
-                    xContentRegistry,
-                    DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                    XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry),
                     phaseDef
                 )
             ) {

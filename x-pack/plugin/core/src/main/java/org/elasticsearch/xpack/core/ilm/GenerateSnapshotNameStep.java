@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -24,8 +23,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-
-import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
 
 /**
  * Generates a snapshot name for the given index and records it in the index metadata along with the provided snapshot repository.
@@ -59,7 +56,7 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
             return clusterState;
         }
 
-        String policy = indexMetadata.getSettings().get(LifecycleSettings.LIFECYCLE_NAME);
+        String policyName = indexMetadata.getLifecyclePolicyName();
         LifecycleExecutionState lifecycleState = indexMetadata.getLifecycleExecutionState();
 
         // validate that the snapshot repository exists -- because policies are refreshed on later retries, and because
@@ -70,7 +67,7 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
                 "repository ["
                     + snapshotRepository
                     + "] is missing. ["
-                    + policy
+                    + policyName
                     + "] policy for "
                     + "index ["
                     + index.getName()
@@ -78,34 +75,32 @@ public class GenerateSnapshotNameStep extends ClusterStateActionStep {
             );
         }
 
-        LifecycleExecutionState.Builder newCustomData = LifecycleExecutionState.builder(lifecycleState);
-        newCustomData.setSnapshotIndexName(index.getName());
-        newCustomData.setSnapshotRepository(snapshotRepository);
+        LifecycleExecutionState.Builder newLifecycleState = LifecycleExecutionState.builder(lifecycleState);
+        newLifecycleState.setSnapshotIndexName(index.getName());
+        newLifecycleState.setSnapshotRepository(snapshotRepository);
         if (lifecycleState.snapshotName() == null) {
             // generate and validate the snapshotName
-            String snapshotNamePrefix = ("<{now/d}-" + index.getName() + "-" + policy + ">").toLowerCase(Locale.ROOT);
+            String snapshotNamePrefix = ("<{now/d}-" + index.getName() + "-" + policyName + ">").toLowerCase(Locale.ROOT);
             String snapshotName = generateSnapshotName(snapshotNamePrefix);
             ActionRequestValidationException validationException = validateGeneratedSnapshotName(snapshotNamePrefix, snapshotName);
             if (validationException != null) {
                 logger.warn(
                     "unable to generate a snapshot name as part of policy [{}] for index [{}] due to [{}]",
-                    policy,
+                    policyName,
                     index.getName(),
                     validationException.getMessage()
                 );
                 throw validationException;
             }
 
-            newCustomData.setSnapshotName(snapshotName);
+            newLifecycleState.setSnapshotName(snapshotName);
         }
 
-        return ClusterState.builder(clusterState)
-            .metadata(
-                Metadata.builder(clusterState.getMetadata())
-                    .put(IndexMetadata.builder(indexMetadata).putCustom(ILM_CUSTOM_METADATA_KEY, newCustomData.build().asMap()))
-                    .build(false)
-            )
-            .build();
+        return LifecycleExecutionStateUtils.newClusterStateWithLifecycleState(
+            clusterState,
+            indexMetadata.getIndex(),
+            newLifecycleState.build()
+        );
     }
 
     @Override

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.slm.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -33,18 +32,6 @@ import static org.mockito.Mockito.verify;
 
 public class TransportStopSLMActionTests extends ESTestCase {
 
-    private static final ActionListener<AcknowledgedResponse> EMPTY_LISTENER = new ActionListener<>() {
-        @Override
-        public void onResponse(AcknowledgedResponse response) {
-
-        }
-
-        @Override
-        public void onFailure(Exception e) {
-
-        }
-    };
-
     public void testStopILMClusterStatePriorityIsImmediate() {
         ClusterService clusterService = mock(ClusterService.class);
 
@@ -64,7 +51,7 @@ public class TransportStopSLMActionTests extends ESTestCase {
             emptyMap()
         );
         StopSLMAction.Request request = new StopSLMAction.Request();
-        transportStopSLMAction.masterOperation(task, request, ClusterState.EMPTY_STATE, EMPTY_LISTENER);
+        transportStopSLMAction.masterOperation(task, request, ClusterState.EMPTY_STATE, ActionListener.noop());
 
         verify(clusterService).submitStateUpdateTask(
             eq("slm_operation_mode_update[stopping]"),

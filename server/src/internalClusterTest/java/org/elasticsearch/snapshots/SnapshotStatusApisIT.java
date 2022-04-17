@@ -372,7 +372,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             List<SnapshotInfo> snapshots = getSnapshotsResponse.getSnapshots();
             assertEquals(
                 snapshotNames,
-                snapshots.stream().filter(s -> s.repository().equals(repo)).map(s -> s.snapshotId().getName()).collect(Collectors.toList())
+                snapshots.stream().filter(s -> s.repository().equals(repo)).map(s -> s.snapshotId().getName()).toList()
             );
         }
 
@@ -402,7 +402,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             List<SnapshotInfo> snapshots = getSnapshotsResponse3.getSnapshots();
             assertEquals(
                 snapshotNames,
-                snapshots.stream().filter(s -> s.repository().equals(repo)).map(s -> s.snapshotId().getName()).collect(Collectors.toList())
+                snapshots.stream().filter(s -> s.repository().equals(repo)).map(s -> s.snapshotId().getName()).toList()
             );
         }
     }
@@ -428,8 +428,11 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
                 return false;
             }
             var shards = snapshotsInProgress.snapshot(snapshots.iterator().next()).shards();
-            long initShards = shards.stream().filter(e -> e.getValue().state() == SnapshotsInProgress.ShardState.INIT).count();
-            long successShards = shards.stream().filter(e -> e.getValue().state() == SnapshotsInProgress.ShardState.SUCCESS).count();
+            long initShards = shards.values().stream().filter(v -> v.state() == SnapshotsInProgress.ShardState.INIT).count();
+            long successShards = shards.entrySet()
+                .stream()
+                .filter(e -> e.getValue().state() == SnapshotsInProgress.ShardState.SUCCESS)
+                .count();
             return successShards == shards.size() - 1 && initShards == 1;
         });
 
@@ -600,19 +603,13 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         List<String> sortedNames = Arrays.asList(snapshotNames);
         Collections.sort(sortedNames);
         assertThat(getSnapshotsResponse.getSnapshots().size(), equalTo(numSnapshots));
-        assertThat(
-            getSnapshotsResponse.getSnapshots().stream().map(s -> s.snapshotId().getName()).sorted().collect(Collectors.toList()),
-            equalTo(sortedNames)
-        );
+        assertThat(getSnapshotsResponse.getSnapshots().stream().map(s -> s.snapshotId().getName()).sorted().toList(), equalTo(sortedNames));
 
         getSnapshotsResponse = client.admin().cluster().prepareGetSnapshots(repositoryName).addSnapshots(snapshotNames).get();
         sortedNames = Arrays.asList(snapshotNames);
         Collections.sort(sortedNames);
         assertThat(getSnapshotsResponse.getSnapshots().size(), equalTo(numSnapshots));
-        assertThat(
-            getSnapshotsResponse.getSnapshots().stream().map(s -> s.snapshotId().getName()).sorted().collect(Collectors.toList()),
-            equalTo(sortedNames)
-        );
+        assertThat(getSnapshotsResponse.getSnapshots().stream().map(s -> s.snapshotId().getName()).sorted().toList(), equalTo(sortedNames));
 
         logger.info("--> make sure duplicates are not returned in the response");
         String regexName = snapshotNames[randomIntBetween(0, numSnapshots - 1)];
@@ -626,10 +623,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             .addSnapshots(firstRegex, secondRegex)
             .get();
         assertThat(getSnapshotsResponse.getSnapshots().size(), equalTo(numSnapshots));
-        assertThat(
-            getSnapshotsResponse.getSnapshots().stream().map(s -> s.snapshotId().getName()).sorted().collect(Collectors.toList()),
-            equalTo(sortedNames)
-        );
+        assertThat(getSnapshotsResponse.getSnapshots().stream().map(s -> s.snapshotId().getName()).sorted().toList(), equalTo(sortedNames));
 
         unblockNode(repositoryName, blockedNode); // unblock node
         awaitNoMoreRunningOperations();

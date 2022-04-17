@@ -339,7 +339,7 @@ public final class RepositoryData {
                 }
             }
             return false;
-        }).map(Map.Entry::getKey).collect(Collectors.toList());
+        }).map(Map.Entry::getKey).toList();
     }
 
     /**
@@ -816,7 +816,7 @@ public final class RepositoryData {
                     clusterUUID = parser.text();
                     assert clusterUUID.equals(MISSING_UUID) == false;
                 }
-                default -> XContentParserUtils.throwUnknownField(field, parser.getTokenLocation());
+                default -> XContentParserUtils.throwUnknownField(field, parser);
             }
         }
 

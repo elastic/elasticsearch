@@ -21,13 +21,13 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.RandomApproximationQuery;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.search.RandomApproximationQuery;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
@@ -49,7 +49,7 @@ import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.LeafNumericFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
-import org.elasticsearch.script.field.DocValuesField;
+import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
@@ -91,7 +91,7 @@ public class FunctionScoreTests extends ESTestCase {
             return new LeafFieldData() {
 
                 @Override
-                public DocValuesField<?> getScriptField(String name) {
+                public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
                     throw new UnsupportedOperationException(UNSUPPORTED);
                 }
 
@@ -209,7 +209,7 @@ public class FunctionScoreTests extends ESTestCase {
                 }
 
                 @Override
-                public DocValuesField<?> getScriptField(String name) {
+                public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
                     throw new UnsupportedOperationException(UNSUPPORTED);
                 }
 

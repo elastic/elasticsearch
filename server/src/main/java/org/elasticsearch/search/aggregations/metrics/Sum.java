@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -23,9 +24,8 @@ public class Sum extends InternalNumericMetricsAggregation.SingleValue {
     private final double sum;
 
     public Sum(String name, double sum, DocValueFormat formatter, Map<String, Object> metadata) {
-        super(name, metadata);
+        super(name, formatter, metadata);
         this.sum = sum;
-        this.format = formatter;
     }
 
     /**
@@ -33,7 +33,6 @@ public class Sum extends InternalNumericMetricsAggregation.SingleValue {
      */
     public Sum(StreamInput in) throws IOException {
         super(in);
-        format = in.readNamedWriteable(DocValueFormat.class);
         sum = in.readDouble();
     }
 
@@ -63,6 +62,11 @@ public class Sum extends InternalNumericMetricsAggregation.SingleValue {
             kahanSummation.add(value);
         }
         return new Sum(name, kahanSummation.value(), format, getMetadata());
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return new Sum(name, samplingContext.scaleUp(sum), format, getMetadata());
     }
 
     @Override

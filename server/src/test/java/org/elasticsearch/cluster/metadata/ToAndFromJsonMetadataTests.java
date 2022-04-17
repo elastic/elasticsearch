@@ -32,7 +32,6 @@ import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.AliasMetadata.newAliasMetadataBuilder;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createFirstBackingIndex;
-import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_VERSION_CREATED;
 import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_API;
 import static org.elasticsearch.cluster.metadata.Metadata.CONTEXT_MODE_GATEWAY;
@@ -106,8 +105,8 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
             )
             .put(idx1, false)
             .put(idx2, false)
-            .put(DataStreamTestHelper.newInstance("data-stream1", createTimestampField("@timestamp"), List.of(idx1.getIndex())))
-            .put(DataStreamTestHelper.newInstance("data-stream2", createTimestampField("@timestamp"), List.of(idx2.getIndex())))
+            .put(DataStreamTestHelper.newInstance("data-stream1", List.of(idx1.getIndex())))
+            .put(DataStreamTestHelper.newInstance("data-stream2", List.of(idx2.getIndex())))
             .build();
 
         XContentBuilder builder = JsonXContent.contentBuilder();

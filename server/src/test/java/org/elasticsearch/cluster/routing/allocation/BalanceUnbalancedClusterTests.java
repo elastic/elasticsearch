@@ -7,15 +7,15 @@
  */
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
@@ -58,9 +58,11 @@ public class BalanceUnbalancedClusterTests extends CatAllocationTestCase {
             clusterState = ESAllocationTestCase.startInitializingShardsAndReroute(strategy, clusterState);
         }
         Map<String, Integer> counts = new HashMap<>();
-        for (IndexShardRoutingTable table : clusterState.routingTable().index(index)) {
-            for (ShardRouting r : table) {
-                String s = r.currentNodeId();
+        final IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);
+        for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+            final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
+            for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                String s = indexShardRoutingTable.shard(copy).currentNodeId();
                 Integer count = counts.get(s);
                 if (count == null) {
                     count = 0;

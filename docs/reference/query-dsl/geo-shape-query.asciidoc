@@ -22,7 +22,7 @@ examples.
 
 ==== Inline Shape Definition
 
-Similar to the `geo_shape` type, the `geo_shape` query uses
+Similar to the `geo_point` type, the `geo_shape` query uses
 http://geojson.org[GeoJSON] to represent shapes.
 
 Given the following index with locations as `geo_shape` fields:

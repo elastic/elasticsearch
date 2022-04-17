@@ -281,9 +281,9 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
         createRepository(repositoryName, "fs", randomRepoPath(), true);
         createSnapshot(repositoryName, snapshotName, indexName);
 
-        RepositoriesService repositoriesService = internalCluster().getMasterNodeInstance(RepositoriesService.class);
-        ThreadPool threadPool = internalCluster().getMasterNodeInstance(ThreadPool.class);
-        ClusterService clusterService = internalCluster().getMasterNodeInstance(ClusterService.class);
+        RepositoriesService repositoriesService = internalCluster().getAnyMasterNodeInstance(RepositoriesService.class);
+        ThreadPool threadPool = internalCluster().getAnyMasterNodeInstance(ThreadPool.class);
+        ClusterService clusterService = internalCluster().getAnyMasterNodeInstance(ClusterService.class);
         ShardSnapshotsService shardSnapshotsService = new ShardSnapshotsService(client(), repositoriesService, threadPool, clusterService) {
             @Override
             protected boolean masterSupportsFetchingLatestSnapshots() {
@@ -305,9 +305,9 @@ public class ShardSnapshotsServiceIT extends ESIntegTestCase {
     }
 
     private ShardSnapshotsService getShardSnapshotsService() {
-        RepositoriesService repositoriesService = internalCluster().getMasterNodeInstance(RepositoriesService.class);
-        ThreadPool threadPool = internalCluster().getMasterNodeInstance(ThreadPool.class);
-        ClusterService clusterService = internalCluster().getMasterNodeInstance(ClusterService.class);
+        RepositoriesService repositoriesService = internalCluster().getAnyMasterNodeInstance(RepositoriesService.class);
+        ThreadPool threadPool = internalCluster().getAnyMasterNodeInstance(ThreadPool.class);
+        ClusterService clusterService = internalCluster().getAnyMasterNodeInstance(ClusterService.class);
         return new ShardSnapshotsService(client(), repositoriesService, threadPool, clusterService);
     }
 

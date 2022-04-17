@@ -29,7 +29,6 @@ import java.security.cert.X509Certificate;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.hamcrest.Matchers.emptyIterable;
@@ -92,9 +91,7 @@ public class SamlServiceProviderDocumentTests extends IdpSamlTestCase {
 
     private SamlServiceProviderDocument createFullDocument() throws GeneralSecurityException, IOException {
         final List<X509Credential> credentials = readCredentials();
-        final List<X509Certificate> certificates = credentials.stream()
-            .map(X509Credential::getEntityCertificate)
-            .collect(Collectors.toUnmodifiableList());
+        final List<X509Certificate> certificates = credentials.stream().map(X509Credential::getEntityCertificate).toList();
         final List<X509Certificate> spCertificates = randomSubsetOf(certificates);
         final List<X509Certificate> idpCertificates = randomSubsetOf(certificates);
         final List<X509Certificate> idpMetadataCertificates = randomSubsetOf(certificates);

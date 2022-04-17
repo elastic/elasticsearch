@@ -11,7 +11,11 @@ package org.elasticsearch.search.aggregations.bucket.sampler.random;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.SplittableRandom;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class RandomDocIDSetIteratorTests extends ESTestCase {
 
@@ -40,6 +44,28 @@ public class RandomDocIDSetIteratorTests extends ESTestCase {
                         + p
                 );
             }
+        }
+    }
+
+    public void testRandomSamplerConsistency() {
+        int maxDoc = 10000;
+        int seed = randomInt();
+
+        for (int i = 1; i < 100; i++) {
+            double p = i / 100.0;
+            SplittableRandom random = new SplittableRandom(seed);
+            List<Integer> iterationOne = new ArrayList<>();
+            RandomSamplingQuery.RandomSamplingIterator iter = new RandomSamplingQuery.RandomSamplingIterator(maxDoc, p, random::nextInt);
+            while (iter.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                iterationOne.add(iter.docID());
+            }
+            random = new SplittableRandom(seed);
+            List<Integer> iterationTwo = new ArrayList<>();
+            iter = new RandomSamplingQuery.RandomSamplingIterator(maxDoc, p, random::nextInt);
+            while (iter.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
+                iterationTwo.add(iter.docID());
+            }
+            assertThat(iterationOne, equalTo(iterationTwo));
         }
     }
 

@@ -375,6 +375,21 @@ public class GeometryNormalizerTests extends ESTestCase {
         polygon = new Polygon(new LinearRing(new double[] { 170, 190, 190, 170, 170 }, new double[] { -10, -10, 10, 10, -10 }));
         assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, polygon));
         assertEquals(true, GeometryNormalizer.needsNormalize(Orientation.CCW, polygon));
+
+        polygon = new Polygon(
+            new LinearRing(
+                new double[] { -107.88180702965093, -107.88179936541891, -107.88180701456989, -107.88180702965093 },
+                new double[] { 37.289285907909985, 37.289278246132682, 37.289285918063491, 37.289285907909985 }
+            )
+        );
+        indexed = new Polygon(
+            new LinearRing(
+                new double[] { -107.88179936541891, -107.88180701456989, -107.88180702965093, -107.88179936541891 },
+                new double[] { 37.289278246132682, 37.289285918063491, 37.289285907909985, 37.289278246132682 }
+            )
+        );
+        assertEquals(indexed, GeometryNormalizer.apply(Orientation.CCW, polygon));
+
     }
 
     public void testMultiPolygon() {

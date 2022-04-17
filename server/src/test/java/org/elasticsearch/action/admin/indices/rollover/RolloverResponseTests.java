@@ -54,6 +54,7 @@ public class RolloverResponseTests extends AbstractWireSerializingTestCase<Rollo
         conditionSuppliers.add(() -> new MaxDocsCondition(randomNonNegativeLong()));
         conditionSuppliers.add(() -> new MaxSizeCondition(new ByteSizeValue(randomNonNegativeLong())));
         conditionSuppliers.add(() -> new MaxPrimaryShardSizeCondition(new ByteSizeValue(randomNonNegativeLong())));
+        conditionSuppliers.add(() -> new MaxPrimaryShardDocsCondition(randomNonNegativeLong()));
     }
 
     @Override

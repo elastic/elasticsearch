@@ -561,7 +561,7 @@ public class BigArrays {
     }
 
     /** @see Arrays#hashCode(byte[]) */
-    public int hashCode(ByteArray array) {
+    public static int hashCode(ByteArray array) {
         if (array == null) {
             return 0;
         }
@@ -575,7 +575,7 @@ public class BigArrays {
     }
 
     /** @see Arrays#equals(byte[], byte[]) */
-    public boolean equals(ByteArray array, ByteArray other) {
+    public static boolean equals(ByteArray array, ByteArray other) {
         if (array == other) {
             return true;
         }

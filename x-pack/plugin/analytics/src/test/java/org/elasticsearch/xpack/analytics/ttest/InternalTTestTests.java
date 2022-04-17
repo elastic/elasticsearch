@@ -17,6 +17,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -75,6 +76,16 @@ public class InternalTTestTests extends InternalAggregationTestCase<InternalTTes
         TTestState expected = reduced.state.reduce(inputs.stream().map(a -> a.state));
         assertNotNull(expected);
         assertEquals(expected.getValue(), reduced.getValue(), 0.00001);
+    }
+
+    @Override
+    protected void assertSampled(InternalTTest sampled, InternalTTest reduced, SamplingContext samplingContext) {
+        assertEquals(sampled.getValue(), reduced.getValue(), 1e-12);
+    }
+
+    @Override
+    protected boolean supportsSampling() {
+        return true;
     }
 
     @Override

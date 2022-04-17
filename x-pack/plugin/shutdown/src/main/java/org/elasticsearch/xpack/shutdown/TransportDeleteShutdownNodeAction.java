@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -92,28 +93,27 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 clusterService.getRerouteService()
-                    .reroute("node registered for removal from cluster", Priority.NORMAL, new ActionListener<ClusterState>() {
+                    .reroute("node registered for removal from cluster", Priority.URGENT, new ActionListener<>() {
                         @Override
-                        public void onResponse(ClusterState clusterState) {
-                            logger.trace("started reroute after deleting node [{}}] shutdown", request.getNodeId());
-                            listener.onResponse(AcknowledgedResponse.TRUE);
-                        }
+                        public void onResponse(ClusterState clusterState) {}
 
                         @Override
                         public void onFailure(Exception e) {
-                            logger.warn(
-                                new ParameterizedMessage("failed to start reroute after deleting node [{}] shutdown", request.getNodeId()),
-                                e
-                            );
-                            listener.onFailure(e);
+                            logger.warn(() -> "failed to reroute after deleting node [" + request.getNodeId() + "] shutdown", e);
                         }
                     });
+                listener.onResponse(AcknowledgedResponse.TRUE);
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        }, newExecutor());
     }
 
     @Override
     protected ClusterBlockException checkBlock(DeleteShutdownNodeAction.Request request, ClusterState state) {
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 }

@@ -8,9 +8,9 @@
 
 package org.elasticsearch.plugins.cli;
 
-import org.elasticsearch.env.Environment;
+import joptsimple.OptionSet;
 
-import java.util.Map;
+import org.elasticsearch.env.Environment;
 
 public class MockRemovePluginCommand extends RemovePluginCommand {
     final Environment env;
@@ -20,7 +20,7 @@ public class MockRemovePluginCommand extends RemovePluginCommand {
     }
 
     @Override
-    protected Environment createEnv(Map<String, String> settings) {
+    protected Environment createEnv(OptionSet options) {
         return env;
     }
 }

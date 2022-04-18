@@ -377,7 +377,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         if (indexMetadata.getTierPreference().size() > 0) {
             List<NodeAllocationResult> dataTierAllocationResults = nodeAllocationResults.stream()
                 .filter(hasDeciderResult(DATA_TIER_ALLOCATION_DECIDER_NAME, Decision.Type.YES))
-                .collect(Collectors.toList());
+                .toList();
             if (dataTierAllocationResults.isEmpty()) {
                 actions.add(ACTION_ENABLE_TIERS);
             } else {

@@ -11,7 +11,6 @@ package org.elasticsearch.transport.netty4;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.transport.netty4.NetUtils;
 
 public class NetUtilsTests extends ESTestCase {
 

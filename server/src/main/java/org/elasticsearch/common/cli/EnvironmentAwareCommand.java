@@ -39,18 +39,7 @@ public abstract class EnvironmentAwareCommand extends Command {
      * @param description the command description
      */
     public EnvironmentAwareCommand(final String description) {
-        this(description, CommandLoggingConfigurator::configureLoggingWithoutConfig);
-    }
-
-    /**
-     * Construct the command with the specified command description and runnable to execute before main is invoked. Commands constructed
-     * with this constructor must take ownership of configuring logging.
-     *
-     * @param description the command description
-     * @param beforeMain the before-main runnable
-     */
-    public EnvironmentAwareCommand(final String description, final Runnable beforeMain) {
-        super(description, beforeMain);
+        super(description);
         this.settingOption = parser.accepts("E", "Configure a setting").withRequiredArg().ofType(KeyValuePair.class);
     }
 

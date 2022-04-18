@@ -8,8 +8,6 @@
 
 package org.elasticsearch.action.get;
 
-import com.carrotsearch.hppc.IntArrayList;
-
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -26,13 +24,13 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
     private boolean realtime;
     private boolean refresh;
 
-    IntArrayList locations;
+    List<Integer> locations;
     List<MultiGetRequest.Item> items;
 
     MultiGetShardRequest(StreamInput in) throws IOException {
         super(in);
         int size = in.readVInt();
-        locations = new IntArrayList(size);
+        locations = new ArrayList<>(size);
         items = new ArrayList<>(size);
 
         for (int i = 0; i < size; i++) {
@@ -48,7 +46,7 @@ public class MultiGetShardRequest extends SingleShardRequest<MultiGetShardReques
     MultiGetShardRequest(MultiGetRequest multiGetRequest, String index, int shardId) {
         super(index);
         this.shardId = shardId;
-        locations = new IntArrayList();
+        locations = new ArrayList<>();
         items = new ArrayList<>();
         preference = multiGetRequest.preference;
         realtime = multiGetRequest.realtime;

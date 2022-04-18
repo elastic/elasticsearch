@@ -16,7 +16,7 @@ esplugin {
 }
 
 versions << [
-  'tika'  : '1.27',
+  'tika'  : '2.3.0',
   'pdfbox': '2.0.24',
   'poi'   : '4.1.2',
   'mime4j': '0.8.5'
@@ -25,8 +25,8 @@ versions << [
 dependencies {
   // mandatory for tika
   api "org.apache.tika:tika-core:${versions.tika}"
-  // build against Jackson 2.9.5, but still works on our current version
-  api "org.apache.tika:tika-parsers:${versions.tika}"
+  api "org.apache.tika:tika-parsers-standard-package:${versions.tika}"
+  api "org.apache.tika:tika-langdetect-tika:${versions.tika}"
   api 'org.tukaani:xz:1.8'
   api 'commons-io:commons-io:2.6'
   api "org.slf4j:slf4j-api:${versions.slf4j}"

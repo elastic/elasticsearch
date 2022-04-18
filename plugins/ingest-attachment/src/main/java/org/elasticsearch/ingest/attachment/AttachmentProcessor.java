@@ -9,7 +9,8 @@
 package org.elasticsearch.ingest.attachment;
 
 import org.apache.tika.exception.ZeroByteFileException;
-import org.apache.tika.language.LanguageIdentifier;
+import org.apache.tika.langdetect.tika.TikaLanguageDetector;
+import org.apache.tika.language.detect.LanguageDetector;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.metadata.Office;
 import org.apache.tika.metadata.TikaCoreProperties;
@@ -19,6 +20,7 @@ import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -82,7 +84,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
     }
 
     @Override
-    public IngestDocument execute(IngestDocument ingestDocument) {
+    public IngestDocument execute(IngestDocument ingestDocument) throws IOException {
         Map<String, Object> additionalFields = new HashMap<>();
 
         byte[] input = ingestDocument.getFieldValueAsBytes(field, ignoreMissing);
@@ -109,7 +111,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
 
         Metadata metadata = new Metadata();
         if (resourceNameInput != null) {
-            metadata.set(Metadata.RESOURCE_NAME_KEY, resourceNameInput);
+            metadata.set(TikaCoreProperties.RESOURCE_NAME_KEY, resourceNameInput);
         }
         String parsedContent = "";
         try {
@@ -127,9 +129,12 @@ public final class AttachmentProcessor extends AbstractProcessor {
         }
 
         if (properties.contains(Property.LANGUAGE) && Strings.hasLength(parsedContent)) {
-            // TODO: stop using LanguageIdentifier...
-            LanguageIdentifier identifier = new LanguageIdentifier(parsedContent);
-            String language = identifier.getLanguage();
+
+
+            //TOOD: hmm... this doesnt work
+            LanguageDetector detector =  LanguageDetector.getDefaultLanguageDetector().loadModels();
+
+            String language = detector.detect(parsedContent).getLanguage();
             additionalFields.put(Property.LANGUAGE.toLowerCase(), language);
         }
 

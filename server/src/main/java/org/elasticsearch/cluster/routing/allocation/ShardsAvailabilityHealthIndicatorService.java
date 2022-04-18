@@ -217,7 +217,9 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     } else {
                         unassigned++;
                         if (includeDetails) {
-                            diagnoseUnassigned(routing, state).forEach(definition -> addUserAction(definition, routing.getIndexName()));
+                            diagnoseUnassignedShardRouting(routing, state).forEach(
+                                definition -> addUserAction(definition, routing.getIndexName())
+                            );
                         }
                     }
                 }
@@ -252,7 +254,13 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         return routing.primary() && routing.active() == false && getInactivePrimaryHealth(routing) == ClusterHealthStatus.YELLOW;
     }
 
-    private List<UserAction.Definition> diagnoseUnassigned(ShardRouting shardRouting, ClusterState state) {
+    /**
+     * Generate a list of actions for a user to take that should allow this shard to be assigned.
+     * @param shardRouting An unassigned shard routing
+     * @param state State of the cluster
+     * @return A list of actions for the user to take for this shard
+     */
+    List<UserAction.Definition> diagnoseUnassignedShardRouting(ShardRouting shardRouting, ClusterState state) {
         List<UserAction.Definition> actions = new ArrayList<>();
         switch (shardRouting.unassignedInfo().getLastAllocationStatus()) {
             case NO_VALID_SHARD_COPY:
@@ -261,7 +269,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 }
                 break;
             case DECIDERS_NO:
-                diagnoseDeciders(actions, shardRouting, state);
+                explainAllocationsAndDiagnoseDeciders(actions, shardRouting, state);
                 break;
             default:
                 break;
@@ -269,7 +277,14 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         return actions;
     }
 
-    private void diagnoseDeciders(List<UserAction.Definition> actions, ShardRouting shardRouting, ClusterState state) {
+    /**
+     * For a shard that is unassigned due to a DECIDERS_NO result, this will explain the allocation and attempt to generate
+     * user actions that should allow the shard to be assigned.
+     * @param actions A list to collect user actions in
+     * @param shardRouting The shard routing that is unassigned with a last status of DECIDERS_NO
+     * @param state Current cluster state
+     */
+    private void explainAllocationsAndDiagnoseDeciders(List<UserAction.Definition> actions, ShardRouting shardRouting, ClusterState state) {
         LOGGER.trace("Diagnosing shard [{}]", shardRouting.shardId());
         RoutingAllocation allocation = new RoutingAllocation(
             allocationDeciders,
@@ -305,18 +320,41 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 );
             }
             List<NodeAllocationResult> nodeAllocationResults = allocateDecision.getNodeDecisions();
-            checkIsAllocationDisabled(actions, nodeAllocationResults);
-            IndexMetadata index = state.metadata().index(shardRouting.index());
-            if (index != null) {
-                checkDataTierRelatedIssues(actions, index, nodeAllocationResults);
-            }
-            if (actions.isEmpty()) {
-                actions.add(ACTION_CHECK_ALLOCATION_EXPLAIN_API);
-            }
+            diagnoseAllocationResults(actions, shardRouting, state, nodeAllocationResults);
         }
     }
 
-    private static Predicate<NodeAllocationResult> nodeHasDeciderResult(String deciderName, Decision.Type outcome) {
+    /**
+     * Generates a list of user actions to take for an unassigned shard by inspecting a list of NodeAllocationResults for
+     * well known problems.
+     * @param actions A list to collect the user actions in.
+     * @param shardRouting The unassigned shard.
+     * @param state Current cluster state.
+     * @param nodeAllocationResults A list of results for each node in the cluster from the allocation explain api
+     */
+    void diagnoseAllocationResults(
+        List<UserAction.Definition> actions,
+        ShardRouting shardRouting,
+        ClusterState state,
+        List<NodeAllocationResult> nodeAllocationResults
+    ) {
+        checkIsAllocationDisabled(actions, nodeAllocationResults);
+        IndexMetadata index = state.metadata().index(shardRouting.index());
+        if (index != null) {
+            checkDataTierRelatedIssues(actions, index, nodeAllocationResults);
+        }
+        if (actions.isEmpty()) {
+            actions.add(ACTION_CHECK_ALLOCATION_EXPLAIN_API);
+        }
+    }
+
+    /**
+     * Convenience method for filtering node allocation results by decider outcomes.
+     * @param deciderName The decider that is being checked
+     * @param outcome The outcome expected
+     * @return A predicate that returns true if the decision exists and matches the expected outcome, false otherwise.
+     */
+    private static Predicate<NodeAllocationResult> hasDeciderResult(String deciderName, Decision.Type outcome) {
         return (nodeResult) -> nodeResult.getCanAllocateDecision()
             .getDecisions()
             .stream()
@@ -328,8 +366,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
      * @param actions Any user actions generated from this method will be added to this list.
      * @param nodeAllocationResults allocation decision results for all nodes in the cluster.
      */
-    private void checkIsAllocationDisabled(List<UserAction.Definition> actions, List<NodeAllocationResult> nodeAllocationResults) {
-        if (nodeAllocationResults.stream().allMatch(nodeHasDeciderResult(EnableAllocationDecider.NAME, Decision.Type.NO))) {
+    void checkIsAllocationDisabled(List<UserAction.Definition> actions, List<NodeAllocationResult> nodeAllocationResults) {
+        if (nodeAllocationResults.stream().allMatch(hasDeciderResult(EnableAllocationDecider.NAME, Decision.Type.NO))) {
             actions.add(ACTION_ENABLE_ALLOCATIONS);
         }
     }
@@ -340,30 +378,30 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
      * @param indexMetadata Index metadata for the shard being diagnosed.
      * @param nodeAllocationResults allocation decision results for all nodes in the cluster.
      */
-    private void checkDataTierRelatedIssues(
+    void checkDataTierRelatedIssues(
         List<UserAction.Definition> actions,
         IndexMetadata indexMetadata,
         List<NodeAllocationResult> nodeAllocationResults
     ) {
         if (indexMetadata.getTierPreference().size() > 0) {
             List<NodeAllocationResult> dataTierAllocationResults = nodeAllocationResults.stream()
-                .filter(nodeHasDeciderResult(DATA_TIER_ALLOCATION_DECIDER_NAME, Decision.Type.YES))
+                .filter(hasDeciderResult(DATA_TIER_ALLOCATION_DECIDER_NAME, Decision.Type.YES))
                 .collect(Collectors.toList());
             if (dataTierAllocationResults.isEmpty()) {
                 actions.add(ACTION_ENABLE_TIERS);
             } else {
                 // All tier nodes at shards limit?
-                if (dataTierAllocationResults.stream().allMatch(nodeHasDeciderResult(ShardsLimitAllocationDecider.NAME, Decision.Type.NO))) {
+                if (dataTierAllocationResults.stream().allMatch(hasDeciderResult(ShardsLimitAllocationDecider.NAME, Decision.Type.NO))) {
                     actions.add(ACTION_SHARD_LIMIT);
                 }
 
                 // All tier nodes conflict with allocation filters?
-                if (dataTierAllocationResults.stream().allMatch(nodeHasDeciderResult(FilterAllocationDecider.NAME, Decision.Type.NO))) {
+                if (dataTierAllocationResults.stream().allMatch(hasDeciderResult(FilterAllocationDecider.NAME, Decision.Type.NO))) {
                     actions.add(ACTION_MIGRATE_TIERS);
                 }
 
                 // Not enough tier nodes to hold shards on different nodes?
-                if (dataTierAllocationResults.stream().allMatch(nodeHasDeciderResult(SameShardAllocationDecider.NAME, Decision.Type.NO))) {
+                if (dataTierAllocationResults.stream().allMatch(hasDeciderResult(SameShardAllocationDecider.NAME, Decision.Type.NO))) {
                     actions.add(ACTION_INCREASE_TIER_CAPACITY);
                 }
             }

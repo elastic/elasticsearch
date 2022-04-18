@@ -45,10 +45,6 @@ public class LicenseGeneratorTool extends LoggingAwareCommand {
         licenseFileOption = parser.accepts("licenseFile", "license json spec file").withRequiredArg();
     }
 
-    public static void main(String[] args) throws Exception {
-        exit(new LicenseGeneratorTool().main(args, Terminal.DEFAULT));
-    }
-
     @Override
     protected void printAdditionalHelp(Terminal terminal) {
         terminal.println("This tool generate elasticsearch license(s) for the provided");

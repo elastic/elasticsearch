@@ -8,11 +8,13 @@
 
 package org.elasticsearch.index.mapper.extras;
 
+import com.carrotsearch.randomizedtesting.annotations.Seed;
+
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -36,6 +38,7 @@ import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
+@Seed("6AB3998B1FF286ED:D704150E9D86ADE2")
 public class ScaledFloatFieldMapperTests extends MapperTestCase {
 
     @Override
@@ -356,21 +359,52 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceExample syntheticSourceExample() throws IOException {
-        double scalingFactor = randomDoubleBetween(0, Double.MAX_VALUE, false);
-        CheckedConsumer<XContentBuilder, IOException> mapping = b -> b.field("type", "scaled_float").field("scaling_factor", scalingFactor);
-        if (randomBoolean()) {
-            float f = randomFloat();
-            return new SyntheticSourceExample(f, round(f, scalingFactor), mapping);
-        }
-        List<Float> in = randomList(1, 5, () -> randomFloat());
-        Object out = in.size() == 1 ? round(in.get(0), scalingFactor) : in.stream().map(f -> round(f, scalingFactor)).sorted().toList();
-        return new SyntheticSourceExample(in, out, mapping);
+        return new SyntheticSourceExampleHelper().example();
     }
 
-    private double round(float f, double scalingFactor) {
-        long encoded = Math.round(Double.parseDouble(Float.toString(f)) * scalingFactor);
-        double inverseScalingFactor = 1 / scalingFactor;
-        return encoded * inverseScalingFactor;
+    static class SyntheticSourceExampleHelper {
+        private final double scalingFactor = randomDoubleBetween(0, Double.MAX_VALUE, false);
+        // private final InetAddress nullValue = usually() ? null : randomIp(randomBoolean());
+
+        public SyntheticSourceExample example() {
+            if (randomBoolean()) {
+                Tuple<Float, Double> v = generateValue();
+                return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);
+            }
+            List<Tuple<Float, Double>> values = randomList(1, 5, this::generateValue);
+            List<Float> in = values.stream().map(Tuple::v1).toList();
+            List<Double> outList = values.stream().map(Tuple::v2).sorted().toList();
+            Object out = outList.size() == 1 ? outList.get(0) : outList;
+            return new SyntheticSourceExample(in, out, this::mapping);
+        }
+
+        private Tuple<Float, Double> generateValue() {
+            // if (nullValue != null && randomBoolean()) {
+            // return Tuple.tuple(null, nullValue);
+            // }
+            float f = randomFloat();
+            return Tuple.tuple(f, round(f));
+        }
+
+        private double round(float f) {
+            long encoded = Math.round(Double.parseDouble(Float.toString(f)) * scalingFactor);
+            double inverseScalingFactor = 1 / scalingFactor;
+            return encoded * inverseScalingFactor;
+        }
+
+        private void mapping(XContentBuilder b) throws IOException {
+            b.field("type", "scaled_float");
+            b.field("scaling_factor", scalingFactor);
+            // if (nullValue != null) {
+            // b.field("null_value", NetworkAddress.format(nullValue));
+            // }
+            if (rarely()) {
+                b.field("index", false);
+            }
+            if (rarely()) {
+                b.field("store", false);
+            }
+        }
     }
 
     @Override

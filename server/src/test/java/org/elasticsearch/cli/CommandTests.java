@@ -34,7 +34,7 @@ public class CommandTests extends CommandTestCase {
         Exception exception = null;
 
         DummyCommand() {
-            super("Does nothing", () -> {});
+            super("Does nothing");
         }
 
         @Override

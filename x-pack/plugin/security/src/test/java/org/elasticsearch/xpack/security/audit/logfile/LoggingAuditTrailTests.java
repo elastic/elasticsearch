@@ -1377,7 +1377,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         assertThat(output.size(), is(2));
         String generatedUpdateAuditEventString = output.get(1);
         final String expectedUpdateAuditEventString = """
-            "put":{"uid":"%s","access":{"space":"production"},"data":{"theme":"default"}}""".formatted(updateProfileDataRequest.getUid());
+            "put":{"uid":"%s","labels":{"space":"production"},"data":{"theme":"default"}}""".formatted(updateProfileDataRequest.getUid());
         assertThat(generatedUpdateAuditEventString, containsString(expectedUpdateAuditEventString));
         generatedUpdateAuditEventString = generatedUpdateAuditEventString.replace(", " + expectedUpdateAuditEventString, "");
         checkedFields = new MapBuilder<>(commonFields);

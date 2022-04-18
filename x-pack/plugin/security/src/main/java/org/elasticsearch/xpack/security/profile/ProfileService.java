@@ -153,8 +153,8 @@ public class ProfileService {
                 builder.field("user_profile");
                 builder.startObject();
                 {
-                    if (false == request.getAccess().isEmpty()) {
-                        builder.field("access", request.getAccess());
+                    if (false == request.getLabels().isEmpty()) {
+                        builder.field("labels", request.getLabels());
                     }
                     if (false == request.getData().isEmpty()) {
                         builder.field("application_data", request.getData());
@@ -581,8 +581,8 @@ public class ProfileService {
         builder.field(
             "user_profile",
             profileDocument,
-            // NOT including the access and data in the update request so they will not be changed
-            new ToXContent.MapParams(Map.of("include_access", Boolean.FALSE.toString(), "include_data", Boolean.FALSE.toString()))
+            // NOT including the labels and data in the update request so they will not be changed
+            new ToXContent.MapParams(Map.of("include_labels", Boolean.FALSE.toString(), "include_data", Boolean.FALSE.toString()))
         );
         builder.endObject();
         return builder;
@@ -617,10 +617,9 @@ public class ProfileService {
                 subject.getRealm(),
                 // Replace with incoming information even when they are null
                 subjectUser.email(),
-                subjectUser.fullName(),
-                subjectUser.enabled()
+                subjectUser.fullName()
             ),
-            doc.access(),
+            doc.labels(),
             doc.applicationData()
         );
     }
@@ -645,7 +644,7 @@ public class ProfileService {
                 doc.enabled(),
                 doc.lastSynchronized(),
                 doc.user().toProfileUser(),
-                doc.access(),
+                doc.labels(),
                 applicationData,
                 new Profile.VersionControl(primaryTerm, seqNo)
             );

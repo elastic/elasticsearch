@@ -75,13 +75,15 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
             if (mastersInLast30Minutes.size() >= 3) {
                 logger.trace("Have seen " + mastersInLast30Minutes.size() + " masters in the last 30 seconds");
                 stableMasterStatus = HealthStatus.YELLOW;
-                summary = String.format(Locale.ROOT,
-                    "%d nodes have acted as master in the last 30 minutes",
-                    mastersInLast30Minutes.size());
-                impacts.add(new HealthIndicatorImpact(3,
-                    "The cluster currently has a master node, but having multiple master nodes in a short time is an indicator " +
-                        "that the cluster is at risk of of not being able to create, delete, or rebalance indices",
-                    List.of(ImpactArea.INGEST)));
+                summary = String.format(Locale.ROOT, "%d nodes have acted as master in the last 30 minutes", mastersInLast30Minutes.size());
+                impacts.add(
+                    new HealthIndicatorImpact(
+                        3,
+                        "The cluster currently has a master node, but having multiple master nodes in a short time is an indicator "
+                            + "that the cluster is at risk of of not being able to create, delete, or rebalance indices",
+                        List.of(ImpactArea.INGEST)
+                    )
+                );
                 if (includeDetails) {
                     details.put("current_master", localMasterHistory.getCurrentMaster());
                     details.put("recent_masters", mastersInLast30Minutes);
@@ -93,11 +95,18 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                     if (masterThinksItIsUnstable(master)) {
                         logger.trace(String.format(Locale.ROOT, "The master node %s thinks it is unstable", master));
                         stableMasterStatus = HealthStatus.YELLOW;
-                        summary = String.format(Locale.ROOT, "The cluster's master has alternated between %s and no master multiple times" +
-                            " in the last 30 minutes", master);
-                        impacts.add(new HealthIndicatorImpact(3,
-                            "The cluster is at risk of not being able to create, delete, or rebalance indices",
-                            List.of(ImpactArea.INGEST)));
+                        summary = String.format(
+                            Locale.ROOT,
+                            "The cluster's master has alternated between %s and no master multiple times" + " in the last 30 minutes",
+                            master
+                        );
+                        impacts.add(
+                            new HealthIndicatorImpact(
+                                3,
+                                "The cluster is at risk of not being able to create, delete, or rebalance indices",
+                                List.of(ImpactArea.INGEST)
+                            )
+                        );
                         if (includeDetails) {
                             details.put("current_master", localMasterHistory.getCurrentMaster());
                         }
@@ -116,10 +125,15 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                 } catch (ExecutionException e) {
                     logger.error("Exception trying to reach the master", e);
                     stableMasterStatus = HealthStatus.YELLOW;
-                    summary = "The cluster has had a master node recently, but something went wrong while attempting to find out if the " +
-                        "master had been stable.";
-                    impacts.add(new HealthIndicatorImpact(3,
-                        "The cluster is at risk of not being able to create, delete, or rebalance indices", List.of(ImpactArea.INGEST)));
+                    summary = "The cluster has had a master node recently, but something went wrong while attempting to find out if the "
+                        + "master had been stable.";
+                    impacts.add(
+                        new HealthIndicatorImpact(
+                            3,
+                            "The cluster is at risk of not being able to create, delete, or rebalance indices",
+                            List.of(ImpactArea.INGEST)
+                        )
+                    );
                 } catch (InterruptedException e) {
                     logger.info("Interrupted while trying to reach the master", e);
                     Thread.currentThread().interrupt();
@@ -135,8 +149,12 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
             summary = "Placeholder summary";
         }
 
-        return createIndicator(stableMasterStatus, summary, includeDetails ? new SimpleHealthIndicatorDetails(details) :
-            HealthIndicatorDetails.EMPTY, impacts);
+        return createIndicator(
+            stableMasterStatus,
+            summary,
+            includeDetails ? new SimpleHealthIndicatorDetails(details) : HealthIndicatorDetails.EMPTY,
+            impacts
+        );
     }
 
     private boolean masterThinksItIsUnstable(DiscoveryNode master) throws ExecutionException, InterruptedException {

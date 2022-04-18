@@ -53,7 +53,7 @@ public class RollupActionIT extends ESRestTestCase {
             Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
         );
         index(client(), index, "_id", "timestamp", "2020-01-01T05:10:00Z", "volume", 11.0);
-        RollupActionConfig rollupConfig = new RollupActionConfig(DateHistogramInterval.DAY, null);
+        RollupActionConfig rollupConfig = new RollupActionConfig(DateHistogramInterval.DAY);
 
         createNewSingletonPolicy(client(), policy, "cold", new RollupILMAction(rollupConfig, null));
         updatePolicy(client(), index, policy);
@@ -73,7 +73,7 @@ public class RollupActionIT extends ESRestTestCase {
             Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
         );
         index(client(), index, "_id", "timestamp", "2020-01-01T05:10:00Z", "volume", 11.0);
-        RollupActionConfig rollupConfig = new RollupActionConfig(DateHistogramInterval.DAY, null);
+        RollupActionConfig rollupConfig = new RollupActionConfig(DateHistogramInterval.DAY);
 
         createNewSingletonPolicy(client(), policy, "cold", new RollupILMAction(rollupConfig, policy));
         updatePolicy(client(), index, policy);

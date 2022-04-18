@@ -92,6 +92,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
 import javax.security.auth.x500.X500Principal;
 
 import static org.elasticsearch.common.ssl.PemUtils.parsePKCS8PemString;
@@ -1251,9 +1252,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             try (
                 KeyStoreWrapper existingKeystore = KeyStoreWrapper.load(env.configFile());
                 SecureString keystorePassword = existingKeystore.hasPassword()
-                    ? new SecureString(
-                        terminal.readSecret("Enter password for the elasticsearch keystore: ")
-                    )
+                    ? new SecureString(terminal.readSecret("Enter password for the elasticsearch keystore: "))
                     : new SecureString(new char[0]);
             ) {
                 existingKeystore.decrypt(keystorePassword.getChars());

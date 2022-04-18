@@ -845,12 +845,15 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             )
         );
         for (SyntheticSourceInvalidExample example : examples) {
-            Exception e = expectThrows(IllegalArgumentException.class, example.toString(),
+            Exception e = expectThrows(
+                IllegalArgumentException.class,
+                example.toString(),
                 () -> createDocumentMapper(syntheticSourceMapping(b -> {
-                b.startObject("field");
-                example.mapping.accept(b);
-                b.endObject();
-            })));
+                    b.startObject("field");
+                    example.mapping.accept(b);
+                    b.endObject();
+                }))
+            );
             assertThat(e.getMessage(), example.error);
         }
     }

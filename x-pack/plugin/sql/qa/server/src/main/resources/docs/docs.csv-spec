@@ -3350,7 +3350,7 @@ Alejandro
 Amabile
 Anneke
 Anoosh
-Arumugam
+Basil
 // end::filterToday
 ;
 
@@ -3515,4 +3515,3 @@ SELECT author, name FROM library WHERE name RLIKE 'Child.* Dune';
 Frank Herbert  |Children of Dune
 // end::simpleRLike
 ;
-

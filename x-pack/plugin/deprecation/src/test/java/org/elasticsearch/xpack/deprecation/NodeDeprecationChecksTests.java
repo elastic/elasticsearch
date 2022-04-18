@@ -784,7 +784,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
             issue,
             equalTo(
                 new DeprecationIssue(
-                    DeprecationIssue.Level.CRITICAL,
+                    DeprecationIssue.Level.WARNING,
                     "Setting [path.shared_data] is deprecated",
                     expectedUrl,
                     "Remove the [path.shared_data] setting. This setting has had no effect since 6.0.",

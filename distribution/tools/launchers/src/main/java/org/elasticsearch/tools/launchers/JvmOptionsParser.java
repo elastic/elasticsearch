@@ -81,7 +81,7 @@ final class JvmOptionsParser {
         if (environmentPathConf != null) {
             substitutions.put("ES_PATH_CONF", environmentPathConf);
         } else {
-            substitutions.put("ES_PATH_CONF",  System.getenv("ES_HOME") + File.separator +  "config");
+            substitutions.put("ES_PATH_CONF", System.getenv("ES_HOME") + File.separator + "config");
         }
 
         try {

@@ -198,15 +198,7 @@ public class MockNode extends Node {
                 tracer
             );
         } else {
-            return new MockTransportService(
-                settings,
-                transport,
-                threadPool,
-                interceptor,
-                localNodeFactory,
-                clusterSettings,
-                taskHeaders
-            );
+            return new MockTransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders);
         }
     }
 

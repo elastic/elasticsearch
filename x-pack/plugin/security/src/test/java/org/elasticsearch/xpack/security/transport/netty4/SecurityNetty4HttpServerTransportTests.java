@@ -30,7 +30,6 @@ import org.junit.Before;
 
 import java.nio.file.Path;
 import java.util.Collections;
-import java.util.List;
 
 import javax.net.ssl.SSLEngine;
 

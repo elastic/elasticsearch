@@ -214,6 +214,7 @@ import java.util.function.LongSupplier;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+
 import javax.net.ssl.SNIHostName;
 
 import static java.util.stream.Collectors.toList;
@@ -1049,10 +1050,7 @@ public class Node implements Closeable {
     }
 
     private Tracer getTracer(Collection<Object> pluginComponents) {
-        final List<Tracer> tracers = pluginComponents.stream()
-            .map(c -> c instanceof Tracer t ? t : null)
-            .filter(Objects::nonNull)
-            .toList();
+        final List<Tracer> tracers = pluginComponents.stream().map(c -> c instanceof Tracer t ? t : null).filter(Objects::nonNull).toList();
 
         if (tracers.size() > 1) {
             throw new IllegalStateException("A single Tracer was expected but got: " + tracers);

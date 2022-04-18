@@ -158,13 +158,7 @@ public class TestOpenTelemetry implements OpenTelemetry {
             if (this.startTimestamp == null) {
                 this.startTimestamp = System.currentTimeMillis();
             }
-            return new TestSpan(
-                spanName,
-                parentContext,
-                attributes,
-                spanKind,
-                startTimestamp
-            );
+            return new TestSpan(spanName, parentContext, attributes, spanKind, startTimestamp);
         }
     }
 

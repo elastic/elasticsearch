@@ -84,11 +84,7 @@ public class TransportSubmitAsyncSearchAction extends HandledTransportAction<Sub
     protected void doExecute(Task submitTask, SubmitAsyncSearchRequest request, ActionListener<AsyncSearchResponse> submitListener) {
         final SearchRequest searchRequest = createSearchRequest(request, submitTask, request.getKeepAlive());
         try (var ignored = threadContext.newTraceContext()) {
-            AsyncSearchTask searchTask = (AsyncSearchTask) taskManager.register(
-                "transport",
-                SearchAction.INSTANCE.name(),
-                searchRequest
-            );
+            AsyncSearchTask searchTask = (AsyncSearchTask) taskManager.register("transport", SearchAction.INSTANCE.name(), searchRequest);
             searchAction.execute(searchTask, searchRequest, searchTask.getSearchProgressActionListener());
             searchTask.addCompletionListener(new ActionListener<>() {
                 @Override

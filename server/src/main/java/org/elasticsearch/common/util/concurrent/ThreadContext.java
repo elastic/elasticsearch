@@ -734,13 +734,7 @@ public final class ThreadContext implements Writeable {
                     return this;
                 }
             }
-            return new ThreadContextStruct(
-                requestHeaders,
-                newResponseHeaders,
-                transientHeaders,
-                isSystemContext,
-                newWarningHeaderSize
-            );
+            return new ThreadContextStruct(requestHeaders, newResponseHeaders, transientHeaders, isSystemContext, newWarningHeaderSize);
         }
 
         private ThreadContextStruct putTransient(String key, Object value) {

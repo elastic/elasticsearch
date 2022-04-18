@@ -706,7 +706,7 @@ public abstract class PackagingTestCase extends Assert {
         List<String> lines;
         try (Stream<String> allLines = Files.readAllLines(yml).stream()) {
             lines = allLines.map(l -> {
-                if (l.toLowerCase(Locale.ROOT).contains(key.toLowerCase(Locale.ROOT))) {
+                if (l.contains(key)) {
                     return replacement;
                 }
                 return l;

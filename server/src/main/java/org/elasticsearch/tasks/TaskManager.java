@@ -272,6 +272,15 @@ public class TaskManager implements ClusterStateApplier {
         return null;
     }
 
+    // package private for testing
+    Integer childTasksPerConnection(long taskId, Transport.Connection childConnection) {
+        final CancellableTaskHolder holder = cancellableTasks.get(taskId);
+        if (holder != null) {
+            return holder.childTasksPerConnection.get(childConnection);
+        }
+        return null;
+    }
+
     /**
      * Stores the task failure
      */

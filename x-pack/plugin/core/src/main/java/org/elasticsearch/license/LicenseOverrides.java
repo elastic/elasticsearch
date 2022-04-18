@@ -35,7 +35,7 @@ class LicenseOverrides {
         assert TEST_LICENSE_ID_HASH.equals("d180f3dedf21b96eea4021d373ab990cba53eeb6c44832261417e828fcb278f1");
 
         ZonedDateTime EXPIRED = ZonedDateTime.ofStrict(LocalDateTime.of(1970, 1, 1, 0, 0, 42, 0), ZoneOffset.UTC, ZoneOffset.UTC);
-        LICENSE_OVERRIDES = Map.ofEntries(
+        LICENSE_OVERRIDES = Map.<String, ZonedDateTime>ofEntries(
             Map.entry(TEST_LICENSE_ID_HASH, EXPIRED),
             Map.entry("bef6c45f0b1d964e0509bcd3e3ae74513346fbd39fdc9ead6d06b714979f59f0", EXPIRED),
             Map.entry("87ff1c3f4a318f255da0a38110f3abf1869948a5e77bbf5cd422ba81cdfc1006", EXPIRED),

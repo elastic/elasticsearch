@@ -12,6 +12,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
+import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.spatial.common.CartesianPoint;
@@ -19,6 +20,7 @@ import org.junit.AssumptionViolatedException;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -251,5 +253,15 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
     @Override
     protected List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException {
         throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected Optional<ScriptFactory> emptyFieldScript() {
+        return Optional.empty();
+    }
+
+    @Override
+    protected Optional<ScriptFactory> nonEmptyFieldScript() {
+        return Optional.empty();
     }
 }

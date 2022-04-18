@@ -19,12 +19,14 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.index.termvectors.TermVectorsService;
+import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -331,5 +333,23 @@ public class IpFieldMapperTests extends MapperTestCase {
                 b -> b.field("type", "ip").field("ignore_malformed", true)
             )
         );
+    }
+
+    @Override
+    protected final Optional<IpFieldScript.Factory> emptyFieldScript() {
+        return Optional.of((fieldName, params, searchLookup) -> ctx -> new IpFieldScript(fieldName, params, searchLookup, ctx) {
+            @Override
+            public void execute() {}
+        });
+    }
+
+    @Override
+    protected final Optional<IpFieldScript.Factory> nonEmptyFieldScript() {
+        return Optional.of((fieldName, params, searchLookup) -> ctx -> new IpFieldScript(fieldName, params, searchLookup, ctx) {
+            @Override
+            public void execute() {
+                emit("192.168.0.1");
+            }
+        });
     }
 }

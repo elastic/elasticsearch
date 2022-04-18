@@ -18,6 +18,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.hamcrest.Matchers;
 import org.junit.AssumptionViolatedException;
@@ -27,6 +28,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -186,5 +188,15 @@ public class RankFeaturesFieldMapperTests extends MapperTestCase {
     @Override
     protected List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException {
         throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected Optional<ScriptFactory> emptyFieldScript() {
+        return Optional.empty();
+    }
+
+    @Override
+    protected Optional<ScriptFactory> nonEmptyFieldScript() {
+        return Optional.empty();
     }
 }

@@ -993,12 +993,19 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
     }
 
+    boolean hasNormalizer() {
+        return normalizerName != null;
+    }
+
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
         return syntheticFieldLoader(simpleName());
     }
 
     protected SourceLoader.SyntheticFieldLoader syntheticFieldLoader(String simpleName) {
+        if (hasScript()) {
+            return SourceLoader.SyntheticFieldLoader.NOTHING;
+        }
         if (hasDocValues == false) {
             throw new IllegalArgumentException(
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
@@ -1012,6 +1019,11 @@ public final class KeywordFieldMapper extends FieldMapper {
         if (copyTo.copyToFields().isEmpty() != true) {
             throw new IllegalArgumentException(
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
+            );
+        }
+        if (hasNormalizer()) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares a normalizer"
             );
         }
         return new BytesSyntheticFieldLoader(name(), simpleName) {

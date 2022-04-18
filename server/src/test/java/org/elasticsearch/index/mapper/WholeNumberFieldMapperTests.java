@@ -11,7 +11,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.IndexableField;
 
 import java.io.IOException;
-import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -103,12 +102,6 @@ public abstract class WholeNumberFieldMapperTests extends NumberFieldMapperTests
 
     @Override
     protected SyntheticSourceExample syntheticSourceExample() throws IOException {
-        if (randomBoolean()) {
-            Number n = randomNumber();
-            return new SyntheticSourceExample(n, n.longValue(), this::minimalMapping);
-        }
-        List<Number> in = randomList(1, 5, this::randomNumber);
-        Object out = in.size() == 1 ? in.get(0).longValue() : in.stream().map(Number::longValue).sorted().toList();
-        return new SyntheticSourceExample(in, out, this::minimalMapping);
+        return new SyntheticSourceExampleHelper().example(Number::longValue);
     }
 }

@@ -30,6 +30,9 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.script.Script;
+import org.elasticsearch.script.ScriptContext;
+import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.LeafStoredFieldsLookup;
@@ -46,6 +49,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Function;
@@ -766,6 +770,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             + "].";
     }
 
+//    @Repeat(iterations = 1000)
     public final void testSyntheticSource() throws IOException {
         SyntheticSourceExample syntheticSourceExample = syntheticSourceExample();
         DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
@@ -777,6 +782,18 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             JsonXContent.contentBuilder().startObject().field("field", syntheticSourceExample.result).endObject()
         );
         assertThat(syntheticSource(mapper, b -> b.field("field", syntheticSourceExample.inputValue)), equalTo(expected));
+    }
+
+    public final void testNoSyntheticSourceForScript() throws IOException {  // NOCOMMIT can you declare parse from source here?
+        assumeTrue("Field doesn't support value scripts anyway", emptyFieldScript().isPresent());
+        assumeTrue("Field doesn't support value scripts anyway", nonEmptyFieldScript().isPresent());
+        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+            b.startObject("field");
+            minimalMapping(b);
+            b.field("script", randomBoolean() ? "empty" : "non-empty");
+            b.endObject();
+        }));
+        assertThat(syntheticSource(mapper, b -> {}), equalTo("{}"));
     }
 
     public final void testSyntheticSourceInObject() throws IOException {
@@ -829,7 +846,8 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             )
         );
         for (SyntheticSourceInvalidExample example : examples) {
-            Exception e = expectThrows(IllegalArgumentException.class, () -> createDocumentMapper(syntheticSourceMapping(b -> {
+            Exception e = expectThrows(IllegalArgumentException.class, example.toString(),
+                () -> createDocumentMapper(syntheticSourceMapping(b -> {
                 b.startObject("field");
                 example.mapping.accept(b);
                 b.endObject();
@@ -845,4 +863,42 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
      * be loaded from doc values.
      */
     protected abstract List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException;
+
+    @Override
+    protected final <T> T compileScript(Script script, ScriptContext<T> context) {
+        switch (script.getIdOrCode()) {
+            case "empty":
+                return context.factoryClazz.cast(
+                    emptyFieldScript().orElseThrow(
+                        () -> new IllegalStateException("test claimed not to support value scripts but ran anyway")
+                    )
+                );
+            case "non-empty":
+                return context.factoryClazz.cast(
+                    nonEmptyFieldScript().orElseThrow(
+                        () -> new IllegalStateException("test claimed not to support value scripts but ran anyway")
+                    )
+                );
+            default:
+                return compileOtherScript(script, context);
+        }
+    }
+
+    protected <T> T compileOtherScript(Script script, ScriptContext<T> context) {
+        throw new UnsupportedOperationException("Unknown script " + script.getIdOrCode());
+    }
+
+    /**
+     * Create a script that can be run to produce no values for this
+     * field or return {@link Optional#empty()} to signal that this
+     * field doesn't support fields scripts.
+     */
+    protected abstract Optional<? extends ScriptFactory> emptyFieldScript();
+
+    /**
+     * Create a script that can be run to produce some value value for this
+     * field or return {@link Optional#empty()} to signal that this
+     * field doesn't support fields scripts.
+     */
+    protected abstract Optional<? extends ScriptFactory> nonEmptyFieldScript();
 }

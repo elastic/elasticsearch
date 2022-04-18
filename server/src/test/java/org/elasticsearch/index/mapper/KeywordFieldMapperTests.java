@@ -24,6 +24,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.CharFilterFactory;
@@ -38,6 +39,7 @@ import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.StringFieldScript;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -45,6 +47,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
+import java.util.stream.Collectors;
 
 import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
@@ -74,7 +78,6 @@ public class KeywordFieldMapperTests extends MapperTestCase {
                 )
             );
         }
-
     }
 
     @Override
@@ -621,13 +624,38 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceExample syntheticSourceExample() throws IOException {
-        if (randomBoolean()) {
-            String v = randomAlphaOfLength(5);
-            return new SyntheticSourceExample(v, v, this::minimalMapping);
+        return new SyntheticSourceExampleHelper().example();
+    }
+
+    static class SyntheticSourceExampleHelper {
+        private final String nullValue = usually() ? null : randomAlphaOfLength(2);
+
+        public SyntheticSourceExample example() {
+            if (randomBoolean()) {
+                Tuple<String, String> v = generateValue();
+                return new SyntheticSourceExample(v.v1(), v.v2(), this::mapping);
+            }
+            List<Tuple<String, String>> values = randomList(1, 5, this::generateValue);
+            List<String> in = values.stream().map(Tuple::v1).toList();
+            List<String> outList = values.stream().map(Tuple::v2).collect(Collectors.toSet()).stream().sorted().toList();
+            Object out = outList.size() == 1 ? outList.get(0) : outList;
+            return new SyntheticSourceExample(in, out, this::mapping);
         }
-        List<String> in = randomList(1, 5, () -> randomAlphaOfLength(5));
-        Object out = in.size() == 1 ? in.get(0) : in.stream().sorted().toList();
-        return new SyntheticSourceExample(in, out, this::minimalMapping);
+
+        private Tuple<String, String> generateValue() {
+            if (nullValue != null && randomBoolean()) {
+                return Tuple.tuple(null, nullValue);
+            }
+            String v = randomAlphaOfLength(5);
+            return Tuple.tuple(v, v);
+        }
+
+        private void mapping(XContentBuilder b) throws IOException {
+            b.field("type", "keyword");
+            if (nullValue != null) {
+                b.field("null_value", nullValue);
+            }
+        }
     }
 
     @Override
@@ -640,7 +668,29 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             new SyntheticSourceInvalidExample(
                 equalTo("field [field] of type [keyword] doesn't support synthetic source because it declares ignore_above"),
                 b -> b.field("type", "keyword").field("ignore_above", 10)
+            ),
+            new SyntheticSourceInvalidExample(
+                equalTo("field [field] of type [keyword] doesn't support synthetic source because it declares a normalizer"),
+                b -> b.field("type", "keyword").field("normalizer", "lowercase")
             )
         );
+    }
+
+    @Override
+    protected final Optional<StringFieldScript.Factory> emptyFieldScript() {
+        return Optional.of((fieldName, params, searchLookup) -> ctx -> new StringFieldScript(fieldName, params, searchLookup, ctx) {
+            @Override
+            public void execute() {}
+        });
+    }
+
+    @Override
+    protected final Optional<StringFieldScript.Factory> nonEmptyFieldScript() {
+        return Optional.of((fieldName, params, searchLookup) -> ctx -> new StringFieldScript(fieldName, params, searchLookup, ctx) {
+            @Override
+            public void execute() {
+                emit("foo");
+            }
+        });
     }
 }

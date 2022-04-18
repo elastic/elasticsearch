@@ -21,6 +21,7 @@ import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -29,6 +30,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.containsString;
@@ -383,5 +385,15 @@ public class ScaledFloatFieldMapperTests extends MapperTestCase {
                 b -> b.field("type", "scaled_float").field("scaling_factor", 10).field("ignore_malformed", true)
             )
         );
+    }
+
+    @Override
+    protected Optional<ScriptFactory> emptyFieldScript() {
+        return Optional.empty();
+    }
+
+    @Override
+    protected Optional<ScriptFactory> nonEmptyFieldScript() {
+        return Optional.empty();
     }
 }

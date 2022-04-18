@@ -10,12 +10,14 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
+import org.elasticsearch.script.LongFieldScript;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.math.BigInteger;
 import java.util.List;
+import java.util.Optional;
 
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
@@ -114,5 +116,23 @@ public class LongFieldMapperTests extends WholeNumberFieldMapperTests {
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/70585")
     public void testFetchCoerced() throws IOException {
         assertFetch(randomFetchTestMapper(), "field", 3.783147882954537E18, randomFetchTestFormat());
+    }
+
+    @Override
+    protected final Optional<LongFieldScript.Factory> emptyFieldScript() {
+        return Optional.of((fieldName, params, searchLookup) -> ctx -> new LongFieldScript(fieldName, params, searchLookup, ctx) {
+            @Override
+            public void execute() {}
+        });
+    }
+
+    @Override
+    protected final Optional<LongFieldScript.Factory> nonEmptyFieldScript() {
+        return Optional.of((fieldName, params, searchLookup) -> ctx -> new LongFieldScript(fieldName, params, searchLookup, ctx) {
+            @Override
+            public void execute() {
+                emit(1);
+            }
+        });
     }
 }

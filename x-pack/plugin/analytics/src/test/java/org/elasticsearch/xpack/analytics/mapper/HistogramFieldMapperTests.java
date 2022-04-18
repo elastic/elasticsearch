@@ -14,6 +14,7 @@ import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.junit.AssumptionViolatedException;
@@ -22,6 +23,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
@@ -354,5 +356,15 @@ public class HistogramFieldMapperTests extends MapperTestCase {
     @Override
     protected List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException {
         throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected Optional<ScriptFactory> emptyFieldScript() {
+        return Optional.empty();
+    }
+
+    @Override
+    protected Optional<ScriptFactory> nonEmptyFieldScript() {
+        return Optional.empty();
     }
 }

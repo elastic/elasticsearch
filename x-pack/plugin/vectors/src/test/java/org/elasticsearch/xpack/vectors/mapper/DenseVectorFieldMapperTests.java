@@ -29,6 +29,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.vectors.DenseVectorPlugin;
 import org.elasticsearch.xpack.vectors.mapper.DenseVectorFieldMapper.DenseVectorFieldType;
@@ -41,6 +42,7 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 
 import static org.apache.lucene.codecs.lucene91.Lucene91HnswVectorsFormat.DEFAULT_BEAM_WIDTH;
 import static org.apache.lucene.codecs.lucene91.Lucene91HnswVectorsFormat.DEFAULT_MAX_CONN;
@@ -486,5 +488,15 @@ public class DenseVectorFieldMapperTests extends MapperTestCase {
     @Override
     protected List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException {
         throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected Optional<ScriptFactory> emptyFieldScript() {
+        return Optional.empty();
+    }
+
+    @Override
+    protected Optional<ScriptFactory> nonEmptyFieldScript() {
+        return Optional.empty();
     }
 }

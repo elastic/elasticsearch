@@ -10,10 +10,12 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.index.mapper.NumberFieldMapper.NumberType;
 import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
+import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 
 public class ByteFieldMapperTests extends WholeNumberFieldMapperTests {
     @Override
@@ -45,5 +47,15 @@ public class ByteFieldMapperTests extends WholeNumberFieldMapperTests {
             return randomDouble();
         }
         return randomDoubleBetween(Byte.MIN_VALUE, Byte.MAX_VALUE, true);
+    }
+
+    @Override
+    protected Optional<ScriptFactory> emptyFieldScript() {
+        return Optional.empty();
+    }
+
+    @Override
+    protected Optional<ScriptFactory> nonEmptyFieldScript() {
+        return Optional.empty();
     }
 }

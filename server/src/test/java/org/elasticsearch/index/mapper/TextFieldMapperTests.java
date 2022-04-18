@@ -50,6 +50,7 @@ import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
+import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
@@ -59,9 +60,11 @@ import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.search.MatchQueryParser;
 import org.elasticsearch.index.search.QueryStringQueryParser;
+import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.hamcrest.Matcher;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -69,6 +72,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -205,7 +209,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         );
         return new IndexAnalyzers(
             Map.of("default", dflt, "standard", standard, "keyword", keyword, "whitespace", whitespace, "my_stop_analyzer", stop),
-            Map.of(),
+            Map.of("lowercase", new NamedAnalyzer("lowercase", AnalyzerScope.INDEX, new LowercaseNormalizer())),
             Map.of()
         );
     }
@@ -1091,69 +1095,64 @@ public class TextFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceExample syntheticSourceExample() throws IOException {
-        if (randomBoolean()) {
-            String v = randomAlphaOfLength(5);
-            return new SyntheticSourceExample(v, v, this::syntheticSourceMapping);
-        }
-        List<String> in = randomList(1, 5, () -> randomAlphaOfLength(5));
-        Object out = in.size() == 1 ? in.get(0) : in.stream().sorted().toList();
-        return new SyntheticSourceExample(in, out, this::syntheticSourceMapping);
-    }
-
-    private void syntheticSourceMapping(XContentBuilder b) throws IOException {
-        b.field("type", "text");
-        b.startObject("fields");
-        {
-            b.startObject("kwd");
-            b.field("type", "keyword");
+        SyntheticSourceExample delegate = new KeywordFieldMapperTests.SyntheticSourceExampleHelper().example();
+        return new SyntheticSourceExample(delegate.inputValue(), delegate.result(), b -> {
+            b.field("type", "text");
+            b.startObject("fields");
+            {
+                b.startObject(randomAlphaOfLength(4));
+                delegate.mapping().accept(b);
+                b.endObject();
+            }
             b.endObject();
-        }
-        b.endObject();
+        });
     }
 
     @Override
     protected List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException {
-        return List.of(
-            new SyntheticSourceInvalidExample(
-                equalTo(
-                    "field [field] of type [text] doesn't support synthetic source "
-                        + "unless it has a sub-field of type [keyword] with doc values enabled and without ignore_above"
-                ),
-                this::minimalMapping
-            ),
-            new SyntheticSourceInvalidExample(
-                equalTo(
-                    "field [field] of type [text] doesn't support synthetic source "
-                        + "unless it has a sub-field of type [keyword] with doc values enabled and without ignore_above"
-                ),
-                b -> {
-                    b.field("type", "text");
-                    b.startObject("fields");
-                    {
-                        b.startObject("l");
-                        b.field("type", "long");
-                        b.endObject();
-                    }
-                    b.endObject();
-                }
-            ),
-            new SyntheticSourceInvalidExample(
-                equalTo(
-                    "field [field] of type [text] doesn't support synthetic source "
-                        + "unless it has a sub-field of type [keyword] with doc values enabled and without ignore_above"
-                ),
-                b -> {
-                    b.field("type", "text");
-                    b.startObject("fields");
-                    {
-                        b.startObject("kwd");
-                        b.field("type", "keyword");
-                        b.field("ignore_above", 10);
-                        b.endObject();
-                    }
-                    b.endObject();
-                }
-            )
+        Matcher<String> err = equalTo(
+            "field [field] of type [text] doesn't support synthetic source "
+                + "unless it has a sub-field of type [keyword] with doc values enabled and without ignore_above or a normalizer"
         );
+        return List.of(new SyntheticSourceInvalidExample(err, this::minimalMapping), new SyntheticSourceInvalidExample(err, b -> {
+            b.field("type", "text");
+            b.startObject("fields");
+            {
+                b.startObject("l");
+                b.field("type", "long");
+                b.endObject();
+            }
+            b.endObject();
+        }), new SyntheticSourceInvalidExample(err, b -> {
+            b.field("type", "text");
+            b.startObject("fields");
+            {
+                b.startObject("kwd");
+                b.field("type", "keyword");
+                b.field("ignore_above", 10);
+                b.endObject();
+            }
+            b.endObject();
+        }), new SyntheticSourceInvalidExample(err, b -> {
+            b.field("type", "text");
+            b.startObject("fields");
+            {
+                b.startObject("kwd");
+                b.field("type", "keyword");
+                b.field("normalizer", "lowercase");
+                b.endObject();
+            }
+            b.endObject();
+        }));
+    }
+
+    @Override
+    protected Optional<ScriptFactory> emptyFieldScript() {
+        return Optional.empty();
+    }
+
+    @Override
+    protected Optional<ScriptFactory> nonEmptyFieldScript() {
+        return Optional.empty();
     }
 }

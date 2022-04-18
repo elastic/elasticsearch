@@ -1147,7 +1147,10 @@ public class TextFieldMapper extends FieldMapper {
         for (Mapper sub : this) {
             if (sub.typeName().equals(KeywordFieldMapper.CONTENT_TYPE)) {
                 KeywordFieldMapper kwd = (KeywordFieldMapper) sub;
-                if (kwd.fieldType().hasDocValues() && kwd.fieldType().ignoreAbove() == KeywordFieldMapper.Defaults.IGNORE_ABOVE) {
+                if (kwd.fieldType().hasDocValues()
+                    && kwd.hasNormalizer() == false
+                    && kwd.fieldType().ignoreAbove() == KeywordFieldMapper.Defaults.IGNORE_ABOVE) {
+
                     return kwd.syntheticFieldLoader(simpleName());
                 }
             }
@@ -1156,7 +1159,7 @@ public class TextFieldMapper extends FieldMapper {
             String.format(
                 Locale.ROOT,
                 "field [%s] of type [%s] doesn't support synthetic source unless it has a sub-field of"
-                    + " type [keyword] with doc values enabled and without ignore_above",
+                    + " type [keyword] with doc values enabled and without ignore_above or a normalizer",
                 name(),
                 typeName()
             )

@@ -446,6 +446,19 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
     @Override
     public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+        if (hasScript()) {
+            return SourceLoader.SyntheticFieldLoader.NOTHING;
+        }
+        if (fieldType().hasDocValues() == false) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it doesn't have doc values"
+            );
+        }
+        if (ignoreMalformed()) {
+            throw new IllegalArgumentException(
+                "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it ignores malformed points"
+            );
+        }
         if (copyTo.copyToFields().isEmpty() != true) {
             throw new IllegalArgumentException(
                 "field [" + name() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"

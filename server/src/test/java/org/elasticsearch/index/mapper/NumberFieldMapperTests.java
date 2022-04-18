@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.script.DoubleFieldScript;
@@ -21,6 +22,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.Function;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -305,7 +307,7 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
 
     @Override
     @SuppressWarnings("unchecked")
-    protected <T> T compileScript(Script script, ScriptContext<T> context) {
+    protected <T> T compileOtherScript(Script script, ScriptContext<T> context) {
         if (context == LongFieldScript.CONTEXT) {
             return (T) LongFieldScript.PARSE_FROM_SOURCE;
         }
@@ -332,19 +334,6 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
 
     protected abstract Number randomNumber();
 
-    public void testSyntheticSourceWithoutDocValues() throws IOException {
-        Exception e = expectThrows(IllegalArgumentException.class, () -> createDocumentMapper(syntheticSourceMapping(b -> {
-            b.startObject("field");
-            minimalMapping(b);
-            b.field("doc_values", false);
-            b.endObject();
-        })));
-        assertThat(
-            e.getMessage(),
-            matchesPattern("field \\[field] of type \\[.+] doesn't support synthetic source because it doesn't have doc values")
-        );
-    }
-
     @Override
     protected List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException {
         return List.of(
@@ -363,5 +352,45 @@ public abstract class NumberFieldMapperTests extends MapperTestCase {
                 }
             )
         );
+    }
+
+    protected final class SyntheticSourceExampleHelper {
+        private final Long nullValue = usually() ? null : randomNumber().longValue();
+        private final boolean coerce = rarely();
+
+        public SyntheticSourceExample example(Function<Number, Number> round) {
+            if (randomBoolean()) {
+                Tuple<Object, Number> v = generateValue();
+                return new SyntheticSourceExample(v.v1(), round.apply(v.v2()), this::mapping);
+            }
+            List<Tuple<Object, Number>> values = randomList(1, 5, this::generateValue);
+            List<Object> in = values.stream().map(Tuple::v1).toList();
+            List<Number> outList = values.stream().map(t -> round.apply(t.v2())).sorted().toList();
+            Object out = outList.size() == 1 ? outList.get(0) : outList;
+            return new SyntheticSourceExample(in, out, this::mapping);
+        }
+
+        private Tuple<Object, Number> generateValue() {
+            if (nullValue != null && randomBoolean()) {
+                return Tuple.tuple(null, nullValue);
+            }
+            Number n = randomNumber();
+            Object in = n;
+            Number out = n;
+            if (coerce && randomBoolean()) {
+                in = in.toString();
+            }
+            return Tuple.tuple(in, out);
+        }
+
+        private void mapping(XContentBuilder b) throws IOException {
+            minimalMapping(b);
+            if (coerce) {
+                b.field("coerce", true);
+            }
+            if (nullValue != null) {
+                b.field("null_value", nullValue);
+            }
+        }
     }
 }

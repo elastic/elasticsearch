@@ -9,14 +9,16 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.index.mapper.NumberFieldTypeTests.OutOfRangeSpec;
+import org.elasticsearch.script.DoubleFieldScript;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Optional;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class DoubleFieldMapperTests extends NumberFieldMapperTests {
+public class DoubleFieldMapperTests extends FloatingPointNumberFieldMapperTestCase {
 
     @Override
     protected Number missingValue() {
@@ -89,13 +91,20 @@ public class DoubleFieldMapperTests extends NumberFieldMapperTests {
     }
 
     @Override
-    protected SyntheticSourceExample syntheticSourceExample() throws IOException {
-        if (randomBoolean()) {
-            Number n = randomNumber();
-            return new SyntheticSourceExample(n, n, this::minimalMapping);
-        }
-        List<Number> in = randomList(1, 5, this::randomNumber);
-        Object out = in.size() == 1 ? in.get(0) : in.stream().map(Number::doubleValue).sorted().toList();
-        return new SyntheticSourceExample(in, out, this::minimalMapping);
+    protected Optional<DoubleFieldScript.Factory> emptyFieldScript() {
+        return Optional.of((fieldName, params, searchLookup) -> ctx -> new DoubleFieldScript(fieldName, params, searchLookup, ctx) {
+            @Override
+            public void execute() {}
+        });
+    }
+
+    @Override
+    protected Optional<DoubleFieldScript.Factory> nonEmptyFieldScript() {
+        return Optional.of((fieldName, params, searchLookup) -> ctx -> new DoubleFieldScript(fieldName, params, searchLookup, ctx) {
+            @Override
+            public void execute() {
+                emit(1.0);
+            }
+        });
     }
 }

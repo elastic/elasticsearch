@@ -31,6 +31,7 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.legacygeo.test.TestLegacyGeoShapeFieldMapperPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.ScriptFactory;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -40,6 +41,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 
 import static java.util.Collections.singletonMap;
@@ -687,5 +689,15 @@ public class LegacyGeoShapeFieldMapperTests extends MapperTestCase {
     @Override
     protected List<SyntheticSourceInvalidExample> syntheticSourceInvalidExamples() throws IOException {
         throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected Optional<ScriptFactory> emptyFieldScript() {
+        return Optional.empty();
+    }
+
+    @Override
+    protected Optional<ScriptFactory> nonEmptyFieldScript() {
+        return Optional.empty();
     }
 }

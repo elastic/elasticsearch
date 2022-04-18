@@ -71,7 +71,7 @@ public class ConfigurationTests extends PackagingTestCase {
         Files.createSymbolicLink(symlinkedData, data);
 
         withCustomConfig(confPath -> {
-            FileUtils.append(confPath.resolve("elasticsearch.yml"), "path.data: " + symlinkedData);
+            updateConfig(confPath, "path.data", "path.data: " + symlinkedData);
             // security auto-config requires that the archive owner and the node process user be the same
             Platforms.onWindows(() -> sh.chown(confPath, installation.getOwner()));
             assertWhileRunning(() -> {

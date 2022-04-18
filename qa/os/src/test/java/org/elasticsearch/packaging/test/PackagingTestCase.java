@@ -701,4 +701,17 @@ public abstract class PackagingTestCase extends Assert {
         }
     }
 
+    public void updateConfig(Path confPath, String key, String replacement) throws IOException {
+        Path yml = confPath.resolve("elasticsearch.yml");
+        List<String> lines;
+        try (Stream<String> allLines = Files.readAllLines(yml).stream()) {
+            lines = allLines.map(l -> {
+                if (l.toLowerCase(Locale.ROOT).contains(key.toLowerCase(Locale.ROOT))) {
+                    return replacement;
+                }
+                return l;
+            }).collect(Collectors.toList());
+        }
+        Files.write(yml, lines, TRUNCATE_EXISTING);
+    }
 }

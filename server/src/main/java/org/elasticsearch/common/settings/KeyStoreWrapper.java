@@ -54,7 +54,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
-
 import javax.crypto.AEADBadTagException;
 import javax.crypto.Cipher;
 import javax.crypto.CipherInputStream;
@@ -74,9 +73,6 @@ import javax.crypto.spec.SecretKeySpec;
  * in a single thread. Once decrypted, settings may be read in multiple threads.
  */
 public class KeyStoreWrapper implements SecureSettings {
-
-    /** Arbitrarily chosen maximum passphrase length */
-    public static final int MAX_PASSPHRASE_LENGTH = 128;
 
     /** An identifier for the type of data that may be stored in a keystore entry. */
     private enum EntryType {

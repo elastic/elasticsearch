@@ -246,10 +246,7 @@ public class Packages {
             "elasticsearch-sql-cli",
             "elasticsearch-syskeygen",
             "elasticsearch-users",
-            "elasticsearch-service-tokens",
-            "x-pack-env",
-            "x-pack-security-env",
-            "x-pack-watcher-env"
+            "elasticsearch-service-tokens"
         ).forEach(executable -> assertThat(es.bin(executable), file(File, "root", "root", p755)));
 
         // at this time we only install the current version of archive distributions, but if that changes we'll need to pass

@@ -65,7 +65,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLDecoder;
@@ -366,7 +365,7 @@ public class HttpClient implements Closeable {
                     String part = pathParts[i];
                     boolean isLast = i == pathParts.length - 1;
                     if (Strings.isEmpty(part) == false) {
-                        unescapedPathParts.add(URLDecoder.decode(part, StandardCharsets.UTF_8.name()));
+                        unescapedPathParts.add(URLDecoder.decode(part, StandardCharsets.UTF_8));
                         // if the passed URL ends with a slash, adding an empty string to the
                         // unescaped paths will ensure the slash will be added back
                         boolean appendSlash = isPathEndsWithSlash && isLast;
@@ -385,7 +384,7 @@ public class HttpClient implements Closeable {
                 .build();
             final HttpHost httpHost = URIUtils.extractHost(uri);
             return new Tuple<>(httpHost, uri);
-        } catch (URISyntaxException | UnsupportedEncodingException e) {
+        } catch (URISyntaxException e) {
             throw new IllegalArgumentException(e);
         }
     }

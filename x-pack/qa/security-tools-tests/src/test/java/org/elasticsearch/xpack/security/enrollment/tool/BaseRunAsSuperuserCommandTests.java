@@ -79,7 +79,7 @@ public class BaseRunAsSuperuserCommandTests extends CommandTestCase {
     protected Command newCommand() {
         return new DummyRunAsSuperuserCommand(environment -> client, environment -> keyStoreWrapper) {
             @Override
-            protected Environment createEnv(Map<String, String> settings) throws UserException {
+            protected Environment createEnv(OptionSet options) throws UserException {
                 return new Environment(BaseRunAsSuperuserCommandTests.this.settings, confDir);
             }
         };

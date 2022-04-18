@@ -22,6 +22,7 @@ import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Properties;
 import java.util.stream.Collectors;
 
@@ -55,8 +56,8 @@ public abstract class Command implements Closeable {
      */
     public Command(final String description) {
         this.description = description;
-        this.sysprops = captureSystemProperties();
-        this.envVars = captureEnvironmentVariables();
+        this.sysprops = Objects.requireNonNull(captureSystemProperties());
+        this.envVars = Objects.requireNonNull(captureEnvironmentVariables());
     }
 
     private Thread shutdownHookThread;

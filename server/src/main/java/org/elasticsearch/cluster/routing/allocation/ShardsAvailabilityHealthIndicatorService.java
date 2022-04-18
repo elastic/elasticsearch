@@ -198,7 +198,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         private int started = 0;
         private int relocating = 0;
         private final Set<String> indicesWithUnavailableShards = new HashSet<>();
-        private final Map<String, UserAction> userActions = new HashMap<>();
+        private final Map<UserAction.Definition, Set<String>> userActions = new HashMap<>();
 
         public void increment(ShardRouting routing, ClusterState state, NodesShutdownMetadata shutdowns, boolean includeDetails) {
             boolean isNew = isUnassignedDueToNewInitialization(routing);
@@ -230,8 +230,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         }
 
         private void addUserAction(UserAction.Definition actionDef, String indexName) {
-            userActions.computeIfAbsent(actionDef.id(), (k) -> new UserAction(actionDef, new HashSet<>()))
-                .affectedResources()
+            userActions.computeIfAbsent(actionDef, (k) -> new HashSet<>())
                 .add(indexName);
         }
     }
@@ -528,20 +527,27 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
         public List<UserAction> getUserActions(boolean includeDetails) {
             if (includeDetails) {
-                Map<String, UserAction> allActions = new HashMap<>();
-                primaries.userActions.forEach(allActions::put);
-                replicas.userActions.forEach((actionId, replicaUserActions) -> {
-                    UserAction existingAction = allActions.get(actionId);
-                    if (existingAction == null) {
-                        allActions.put(actionId, replicaUserActions);
+                Map<UserAction.Definition, Set<String>> actionsToAffectedIndices = new HashMap<>(primaries.userActions);
+                replicas.userActions.forEach((actionDefinition, indicesWithReplicasUnassigned) -> {
+                    Set<String> indicesWithPrimariesUnassigned = actionsToAffectedIndices.get(actionDefinition);
+                    if (indicesWithPrimariesUnassigned == null) {
+                        actionsToAffectedIndices.put(actionDefinition, indicesWithReplicasUnassigned);
                     } else {
-                        existingAction.affectedResources().addAll(replicaUserActions.affectedResources());
+                        indicesWithPrimariesUnassigned.addAll(indicesWithReplicasUnassigned);
                     }
                 });
-                if (allActions.isEmpty()) {
+                if (actionsToAffectedIndices.isEmpty()) {
                     return Collections.emptyList();
                 } else {
-                    return allActions.values().stream().toList();
+                    return actionsToAffectedIndices.entrySet()
+                        .stream()
+                        .map(
+                            e -> new UserAction(
+                                e.getKey(),
+                                e.getValue().stream().sorted(byPriorityThenByName(clusterMetadata)).collect(Collectors.toList())
+                            )
+                        )
+                        .collect(Collectors.toList());
                 }
             } else {
                 return Collections.emptyList();
@@ -551,16 +557,27 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
     private static String getTruncatedIndicesString(Set<String> indices, Metadata clusterMetadata) {
         final int maxIndices = 10;
-        final int unknownIndexPriority = -1;
-        // We want to show indices with a numerically higher index.priority first (since lower priority ones might get truncated):
-        Comparator<String> priorityThenNameComparator = Comparator.comparingInt((String indexName) -> {
-            IndexMetadata indexMetadata = clusterMetadata.index(indexName);
-            return indexMetadata == null ? unknownIndexPriority : indexMetadata.priority();
-        }).reversed().thenComparing(Comparator.naturalOrder());
-        String truncatedIndicesString = indices.stream().sorted(priorityThenNameComparator).limit(maxIndices).collect(joining(", "));
+        String truncatedIndicesString = indices.stream()
+            .sorted(byPriorityThenByName(clusterMetadata))
+            .limit(maxIndices)
+            .collect(joining(", "));
         if (maxIndices < indices.size()) {
             truncatedIndicesString = truncatedIndicesString + ", ...";
         }
         return truncatedIndicesString;
+    }
+
+    /**
+     * Sorts index names by their priority first, then alphabetically by name. If the priority cannot be determined for an index then
+     * a priority of -1 is used to sort it behind other index names.
+     * @param clusterMetadata Used to look up index priority.
+     * @return Comparator instance
+     */
+    private static Comparator<String> byPriorityThenByName(Metadata clusterMetadata) {
+        // We want to show indices with a numerically higher index.priority first (since lower priority ones might get truncated):
+        return Comparator.comparingInt((String indexName) -> {
+            IndexMetadata indexMetadata = clusterMetadata.index(indexName);
+            return indexMetadata == null ? -1 : indexMetadata.priority();
+        }).reversed().thenComparing(Comparator.naturalOrder());
     }
 }

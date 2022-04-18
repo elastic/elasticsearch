@@ -17,7 +17,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -42,7 +41,7 @@ public class HealthIndicatorResultTests extends ESTestCase {
         List<UserAction> actions = new ArrayList<>();
         UserAction action1 = new UserAction(
             new UserAction.Definition(randomAlphaOfLength(10), randomAlphaOfLength(50), randomAlphaOfLength(30)),
-            new HashSet<>()
+            new ArrayList<>()
         );
         for (int i = 0; i < randomInt(10); i++) {
             action1.affectedResources().add(randomAlphaOfLength(10));
@@ -50,7 +49,7 @@ public class HealthIndicatorResultTests extends ESTestCase {
         actions.add(action1);
         UserAction action2 = new UserAction(
             new UserAction.Definition(randomAlphaOfLength(10), randomAlphaOfLength(50), randomAlphaOfLength(30)),
-            new HashSet<>()
+            new ArrayList<>()
         );
         for (int i = 0; i < randomInt(10); i++) {
             action2.affectedResources().add(randomAlphaOfLength(10));
@@ -80,14 +79,14 @@ public class HealthIndicatorResultTests extends ESTestCase {
             Map<String, Object> expectedAction1 = new HashMap<>();
             expectedAction1.put("message", action1.definition().message());
             expectedAction1.put("help_url", action1.definition().helpURL());
-            expectedAction1.put("affected_resources", action1.affectedResources().stream().toList());
+            expectedAction1.put("affected_resources", action1.affectedResources());
             expectedUserActions.add(expectedAction1);
         }
         {
             Map<String, Object> expectedAction2 = new HashMap<>();
             expectedAction2.put("message", action2.definition().message());
             expectedAction2.put("help_url", action2.definition().helpURL());
-            expectedAction2.put("affected_resources", action2.affectedResources().stream().toList());
+            expectedAction2.put("affected_resources", action2.affectedResources());
             expectedUserActions.add(expectedAction2);
         }
         assertEquals(expectedUserActions, xContentMap.get("user_actions"));

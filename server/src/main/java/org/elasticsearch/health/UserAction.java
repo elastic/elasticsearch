@@ -13,7 +13,7 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Set;
+import java.util.List;
 
 /**
  * Details a potential action that a user could take to clear an issue identified by a {@link HealthService}.
@@ -21,7 +21,7 @@ import java.util.Set;
  * @param definition The definition of the user action (e.g. message, helpURL)
  * @param affectedResources Optional list of "things" that this action should be taken on (e.g. shards, indices, or policies).
  */
-public record UserAction(Definition definition, @Nullable Set<String> affectedResources) implements ToXContentObject {
+public record UserAction(Definition definition, @Nullable List<String> affectedResources) implements ToXContentObject {
 
     /**
      * Details a potential action that a user could take to clear an issue identified by a {@link HealthService}.
@@ -30,7 +30,7 @@ public record UserAction(Definition definition, @Nullable Set<String> affectedRe
      * @param message A description of the action to be taken
      * @param helpURL Optional evergreen url to a help document
      */
-    public static record Definition(String id, String message, @Nullable String helpURL) {}
+    public record Definition(String id, String message, @Nullable String helpURL) {}
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

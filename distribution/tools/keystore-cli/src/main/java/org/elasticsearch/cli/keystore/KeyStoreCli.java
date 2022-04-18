@@ -8,15 +8,14 @@
 
 package org.elasticsearch.cli.keystore;
 
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.cli.LoggingAwareMultiCommand;
 
 /**
  * A cli tool for managing secrets in the elasticsearch keystore.
  */
-public class KeyStoreCli extends LoggingAwareMultiCommand {
+class KeyStoreCli extends LoggingAwareMultiCommand {
 
-    private KeyStoreCli() {
+    KeyStoreCli() {
         super("A tool for managing settings stored in the elasticsearch keystore");
         subcommands.put("create", new CreateKeyStoreCommand());
         subcommands.put("list", new ListKeyStoreCommand());
@@ -28,9 +27,4 @@ public class KeyStoreCli extends LoggingAwareMultiCommand {
         subcommands.put("passwd", new ChangeKeyStorePasswordCommand());
         subcommands.put("has-passwd", new HasPasswordKeyStoreCommand());
     }
-
-    public static void main(String[] args) throws Exception {
-        exit(new KeyStoreCli().main(args, Terminal.DEFAULT));
-    }
-
 }

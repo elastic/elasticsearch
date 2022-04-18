@@ -196,6 +196,9 @@ public class TimeSeriesIndexSearcherTests extends ESTestCase {
                         assertTrue(timestamp.advanceExact(doc));
                         BytesRef latestTSID = tsid.lookupOrd(tsid.ordValue());
                         long latestTimestamp = timestamp.longValue();
+                        assertEquals(latestTSID, aggCtx.getTsid());
+                        assertEquals(latestTimestamp, aggCtx.getTimestamp().longValue());
+
                         if (currentTSID != null) {
                             assertTrue(
                                 currentTSID + "->" + latestTSID.utf8ToString(),

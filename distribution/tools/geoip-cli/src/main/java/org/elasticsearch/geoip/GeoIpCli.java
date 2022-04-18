@@ -154,8 +154,4 @@ public class GeoIpCli extends Command {
 
         return buf;
     }
-
-    public static void main(String[] args) throws Exception {
-        exit(new GeoIpCli().main(args, Terminal.DEFAULT));
-    }
 }

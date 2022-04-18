@@ -25,7 +25,7 @@ public abstract class EqlSampleTestCase extends BaseEqlSpecTestCase {
 
     @ParametersFactory(shuffle = false, argumentFormatting = PARAM_FORMATTING)
     public static List<Object[]> readTestSpecs() throws Exception {
-        return asArray(EqlSpecLoader.load("/test_sampling.toml"));
+        return asArray(EqlSpecLoader.load("/test_sample.toml"));
     }
 
     @Override

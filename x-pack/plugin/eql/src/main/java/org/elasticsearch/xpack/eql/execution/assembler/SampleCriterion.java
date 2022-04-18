@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.eql.execution.assembler;
 
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite.InternalBucket;
-import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
 import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
 
 import java.util.ArrayList;
@@ -19,20 +18,26 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.mapSize;
 
-public class SampleCriterion<Q extends QueryRequest> {
+public class SampleCriterion extends Criterion<SampleQueryRequest> {
 
     private final List<BucketExtractor> keys;
     private final List<String> keyFields;
     // the first query to run (sample filter + composite aggs on keys)
-    private final Q firstQuery;
+    private final SampleQueryRequest firstQuery;
     // intermediate queries (sample filter + composite aggs on keys + keys values filtering)
-    private final Q midQuery;
+    private final SampleQueryRequest midQuery;
     // final stage query (sample filter + a single set of keys values filter)
-    private final Q finalQuery;
+    private final SampleQueryRequest finalQuery;
 
     private final int keySize;
 
-    public SampleCriterion(Q firstQuery, Q midQuery, Q finalQuery, List<String> keyFields, List<BucketExtractor> keys) {
+    public SampleCriterion(
+        SampleQueryRequest firstQuery,
+        SampleQueryRequest midQuery,
+        SampleQueryRequest finalQuery,
+        List<String> keyFields,
+        List<BucketExtractor> keys
+    ) {
         this.firstQuery = firstQuery;
         this.midQuery = midQuery;
         this.finalQuery = finalQuery;
@@ -41,15 +46,15 @@ public class SampleCriterion<Q extends QueryRequest> {
         this.keySize = keys.size();
     }
 
-    public Q firstQuery() {
+    public SampleQueryRequest firstQuery() {
         return firstQuery;
     }
 
-    public Q midQuery() {
+    public SampleQueryRequest midQuery() {
         return midQuery;
     }
 
-    public Q finalQuery() {
+    public SampleQueryRequest finalQuery() {
         return finalQuery;
     }
 

@@ -10,16 +10,15 @@ package org.elasticsearch.xpack.eql.execution.assembler;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
-import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
 import org.elasticsearch.xpack.eql.execution.search.Timestamp;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
 
 import java.util.List;
 
-public class SequenceCriterion<Q extends QueryRequest> {
+public class SequenceCriterion extends Criterion<BoxedQueryRequest> {
 
     private final int stage;
-    private final Q queryRequest;
+    private final BoxedQueryRequest queryRequest;
     private final List<HitExtractor> keys;
     private final HitExtractor timestamp;
     private final HitExtractor tiebreaker;
@@ -30,7 +29,7 @@ public class SequenceCriterion<Q extends QueryRequest> {
 
     public SequenceCriterion(
         int stage,
-        Q queryRequest,
+        BoxedQueryRequest queryRequest,
         List<HitExtractor> keys,
         HitExtractor timestamp,
         HitExtractor tiebreaker,
@@ -61,7 +60,7 @@ public class SequenceCriterion<Q extends QueryRequest> {
         return descending;
     }
 
-    public Q queryRequest() {
+    public BoxedQueryRequest queryRequest() {
         return queryRequest;
     }
 

@@ -18,6 +18,7 @@ import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeValuesSourceBuilder;
 import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceBuilder;
+import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
@@ -25,6 +26,9 @@ import org.elasticsearch.xpack.eql.execution.sample.SampleIterator;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
 import org.elasticsearch.xpack.eql.execution.search.RuntimeUtils;
+import org.elasticsearch.xpack.ql.expression.Attribute;
+import org.elasticsearch.xpack.ql.type.DataType;
+import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.ql.util.CollectionUtils;
 
 import java.io.IOException;
@@ -37,7 +41,7 @@ import static java.util.Collections.emptyList;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 
-public class AggregatedQueryRequest implements QueryRequest {
+public class SampleQueryRequest implements QueryRequest {
 
     private static NamedWriteableRegistry registry = new NamedWriteableRegistry(
         new SearchModule(Settings.EMPTY, List.of()).getNamedWriteables()
@@ -45,13 +49,15 @@ public class AggregatedQueryRequest implements QueryRequest {
     public static final String COMPOSITE_AGG_NAME = "keys";
     private SearchSourceBuilder searchSource;
     private final List<String> keys; // the name of the join keys
+    private final List<Attribute> keyFields;
     private CompositeAggregationBuilder agg;
     private List<QueryBuilder> multipleKeyFilters;
     private List<QueryBuilder> singleKeyPairFilters;
 
-    public AggregatedQueryRequest(QueryRequest original, List<String> keyNames) {
+    public SampleQueryRequest(QueryRequest original, List<String> keyNames, List<Attribute> keyFields) {
         this.searchSource = original.searchSource();
         this.keys = keyNames;
+        this.keyFields = keyFields;
     }
 
     @Override
@@ -64,14 +70,6 @@ public class AggregatedQueryRequest implements QueryRequest {
 
     public void nextAfter(Map<String, Object> afterKeys) {
         agg.aggregateAfter(afterKeys);
-        // Map<String, Object> stringAfterKey = new HashMap<>(mapSize(afterKeys.size()));
-        // for (Entry<String, Object> entry : afterKeys.entrySet()) {
-        // if a field is missing from an index, the after_key of the composite aggregation always expects a String
-        // for example, setting after key as Integer on a field "X" and the field doesn't exist in the index targeted by the query,
-        // then "composite" parsing will throw an exception
-        // stringAfterKey.put(entry.getKey(), entry.getValue().toString());
-        // }
-        // agg.aggregateAfter(stringAfterKey);
     }
 
     public List<String> keys() {
@@ -181,12 +179,31 @@ public class AggregatedQueryRequest implements QueryRequest {
         List<CompositeValuesSourceBuilder<?>> compositeAggSources = new ArrayList<>(keys.size());
         for (int i = 0; i < keys.size(); i++) {
             String key = keys.get(i);
+            Attribute field = keyFields.get(i);
             // compositeAggSources.add(new TermsValuesSourceBuilder(key).field(key).missingBucket(true));
-            compositeAggSources.add(new TermsValuesSourceBuilder(key).field(key));
+            /*
+             * Temporary workaround for https://github.com/elastic/elasticsearch/issues/85928
+             */
+            compositeAggSources.add(new TermsValuesSourceBuilder(key).field(key).userValuetypeHint(aggregationValueType(field.dataType())));
         }
         agg = new CompositeAggregationBuilder(COMPOSITE_AGG_NAME, compositeAggSources);
         agg.size(SampleIterator.MAX_PAGE_SIZE);
         searchSource.aggregation(agg);
+    }
+
+    private ValueType aggregationValueType(DataType qlDataType) {
+        if (DataTypes.isNullOrNumeric(qlDataType)) {
+            return ValueType.NUMBER;
+        } else if (DataTypes.isString(qlDataType)) {
+            return ValueType.STRING;
+        } else if (DataTypes.isDateTime(qlDataType)) {
+            return ValueType.DATE;
+        } else if (qlDataType == DataTypes.IP) {
+            return ValueType.IP;
+        } else if (qlDataType == DataTypes.BOOLEAN) {
+            return ValueType.BOOLEAN;
+        }
+        return ValueType.STRING;
     }
 
     /*

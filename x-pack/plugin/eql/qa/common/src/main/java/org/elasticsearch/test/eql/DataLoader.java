@@ -48,7 +48,7 @@ import static org.junit.Assert.assertThat;
  * - endgame-140       - for existing data
  * - endgame-140-nanos - same as endgame-140, but with nano-precision timestamps
  * - extra             - additional data
- * - sampling*         - data for "sample" functionality
+ * - sample*         - data for "sample" functionality
  *
  * While the loader could be made generic, the queries are bound to each index and generalizing that would make things way too complicated.
  */
@@ -57,7 +57,7 @@ public class DataLoader {
     public static final String TEST_INDEX = "endgame-140";
     public static final String TEST_EXTRA_INDEX = "extra";
     public static final String TEST_NANOS_INDEX = "endgame-140-nanos";
-    public static final String TEST_SAMPLE = "sampling1,sampling2,sampling3";
+    public static final String TEST_SAMPLE = "sample1,sample2,sample3";
 
     private static final Map<String, String[]> replacementPatterns = Collections.unmodifiableMap(getReplacementPatterns());
 

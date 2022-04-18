@@ -543,7 +543,7 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
             // check for empty filters
             for (KeyedFilter filter : plan.queries()) {
                 if (filter.anyMatch(LocalRelation.class::isInstance)) {
-                    return new LocalRelation(plan.source(), plan.output(), Type.SEQUENCE);
+                    return new LocalRelation(plan.source(), plan.output(), plan instanceof Sample ? Type.SAMPLE : Type.SEQUENCE);
                 }
             }
             return plan;

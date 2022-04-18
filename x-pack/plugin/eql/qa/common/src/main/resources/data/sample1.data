@@ -2,7 +2,8 @@
   {
     "@timestamp": "1234567891",
     "@timestamp_pretty": "12-12-2022",
-    "missing_keyword": "xxx",
+    "missing_keyword": "test",
+    "type_test": "abc",
     "ip": "10.0.0.1",
     "event_type": "alert",
     "host": "doom",
@@ -16,6 +17,7 @@
     "@timestamp": "1234567892",
     "@timestamp_pretty": "13-12-2022",
     "event_type": "alert",
+    "type_test": "abc",
     "host": "CS",
     "uptime": 5,
     "port": 1,
@@ -27,6 +29,7 @@
     "@timestamp": "1234567893",
     "@timestamp_pretty": "12-12-2022",
     "event_type": "alert",
+    "type_test": "abc",
     "host": "farcry",
     "uptime": 1,
     "port": 1234,
@@ -39,6 +42,7 @@
     "@timestamp": "1234567894",
     "@timestamp_pretty": "13-12-2022",
     "event_type": "alert",
+    "type_test": "abc",
     "host": "GTA",
     "uptime": 3,
     "port": 12,
@@ -71,7 +75,7 @@
   {
     "@timestamp": "1234567897",
     "@timestamp_pretty": "17-12-2022",
-    "missing_keyword": "xxx",
+    "missing_keyword": "yyy",
     "event_type": "failure",
     "host": "doom",
     "uptime": 15,
@@ -84,7 +88,7 @@
   {
     "@timestamp": "1234567898",
     "@timestamp_pretty": "12-12-2022",
-    "missing_keyword": "xxx",
+    "missing_keyword": "test",
     "event_type": "success",
     "host": "doom",
     "uptime": 16,
@@ -96,7 +100,7 @@
   {
     "@timestamp": "1234567899",
     "@timestamp_pretty": "15-12-2022",
-    "missing_keyword": "xxx",
+    "missing_keyword": "test",
     "event_type": "success",
     "host": "GTA",
     "port": 12,
@@ -107,6 +111,7 @@
   },
   {
     "@timestamp": "1234567893",
+    "missing_keyword": null,
     "ip": "10.0.0.5",
     "event_type": "alert",
     "host": "farcry",

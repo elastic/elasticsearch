@@ -51,6 +51,7 @@
   {
     "@timestamp": "1234567897",
     "event_type": "failure",
+    "missing_keyword": "test",
     "host": "doom",
     "bool": true,
     "os": "redhat",
@@ -61,7 +62,8 @@
     "event_type": "success",
     "host": "doom",
     "os": "win10",
-    "id": 38
+    "id": 38,
+    "date": "1671235200000"
   },
   {
     "@timestamp": "1234577899",

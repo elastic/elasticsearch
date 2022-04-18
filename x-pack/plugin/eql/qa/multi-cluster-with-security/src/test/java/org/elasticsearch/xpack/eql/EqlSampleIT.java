@@ -10,11 +10,11 @@ package org.elasticsearch.xpack.eql;
 import org.elasticsearch.test.eql.EqlSampleTestCase;
 
 import static org.elasticsearch.test.eql.DataLoader.TEST_SAMPLE;
-import static org.elasticsearch.xpack.eql.RemoteClusterTestUtils.remoteClusterIndex;
+import static org.elasticsearch.xpack.eql.RemoteClusterTestUtils.remoteClusterPattern;
 
 public class EqlSampleIT extends EqlSampleTestCase {
 
     public EqlSampleIT(String query, String name, long[] eventIds, String[] joinKeys) {
-        super(remoteClusterIndex(TEST_SAMPLE), query, name, eventIds, joinKeys);
+        super(remoteClusterPattern(TEST_SAMPLE), query, name, eventIds, joinKeys);
     }
 }

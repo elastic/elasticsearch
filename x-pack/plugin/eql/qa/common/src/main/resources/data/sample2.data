@@ -1,6 +1,7 @@
 [
   {
     "@timestamp": "1234567991",
+    "type_test": "abc",
     "ip": "10.0.0.1",
     "event_type": "alert",
     "host": "doom",
@@ -11,6 +12,7 @@
   },
   {
     "@timestamp": "1234567992",
+    "type_test": "abc",
     "event_type": "alert",
     "host": "CS",
     "uptime": 5,
@@ -20,6 +22,8 @@
   },
   {
     "@timestamp": "1234567993",
+    "type_test": "abc",
+    "@timestamp_pretty": "2022-12-17",
     "event_type": "alert",
     "host": "farcry",
     "uptime": 1,
@@ -48,6 +52,7 @@
   },
   {
     "@timestamp": "1234568996",
+    "@timestamp_pretty": "2022-12-17",
     "ip": "10.0.0.5",
     "event_type": "alert",
     "host": "doom",
@@ -58,6 +63,7 @@
   },
   {
     "@timestamp": "1234567997",
+    "@timestamp_pretty": "2022-12-17",
     "event_type": "failure",
     "host": "doom",
     "uptime": 15,

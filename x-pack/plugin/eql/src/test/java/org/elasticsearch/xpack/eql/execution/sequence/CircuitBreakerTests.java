@@ -132,12 +132,12 @@ public class CircuitBreakerTests extends ESTestCase {
 
     public void testCircuitBreakerTumblingWindow() {
         QueryClient client = new TestQueryClient();
-        List<SequenceCriterion<BoxedQueryRequest>> criteria = new ArrayList<>(stages);
+        List<SequenceCriterion> criteria = new ArrayList<>(stages);
 
         for (int i = 0; i < stages; i++) {
             final int j = i;
             criteria.add(
-                new SequenceCriterion<>(
+                new SequenceCriterion(
                     i,
                     new BoxedQueryRequest(
                         () -> SearchSourceBuilder.searchSource().size(10).query(matchAllQuery()).terminateAfter(j),
@@ -274,12 +274,12 @@ public class CircuitBreakerTests extends ESTestCase {
                 eqlCircuitBreaker
             );
             QueryClient eqlClient = new PITAwareQueryClient(eqlSession);
-            List<SequenceCriterion<BoxedQueryRequest>> criteria = new ArrayList<>(sequenceFiltersCount);
+            List<SequenceCriterion> criteria = new ArrayList<>(sequenceFiltersCount);
 
             for (int i = 0; i < sequenceFiltersCount; i++) {
                 final int j = i;
                 criteria.add(
-                    new SequenceCriterion<>(
+                    new SequenceCriterion(
                         i,
                         new BoxedQueryRequest(
                             () -> SearchSourceBuilder.searchSource().size(10).query(matchAllQuery()).terminateAfter(j),

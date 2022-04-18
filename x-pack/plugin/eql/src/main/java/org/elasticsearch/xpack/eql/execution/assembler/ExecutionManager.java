@@ -55,6 +55,9 @@ public class ExecutionManager {
         this.cfg = eqlSession.configuration();
     }
 
+    /*
+     * Sequence assembler
+     */
     public Executable assemble(
         List<List<Attribute>> listOfKeys,
         List<PhysicalPlan> plans,
@@ -71,13 +74,13 @@ public class ExecutionManager {
         // fields
         HitExtractor tsExtractor = timestampExtractor(hitExtractor(timestamp, extractorRegistry));
         HitExtractor tbExtractor = Expressions.isPresent(tiebreaker) ? hitExtractor(tiebreaker, extractorRegistry) : null;
-        // implicit tiebreake, present only in the response and which doesn't have a corresponding field
+        // implicit tiebreaker, present only in the response and which doesn't have a corresponding field
         HitExtractor itbExtractor = ImplicitTiebreakerHitExtractor.INSTANCE;
         // NB: since there's no aliasing inside EQL, the attribute name is the same as the underlying field name
         String timestampName = Expressions.name(timestamp);
 
         // secondary criteria
-        List<SequenceCriterion<BoxedQueryRequest>> criteria = new ArrayList<>(plans.size() - 1);
+        List<SequenceCriterion> criteria = new ArrayList<>(plans.size() - 1);
 
         // build a criterion for each query
         for (int i = 0; i < plans.size(); i++) {
@@ -118,7 +121,7 @@ public class ExecutionManager {
                 SearchSourceBuilder source = esQueryExec.source(session, false);
                 QueryRequest original = () -> source;
                 BoxedQueryRequest boxedRequest = new BoxedQueryRequest(original, timestampName, keyFields, optionalKeys);
-                SequenceCriterion<BoxedQueryRequest> criterion = new SequenceCriterion<>(
+                SequenceCriterion criterion = new SequenceCriterion(
                     i,
                     boxedRequest,
                     keyExtractors,
@@ -151,9 +154,12 @@ public class ExecutionManager {
         return w;
     }
 
+    /*
+     * Sample assembler
+     */
     public Executable assemble(List<List<Attribute>> listOfKeys, List<PhysicalPlan> plans) {
         FieldExtractorRegistry extractorRegistry = new FieldExtractorRegistry();
-        List<SampleCriterion<AggregatedQueryRequest>> criteria = new ArrayList<>(plans.size() - 1);
+        List<SampleCriterion> criteria = new ArrayList<>(plans.size() - 1);
 
         // build a criterion for each query
         for (int i = 0; i < plans.size(); i++) {
@@ -171,29 +177,25 @@ public class ExecutionManager {
             PhysicalPlan query = plans.get(i);
             // search query
             if (query instanceof EsQueryExec esQueryExec) {
-                AggregatedQueryRequest firstQuery = new AggregatedQueryRequest(
+                SampleQueryRequest firstQuery = new SampleQueryRequest(
                     () -> wrapAsFilter(esQueryExec.source(session, false)),
-                    keyFields
+                    keyFields,
+                    keys
                 );
-                AggregatedQueryRequest midQuery = new AggregatedQueryRequest(
+                SampleQueryRequest midQuery = new SampleQueryRequest(
                     () -> wrapAsFilter(esQueryExec.source(session, false)),
-                    keyFields
+                    keyFields,
+                    keys
                 );
-                AggregatedQueryRequest finalQuery = new AggregatedQueryRequest(
+                SampleQueryRequest finalQuery = new SampleQueryRequest(
                     () -> wrapAsFilter(esQueryExec.source(session, false)),
-                    keyFields
+                    keyFields,
+                    keys
                 );
                 firstQuery.withCompositeAggregation();
                 midQuery.withCompositeAggregation();
-                SampleCriterion<AggregatedQueryRequest> criterion = new SampleCriterion<>(
-                    firstQuery,
-                    midQuery,
-                    finalQuery,
-                    keyFields,
-                    keyExtractors
-                );
 
-                criteria.add(criterion);
+                criteria.add(new SampleCriterion(firstQuery, midQuery, finalQuery, keyFields, keyExtractors));
             } else {
                 throw new EqlIllegalArgumentException("Expected a query but got [{}]", query.getClass());
             }

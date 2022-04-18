@@ -53,8 +53,21 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
 
     @Before
     public void setup() throws Exception {
+        boolean shouldLoadData = true;
         RestClient provisioningClient = provisioningClient();
-        if (provisioningClient.performRequest(new Request("HEAD", "/" + unqualifiedIndexName())).getStatusLine().getStatusCode() == 404) {
+        String[] splitNames = index.split(",");
+        int i = 0;
+
+        while (shouldLoadData && i < splitNames.length) {
+            String indexName = splitNames[i++];
+            if (provisioningClient.performRequest(new Request("HEAD", "/" + unqualifiedIndexName(indexName)))
+                .getStatusLine()
+                .getStatusCode() == 200) {
+                shouldLoadData = false;
+            }
+        }
+
+        if (shouldLoadData) {
             DataLoader.loadDatasetIntoEs(highLevelClient(provisioningClient), this::createParser);
         }
     }
@@ -293,8 +306,8 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
     }
 
     // strip any qualification from the received index string
-    private String unqualifiedIndexName() {
-        int offset = index.indexOf(':');
-        return offset >= 0 ? index.substring(offset + 1) : index;
+    private static String unqualifiedIndexName(String indexName) {
+        int offset = indexName.indexOf(':');
+        return offset >= 0 ? indexName.substring(offset + 1) : indexName;
     }
 }

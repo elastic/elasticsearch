@@ -38,7 +38,7 @@ class SamplePayload extends AbstractPayload {
 
     @Override
     public Type resultType() {
-        return Type.SEQUENCE;
+        return Type.SAMPLE;
     }
 
     @Override

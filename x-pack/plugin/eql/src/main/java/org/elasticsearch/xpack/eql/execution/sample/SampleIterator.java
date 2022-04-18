@@ -17,9 +17,9 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.InternalComposite;
 import org.elasticsearch.xpack.eql.EqlIllegalArgumentException;
-import org.elasticsearch.xpack.eql.execution.assembler.AggregatedQueryRequest;
 import org.elasticsearch.xpack.eql.execution.assembler.Executable;
 import org.elasticsearch.xpack.eql.execution.assembler.SampleCriterion;
+import org.elasticsearch.xpack.eql.execution.assembler.SampleQueryRequest;
 import org.elasticsearch.xpack.eql.execution.search.HitReference;
 import org.elasticsearch.xpack.eql.execution.search.QueryClient;
 import org.elasticsearch.xpack.eql.execution.search.RuntimeUtils;
@@ -38,7 +38,7 @@ import java.util.Stack;
 import static org.elasticsearch.action.ActionListener.runAfter;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.common.Strings.EMPTY_ARRAY;
-import static org.elasticsearch.xpack.eql.execution.assembler.AggregatedQueryRequest.COMPOSITE_AGG_NAME;
+import static org.elasticsearch.xpack.eql.execution.assembler.SampleQueryRequest.COMPOSITE_AGG_NAME;
 import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.prepareRequest;
 
 public class SampleIterator implements Executable {
@@ -47,14 +47,14 @@ public class SampleIterator implements Executable {
     private final Logger log = LogManager.getLogger(SampleIterator.class);
 
     private final QueryClient client;
-    private final List<SampleCriterion<AggregatedQueryRequest>> criteria;
+    private final List<SampleCriterion> criteria;
     private final Stack<Page> stack = new Stack<>();
     private final int maxStages;
     private final List<Sample> samples;
 
     private long startTime;
 
-    public SampleIterator(QueryClient client, List<SampleCriterion<AggregatedQueryRequest>> criteria) {
+    public SampleIterator(QueryClient client, List<SampleCriterion> criteria) {
         this.client = client;
         this.criteria = criteria;
         this.maxStages = criteria.size();
@@ -80,20 +80,20 @@ public class SampleIterator implements Executable {
         if (currentStage < maxStages) {
             // excessive logging for testing purposes
             log.trace("Advancing from stage [{}]", currentStage);
-            SampleCriterion<AggregatedQueryRequest> criterion = criteria.get(currentStage);
-            AggregatedQueryRequest request;
+            SampleCriterion criterion = criteria.get(currentStage);
+            SampleQueryRequest request;
 
             // incorporate the previous stage composite keys in the current stage query
             if (currentStage > 0) {
                 request = criterion.midQuery();
                 Page previousResults = stack.peek();
-                SampleCriterion<AggregatedQueryRequest> previousCriterion = criteria.get(currentStage - 1);
+                SampleCriterion previousCriterion = criteria.get(currentStage - 1);
                 request.multipleKeyPairs(previousCriterion.keys(previousResults.hits), previousResults.keys);
             } else {
                 request = criterion.firstQuery();
             }
 
-            final AggregatedQueryRequest rr = request;
+            final SampleQueryRequest rr = request;
             log.trace("Querying stage [{}] {}", currentStage, request);
             client.query(request, wrap(r -> {
                 Aggregation a = r.getAggregations().get(COMPOSITE_AGG_NAME);
@@ -145,8 +145,8 @@ public class SampleIterator implements Executable {
         List<List<Object>> allCompositeKeyValues = criteria.get(maxStages - 1).keyValues(page.hits);
         for (List<Object> compositeKeyValues : allCompositeKeyValues) {
             // take each filter query and add to it a filter by join keys with the corresponding values
-            for (SampleCriterion<AggregatedQueryRequest> criterion : criteria) {
-                AggregatedQueryRequest r = criterion.finalQuery();
+            for (SampleCriterion criterion : criteria) {
+                SampleQueryRequest r = criterion.finalQuery();
                 r.singleKeyPair(compositeKeyValues, maxStages);
                 searches.add(prepareRequest(r.searchSource(), false, EMPTY_ARRAY));
             }
@@ -159,41 +159,35 @@ public class SampleIterator implements Executable {
             List<List<SearchHit>> sample = new ArrayList<>(maxStages);
             MultiSearchResponse.Item[] response = r.getResponses();
 
-            int i = 0; // response items iterator
-            int j = 1; // iterator for groups of maxStages documents
+            int responseIndex = 0;
+            int docGroupsCounter = 1;
 
-            while (i < response.length) {
-                MultiSearchResponse.Item item = response[i];
-                List<SearchHit> hits = RuntimeUtils.searchHits(item.getResponse());
+            while (responseIndex < response.length) {
+                MultiSearchResponse.Item item = response[responseIndex];
+                final var hits = RuntimeUtils.searchHits(item.getResponse());
                 if (hits.size() > 0) {
                     sample.add(hits);
                 }
-                if (j == maxStages) {
+                if (docGroupsCounter == maxStages) {
                     List<SearchHit> match = matchSample(sample, maxStages);
                     if (match != null) {
                         finalSamples.add(match);
-                        samples.add(new Sample(sampleKeys.get(i / maxStages), match));
+                        samples.add(new Sample(sampleKeys.get(responseIndex / maxStages), match));
                     }
-                    j = 1;
+                    docGroupsCounter = 1;
                     sample = new ArrayList<>(maxStages);
                 } else {
-                    j++;
+                    docGroupsCounter++;
                 }
-                i++;
+                responseIndex++;
             }
 
             log.trace("Final stage... found [{}] new Samples", samples.size() - initialSize);
             // if this final page is max_page_size in size it means: either it's the last page and it happens to have max_page_size elements
             // or it's just not the last page and we should advance
-            if (page.size() == MAX_PAGE_SIZE) {
-                log.trace("Final stage... getting next page of the current stage");
-                // look at the current stage's page "after_key" and ask for one more page of results
-                nextPage(listener, page);
-            } else {
-                log.trace("Final stage... getting next page of the previous stage");
-                // we are done here with this page
-                nextPage(listener, stack.pop());
-            }
+            var next = page.size() == MAX_PAGE_SIZE ? page : stack.pop();
+            log.trace("Final stage... getting next page of the " + (next == page ? "current" : "previous") + " page");
+            nextPage(listener, next);
         }, listener::onFailure));
     }
 
@@ -236,7 +230,7 @@ public class SampleIterator implements Executable {
         log.trace("Sending payload for [{}] samples", samples.size());
 
         if (samples.isEmpty()) {
-            listener.onResponse(new EmptyPayload(Type.SEQUENCE, timeTook()));
+            listener.onResponse(new EmptyPayload(Type.SAMPLE, timeTook()));
             return;
         }
 
@@ -323,9 +317,9 @@ public class SampleIterator implements Executable {
         int size,
         Map<String, Object> afterKey,
         List<String> keys,
-        AggregatedQueryRequest request
+        SampleQueryRequest request
     ) {
-        Page(InternalComposite compositeAgg, AggregatedQueryRequest request) {
+        Page(InternalComposite compositeAgg, SampleQueryRequest request) {
             this(compositeAgg.getBuckets(), compositeAgg.getBuckets().size(), compositeAgg.afterKey(), request.keys(), request);
         }
     }

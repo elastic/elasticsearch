@@ -8,8 +8,6 @@
 
 package org.elasticsearch.index.mapper.extras;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
-
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.Strings;
@@ -38,7 +36,6 @@ import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-@Seed("6AB3998B1FF286ED:D704150E9D86ADE2")
 public class ScaledFloatFieldMapperTests extends MapperTestCase {
 
     @Override

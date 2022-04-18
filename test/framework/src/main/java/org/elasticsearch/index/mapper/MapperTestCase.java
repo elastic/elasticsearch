@@ -770,7 +770,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             + "].";
     }
 
-//    @Repeat(iterations = 1000)
     public final void testSyntheticSource() throws IOException {
         SyntheticSourceExample syntheticSourceExample = syntheticSourceExample();
         DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
@@ -784,7 +783,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         assertThat(syntheticSource(mapper, b -> b.field("field", syntheticSourceExample.inputValue)), equalTo(expected));
     }
 
-    public final void testNoSyntheticSourceForScript() throws IOException {  // NOCOMMIT can you declare parse from source here?
+    public final void testNoSyntheticSourceForScript() throws IOException {
         assumeTrue("Field doesn't support value scripts anyway", emptyFieldScript().isPresent());
         assumeTrue("Field doesn't support value scripts anyway", nonEmptyFieldScript().isPresent());
         DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {

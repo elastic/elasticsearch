@@ -55,6 +55,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.aggregatemetric.AggregateMetricMapperPlugin;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.core.rollup.ConfigTestHelpers;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
 import org.elasticsearch.xpack.core.rollup.action.RollupAction;
 import org.elasticsearch.xpack.rollup.Rollup;
@@ -85,8 +86,8 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     public static final String FIELD_NUMERIC_1 = "numeric_1";
     public static final String FIELD_NUMERIC_2 = "numeric_2";
 
-    public static final int MAX_DIM_VALUES = 5;
-    public static final long MAX_NUM_BUCKETS = 10;
+    private static final int MAX_DIM_VALUES = 5;
+    private static final long MAX_NUM_BUCKETS = 10;
 
     private String sourceIndex, rollupIndex;
     private long startTime;
@@ -109,7 +110,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         sourceIndex = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
         rollupIndex = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
         startTime = randomLongBetween(946769284000L, 1607470084000L); // random date between 2000-2020
-        docCount = 5000; // randomIntBetween(10, 9000);
+        docCount = randomIntBetween(10, 9000);
 
         // Values for keyword dimensions
         dimensionValues = new ArrayList<>(MAX_DIM_VALUES);
@@ -145,7 +146,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testRollupIndex() throws IOException {
-        RollupActionConfig config = new RollupActionConfig(randomInterval(), null);
+        RollupActionConfig config = new RollupActionConfig(randomInterval());
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
             .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
@@ -161,7 +162,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
 
     @LuceneTestCase.AwaitsFix(bugUrl = "TODO: Fix")
     public void testRollupSparseMetrics() throws IOException {
-        RollupActionConfig config = new RollupActionConfig(randomInterval(), null);
+        RollupActionConfig config = new RollupActionConfig(randomInterval());
         SourceSupplier sourceSupplier = () -> {
             XContentBuilder builder = XContentFactory.jsonBuilder()
                 .startObject()
@@ -183,7 +184,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     public void testCannotRollupToExistingIndex() throws Exception {
-        RollupActionConfig config = new RollupActionConfig(randomInterval(), null);
+        RollupActionConfig config = new RollupActionConfig(randomInterval());
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
             .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
@@ -199,13 +200,13 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
 
     public void testTemporaryIndexCannotBeCreatedAlreadyExists() {
         assertTrue(client().admin().indices().prepareCreate(".rolluptmp-" + rollupIndex).get().isAcknowledged());
-        RollupActionConfig config = new RollupActionConfig(randomInterval(), null);
+        RollupActionConfig config = new RollupActionConfig(randomInterval());
         Exception exception = expectThrows(ElasticsearchException.class, () -> rollup(sourceIndex, rollupIndex, config));
         assertThat(exception.getMessage(), containsString("already exists"));
     }
 
     public void testCannotRollupWhileOtherRollupInProgress() throws Exception {
-        RollupActionConfig config = new RollupActionConfig(randomInterval(), null);
+        RollupActionConfig config = new RollupActionConfig(randomInterval());
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
             .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
@@ -223,7 +224,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
 
     @LuceneTestCase.AwaitsFix(bugUrl = "TODO")
     public void testRollupDatastream() throws Exception {
-        RollupActionConfig config = new RollupActionConfig(randomInterval(), null);
+        RollupActionConfig config = new RollupActionConfig(randomInterval());
         String dataStreamName = createDataStream();
 
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
@@ -243,8 +244,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     private DateHistogramInterval randomInterval() {
-        // return ConfigTestHelpers.randomInterval();
-        return DateHistogramInterval.days(30);
+        return ConfigTestHelpers.randomInterval();
     }
 
     private String randomDateForInterval(DateHistogramInterval interval) {

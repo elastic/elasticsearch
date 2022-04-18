@@ -11,7 +11,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
@@ -29,22 +28,26 @@ import java.time.ZoneId;
 import java.util.Objects;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
- * This class holds the configuration details of a {@link RollupAction} job, such as the groupings, metrics, what
- * index to rollup and where to roll them to.
- *
- *      * FixedInterval is a {@link RollupActionConfig} that uses a fixed time interval for rolling up data.
- *      * The fixed time interval is one or multiples of SI units and has no calendar-awareness (e.g. doesn't account
- *      * for leap corrections, does not have variable length months, etc).
- *      *
- *      * Calendar-aware interval is not currently supported
+ * This class holds the configuration details of a {@link RollupAction} that downsamples time series
+ * (TSDB) indices. We have made great effort to simplify the rollup configuration and currently
+ * only requires a fixed time interval. So, it has the following format:
  *
  *  {
  *    "fixed_interval" : "1d",
- *    "time_zone" : "UTC"
  *  }
+ *
+ * fixed_interval is one or multiples of SI units and has no calendar-awareness (e.g. doesn't account
+ * for leap corrections, does not have variable length months, etc). Calendar-aware interval is not currently
+ * supported.
+ *
+ * Also, the rollup configuration uses the UTC time zone by default and the "@timestamp" field as
+ * the index field that stores the timestamp of the time series index.
+ *
+ * Finally, we have left methods such as {@link RollupActionConfig#getTimestampField()},
+ * {@link RollupActionConfig#getTimeZone()} and  {@link RollupActionConfig#getIntervalType()} for
+ * future extensions.
  */
 public class RollupActionConfig implements NamedWriteable, ToXContentObject {
 
@@ -63,7 +66,7 @@ public class RollupActionConfig implements NamedWriteable, ToXContentObject {
         PARSER = new ConstructingObjectParser<>(NAME, a -> {
             DateHistogramInterval fixedInterval = (DateHistogramInterval) a[0];
             if (fixedInterval != null) {
-                return new RollupActionConfig(fixedInterval, (String) a[1]);
+                return new RollupActionConfig(fixedInterval);
             } else {
                 throw new IllegalArgumentException("Parameter [" + FIXED_INTERVAL + "] is required.");
             }
@@ -75,28 +78,18 @@ public class RollupActionConfig implements NamedWriteable, ToXContentObject {
             new ParseField(FIXED_INTERVAL),
             ObjectParser.ValueType.STRING
         );
-        PARSER.declareStringOrNull(optionalConstructorArg(), new ParseField(TIME_ZONE));
     }
 
     /**
      * Create a new {@link RollupActionConfig} using the given configuration parameters.
-     * <p>
-     *     The {@code field} and {@code interval} are required to compute the date histogram for the rolled up documents.
-     *     The {@code timeZone} is optional and can be set to {@code null}. When configured, the time zone value  is resolved using
-     *     ({@link ZoneId#of(String)} and must match a time zone identifier.
-     * </p>
-     * @param fixedInterval the interval to use for the date histogram (required)
-     * @param timeZone the id of time zone to use to calculate the date histogram (optional). When {@code null}, the UTC timezone is used.
+     * @param fixedInterval the fixed interval to use for computing the date histogram for the rolled up documents (required).
      */
-    public RollupActionConfig(final DateHistogramInterval fixedInterval, final @Nullable String timeZone) {
+    public RollupActionConfig(final DateHistogramInterval fixedInterval) {
+        this.timeZone = DEFAULT_TIMEZONE;
         if (fixedInterval == null) {
             throw new IllegalArgumentException("Parameter [" + FIXED_INTERVAL + "] is required.");
         }
-        if (timeZone != null && DEFAULT_TIMEZONE.equals(timeZone) == false) {
-            throw new IllegalArgumentException("Parameter [" + TIME_ZONE + "] supports only [" + DEFAULT_TIMEZONE + "].");
-        }
         this.fixedInterval = fixedInterval;
-        this.timeZone = (timeZone != null && timeZone.isEmpty() == false) ? timeZone : DEFAULT_TIMEZONE;
 
         // validate interval
         createRounding(this.fixedInterval.toString(), this.timeZone);
@@ -111,10 +104,17 @@ public class RollupActionConfig implements NamedWriteable, ToXContentObject {
         timeZone = in.readString();
     }
 
+    /**
+     * Get the timestamp field to be used for rolling up data. Currently,
+     * only the "@timestamp" value is supported.
+     */
     public String getTimestampField() {
         return timestampField;
     }
 
+    /**
+     * Get the interval type. Currently, only fixed_interval is supported
+     */
     public String getIntervalType() {
         return intervalType;
     }
@@ -164,7 +164,6 @@ public class RollupActionConfig implements NamedWriteable, ToXContentObject {
         builder.startObject();
         {
             builder.field(FIXED_INTERVAL, fixedInterval.toString());
-            builder.field(TIME_ZONE, timeZone);
         }
         return builder.endObject();
     }

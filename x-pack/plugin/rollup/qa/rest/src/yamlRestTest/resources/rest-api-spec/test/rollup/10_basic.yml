@@ -75,8 +75,7 @@ setup:
         rollup_index: rollup-test
         body:  >
           {
-            "fixed_interval": "1h",
-            "time_zone": "UTC"
+            "fixed_interval": "1h"
           }
   - is_true: acknowledged
 

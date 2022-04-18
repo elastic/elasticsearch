@@ -85,7 +85,7 @@ public class RollupILMActionTests extends AbstractActionTestCase<RollupILMAction
                 while (fixedInterval.equals(rollupILMAction.config().getFixedInterval())) {
                     fixedInterval = ConfigTestHelpers.randomInterval();
                 }
-                newConfig = new RollupActionConfig(fixedInterval, rollupILMAction.config().getTimeZone());
+                newConfig = new RollupActionConfig(fixedInterval);
             }
             case 1 -> newRollupPolicy = randomAlphaOfLength(3);
             default -> throw new IllegalStateException("unreachable branch");

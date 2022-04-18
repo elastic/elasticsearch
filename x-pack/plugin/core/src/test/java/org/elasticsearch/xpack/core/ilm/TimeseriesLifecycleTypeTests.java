@@ -72,10 +72,7 @@ public class TimeseriesLifecycleTypeTests extends ESTestCase {
     // keeping the migrate action disabled as otherwise it could conflict with the allocate action if both are randomly selected for the
     // same phase
     private static final MigrateAction TEST_MIGRATE_ACTION = MigrateAction.DISABLED;
-    private static final RollupILMAction TEST_ROLLUP_ACTION = new RollupILMAction(
-        new RollupActionConfig(DateHistogramInterval.DAY, "UTC"),
-        null
-    );
+    private static final RollupILMAction TEST_ROLLUP_ACTION = new RollupILMAction(new RollupActionConfig(DateHistogramInterval.DAY), null);
 
     public void testValidatePhases() {
         boolean invalid = randomBoolean();

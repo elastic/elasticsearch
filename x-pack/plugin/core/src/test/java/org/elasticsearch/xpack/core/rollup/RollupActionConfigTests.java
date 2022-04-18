@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.rollup;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -17,15 +18,13 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class RollupActionConfigTests extends AbstractSerializingTestCase<RollupActionConfig> {
 
-    private static final String timezone = "UTC";
-
     @Override
     protected RollupActionConfig createTestInstance() {
         return randomConfig(random());
     }
 
     public static RollupActionConfig randomConfig(Random random) {
-        return new RollupActionConfig(ConfigTestHelpers.randomInterval(), timezone);
+        return new RollupActionConfig(ConfigTestHelpers.randomInterval());
     }
 
     @Override
@@ -39,17 +38,12 @@ public class RollupActionConfigTests extends AbstractSerializingTestCase<RollupA
     }
 
     public void testEmptyFixedInterval() {
-        Exception e = expectThrows(IllegalArgumentException.class, () -> new RollupActionConfig(null, randomBoolean() ? timezone : null));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> new RollupActionConfig((DateHistogramInterval) null));
         assertThat(e.getMessage(), equalTo("Parameter [fixed_interval] is required."));
     }
 
     public void testEmptyTimezone() {
-        RollupActionConfig config = new RollupActionConfig(ConfigTestHelpers.randomInterval(), null);
+        RollupActionConfig config = new RollupActionConfig(ConfigTestHelpers.randomInterval());
         assertEquals("UTC", config.getTimeZone());
-    }
-
-    public void testUnsupportedTimezone() {
-        Exception e = expectThrows(IllegalArgumentException.class, () -> new RollupActionConfig(ConfigTestHelpers.randomInterval(), "EET"));
-        assertThat(e.getMessage(), equalTo("Parameter [time_zone] supports only [UTC]."));
     }
 }

@@ -8,9 +8,7 @@ package org.elasticsearch.xpack.rollup.v2;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
@@ -201,7 +199,6 @@ class RollupShardIndexer {
         @Override
         public LeafBucketCollector getLeafCollector(final AggregationExecutionContext aggCtx) throws IOException {
             final LeafReaderContext ctx = aggCtx.getLeafReaderContext();
-            final SortedNumericDocValues timestampValues = DocValues.getSortedNumeric(ctx.reader(), timestampField.name());
             final DocCountProvider docCountProvider = new DocCountProvider();
             docCountProvider.setLeafReaderContext(ctx);
             final Map<String, FormattedDocValues> metricsFieldLeaves = new HashMap<>();
@@ -213,15 +210,10 @@ class RollupShardIndexer {
             return new LeafBucketCollector() {
                 @Override
                 public void collect(int docId, long owningBucketOrd) throws IOException {
-                    BytesRef tsid = aggCtx.getTsid();
-                    if (tsid == null || timestampValues.advanceExact(docId) == false) {
-                        throw new IllegalArgumentException(
-                            "Document without [" + TimeSeriesIdFieldMapper.NAME + "] or [" + timestampField.name() + "] field was found."
-                        );
-                    }
-                    assert timestampValues.docValueCount() == 1 : "@timestamp field cannot be a multi-value field";
-                    long timestamp = timestampValues.nextValue();
-                    long histoTimestamp = rounding.round(timestamp);
+                    final BytesRef tsid = aggCtx.getTsid();
+                    assert tsid != null : "Document without [" + TimeSeriesIdFieldMapper.NAME + "] field was found.";
+                    final long timestamp = aggCtx.getTimestamp();
+                    final long histoTimestamp = rounding.round(timestamp);
 
                     logger.trace(
                         "Doc: [{}] - _tsid: [{}], @timestamp: [{}}] -> rollup bucket ts: [{}]",
@@ -263,9 +255,8 @@ class RollupShardIndexer {
                         bucketsCreated++;
                     }
 
-                    int docCount = docCountProvider.getDocCount(docId);
+                    final int docCount = docCountProvider.getDocCount(docId);
                     rollupBucketBuilder.collectDocCount(docCount);
-
                     for (Map.Entry<String, FormattedDocValues> e : metricsFieldLeaves.entrySet()) {
                         String fieldName = e.getKey();
                         FormattedDocValues leafField = e.getValue();

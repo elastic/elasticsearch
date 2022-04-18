@@ -466,7 +466,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         private final GeoPoint nullValue = usually() ? null : randomGeoPoint();
 
         public SyntheticSourceExample example() {
-            if (randomBoolean()) {
+            if (nullValue != null || randomBoolean()) { // NOCOMMIT remove nullValue check when #85959 is in
                 Tuple<Object, GeoPoint> v = generateValue();
                 return new SyntheticSourceExample(v.v1(), decode(encode(v.v2())), this::mapping);
             }
@@ -520,6 +520,12 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
             }
             if (nullValue != null) {
                 b.field("null_value", randomGeoPointInput(nullValue));
+            }
+            if (rarely()) {
+                b.field("index", false);
+            }
+            if (rarely()) {
+                b.field("store", false);
             }
         }
     }

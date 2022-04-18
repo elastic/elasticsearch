@@ -123,3 +123,23 @@ setup:
           {
             "fixed_interval": "1h"
           }
+
+---
+"Rollup to existing rollup index":
+  - skip:
+      version: " - 8.2.99"
+      reason: tsdb rollups added in 8.3.0
+
+  - do:
+      indices.create:
+        index: rollup-test
+
+  - do:
+      catch: /Rollup index \[rollup-test\] already exists/
+      rollup.rollup:
+        index: test
+        rollup_index: rollup-test
+        body:  >
+          {
+            "fixed_interval": "1h"
+          }

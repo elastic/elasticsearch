@@ -119,12 +119,11 @@ public class TransportRollupIndexerAction extends TransportBroadcastAction<
     @Override
     protected RollupIndexerAction.ShardResponse shardOperation(RollupIndexerAction.ShardRequest request, Task task) throws IOException {
         IndexService indexService = indicesService.indexService(request.shardId().getIndex());
-        String tmpIndexName = ".rolluptmp-" + request.getRollupIndex();
         RollupShardIndexer indexer = new RollupShardIndexer(
             client,
             indexService,
             request.shardId(),
-            tmpIndexName,
+            request.getRollupIndex(),
             request.getRollupConfig(),
             request.getDimensionFields(),
             request.getMetricFields()

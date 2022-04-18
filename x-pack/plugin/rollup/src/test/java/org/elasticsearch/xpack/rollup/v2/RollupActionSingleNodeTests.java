@@ -10,6 +10,7 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
@@ -160,6 +161,32 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         assertRollupIndex(config, sourceIndex, rollupIndex);
     }
 
+    public void testMissingSourceIndexName() {
+        RollupActionConfig config = new RollupActionConfig(randomInterval());
+        ActionRequestValidationException exception = expectThrows(
+            ActionRequestValidationException.class,
+            () -> rollup(null, rollupIndex, config)
+        );
+        assertThat(exception.getMessage(), containsString("source index is missing"));
+    }
+
+    public void testMissingRollupIndexName() {
+        RollupActionConfig config = new RollupActionConfig(randomInterval());
+        ActionRequestValidationException exception = expectThrows(
+            ActionRequestValidationException.class,
+            () -> rollup(sourceIndex, null, config)
+        );
+        assertThat(exception.getMessage(), containsString("rollup index name is missing"));
+    }
+
+    public void testMissingRollupConfig() {
+        ActionRequestValidationException exception = expectThrows(
+            ActionRequestValidationException.class,
+            () -> rollup(sourceIndex, rollupIndex, null)
+        );
+        assertThat(exception.getMessage(), containsString("rollup configuration is missing"));
+    }
+
     @LuceneTestCase.AwaitsFix(bugUrl = "TODO: Fix")
     public void testRollupSparseMetrics() throws IOException {
         RollupActionConfig config = new RollupActionConfig(randomInterval());
@@ -194,12 +221,17 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         bulkIndex(sourceSupplier);
         rollup(sourceIndex, rollupIndex, config);
         assertRollupIndex(config, sourceIndex, rollupIndex);
-        ElasticsearchException exception = expectThrows(ElasticsearchException.class, () -> rollup(sourceIndex, rollupIndex, config));
-        assertThat(exception.getMessage(), containsString("Unable to rollup index [" + sourceIndex + "]"));
+        ResourceAlreadyExistsException exception = expectThrows(
+            ResourceAlreadyExistsException.class,
+            () -> rollup(sourceIndex, rollupIndex, config)
+        );
+        assertThat(exception.getMessage(), containsString("Rollup index [" + rollupIndex + "] already exists."));
     }
 
     public void testTemporaryIndexCannotBeCreatedAlreadyExists() {
-        assertTrue(client().admin().indices().prepareCreate(".rolluptmp-" + rollupIndex).get().isAcknowledged());
+        assertTrue(
+            client().admin().indices().prepareCreate(TransportRollupAction.TMP_ROLLUP_INDEX_PREFIX + rollupIndex).get().isAcknowledged()
+        );
         RollupActionConfig config = new RollupActionConfig(randomInterval());
         Exception exception = expectThrows(ElasticsearchException.class, () -> rollup(sourceIndex, rollupIndex, config));
         assertThat(exception.getMessage(), containsString("already exists"));
@@ -219,7 +251,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             ResourceAlreadyExistsException.class,
             () -> rollup(sourceIndex, rollupIndex, config)
         );
-        assertThat(exception.getMessage(), containsString(".rolluptmp-" + rollupIndex));
+        assertThat(exception.getMessage(), containsString(TransportRollupAction.TMP_ROLLUP_INDEX_PREFIX + rollupIndex));
     }
 
     @LuceneTestCase.AwaitsFix(bugUrl = "TODO")

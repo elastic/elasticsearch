@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.rollup.v2;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
@@ -31,12 +32,9 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -77,6 +75,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
 
     private static final Settings VISIBLE_INDEX_SETTINGS = Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, false).build();
     private static final Settings WRITE_BLOCKED_SETTINGS = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true).build();
+    public static final String TMP_ROLLUP_INDEX_PREFIX = ".rollup-tmp-";
 
     private final Client client;
     private final ClusterService clusterService;
@@ -115,7 +114,6 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         ActionListener<AcknowledgedResponse> listener
     ) {
         String sourceIndexName = request.getSourceIndex();
-
         IndexMetadata sourceIndexMetadata = state.getMetadata().index(sourceIndexName);
         if (sourceIndexMetadata == null) {
             throw new ResourceNotFoundException("Source index [" + sourceIndexName + "] not found.");
@@ -133,41 +131,29 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             );
         }
 
-        final String rollupIndexName;
-        if (request.getRollupIndex() == null) {
-            rollupIndexName = "rollup-" + sourceIndexName + "-" + UUIDs.randomBase64UUID(Randomness.get());
-        } else {
-            rollupIndexName = request.getRollupIndex();
+        final String rollupIndexName = request.getRollupIndex();
+        if (state.getMetadata().index(rollupIndexName) != null) {
+            throw new ResourceAlreadyExistsException("Rollup index [" + rollupIndexName + "] already exists.");
         }
-
-        String tmpIndexName = ".rolluptmp-" + rollupIndexName;
-
-        FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest().indices(sourceIndexName).fields("*");
-        fieldCapsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
-
-        MappingMetadata sourceIndexMapping = sourceIndexMetadata.mapping();
-        sourceIndexMapping.getSourceAsMap();
-
-        ResizeRequest resizeRequest = new ResizeRequest(request.getRollupIndex(), tmpIndexName);
-        resizeRequest.setResizeType(ResizeType.CLONE);
-        resizeRequest.getTargetIndexRequest().settings(VISIBLE_INDEX_SETTINGS);
-        UpdateSettingsRequest updateSettingsReq = new UpdateSettingsRequest(WRITE_BLOCKED_SETTINGS, tmpIndexName);
+        final String tmpIndexName = createTmpIndexName(rollupIndexName);
 
         // 1. Extract rollup config from source index field caps
         // 2. Create a hidden temporary index
         // 3. Run rollup indexer
         // 4. Make temp index read-only
         // 5. Shrink index
-        // 6. Publish rollup metadata and add rollup index to datastream
+        // 6. Publish rollup metadata and add rollup index to data stream
         // 7. Delete temporary rollup index
-        // At any point if there is an issue, then cleanup temp index
+        // At any point if there is an issue, cleanup temp index
 
         // 1. Extract rollup config from source index field caps
+        FieldCapabilitiesRequest fieldCapsRequest = new FieldCapabilitiesRequest().indices(sourceIndexName).fields("*");
+        fieldCapsRequest.setParentTask(clusterService.localNode().getId(), task.getId());
         client.fieldCaps(fieldCapsRequest, ActionListener.wrap(fieldCapsResponse -> {
             final Map<String, FieldCapabilities> dimensionFieldCaps = new HashMap<>();
             final Map<String, FieldCapabilities> metricFieldCaps = new HashMap<>();
             /*
-             * Rollup runs on a single index and we do not expect multiple mappings for the same
+             * Rollup runs on a single index, and we do not expect multiple mappings for the same
              * field. So, it is safe to select the first and only value of the FieldCapsResponse
              * by running: e.getValue().values().iterator().next()
              */
@@ -218,6 +204,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     // 3. Temporary rollup index created. Run rollup indexer
                     RollupIndexerAction.Request rollupIndexerRequest = new RollupIndexerAction.Request(
+                        tmpIndexName,
                         request,
                         dimensionFieldCaps.keySet().toArray(new String[0]),
                         metricFieldCaps.keySet().toArray(new String[0])
@@ -225,13 +212,17 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
 
                     client.execute(RollupIndexerAction.INSTANCE, rollupIndexerRequest, ActionListener.wrap(indexerResp -> {
                         if (indexerResp.isCreated()) {
-                            // 4.
+                            // 4. Make temp index read-only
+                            UpdateSettingsRequest updateSettingsReq = new UpdateSettingsRequest(WRITE_BLOCKED_SETTINGS, tmpIndexName);
                             client.admin().indices().updateSettings(updateSettingsReq, ActionListener.wrap(updateSettingsResponse -> {
                                 if (updateSettingsResponse.isAcknowledged()) {
-                                    // 5.
+                                    // 5. Clone rollup index from the temporary rollup index
+                                    ResizeRequest resizeRequest = new ResizeRequest(request.getRollupIndex(), tmpIndexName);
+                                    resizeRequest.setResizeType(ResizeType.CLONE);
+                                    resizeRequest.getTargetIndexRequest().settings(VISIBLE_INDEX_SETTINGS);
                                     client.admin().indices().resizeIndex(resizeRequest, ActionListener.wrap(resizeResponse -> {
                                         if (resizeResponse.isAcknowledged()) {
-                                            // 6.
+                                            // 6. Publish rollup metadata and add rollup index to datastream
                                             publishMetadata(sourceIndexName, tmpIndexName, rollupIndexName, listener);
                                         } else {
                                             deleteTmpIndex(
@@ -268,6 +259,22 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 }
             }, newExecutor());
         }, listener::onFailure));
+    }
+
+    /**
+     * Create a temporary index name for a rollup index by prefixing it with
+     * the {@linkplain TransportRollupAction#TMP_ROLLUP_INDEX_PREFIX} prefix
+     *
+     * @param rollupIndexName the rollup index for which the temp index will be created
+     */
+    public static String createTmpIndexName(String rollupIndexName) {
+        StringBuilder sb = new StringBuilder(TMP_ROLLUP_INDEX_PREFIX);
+        if (rollupIndexName.startsWith(".")) {
+            sb.append(rollupIndexName.substring(1));
+        } else {
+            sb.append(rollupIndexName);
+        }
+        return sb.toString();
     }
 
     @Override
@@ -463,7 +470,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
 
             @Override
             public void onFailure(Exception deleteException) {
-                listener.onFailure(new ElasticsearchException("Unable to delete temp rollup index [" + tmpIndex + "]", e));
+                listener.onFailure(new ElasticsearchException("Unable to delete the temporary rollup index [" + tmpIndex + "]", e));
             }
         });
     }

@@ -27,6 +27,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.rollup.RollupActionConfig;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.Objects;
 
@@ -39,11 +40,18 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
     }
 
     public static class Request extends BroadcastRequest<Request> implements IndicesRequest, ToXContentObject {
+        private String rollupIndex;
         private RollupAction.Request rollupRequest;
         private String[] dimensionFields;
         private String[] metricFields;
 
-        public Request(RollupAction.Request rollupRequest, final String[] dimensionFields, final String[] metricFields) {
+        public Request(
+            String rollupIndex,
+            RollupAction.Request rollupRequest,
+            final String[] dimensionFields,
+            final String[] metricFields
+        ) {
+            this.rollupIndex = rollupIndex;
             this.rollupRequest = rollupRequest;
             this.dimensionFields = dimensionFields;
             this.metricFields = metricFields;
@@ -53,6 +61,7 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
 
         public Request(StreamInput in) throws IOException {
             super(in);
+            this.rollupIndex = in.readString();
             this.rollupRequest = new RollupAction.Request(in);
             this.dimensionFields = in.readStringArray();
             this.metricFields = in.readStringArray();
@@ -66,6 +75,10 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
         @Override
         public IndicesOptions indicesOptions() {
             return rollupRequest.indicesOptions();
+        }
+
+        public String getRollupIndex() {
+            return this.rollupIndex;
         }
 
         public RollupAction.Request getRollupRequest() {
@@ -88,6 +101,7 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
+            out.writeString(rollupIndex);
             rollupRequest.writeTo(out);
             out.writeStringArray(dimensionFields);
             out.writeStringArray(metricFields);
@@ -101,26 +115,28 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
+            builder.field("rollup_index", rollupIndex);
             builder.field("rollup_request", rollupRequest);
+            builder.array("dimension_fields", dimensionFields);
+            builder.array("metric_fields", metricFields);
             builder.endObject();
             return builder;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(rollupRequest);
+            return Objects.hash(rollupIndex, rollupRequest, dimensionFields, metricFields);
         }
 
         @Override
-        public boolean equals(Object obj) {
-            if (obj == null) {
-                return false;
-            }
-            if (getClass() != obj.getClass()) {
-                return false;
-            }
-            Request other = (Request) obj;
-            return Objects.equals(rollupRequest, other.rollupRequest);
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Request request = (Request) o;
+            if (rollupIndex.equals(request.rollupIndex) == false) return false;
+            if (rollupRequest.equals(request.rollupRequest) == false) return false;
+            if (Arrays.equals(dimensionFields, request.dimensionFields) == false) return false;
+            return Arrays.equals(metricFields, request.metricFields);
         }
     }
 
@@ -189,7 +205,7 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
         }
 
         public String getRollupIndex() {
-            return request.getRollupRequest().getRollupIndex();
+            return request.getRollupIndex();
         }
 
         public RollupActionConfig getRollupConfig() {

@@ -37,6 +37,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.junit.After;
@@ -162,7 +163,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 xContentRegistry(),
                 dispatcher,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                List.of()
+                Tracer.NOOP
             ) {
 
                 @Override
@@ -277,7 +278,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                 }
             },
             clusterSettings,
-            List.of()
+            Tracer.NOOP
         ) {
             @Override
             protected HttpServerChannel bind(InetSocketAddress hostAddress) {
@@ -328,7 +329,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                     }
                 },
                 clusterSettings,
-                List.of()
+                Tracer.NOOP
             ) {
                 @Override
                 protected HttpServerChannel bind(InetSocketAddress hostAddress) {
@@ -482,7 +483,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                     }
                 },
                 clusterSettings,
-                List.of()
+                Tracer.NOOP
             ) {
                 @Override
                 protected HttpServerChannel bind(InetSocketAddress hostAddress) {
@@ -539,7 +540,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                     }
                 },
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                List.of()
+                Tracer.NOOP
             ) {
 
                 @Override
@@ -615,7 +616,7 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
                     }
                 },
                 clusterSettings,
-                List.of()
+                Tracer.NOOP
             ) {
 
                 @Override

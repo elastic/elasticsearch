@@ -22,7 +22,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Tracer;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -51,8 +50,7 @@ public class FakeThreadPoolMasterService extends MasterService {
         super(
             Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), nodeName).build(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            threadPool,
-            Tracer.NOOP
+            threadPool
         );
         this.name = serviceName;
         this.onTaskAvailableToRun = onTaskAvailableToRun;

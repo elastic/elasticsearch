@@ -60,6 +60,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.netty4.NettyAllocator;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.junit.After;
@@ -176,7 +177,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 dispatcher,
                 clusterSettings,
                 new SharedGroupFactory(settings),
-                List.of()
+                Tracer.NOOP
             )
         ) {
             transport.start();
@@ -226,7 +227,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 new NullDispatcher(),
                 clusterSettings,
                 new SharedGroupFactory(Settings.EMPTY),
-                List.of()
+                Tracer.NOOP
             )
         ) {
             transport.start();
@@ -245,7 +246,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                     new NullDispatcher(),
                     clusterSettings,
                     new SharedGroupFactory(settings),
-                    List.of()
+                    Tracer.NOOP
                 )
             ) {
                 BindHttpException bindHttpException = expectThrows(BindHttpException.class, otherTransport::start);
@@ -298,7 +299,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 dispatcher,
                 clusterSettings,
                 new SharedGroupFactory(settings),
-                List.of()
+                Tracer.NOOP
             )
         ) {
             transport.start();
@@ -361,7 +362,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 dispatcher,
                 clusterSettings,
                 new SharedGroupFactory(Settings.EMPTY),
-                List.of()
+                Tracer.NOOP
             )
         ) {
             transport.start();
@@ -431,7 +432,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 dispatcher,
                 randomClusterSettings(),
                 new SharedGroupFactory(settings),
-                List.of()
+                Tracer.NOOP
             )
         ) {
             transport.start();
@@ -505,7 +506,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 dispatcher,
                 randomClusterSettings(),
                 new SharedGroupFactory(settings),
-                List.of()
+                Tracer.NOOP
             )
         ) {
             transport.start();

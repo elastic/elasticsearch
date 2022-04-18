@@ -181,30 +181,6 @@ public class ThreadContextTests extends ESTestCase {
         assertEquals("1", threadContext.getHeader("default"));
     }
 
-    public void testRemoveHeaders() {
-        Settings build = Settings.builder().put("request.headers.default", "1").build();
-        ThreadContext threadContext = new ThreadContext(build);
-        threadContext.putHeader("h_1", "h_1_value");
-        threadContext.putHeader("h_2", "h_2_value");
-        threadContext.putHeader("h_3", "h_3_value");
-
-        threadContext.putTransient("ctx.transient_1", 1);
-        threadContext.addResponseHeader("resp.header", "baaaam");
-        try (ThreadContext.StoredContext ctx = threadContext.removeRequestHeaders(Set.of("h_1", "h_3"))) {
-            assertThat(threadContext.getHeaders(), equalTo(Map.of("default", "1", "h_2", "h_2_value")));
-            assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.transient_1"));
-            assertEquals("1", threadContext.getHeader("default"));
-            assertEquals(1, threadContext.getResponseHeaders().get("resp.header").size());
-            assertEquals("baaaam", threadContext.getResponseHeaders().get("resp.header").get(0));
-        }
-
-        assertThat(threadContext.getHeaders(), equalTo(Map.of("default", "1", "h_1", "h_1_value", "h_2", "h_2_value", "h_3", "h_3_value")));
-        assertEquals(Integer.valueOf(1), threadContext.getTransient("ctx.transient_1"));
-        assertEquals("1", threadContext.getHeader("default"));
-        assertEquals(1, threadContext.getResponseHeaders().get("resp.header").size());
-        assertEquals("baaaam", threadContext.getResponseHeaders().get("resp.header").get(0));
-    }
-
     public void testStoreContext() {
         Settings build = Settings.builder().put("request.headers.default", "1").build();
         ThreadContext threadContext = new ThreadContext(build);

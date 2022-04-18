@@ -30,7 +30,7 @@ public class QuestionAnsweringConfigUpdateTests extends AbstractNlpConfigUpdateT
     public static QuestionAnsweringConfigUpdate randomUpdate() {
         return new QuestionAnsweringConfigUpdate(
             randomAlphaOfLength(10),
-            randomBoolean() ? null : randomIntBetween(-1, 15),
+            randomBoolean() ? null : randomIntBetween(0, 15),
             randomBoolean() ? null : randomIntBetween(1, 100),
             randomBoolean() ? null : randomAlphaOfLength(5),
             randomBoolean() ? null : new BertTokenizationUpdate(randomFrom(Tokenization.Truncate.values()), null)

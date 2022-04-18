@@ -49,7 +49,7 @@ public class QuestionAnsweringConfigTests extends InferenceConfigItemTestCase<Qu
 
     public static QuestionAnsweringConfig createRandom() {
         return new QuestionAnsweringConfig(
-            randomBoolean() ? null : randomIntBetween(-1, 30),
+            randomBoolean() ? null : randomIntBetween(0, 30),
             randomBoolean() ? null : randomIntBetween(1, 50),
             randomBoolean() ? null : VocabularyConfigTests.createRandom(),
             randomBoolean()

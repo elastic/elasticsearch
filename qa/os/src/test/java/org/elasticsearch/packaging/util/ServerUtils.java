@@ -42,7 +42,6 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-
 import javax.net.ssl.KeyManagerFactory;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.TrustManagerFactory;
@@ -76,9 +75,10 @@ public class ServerUtils {
             String configFile = Files.readString(configFilePath, StandardCharsets.UTF_8);
             securityEnabled = configFile.contains(SECURITY_DISABLED) == false;
         } else {
-            securityEnabled = dockerShell.run("bash -c 'env | grep xpack.security.enabled'")
+            securityEnabled = dockerShell.run("env")
                 .stdout()
                 .lines()
+                .filter(each -> each.startsWith("xpack.security.enabled"))
                 .findFirst()
                 .map(line -> Boolean.parseBoolean(line.split("=")[1]))
                 // security is enabled by default, the only way for it to be disabled is to be explicitly disabled

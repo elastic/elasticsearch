@@ -48,12 +48,11 @@ public abstract class CardinalityAggregator extends NumericMetricsAggregator.Sin
 
     // Expensive to initialize, so we only initialize it when we have an actual value source
     @Nullable
-    protected HyperLogLogPlusPlus counts;
+    protected final HyperLogLogPlusPlus counts;
 
     private Collector collector;
 
     protected int emptyCollectorsUsed;
-    protected int numericCollectorsUsed;
     protected int ordinalsCollectorsUsed;
     protected int ordinalsCollectorsOverheadTooHigh;
     protected int stringHashingCollectorsUsed;
@@ -128,7 +127,6 @@ public abstract class CardinalityAggregator extends NumericMetricsAggregator.Sin
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         super.collectDebugInfo(add);
         add.accept("empty_collectors_used", emptyCollectorsUsed);
-        add.accept("numeric_collectors_used", numericCollectorsUsed);
         add.accept("ordinals_collectors_used", ordinalsCollectorsUsed);
         add.accept("ordinals_collectors_overhead_too_high", ordinalsCollectorsOverheadTooHigh);
         add.accept("string_hashing_collectors_used", stringHashingCollectorsUsed);

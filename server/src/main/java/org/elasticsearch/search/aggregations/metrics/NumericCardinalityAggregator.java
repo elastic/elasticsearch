@@ -45,7 +45,6 @@ public class NumericCardinalityAggregator extends CardinalityAggregator {
     @Override
     public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
         postCollectLastCollector();
-        numericCollectorsUsed++;
         MurmurHash3Values hashValues = source.isFloatingPoint()
             ? MurmurHash3Values.hash(source.doubleValues(ctx))
             : MurmurHash3Values.hash(source.longValues(ctx));

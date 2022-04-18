@@ -168,14 +168,4 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         }
         return masterHistoryService.getLocalMasterHistory().hasSeenMasterInLastNSeconds(30);
     }
-
-    private Collection<DiscoveryNode> getMasterEligibleNodes() {
-        Set<DiscoveryNode> masterEligibleNodes = new HashSet<>();
-        discoveryModule.getCoordinator().getFoundPeers().forEach(node -> {
-            if (node.isMasterNode()) {
-                masterEligibleNodes.add(node);
-            }
-        });
-        return masterEligibleNodes;
-    }
 }

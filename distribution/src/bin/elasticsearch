@@ -96,7 +96,7 @@ fi
 #   - second, JVM options are read from jvm.options and jvm.options.d/*.options
 #   - third, JVM options from ES_JAVA_OPTS are applied
 #   - fourth, ergonomic JVM options are applied
-ES_JAVA_OPTS=`export ES_TMPDIR; "$JAVA" -cp "$LAUNCHERS_CLASSPATH" org.elasticsearch.tools.launchers.JvmOptionsParser "$ES_PATH_CONF" "$ES_HOME/plugins"`
+ES_JAVA_OPTS=`export ES_TMPDIR; "$JAVA" -cp "$LAUNCHERS_CLASSPATH" -Des.distribution.type="$ES_DISTRIBUTION_TYPE" org.elasticsearch.tools.launchers.JvmOptionsParser "$ES_PATH_CONF" "$ES_HOME/plugins"`
 
 # Remove enrollment related parameters before passing the arg list to Elasticsearch
 for i in "${!ARG_LIST[@]}"; do

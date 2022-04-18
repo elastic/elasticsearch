@@ -106,8 +106,7 @@ setup:
   - match: { rollup-test.settings.index.routing_path: [ "metricset", "k8s.pod.uid"] }
   - match: { rollup-test.settings.index.rollup.source.name: test }
   - match: { rollup-test.settings.index.number_of_shards: "1" }
-  # TODO: Fix copying the number of shards from the source index
-  # - match: { rollup-test.settings.index.number_of_replicas: "0" }
+  - match: { rollup-test.settings.index.number_of_replicas: "0" }
 
 ---
 "Rollup non-existing index":

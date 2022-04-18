@@ -77,7 +77,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-//@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/69799")
 public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
 
     private static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("yyyy-MM-dd'T'HH:mm:ss.SSSXXX");
@@ -125,6 +124,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             .setSettings(
                 Settings.builder()
                     .put("index.number_of_shards", randomIntBetween(1, 4))
+                    .put("index.number_of_replicas", randomIntBetween(0, 3))
                     .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                     .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_1))
                     .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), Instant.ofEpochMilli(startTime).toString())
@@ -378,6 +378,14 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         assertEquals(
             indexSettingsResp.getSetting(sourceIndex, "index.routing_path"),
             indexSettingsResp.getSetting(rollupIndex, "index.routing_path")
+        );
+        assertEquals(
+            indexSettingsResp.getSetting(sourceIndex, "index.number_of_shards"),
+            indexSettingsResp.getSetting(rollupIndex, "index.number_of_shards")
+        );
+        assertEquals(
+            indexSettingsResp.getSetting(sourceIndex, "index.number_of_replicas"),
+            indexSettingsResp.getSetting(rollupIndex, "index.number_of_replicas")
         );
         assertEquals("true", indexSettingsResp.getSetting(rollupIndex, "index.blocks.write"));
 

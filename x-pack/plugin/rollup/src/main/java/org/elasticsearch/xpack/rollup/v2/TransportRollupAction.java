@@ -12,7 +12,6 @@ import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.rollover.MetadataRolloverService;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
@@ -73,7 +72,6 @@ import java.util.Map;
  */
 public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction<RollupAction.Request> {
 
-    private static final Settings VISIBLE_INDEX_SETTINGS = Settings.builder().put(IndexMetadata.SETTING_INDEX_HIDDEN, false).build();
     private static final Settings WRITE_BLOCKED_SETTINGS = Settings.builder().put(IndexMetadata.SETTING_BLOCKS_WRITE, true).build();
     public static final String TMP_ROLLUP_INDEX_PREFIX = ".rollup-tmp-";
 
@@ -186,10 +184,19 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                 "rollup",
                 tmpIndexName,
                 tmpIndexName
-            ).settings(MetadataRolloverService.HIDDEN_INDEX_SETTINGS)
-                .mappings(XContentHelper.convertToJson(BytesReference.bytes(mapping), false, XContentType.JSON));
+            ).settings(
+                /*
+                 * When creating the temporary rollup index, we copy the index.number_of_shards from source index,
+                 * and we set the index.number_of_replicas to 0, to avoid replicating the temp index.
+                 */
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_INDEX_HIDDEN, true)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, sourceIndexMetadata.getNumberOfShards())
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .build()
+            ).mappings(XContentHelper.convertToJson(BytesReference.bytes(mapping), false, XContentType.JSON));
 
-            // 2. Create hidden temporary index
+            // 2. Create hidden temporary rollup index
             clusterService.submitStateUpdateTask("create-rollup-index", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
@@ -197,6 +204,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                         currentState,
                         createIndexClusterStateUpdateRequest,
                         true,
+                        // Copy index metadata from source index to rollup index
                         (builder, rollupIndexMetadata) -> builder.put(copyIndexMetadata(sourceIndexMetadata, rollupIndexMetadata))
                     );
                 }
@@ -216,13 +224,23 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                             UpdateSettingsRequest updateSettingsReq = new UpdateSettingsRequest(WRITE_BLOCKED_SETTINGS, tmpIndexName);
                             client.admin().indices().updateSettings(updateSettingsReq, ActionListener.wrap(updateSettingsResponse -> {
                                 if (updateSettingsResponse.isAcknowledged()) {
-                                    // 5. Clone rollup index from the temporary rollup index
+                                    // 5. Clone final rollup index from the temporary rollup index
                                     ResizeRequest resizeRequest = new ResizeRequest(request.getRollupIndex(), tmpIndexName);
                                     resizeRequest.setResizeType(ResizeType.CLONE);
-                                    resizeRequest.getTargetIndexRequest().settings(VISIBLE_INDEX_SETTINGS);
+                                    /*
+                                     * Clone will maintain the same index settings, including the number_of_shards
+                                     * We must only copy the number_of_replicas from the source index
+                                     */
+                                    resizeRequest.getTargetIndexRequest()
+                                        .settings(
+                                            Settings.builder()
+                                                .put(IndexMetadata.SETTING_INDEX_HIDDEN, false)
+                                                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, sourceIndexMetadata.getNumberOfReplicas())
+                                                .build()
+                                        );
                                     client.admin().indices().resizeIndex(resizeRequest, ActionListener.wrap(resizeResponse -> {
                                         if (resizeResponse.isAcknowledged()) {
-                                            // 6. Publish rollup metadata and add rollup index to datastream
+                                            // 6. Publish rollup metadata and add rollup index to data stream
                                             publishMetadata(sourceIndexName, tmpIndexName, rollupIndexName, listener);
                                         } else {
                                             deleteTmpIndex(
@@ -344,7 +362,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
     }
 
     /**
-     * Copy index metadata from the original index the rollup index.
+     * Copy index metadata from the source index to the rollup index.
      */
     private IndexMetadata.Builder copyIndexMetadata(IndexMetadata sourceIndexMetadata, IndexMetadata rollupIndexMetadata) {
         String sourceIndexName = sourceIndexMetadata.getIndex().getName();
@@ -368,9 +386,6 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         IndexMode indexMode = IndexSettings.MODE.get(sourceIndexMetadata.getSettings());
 
         return IndexMetadata.builder(rollupIndexMetadata)
-            // Copy numbers of shards and replicas from source index
-            .numberOfShards(sourceIndexMetadata.getNumberOfShards())
-            .numberOfReplicas(sourceIndexMetadata.getNumberOfReplicas())
             .settings(
                 Settings.builder()
                     .put(rollupIndexMetadata.getSettings())
@@ -401,7 +416,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
     }
 
     private void publishMetadata(
-        String originalIndexName,
+        String sourceIndexName,
         String tmpIndexName,
         String rollupIndexName,
         ActionListener<AcknowledgedResponse> listener
@@ -411,19 +426,19 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 // Everything went well, time to delete the temporary index
-                deleteTmpIndex(originalIndexName, tmpIndexName, listener, null);
+                deleteTmpIndex(sourceIndexName, tmpIndexName, listener, null);
             }
 
             @Override
             public ClusterState execute(ClusterState currentState) {
                 IndexMetadata rollupIndexMetadata = currentState.getMetadata().index(rollupIndexName);
                 Index rollupIndex = rollupIndexMetadata.getIndex();
-                IndexAbstraction originalIndex = currentState.getMetadata().getIndicesLookup().get(originalIndexName);
+                IndexAbstraction sourceIndex = currentState.getMetadata().getIndicesLookup().get(sourceIndexName);
 
                 Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
-                if (originalIndex.getParentDataStream() != null) {
+                if (sourceIndex.getParentDataStream() != null) {
                     // If rolling up a backing index of a data stream, add rolled up index to backing data stream
-                    DataStream originalDataStream = originalIndex.getParentDataStream().getDataStream();
+                    DataStream originalDataStream = sourceIndex.getParentDataStream().getDataStream();
                     List<Index> backingIndices = new ArrayList<>(originalDataStream.getIndices().size() + 1);
                     // Adding rollup indices to the beginning of the list will prevent rollup indices from ever being
                     // considered a write index
@@ -448,7 +463,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             @Override
             public void onFailure(Exception e) {
                 deleteTmpIndex(
-                    originalIndexName,
+                    sourceIndexName,
                     tmpIndexName,
                     listener,
                     new ElasticsearchException("failed to publish new cluster state with rollup metadata", e)

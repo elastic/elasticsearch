@@ -9,8 +9,7 @@
 package org.elasticsearch.ingest.attachment;
 
 import org.apache.tika.exception.ZeroByteFileException;
-import org.apache.tika.langdetect.tika.TikaLanguageDetector;
-import org.apache.tika.language.detect.LanguageDetector;
+import org.apache.tika.langdetect.tika.LanguageIdentifier;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.metadata.Office;
 import org.apache.tika.metadata.TikaCoreProperties;
@@ -129,12 +128,9 @@ public final class AttachmentProcessor extends AbstractProcessor {
         }
 
         if (properties.contains(Property.LANGUAGE) && Strings.hasLength(parsedContent)) {
-
-
-            //TOOD: hmm... this doesnt work
-            LanguageDetector detector =  LanguageDetector.getDefaultLanguageDetector().loadModels();
-
-            String language = detector.detect(parsedContent).getLanguage();
+            // TODO: stop using LanguageIdentifier...
+            LanguageIdentifier identifier = new LanguageIdentifier(parsedContent);
+            String language = identifier.getLanguage();
             additionalFields.put(Property.LANGUAGE.toLowerCase(), language);
         }
 

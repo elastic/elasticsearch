@@ -17,9 +17,9 @@ esplugin {
 
 versions << [
   'tika'  : '2.3.0',
-  'pdfbox': '2.0.24',
-  'poi'   : '4.1.2',
-  'mime4j': '0.8.5'
+  'pdfbox': '2.0.25',
+  'poi'   : '5.2.2',
+  'mime4j': '0.8.7'
 ]
 
 dependencies {
@@ -28,7 +28,7 @@ dependencies {
   api "org.apache.tika:tika-parsers-standard-package:${versions.tika}"
   api "org.apache.tika:tika-langdetect-tika:${versions.tika}"
   api 'org.tukaani:xz:1.8'
-  api 'commons-io:commons-io:2.6'
+  api 'commons-io:commons-io:2.11.0'
   api "org.slf4j:slf4j-api:${versions.slf4j}"
 
   // character set detection
@@ -48,10 +48,10 @@ dependencies {
   // OpenOffice
   api "org.apache.poi:poi-ooxml:${versions.poi}"
   api "org.apache.poi:poi:${versions.poi}"
-  api "org.apache.poi:poi-ooxml-schemas:${versions.poi}"
+  api "org.apache.poi:poi-ooxml-full:${versions.poi}"
   api "commons-codec:commons-codec:${versions.commonscodec}"
-  api 'org.apache.xmlbeans:xmlbeans:3.0.1'
-  api 'org.apache.commons:commons-collections4:4.1'
+  api 'org.apache.xmlbeans:xmlbeans:5.0.3'
+  api 'org.apache.commons:commons-collections4:4.4'
   // MS Office
   api "org.apache.poi:poi-scratchpad:${versions.poi}"
   // Apple iWork

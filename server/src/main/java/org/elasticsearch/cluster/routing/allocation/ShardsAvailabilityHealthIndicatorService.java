@@ -525,6 +525,11 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             return impacts;
         }
 
+        /**
+         * Summarizes the user actions that are needed to solve unassigned primary and replica shards.
+         * @param includeDetails true if user actions should be generated, false if they should be omitted.
+         * @return A summary of user actions. Alternatively, an empty list if none were found or includeDetails is false.
+         */
         public List<UserAction> getUserActions(boolean includeDetails) {
             if (includeDetails) {
                 Map<UserAction.Definition, Set<String>> actionsToAffectedIndices = new HashMap<>(primaries.userActions);

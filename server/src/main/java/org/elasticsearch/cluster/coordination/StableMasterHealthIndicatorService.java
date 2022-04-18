@@ -97,7 +97,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                         stableMasterStatus = HealthStatus.YELLOW;
                         summary = String.format(
                             Locale.ROOT,
-                            "The cluster's master has alternated between %s and no master multiple times" + " in the last 30 minutes",
+                            "The cluster's master has alternated between %s and no master multiple times in the last 30 minutes",
                             master
                         );
                         impacts.add(

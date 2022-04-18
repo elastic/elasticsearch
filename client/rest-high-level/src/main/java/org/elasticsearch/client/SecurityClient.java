@@ -10,21 +10,16 @@ package org.elasticsearch.client;
 
 import org.elasticsearch.client.security.ClearRealmCacheRequest;
 import org.elasticsearch.client.security.ClearRealmCacheResponse;
-import org.elasticsearch.client.security.CreateTokenRequest;
-import org.elasticsearch.client.security.CreateTokenResponse;
 import org.elasticsearch.client.security.DelegatePkiAuthenticationRequest;
 import org.elasticsearch.client.security.DelegatePkiAuthenticationResponse;
 import org.elasticsearch.client.security.GetApiKeyRequest;
 import org.elasticsearch.client.security.GetApiKeyResponse;
 import org.elasticsearch.client.security.InvalidateApiKeyRequest;
 import org.elasticsearch.client.security.InvalidateApiKeyResponse;
-import org.elasticsearch.client.security.InvalidateTokenRequest;
-import org.elasticsearch.client.security.InvalidateTokenResponse;
 
 import java.io.IOException;
 
 import static java.util.Collections.emptySet;
-import static java.util.Collections.singleton;
 
 /**
  * A wrapper for the {@link RestHighLevelClient} that provides methods for accessing the Security APIs.
@@ -62,46 +57,6 @@ public final class SecurityClient {
             options,
             ClearRealmCacheResponse::fromXContent,
             emptySet()
-        );
-    }
-
-    /**
-     * Creates an OAuth2 token.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-get-token.html">
-     * the docs</a> for more.
-     *
-     * @param request the request for the token
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response from the create token call
-     * @throws IOException in case there is a problem sending the request or parsing back the response
-     */
-    public CreateTokenResponse createToken(CreateTokenRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(
-            request,
-            SecurityRequestConverters::createToken,
-            options,
-            CreateTokenResponse::fromXContent,
-            emptySet()
-        );
-    }
-
-    /**
-     * Invalidates an OAuth2 token.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-invalidate-token.html">
-     * the docs</a> for more.
-     *
-     * @param request the request to invalidate the token
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response from the create token call
-     * @throws IOException in case there is a problem sending the request or parsing back the response
-     */
-    public InvalidateTokenResponse invalidateToken(InvalidateTokenRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(
-            request,
-            SecurityRequestConverters::invalidateToken,
-            options,
-            InvalidateTokenResponse::fromXContent,
-            singleton(404)
         );
     }
 

@@ -492,4 +492,8 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
             return ActionListener.noop();
         }
     }
+
+    public ThreadPool getThreadPool() {
+        return threadPool;
+    }
 }

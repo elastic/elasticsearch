@@ -8,6 +8,9 @@
 
 package org.elasticsearch.health;
 
+import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.core.Nullable;
+
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -30,23 +33,51 @@ public class HealthService {
         this.healthIndicatorServices = healthIndicatorServices;
     }
 
-    public List<HealthComponentResult> getHealth() {
-        return List.copyOf(
+    /**
+     * Returns the list of HealthComponentResults for this cluster. If no componentName is specified, one HealthComponentResult is returned
+     * for each component in the system. If a componentName is given, only the single HealthComponentResult for that component is
+     * returned. If both a componentName and indicatorName are given, the returned HealthComponentResult will only have information about
+     * the given indicatorName.
+     * @param componentName If not null, only the component with this name is returned
+     * @param indicatorName If not null, the returned component will only have this indicator
+     * @param computeDetails Whether to compute the details portion of the component results
+     * @return A list of all HealthComponentResults if componentName is null, or one HealthComponentResult if componentName is not null
+     * @throws ResourceNotFoundException if a component name is given and the component or indicator are not found
+     */
+    public List<HealthComponentResult> getHealth(@Nullable String componentName, @Nullable String indicatorName, boolean computeDetails) {
+        final boolean shouldDrillDownToIndicatorLevel = indicatorName != null;
+        final boolean showRolledUpComponentStatus = shouldDrillDownToIndicatorLevel == false;
+        List<HealthComponentResult> components = List.copyOf(
             healthIndicatorServices.stream()
-                .map(HealthIndicatorService::calculate)
+                .filter(service -> componentName == null || service.component().equals(componentName))
+                .filter(service -> indicatorName == null || service.name().equals(indicatorName))
+                .map(service -> service.calculate(computeDetails))
                 .collect(
                     groupingBy(
                         HealthIndicatorResult::component,
                         TreeMap::new,
-                        collectingAndThen(toList(), HealthService::createComponentFromIndicators)
+                        collectingAndThen(
+                            toList(),
+                            indicators -> HealthService.createComponentFromIndicators(indicators, showRolledUpComponentStatus)
+                        )
                     )
                 )
                 .values()
         );
+        if (components.isEmpty() && componentName != null) {
+            String errorMessage;
+            if (indicatorName != null) {
+                errorMessage = String.format(Locale.ROOT, "Did not find indicator %s in component %s", indicatorName, componentName);
+            } else {
+                errorMessage = String.format(Locale.ROOT, "Did not find component %s", componentName);
+            }
+            throw new ResourceNotFoundException(errorMessage);
+        }
+        return components;
     }
 
     // Non-private for testing purposes
-    static HealthComponentResult createComponentFromIndicators(List<HealthIndicatorResult> indicators) {
+    static HealthComponentResult createComponentFromIndicators(List<HealthIndicatorResult> indicators, boolean showComponentSummary) {
         assert indicators.size() > 0 : "Component should not be non empty";
         assert indicators.stream().map(HealthIndicatorResult::component).distinct().count() == 1L
             : "Should not mix indicators from different components";
@@ -59,7 +90,7 @@ public class HealthService {
             );
         return new HealthComponentResult(
             indicators.get(0).component(),
-            HealthStatus.merge(indicators.stream().map(HealthIndicatorResult::status)),
+            showComponentSummary ? HealthStatus.merge(indicators.stream().map(HealthIndicatorResult::status)) : null,
             indicators
         );
     }

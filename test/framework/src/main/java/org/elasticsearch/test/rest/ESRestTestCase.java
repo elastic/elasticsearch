@@ -1428,6 +1428,19 @@ public abstract class ESRestTestCase extends ESTestCase {
         assertThat(response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
     }
 
+    /**
+     * Assert that the index in question has the given number of documents present
+     */
+    public static void assertDocCount(RestClient client, String indexName, long docCount) throws IOException {
+        Request countReq = new Request("GET", "/" + indexName + "/_count");
+        ObjectPath resp = ObjectPath.createFromResponse(client.performRequest(countReq));
+        assertEquals(
+            "expected " + docCount + " documents but it was a different number",
+            docCount,
+            Long.parseLong(resp.evaluate("count").toString())
+        );
+    }
+
     public static void assertAcknowledged(Response response) throws IOException {
         assertOK(response);
         String jsonBody = EntityUtils.toString(response.getEntity());

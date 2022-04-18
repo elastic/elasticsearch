@@ -31,6 +31,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import static org.elasticsearch.cluster.metadata.NodesShutdownMetadata.getShutdownsOrEmpty;
+
 public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMasterNodeAction<DeleteShutdownNodeAction.Request> {
     private static final Logger logger = LogManager.getLogger(TransportDeleteShutdownNodeAction.class);
 
@@ -71,7 +73,12 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
         clusterService.submitStateUpdateTask("delete-node-shutdown-" + request.getNodeId(), new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
-                NodesShutdownMetadata currentShutdownMetadata = currentState.metadata().custom(NodesShutdownMetadata.TYPE);
+                NodesShutdownMetadata currentShutdownMetadata = getShutdownsOrEmpty(currentState);
+                var existing = currentShutdownMetadata.getAllNodeMetadataMap().get(request.getNodeId());
+                if (existing == null) {
+                    // noop, the node has already been removed by the time we got to this update task
+                    return currentState;
+                }
 
                 logger.info("removing shutdown record for node [{}]", request.getNodeId());
 
@@ -93,22 +100,16 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 clusterService.getRerouteService()
-                    .reroute("node registered for removal from cluster", Priority.NORMAL, new ActionListener<ClusterState>() {
+                    .reroute("node registered for removal from cluster", Priority.URGENT, new ActionListener<>() {
                         @Override
-                        public void onResponse(ClusterState clusterState) {
-                            logger.trace("started reroute after deleting node [{}}] shutdown", request.getNodeId());
-                            listener.onResponse(AcknowledgedResponse.TRUE);
-                        }
+                        public void onResponse(ClusterState clusterState) {}
 
                         @Override
                         public void onFailure(Exception e) {
-                            logger.warn(
-                                new ParameterizedMessage("failed to start reroute after deleting node [{}] shutdown", request.getNodeId()),
-                                e
-                            );
-                            listener.onFailure(e);
+                            logger.warn(() -> "failed to reroute after deleting node [" + request.getNodeId() + "] shutdown", e);
                         }
                     });
+                listener.onResponse(AcknowledgedResponse.TRUE);
             }
         }, newExecutor());
     }

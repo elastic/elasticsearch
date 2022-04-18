@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
@@ -1007,7 +1006,6 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             var key = new ShardRoutingKey(shardRouting.getIndexName(), shardRouting.getId(), shardRouting.primary());
             return decisions.getOrDefault(key, ShardAllocationDecision.NOT_TAKEN);
         });
-        var allocationDeciders = mock(AllocationDeciders.class);
-        return new ShardsAvailabilityHealthIndicatorService(clusterService, allocationService, allocationDeciders);
+        return new ShardsAvailabilityHealthIndicatorService(clusterService, allocationService);
     }
 }

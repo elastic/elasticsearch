@@ -21,7 +21,6 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
-import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
@@ -80,16 +79,10 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
     private final ClusterService clusterService;
     private final AllocationService allocationService;
-    private final AllocationDeciders allocationDeciders;
 
-    public ShardsAvailabilityHealthIndicatorService(
-        ClusterService clusterService,
-        AllocationService allocationService,
-        AllocationDeciders allocationDeciders
-    ) {
+    public ShardsAvailabilityHealthIndicatorService(ClusterService clusterService, AllocationService allocationService) {
         this.clusterService = clusterService;
         this.allocationService = allocationService;
-        this.allocationDeciders = allocationDeciders;
     }
 
     @Override
@@ -230,8 +223,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         }
 
         private void addUserAction(UserAction.Definition actionDef, String indexName) {
-            userActions.computeIfAbsent(actionDef, (k) -> new HashSet<>())
-                .add(indexName);
+            userActions.computeIfAbsent(actionDef, (k) -> new HashSet<>()).add(indexName);
         }
     }
 
@@ -286,7 +278,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     private void explainAllocationsAndDiagnoseDeciders(List<UserAction.Definition> actions, ShardRouting shardRouting, ClusterState state) {
         LOGGER.trace("Diagnosing shard [{}]", shardRouting.shardId());
         RoutingAllocation allocation = new RoutingAllocation(
-            allocationDeciders,
+            allocationService.getAllocationDeciders(),
             state,
             ClusterInfo.EMPTY,
             SnapshotShardSizeInfo.EMPTY,

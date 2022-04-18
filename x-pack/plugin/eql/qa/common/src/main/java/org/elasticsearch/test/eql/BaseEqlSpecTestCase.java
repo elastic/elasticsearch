@@ -195,8 +195,9 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
     private long[] extractIds(List<Event> events) {
         final int len = events.size();
         final long[] ids = new long[len];
+        String idField = tiebreaker() == null ? idField() : tiebreaker();
         for (int i = 0; i < len; i++) {
-            Object field = events.get(i).sourceAsMap().get(tiebreaker() == null ? idField() : tiebreaker());
+            Object field = events.get(i).sourceAsMap().get(idField);
             ids[i] = ((Number) field).longValue();
         }
         return ids;

@@ -20,7 +20,7 @@ TIP: If the front-end application does not exist, you can use the
 <<token-authentication-services>> instead.
 
 [[jwt-realm-oidc]]
-=== JWT uses OIDC workflows
+==== JWT uses OIDC workflows
 JWT authentication in {es} is derived from OIDC workflows, where users initiate
 contact with an OIDC Relying Party (RP) and are redirected to authenticate with
 an OIDC Provider (OP). Separate tokens are issued at different steps in the

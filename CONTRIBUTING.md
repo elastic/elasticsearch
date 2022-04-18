@@ -152,7 +152,7 @@ and then run `curl` in another window like this:
 ### Importing the project into IntelliJ IDEA
 
 The minimum IntelliJ IDEA version required to import the Elasticsearch project is 2020.1
-Elasticsearch builds using Java 15. When importing into IntelliJ you will need
+Elasticsearch builds using Java 17. When importing into IntelliJ you will need
 to define an appropriate SDK. The convention is that **this SDK should be named
 "15"** so that the project import will detect it automatically. For more details
 on defining an SDK in IntelliJ please refer to [their documentation](https://www.jetbrains.com/help/idea/sdk.html#define-sdk).

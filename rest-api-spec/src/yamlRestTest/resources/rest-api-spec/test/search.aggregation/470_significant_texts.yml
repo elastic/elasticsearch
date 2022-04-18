@@ -25,18 +25,22 @@ setup:
           - { "full_text": "the apple a banana a pear the melon" }
           - { "index": {} }
           - { "full_text": "an apple a banana the pear" }
-          - { "index": { } }
+          - { "index": {} }
           - { "full_text": "the apple the banana the melon" }
-          - { "index": { } }
+          - { "index": {} }
           - { "full_text": "an apple a pear a melon" }
-          - { "index": { } }
+          - { "index": {} }
           - { "full_text": "an apple a melon" }
-          - { "index": { } }
+          - { "index": {} }
           - { "full_text": "elma muz armut kavun" }
-          - { "index": { } }
+          - { "index": {} }
           - { "full_text": "elma muz armut" }
-          - { "index": { } }
+          - { "index": {} }
           - { "full_text": "elma armut kavun" }
+          - { "index": {} }
+          - { "full_text": "the quick brown fox" }
+          - { "index": {} }
+          - { "full_text": "jumps over the lazy dog" }
 
 
 ---
@@ -48,7 +52,12 @@ setup:
       search:
         body:
           query:
-            match_all: {}
+            terms:
+              full_text:
+                - apple
+                - banana
+                - melon
+                - pear
           size: 0
           aggs:
             significant_texts:
@@ -58,12 +67,14 @@ setup:
                 keywords:
                   significant_text:
                     field: full_text.eng
+                    jlh: {}
+                    min_doc_count: 1
 
-  - match: { hits.total.value: 8 }
+  - match: { hits.total.value: 5 }
   - match: { hits.total.relation: "eq" }
   - length: { aggregations.significant_texts.keywords.buckets: 4 }
-  - match: { aggregations.significant_texts.keywords.doc_count: 7 }
-  - match: { aggregations.significant_texts.keywords.bg_count: 8 }
+  - match: { aggregations.significant_texts.keywords.doc_count: 5 }
+  - match: { aggregations.significant_texts.keywords.bg_count: 10 }
   - match: { aggregations.significant_texts.keywords.buckets.0.key: "apple" }
   - match: { aggregations.significant_texts.keywords.buckets.0.doc_count: 5 }
   - match: { aggregations.significant_texts.keywords.buckets.0.bg_count: 5 }
@@ -86,7 +97,12 @@ setup:
       search:
         body:
           query:
-            match_all: {}
+            terms:
+              full_text:
+                - apple
+                - banana
+                - melon
+                - pear
           size: 0
           aggs:
             significant_texts:
@@ -97,12 +113,14 @@ setup:
                   significant_text:
                     field: full_text.eng
                     size: 2
+                    jlh: {}
+                    min_doc_count: 1
 
-  - match: { hits.total.value: 8 }
+  - match: { hits.total.value: 5 }
   - match: { hits.total.relation: "eq" }
   - length: { aggregations.significant_texts.keywords.buckets: 2 }
-  - match: { aggregations.significant_texts.keywords.doc_count: 7 }
-  - match: { aggregations.significant_texts.keywords.bg_count: 8 }
+  - match: { aggregations.significant_texts.keywords.doc_count: 5 }
+  - match: { aggregations.significant_texts.keywords.bg_count: 10 }
   - match: { aggregations.significant_texts.keywords.buckets.0.key: "apple" }
   - match: { aggregations.significant_texts.keywords.buckets.0.doc_count: 5 }
   - match: { aggregations.significant_texts.keywords.buckets.0.bg_count: 5 }
@@ -119,7 +137,12 @@ setup:
       search:
         body:
           query:
-            match_all: {}
+            terms:
+              full_text:
+                - apple
+                - banana
+                - melon
+                - pear
           size: 0
           aggs:
             significant_texts:
@@ -130,12 +153,13 @@ setup:
                   significant_text:
                     field: full_text.eng
                     min_doc_count: 5
+                    jlh: {}
 
-  - match: { hits.total.value: 8 }
+  - match: { hits.total.value: 5 }
   - match: { hits.total.relation: "eq" }
   - length: { aggregations.significant_texts.keywords.buckets: 1 }
-  - match: { aggregations.significant_texts.keywords.doc_count: 7 }
-  - match: { aggregations.significant_texts.keywords.bg_count: 8 }
+  - match: { aggregations.significant_texts.keywords.doc_count: 5 }
+  - match: { aggregations.significant_texts.keywords.bg_count: 10 }
   - match: { aggregations.significant_texts.keywords.buckets.0.key: "apple" }
   - match: { aggregations.significant_texts.keywords.buckets.0.doc_count: 5 }
   - match: { aggregations.significant_texts.keywords.buckets.0.bg_count: 5 }
@@ -149,7 +173,12 @@ setup:
       search:
         body:
           query:
-            match_all: {}
+            terms:
+              full_text:
+                - apple
+                - banana
+                - melon
+                - pear
           size: 0
           aggs:
             significant_texts:
@@ -160,12 +189,14 @@ setup:
                   significant_text:
                     field: full_text.eng
                     exclude: "app.*"
+                    jlh: {}
+                    min_doc_count: 1
 
-  - match: { hits.total.value: 8 }
+  - match: { hits.total.value: 5 }
   - match: { hits.total.relation: "eq" }
   - length: { aggregations.significant_texts.keywords.buckets: 3 }
-  - match: { aggregations.significant_texts.keywords.doc_count: 7 }
-  - match: { aggregations.significant_texts.keywords.bg_count: 8 }
+  - match: { aggregations.significant_texts.keywords.doc_count: 5 }
+  - match: { aggregations.significant_texts.keywords.bg_count: 10 }
   - match: { aggregations.significant_texts.keywords.buckets.0.key: "melon" }
   - match: { aggregations.significant_texts.keywords.buckets.0.doc_count: 4 }
   - match: { aggregations.significant_texts.keywords.buckets.0.bg_count: 4 }
@@ -185,7 +216,12 @@ setup:
       search:
         body:
           query:
-            match_all: {}
+            terms:
+              full_text:
+                - apple
+                - banana
+                - melon
+                - pear
           size: 0
           aggs:
             significant_texts:
@@ -196,12 +232,14 @@ setup:
                   significant_text:
                     field: full_text.eng
                     include: ["melon", "banana"]
+                    jlh: {}
+                    min_doc_count: 1
 
-  - match: { hits.total.value: 8 }
+  - match: { hits.total.value: 5 }
   - match: { hits.total.relation: "eq" }
   - length: { aggregations.significant_texts.keywords.buckets: 2 }
-  - match: { aggregations.significant_texts.keywords.doc_count: 7 }
-  - match: { aggregations.significant_texts.keywords.bg_count: 8 }
+  - match: { aggregations.significant_texts.keywords.doc_count: 5 }
+  - match: { aggregations.significant_texts.keywords.bg_count: 10 }
   - match: { aggregations.significant_texts.keywords.buckets.0.key: "melon" }
   - match: { aggregations.significant_texts.keywords.buckets.0.doc_count: 4 }
   - match: { aggregations.significant_texts.keywords.buckets.0.bg_count: 4 }

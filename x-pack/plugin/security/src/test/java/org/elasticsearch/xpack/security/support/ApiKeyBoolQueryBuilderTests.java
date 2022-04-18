@@ -28,6 +28,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 
 import java.io.IOException;
@@ -287,6 +288,17 @@ public class ApiKeyBoolQueryBuilderTests extends ESTestCase {
         } finally {
             verify(context1).setAllowedFields(any());
         }
+    }
+
+    public void testWillFilterForApiKeyId() {
+        final String apiKeyId = randomAlphaOfLength(20);
+        final Authentication authentication = AuthenticationTests.randomApiKeyAuthentication(
+            new User(randomAlphaOfLengthBetween(5, 8)),
+            apiKeyId
+        );
+        final ApiKeyBoolQueryBuilder apiKeyQb = ApiKeyBoolQueryBuilder.build(randomFrom(randomSimpleQuery("name"), null), authentication);
+        assertThat(apiKeyQb.filter(), hasItem(QueryBuilders.termQuery("doc_type", "api_key")));
+        assertThat(apiKeyQb.filter(), hasItem(QueryBuilders.idsQuery().addIds(apiKeyId)));
     }
 
     private void testAllowedIndexFieldName(Predicate<String> predicate) {

@@ -148,13 +148,19 @@ public abstract class JwtTestCase extends ESTestCase {
             )
             .put(
                 RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLAIMS_PRINCIPAL.getPattern()),
-                randomBoolean() ? null : randomFrom("^(.*)$", "^([^@]+)@example\\.com$")
+                randomBoolean() ? null : randomFrom("^(.+)$", "^([^@]+)@example\\.com$")
             )
             .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLAIMS_GROUPS.getClaim()), randomFrom("group", "roles", "other"))
             .put(
                 RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLAIMS_GROUPS.getPattern()),
-                randomBoolean() ? null : randomFrom("^(.*)$", "^Group-(.*)$")
+                randomBoolean() ? null : randomFrom("^(.+)$", "^Group-(.+)$")
             )
+            .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLAIMS_DN.getClaim()), randomFrom("dn", "subjectDN"))
+            .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLAIMS_DN.getPattern()), "^CN=(.+?),?.*$")
+            .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLAIMS_MAIL.getClaim()), randomFrom("mail", "email"))
+            .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLAIMS_MAIL.getPattern()), randomBoolean() ? null : "^.+$")
+            .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLAIMS_NAME.getClaim()), randomFrom("name", "fullname"))
+            .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLAIMS_NAME.getPattern()), randomBoolean() ? null : "^.+$")
             .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.POPULATE_USER_METADATA), populateUserMetadata)
             // Client settings for incoming connections
             .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.CLIENT_AUTHENTICATION_TYPE), clientAuthenticationType)
@@ -163,6 +169,12 @@ public abstract class JwtTestCase extends ESTestCase {
                 RealmSettings.getFullSettingKey(name, DelegatedAuthorizationSettings.AUTHZ_REALMS.apply(JwtRealmSettings.TYPE)),
                 randomBoolean() ? "" : "authz1, authz2"
             )
+            // Cache settings
+            .put(
+                RealmSettings.getFullSettingKey(name, JwtRealmSettings.JWT_CACHE_TTL),
+                randomBoolean() ? "-1" : randomBoolean() ? "0" : randomIntBetween(10, 120) + randomFrom("s", "m", "h")
+            )
+            .put(RealmSettings.getFullSettingKey(name, JwtRealmSettings.JWT_CACHE_SIZE), randomIntBetween(0, 1))
             // HTTP settings for outgoing connections
             .put(
                 RealmSettings.getFullSettingKey(name, JwtRealmSettings.HTTP_CONNECT_TIMEOUT),

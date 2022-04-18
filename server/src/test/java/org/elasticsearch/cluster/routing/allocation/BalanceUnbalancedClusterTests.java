@@ -14,8 +14,8 @@ import org.elasticsearch.cluster.ESAllocationTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
@@ -59,9 +59,10 @@ public class BalanceUnbalancedClusterTests extends CatAllocationTestCase {
         }
         Map<String, Integer> counts = new HashMap<>();
         final IndexRoutingTable indexRoutingTable = clusterState.routingTable().index(index);
-        for (int i = 0; i < indexRoutingTable.size(); i++) {
-            for (ShardRouting r : indexRoutingTable.shard(i)) {
-                String s = r.currentNodeId();
+        for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
+            final IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(shardId);
+            for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                String s = indexShardRoutingTable.shard(copy).currentNodeId();
                 Integer count = counts.get(s);
                 if (count == null) {
                     count = 0;

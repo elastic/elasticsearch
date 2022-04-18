@@ -93,7 +93,7 @@ public class FsInfo implements Iterable<FsInfo.Path>, Writeable, ToXContentFragm
             return new ByteSizeValue(available);
         }
 
-        private long addLong(long current, long other) {
+        private static long addLong(long current, long other) {
             if (current == -1 && other == -1) {
                 return 0;
             }

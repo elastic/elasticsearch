@@ -151,6 +151,17 @@ public class TransportStartTrainedModelDeploymentAction extends TransportMasterN
             return;
         }
 
+        if (state.nodes().getMaxNodeVersion().after(state.nodes().getMinNodeVersion())) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    "Cannot start a new model deployment as not all nodes are on version {}. All nodes must be the same version",
+                    RestStatus.FORBIDDEN,
+                    state.getNodes().getMaxNodeVersion()
+                )
+            );
+            return;
+        }
+
         if (TrainedModelAllocationMetadata.fromState(state).modelAllocations().size() >= MachineLearning.MAX_TRAINED_MODEL_DEPLOYMENTS) {
             listener.onFailure(
                 new ElasticsearchStatusException(

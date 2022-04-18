@@ -50,10 +50,10 @@ public class SingleShardOneReplicaRoutingTests extends ESAllocationTestCase {
         assertThat(clusterState.routingTable().index("test").size(), equalTo(1));
         assertThat(clusterState.routingTable().index("test").shard(0).size(), equalTo(2));
         assertThat(clusterState.routingTable().index("test").shard(0).size(), equalTo(2));
-        assertThat(clusterState.routingTable().index("test").shard(0).shards().get(0).state(), equalTo(UNASSIGNED));
-        assertThat(clusterState.routingTable().index("test").shard(0).shards().get(1).state(), equalTo(UNASSIGNED));
-        assertThat(clusterState.routingTable().index("test").shard(0).shards().get(0).currentNodeId(), nullValue());
-        assertThat(clusterState.routingTable().index("test").shard(0).shards().get(1).currentNodeId(), nullValue());
+        assertThat(clusterState.routingTable().index("test").shard(0).shard(0).state(), equalTo(UNASSIGNED));
+        assertThat(clusterState.routingTable().index("test").shard(0).shard(1).state(), equalTo(UNASSIGNED));
+        assertThat(clusterState.routingTable().index("test").shard(0).shard(0).currentNodeId(), nullValue());
+        assertThat(clusterState.routingTable().index("test").shard(0).shard(1).currentNodeId(), nullValue());
 
         logger.info("Adding one node and performing rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().add(newNode("node1"))).build();

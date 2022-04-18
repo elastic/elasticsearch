@@ -338,7 +338,7 @@ final class WatcherIndexingListener implements IndexingOperationListener, Cluste
 
             // find all allocation ids for this shard id in the cluster state
             List<String> allocationIds = routingTable.shard(shardId.getId())
-                .getActiveShards()
+                .activeShards()
                 .stream()
                 .map(ShardRouting::allocationId)
                 .map(AllocationId::getId)

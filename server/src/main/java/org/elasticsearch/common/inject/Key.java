@@ -60,45 +60,6 @@ public class Key<T> {
      * parameter in the anonymous class's type hierarchy so we can reconstitute it
      * at runtime despite erasure.
      * <p>
-     * Example usage for a binding of type {@code Foo} annotated with
-     * {@code @Bar}:
-     * <p>
-     * {@code new Key<Foo>(Bar.class) {}}.
-     */
-    @SuppressWarnings("unchecked")
-    protected Key(Class<? extends Annotation> annotationType) {
-        this.annotationStrategy = strategyFor(annotationType);
-        this.typeLiteral = (TypeLiteral<T>) TypeLiteral.fromSuperclassTypeParameter(getClass());
-        this.hashCode = computeHashCode();
-    }
-
-    /**
-     * Constructs a new key. Derives the type from this class's type parameter.
-     * <p>
-     * Clients create an empty anonymous subclass. Doing so embeds the type
-     * parameter in the anonymous class's type hierarchy so we can reconstitute it
-     * at runtime despite erasure.
-     * <p>
-     * Example usage for a binding of type {@code Foo} annotated with
-     * {@code @Bar}:
-     * <p>
-     * {@code new Key<Foo>(new Bar()) {}}.
-     */
-    @SuppressWarnings("unchecked")
-    protected Key(Annotation annotation) {
-        // no usages, not test-covered
-        this.annotationStrategy = strategyFor(annotation);
-        this.typeLiteral = (TypeLiteral<T>) TypeLiteral.fromSuperclassTypeParameter(getClass());
-        this.hashCode = computeHashCode();
-    }
-
-    /**
-     * Constructs a new key. Derives the type from this class's type parameter.
-     * <p>
-     * Clients create an empty anonymous subclass. Doing so embeds the type
-     * parameter in the anonymous class's type hierarchy so we can reconstitute it
-     * at runtime despite erasure.
-     * <p>
      * Example usage for a binding of type {@code Foo}:
      * <p>
      * {@code new Key<Foo>() {}}.
@@ -158,25 +119,8 @@ public class Key<T> {
         return annotationStrategy.getAnnotationType() != null;
     }
 
-    String getAnnotationName() {
-        Annotation annotation = annotationStrategy.getAnnotation();
-        if (annotation != null) {
-            return annotation.toString();
-        }
-
-        // not test-covered
-        return annotationStrategy.getAnnotationType().toString();
-    }
-
     Class<? super T> getRawType() {
         return typeLiteral.getRawType();
-    }
-
-    /**
-     * Gets the key of this key's provider.
-     */
-    Key<Provider<T>> providerKey() {
-        return ofType(typeLiteral.providerType());
     }
 
     @Override
@@ -202,52 +146,10 @@ public class Key<T> {
     }
 
     /**
-     * Gets a key for an injection type and an annotation strategy.
-     */
-    static <T> Key<T> get(Class<T> type, AnnotationStrategy annotationStrategy) {
-        return new Key<>(type, annotationStrategy);
-    }
-
-    /**
      * Gets a key for an injection type.
      */
     public static <T> Key<T> get(Class<T> type) {
         return new Key<>(type, NullAnnotationStrategy.INSTANCE);
-    }
-
-    /**
-     * Gets a key for an injection type and an annotation type.
-     */
-    public static <T> Key<T> get(Class<T> type, Class<? extends Annotation> annotationType) {
-        return new Key<>(type, strategyFor(annotationType));
-    }
-
-    /**
-     * Gets a key for an injection type and an annotation.
-     */
-    public static <T> Key<T> get(Class<T> type, Annotation annotation) {
-        return new Key<>(type, strategyFor(annotation));
-    }
-
-    /**
-     * Gets a key for an injection type.
-     */
-    public static Key<?> get(Type type) {
-        return new Key<Object>(type, NullAnnotationStrategy.INSTANCE);
-    }
-
-    /**
-     * Gets a key for an injection type and an annotation type.
-     */
-    public static Key<?> get(Type type, Class<? extends Annotation> annotationType) {
-        return new Key<Object>(type, strategyFor(annotationType));
-    }
-
-    /**
-     * Gets a key for an injection type and an annotation.
-     */
-    public static Key<?> get(Type type, Annotation annotation) {
-        return new Key<Object>(type, strategyFor(annotation));
     }
 
     /**
@@ -258,13 +160,6 @@ public class Key<T> {
     }
 
     /**
-     * Gets a key for an injection type and an annotation type.
-     */
-    public static <T> Key<T> get(TypeLiteral<T> typeLiteral, Class<? extends Annotation> annotationType) {
-        return new Key<>(typeLiteral, strategyFor(annotationType));
-    }
-
-    /**
      * Gets a key for an injection type and an annotation.
      */
     public static <T> Key<T> get(TypeLiteral<T> typeLiteral, Annotation annotation) {
@@ -272,11 +167,11 @@ public class Key<T> {
     }
 
     /**
-     * Returns a new key of the specified type with the same annotation as this
+     * Returns a new key of the {@link String} type with the same annotation as this
      * key.
      */
-    <T> Key<T> ofType(Class<T> type) {
-        return new Key<>(type, annotationStrategy);
+    Key<String> ofStringType() {
+        return new Key<>(String.class, annotationStrategy);
     }
 
     /**
@@ -284,14 +179,6 @@ public class Key<T> {
      * key.
      */
     Key<?> ofType(Type type) {
-        return new Key<Object>(type, annotationStrategy);
-    }
-
-    /**
-     * Returns a new key of the specified type with the same annotation as this
-     * key.
-     */
-    <T> Key<T> ofType(TypeLiteral<T> type) {
         return new Key<>(type, annotationStrategy);
     }
 
@@ -321,13 +208,6 @@ public class Key<T> {
     }
 
     /**
-     * Returns {@code true} if the given annotation type has no attributes.
-     */
-    static boolean isMarker(Class<? extends Annotation> annotationType) {
-        return annotationType.getMethods().length == 0;
-    }
-
-    /**
      * Gets the strategy for an annotation.
      */
     static AnnotationStrategy strategyFor(Annotation annotation) {
@@ -341,16 +221,6 @@ public class Key<T> {
         }
 
         return new AnnotationInstanceStrategy(annotation);
-    }
-
-    /**
-     * Gets the strategy for an annotation type.
-     */
-    static AnnotationStrategy strategyFor(Class<? extends Annotation> annotationType) {
-        Objects.requireNonNull(annotationType, "annotation type");
-        ensureRetainedAtRuntime(annotationType);
-        ensureIsBindingAnnotation(annotationType);
-        return new AnnotationTypeStrategy(annotationType, null);
     }
 
     private static void ensureRetainedAtRuntime(Class<? extends Annotation> annotationType) {
@@ -499,10 +369,6 @@ public class Key<T> {
         public String toString() {
             return "@" + annotationType.getName();
         }
-    }
-
-    static boolean isBindingAnnotation(Annotation annotation) {
-        return isBindingAnnotation(annotation.annotationType());
     }
 
     static boolean isBindingAnnotation(Class<? extends Annotation> annotationType) {

@@ -57,9 +57,8 @@ Defaults to 1.
 
 [NOTE]
 =============================================
-Either one of `inference_threads` and `model_threads` may be greater than one, not both.
-Increase `inference_threads` to optimize for latency. Increase `model_threads` to optimize
-for throughput.
+If the sum of `inference_threads` and `model_threads` is greater than the number of
+hardware threads then the number of `inference_threads` will be reduced.
 =============================================
 
 `queue_capacity`::

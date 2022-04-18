@@ -247,7 +247,8 @@ public class ReplicationOperationTests extends ESTestCase {
         Set<String> trackedShards,
         Set<String> untrackedShards
     ) {
-        for (ShardRouting shr : indexShardRoutingTable.shards()) {
+        for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+            ShardRouting shr = indexShardRoutingTable.shard(copy);
             if (shr.unassigned() == false) {
                 if (shr.initializing()) {
                     if (randomBoolean()) {
@@ -553,7 +554,9 @@ public class ReplicationOperationTests extends ESTestCase {
         Set<ShardRouting> expectedReplicas = new HashSet<>();
         String localNodeId = state.nodes().getLocalNodeId();
         if (state.routingTable().hasIndex(shardId.getIndexName())) {
-            for (ShardRouting shardRouting : state.routingTable().shardRoutingTable(shardId)) {
+            final IndexShardRoutingTable indexShardRoutingTable = state.routingTable().shardRoutingTable(shardId);
+            for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                ShardRouting shardRouting = indexShardRoutingTable.shard(copy);
                 if (shardRouting.unassigned()) {
                     continue;
                 }

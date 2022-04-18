@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
@@ -196,7 +197,7 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
         // Only one model should be loaded, the other should be stopped
         trainedModelAllocationNodeService.prepareModelToLoad(newParams(modelToLoad));
         trainedModelAllocationNodeService.prepareModelToLoad(newParams(stoppedModelToLoad));
-        trainedModelAllocationNodeService.getTask(stoppedModelToLoad).stop("testing", ActionListener.wrap(r -> {}, e -> {}));
+        trainedModelAllocationNodeService.getTask(stoppedModelToLoad).stop("testing", ActionListener.noop());
         trainedModelAllocationNodeService.loadQueuedModels();
 
         assertBusy(() -> {
@@ -512,6 +513,7 @@ public class TrainedModelAllocationNodeServiceTests extends ESTestCase {
             trainedModelAllocationService,
             clusterService,
             deploymentManager,
+            TestIndexNameExpressionResolver.newInstance(),
             taskManager,
             threadPool,
             NODE_ID,

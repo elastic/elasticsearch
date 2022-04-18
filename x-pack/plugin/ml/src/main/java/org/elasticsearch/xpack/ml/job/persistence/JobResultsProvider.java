@@ -159,7 +159,7 @@ public class JobResultsProvider {
     private static final double ESTABLISHED_MEMORY_CV_THRESHOLD = 0.1;
 
     // filter for quantiles in modelSnapshots to avoid memory overhead
-    private static final FetchSourceContext REMOVE_QUANTILES_FROM_SOURCE = new FetchSourceContext(
+    private static final FetchSourceContext REMOVE_QUANTILES_FROM_SOURCE = FetchSourceContext.of(
         true,
         null,
         new String[] { ModelSnapshot.QUANTILES.getPreferredName() }

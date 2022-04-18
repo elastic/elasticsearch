@@ -15,6 +15,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
@@ -37,7 +38,7 @@ import java.util.function.Predicate;
 
 public interface Role {
 
-    Role EMPTY = builder(Automatons.EMPTY, "__empty").build();
+    Role EMPTY = builder(new RestrictedIndices(Automatons.EMPTY), "__empty").build();
 
     String[] names();
 
@@ -161,11 +162,11 @@ public interface Role {
      * @param names Names of roles.
      * @return A builder for a role
      */
-    static Builder builder(Automaton restrictedIndices, String... names) {
+    static Builder builder(RestrictedIndices restrictedIndices, String... names) {
         return new Builder(restrictedIndices, names);
     }
 
-    static Builder builder(RoleDescriptor rd, FieldPermissionsCache fieldPermissionsCache, Automaton restrictedIndices) {
+    static Builder builder(RoleDescriptor rd, FieldPermissionsCache fieldPermissionsCache, RestrictedIndices restrictedIndices) {
         return new Builder(rd, fieldPermissionsCache, restrictedIndices);
     }
 
@@ -176,14 +177,14 @@ public interface Role {
         private RunAsPermission runAs = RunAsPermission.NONE;
         private final List<IndicesPermissionGroupDefinition> groups = new ArrayList<>();
         private final List<Tuple<ApplicationPrivilege, Set<String>>> applicationPrivs = new ArrayList<>();
-        private final Automaton restrictedNamesAutomaton;
+        private final RestrictedIndices restrictedIndices;
 
-        private Builder(Automaton restrictedNamesAutomaton, String[] names) {
-            this.restrictedNamesAutomaton = restrictedNamesAutomaton;
+        private Builder(RestrictedIndices restrictedIndices, String[] names) {
+            this.restrictedIndices = restrictedIndices;
             this.names = names;
         }
 
-        private Builder(RoleDescriptor rd, @Nullable FieldPermissionsCache fieldPermissionsCache, Automaton restrictedNamesAutomaton) {
+        private Builder(RoleDescriptor rd, @Nullable FieldPermissionsCache fieldPermissionsCache, RestrictedIndices restrictedIndices) {
             this.names = new String[] { rd.getName() };
             cluster(Sets.newHashSet(rd.getClusterPrivileges()), Arrays.asList(rd.getConditionalClusterPrivileges()));
             groups.addAll(convertFromIndicesPrivileges(rd.getIndicesPrivileges(), fieldPermissionsCache));
@@ -197,7 +198,7 @@ public interface Role {
             if (rdRunAs != null && rdRunAs.length > 0) {
                 this.runAs(new Privilege(Sets.newHashSet(rdRunAs), rdRunAs));
             }
-            this.restrictedNamesAutomaton = restrictedNamesAutomaton;
+            this.restrictedIndices = restrictedIndices;
         }
 
         public Builder cluster(Set<String> privilegeNames, Iterable<ConfigurableClusterPrivilege> configurableClusterPrivileges) {
@@ -245,7 +246,7 @@ public interface Role {
             if (groups.isEmpty()) {
                 indices = IndicesPermission.NONE;
             } else {
-                IndicesPermission.Builder indicesBuilder = new IndicesPermission.Builder(restrictedNamesAutomaton);
+                IndicesPermission.Builder indicesBuilder = new IndicesPermission.Builder(restrictedIndices);
                 for (IndicesPermissionGroupDefinition group : groups) {
                     indicesBuilder.addGroup(
                         group.privilege,

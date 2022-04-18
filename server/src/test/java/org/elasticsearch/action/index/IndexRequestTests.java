@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -31,7 +30,7 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.io.UnsupportedEncodingException;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
@@ -250,7 +249,7 @@ public class IndexRequestTests extends ESTestCase {
         }
     }
 
-    public void testToStringSizeLimit() throws UnsupportedEncodingException {
+    public void testToStringSizeLimit() {
         IndexRequest request = new IndexRequest("index");
 
         String source = "{\"name\":\"value\"}";
@@ -261,7 +260,7 @@ public class IndexRequestTests extends ESTestCase {
             {"name":"%s"}
             """.formatted(randomUnicodeOfLength(IndexRequest.MAX_SOURCE_LENGTH_IN_TOSTRING));
         request.source(source, XContentType.JSON);
-        int actualBytes = source.getBytes("UTF-8").length;
+        int actualBytes = source.getBytes(StandardCharsets.UTF_8).length;
         assertEquals(
             "index {[index][null], source[n/a, actual length: ["
                 + new ByteSizeValue(actualBytes).toString()
@@ -326,7 +325,6 @@ public class IndexRequestTests extends ESTestCase {
                 .put(
                     DataStreamTestHelper.newInstance(
                         regularDataStream,
-                        new DataStream.TimestampField("@timestamp"),
                         List.of(backingIndex1.getIndex(), backingIndex2.getIndex()),
                         2,
                         null

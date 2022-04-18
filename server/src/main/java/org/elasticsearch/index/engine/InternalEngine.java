@@ -600,7 +600,7 @@ public class InternalEngine extends Engine {
     /**
      * Reads the current stored history ID from the IW commit data.
      */
-    private String loadHistoryUUID(Map<String, String> commitData) {
+    private static String loadHistoryUUID(Map<String, String> commitData) {
         final String uuid = commitData.get(HISTORY_UUID_KEY);
         if (uuid == null) {
             throw new IllegalStateException("commit doesn't contain history uuid");
@@ -705,7 +705,7 @@ public class InternalEngine extends Engine {
                     if (get.versionType().isVersionConflictForReads(versionValue.version, get.version())) {
                         throw new VersionConflictEngineException(
                             shardId,
-                            get.id(),
+                            "[" + get.id() + "]",
                             get.versionType().explainConflictForReads(versionValue.version, get.version())
                         );
                     }
@@ -1150,9 +1150,8 @@ public class InternalEngine extends Engine {
                 } else if (index.versionType().isVersionConflictForWrites(currentVersion, index.version(), currentNotFoundOrDeleted)) {
                     final VersionConflictEngineException e = new VersionConflictEngineException(
                         shardId,
-                        index,
-                        currentVersion,
-                        currentNotFoundOrDeleted
+                        index.parsedDoc().documentDescription(),
+                        index.versionType().explainConflictForWrites(currentVersion, index.version(), true)
                     );
                     plan = IndexingStrategy.skipDueToVersionConflict(e, currentNotFoundOrDeleted, currentVersion, index.id());
                 } else {
@@ -1222,7 +1221,7 @@ public class InternalEngine extends Engine {
      * If we hit any failure while processing an indexing on a replica, we should treat that error as tragic and fail the engine.
      * However, we prefer to fail a request individually (instead of a shard) if we hit a document failure on the primary.
      */
-    private boolean treatDocumentFailureAsTragicError(Index index) {
+    private static boolean treatDocumentFailureAsTragicError(Index index) {
         // TODO: can we enable this check for all origins except primary on the leader?
         return index.origin() == Operation.Origin.REPLICA
             || index.origin() == Operation.Origin.PEER_RECOVERY
@@ -1568,9 +1567,8 @@ public class InternalEngine extends Engine {
             } else if (delete.versionType().isVersionConflictForWrites(currentVersion, delete.version(), currentlyDeleted)) {
                 final VersionConflictEngineException e = new VersionConflictEngineException(
                     shardId,
-                    delete,
-                    currentVersion,
-                    currentlyDeleted
+                    "[" + delete.id() + "]",
+                    delete.versionType().explainConflictForWrites(currentVersion, delete.version(), true)
                 );
                 plan = DeletionStrategy.skipDueToVersionConflict(e, currentVersion, currentlyDeleted, delete.id());
             } else {
@@ -2171,14 +2169,40 @@ public class InternalEngine extends Engine {
             flush(false, true);
             logger.trace("finish flush for snapshot");
         }
-        final IndexCommit lastCommit = combinedDeletionPolicy.acquireIndexCommit(false);
-        return new Engine.IndexCommitRef(lastCommit, () -> releaseIndexCommit(lastCommit));
+        store.incRef();
+        boolean success = false;
+        try {
+            final IndexCommit lastCommit = combinedDeletionPolicy.acquireIndexCommit(false);
+            final IndexCommitRef commitRef = new IndexCommitRef(
+                lastCommit,
+                () -> IOUtils.close(() -> releaseIndexCommit(lastCommit), store::decRef)
+            );
+            success = true;
+            return commitRef;
+        } finally {
+            if (success == false) {
+                store.decRef();
+            }
+        }
     }
 
     @Override
     public IndexCommitRef acquireSafeIndexCommit() throws EngineException {
-        final IndexCommit safeCommit = combinedDeletionPolicy.acquireIndexCommit(true);
-        return new Engine.IndexCommitRef(safeCommit, () -> releaseIndexCommit(safeCommit));
+        store.incRef();
+        boolean success = false;
+        try {
+            final IndexCommit safeCommit = combinedDeletionPolicy.acquireIndexCommit(true);
+            final IndexCommitRef commitRef = new IndexCommitRef(
+                safeCommit,
+                () -> IOUtils.close(() -> releaseIndexCommit(safeCommit), store::decRef)
+            );
+            success = true;
+            return commitRef;
+        } finally {
+            if (success == false) {
+                store.decRef();
+            }
+        }
     }
 
     private void releaseIndexCommit(IndexCommit snapshot) throws IOException {

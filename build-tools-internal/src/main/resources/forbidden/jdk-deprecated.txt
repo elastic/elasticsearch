@@ -310,8 +310,8 @@ java.security.cert.X509CertSelector#getIssuerAsString()
 java.security.cert.X509CertSelector#getSubjectAsString()
 java.security.cert.X509CertSelector#setIssuer(java.lang.String)
 java.security.cert.X509CertSelector#setSubject(java.lang.String)
-# java.security.cert.X509Certificate#getIssuerDN()
-# java.security.cert.X509Certificate#getSubjectDN()
+java.security.cert.X509Certificate#getIssuerDN()
+java.security.cert.X509Certificate#getSubjectDN()
 java.security.interfaces.DSAPrivateKey#serialVersionUID
 java.security.interfaces.DSAPublicKey#serialVersionUID
 java.security.interfaces.ECPrivateKey#serialVersionUID

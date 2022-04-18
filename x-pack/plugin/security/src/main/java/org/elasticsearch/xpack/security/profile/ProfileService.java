@@ -52,8 +52,8 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.profile.Profile;
-import org.elasticsearch.xpack.core.security.action.profile.SearchProfilesRequest;
-import org.elasticsearch.xpack.core.security.action.profile.SearchProfilesResponse;
+import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesRequest;
+import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesResponse;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationContext;
@@ -153,8 +153,8 @@ public class ProfileService {
                 builder.field("user_profile");
                 builder.startObject();
                 {
-                    if (false == request.getAccess().isEmpty()) {
-                        builder.field("access", request.getAccess());
+                    if (false == request.getLabels().isEmpty()) {
+                        builder.field("labels", request.getLabels());
                     }
                     if (false == request.getData().isEmpty()) {
                         builder.field("application_data", request.getData());
@@ -174,10 +174,14 @@ public class ProfileService {
         );
     }
 
-    public void searchProfile(SearchProfilesRequest request, ActionListener<SearchProfilesResponse> listener) {
+    public void suggestProfile(SuggestProfilesRequest request, ActionListener<SuggestProfilesResponse> listener) {
         tryFreezeAndCheckIndex(listener.map(response -> {
             assert response == null : "only null response can reach here";
-            return new SearchProfilesResponse(new SearchProfilesResponse.ProfileHit[] {}, 0, new TotalHits(0, TotalHits.Relation.EQUAL_TO));
+            return new SuggestProfilesResponse(
+                new SuggestProfilesResponse.ProfileHit[] {},
+                0,
+                new TotalHits(0, TotalHits.Relation.EQUAL_TO)
+            );
         })).ifPresent(frozenProfileIndex -> {
             final BoolQueryBuilder query = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("user_profile.enabled", true));
             if (Strings.hasText(request.getName())) {
@@ -211,11 +215,11 @@ public class ProfileService {
                     ActionListener.wrap(searchResponse -> {
                         final SearchHits searchHits = searchResponse.getHits();
                         final SearchHit[] hits = searchHits.getHits();
-                        final SearchProfilesResponse.ProfileHit[] profileHits;
+                        final SuggestProfilesResponse.ProfileHit[] profileHits;
                         if (hits.length == 0) {
-                            profileHits = new SearchProfilesResponse.ProfileHit[0];
+                            profileHits = new SuggestProfilesResponse.ProfileHit[0];
                         } else {
-                            profileHits = new SearchProfilesResponse.ProfileHit[hits.length];
+                            profileHits = new SuggestProfilesResponse.ProfileHit[hits.length];
                             for (int i = 0; i < hits.length; i++) {
                                 final SearchHit hit = hits[i];
                                 final VersionedDocument versionedDocument = new VersionedDocument(
@@ -223,14 +227,14 @@ public class ProfileService {
                                     hit.getPrimaryTerm(),
                                     hit.getSeqNo()
                                 );
-                                profileHits[i] = new SearchProfilesResponse.ProfileHit(
+                                profileHits[i] = new SuggestProfilesResponse.ProfileHit(
                                     versionedDocument.toProfile(request.getDataKeys()),
                                     hit.getScore()
                                 );
                             }
                         }
                         listener.onResponse(
-                            new SearchProfilesResponse(profileHits, searchResponse.getTook().millis(), searchHits.getTotalHits())
+                            new SuggestProfilesResponse(profileHits, searchResponse.getTook().millis(), searchHits.getTotalHits())
                         );
                     }, listener::onFailure)
                 )
@@ -342,7 +346,11 @@ public class ProfileService {
                             final ParameterizedMessage errorMessage = new ParameterizedMessage(
                                 "multiple [{}] profiles [{}] found for user [{}] from realm [{}]{}",
                                 hits.length,
-                                Arrays.stream(hits).map(SearchHit::getId).map(this::docIdToUid).sorted().collect(Collectors.joining(",")),
+                                Arrays.stream(hits)
+                                    .map(SearchHit::getId)
+                                    .map(ProfileService::docIdToUid)
+                                    .sorted()
+                                    .collect(Collectors.joining(",")),
                                 subject.getUser().principal(),
                                 subject.getRealm().getName(),
                                 subject.getRealm().getDomain() == null
@@ -539,18 +547,18 @@ public class ProfileService {
         );
     }
 
-    private String uidToDocId(String uid) {
+    private static String uidToDocId(String uid) {
         return DOC_ID_PREFIX + uid;
     }
 
-    private String docIdToUid(String docId) {
+    private static String docIdToUid(String docId) {
         if (docId == null || false == docId.startsWith(DOC_ID_PREFIX)) {
             throw new IllegalStateException("profile document ID [" + docId + "] has unexpected value");
         }
         return docId.substring(DOC_ID_PREFIX.length());
     }
 
-    ProfileDocument buildProfileDocument(BytesReference source) throws IOException {
+    static ProfileDocument buildProfileDocument(BytesReference source) throws IOException {
         if (source == null) {
             throw new IllegalStateException("profile document did not have source but source should have been fetched");
         }
@@ -559,7 +567,7 @@ public class ProfileService {
         }
     }
 
-    private XContentBuilder wrapProfileDocument(ProfileDocument profileDocument) throws IOException {
+    private static XContentBuilder wrapProfileDocument(ProfileDocument profileDocument) throws IOException {
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         builder.field("user_profile", profileDocument);
@@ -567,14 +575,14 @@ public class ProfileService {
         return builder;
     }
 
-    private XContentBuilder wrapProfileDocumentWithoutApplicationData(ProfileDocument profileDocument) throws IOException {
+    private static XContentBuilder wrapProfileDocumentWithoutApplicationData(ProfileDocument profileDocument) throws IOException {
         final XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
         builder.field(
             "user_profile",
             profileDocument,
-            // NOT including the access and data in the update request so they will not be changed
-            new ToXContent.MapParams(Map.of("include_access", Boolean.FALSE.toString(), "include_data", Boolean.FALSE.toString()))
+            // NOT including the labels and data in the update request so they will not be changed
+            new ToXContent.MapParams(Map.of("include_labels", Boolean.FALSE.toString(), "include_data", Boolean.FALSE.toString()))
         );
         builder.endObject();
         return builder;
@@ -597,7 +605,7 @@ public class ProfileService {
         return Optional.of(frozenProfileIndex);
     }
 
-    private ProfileDocument updateWithSubject(ProfileDocument doc, Subject subject) {
+    private static ProfileDocument updateWithSubject(ProfileDocument doc, Subject subject) {
         final User subjectUser = subject.getUser();
         return new ProfileDocument(
             doc.uid(),
@@ -609,10 +617,9 @@ public class ProfileService {
                 subject.getRealm(),
                 // Replace with incoming information even when they are null
                 subjectUser.email(),
-                subjectUser.fullName(),
-                subjectUser.enabled()
+                subjectUser.fullName()
             ),
-            doc.access(),
+            doc.labels(),
             doc.applicationData()
         );
     }
@@ -637,7 +644,7 @@ public class ProfileService {
                 doc.enabled(),
                 doc.lastSynchronized(),
                 doc.user().toProfileUser(),
-                doc.access(),
+                doc.labels(),
                 applicationData,
                 new Profile.VersionControl(primaryTerm, seqNo)
             );

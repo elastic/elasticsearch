@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.vectortile.feature;
 
 import org.apache.lucene.tests.geo.GeoTestUtil;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.SimpleFeatureFactory;
 import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Rectangle;
@@ -29,21 +28,20 @@ public class FeatureFactoriesConsistencyTests extends ESTestCase {
         int extent = randomIntBetween(1 << 8, 1 << 14);
         int padPixels = randomIntBetween(0, extent);
         Rectangle rectangle = GeoTileUtils.toBoundingBox(x, y, z);
-        SimpleFeatureFactory builder = new SimpleFeatureFactory(z, x, y, extent);
         FeatureFactory factory = new FeatureFactory(z, x, y, extent, padPixels);
         List<Point> points = new ArrayList<>();
         List<GeoPoint> geoPoints = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
             double lat = randomValueOtherThanMany((l) -> rectangle.getMinY() > l || rectangle.getMaxY() < l, GeoTestUtil::nextLatitude);
             double lon = randomValueOtherThanMany((l) -> rectangle.getMinX() > l || rectangle.getMaxX() < l, GeoTestUtil::nextLongitude);
-            byte[] b1 = builder.point(lon, lat);
+            byte[] b1 = factory.point(lon, lat);
             Point point = new Point(lon, lat);
             byte[] b2 = factory.getFeatures(point).get(0);
             assertArrayEquals(b1, b2);
             points.add(point);
             geoPoints.add(new GeoPoint(lat, lon));
         }
-        byte[] b1 = builder.points(geoPoints);
+        byte[] b1 = factory.points(geoPoints);
         byte[] b2 = factory.getFeatures(new MultiPoint(points)).get(0);
         assertArrayEquals(b1, b2);
     }
@@ -54,11 +52,10 @@ public class FeatureFactoriesConsistencyTests extends ESTestCase {
         int y = randomIntBetween(0, (1 << z) - 1);
         int extent = randomIntBetween(1 << 8, 1 << 14);
         int padPixels = randomIntBetween(0, extent);
-        SimpleFeatureFactory builder = new SimpleFeatureFactory(z, x, y, extent);
         FeatureFactory factory = new FeatureFactory(z, x, y, extent, padPixels);
         Rectangle r = GeoTileUtils.toBoundingBox(x, y, z);
         for (int i = 0; i < extent; i++) {
-            byte[] b1 = builder.box(r.getMinLon(), r.getMaxLon(), r.getMinLat(), r.getMaxLat());
+            byte[] b1 = factory.box(r.getMinLon(), r.getMaxLon(), r.getMinLat(), r.getMaxLat());
             byte[] b2 = factory.getFeatures(r).get(0);
             assertArrayEquals(extent + "", b1, b2);
         }
@@ -70,19 +67,18 @@ public class FeatureFactoriesConsistencyTests extends ESTestCase {
         int y = randomIntBetween(1, (1 << z) - 1);
         int extent = randomIntBetween(1 << 8, 1 << 14);
         int padPixels = randomIntBetween(0, extent);
-        SimpleFeatureFactory builder = new SimpleFeatureFactory(z, x, y, extent);
         FeatureFactory factory = new FeatureFactory(z, x, y, extent, padPixels);
         {
             Rectangle r = GeoTileUtils.toBoundingBox(x, y, z);
             // box is a point
-            byte[] b1 = builder.box(r.getMaxLon(), r.getMaxLon(), r.getMaxLat(), r.getMaxLat());
+            byte[] b1 = factory.box(r.getMaxLon(), r.getMaxLon(), r.getMaxLat(), r.getMaxLat());
             byte[] b2 = factory.getFeatures(new Rectangle(r.getMaxLon(), r.getMaxLon(), r.getMaxLat(), r.getMaxLat())).get(0);
             assertArrayEquals(extent + "", b1, b2);
         }
         {
             Rectangle r = GeoTileUtils.toBoundingBox(x, y, z);
             // box is a line
-            byte[] b1 = builder.box(r.getMinLon(), r.getMinLon(), r.getMinLat(), r.getMaxLat());
+            byte[] b1 = factory.box(r.getMinLon(), r.getMinLon(), r.getMinLat(), r.getMaxLat());
             byte[] b2 = factory.getFeatures(new Rectangle(r.getMinLon(), r.getMinLon(), r.getMaxLat(), r.getMinLat())).get(0);
             assertArrayEquals(extent + "", b1, b2);
         }

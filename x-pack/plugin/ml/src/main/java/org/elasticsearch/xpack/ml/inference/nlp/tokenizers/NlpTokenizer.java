@@ -127,8 +127,35 @@ public abstract class NlpTokenizer implements Releasable {
         return toReturn;
     }
 
+    /**
+     * Tokenize the sequence pair
+     * @param seq1 The first sequence in the pair
+     * @param seq2 The second sequence
+     * @param truncate truncate settings
+     * @param sequenceId The unique id for this tokenization request
+     * @return tokenization result for the sequence pair
+     */
     public TokenizationResult.Tokens tokenize(String seq1, String seq2, Tokenization.Truncate truncate, int sequenceId) {
-        var innerResultSeq1 = innerTokenize(seq1);
+        return tokenize(seq1, innerTokenize(seq1), seq2, truncate, sequenceId);
+    }
+
+    /**
+     * The same as {@link NlpTokenizer#tokenize(String, String, Tokenization.Truncate, int)} but allows for tokenizing the first sequence
+     * only once. Useful for zero shot classification.
+     * @param seq1 The first sequence
+     * @param innerResultSeq1 The tokenization of the first sequence
+     * @param seq2 The second sequence in the pair
+     * @param truncate truncate settings
+     * @param sequenceId The unique id for this tokenization request
+     * @return tokenization result for the sequence pair
+     */
+    public TokenizationResult.Tokens tokenize(
+        String seq1,
+        InnerTokenization innerResultSeq1,
+        String seq2,
+        Tokenization.Truncate truncate,
+        int sequenceId
+    ) {
         List<? extends DelimitedToken.Encoded> tokenIdsSeq1 = innerResultSeq1.tokens;
         List<Integer> tokenPositionMapSeq1 = innerResultSeq1.tokenPositionMap;
         var innerResultSeq2 = innerTokenize(seq2);
@@ -206,7 +233,7 @@ public abstract class NlpTokenizer implements Releasable {
 
     abstract TokenizationResult.TokensBuilder createTokensBuilder(int clsTokenId, int sepTokenId, boolean withSpecialTokens);
 
-    abstract InnerTokenization innerTokenize(String seq);
+    public abstract InnerTokenization innerTokenize(String seq);
 
     public static NlpTokenizer build(Vocabulary vocabulary, Tokenization params) {
         ExceptionsHelper.requireNonNull(params, TOKENIZATION);
@@ -223,5 +250,5 @@ public abstract class NlpTokenizer implements Releasable {
         throw new IllegalArgumentException("unknown tokenization type [" + params.getName() + "]");
     }
 
-    record InnerTokenization(List<? extends DelimitedToken.Encoded> tokens, List<Integer> tokenPositionMap) {}
+    public record InnerTokenization(List<? extends DelimitedToken.Encoded> tokens, List<Integer> tokenPositionMap) {}
 }

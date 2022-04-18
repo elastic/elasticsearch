@@ -112,11 +112,11 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
             clusterState = newState;
             RoutingTable routingTable = clusterState.routingTable();
             assertEquals(routingTable.index("idx").size(), 1);
-            assertEquals(routingTable.index("idx").shard(0).shards().get(0).state(), INITIALIZING);
-            assertEquals(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getNumFailedAllocations(), i);
+            assertEquals(routingTable.index("idx").shard(0).shard(0).state(), INITIALIZING);
+            assertEquals(routingTable.index("idx").shard(0).shard(0).unassignedInfo().getNumFailedAllocations(), i);
             List<FailedShard> failedShards = Collections.singletonList(
                 new FailedShard(
-                    routingTable.index("idx").shard(0).shards().get(0),
+                    routingTable.index("idx").shard(0).shard(0),
                     "boom" + i,
                     new UnsupportedOperationException(),
                     randomBoolean()
@@ -128,11 +128,11 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
             routingTable = clusterState.routingTable();
             assertEquals(routingTable.index("idx").size(), 1);
             if (i == retries - 1) {
-                assertEquals(routingTable.index("idx").shard(0).shards().get(0).state(), UNASSIGNED);
+                assertEquals(routingTable.index("idx").shard(0).shard(0).state(), UNASSIGNED);
             } else {
-                assertEquals(routingTable.index("idx").shard(0).shards().get(0).state(), INITIALIZING);
+                assertEquals(routingTable.index("idx").shard(0).shard(0).state(), INITIALIZING);
             }
-            assertEquals(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getNumFailedAllocations(), i + 1);
+            assertEquals(routingTable.index("idx").shard(0).shard(0).unassignedInfo().getNumFailedAllocations(), i + 1);
         }
 
         // without retry_failed we won't allocate that shard
@@ -142,8 +142,8 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
         assertSame(responseRef.get().getState(), newState);
         RoutingTable routingTable = clusterState.routingTable();
         assertEquals(routingTable.index("idx").size(), 1);
-        assertEquals(routingTable.index("idx").shard(0).shards().get(0).state(), UNASSIGNED);
-        assertEquals(routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getNumFailedAllocations(), retries);
+        assertEquals(routingTable.index("idx").shard(0).shard(0).state(), UNASSIGNED);
+        assertEquals(routingTable.index("idx").shard(0).shard(0).unassignedInfo().getNumFailedAllocations(), retries);
 
         req.setRetryFailed(true); // now we manually retry and get the shard back into initializing
         newState = task.execute(clusterState);
@@ -151,8 +151,8 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
         clusterState = newState;
         routingTable = clusterState.routingTable();
         assertEquals(1, routingTable.index("idx").size());
-        assertEquals(INITIALIZING, routingTable.index("idx").shard(0).shards().get(0).state());
-        assertEquals(0, routingTable.index("idx").shard(0).shards().get(0).unassignedInfo().getNumFailedAllocations());
+        assertEquals(INITIALIZING, routingTable.index("idx").shard(0).shard(0).state());
+        assertEquals(0, routingTable.index("idx").shard(0).shard(0).unassignedInfo().getNumFailedAllocations());
     }
 
     private ClusterState createInitialClusterState(AllocationService service) {
@@ -174,10 +174,10 @@ public class ClusterRerouteTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertEquals(prevRoutingTable.index("idx").size(), 1);
-        assertEquals(prevRoutingTable.index("idx").shard(0).shards().get(0).state(), UNASSIGNED);
+        assertEquals(prevRoutingTable.index("idx").shard(0).shard(0).state(), UNASSIGNED);
 
         assertEquals(routingTable.index("idx").size(), 1);
-        assertEquals(routingTable.index("idx").shard(0).shards().get(0).state(), INITIALIZING);
+        assertEquals(routingTable.index("idx").shard(0).shard(0).state(), INITIALIZING);
         return clusterState;
     }
 }

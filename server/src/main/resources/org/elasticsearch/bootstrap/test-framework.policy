@@ -111,3 +111,7 @@ grant codeBase "${codebase.netty-transport}" {
    permission java.util.PropertyPermission "sun.nio.ch.bugLevel", "write";
    permission java.net.SocketPermission "*", "accept,connect";
 };
+
+grant {
+  permission java.net.SocketPermission "127.0.0.1", "connect, resolve";
+};

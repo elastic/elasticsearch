@@ -213,13 +213,13 @@ public class QueryApiKeyIT extends SecurityInBasicRestTestCase {
             apiKeys.forEach(k -> assertThat(k, not(hasKey("_sort"))));
         });
 
-        // limitKey gets only keys owned by the original user, not including the derived keys since they are not
-        // owned by the user (realm_name is _es_api_key).
+        // limitKey gets only itself. It cannot view other keys owned by the owner user. This is consistent with how
+        // get api key works
         assertQuery(limitKeyAuthHeader, "", apiKeys -> {
-            assertThat(apiKeys.size(), equalTo(2));
+            assertThat(apiKeys.size(), equalTo(1));
             assertThat(
                 apiKeys.stream().map(m -> (String) m.get("name")).collect(Collectors.toUnmodifiableSet()),
-                equalTo(Set.of("power-key-1", "limit-key-1"))
+                equalTo(Set.of("limit-key-1"))
             );
             apiKeys.forEach(k -> assertThat(k, not(hasKey("_sort"))));
         });

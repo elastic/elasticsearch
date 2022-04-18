@@ -125,7 +125,8 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
                         + "]"
                 );
             }
-            for (ShardRouting shardRouting : indexShardRoutingTable) {
+            for (int copy = 0; copy < indexShardRoutingTable.size(); copy++) {
+                ShardRouting shardRouting = indexShardRoutingTable.shard(copy);
                 if (shardRouting.index().equals(index) == false) {
                     throw new IllegalStateException(
                         "shard routing has an index [" + shardRouting.index() + "] that is different from the routing table"
@@ -180,7 +181,8 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
     public int numberOfNodesShardsAreAllocatedOn(String... excludedNodes) {
         Set<String> nodes = new HashSet<>();
         for (IndexShardRoutingTable shardRoutingTable : this.shards) {
-            for (ShardRouting shardRouting : shardRoutingTable) {
+            for (int copy = 0; copy < shardRoutingTable.size(); copy++) {
+                ShardRouting shardRouting = shardRoutingTable.shard(copy);
                 if (shardRouting.assignedToNode()) {
                     String currentNodeId = shardRouting.currentNodeId();
                     boolean excluded = false;
@@ -512,14 +514,16 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
                 }
                 // re-add all the current ones
                 IndexShardRoutingTable.Builder builder = new IndexShardRoutingTable.Builder(indexShard.shardId());
-                for (ShardRouting shardRouting : indexShard) {
+                for (int copy = 0; copy < indexShard.size(); copy++) {
+                    ShardRouting shardRouting = indexShard.shard(copy);
                     builder.addShard(shardRouting);
                 }
 
                 boolean removed = false;
                 for (Predicate<ShardRouting> removeClause : PRIORITY_REMOVE_CLAUSES) {
                     if (removed == false) {
-                        for (ShardRouting shardRouting : indexShard) {
+                        for (int copy = 0; copy < indexShard.size(); copy++) {
+                            ShardRouting shardRouting = indexShard.shard(copy);
                             if (shardRouting.primary() == false && removeClause.test(shardRouting)) {
                                 builder.removeShard(shardRouting);
                                 removed = true;
@@ -569,8 +573,8 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
                 .append("][")
                 .append(indexShard.shardId().id())
                 .append("]\n");
-            for (ShardRouting shard : indexShard) {
-                sb.append("--------").append(shard.shortSummary()).append("\n");
+            for (int copy = 0; copy < indexShard.size(); copy++) {
+                sb.append("--------").append(indexShard.shard(copy).shortSummary()).append("\n");
             }
         }
         return sb.toString();

@@ -2049,7 +2049,23 @@ public class DocumentParserTests extends MapperServiceTestCase {
                 MapperException.class,
                 () -> mapper.parse(source(null, b -> b.field("foo", true), null))
             );
-            assertThat(exception.getMessage(), containsString("failed to parse field [foo] of type [long] in a time series document"));
+            assertThat(
+                exception.getMessage(),
+                equalTo("failed to parse field [foo] of type [long] in a time series document. Preview of field's value: 'true'")
+            );
+        }
+        {
+            MapperException exception = expectThrows(
+                MapperException.class,
+                () -> mapper.parse(source(null, b -> b.field("@timestamp", "2021-04-28T00:01:00Z").field("foo", true), null))
+            );
+            assertThat(
+                exception.getMessage(),
+                equalTo(
+                    "failed to parse field [foo] of type [long] in a time series document at "
+                        + "[2021-04-28T00:01:00.000Z]. Preview of field's value: 'true'"
+                )
+            );
         }
     }
 
@@ -2097,7 +2113,10 @@ public class DocumentParserTests extends MapperServiceTestCase {
                 protected RuntimeField createRuntimeField(MappingParserContext parserContext) {
                     return new TestRuntimeField(
                         n,
-                        List.of(new KeywordFieldMapper.KeywordFieldType(n + ".foo"), new KeywordFieldMapper.KeywordFieldType(n + ".bar"))
+                        List.of(
+                            new TestRuntimeField.TestRuntimeFieldType(n + ".foo", KeywordFieldMapper.CONTENT_TYPE),
+                            new TestRuntimeField.TestRuntimeFieldType(n + ".bar", KeywordFieldMapper.CONTENT_TYPE)
+                        )
                     );
                 }
 

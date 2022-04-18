@@ -149,7 +149,7 @@ public class InboundDecoder implements Releasable {
         return bytesConsumed == totalNetworkSize;
     }
 
-    private int headerBytesToRead(BytesReference reference) {
+    private static int headerBytesToRead(BytesReference reference) {
         if (reference.length() < TcpHeader.BYTES_REQUIRED_FOR_VERSION) {
             return 0;
         }

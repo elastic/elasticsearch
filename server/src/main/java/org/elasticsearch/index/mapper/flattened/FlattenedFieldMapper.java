@@ -144,13 +144,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             Integer.MAX_VALUE
         );
 
-        private final Parameter<String> indexOptions = Parameter.restrictedStringParam(
-            "index_options",
-            false,
-            m -> builder(m).indexOptions.get(),
-            "docs",
-            "freqs"
-        );
+        private final Parameter<String> indexOptions = TextParams.keywordIndexOptions(m -> builder(m).indexOptions.get());
         private final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> builder(m).similarity.get());
 
         private final Parameter<Boolean> splitQueriesOnWhitespace = Parameter.boolParam(

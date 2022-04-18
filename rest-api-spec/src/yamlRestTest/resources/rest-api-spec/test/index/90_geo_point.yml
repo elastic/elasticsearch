@@ -2,7 +2,7 @@
 "setup":
   - do:
       indices.create:
-        index: test
+        index: null_value_configured
         body:
           mappings:
             properties:
@@ -17,7 +17,7 @@
   - do:
       bulk:
         refresh: true
-        index: test
+        index: null_value_configured
         body:
           - '{ "index" : {} }'
           - '{ "point": null }'
@@ -25,6 +25,7 @@
 
   - do:
       search:
+        index: null_value_configured
         size: 0
         body:
           aggs:
@@ -38,10 +39,14 @@
 
 ---
 "null value in array":
+  - skip:
+      version: " - 8.2.99"
+      reason: fixed in 8.3.0
+
   - do:
       bulk:
         refresh: true
-        index: test
+        index: null_value_configured
         body:
           - '{ "index" : {} }'
           - '{ "point": [null, {"lat": -54.48979082798907, "lon": -37.07576688239972}] }'
@@ -49,6 +54,7 @@
 
   - do:
       search:
+        index: null_value_configured
         size: 0
         body:
           aggs:

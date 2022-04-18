@@ -40,7 +40,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.tracing.Traceable;
 import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
@@ -71,7 +70,6 @@ import org.elasticsearch.xpack.core.security.authz.privilege.IndexPrivilege;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.security.AuthorizationTracer;
 import org.elasticsearch.xpack.security.Security;
 import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
@@ -111,7 +109,6 @@ public class AuthorizationService {
         true,
         Property.NodeScope
     );
-    public static final Setting<Boolean> TRACE_AUTHORIZATION = Setting.boolSetting(setting("authz.tracing"), false, Property.NodeScope);
     private static final AuthorizationInfo SYSTEM_AUTHZ_INFO = () -> Collections.singletonMap(
         PRINCIPAL_ROLES_FIELD_NAME,
         new String[] { SystemUser.ROLE_NAME }
@@ -137,8 +134,6 @@ public class AuthorizationService {
 
     private final boolean isAnonymousEnabled;
     private final boolean anonymousAuthzExceptionEnabled;
-    private final AuthorizationTracer authorizationTracer;
-    private final boolean tracingEnabled;
 
     public AuthorizationService(
         Settings settings,
@@ -153,8 +148,7 @@ public class AuthorizationService {
         XPackLicenseState licenseState,
         IndexNameExpressionResolver resolver,
         OperatorPrivilegesService operatorPrivilegesService,
-        RestrictedIndices restrictedIndices,
-        AuthorizationTracer authorizationTracer
+        RestrictedIndices restrictedIndices
     ) {
         this.clusterService = clusterService;
         this.auditTrailService = auditTrailService;
@@ -175,8 +169,6 @@ public class AuthorizationService {
         this.settings = settings;
         this.licenseState = licenseState;
         this.operatorPrivilegesService = operatorPrivilegesService;
-        this.authorizationTracer = authorizationTracer;
-        this.tracingEnabled = TRACE_AUTHORIZATION.get(settings);
     }
 
     public void checkPrivileges(
@@ -230,51 +222,44 @@ public class AuthorizationService {
          * Therefore we begin by clearing the existing ones up, as they might already be set during the authorization of a
          * previous parent action that ran under the same thread context (also on the same node).
          * When the returned {@code StoredContext} is closed, ALL the original headers are restored.
-         *
-         * We also clear tracing-related headers
          */
         try (ThreadContext.StoredContext ignore = threadContext.newStoredContext(false, ACTION_SCOPE_AUTHORIZATION_KEYS)) {
-            try (var ignored = maybeStartTracing(enclosingContext, authentication, action, originalRequest)) {
-                // this does not clear {@code AuthorizationServiceField.ORIGINATING_ACTION_KEY}
-                // prior to doing any authorization lets set the originating action in the thread context
-                // the originating action is the current action if no originating action has yet been set in the current thread context
-                // if there is already an original action, that stays put (eg. the current action is a child action)
-                putTransientIfNonExisting(ORIGINATING_ACTION_KEY, action);
+            // this does not clear {@code AuthorizationServiceField.ORIGINATING_ACTION_KEY}
+            // prior to doing any authorization lets set the originating action in the thread context
+            // the originating action is the current action if no originating action has yet been set in the current thread context
+            // if there is already an original action, that stays put (eg. the current action is a child action)
+            putTransientIfNonExisting(ORIGINATING_ACTION_KEY, action);
 
-                final String auditId;
-                try {
-                    auditId = requireAuditId(authentication, action, originalRequest);
-                } catch (ElasticsearchSecurityException e) {
-                    listener.onFailure(e);
-                    return;
-                }
+            final String auditId;
+            try {
+                auditId = requireAuditId(authentication, action, originalRequest);
+            } catch (ElasticsearchSecurityException e) {
+                listener.onFailure(e);
+                return;
+            }
 
-                // sometimes a request might be wrapped within another, which is the case for proxied
-                // requests and concrete shard requests
-                final TransportRequest unwrappedRequest = maybeUnwrapRequest(authentication, originalRequest, action, auditId);
+            // sometimes a request might be wrapped within another, which is the case for proxied
+            // requests and concrete shard requests
+            final TransportRequest unwrappedRequest = maybeUnwrapRequest(authentication, originalRequest, action, auditId);
 
-                try {
-                    checkOperatorPrivileges(authentication, action, originalRequest);
-                } catch (ElasticsearchException e) {
-                    listener.onFailure(e);
-                    return;
-                }
+            try {
+                checkOperatorPrivileges(authentication, action, originalRequest);
+            } catch (ElasticsearchException e) {
+                listener.onFailure(e);
+                return;
+            }
 
-                if (SystemUser.is(authentication.getUser())) {
-                    // this never goes async so no need to wrap the listener
-                    authorizeSystemUser(authentication, action, auditId, unwrappedRequest, listener);
-                } else {
-                    final RequestInfo requestInfo = new RequestInfo(authentication, unwrappedRequest, action, enclosingContext);
-                    final AuthorizationEngine engine = getAuthorizationEngine(authentication);
-                    final ActionListener<AuthorizationInfo> authzInfoListener = wrapPreservingContext(
-                        ActionListener.wrap(authorizationInfo -> {
-                            threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfo);
-                            maybeAuthorizeRunAs(requestInfo, auditId, authorizationInfo, listener);
-                        }, listener::onFailure),
-                        threadContext
-                    );
-                    engine.resolveAuthorizationInfo(requestInfo, authzInfoListener);
-                }
+            if (SystemUser.is(authentication.getUser())) {
+                // this never goes async so no need to wrap the listener
+                authorizeSystemUser(authentication, action, auditId, unwrappedRequest, listener);
+            } else {
+                final RequestInfo requestInfo = new RequestInfo(authentication, unwrappedRequest, action, enclosingContext);
+                final AuthorizationEngine engine = getAuthorizationEngine(authentication);
+                final ActionListener<AuthorizationInfo> authzInfoListener = wrapPreservingContext(ActionListener.wrap(authorizationInfo -> {
+                    threadContext.putTransient(AUTHORIZATION_INFO_KEY, authorizationInfo);
+                    maybeAuthorizeRunAs(requestInfo, auditId, authorizationInfo, listener);
+                }, listener::onFailure), threadContext);
+                engine.resolveAuthorizationInfo(requestInfo, authzInfoListener);
             }
         }
     }
@@ -327,59 +312,6 @@ public class AuthorizationService {
         assert false : message;
         // Otherwise (production) just throw an exception so that we don't authorize something incorrectly
         return new ElasticsearchSecurityException(message);
-    }
-
-    // FIXME this isn't actually what we return but AutClose#close() declares an exception
-    private ThreadContext.StoredContext maybeStartTracing(
-        AuthorizationContext enclosingContext,
-        Authentication authentication,
-        String action,
-        TransportRequest originalRequest
-    ) {
-        // Not tracing system actions. Also if we're not tracing system actions, we mustn't start a new trace context.
-        if (shouldTrace(authentication) == false) {
-            return () -> {};
-        }
-
-        final ThreadContext.StoredContext context = threadContext.newTraceContext();
-        final Runnable stopTracing = authorizationTracer.startTracing(new Traceable() {
-            @Override
-            public String getSpanId() {
-                return "authorize_" + System.identityHashCode(originalRequest);
-            }
-
-            @Override
-            public String getSpanName() {
-                return "authorize(" + action + ")";
-            }
-
-            @Override
-            public Map<String, Object> getAttributes() {
-                final HashMap<String, Object> attributes = new HashMap<>(
-                    Map.of(
-                        "es.principal",
-                        authentication.getUser().principal(),
-                        "es.authentication.realm.name",
-                        authentication.getAuthenticatedBy().getName(),
-                        "es.node.name",
-                        clusterService.getNodeName()
-                    )
-                );
-                if (enclosingContext != null) {
-                    attributes.put("originating_action", enclosingContext.getAction());
-                }
-                return Map.copyOf(attributes);
-            }
-        });
-
-        return () -> {
-            context.restore();
-            stopTracing.run();
-        };
-    }
-
-    private boolean shouldTrace(Authentication authentication) {
-        return false == (false == tracingEnabled || SystemUser.is(authentication.getUser()) || threadContext.isSystemContext());
     }
 
     private void checkOperatorPrivileges(Authentication authentication, String action, TransportRequest originalRequest)
@@ -1083,7 +1015,6 @@ public class AuthorizationService {
 
     public static void addSettings(List<Setting<?>> settings) {
         settings.add(ANONYMOUS_AUTHORIZATION_EXCEPTION_SETTING);
-        settings.add(TRACE_AUTHORIZATION);
         settings.addAll(LoadAuthorizedIndicesTimeChecker.Factory.getSettings());
     }
 }

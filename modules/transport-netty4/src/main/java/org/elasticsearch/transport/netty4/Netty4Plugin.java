@@ -100,7 +100,7 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
         ClusterSettings clusterSettings,
-        List<Tracer> tracers
+        Tracer tracer
     ) {
         return Collections.singletonMap(
             NETTY_HTTP_TRANSPORT_NAME,
@@ -113,7 +113,7 @@ public class Netty4Plugin extends Plugin implements NetworkPlugin {
                 dispatcher,
                 clusterSettings,
                 getSharedGroupFactory(settings),
-                tracers
+                tracer
             )
         );
     }

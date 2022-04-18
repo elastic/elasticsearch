@@ -101,7 +101,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         NamedXContentRegistry xContentRegistry,
         Dispatcher dispatcher,
         ClusterSettings clusterSettings,
-        List<Tracer> tracers
+        Tracer tracer
     ) {
         this.settings = settings;
         this.networkService = networkService;
@@ -126,7 +126,7 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         this.port = SETTING_HTTP_PORT.get(settings);
 
         this.maxContentLength = SETTING_HTTP_MAX_CONTENT_LENGTH.get(settings);
-        this.tracer = new HttpTracer(settings, clusterSettings, tracers);
+        this.tracer = new HttpTracer(settings, clusterSettings, tracer);
         clusterSettings.addSettingsUpdateConsumer(
             TransportSettings.SLOW_OPERATION_THRESHOLD_SETTING,
             slowLogThreshold -> this.slowLogThresholdMs = slowLogThreshold.getMillis()
@@ -463,10 +463,6 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
         }
 
         dispatchRequest(restRequest, channel, badRequestCause);
-    }
-
-    protected void onTraceStarted(ThreadContext threadContext, RestChannel restChannel) {
-        tracer.onTraceStarted(threadContext, restChannel);
     }
 
     private RestRequest requestWithoutFailedHeader(

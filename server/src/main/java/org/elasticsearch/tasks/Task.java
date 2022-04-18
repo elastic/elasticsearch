@@ -49,6 +49,8 @@ public class Task implements Traceable {
      */
     public static final String TRACE_STATE = "tracestate";
 
+    public static final String APM_TRACE_CONTEXT = "apm.local.context";
+
     /**
      * Parsed part of traceparent. It is stored in thread context and emitted in logs.
      * Has to be declared as a header copied over for tasks.

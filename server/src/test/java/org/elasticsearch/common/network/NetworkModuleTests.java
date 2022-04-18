@@ -121,7 +121,7 @@ public class NetworkModuleTests extends ESTestCase {
                 NetworkService networkService,
                 HttpServerTransport.Dispatcher requestDispatcher,
                 ClusterSettings clusterSettings,
-                List<Tracer> tracers
+                Tracer tracer
             ) {
                 return Collections.singletonMap("custom", custom);
             }
@@ -167,7 +167,7 @@ public class NetworkModuleTests extends ESTestCase {
                 NetworkService networkService,
                 HttpServerTransport.Dispatcher requestDispatcher,
                 ClusterSettings clusterSettings,
-                List<Tracer> tracers
+                Tracer tracer
             ) {
                 Map<String, Supplier<HttpServerTransport>> supplierMap = new HashMap<>();
                 supplierMap.put("custom", custom);
@@ -211,7 +211,7 @@ public class NetworkModuleTests extends ESTestCase {
                 NetworkService networkService,
                 HttpServerTransport.Dispatcher requestDispatcher,
                 ClusterSettings clusterSettings,
-                List<Tracer> tracers
+                Tracer tracer
             ) {
                 Map<String, Supplier<HttpServerTransport>> supplierMap = new HashMap<>();
                 supplierMap.put("custom", custom);
@@ -294,7 +294,7 @@ public class NetworkModuleTests extends ESTestCase {
             null,
             new NullDispatcher(),
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            List.of()
+            Tracer.NOOP
         );
     }
 }

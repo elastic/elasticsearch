@@ -98,16 +98,17 @@ public final class ThreadContext implements Writeable {
     /**
      * Removes the current context and resets a default context. The removed context can be
      * restored by closing the returned {@link StoredContext}.
+     * @return a stored context that will restore the current context to its state at the point this method was called
      */
     public StoredContext stashContext() {
         final ThreadContextStruct context = threadLocal.get();
-        /**
+
+        /*
          * X-Opaque-ID should be preserved in a threadContext in order to propagate this across threads.
          * This is needed so the DeprecationLogger in another thread can see the value of X-Opaque-ID provided by a user.
          * The same is applied to Task.TRACE_ID.
          * Otherwise when context is stash, it should be empty.
          */
-
         boolean hasHeadersToCopy = false;
         if (context.requestHeaders.isEmpty() == false) {
             for (String header : HEADERS_TO_COPY) {
@@ -117,9 +118,27 @@ public final class ThreadContext implements Writeable {
                 }
             }
         }
-        if (hasHeadersToCopy) {
-            Map<String, String> map = headers(context);
-            ThreadContextStruct threadContextStruct = DEFAULT_CONTEXT.putHeaders(map);
+        // HACK HACK HACK
+        final Map<String, Object> copiedTransientEntries = new HashMap<>();
+        if (context.transientHeaders.isEmpty() == false) {
+            List<String> transientKeysToCopy = List.of(Task.APM_TRACE_CONTEXT);
+            for (String transientKey : transientKeysToCopy) {
+                if (context.transientHeaders.containsKey(transientKey)) {
+                    copiedTransientEntries.put(transientKey, context.transientHeaders.get(transientKey));
+                }
+            }
+        }
+        if (hasHeadersToCopy || copiedTransientEntries.isEmpty() == false) {
+            ThreadContextStruct threadContextStruct = DEFAULT_CONTEXT;
+            if (hasHeadersToCopy) {
+                Map<String, String> map = headers(context);
+                threadContextStruct = DEFAULT_CONTEXT.putHeaders(map);
+            }
+            if (copiedTransientEntries.isEmpty() == false) {
+                for (Map.Entry<String, Object> entry : copiedTransientEntries.entrySet()) {
+                    threadContextStruct = threadContextStruct.putTransient(entry.getKey(), entry.getValue());
+                }
+            }
             threadLocal.set(threadContextStruct);
         } else {
             threadLocal.set(DEFAULT_CONTEXT);
@@ -138,13 +157,18 @@ public final class ThreadContext implements Writeable {
         final Map<String, Object> newTransientHeaders = new HashMap<>(context.transientHeaders);
 
         final String previousTraceParent = newRequestHeaders.remove(Task.TRACE_PARENT_HTTP_HEADER);
-        final String previousTraceState = newRequestHeaders.remove(Task.TRACE_STATE);
-
         if (previousTraceParent != null) {
             newTransientHeaders.put("parent_" + Task.TRACE_PARENT_HTTP_HEADER, previousTraceParent);
         }
+
+        final String previousTraceState = newRequestHeaders.remove(Task.TRACE_STATE);
         if (previousTraceState != null) {
             newTransientHeaders.put("parent_" + Task.TRACE_STATE, previousTraceState);
+        }
+
+        final Object previousTraceContext = newTransientHeaders.remove(Task.APM_TRACE_CONTEXT);
+        if (previousTraceContext != null) {
+            newTransientHeaders.put("parent_" + Task.APM_TRACE_CONTEXT, previousTraceContext);
         }
 
         threadLocal.set(
@@ -169,6 +193,8 @@ public final class ThreadContext implements Writeable {
 
         newTransientHeaders.remove("parent_" + Task.TRACE_PARENT_HTTP_HEADER);
         newTransientHeaders.remove("parent_" + Task.TRACE_STATE);
+        newTransientHeaders.remove(Task.APM_TRACE_CONTEXT);
+        newTransientHeaders.remove("parent_" + Task.APM_TRACE_CONTEXT);
 
         threadLocal.set(
             new ThreadContextStruct(
@@ -183,8 +209,8 @@ public final class ThreadContext implements Writeable {
     }
 
     private static Map<String, String> headers(ThreadContextStruct context) {
-        Map<String, String> map = Maps.newMapWithExpectedSize(org.elasticsearch.tasks.Task.HEADERS_TO_COPY.size());
-        for (String header : org.elasticsearch.tasks.Task.HEADERS_TO_COPY) {
+        Map<String, String> map = Maps.newMapWithExpectedSize(HEADERS_TO_COPY.size());
+        for (String header : HEADERS_TO_COPY) {
             final String value = context.requestHeaders.get(header);
             if (value != null) {
                 map.put(header, value);
@@ -730,7 +756,13 @@ public final class ThreadContext implements Writeable {
                     return this;
                 }
             }
-            return new ThreadContextStruct(requestHeaders, newResponseHeaders, transientHeaders, isSystemContext, newWarningHeaderSize);
+            return new ThreadContextStruct(
+                requestHeaders,
+                newResponseHeaders,
+                transientHeaders,
+                isSystemContext,
+                newWarningHeaderSize
+            );
         }
 
         private ThreadContextStruct putTransient(String key, Object value) {

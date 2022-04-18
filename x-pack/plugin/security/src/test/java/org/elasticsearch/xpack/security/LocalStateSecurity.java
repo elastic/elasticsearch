@@ -122,7 +122,7 @@ public class LocalStateSecurity extends LocalStateCompositeXPackPlugin {
     }
 
     @Override
-    public void onTracers(List<Tracer> tracers) {
-        plugins.forEach(plugin -> plugin.onTracers(tracers));
+    public void onTracer(Tracer tracer) {
+        plugins.forEach(plugin -> plugin.onTracer(tracer));
     }
 }

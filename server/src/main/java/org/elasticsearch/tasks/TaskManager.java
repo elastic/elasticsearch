@@ -38,6 +38,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.TaskTransportChannel;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpTransportChannel;
@@ -93,16 +94,17 @@ public class TaskManager implements ClusterStateApplier {
 
     private DiscoveryNodes lastDiscoveryNodes = DiscoveryNodes.EMPTY_NODES;
 
-    private final TaskTracer taskTracer = new TaskTracer();
+    private final Tracer tracer;
 
     private final ByteSizeValue maxHeaderSize;
     private final Map<TcpChannel, ChannelPendingTaskTracker> channelPendingTaskTrackers = ConcurrentCollections.newConcurrentMap();
     private final SetOnce<TaskCancellationService> cancellationService = new SetOnce<>();
 
-    public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders) {
+    public TaskManager(Settings settings, ThreadPool threadPool, Set<String> taskHeaders, Tracer tracer) {
         this.threadPool = threadPool;
         this.taskHeaders = taskHeaders.toArray(Strings.EMPTY_ARRAY);
         this.maxHeaderSize = SETTING_HTTP_MAX_HEADER_SIZE.get(settings);
+        this.tracer = tracer;
     }
 
     public void setTaskResultsService(TaskResultsService taskResultsService) {
@@ -144,8 +146,8 @@ public class TaskManager implements ClusterStateApplier {
             registerCancellableTask(task);
         } else {
             Task previousTask = tasks.put(task.getId(), task);
+            tracer.onTraceStarted(threadContext, task);
             assert previousTask == null;
-            taskTracer.onTaskRegistered(threadContext, task);
         }
         return task;
     }
@@ -163,6 +165,7 @@ public class TaskManager implements ClusterStateApplier {
         } else {
             unregisterChildNode = null;
         }
+
         try (var ignored = threadPool.getThreadContext().newTraceContext()) {
             final Task task;
             try {
@@ -171,8 +174,7 @@ public class TaskManager implements ClusterStateApplier {
                 Releasables.close(unregisterChildNode);
                 throw e;
             }
-            // NOTE: ActionListener cannot infer Response, see https://bugs.openjdk.java.net/browse/JDK-8203195
-            action.execute(task, request, new ActionListener<Response>() {
+            action.execute(task, request, new ActionListener<>() {
                 @Override
                 public void onResponse(Response response) {
                     try {
@@ -208,7 +210,7 @@ public class TaskManager implements ClusterStateApplier {
         CancellableTask cancellableTask = (CancellableTask) task;
         CancellableTaskHolder holder = new CancellableTaskHolder(cancellableTask);
         cancellableTasks.put(task, holder);
-        taskTracer.onTaskRegistered(threadPool.getThreadContext(), task);
+        tracer.onTraceStarted(threadPool.getThreadContext(), task);
         // Check if this task was banned before we start it. The empty check is used to avoid
         // computing the hash code of the parent taskId as most of the time bannedParents is empty.
         if (task.getParentTaskId().isSet() && bannedParents.isEmpty() == false) {
@@ -263,7 +265,7 @@ public class TaskManager implements ClusterStateApplier {
                 return removedTask;
             }
         } finally {
-            taskTracer.onTaskUnregistered(task);
+            tracer.onTraceStopped(task);
         }
     }
 
@@ -754,9 +756,5 @@ public class TaskManager implements ClusterStateApplier {
 
     public List<String> getTaskHeaders() {
         return List.of(taskHeaders);
-    }
-
-    public TaskTracer getTaskTracer() {
-        return taskTracer;
     }
 }

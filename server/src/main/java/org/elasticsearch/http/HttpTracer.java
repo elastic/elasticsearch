@@ -32,13 +32,13 @@ import java.util.List;
 class HttpTracer {
 
     private final Logger logger = LogManager.getLogger(HttpTracer.class);
-    private final List<Tracer> tracers;
+    private final Tracer tracer;
 
     private volatile String[] tracerLogInclude;
     private volatile String[] tracerLogExclude;
 
-    HttpTracer(Settings settings, ClusterSettings clusterSettings, List<Tracer> tracers) {
-        this.tracers = tracers;
+    HttpTracer(Settings settings, ClusterSettings clusterSettings, Tracer tracer) {
+        this.tracer = tracer;
 
         setTracerLogInclude(HttpTransportSettings.SETTING_HTTP_TRACE_LOG_INCLUDE.get(settings));
         setTracerLogExclude(HttpTransportSettings.SETTING_HTTP_TRACE_LOG_EXCLUDE.get(settings));
@@ -48,35 +48,35 @@ class HttpTracer {
     }
 
     void onTraceStarted(ThreadContext threadContext, RestChannel channel) {
-        this.tracers.forEach(t -> t.onTraceStarted(threadContext, channel));
+        this.tracer.onTraceStarted(threadContext, channel);
     }
 
     void onTraceStopped(RestChannel channel) {
-        this.tracers.forEach(t -> t.onTraceStopped(channel));
+        this.tracer.onTraceStopped(channel);
     }
 
     void onTraceEvent(RestChannel channel, String eventName) {
-        this.tracers.forEach(t -> t.onTraceEvent(channel, eventName));
+        this.tracer.onTraceEvent(channel, eventName);
     }
 
     public void onTraceException(RestChannel channel, Throwable throwable) {
-        this.tracers.forEach(t -> t.onTraceException(channel, throwable));
+        this.tracer.onTraceException(channel, throwable);
     }
 
     void setAttribute(Traceable traceable, String key, boolean value) {
-        this.tracers.forEach(t -> t.setAttribute(traceable, key, value));
+        this.tracer.setAttribute(traceable, key, value);
     }
 
     void setAttribute(Traceable traceable, String key, double value) {
-        this.tracers.forEach(t -> t.setAttribute(traceable, key, value));
+        this.tracer.setAttribute(traceable, key, value);
     }
 
     void setAttribute(Traceable traceable, String key, long value) {
-        this.tracers.forEach(t -> t.setAttribute(traceable, key, value));
+        this.tracer.setAttribute(traceable, key, value);
     }
 
     void setAttribute(Traceable traceable, String key, String value) {
-        this.tracers.forEach(t -> t.setAttribute(traceable, key, value));
+        this.tracer.setAttribute(traceable, key, value);
     }
 
     /**

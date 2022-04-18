@@ -14,6 +14,7 @@ import io.opentelemetry.api.trace.SpanBuilder;
 import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Context;
+import io.opentelemetry.context.Scope;
 import io.opentelemetry.context.propagation.TextMapGetter;
 
 import org.apache.logging.log4j.LogManager;
@@ -27,7 +28,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.tracing.Traceable;
 
 import java.security.AccessController;
@@ -44,11 +44,12 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.common.settings.Setting.Property.Dynamic;
 import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
-import static org.elasticsearch.xpack.apm.APM.TRACE_HEADERS;
 
 public class APMTracer extends AbstractLifecycleComponent implements org.elasticsearch.tracing.Tracer {
 
     private static final Logger LOGGER = LogManager.getLogger(APMTracer.class);
+
+    private static final Set<String> TRACE_HEADERS = Set.of(Task.TRACE_PARENT_HTTP_HEADER, Task.TRACE_STATE);
 
     static final Setting<Boolean> APM_ENABLED_SETTING = Setting.boolSetting("xpack.apm.tracing.enabled", false, Dynamic, NodeScope);
     static final Setting<List<String>> APM_TRACING_NAMES_INCLUDE_SETTING = Setting.listSetting(
@@ -59,8 +60,18 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         NodeScope
     );
 
-    private final Map<String, Span> spans = ConcurrentCollections.newConcurrentMap();
-    private final ThreadPool threadPool;
+    private record ContextScope(Context context, Scope scope) {
+        Span span() {
+            return Span.fromContextOrNull(this.context);
+        }
+
+        void close() {
+            this.span().end();
+            this.scope.close();
+        }
+    }
+
+    private final Map<String, ContextScope> spans = ConcurrentCollections.newConcurrentMap();
     private final ClusterService clusterService;
 
     private volatile boolean enabled;
@@ -73,8 +84,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
      */
     private record APMServices(Tracer tracer, OpenTelemetry openTelemetry) {}
 
-    public APMTracer(Settings settings, ThreadPool threadPool, ClusterService clusterService) {
-        this.threadPool = Objects.requireNonNull(threadPool);
+    public APMTracer(Settings settings, ClusterService clusterService) {
         this.clusterService = Objects.requireNonNull(clusterService);
         this.enabled = APM_ENABLED_SETTING.get(settings);
         this.includeNames = APM_TRACING_NAMES_INCLUDE_SETTING.get(settings);
@@ -143,94 +153,110 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             return;
         }
 
-        spans.computeIfAbsent(traceable.getSpanId(), spanId -> AccessController.doPrivileged((PrivilegedAction<Span>) () -> {
+        spans.computeIfAbsent(traceable.getSpanId(), spanId -> AccessController.doPrivileged((PrivilegedAction<ContextScope>) () -> {
             final SpanBuilder spanBuilder = services.tracer.spanBuilder(traceable.getSpanName());
-            Context parentContext = getParentSpanContext();
+
+            // https://github.com/open-telemetry/opentelemetry-java/discussions/2884#discussioncomment-381870
+            // If you just want to propagate across threads within the same process, you don't need context propagators (extract/inject).
+            // You can just pass the Context object directly to another thread (it is immutable and thus thread-safe).
+
+            // local parent first, remote parent as fallback
+            Context parentContext = getLocalParentContext(threadContext);
+            if (parentContext == null) {
+                parentContext = getRemoteParentContext(threadContext);
+            }
             if (parentContext != null) {
                 spanBuilder.setParent(parentContext);
             }
 
-            for (Map.Entry<String, Object> entry : traceable.getAttributes().entrySet()) {
-                final Object value = entry.getValue();
-                if (value instanceof String) {
-                    spanBuilder.setAttribute(entry.getKey(), (String) value);
-                } else if (value instanceof Long) {
-                    spanBuilder.setAttribute(entry.getKey(), (Long) value);
-                } else if (value instanceof Integer) {
-                    spanBuilder.setAttribute(entry.getKey(), (Integer) value);
-                } else if (value instanceof Double) {
-                    spanBuilder.setAttribute(entry.getKey(), (Double) value);
-                } else if (value instanceof Boolean) {
-                    spanBuilder.setAttribute(entry.getKey(), (Boolean) value);
-                } else {
-                    throw new IllegalArgumentException(
-                        "span attributes do not support value type of [" + value.getClass().getCanonicalName() + "]"
-                    );
-                }
-            }
-
-            final boolean isHttpSpan = traceable.getAttributes().keySet().stream().anyMatch(key -> key.startsWith("http."));
-            spanBuilder.setSpanKind(isHttpSpan ? SpanKind.SERVER : SpanKind.INTERNAL);
-
-            spanBuilder.setAttribute(Traceable.AttributeKeys.NODE_NAME, clusterService.getNodeName());
-            spanBuilder.setAttribute(Traceable.AttributeKeys.CLUSTER_NAME, clusterService.getClusterName().value());
-
-            final String xOpaqueId = threadPool.getThreadContext().getHeader(Task.X_OPAQUE_ID_HTTP_HEADER);
-            if (xOpaqueId != null) {
-                spanBuilder.setAttribute("es.x-opaque-id", xOpaqueId);
-            }
+            setSpanAttributes(threadContext, traceable, spanBuilder);
             final Span span = spanBuilder.startSpan();
+            final Context contextForNewSpan = Context.current().with(span);
+            final Scope scope = contextForNewSpan.makeCurrent();
 
             final Map<String, String> spanHeaders = new HashMap<>();
-            final Context contextForNewSpan = Context.current().with(span);
             services.openTelemetry.getPropagators().getTextMapPropagator().inject(contextForNewSpan, spanHeaders, Map::put);
             spanHeaders.keySet().removeIf(k -> isSupportedContextKey(k) == false);
 
+            // The span context can be used as the parent context directly within the same Java process
+            threadContext.putTransient(Task.APM_TRACE_CONTEXT, contextForNewSpan);
+            // Whereas for tasks sent to other ES nodes, we need to put trace headers into the threadContext so that they can be
+            // propagated
             threadContext.putHeader(spanHeaders);
 
-//             logGraphviz(span);
-
-            return span;
+            return new ContextScope(contextForNewSpan, scope);
         }));
+    }
+
+    private void setSpanAttributes(ThreadContext threadContext, Traceable traceable, SpanBuilder spanBuilder) {
+        for (Map.Entry<String, Object> entry : traceable.getAttributes().entrySet()) {
+            final Object value = entry.getValue();
+            if (value instanceof String) {
+                spanBuilder.setAttribute(entry.getKey(), (String) value);
+            } else if (value instanceof Long) {
+                spanBuilder.setAttribute(entry.getKey(), (Long) value);
+            } else if (value instanceof Integer) {
+                spanBuilder.setAttribute(entry.getKey(), (Integer) value);
+            } else if (value instanceof Double) {
+                spanBuilder.setAttribute(entry.getKey(), (Double) value);
+            } else if (value instanceof Boolean) {
+                spanBuilder.setAttribute(entry.getKey(), (Boolean) value);
+            } else {
+                throw new IllegalArgumentException(
+                    "span attributes do not support value type of [" + value.getClass().getCanonicalName() + "]"
+                );
+            }
+        }
+
+        final boolean isHttpSpan = traceable.getAttributes().keySet().stream().anyMatch(key -> key.startsWith("http."));
+        spanBuilder.setSpanKind(isHttpSpan ? SpanKind.SERVER : SpanKind.INTERNAL);
+
+        spanBuilder.setAttribute(Traceable.AttributeKeys.NODE_NAME, clusterService.getNodeName());
+        spanBuilder.setAttribute(Traceable.AttributeKeys.CLUSTER_NAME, clusterService.getClusterName().value());
+
+        final String xOpaqueId = threadContext.getHeader(Task.X_OPAQUE_ID_HTTP_HEADER);
+        if (xOpaqueId != null) {
+            spanBuilder.setAttribute("es.x-opaque-id", xOpaqueId);
+        }
     }
 
     @Override
     public void onTraceException(Traceable traceable, Throwable throwable) {
-        final var span = spans.get(traceable.getSpanId());
-        if (span != null) {
-            span.recordException(throwable);
+        final var contextScope = spans.get(traceable.getSpanId());
+        if (contextScope != null) {
+            contextScope.span().recordException(throwable);
         }
     }
 
     @Override
     public void setAttribute(Traceable traceable, String key, boolean value) {
-        final var span = spans.get(traceable.getSpanId());
-        if (span != null) {
-            span.setAttribute(key, value);
+        final var contextScope = spans.get(traceable.getSpanId());
+        if (contextScope != null) {
+            contextScope.span().setAttribute(key, value);
         }
     }
 
     @Override
     public void setAttribute(Traceable traceable, String key, double value) {
-        final var span = spans.get(traceable.getSpanId());
-        if (span != null) {
-            span.setAttribute(key, value);
+        final var contextScope = spans.get(traceable.getSpanId());
+        if (contextScope != null) {
+            contextScope.span().setAttribute(key, value);
         }
     }
 
     @Override
     public void setAttribute(Traceable traceable, String key, long value) {
-        final var span = spans.get(traceable.getSpanId());
-        if (span != null) {
-            span.setAttribute(key, value);
+        final var contextScope = spans.get(traceable.getSpanId());
+        if (contextScope != null) {
+            contextScope.span().setAttribute(key, value);
         }
     }
 
     @Override
     public void setAttribute(Traceable traceable, String key, String value) {
-        final var span = spans.get(traceable.getSpanId());
-        if (span != null) {
-            span.setAttribute(key, value);
+        final var contextScope = spans.get(traceable.getSpanId());
+        if (contextScope != null) {
+            contextScope.span().setAttribute(key, value);
         }
     }
 
@@ -240,9 +266,11 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         return includeNames.isEmpty() || Regex.simpleMatch(includeNames, name);
     }
 
-    private Context getParentSpanContext() {
-        // Check for a parent context in the thread context.
-        final ThreadContext threadContext = threadPool.getThreadContext();
+    private Context getLocalParentContext(ThreadContext threadContext) {
+        return threadContext.getTransient("parent_" + Task.APM_TRACE_CONTEXT);
+    }
+
+    private Context getRemoteParentContext(ThreadContext threadContext) {
         final String traceParentHeader = threadContext.getTransient("parent_" + Task.TRACE_PARENT_HTTP_HEADER);
         final String traceStateHeader = threadContext.getTransient("parent_" + Task.TRACE_STATE);
 
@@ -262,17 +290,17 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     @Override
     public void onTraceStopped(Traceable traceable) {
-        final var span = spans.remove(traceable.getSpanId());
-        if (span != null) {
-            span.end();
+        final var contextScope = spans.remove(traceable.getSpanId());
+        if (contextScope != null) {
+            contextScope.close();
         }
     }
 
     @Override
     public void onTraceEvent(Traceable traceable, String eventName) {
-        final var span = spans.get(traceable.getSpanId());
-        if (span != null) {
-            span.addEvent(eventName);
+        final var contextScope = spans.get(traceable.getSpanId());
+        if (contextScope != null) {
+            contextScope.span().addEvent(eventName);
         }
     }
 
@@ -294,43 +322,4 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     private static final Set<String> GRAPHVIZ_CACHE = new HashSet<>();
-
-    private static void logGraphviz(Span span) {
-        final String spanStr = span.toString();
-
-        int i = spanStr.indexOf("spanId=");
-        int j = spanStr.indexOf(",", i);
-        String spanId = spanStr.substring(i + 7, j);
-
-        String parentSpanId = null;
-        i = spanStr.indexOf("spanId=", j);
-        if (i > -1) {
-            j = spanStr.indexOf(",", i);
-            parentSpanId = spanStr.substring(i + 7, j);
-        }
-
-        i = spanStr.indexOf("name=", j);
-        j = spanStr.indexOf(",", i);
-        String spanName = spanStr.substring(i + 5, j);
-
-        if (spanName.startsWith("internal:") == false) {
-            if (GRAPHVIZ_CACHE.add(spanId)) {
-                Map<String, String> attrs = new HashMap<>();
-                attrs.put("label", spanName);
-                if (spanName.startsWith("internal:")) {
-                    attrs.put("style", "filled");
-                    attrs.put("fillcolor", "pink");
-                }
-                final String attrsString = attrs.entrySet()
-                    .stream()
-                    .map(each -> each.getKey() + "=\"" + each.getValue() + "\"")
-                    .collect(Collectors.joining(","));
-                LOGGER.warn("BADGER: __{} [{}]", spanId, attrsString);
-            }
-
-            if (parentSpanId != null) {
-                LOGGER.warn("BADGER: __{} -> __{}", spanId, parentSpanId);
-            }
-        }
-    }
 }

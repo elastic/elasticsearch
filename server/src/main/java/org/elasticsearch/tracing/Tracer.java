@@ -36,4 +36,32 @@ public interface Tracer {
     void setAttribute(Traceable traceable, String key, long value);
 
     void setAttribute(Traceable traceable, String key, String value);
+
+    Tracer NOOP = new Tracer() {
+        @Override
+        public void onTraceStarted(ThreadContext threadContext, Traceable traceable) {
+            return;
+        }
+
+        @Override
+        public void onTraceStopped(Traceable traceable) {}
+
+        @Override
+        public void onTraceEvent(Traceable traceable, String eventName) {}
+
+        @Override
+        public void onTraceException(Traceable traceable, Throwable throwable) {}
+
+        @Override
+        public void setAttribute(Traceable traceable, String key, boolean value) {}
+
+        @Override
+        public void setAttribute(Traceable traceable, String key, double value) {}
+
+        @Override
+        public void setAttribute(Traceable traceable, String key, long value) {}
+
+        @Override
+        public void setAttribute(Traceable traceable, String key, String value) {}
+    };
 }

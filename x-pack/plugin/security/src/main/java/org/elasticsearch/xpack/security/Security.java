@@ -480,7 +480,6 @@ public class Security extends Plugin
     private final List<SecurityExtension> securityExtensions = new ArrayList<>();
     private final SetOnce<Transport> transportReference = new SetOnce<>();
     private final SetOnce<ScriptService> scriptServiceReference = new SetOnce<>();
-    private final SetOnce<AuthorizationTracer> authorizationTracerReference = new SetOnce<>();
 
     public Security(Settings settings) {
         this(settings, Collections.emptyList());
@@ -841,7 +840,6 @@ public class Security extends Plugin
         }
         requestInterceptors = Collections.unmodifiableSet(requestInterceptors);
 
-        authorizationTracerReference.set(new AuthorizationTracer(threadContext.get()));
         final AuthorizationService authzService = new AuthorizationService(
             settings,
             allRolesStore,
@@ -855,8 +853,7 @@ public class Security extends Plugin
             getLicenseState(),
             expressionResolver,
             operatorPrivilegesService,
-            restrictedIndices,
-            authorizationTracerReference.get()
+            restrictedIndices
         );
 
         components.add(nativeRolesStore); // used by roles actions
@@ -1498,7 +1495,7 @@ public class Security extends Plugin
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
         ClusterSettings clusterSettings,
-        List<Tracer> tracers
+        Tracer tracer
     ) {
         if (enabled == false) { // don't register anything if we are not enabled
             return Collections.emptyMap();
@@ -1518,7 +1515,7 @@ public class Security extends Plugin
                 dispatcher,
                 clusterSettings,
                 getNettySharedGroupFactory(settings),
-                tracers
+                tracer
             )
         );
 
@@ -1639,15 +1636,6 @@ public class Security extends Plugin
     @Override
     public void loadExtensions(ExtensionLoader loader) {
         securityExtensions.addAll(loader.loadExtensions(SecurityExtension.class));
-    }
-
-    @Override
-    public void onTracers(List<Tracer> tracers) {
-        if (authorizationTracerReference.get() == null) {
-            // security is disabled
-            return;
-        }
-        tracers.forEach(t -> authorizationTracerReference.get().addTracer(t));
     }
 
     private synchronized SharedGroupFactory getNettySharedGroupFactory(Settings settings) {

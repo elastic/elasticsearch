@@ -20,19 +20,15 @@ import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.util.Collection;
 import java.util.List;
-import java.util.Set;
 import java.util.function.Supplier;
 
 public class APM extends Plugin implements NetworkPlugin {
-    public static final Set<String> TRACE_HEADERS = Set.of(Task.TRACE_PARENT_HTTP_HEADER, Task.TRACE_STATE);
-
     private final SetOnce<APMTracer> tracer = new SetOnce<>();
     private final Settings settings;
 
@@ -54,7 +50,7 @@ public class APM extends Plugin implements NetworkPlugin {
         IndexNameExpressionResolver indexNameExpressionResolver,
         Supplier<RepositoriesService> repositoriesServiceSupplier
     ) {
-        tracer.set(new APMTracer(settings, threadPool, clusterService));
+        tracer.set(new APMTracer(settings, clusterService));
         return List.of(tracer.get());
     }
 

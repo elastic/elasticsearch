@@ -39,6 +39,7 @@ import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.test.MockHttpTransport;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportInterceptor;
 import org.elasticsearch.transport.TransportService;
@@ -178,16 +179,34 @@ public class MockNode extends Node {
         TransportInterceptor interceptor,
         Function<BoundTransportAddress, DiscoveryNode> localNodeFactory,
         ClusterSettings clusterSettings,
-        Set<String> taskHeaders
+        Set<String> taskHeaders,
+        Tracer tracer
     ) {
         // we use the MockTransportService.TestPlugin class as a marker to create a network
         // module with this MockNetworkService. NetworkService is such an integral part of the systme
         // we don't allow to plug it in from plugins or anything. this is a test-only override and
         // can't be done in a production env.
         if (getPluginsService().filterPlugins(MockTransportService.TestPlugin.class).isEmpty()) {
-            return super.newTransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders);
+            return super.newTransportService(
+                settings,
+                transport,
+                threadPool,
+                interceptor,
+                localNodeFactory,
+                clusterSettings,
+                taskHeaders,
+                tracer
+            );
         } else {
-            return new MockTransportService(settings, transport, threadPool, interceptor, localNodeFactory, clusterSettings, taskHeaders);
+            return new MockTransportService(
+                settings,
+                transport,
+                threadPool,
+                interceptor,
+                localNodeFactory,
+                clusterSettings,
+                taskHeaders
+            );
         }
     }
 

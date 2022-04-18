@@ -402,7 +402,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
         ClusterSettings clusterSettings,
-        List<Tracer> tracers
+        Tracer tracer
     ) {
         Map<String, Supplier<HttpServerTransport>> transports = new HashMap<>();
         filterPlugins(NetworkPlugin.class).stream()
@@ -418,7 +418,7 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
                         networkService,
                         dispatcher,
                         clusterSettings,
-                        null
+                        tracer
                     )
                 )
             );

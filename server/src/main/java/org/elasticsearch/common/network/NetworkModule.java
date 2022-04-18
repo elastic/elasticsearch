@@ -123,7 +123,7 @@ public final class NetworkModule {
         NetworkService networkService,
         HttpServerTransport.Dispatcher dispatcher,
         ClusterSettings clusterSettings,
-        List<Tracer> tracers
+        Tracer tracer
     ) {
         this.settings = settings;
         for (NetworkPlugin plugin : plugins) {
@@ -137,7 +137,7 @@ public final class NetworkModule {
                 networkService,
                 dispatcher,
                 clusterSettings,
-                tracers
+                tracer
             );
             for (Map.Entry<String, Supplier<HttpServerTransport>> entry : httpTransportFactory.entrySet()) {
                 registerHttpTransport(entry.getKey(), entry.getValue());

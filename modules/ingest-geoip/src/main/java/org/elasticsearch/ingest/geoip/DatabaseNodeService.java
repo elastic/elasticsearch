@@ -261,7 +261,7 @@ public final class DatabaseNodeService implements Closeable {
         }
 
         final Path databaseTmpFile = Files.createFile(geoipTmpDirectory.resolve(databaseName + ".tmp"));
-        LOGGER.info("retrieve geoip database [{}] from [{}] to [{}]", databaseName, GeoIpDownloader.DATABASES_INDEX, databaseTmpGzFile);
+        LOGGER.debug("retrieve geoip database [{}] from [{}] to [{}]", databaseName, GeoIpDownloader.DATABASES_INDEX, databaseTmpGzFile);
         retrieveDatabase(
             databaseName,
             recordedMd5,

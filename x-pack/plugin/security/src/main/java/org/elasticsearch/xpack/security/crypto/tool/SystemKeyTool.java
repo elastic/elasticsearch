@@ -32,7 +32,7 @@ import java.util.Set;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 
-public class SystemKeyTool extends EnvironmentAwareCommand {
+class SystemKeyTool extends EnvironmentAwareCommand {
 
     static final String KEY_ALGO = "HmacSHA512";
     static final int KEY_SIZE = 1024;
@@ -48,18 +48,6 @@ public class SystemKeyTool extends EnvironmentAwareCommand {
         PosixFilePermission.OWNER_READ,
         PosixFilePermission.OWNER_WRITE
     );
-
-    public static void main(String[] args) throws Exception {
-        final SystemKeyTool tool = new SystemKeyTool();
-        int status = main(tool, args, Terminal.DEFAULT);
-        if (status != ExitCodes.OK) {
-            exit(status);
-        }
-    }
-
-    static int main(SystemKeyTool tool, String[] args, Terminal terminal) throws Exception {
-        return tool.main(args, terminal);
-    }
 
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {

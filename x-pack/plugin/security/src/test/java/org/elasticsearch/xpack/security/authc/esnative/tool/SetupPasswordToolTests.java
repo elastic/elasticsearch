@@ -16,10 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse.FeatureSetsInfo.FeatureSet;
@@ -72,7 +69,6 @@ import static org.mockito.Mockito.when;
 
 public class SetupPasswordToolTests extends CommandTestCase {
 
-    private final String pathHomeParameter = "-Epath.home=" + createTempDir();
     private SecureString bootstrapPassword;
     private CommandLineHttpClient httpClient;
     private List<String> usersInSetOrder;
@@ -197,10 +193,10 @@ public class SetupPasswordToolTests extends CommandTestCase {
     public void testAutoSetup() throws Exception {
         URL url = new URL(httpClient.getDefaultURL());
         if (randomBoolean()) {
-            execute("auto", pathHomeParameter, "-b", "true");
+            execute("auto", "-b", "true");
         } else {
             terminal.addTextInput("Y");
-            execute("auto", pathHomeParameter);
+            execute("auto");
         }
         if (usedKeyStore.hasPassword()) {
             // SecureString is already closed (zero-filled) and keystore-password is 17 char long
@@ -262,7 +258,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
         ).thenReturn(httpResponse);
 
         try {
-            execute(randomBoolean() ? "auto" : "interactive", pathHomeParameter);
+            execute(randomBoolean() ? "auto" : "interactive");
             fail("Should have thrown exception");
         } catch (UserException e) {
             assertEquals(ExitCodes.CONFIG, e.exitCode);
@@ -310,7 +306,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
 
         thrown.expect(UserException.class);
         thrown.expectMessage("X-Pack is not available on this Elasticsearch node.");
-        execute(randomBoolean() ? "auto" : "interactive", pathHomeParameter);
+        execute(randomBoolean() ? "auto" : "interactive");
     }
 
     public void testErrorMessagesWhenXPackIsAvailableWithCorrectLicenseAndIsEnabledButStillFailedForUnknown() throws Exception {
@@ -356,7 +352,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
 
         thrown.expect(UserException.class);
         thrown.expectMessage("Unknown error");
-        execute(randomBoolean() ? "auto" : "interactive", pathHomeParameter);
+        execute(randomBoolean() ? "auto" : "interactive");
 
     }
 
@@ -402,7 +398,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
 
         thrown.expect(UserException.class);
         thrown.expectMessage("X-Pack Security is not available.");
-        execute(randomBoolean() ? "auto" : "interactive", pathHomeParameter);
+        execute(randomBoolean() ? "auto" : "interactive");
 
     }
 
@@ -448,7 +444,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
 
         thrown.expect(UserException.class);
         thrown.expectMessage("X-Pack Security is disabled by configuration.");
-        execute(randomBoolean() ? "auto" : "interactive", pathHomeParameter);
+        execute(randomBoolean() ? "auto" : "interactive");
     }
 
     public void testWrongServer() throws Exception {
@@ -458,7 +454,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
             .execute(eq("GET"), eq(authnURL), eq(ElasticUser.NAME), any(SecureString.class), anyCheckedSupplier(), anyCheckedFunction());
 
         try {
-            execute(randomBoolean() ? "auto" : "interactive", pathHomeParameter);
+            execute(randomBoolean() ? "auto" : "interactive");
             fail("Should have thrown exception");
         } catch (UserException e) {
             assertEquals(ExitCodes.CONFIG, e.exitCode);
@@ -501,7 +497,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
 
         terminal.addTextInput("n");
         try {
-            execute(randomBoolean() ? "auto" : "interactive", pathHomeParameter);
+            execute(randomBoolean() ? "auto" : "interactive");
             fail("Should have thrown exception");
         } catch (UserException e) {
             assertEquals(ExitCodes.OK, e.exitCode);
@@ -511,7 +507,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
 
     public void testUrlOption() throws Exception {
         URL url = new URL("http://localhost:9202" + randomFrom("", "/", "//", "/smth", "//smth/", "//x//x/"));
-        execute("auto", pathHomeParameter, "-u", url.toString(), "-b");
+        execute("auto", "-u", url.toString(), "-b");
 
         InOrder inOrder = Mockito.inOrder(httpClient);
 
@@ -540,7 +536,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
         doThrow(new IOException()).when(httpClient)
             .execute(eq("PUT"), eq(userToFailURL), anyString(), any(SecureString.class), anyCheckedSupplier(), anyCheckedFunction());
         try {
-            execute(randomBoolean() ? "auto" : "interactive", pathHomeParameter, "-b");
+            execute(randomBoolean() ? "auto" : "interactive", "-b");
             fail("Should have thrown exception");
         } catch (UserException e) {
             assertEquals(ExitCodes.TEMP_FAILURE, e.exitCode);
@@ -551,7 +547,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
         URL url = new URL(httpClient.getDefaultURL());
 
         terminal.addTextInput("Y");
-        execute("interactive", pathHomeParameter);
+        execute("interactive");
 
         InOrder inOrder = Mockito.inOrder(httpClient);
 
@@ -605,7 +601,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
             terminal.addSecretInput(user + "-password");
         }
 
-        execute("interactive", pathHomeParameter);
+        execute("interactive");
 
         InOrder inOrder = Mockito.inOrder(httpClient);
 
@@ -635,10 +631,10 @@ public class SetupPasswordToolTests extends CommandTestCase {
         terminal.addSecretInput("wrong-password");
         final UserException e = expectThrows(UserException.class, () -> {
             if (randomBoolean()) {
-                execute(commandWithPasswordProtectedKeystore, "auto", pathHomeParameter, "-b", "true");
+                execute(commandWithPasswordProtectedKeystore, "auto", "-b", "true");
             } else {
                 terminal.addTextInput("Y");
-                execute(commandWithPasswordProtectedKeystore, "auto", pathHomeParameter);
+                execute(commandWithPasswordProtectedKeystore, "auto");
             }
         });
         assertThat(e.getMessage(), containsString("Provided keystore password was incorrect"));
@@ -674,10 +670,8 @@ public class SetupPasswordToolTests extends CommandTestCase {
             protected AutoSetup newAutoSetup() {
                 return new AutoSetup() {
                     @Override
-                    protected Environment createEnv(Map<String, String> settings) throws UserException {
-                        Settings.Builder builder = Settings.builder();
-                        settings.forEach((k, v) -> builder.put(k, v));
-                        return TestEnvironment.newEnvironment(builder.build());
+                    protected Map<String, String> captureSystemProperties() {
+                        return mockSystemProperties(createTempDir());
                     }
                 };
             }
@@ -686,10 +680,8 @@ public class SetupPasswordToolTests extends CommandTestCase {
             protected InteractiveSetup newInteractiveSetup() {
                 return new InteractiveSetup() {
                     @Override
-                    protected Environment createEnv(Map<String, String> settings) throws UserException {
-                        Settings.Builder builder = Settings.builder();
-                        settings.forEach((k, v) -> builder.put(k, v));
-                        return TestEnvironment.newEnvironment(builder.build());
+                    protected Map<String, String> captureSystemProperties() {
+                        return mockSystemProperties(createTempDir());
                     }
                 };
             }

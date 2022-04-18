@@ -18,15 +18,16 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.net.InetAddress;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -304,21 +305,51 @@ public class IpFieldMapperTests extends MapperTestCase {
 
     @Override
     protected SyntheticSourceExample syntheticSourceExample() throws IOException {
-        if (randomBoolean()) {
-            String v = generateRandomInputValue(null);
-            return new SyntheticSourceExample(v, v, this::minimalMapping);
-        }
-        List<InetAddress> values = randomList(1, 5, () -> randomIp(randomBoolean()));
-        List<String> in = values.stream().map(NetworkAddress::format).toList();
-        Object out = values.size() == 1
-            ? in.get(0)
-            : values.stream()
-                .map(InetAddressPoint::encode)
-                .sorted(Arrays::compareUnsigned)
-                .map(InetAddressPoint::decode)
+        return new SyntheticSourceExampleHelper().example();
+    }
+
+    static class SyntheticSourceExampleHelper {
+        private final InetAddress nullValue = usually() ? null : randomIp(randomBoolean());
+
+        public SyntheticSourceExample example() {
+            if (randomBoolean()) {
+                Tuple<String, InetAddress> v = generateValue();
+                return new SyntheticSourceExample(v.v1(), NetworkAddress.format(v.v2()), this::mapping);
+            }
+            List<Tuple<String, InetAddress>> values = randomList(1, 5, this::generateValue);
+            List<String> in = values.stream().map(Tuple::v1).toList();
+            List<String> outList = values.stream()
+                .map(v -> new BytesRef(InetAddressPoint.encode(v.v2())))
+                .collect(Collectors.toSet())
+                .stream()
+                .sorted()
+                .map(v -> InetAddressPoint.decode(v.bytes))
                 .map(NetworkAddress::format)
                 .toList();
-        return new SyntheticSourceExample(in, out, this::minimalMapping);
+            Object out = outList.size() == 1 ? outList.get(0) : outList;
+            return new SyntheticSourceExample(in, out, this::mapping);
+        }
+
+        private Tuple<String, InetAddress> generateValue() {
+            if (nullValue != null && randomBoolean()) {
+                return Tuple.tuple(null, nullValue);
+            }
+            InetAddress addr = randomIp(randomBoolean());
+            return Tuple.tuple(NetworkAddress.format(addr), addr);
+        }
+
+        private void mapping(XContentBuilder b) throws IOException {
+            b.field("type", "ip");
+            if (nullValue != null) {
+                b.field("null_value", NetworkAddress.format(nullValue));
+            }
+            if (rarely()) {
+                b.field("index", false);
+            }
+            if (rarely()) {
+                b.field("store", false);
+            }
+        }
     }
 
     @Override

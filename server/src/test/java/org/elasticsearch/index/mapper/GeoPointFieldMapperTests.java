@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.index.mapper;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
-
 import org.apache.lucene.document.LatLonDocValuesField;
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.util.BytesRef;
@@ -43,7 +41,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-@Seed("26FB340FDF4CCC1C:7F88FCB0BF4AC7BD")
 public class GeoPointFieldMapperTests extends MapperTestCase {
 
     @Override

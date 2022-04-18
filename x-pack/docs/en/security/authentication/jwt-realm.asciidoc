@@ -4,27 +4,47 @@
 
 beta::[]
 
-{es} can be configured to trust JSON Web Tokens (JWTs) that are issued from an
-external service as an authentication credential.
+{es} can be configured to trust JSON Web Tokens (JWTs) that are issued as an 
+authentication credential from an external service.
 
-When a JWT realm is used for authenticating with {es}, a distinction is made
+When a JWT realm is used to authenticate with {es}, a distinction is made
 between the _client_ that is connecting to {es}, and the _user_ on whose behalf
 the request should run. The JWT identifies the user, and a separate credential
-should be used to authenticate the client.
+is used to authenticate the client.
 
-A common scenario for using JWTs is when an existing front-end application that
-uses OpenID Connect (OIDC) as an authentication method, and then accesses {es}
+A common scenario that uses JWTs is when an existing front-end application uses 
+OpenID Connect (OIDC) as an authentication method, and then accesses {es}
 on behalf of the authenticated user.
 
 TIP: If the front-end application does not exist, you can use the
-<<token-authentication-services>> can be used instead.
+<<token-authentication-services>> instead.
 
-{es} provides an <<oidc-realm,OpenID Connect realm>> as well as the JWT realm.
-The `oidc` realm provides stronger security guarantees and is preferred for any
-use case where {es} can act as an OIDC _Relying Party_ (RP).
+[[jwt-realm-oidc]]
+=== JWT uses OIDC workflows
+JWT authentication in {es} is derived from OIDC workflows, where users initiate
+contact with an OIDC Relying Party (RP) and are redirected to authenticate with
+an OIDC Provider (OP). Separate tokens are issued at different steps in the
+workflow to represent authentication, authorization, and identification.
 
-IMPORTANT: The `oidc` realm is the only supported way to enable OIDC
-authentication in {kib}.
+When users authenticate to the OP, they receive a _grant token_, which they
+present to the RP as proof of authentication. The RP then asks the OP to verify
+the  grant token and exchange it for two tokens: an _ID token_ and an
+_access token_.
+
+The ID token is a JWT, so the encoding is transparent; the other tokens are
+opaque. If the ID token is presented to a JWT realm, {es} can use it to
+authenticate, identify, and authorize an individual user.
+
+NOTE: Because JWTs are external to {es}, you can define a custom workflow
+instead of using the OIDC workflow. However, the JWT format must still be JSON
+Web Signature (JWS). The JWS header and JWS signature are validated using OIDC
+ID token validation rules.
+
+{es} supports a separate <<oidc-realm,OpenID Connect realm>>, which provides
+stronger security guarantees than the JWT realm and is preferred for any
+use case where {es} can act as an OIDC RP.
+
+The OIDC realm is the only supported way to enable OIDC authentication in {kib}.
 
 [[jwt-realm-configuration]]
 ==== Configuring a JWT realm
@@ -68,25 +88,6 @@ bin/elasticsearch-keystore add-file xpack.security.authc.realms.jwt.jwt1.hmac_jw
 bin/elasticsearch-keystore add xpack.security.authc.realms.jwt.jwt1.hmac_key
 ------------------------------------------------------------
 
-[[external-workflow-requirements]]
-==== External Workflow Requirements
-
-JWT realm functionality is derived from OpenID Connect (OIDC) workflows. A high-level understanding of OIDC Tokens helps with JWT realm.
-
-In OIDC workflows, end-users initiates contact with an OIDC Relying Party (RP), and are redirected to authenticate to an OIDC Provider (OP).
-Separate tokens are issued at different steps to represent authentication, authorization, and identification.
-
-.OIDC Tokens
-* Grant Token: End-users authenticate to the OIDC OP, receive an OIDC Grant Token, and present it to the OIDC RP as proof of authentication.
-* ID Token: OIDC RPs ask the OIDC OP to verify the OIDC Grant Token, and exchange it for two tokens. One is an OpenID Connect ID Token.
-* Access Token: OIDC RPs ask the OIDC OP to verify the OIDC Grant Token, and exchange it for two tokens. One is an OIDC Access Token.
-
-IMPORTANT: The ID Token is a JWT, so the encoding is transparent. The other tokens are opaque.
-
-If the ID Token is presented to a JWT realm, {es} can use it to authenticate, identify, and authorize the end-user.
-
-NOTE: Since JWTs are acquired external to {es}, a bespoke workflow can be used instead of OIDC workflow.
-      However, the JWT format must still be similar to OpenID Connect ID Tokens. See <<jwt-validation>>.
 
 [[jwt-client-authentication]]
 ==== Client authentication

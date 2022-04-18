@@ -24,11 +24,11 @@ import java.util.Map;
  * This aggregator uses a heuristic to decide between direct collection and using segment ordinals, based on the expected memory overhead
  * of the ordinals approach.
  */
-public class KeywordCardinalityAggregator extends CardinalityAggregator {
+public class SegmentOrdinalsCardinalityAggregator extends CardinalityAggregator {
 
     ValuesSource.Bytes.WithOrdinals source;
 
-    public KeywordCardinalityAggregator(
+    public SegmentOrdinalsCardinalityAggregator(
         String name,
         ValuesSourceConfig valuesSourceConfig,
         int precision,

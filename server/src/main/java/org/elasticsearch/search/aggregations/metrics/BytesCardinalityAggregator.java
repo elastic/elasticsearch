@@ -21,9 +21,9 @@ import java.util.Map;
  * Cardinality aggregator that operates directly on the bytes values of a field.  This is necessary for fields that don't use ordinals at
  * all, such as Range Fields.
  */
-public class DirectCollectorCardinalityAggregator extends CardinalityAggregator {
+public class BytesCardinalityAggregator extends CardinalityAggregator {
 
-    public DirectCollectorCardinalityAggregator(
+    public BytesCardinalityAggregator(
         String name,
         ValuesSourceConfig valuesSourceConfig,
         int precision,

@@ -43,7 +43,7 @@ import java.util.function.BiConsumer;
 public abstract class CardinalityAggregator extends NumericMetricsAggregator.SingleValue {
 
     protected final int precision;
-    protected ValuesSourceConfig valuesSourceConfig;
+    protected final ValuesSourceConfig valuesSourceConfig;
     private final ValuesSource valuesSource;
 
     // Expensive to initialize, so we only initialize it when we have an actual value source

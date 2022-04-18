@@ -29,11 +29,6 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     private final Long precisionThreshold;
     private final CardinalityAggregatorSupplier aggregatorSupplier;
-    private int emptyCollectorsUsed;
-    private int numericCollectorsUsed;
-    private int ordinalsCollectorsUsed;
-    private int ordinalsCollectorsOverheadTooHigh;
-    private int stringHashingCollectorsUsed;
 
     CardinalityAggregatorFactory(
         String name,
@@ -62,7 +57,7 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
         builder.register(
             CardinalityAggregationBuilder.REGISTRY_KEY,
             List.of(CoreValuesSourceType.GEOPOINT, CoreValuesSourceType.RANGE),
-            DirectCollectorCardinalityAggregator::new,
+            BytesCardinalityAggregator::new,
             true
         );
         builder.register(
@@ -85,11 +80,11 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
                             );
                         }
                         // fallback in the default aggregator
-                        return new KeywordCardinalityAggregator(name, valuesSourceConfig, precision, context, parent, metadata);
+                        return new SegmentOrdinalsCardinalityAggregator(name, valuesSourceConfig, precision, context, parent, metadata);
                     }
                 }
                 // If we don't have ordinals, don't try to use an ordinals collector
-                return new DirectCollectorCardinalityAggregator(name, valuesSourceConfig, precision, context, parent, metadata);
+                return new BytesCardinalityAggregator(name, valuesSourceConfig, precision, context, parent, metadata);
             },
             true
         );

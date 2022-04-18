@@ -25,8 +25,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGridAggregationBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileGridAggregationBuilder;
+import org.elasticsearch.search.aggregations.metrics.BytesCardinalityAggregator;
 import org.elasticsearch.search.aggregations.metrics.CardinalityAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.DirectCollectorCardinalityAggregator;
 import org.elasticsearch.search.aggregations.metrics.GeoBoundsAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.GeoCentroidAggregationBuilder;
 import org.elasticsearch.search.aggregations.metrics.ValueCountAggregationBuilder;
@@ -325,7 +325,7 @@ public class SpatialPlugin extends Plugin implements ActionPlugin, MapperPlugin,
         builder.register(
             CardinalityAggregationBuilder.REGISTRY_KEY,
             GeoShapeValuesSourceType.instance(),
-            DirectCollectorCardinalityAggregator::new,
+            BytesCardinalityAggregator::new,
             true
         );
     }

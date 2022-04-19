@@ -138,29 +138,25 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
 
     private final OptionSpec<String> enrollmentTokenParam = parser.accepts("enrollment-token", "The enrollment token to use")
         .withRequiredArg();
-    private final OptionSpec<Void> reconfigure = parser.accepts("reconfigure");
+    private final boolean inReconfigureMode;
     private final BiFunction<Environment, String, CommandLineHttpClient> clientFunction;
 
-    public AutoConfigureNode(BiFunction<Environment, String, CommandLineHttpClient> clientFunction) {
+    public AutoConfigureNode(boolean reconfigure, BiFunction<Environment, String, CommandLineHttpClient> clientFunction) {
         super("Generates all the necessary security configuration for a node in a secured cluster");
         // This "cli utility" is invoked from the node startup script, where it is passed all the
         // node startup options unfiltered. It cannot consume most of them, but it does need to inspect the `-E` ones.
         parser.allowsUnrecognizedOptions();
+        this.inReconfigureMode = reconfigure;
         this.clientFunction = clientFunction;
     }
 
-    public AutoConfigureNode() {
-        this(CommandLineHttpClient::new);
-    }
-
-    public static void main(String[] args) throws Exception {
-        exit(new AutoConfigureNode().main(args, Terminal.DEFAULT));
+    public AutoConfigureNode(boolean reconfigure) {
+        this(reconfigure, CommandLineHttpClient::new);
     }
 
     @Override
     protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
         final boolean inEnrollmentMode = options.has(enrollmentTokenParam);
-        final boolean inReconfigureMode = options.has(reconfigure);
 
         // skipping security auto-configuration because node considered as restarting.
         for (Path dataPath : env.dataFiles()) {
@@ -210,7 +206,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             if (false == inEnrollmentMode) {
                 throw new UserException(ExitCodes.USAGE, "enrollment-token is a mandatory parameter when reconfiguring the node");
             }
-            env = possiblyReconfigureNode(env, terminal);
+            env = possiblyReconfigureNode(env, terminal, options);
         }
 
         // only perform auto-configuration if the existing configuration is not conflicting (eg Security already enabled)
@@ -878,7 +874,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
         return false;
     }
 
-    private Environment possiblyReconfigureNode(Environment env, Terminal terminal) throws UserException {
+    private Environment possiblyReconfigureNode(Environment env, Terminal terminal, OptionSet options) throws UserException {
         // We remove the existing auto-configuration stanza from elasticsearch.yml, the elastisearch.keystore and
         // the directory with the auto-configured TLS key material, and then proceed as if elasticsearch is started
         // with --enrolment-token token, in the first place.
@@ -921,7 +917,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
                 );
             }
             // rebuild the environment after removing the settings that were added in auto-configuration.
-            return createEnv(Map.of("path.home", env.settings().get("path.home")));
+            return createEnv(options);
         } else {
             throw new UserException(
                 ExitCodes.USAGE,

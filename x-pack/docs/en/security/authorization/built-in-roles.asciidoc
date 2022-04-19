@@ -139,6 +139,11 @@ read access to the `.ml-notifications` and `.ml-anomalies*` indices
 {ml-cap} users also need index privileges for source and destination
 indices and roles that grant access to {kib}. See {ml-docs-setup-privileges}.
 
+[[built-in-roles-manage-enrich]] `manage_enrich`::
+Grants privileges to access and use all of the {ref}/enrich-apis.html[enrich APIs].
+Users with this role can manage enrich policies that add data from your existing 
+indices to incoming documents during ingest.
+
 [[built-in-roles-monitoring-user]] `monitoring_user`::
 Grants the minimum privileges required for any user of {monitoring} other than those
 required to use {kib}. This role grants access to the monitoring indices and grants

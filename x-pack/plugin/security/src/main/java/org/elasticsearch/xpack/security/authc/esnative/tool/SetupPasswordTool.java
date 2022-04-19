@@ -12,13 +12,13 @@ import joptsimple.OptionSpec;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.MultiCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cli.KeyStoreAwareCommand;
-import org.elasticsearch.common.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -72,7 +72,7 @@ import static java.util.Arrays.asList;
  * elastic user and the ChangePassword API for setting the password of the rest of the built-in users when needed.
  */
 @Deprecated
-class SetupPasswordTool extends LoggingAwareMultiCommand {
+class SetupPasswordTool extends MultiCommand {
 
     private static final char[] CHARS = ("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789").toCharArray();
     public static final List<String> USERS = asList(

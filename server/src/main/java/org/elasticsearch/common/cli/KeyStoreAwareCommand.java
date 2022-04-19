@@ -42,11 +42,8 @@ public abstract class KeyStoreAwareCommand extends EnvironmentAwareCommand {
     protected static SecureString readPassword(Terminal terminal, boolean withVerification) throws UserException {
         final char[] passwordArray;
         if (withVerification) {
-            passwordArray = terminal.readSecret(
-                "Enter new password for the elasticsearch keystore (empty for no password): ",
-                KeyStoreWrapper.MAX_PASSPHRASE_LENGTH
-            );
-            char[] passwordVerification = terminal.readSecret("Enter same password again: ", KeyStoreWrapper.MAX_PASSPHRASE_LENGTH);
+            passwordArray = terminal.readSecret("Enter new password for the elasticsearch keystore (empty for no password): ");
+            char[] passwordVerification = terminal.readSecret("Enter same password again: ");
             if (Arrays.equals(passwordArray, passwordVerification) == false) {
                 throw new UserException(ExitCodes.DATA_ERROR, "Passwords are not equal, exiting.");
             }

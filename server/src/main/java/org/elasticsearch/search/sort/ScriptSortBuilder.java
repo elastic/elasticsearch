@@ -29,6 +29,7 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.fieldcomparator.DoubleValuesComparatorSource;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardException;
@@ -260,7 +261,11 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     public SortFieldAndFormat build(SearchExecutionContext context) throws IOException {
         DocValueFormat docValueFormat = DocValueFormat.RAW;
         if (docValueFormat != null) {
-            docValueFormat = context.getFieldType(this.format).docValueFormat(null, null);
+            MappedFieldType fieldType = context.getFieldType(this.format);
+            if (fieldType != null) {
+                // TODO else throw a meaningful error...
+                docValueFormat = fieldType.docValueFormat(null, null);
+            }
         }
         return new SortFieldAndFormat(new SortField("_script", fieldComparatorSource(context), order == SortOrder.DESC), docValueFormat);
     }

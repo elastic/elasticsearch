@@ -7,12 +7,12 @@
  */
 package org.elasticsearch.index.shard;
 
-import org.elasticsearch.common.cli.LoggingAwareMultiCommand;
+import org.elasticsearch.cli.MultiCommand;
 
 /**
  * Class encapsulating and dispatching commands from the {@code elasticsearch-shard} command line tool
  */
-class ShardToolCli extends LoggingAwareMultiCommand {
+class ShardToolCli extends MultiCommand {
 
     ShardToolCli() {
         super("A CLI tool to remove corrupted parts of unrecoverable shards");

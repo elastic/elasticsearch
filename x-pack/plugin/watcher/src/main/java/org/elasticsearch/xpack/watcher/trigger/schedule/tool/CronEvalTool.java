@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.watcher.trigger.schedule.tool;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
+import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.cli.LoggingAwareCommand;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.xpack.core.scheduler.Cron;
 
@@ -24,7 +24,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
-class CronEvalTool extends LoggingAwareCommand {
+class CronEvalTool extends Command {
 
     private static final DateFormatter UTC_FORMATTER = DateFormatter.forPattern("EEE, d MMM yyyy HH:mm:ss")
         .withZone(ZoneOffset.UTC)

@@ -19,7 +19,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -30,7 +29,6 @@ import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -59,25 +57,22 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
     }
 
     private static void ackAndReroute(Request request, ActionListener<AcknowledgedResponse> listener, RerouteService rerouteService) {
-        rerouteService
-            .reroute("node registered for removal from cluster", Priority.URGENT, new ActionListener<>() {
-                @Override
-                public void onResponse(ClusterState clusterState) {}
+        rerouteService.reroute("node registered for removal from cluster", Priority.URGENT, new ActionListener<>() {
+            @Override
+            public void onResponse(ClusterState clusterState) {}
 
-                @Override
-                public void onFailure(Exception e) {
-                    logger.warn(() -> "failed to reroute after deleting node [" + request.getNodeId() + "] shutdown", e);
-                }
-            });
+            @Override
+            public void onFailure(Exception e) {
+                logger.warn(() -> "failed to reroute after deleting node [" + request.getNodeId() + "] shutdown", e);
+            }
+        });
         listener.onResponse(AcknowledgedResponse.TRUE);
     }
 
     // package private for tests
-    record DeleteShutdownNodeTask(
-        Request request,
-        ActionListener<AcknowledgedResponse> listener,
-        RerouteService rerouteService)
-        implements ClusterStateTaskListener {
+    record DeleteShutdownNodeTask(Request request, ActionListener<AcknowledgedResponse> listener, RerouteService rerouteService)
+        implements
+            ClusterStateTaskListener {
         @Override
         public void onFailure(Exception e) {
             logger.error(new ParameterizedMessage("failed to delete shutdown for node [{}]", request.getNodeId()), e);
@@ -106,8 +101,9 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
                 return currentState;
             }
             return ClusterState.builder(currentState)
-                .metadata(Metadata.builder(currentState.metadata())
-                    .putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(shutdownMetadata))
+                .metadata(
+                    Metadata.builder(currentState.metadata())
+                        .putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(shutdownMetadata))
                 )
                 .build();
         }
@@ -134,12 +130,8 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
     }
 
     @Override
-    protected void masterOperation(
-        Task task,
-        Request request,
-        ClusterState state,
-        ActionListener<AcknowledgedResponse> listener
-    ) throws Exception {
+    protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
+        throws Exception {
         { // This block solely to ensure this NodesShutdownMetadata isn't accidentally used in the cluster state update task below
             NodesShutdownMetadata nodesShutdownMetadata = state.metadata().custom(NodesShutdownMetadata.TYPE);
             if (nodesShutdownMetadata == null || nodesShutdownMetadata.getAllNodeMetadataMap().get(request.getNodeId()) == null) {

@@ -46,9 +46,11 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
 
     private static final PutShutdownNodeExecutor executor = new PutShutdownNodeExecutor();
 
-    private static boolean putShutdownNodeState(Map<String, SingleNodeShutdownMetadata> shutdownMetadata,
-                                                Predicate<String> nodeExists,
-                                                Request request) {
+    private static boolean putShutdownNodeState(
+        Map<String, SingleNodeShutdownMetadata> shutdownMetadata,
+        Predicate<String> nodeExists,
+        Request request
+    ) {
         if (isNoop(shutdownMetadata, request)) {
             return false;
         }
@@ -83,16 +85,15 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
         };
 
         if (shouldReroute) {
-            rerouteService
-                .reroute("node registered for removal from cluster", Priority.URGENT, new ActionListener<>() {
-                    @Override
-                    public void onResponse(ClusterState clusterState) {}
+            rerouteService.reroute("node registered for removal from cluster", Priority.URGENT, new ActionListener<>() {
+                @Override
+                public void onResponse(ClusterState clusterState) {}
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        logger.warn(() -> "failed to reroute after registering node [" + request.getNodeId() + "] for shutdown", e);
-                    }
-                });
+                @Override
+                public void onFailure(Exception e) {
+                    logger.warn(() -> "failed to reroute after registering node [" + request.getNodeId() + "] for shutdown", e);
+                }
+            });
         } else {
             logger.trace(
                 () -> "not starting reroute after registering node ["
@@ -106,11 +107,9 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
     }
 
     // package private for tests
-    record PutShutdownNodeTask(
-        Request request,
-        ActionListener<AcknowledgedResponse> listener,
-        RerouteService rerouteService)
-        implements ClusterStateTaskListener {
+    record PutShutdownNodeTask(Request request, ActionListener<AcknowledgedResponse> listener, RerouteService rerouteService)
+        implements
+            ClusterStateTaskListener {
         @Override
         public void onFailure(Exception e) {
             logger.error(new ParameterizedMessage("failed to put shutdown for node [{}]", request.getNodeId()), e);
@@ -140,7 +139,8 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
                 return currentState;
             }
             return ClusterState.builder(currentState)
-                .metadata(Metadata.builder(currentState.metadata())
+                .metadata(
+                    Metadata.builder(currentState.metadata())
                         .putCustom(NodesShutdownMetadata.TYPE, new NodesShutdownMetadata(shutdownMetadata))
                 )
                 .build();

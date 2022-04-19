@@ -51,6 +51,7 @@ import static org.elasticsearch.xpack.sql.qa.rest.RestSqlTestCase.SQL_QUERY_REST
 public abstract class BaseRestSqlTestCase extends RemoteClusterAwareSqlRestTestCase {
 
     private static final String TEST_INDEX = "test";
+    private static final String DATA_STREAM_TEMPLATE = "test-ds-index-template";
 
     public static class RequestObjectBuilder {
         private StringBuilder request;
@@ -202,12 +203,36 @@ public abstract class BaseRestSqlTestCase extends RemoteClusterAwareSqlRestTestC
         provisioningClient().performRequest(request);
     }
 
-    protected void deleteTestIndex() throws IOException {
-        deleteIndex(TEST_INDEX);
+    // can be used with regular indices as well as data streams (that would need a "create":{} instead of an "index":{} bulk operation)
+    protected void indexWithIndexName(String indexName, String doc) throws IOException {
+        Request request = new Request("POST", "/" + indexName + "/_doc");
+        request.addParameter("refresh", "true");
+        request.setJsonEntity(doc);
+        provisioningClient().performRequest(request);
     }
 
-    protected static void deleteIndex(String name) throws IOException {
+    protected void deleteTestIndex() throws IOException {
+        deleteIndexWithProvisioningClient(TEST_INDEX);
+    }
+
+    protected static void deleteIndexWithProvisioningClient(String name) throws IOException {
         deleteIndex(provisioningClient(), name);
+    }
+
+    public static void createDataStream(String dataStreamName) throws IOException {
+        Request request = new Request("PUT", "/_index_template/" + DATA_STREAM_TEMPLATE + "-" + dataStreamName);
+        request.setJsonEntity("{\"index_patterns\": [\"" + dataStreamName + "*\"], \"data_stream\": {}}");
+        assertOK(provisioningClient().performRequest(request));
+
+        request = new Request("PUT", "/_data_stream/" + dataStreamName);
+        assertOK(provisioningClient().performRequest(request));
+    }
+
+    public static void deleteDataStream(String dataStreamName) throws IOException {
+        Request request = new Request("DELETE", "_data_stream/" + dataStreamName);
+        provisioningClient().performRequest(request);
+        request = new Request("DELETE", "/_index_template/" + DATA_STREAM_TEMPLATE + "-" + dataStreamName);
+        provisioningClient().performRequest(request);
     }
 
     public static RequestObjectBuilder query(String query) {

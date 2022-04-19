@@ -1262,7 +1262,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             builder.endObject();
         }
 
-        private void withIndicesPrivileges(XContentBuilder builder, RoleDescriptor.IndicesPrivileges indicesPrivileges) throws IOException {
+        private static void withIndicesPrivileges(XContentBuilder builder, RoleDescriptor.IndicesPrivileges indicesPrivileges)
+            throws IOException {
             builder.startObject();
             builder.array("names", indicesPrivileges.getIndices());
             builder.array("privileges", indicesPrivileges.getPrivileges());
@@ -1402,7 +1403,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
             builder.startObject()
                 .field("uid", updateProfileDataRequest.getUid())
-                .field("access", updateProfileDataRequest.getAccess())
+                .field("labels", updateProfileDataRequest.getLabels())
                 .field("data", updateProfileDataRequest.getData())
                 .endObject();
             logEntry.with(PUT_CONFIG_FIELD_NAME, Strings.toString(builder));
@@ -1430,7 +1431,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             return this;
         }
 
-        void withGrant(XContentBuilder builder, Grant grant) throws IOException {
+        static void withGrant(XContentBuilder builder, Grant grant) throws IOException {
             builder.startObject("grant").field("type", grant.getType());
             if (grant.getUsername() != null) {
                 builder.startObject("user")
@@ -1598,7 +1599,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             logger.info(AUDIT_MARKER, logEntry);
         }
 
-        String toQuotedJsonArray(Object[] values) {
+        static String toQuotedJsonArray(Object[] values) {
             assert values != null;
             final StringBuilder stringBuilder = new StringBuilder();
             final JsonStringEncoder jsonStringEncoder = JsonStringEncoder.getInstance();

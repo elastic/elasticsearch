@@ -608,7 +608,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
         }
     }
 
-    private ActionListener<Void> createOrFinishListener(
+    private static ActionListener<Void> createOrFinishListener(
         final RecoveryRef recoveryRef,
         final TransportChannel channel,
         final String action,
@@ -618,7 +618,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
     }
 
     @Nullable
-    private ActionListener<Void> createOrFinishListener(
+    private static ActionListener<Void> createOrFinishListener(
         final RecoveryRef recoveryRef,
         final TransportChannel channel,
         final String action,

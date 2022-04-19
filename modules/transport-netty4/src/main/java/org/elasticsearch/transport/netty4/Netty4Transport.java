@@ -374,11 +374,11 @@ public class Netty4Transport extends TcpTransport {
         ch.pipeline()
             .addLast("byte_buf_sizer", NettyByteBufSizer.INSTANCE)
             .addLast("logging", ESLoggingHandler.INSTANCE)
-            .addLast("chunked_writer", new Netty4WriteThrottlingHandler())
+            .addLast("chunked_writer", new Netty4WriteThrottlingHandler(getThreadPool().getThreadContext()))
             .addLast("dispatcher", new Netty4MessageInboundHandler(this, recycler));
     }
 
-    private void addClosedExceptionLogger(Channel channel) {
+    private static void addClosedExceptionLogger(Channel channel) {
         channel.closeFuture().addListener(f -> {
             if (f.isSuccess() == false) {
                 logger.debug(() -> new ParameterizedMessage("exception while closing channel: {}", channel), f.cause());
@@ -387,7 +387,7 @@ public class Netty4Transport extends TcpTransport {
     }
 
     @ChannelHandler.Sharable
-    private class ServerChannelExceptionHandler extends ChannelInboundHandlerAdapter {
+    private static class ServerChannelExceptionHandler extends ChannelInboundHandlerAdapter {
 
         @Override
         public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {

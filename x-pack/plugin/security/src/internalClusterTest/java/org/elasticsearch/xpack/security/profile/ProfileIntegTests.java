@@ -19,11 +19,11 @@ import org.elasticsearch.xpack.core.security.action.profile.GetProfileAction;
 import org.elasticsearch.xpack.core.security.action.profile.GetProfileRequest;
 import org.elasticsearch.xpack.core.security.action.profile.GetProfilesResponse;
 import org.elasticsearch.xpack.core.security.action.profile.Profile;
-import org.elasticsearch.xpack.core.security.action.profile.SearchProfilesAction;
-import org.elasticsearch.xpack.core.security.action.profile.SearchProfilesRequest;
-import org.elasticsearch.xpack.core.security.action.profile.SearchProfilesResponse;
 import org.elasticsearch.xpack.core.security.action.profile.SetProfileEnabledAction;
 import org.elasticsearch.xpack.core.security.action.profile.SetProfileEnabledRequest;
+import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesAction;
+import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesRequest;
+import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesResponse;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAction;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
@@ -94,7 +94,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
             "properties"
         );
 
-        assertThat(userProfileProperties.keySet(), hasItems("uid", "enabled", "last_synchronized", "user", "access", "application_data"));
+        assertThat(userProfileProperties.keySet(), hasItems("uid", "enabled", "last_synchronized", "user", "labels", "application_data"));
     }
 
     public void testActivateProfile() {
@@ -123,7 +123,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
         assertThat(profile3.user().email(), equalTo(RAC_USER_NAME + "@example.com"));
         assertThat(profile3.user().fullName(), nullValue());
         assertThat(profile3.user().roles(), contains(RAC_ROLE));
-        assertThat(profile3.access(), anEmptyMap());
+        assertThat(profile3.labels(), anEmptyMap());
         // Get by ID immediately should get the same document and content as the response to activate
         assertThat(getProfile(profile3.uid(), Set.of()), equalTo(profile3));
 
@@ -132,7 +132,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
             .setDoc("""
                 {
                     "user_profile": {
-                      "access": {
+                      "labels": {
                         "my_app": {
                           "tag": "prod"
                         }
@@ -151,7 +151,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
         // Above manual update should be successful
         final Profile profile4 = getProfile(profile3.uid(), Set.of("my_app"));
         assertThat(profile4.uid(), equalTo(profile3.uid()));
-        assertThat(profile4.access(), equalTo(Map.of("my_app", Map.of("tag", "prod"))));
+        assertThat(profile4.labels(), equalTo(Map.of("my_app", Map.of("tag", "prod"))));
         assertThat(profile4.applicationData(), equalTo(Map.of("my_app", Map.of("theme", "default"))));
 
         // Update native rac user
@@ -168,8 +168,8 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
         assertThat(profile5.user().email(), nullValue());
         assertThat(profile5.user().fullName(), equalTo("Native RAC User"));
         assertThat(profile5.user().roles(), containsInAnyOrder(RAC_ROLE, "superuser"));
-        // Re-activate should not change access
-        assertThat(profile5.access(), equalTo(Map.of("my_app", Map.of("tag", "prod"))));
+        // Re-activate should not change labels
+        assertThat(profile5.labels(), equalTo(Map.of("my_app", Map.of("tag", "prod"))));
         // Get by ID immediately should get the same document and content as the response to activate
         assertThat(getProfile(profile5.uid(), Set.of()), equalTo(profile5));
         // Re-activate should not change application data
@@ -192,7 +192,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
         final Profile profile2 = getProfile(profile1.uid(), Set.of("app1", "app2"));
 
         assertThat(profile2.uid(), equalTo(profile1.uid()));
-        assertThat(profile2.access(), equalTo(Map.of("app1", List.of("tab1", "tab2"))));
+        assertThat(profile2.labels(), equalTo(Map.of("app1", List.of("tab1", "tab2"))));
         assertThat(profile2.applicationData(), equalTo(Map.of("app1", Map.of("name", "app1", "type", "app"))));
 
         // Update again should be incremental
@@ -208,7 +208,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
 
         final Profile profile3 = getProfile(profile1.uid(), Set.of("app1", "app2"));
         assertThat(profile3.uid(), equalTo(profile1.uid()));
-        assertThat(profile3.access(), equalTo(profile2.access()));
+        assertThat(profile3.labels(), equalTo(profile2.labels()));
         assertThat(
             profile3.applicationData(),
             equalTo(Map.of("app1", Map.of("name", "app1_take2", "type", "app", "active", false), "app2", Map.of("name", "app2")))
@@ -217,7 +217,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
         // Activate profile again should not affect the data section
         doActivateProfile(RAC_USER_NAME, TEST_PASSWORD_SECURE_STRING);
         final Profile profile4 = getProfile(profile1.uid(), Set.of("app1", "app2"));
-        assertThat(profile4.access(), equalTo(profile3.access()));
+        assertThat(profile4.labels(), equalTo(profile3.labels()));
         assertThat(profile4.applicationData(), equalTo(profile3.applicationData()));
 
         // Update non-existent profile should throw error
@@ -235,7 +235,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
         );
     }
 
-    public void testSearchProfiles() {
+    public void testSuggestProfiles() {
         final String nativeRacUserPasswordHash = new String(getFastStoredHashAlgoForTests().hash(NATIVE_RAC_USER_PASSWORD));
         final Map<String, String> users = Map.of(
             "user_foo",
@@ -258,31 +258,31 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
             doActivateProfile(key, NATIVE_RAC_USER_PASSWORD);
         });
 
-        final SearchProfilesResponse.ProfileHit[] profiles1 = doSearch("");
+        final SuggestProfilesResponse.ProfileHit[] profiles1 = doSuggest("");
         assertThat(extractUsernames(profiles1), equalTo(users.keySet()));
 
-        final SearchProfilesResponse.ProfileHit[] profiles2 = doSearch(randomFrom("super admin", "admin super"));
+        final SuggestProfilesResponse.ProfileHit[] profiles2 = doSuggest(randomFrom("super admin", "admin super"));
         assertThat(extractUsernames(profiles2), equalTo(Set.of("user_bar", "user_qux")));
 
         // Prefix match on full name
-        final SearchProfilesResponse.ProfileHit[] profiles3 = doSearch("ver");
+        final SuggestProfilesResponse.ProfileHit[] profiles3 = doSuggest("ver");
         assertThat(extractUsernames(profiles3), equalTo(Set.of("user_foo", "user_baz")));
 
         // Prefix match on the username
-        final SearchProfilesResponse.ProfileHit[] profiles4 = doSearch("user");
+        final SuggestProfilesResponse.ProfileHit[] profiles4 = doSuggest("user");
         assertThat(extractUsernames(profiles4), equalTo(users.keySet()));
         // Documents scored higher are those with matches in more fields
         assertThat(extractUsernames(Arrays.copyOfRange(profiles4, 0, 2)), equalTo(Set.of("user_foo", "user_baz")));
 
         // Match of different terms on different fields
-        final SearchProfilesResponse.ProfileHit[] profiles5 = doSearch(randomFrom("admin very", "very admin"));
+        final SuggestProfilesResponse.ProfileHit[] profiles5 = doSuggest(randomFrom("admin very", "very admin"));
         assertThat(extractUsernames(profiles5), equalTo(users.keySet()));
 
         // Match email
-        final SearchProfilesResponse.ProfileHit[] profiles6 = doSearch(randomFrom("fooem", "fooemail"));
+        final SuggestProfilesResponse.ProfileHit[] profiles6 = doSuggest(randomFrom("fooem", "fooemail"));
         assertThat(extractUsernames(profiles6), equalTo(Set.of("user_foo")));
 
-        final SearchProfilesResponse.ProfileHit[] profiles7 = doSearch("example.org");
+        final SuggestProfilesResponse.ProfileHit[] profiles7 = doSuggest("example.org");
         assertThat(extractUsernames(profiles7), equalTo(users.keySet()));
     }
 
@@ -301,7 +301,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
         assertThat(getProfileIndexResponse().getIndices(), not(hasItemInArray(INTERNAL_SECURITY_PROFILE_INDEX_8)));
 
         // Search returns empty result
-        final SearchProfilesResponse.ProfileHit[] profiles1 = doSearch("");
+        final SuggestProfilesResponse.ProfileHit[] profiles1 = doSuggest("");
         assertThat(profiles1, emptyArray());
 
         // Ensure index does not exist
@@ -331,7 +331,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
     public void testSetEnabled() {
         final Profile profile1 = doActivateProfile(RAC_USER_NAME, TEST_PASSWORD_SECURE_STRING);
 
-        final SearchProfilesResponse.ProfileHit[] profileHits1 = doSearch(RAC_USER_NAME);
+        final SuggestProfilesResponse.ProfileHit[] profileHits1 = doSuggest(RAC_USER_NAME);
         assertThat(profileHits1, arrayWithSize(1));
         assertThat(profileHits1[0].profile().uid(), equalTo(profile1.uid()));
 
@@ -344,7 +344,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
         client().execute(SetProfileEnabledAction.INSTANCE, setProfileEnabledRequest1).actionGet();
 
         // No longer visible to search
-        final SearchProfilesResponse.ProfileHit[] profileHits2 = doSearch(RAC_USER_NAME);
+        final SuggestProfilesResponse.ProfileHit[] profileHits2 = doSuggest(RAC_USER_NAME);
         assertThat(profileHits2, emptyArray());
 
         // But can still direct get
@@ -359,7 +359,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
             WriteRequest.RefreshPolicy.IMMEDIATE
         );
         client().execute(SetProfileEnabledAction.INSTANCE, setProfileEnabledRequest2).actionGet();
-        final SearchProfilesResponse.ProfileHit[] profileHits3 = doSearch(RAC_USER_NAME);
+        final SuggestProfilesResponse.ProfileHit[] profileHits3 = doSuggest(RAC_USER_NAME);
         assertThat(profileHits3, arrayWithSize(1));
         assertThat(profileHits3[0].profile().uid(), equalTo(profile1.uid()));
 
@@ -375,17 +375,17 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
         );
     }
 
-    private SearchProfilesResponse.ProfileHit[] doSearch(String query) {
-        final SearchProfilesRequest searchProfilesRequest = new SearchProfilesRequest(Set.of(), query, 10);
-        final SearchProfilesResponse searchProfilesResponse = client().execute(SearchProfilesAction.INSTANCE, searchProfilesRequest)
+    private SuggestProfilesResponse.ProfileHit[] doSuggest(String query) {
+        final SuggestProfilesRequest suggestProfilesRequest = new SuggestProfilesRequest(Set.of(), query, 10);
+        final SuggestProfilesResponse suggestProfilesResponse = client().execute(SuggestProfilesAction.INSTANCE, suggestProfilesRequest)
             .actionGet();
-        assertThat(searchProfilesResponse.getTotalHits().relation, is(TotalHits.Relation.EQUAL_TO));
-        return searchProfilesResponse.getProfileHits();
+        assertThat(suggestProfilesResponse.getTotalHits().relation, is(TotalHits.Relation.EQUAL_TO));
+        return suggestProfilesResponse.getProfileHits();
     }
 
-    private Set<String> extractUsernames(SearchProfilesResponse.ProfileHit[] profileHits) {
+    private Set<String> extractUsernames(SuggestProfilesResponse.ProfileHit[] profileHits) {
         return Arrays.stream(profileHits)
-            .map(SearchProfilesResponse.ProfileHit::profile)
+            .map(SuggestProfilesResponse.ProfileHit::profile)
             .map(Profile::user)
             .map(Profile.ProfileUser::username)
             .collect(Collectors.toUnmodifiableSet());

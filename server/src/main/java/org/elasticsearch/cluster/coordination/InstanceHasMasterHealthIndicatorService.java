@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthStatus;
@@ -44,7 +45,7 @@ public class InstanceHasMasterHealthIndicatorService implements HealthIndicatorS
     }
 
     @Override
-    public HealthIndicatorResult calculate() {
+    public HealthIndicatorResult calculate(boolean includeDetails) {
 
         DiscoveryNode coordinatingNode = clusterService.localNode();
         ClusterState clusterState = clusterService.state();
@@ -54,7 +55,7 @@ public class InstanceHasMasterHealthIndicatorService implements HealthIndicatorS
         HealthStatus instanceHasMasterStatus = masterNode == null ? HealthStatus.RED : HealthStatus.GREEN;
         String instanceHasMasterSummary = masterNode == null ? INSTANCE_HAS_MASTER_RED_SUMMARY : INSTANCE_HAS_MASTER_GREEN_SUMMARY;
 
-        return createIndicator(instanceHasMasterStatus, instanceHasMasterSummary, (builder, params) -> {
+        return createIndicator(instanceHasMasterStatus, instanceHasMasterSummary, includeDetails ? (builder, params) -> {
             builder.startObject();
             builder.object("coordinating_node", xContentBuilder -> {
                 builder.field("node_id", coordinatingNode.getId());
@@ -70,6 +71,6 @@ public class InstanceHasMasterHealthIndicatorService implements HealthIndicatorS
                 }
             });
             return builder.endObject();
-        }, Collections.emptyList());
+        } : HealthIndicatorDetails.EMPTY, Collections.emptyList());
     }
 }

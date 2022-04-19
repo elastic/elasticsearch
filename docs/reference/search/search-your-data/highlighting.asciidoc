@@ -164,12 +164,12 @@ insert the highlighting tags)
 
 fields:: Specifies the fields to retrieve highlights for. You can use wildcards
 to specify fields. For example, you could specify `comment_*` to
-get highlights for all <<text,text>> and <<keyword,keyword>> fields
-that start with `comment_`.
+get highlights for all <<text,text>>, <<match-only-text-field-type,match_only_text>>,
+and <<keyword,keyword>> fields that start with `comment_`.
 +
-NOTE: Only text and keyword fields are highlighted when you use wildcards.
-If you use a custom mapper and want to highlight on a field anyway, you
-must explicitly specify that field name.
+NOTE: Only text, match_only_text, and keyword fields are highlighted when
+you use wildcards. If you use a custom mapper and want to highlight on a
+field anyway, you must explicitly specify that field name.
 
 force_source:: Highlight based on the source even if the field is
 stored separately. Defaults to `false`.

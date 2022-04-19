@@ -22,7 +22,6 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 
 import static java.lang.Math.max;
@@ -72,14 +71,8 @@ public final class MachineDependentHeap {
 
     List<String> determineHeapSettings(InputStream config) {
         MachineNodeRole nodeRole = NodeRoleParser.parse(config);
-
-        try {
-            long availableSystemMemory = systemMemoryInfo.availableSystemMemory();
-            return options(nodeRole.heap(availableSystemMemory));
-        } catch (SystemMemoryInfo.SystemMemoryInfoException e) {
-            // If unable to determine system memory (ex: incompatible jdk version) fallback to defaults
-            return options(DEFAULT_HEAP_SIZE_MB);
-        }
+        long availableSystemMemory = systemMemoryInfo.availableSystemMemory();
+        return options(nodeRole.heap(availableSystemMemory));
     }
 
     private static List<String> options(int heapSize) {
@@ -90,15 +83,6 @@ public final class MachineDependentHeap {
      * Parses role information from elasticsearch.yml and determines machine node role.
      */
     static class NodeRoleParser {
-        private static final Set<String> LEGACY_ROLE_SETTINGS = Set.of(
-            "node.master",
-            "node.ingest",
-            "node.data",
-            "node.voting_only",
-            "node.ml",
-            "node.transform",
-            "node.remote_cluster_client"
-        );
 
         @SuppressWarnings("unchecked")
         public static MachineNodeRole parse(InputStream config) {
@@ -113,30 +97,24 @@ public final class MachineDependentHeap {
 
             if (root != null) {
                 Map<String, Object> map = flatten(root, null);
-
-                if (hasLegacySettings(map.keySet())) {
-                    // We don't attempt to auto-determine heap if legacy role settings are used
+                List<String> roles = null;
+                try {
+                    if (map.containsKey("node.roles")) {
+                        roles = (List<String>) map.get("node.roles");
+                    }
+                } catch (ClassCastException ex) {
                     return MachineNodeRole.UNKNOWN;
-                } else {
-                    List<String> roles = null;
-                    try {
-                        if (map.containsKey("node.roles")) {
-                            roles = (List<String>) map.get("node.roles");
-                        }
-                    } catch (ClassCastException ex) {
-                        return MachineNodeRole.UNKNOWN;
-                    }
+                }
 
-                    if (roles == null || roles.isEmpty()) {
-                        // If roles are missing or empty (coordinating node) assume defaults and consider this a data node
-                        return MachineNodeRole.DATA;
-                    } else if (containsOnly(roles, "master")) {
-                        return MachineNodeRole.MASTER_ONLY;
-                    } else if (roles.contains("ml") && containsOnly(roles, "ml", "remote_cluster_client")) {
-                        return MachineNodeRole.ML_ONLY;
-                    } else {
-                        return MachineNodeRole.DATA;
-                    }
+                if (roles == null || roles.isEmpty()) {
+                    // If roles are missing or empty (coordinating node) assume defaults and consider this a data node
+                    return MachineNodeRole.DATA;
+                } else if (containsOnly(roles, "master")) {
+                    return MachineNodeRole.MASTER_ONLY;
+                } else if (roles.contains("ml") && containsOnly(roles, "ml", "remote_cluster_client")) {
+                    return MachineNodeRole.ML_ONLY;
+                } else {
+                    return MachineNodeRole.DATA;
                 }
             } else { // if the config is completely empty, then assume defaults and consider this a data node
                 return MachineNodeRole.DATA;
@@ -173,10 +151,6 @@ public final class MachineDependentHeap {
         @SuppressWarnings("unchecked")
         private static <T> boolean containsOnly(Collection<T> collection, T... items) {
             return Arrays.asList(items).containsAll(collection);
-        }
-
-        private static boolean hasLegacySettings(Set<String> keys) {
-            return LEGACY_ROLE_SETTINGS.stream().anyMatch(keys::contains);
         }
     }
 

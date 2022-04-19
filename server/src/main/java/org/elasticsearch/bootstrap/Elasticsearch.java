@@ -42,7 +42,7 @@ class Elasticsearch extends EnvironmentAwareCommand {
 
     // visible for testing
     Elasticsearch() {
-        super("Starts Elasticsearch", () -> {}); // we configure logging later so we override the base class from configuring logging
+        super("Starts Elasticsearch"); // we configure logging later so we override the base class from configuring logging
         versionOption = parser.acceptsAll(Arrays.asList("V", "version"), "Prints Elasticsearch version information and exits");
         daemonizeOption = parser.acceptsAll(Arrays.asList("d", "daemonize"), "Starts Elasticsearch in the background")
             .availableUnless(versionOption);
@@ -130,9 +130,8 @@ class Elasticsearch extends EnvironmentAwareCommand {
         if (options.has(versionOption)) {
             final String versionOutput = String.format(
                 Locale.ROOT,
-                "Version: %s, Build: %s/%s/%s/%s, JVM: %s",
+                "Version: %s, Build: %s/%s/%s, JVM: %s",
                 Build.CURRENT.qualifiedVersion(),
-                Build.CURRENT.flavor().displayName(),
                 Build.CURRENT.type().displayName(),
                 Build.CURRENT.hash(),
                 Build.CURRENT.date(),

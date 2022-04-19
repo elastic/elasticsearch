@@ -9,8 +9,6 @@ your application to {es} 8.1.
 
 See also <<release-highlights>> and <<es-release-notes>>.
 
-coming::[8.1.3-SNAPSHOT]
-
 
 [discrete]
 [[breaking-changes-8.1]]
@@ -77,10 +75,6 @@ All other values are equivalent to the default discovery type which is
 `multi-node`. Where possible, omit this setting so that {es} uses the default
 discovery type.
 ====
-
-[discrete]
-[[deprecations_81_rest_api]]
-==== REST API deprecations
 
 [[lenient_parsing_of_bulk_actions_deprecated]]
 .Lenient parsing of bulk actions is deprecated

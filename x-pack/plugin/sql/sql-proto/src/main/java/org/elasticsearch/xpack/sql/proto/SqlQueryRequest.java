@@ -244,6 +244,10 @@ public class SqlQueryRequest extends AbstractSqlRequest {
         }
         SqlQueryRequest that = (SqlQueryRequest) o;
         return fetchSize == that.fetchSize
+            && fieldMultiValueLeniency == that.fieldMultiValueLeniency
+            && indexIncludeFrozen == that.indexIncludeFrozen
+            && keepOnCompletion == that.keepOnCompletion
+            && allowPartialSearchResults == that.allowPartialSearchResults
             && Objects.equals(query, that.query)
             && Objects.equals(params, that.params)
             && Objects.equals(zoneId, that.zoneId)
@@ -252,13 +256,9 @@ public class SqlQueryRequest extends AbstractSqlRequest {
             && Objects.equals(pageTimeout, that.pageTimeout)
             && Objects.equals(columnar, that.columnar)
             && Objects.equals(cursor, that.cursor)
-            && fieldMultiValueLeniency == that.fieldMultiValueLeniency
-            && indexIncludeFrozen == that.indexIncludeFrozen
             && Objects.equals(binaryCommunication, that.binaryCommunication)
             && Objects.equals(waitForCompletionTimeout, that.waitForCompletionTimeout)
-            && keepOnCompletion == that.keepOnCompletion
-            && Objects.equals(keepAlive, that.keepAlive)
-            && Objects.equals(allowPartialSearchResults, that.allowPartialSearchResults);
+            && Objects.equals(keepAlive, that.keepAlive);
     }
 
     @Override

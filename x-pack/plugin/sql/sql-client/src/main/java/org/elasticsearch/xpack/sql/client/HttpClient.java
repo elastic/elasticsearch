@@ -176,7 +176,7 @@ public class HttpClient {
             cfg.authPass(),
             cfg.sslConfig(),
             cfg.proxyConfig(),
-            cfg.allowPartialSearchResults()
+            CoreProtocol.ALLOW_PARTIAL_SEARCH_RESULTS
         );
         try {
             return java.security.AccessController.doPrivileged(

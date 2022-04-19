@@ -56,7 +56,7 @@ precedence.
 
 `allow_partial_search_results`::
 (Optional, Boolean) If `true`, returns partial results if there are shard
-request timeouts or shard failures. If `false`, returns an error with no
+request timeouts or <<shard-failures,shard failures>>. If `false`, returns an error with no
 partial results. Defaults to `false`.
 
 `catalog`::

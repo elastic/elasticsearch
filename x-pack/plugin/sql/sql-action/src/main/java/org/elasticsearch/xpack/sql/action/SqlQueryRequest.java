@@ -323,15 +323,15 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
     @Override
     public boolean equals(Object obj) {
         return super.equals(obj)
-            && Objects.equals(cursor, ((SqlQueryRequest) obj).cursor)
-            && Objects.equals(columnar, ((SqlQueryRequest) obj).columnar)
             && fieldMultiValueLeniency == ((SqlQueryRequest) obj).fieldMultiValueLeniency
             && indexIncludeFrozen == ((SqlQueryRequest) obj).indexIncludeFrozen
             && binaryCommunication == ((SqlQueryRequest) obj).binaryCommunication
-            && Objects.equals(waitForCompletionTimeout, ((SqlQueryRequest) obj).waitForCompletionTimeout)
             && keepOnCompletion == ((SqlQueryRequest) obj).keepOnCompletion
-            && Objects.equals(keepAlive, ((SqlQueryRequest) obj).keepAlive)
-            && Objects.equals(allowPartialSearchResults, ((SqlQueryRequest) obj).allowPartialSearchResults);
+            && allowPartialSearchResults == ((SqlQueryRequest) obj).allowPartialSearchResults
+            && Objects.equals(cursor, ((SqlQueryRequest) obj).cursor)
+            && Objects.equals(columnar, ((SqlQueryRequest) obj).columnar)
+            && Objects.equals(waitForCompletionTimeout, ((SqlQueryRequest) obj).waitForCompletionTimeout)
+            && Objects.equals(keepAlive, ((SqlQueryRequest) obj).keepAlive);
     }
 
     @Override

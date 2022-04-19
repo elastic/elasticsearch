@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.HeaderWarning;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.Aggregations;
@@ -125,9 +124,8 @@ public class Querier {
 
         SearchRequest search = prepareRequest(
             sourceBuilder,
-            cfg.requestTimeout(),
+            cfg,
             query.shouldIncludeFrozen(),
-            cfg.allowPartialSearchResults(),
             Strings.commaDelimitedListToStringArray(index)
         );
 
@@ -189,19 +187,13 @@ public class Querier {
         }
     }
 
-    public static SearchRequest prepareRequest(
-        SearchSourceBuilder source,
-        TimeValue timeOut,
-        boolean includeFrozen,
-        boolean allowPartialSearchResults,
-        String... indices
-    ) {
-        source.timeout(timeOut);
+    public static SearchRequest prepareRequest(SearchSourceBuilder source, SqlConfiguration cfg, boolean includeFrozen, String... indices) {
+        source.timeout(cfg.requestTimeout());
 
         SearchRequest searchRequest = new SearchRequest(INTRODUCING_UNSIGNED_LONG);
         searchRequest.indices(indices);
         searchRequest.source(source);
-        searchRequest.allowPartialSearchResults(allowPartialSearchResults);
+        searchRequest.allowPartialSearchResults(cfg.allowPartialSearchResults());
         searchRequest.indicesOptions(
             includeFrozen ? IndexResolver.FIELD_CAPS_FROZEN_INDICES_OPTIONS : IndexResolver.FIELD_CAPS_INDICES_OPTIONS
         );

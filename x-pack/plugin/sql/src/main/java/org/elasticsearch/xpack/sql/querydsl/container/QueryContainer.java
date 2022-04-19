@@ -52,6 +52,8 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.ALLOW_PARTIAL_SEARCH_RESULTS;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.INDEX_INCLUDE_FROZEN;
 
 /**
  * Container for various references of the built ES query.
@@ -117,7 +119,7 @@ public class QueryContainer {
     private Map<Attribute, FieldAttribute> fieldAlias;
 
     public QueryContainer() {
-        this(null, null, null, null, null, null, null, -1, false, false, -1, false);
+        this(null, null, null, null, null, null, null, -1, false, INDEX_INCLUDE_FROZEN, -1, ALLOW_PARTIAL_SEARCH_RESULTS);
     }
 
     public QueryContainer(

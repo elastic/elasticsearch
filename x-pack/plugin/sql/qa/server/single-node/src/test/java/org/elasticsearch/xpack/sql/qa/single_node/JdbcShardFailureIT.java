@@ -97,12 +97,13 @@ public class JdbcShardFailureIT extends JdbcIntegrationTestCase {
         final String warnMessage = "org.elasticsearch.index.query.QueryShardException: failed to create query: " + reason;
 
         for (int i = 0; i < maxWarningHeaders - 1 + okShards + extraBadShards; i++) {
-            Request request = new Request("PUT", "/test" + i);
+            String indexName = "/test" + i;
+            Request request = new Request("PUT", indexName);
             boolean indexWithDocVals = i < okShards;
             request.setJsonEntity(String.format(Locale.ROOT, mappingTemplate, indexWithDocVals, indexWithDocVals));
             assertOK(provisioningClient().performRequest(request));
 
-            request = new Request("POST", "/test" + i + "/_doc");
+            request = new Request("POST", indexName + "/_doc");
             request.setJsonEntity("{\"bool\": " + (indexWithDocVals || randomBoolean()) + "}");
             assertOK(provisioningClient().performRequest(request));
         }

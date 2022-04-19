@@ -8,22 +8,8 @@
 
 package org.elasticsearch.client;
 
-import org.apache.http.client.methods.HttpPost;
-import org.elasticsearch.client.security.DelegatePkiAuthenticationRequest;
-
-import java.io.IOException;
-
-import static org.elasticsearch.client.RequestConverters.REQUEST_BODY_CONTENT_TYPE;
-import static org.elasticsearch.client.RequestConverters.createEntity;
-
 final class SecurityRequestConverters {
 
     private SecurityRequestConverters() {}
-
-    static Request delegatePkiAuthentication(DelegatePkiAuthenticationRequest delegatePkiAuthenticationRequest) throws IOException {
-        Request request = new Request(HttpPost.METHOD_NAME, "/_security/delegate_pki");
-        request.setEntity(createEntity(delegatePkiAuthenticationRequest, REQUEST_BODY_CONTENT_TYPE));
-        return request;
-    }
 
 }

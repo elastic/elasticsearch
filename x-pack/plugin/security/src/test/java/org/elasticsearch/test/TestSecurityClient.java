@@ -19,13 +19,12 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.security.ClearRealmCacheRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -39,13 +38,16 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.security.cert.CertificateEncodingException;
+import java.security.cert.X509Certificate;
+import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
-import static org.elasticsearch.test.SecuritySettingsSource.SECURITY_REQUEST_OPTIONS;
 import static org.elasticsearch.test.rest.ESRestTestCase.entityAsMap;
 
 public class TestSecurityClient {
@@ -399,6 +401,29 @@ public class TestSecurityClient {
         final String endpoint = "/_security/realm/" + realm + "/_clear_cache";
         final Request request = new Request(HttpPost.METHOD_NAME, endpoint);
         execute(request);
+    }
+
+    /**
+     * Uses the REST API to authenticate using delegated PKI
+     * @see org.elasticsearch.xpack.security.rest.action.RestDelegatePkiAuthenticationAction
+     * @return A {@code Tuple} of <em>access-token</em> and <em>response-body</em>.
+     */
+    public Tuple<String, Map<String, Object>> delegatePkiAuthentication(List<X509Certificate> certificateChain) throws IOException {
+        final String endpoint = "/_security/delegate_pki";
+        final Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+
+        final List<String> certificateContent = certificateChain.stream().map(c -> {
+            try {
+                return c.getEncoded();
+            } catch (CertificateEncodingException e) {
+                throw new RuntimeException("Failed to encode certificate", e);
+            }
+        }).map(encoded -> Base64.getEncoder().encodeToString(encoded)).collect(Collectors.toList());
+
+        final Map<String, Object> body = Map.of("x509_certificate_chain", certificateContent);
+        request.setJsonEntity(toJson(body));
+        final Map<String, Object> response = entityAsMap(execute(request));
+        return new Tuple<>(Objects.toString(response.get("access_token"), null), response);
     }
 
     private static String toJson(Map<String, ? extends Object> map) throws IOException {

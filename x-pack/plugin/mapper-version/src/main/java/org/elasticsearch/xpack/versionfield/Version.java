@@ -43,7 +43,7 @@ public class Version implements ToXContent, BytesRefProducer, Comparable<Version
 
     @Override
     public BytesRef toBytesRef() {
-        //TODO cache it, or even better, copy it when the object is created
+        // TODO cache it, or even better, copy it when the object is created
         return VersionEncoder.encodeVersion(version).bytesRef;
     }
 

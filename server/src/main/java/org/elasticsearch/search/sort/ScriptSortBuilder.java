@@ -262,10 +262,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         if (docValueFormat != null) {
             docValueFormat = context.getFieldType(this.format).docValueFormat(null, null);
         }
-        return new SortFieldAndFormat(
-            new SortField("_script", fieldComparatorSource(context), order == SortOrder.DESC),
-            docValueFormat
-        );
+        return new SortFieldAndFormat(new SortField("_script", fieldComparatorSource(context), order == SortOrder.DESC), docValueFormat);
     }
 
     @Override

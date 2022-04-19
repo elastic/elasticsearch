@@ -31,6 +31,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -123,6 +124,43 @@ public class TestSecurityClient {
     }
 
     /**
+     * Uses the REST API to retrieve an API Key.
+     * @see org.elasticsearch.xpack.security.rest.action.apikey.RestGetApiKeyAction
+     */
+    public ApiKey getApiKey(String id) throws IOException {
+        final String endpoint = "/_security/api_key/";
+        final Request request = new Request(HttpGet.METHOD_NAME, endpoint);
+        request.addParameter("id", id);
+        final Response response = execute(request);
+        try (XContentParser parser = getParser(response)) {
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+            XContentParserUtils.ensureFieldName(parser, parser.nextToken(), "api_keys");
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+            final ApiKey apiKey = ApiKey.fromXContent(parser);
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.currentToken(), parser);
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_ARRAY, parser.nextToken(), parser);
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
+            return apiKey;
+        }
+    }
+
+    /**
+     * Uses the REST API to invalidate an API Key.
+     * @see org.elasticsearch.xpack.security.rest.action.apikey.RestInvalidateApiKeyAction
+     */
+    public void invalidateApiKeysForUser(String username) throws IOException {
+        final String endpoint = "/_security/api_key/";
+        final Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
+        request.setJsonEntity("""
+            {
+                "username":"%s"
+            }
+            """.formatted(username));
+        execute(request);
+    }
+
+    /**
      * Uses the REST API to get a Role descriptor
      * @see org.elasticsearch.xpack.security.rest.action.role.RestGetRolesAction
      */
@@ -146,9 +184,8 @@ public class TestSecurityClient {
         final String endpoint = "/_security/role/" + roleParameter;
         final Request request = new Request(HttpGet.METHOD_NAME, endpoint);
         final Response response = execute(request);
-        final byte[] responseBody = EntityUtils.toByteArray(response.getEntity());
         final Map<String, RoleDescriptor> roles = new LinkedHashMap<>();
-        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, responseBody)) {
+        try (XContentParser parser = getParser(response)) {
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
             while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
                 XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
@@ -367,6 +404,11 @@ public class TestSecurityClient {
         }
         final BytesReference bytes = BytesReference.bytes(builder);
         return bytes.utf8ToString();
+    }
+
+    private XContentParser getParser(Response response) throws IOException {
+        final byte[] responseBody = EntityUtils.toByteArray(response.getEntity());
+        return XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, responseBody);
     }
 
     private ElasticsearchException toException(Map<String, ?> map) {

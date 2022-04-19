@@ -577,7 +577,6 @@ public class RBACEngine implements AuthorizationEngine {
 
     @Override
     public void getUserPrivileges(
-        Authentication authentication,
         AuthorizationInfo authorizationInfo,
         GetUserPrivilegesRequest request,
         ActionListener<GetUserPrivilegesResponse> listener

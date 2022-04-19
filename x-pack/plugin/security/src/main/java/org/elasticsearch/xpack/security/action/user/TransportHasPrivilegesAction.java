@@ -19,11 +19,11 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
-import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationContext;
+import org.elasticsearch.xpack.core.security.authc.Subject;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
-import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 
@@ -65,9 +65,9 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
     @Override
     protected void doExecute(Task task, HasPrivilegesRequest request, ActionListener<HasPrivilegesResponse> listener) {
         final String username = request.username();
-        final Authentication authentication = securityContext.getAuthentication();
-        final User user = authentication.getUser();
-        if (user.principal().equals(username) == false) {
+        final Subject subject = AuthenticationContext.fromAuthentication(securityContext.getAuthentication()).getEffectiveSubject();
+        final AuthorizationEngine.AuthorizationInfo authorizationInfo = securityContext.getAuthorizationInfoFromContext();
+        if (subject.getUser().principal().equals(username) == false) {
             listener.onFailure(new IllegalArgumentException("users may only check the privileges of their own account"));
             return;
         }
@@ -89,10 +89,23 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
             request,
             ActionListener.wrap(
                 applicationPrivilegeDescriptors -> authorizationService.checkPrivileges(
-                    AuthenticationContext.fromAuthentication(authentication).getEffectiveSubject(),
-                    request,
+                    subject,
+                    authorizationInfo,
+                    new AuthorizationEngine.PrivilegesToCheck(
+                        Arrays.asList(request.clusterPrivileges()),
+                        Arrays.asList(request.indexPrivileges()),
+                        Arrays.asList(request.applicationPrivileges())
+                    ),
                     applicationPrivilegeDescriptors,
-                    listener
+                    listener.map(
+                        privilegesCheckResult -> new HasPrivilegesResponse(
+                            request.username(),
+                            privilegesCheckResult.allMatch(),
+                            privilegesCheckResult.cluster(),
+                            privilegesCheckResult.index().values(),
+                            privilegesCheckResult.application()
+                        )
+                    )
                 ),
                 listener::onFailure
             )

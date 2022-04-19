@@ -203,14 +203,12 @@ public interface AuthorizationEngine {
      * Retrieve's the current user's privileges in a standard format that can be rendered via an
      * API for an application to understand the privileges that the current user has.
      *
-     * @param authentication the authentication that is associated with this request
      * @param authorizationInfo information needed from authorization that was previously retrieved
      *                          from {@link #resolveAuthorizationInfo(RequestInfo, ActionListener)}
      * @param request the request for retrieving the user's privileges
      * @param listener the listener to be notified of the has privileges response
      */
     void getUserPrivileges(
-        Authentication authentication,
         AuthorizationInfo authorizationInfo,
         GetUserPrivilegesRequest request,
         ActionListener<GetUserPrivilegesResponse> listener

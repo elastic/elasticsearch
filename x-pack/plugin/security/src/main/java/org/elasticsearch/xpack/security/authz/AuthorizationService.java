@@ -46,8 +46,6 @@ import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
-import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
-import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationContext;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
@@ -82,7 +80,6 @@ import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.operator.OperatorPrivileges.OperatorPrivilegesService;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
@@ -90,7 +87,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -176,43 +172,26 @@ public class AuthorizationService {
 
     public void checkPrivileges(
         Subject subject,
-        HasPrivilegesRequest request,
+        AuthorizationInfo authorizationInfo,
+        AuthorizationEngine.PrivilegesToCheck privilegesToCheck,
         Collection<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors,
-        ActionListener<HasPrivilegesResponse> listener
+        ActionListener<AuthorizationEngine.PrivilegesCheckResult> listener
     ) {
         getAuthorizationEngineForSubject(subject).checkPrivileges(
-            getAuthorizationInfoFromContext(),
-            new AuthorizationEngine.PrivilegesToCheck(
-                Arrays.asList(request.clusterPrivileges()),
-                Arrays.asList(request.indexPrivileges()),
-                Arrays.asList(request.applicationPrivileges())
-            ),
+            authorizationInfo,
+            privilegesToCheck,
             applicationPrivilegeDescriptors,
-            wrapPreservingContext(
-                listener.map(
-                    privilegesCheckResult -> new HasPrivilegesResponse(
-                        request.username(),
-                        privilegesCheckResult.allMatch(),
-                        privilegesCheckResult.cluster(),
-                        privilegesCheckResult.index().values(),
-                        privilegesCheckResult.application()
-                    )
-                ),
-                threadContext
-            )
+            wrapPreservingContext(listener, threadContext)
         );
     }
 
     public void retrieveUserPrivileges(
-        Authentication authentication,
+        Subject subject,
+        AuthorizationInfo authorizationInfo,
         GetUserPrivilegesRequest request,
         ActionListener<GetUserPrivilegesResponse> listener
     ) {
-        getAuthorizationEngine(authentication).getUserPrivileges(authentication, getAuthorizationInfoFromContext(), request, listener);
-    }
-
-    private AuthorizationInfo getAuthorizationInfoFromContext() {
-        return Objects.requireNonNull(threadContext.getTransient(AUTHORIZATION_INFO_KEY), "authorization info is missing from context");
+        getAuthorizationEngineForSubject(subject).getUserPrivileges(authorizationInfo, request, listener);
     }
 
     /**

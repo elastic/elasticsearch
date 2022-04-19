@@ -2736,7 +2736,6 @@ public class AuthorizationServiceTests extends ESTestCase {
 
             @Override
             public void getUserPrivileges(
-                Authentication authentication,
                 AuthorizationInfo authorizationInfo,
                 GetUserPrivilegesRequest request,
                 ActionListener<GetUserPrivilegesResponse> listener

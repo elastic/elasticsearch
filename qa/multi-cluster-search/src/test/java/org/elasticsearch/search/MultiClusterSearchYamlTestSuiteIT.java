@@ -27,7 +27,7 @@ public class MultiClusterSearchYamlTestSuiteIT extends ESClientYamlSuiteTestCase
 
     @BeforeClass
     public static void determineRemoteClusterMinimumVersion() {
-        String remoteClusterVersion = System.getProperty("tests.rest.remote-cluster-version");
+        String remoteClusterVersion = System.getProperty("tests.rest.remote_cluster_version");
         if (remoteClusterVersion != null) {
             remoteEsVersion = Version.fromString(remoteClusterVersion);
         }
@@ -35,16 +35,23 @@ public class MultiClusterSearchYamlTestSuiteIT extends ESClientYamlSuiteTestCase
 
     protected ClientYamlTestExecutionContext createRestTestExecutionContext(
         ClientYamlTestCandidate clientYamlTestCandidate,
-        ClientYamlTestClient clientYamlTestClient,
-        boolean randomizeContentType
+        ClientYamlTestClient clientYamlTestClient
     ) {
-        ClientYamlTestExecutionContext restTestExecutionContext = super.createRestTestExecutionContext(
-            clientYamlTestCandidate,
-            clientYamlTestClient,
-            randomizeContentType()
-        );
-        restTestExecutionContext.setSkipVersion(remoteEsVersion);
-        return restTestExecutionContext;
+        return new ClientYamlTestExecutionContext(clientYamlTestCandidate, clientYamlTestClient, randomizeContentType()) {
+
+            /**
+             * for mixed cluster tests we also take the remote cluster version into account and return the minimum here
+             */
+            @Override
+            public Version esVersion() {
+                    Version clientEsVersion = clientYamlTestClient.getEsVersion();
+                if (remoteEsVersion == null) {
+                    return clientEsVersion;
+                } else {
+                    return remoteEsVersion.before(clientEsVersion) ? remoteEsVersion : clientEsVersion;
+                }
+            }
+        };
     }
 
     @Override

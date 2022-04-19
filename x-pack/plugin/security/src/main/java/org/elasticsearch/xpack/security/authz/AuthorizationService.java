@@ -884,7 +884,7 @@ public class AuthorizationService {
     private ElasticsearchSecurityException denialException(
         Authentication authentication,
         String action,
-        Supplier<String> messageSupplier,
+        Supplier<String> authzDenialMessageSupplier,
         Exception cause
     ) {
         // Special case for anonymous user
@@ -894,7 +894,7 @@ public class AuthorizationService {
             return authcFailureHandler.authenticationRequired(action, threadContext);
         }
 
-        String message = messageSupplier.get();
+        String message = authzDenialMessageSupplier.get();
         logger.debug(message);
         return authorizationError(message, cause);
     }

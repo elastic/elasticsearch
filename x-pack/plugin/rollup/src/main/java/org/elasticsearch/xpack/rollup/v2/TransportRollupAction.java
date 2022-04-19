@@ -113,10 +113,12 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
     ) {
         String sourceIndexName = request.getSourceIndex();
         IndexMetadata sourceIndexMetadata = state.getMetadata().index(sourceIndexName);
+        // Assert source index exists
         if (sourceIndexMetadata == null) {
             listener.onFailure(new IndexNotFoundException(sourceIndexName));
             return;
         }
+        // Assert source index is a time_series index
         if (IndexSettings.MODE.get(sourceIndexMetadata.getSettings()) != IndexMode.TIME_SERIES) {
             listener.onFailure(
                 new ElasticsearchException(
@@ -131,13 +133,13 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             );
             return;
         }
-        if (IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.get(sourceIndexMetadata.getSettings()) == false) {
+        // Assert source index is read-only
+        if (state.blocks().indexBlocked(ClusterBlockLevel.WRITE, sourceIndexName) == false) {
             listener.onFailure(
                 new ElasticsearchException(
                     "Rollup requires setting [" + IndexMetadata.SETTING_BLOCKS_WRITE + " = true] for index [" + sourceIndexName + "]"
                 )
             );
-            return;
         }
 
         final String rollupIndexName = request.getRollupIndex();
@@ -157,7 +159,8 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         // 4. Make temp index read-only
         // 5. Clone the final rollup index from the temporary rollup index
         // 6. Publish rollup metadata and add rollup index to data stream
-        // 7. Delete temporary rollup index
+        // 7. Delete the source index
+        // 8. Delete temporary rollup index
         // At any point if there is an issue, cleanup temp index
 
         // 1. Extract rollup config from source index field caps
@@ -441,8 +444,8 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         clusterService.submitStateUpdateTask("update-rollup-metadata", new ClusterStateUpdateTask() {
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                // Everything went well, time to delete the temporary index
-                deleteTmpIndex(sourceIndexName, tmpIndexName, listener, null);
+                // 7. Delete the source index
+                deleteSourceIndex(sourceIndexName, tmpIndexName, listener);
             }
 
             @Override
@@ -488,14 +491,39 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         }, newExecutor());
     }
 
-    private void deleteTmpIndex(String originalIndex, String tmpIndex, ActionListener<AcknowledgedResponse> listener, Exception e) {
+    private void deleteSourceIndex(final String sourceIndex, final String tmpIndex, ActionListener<AcknowledgedResponse> listener) {
+        client.admin().indices().delete(new DeleteIndexRequest(sourceIndex), new ActionListener<>() {
+            @Override
+            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                if (acknowledgedResponse.isAcknowledged()) {
+                    // Source index was deleted successfully.
+                    // 8. Delete temporary rollup index
+                    deleteTmpIndex(sourceIndex, tmpIndex, listener, null);
+                } else {
+                    onFailure(new ElasticsearchException("Failed to delete source index [" + sourceIndex + "]"));
+                }
+            }
+
+            @Override
+            public void onFailure(Exception deleteException) {
+                deleteTmpIndex(
+                    sourceIndex,
+                    tmpIndex,
+                    listener,
+                    new ElasticsearchException("Failed to delete source index [" + sourceIndex + "].", deleteException)
+                );
+            }
+        });
+    }
+
+    private void deleteTmpIndex(String sourceIndex, String tmpIndex, ActionListener<AcknowledgedResponse> listener, Exception e) {
         client.admin().indices().delete(new DeleteIndexRequest(tmpIndex), new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse acknowledgedResponse) {
                 if (e == null && acknowledgedResponse.isAcknowledged()) {
                     listener.onResponse(acknowledgedResponse);
                 } else {
-                    listener.onFailure(new ElasticsearchException("Unable to rollup index [" + originalIndex + "]", e));
+                    listener.onFailure(new ElasticsearchException("Unable to rollup index [" + sourceIndex + "]", e));
                 }
             }
 

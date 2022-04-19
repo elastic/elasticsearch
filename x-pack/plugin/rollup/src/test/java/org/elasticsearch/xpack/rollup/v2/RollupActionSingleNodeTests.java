@@ -15,6 +15,8 @@ import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverRequest;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
+import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
+import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -89,9 +91,9 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     private static final int MAX_DIM_VALUES = 5;
     private static final long MAX_NUM_BUCKETS = 10;
 
-    private String sourceIndex, rollupIndex;
+    private String sourceIndex, sourceIndexClone, rollupIndex;
     private long startTime;
-    private int docCount;
+    private int docCount, numOfShards, numOfReplicas;
     private List<String> dimensionValues;
 
     @Override
@@ -108,9 +110,12 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     @Before
     public void setup() {
         sourceIndex = randomAlphaOfLength(5).toLowerCase(Locale.ROOT);
+        sourceIndexClone = sourceIndex + "-clone";
         rollupIndex = randomAlphaOfLength(6).toLowerCase(Locale.ROOT);
         startTime = randomLongBetween(946769284000L, 1607470084000L); // random date between 2000-2020
         docCount = randomIntBetween(10, 9000);
+        numOfShards = randomIntBetween(1, 4);
+        numOfReplicas = randomIntBetween(0, 3);
 
         // Values for keyword dimensions
         dimensionValues = new ArrayList<>(MAX_DIM_VALUES);
@@ -123,8 +128,8 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             .prepareCreate(sourceIndex)
             .setSettings(
                 Settings.builder()
-                    .put("index.number_of_shards", randomIntBetween(1, 4))
-                    .put("index.number_of_replicas", randomIntBetween(0, 3))
+                    .put("index.number_of_shards", numOfShards)
+                    .put("index.number_of_replicas", numOfReplicas)
                     .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
                     .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_1))
                     .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), Instant.ofEpochMilli(startTime).toString())
@@ -157,9 +162,9 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             .field(FIELD_NUMERIC_2, randomInt() * randomDouble())
             .endObject();
         bulkIndex(sourceSupplier);
-        setReadOnly(sourceIndex);
+        prepareSourceIndex(sourceIndex);
         rollup(sourceIndex, rollupIndex, config);
-        assertRollupIndex(config, sourceIndex, rollupIndex);
+        assertRollupIndex(config, sourceIndexClone, rollupIndex);
     }
 
     public void testMissingSourceIndexName() {
@@ -208,7 +213,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         };
         bulkIndex(sourceSupplier);
         rollup(sourceIndex, rollupIndex, config);
-        assertRollupIndex(config, sourceIndex, rollupIndex);
+        assertRollupIndex(config, sourceIndexClone, rollupIndex);
     }
 
     public void testCannotRollupToExistingIndex() throws Exception {
@@ -220,12 +225,12 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             .field(FIELD_NUMERIC_1, randomDouble())
             .endObject();
         bulkIndex(sourceSupplier);
-        setReadOnly(sourceIndex);
+        prepareSourceIndex(sourceIndex);
         rollup(sourceIndex, rollupIndex, config);
-        assertRollupIndex(config, sourceIndex, rollupIndex);
+        assertRollupIndex(config, sourceIndexClone, rollupIndex);
         ResourceAlreadyExistsException exception = expectThrows(
             ResourceAlreadyExistsException.class,
-            () -> rollup(sourceIndex, rollupIndex, config)
+            () -> rollup(sourceIndexClone, rollupIndex, config)
         );
         assertThat(exception.getMessage(), containsString("Rollup index [" + rollupIndex + "] already exists."));
     }
@@ -247,7 +252,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         assertTrue(
             client().admin().indices().prepareCreate(TransportRollupAction.TMP_ROLLUP_INDEX_PREFIX + rollupIndex).get().isAcknowledged()
         );
-        setReadOnly(sourceIndex);
+        prepareSourceIndex(sourceIndex);
         RollupActionConfig config = new RollupActionConfig(randomInterval());
         Exception exception = expectThrows(ElasticsearchException.class, () -> rollup(sourceIndex, rollupIndex, config));
         assertThat(exception.getMessage(), containsString("already exists"));
@@ -262,7 +267,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             .field(FIELD_NUMERIC_1, randomDouble())
             .endObject();
         bulkIndex(sourceSupplier);
-        setReadOnly(sourceIndex);
+        prepareSourceIndex(sourceIndex);
         client().execute(RollupAction.INSTANCE, new RollupAction.Request(sourceIndex, rollupIndex, config), ActionListener.noop());
         ResourceAlreadyExistsException exception = expectThrows(
             ResourceAlreadyExistsException.class,
@@ -301,6 +306,18 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         return DATE_FORMATTER.formatMillis(randomLongBetween(startTime, endTime));
     }
 
+    private void cloneSourceIndex(String sourceIndex, String sourceIndexClone) {
+        ResizeResponse r = client().admin()
+            .indices()
+            .prepareResizeIndex(sourceIndex, sourceIndexClone)
+            .setResizeType(ResizeType.CLONE)
+            .setSettings(
+                Settings.builder().put("index.number_of_shards", numOfShards).put("index.number_of_replicas", numOfReplicas).build()
+            )
+            .get();
+        assertTrue(r.isAcknowledged());
+    }
+
     private void bulkIndex(SourceSupplier sourceSupplier) throws IOException {
         bulkIndex(sourceIndex, sourceSupplier);
     }
@@ -333,13 +350,19 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         assertHitCount(client().prepareSearch(indexName).setSize(0).get(), docsIndexed);
     }
 
-    private void setReadOnly(String sourceIndex) {
+    private void prepareSourceIndex(String sourceIndex) {
+        // Set the source index to read-only state
         AcknowledgedResponse r = client().admin()
             .indices()
             .prepareUpdateSettings(sourceIndex)
             .setSettings(Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), true).build())
             .get();
         assertTrue(r.isAcknowledged());
+
+        // The source index is deleted at the end of the rollup process.
+        // We clone the source index, so that we validate rollup results against the
+        // source index clone.
+        cloneSourceIndex(sourceIndex, sourceIndexClone);
     }
 
     private void rollup(String sourceIndex, String rollupIndex, RollupActionConfig config) {
@@ -357,9 +380,9 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    private void assertRollupIndex(RollupActionConfig config, String sourceIndex, String rollupIndex) {
+    private void assertRollupIndex(RollupActionConfig config, String sourceIndexClone, String rollupIndex) {
         // Retrieve field information for the metric fields
-        FieldCapabilitiesResponse fieldCapsResponse = client().prepareFieldCaps(sourceIndex).setFields("*").get();
+        FieldCapabilitiesResponse fieldCapsResponse = client().prepareFieldCaps(sourceIndexClone).setFields("*").get();
         Map<String, TimeSeriesParams.MetricType> metricFields = fieldCapsResponse.get()
             .entrySet()
             .stream()
@@ -368,13 +391,17 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
 
         final CompositeAggregationBuilder aggregation = buildCompositeAggs("resp", config, metricFields);
         long numBuckets = 0;
-        InternalComposite origResp = client().prepareSearch(sourceIndex).addAggregation(aggregation).get().getAggregations().get("resp");
+        InternalComposite origResp = client().prepareSearch(sourceIndexClone)
+            .addAggregation(aggregation)
+            .get()
+            .getAggregations()
+            .get("resp");
         InternalComposite rollupResp = client().prepareSearch(rollupIndex).addAggregation(aggregation).get().getAggregations().get("resp");
         while (origResp.afterKey() != null) {
             numBuckets += origResp.getBuckets().size();
             assertThat(origResp, equalTo(rollupResp));
             aggregation.aggregateAfter(origResp.afterKey());
-            origResp = client().prepareSearch(sourceIndex).addAggregation(aggregation).get().getAggregations().get("resp");
+            origResp = client().prepareSearch(sourceIndexClone).addAggregation(aggregation).get().getAggregations().get("resp");
             rollupResp = client().prepareSearch(rollupIndex).addAggregation(aggregation).get().getAggregations().get("resp");
         }
         assertEquals(origResp, rollupResp);
@@ -382,35 +409,35 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         SearchResponse resp = client().prepareSearch(rollupIndex).setTrackTotalHits(true).get();
         assertThat(resp.getHits().getTotalHits().value, equalTo(numBuckets));
 
-        GetIndexResponse indexSettingsResp = client().admin().indices().prepareGetIndex().addIndices(sourceIndex, rollupIndex).get();
+        GetIndexResponse indexSettingsResp = client().admin().indices().prepareGetIndex().addIndices(sourceIndexClone, rollupIndex).get();
         // Assert rollup metadata are set in index settings
         assertEquals(
-            indexSettingsResp.getSetting(sourceIndex, "index.uuid"),
+            indexSettingsResp.getSetting(sourceIndexClone, "index.resize.source.uuid"),
             indexSettingsResp.getSetting(rollupIndex, "index.rollup.source.uuid")
         );
         assertEquals(
-            indexSettingsResp.getSetting(sourceIndex, "index.provided_name"),
+            indexSettingsResp.getSetting(sourceIndexClone, "index.resize.source.name"),
             indexSettingsResp.getSetting(rollupIndex, "index.rollup.source.name")
         );
-        assertEquals(indexSettingsResp.getSetting(sourceIndex, "index.mode"), indexSettingsResp.getSetting(rollupIndex, "index.mode"));
+        assertEquals(indexSettingsResp.getSetting(sourceIndexClone, "index.mode"), indexSettingsResp.getSetting(rollupIndex, "index.mode"));
         assertEquals(
-            indexSettingsResp.getSetting(sourceIndex, "time_series.start_time"),
+            indexSettingsResp.getSetting(sourceIndexClone, "time_series.start_time"),
             indexSettingsResp.getSetting(rollupIndex, "time_series.start_time")
         );
         assertEquals(
-            indexSettingsResp.getSetting(sourceIndex, "time_series.end_time"),
+            indexSettingsResp.getSetting(sourceIndexClone, "time_series.end_time"),
             indexSettingsResp.getSetting(rollupIndex, "time_series.end_time")
         );
         assertEquals(
-            indexSettingsResp.getSetting(sourceIndex, "index.routing_path"),
+            indexSettingsResp.getSetting(sourceIndexClone, "index.routing_path"),
             indexSettingsResp.getSetting(rollupIndex, "index.routing_path")
         );
         assertEquals(
-            indexSettingsResp.getSetting(sourceIndex, "index.number_of_shards"),
+            indexSettingsResp.getSetting(sourceIndexClone, "index.number_of_shards"),
             indexSettingsResp.getSetting(rollupIndex, "index.number_of_shards")
         );
         assertEquals(
-            indexSettingsResp.getSetting(sourceIndex, "index.number_of_replicas"),
+            indexSettingsResp.getSetting(sourceIndexClone, "index.number_of_replicas"),
             indexSettingsResp.getSetting(rollupIndex, "index.number_of_replicas")
         );
         assertEquals("true", indexSettingsResp.getSetting(rollupIndex, "index.blocks.write"));
@@ -434,8 +461,10 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         // Assert that temporary index was removed
         expectThrows(
             IndexNotFoundException.class,
-            () -> client().admin().indices().prepareGetIndex().addIndices(".rolluptmp-" + rollupIndex).get()
+            () -> client().admin().indices().prepareGetIndex().addIndices(TransportRollupAction.createTmpIndexName(rollupIndex)).get()
         );
+        // Assert that source index was removed
+        expectThrows(IndexNotFoundException.class, () -> client().admin().indices().prepareGetIndex().addIndices(sourceIndex).get());
     }
 
     private CompositeAggregationBuilder buildCompositeAggs(

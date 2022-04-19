@@ -10,7 +10,6 @@
 class org.elasticsearch.xpack.versionfield.VersionScriptDocValues {
     String get(int)
     String getValue()
-    org.apache.lucene.util.BytesRef getBytes()
 }
 
 class org.elasticsearch.xpack.versionfield.Version {

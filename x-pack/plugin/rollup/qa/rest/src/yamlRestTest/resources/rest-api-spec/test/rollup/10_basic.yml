@@ -64,6 +64,12 @@ setup:
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T19:51:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434595272, "rx": 530605511}}}}'
 
+  - do:
+      indices.put_settings:
+        index: test
+        body:
+          index.blocks.write: true
+
 ---
 "Rollup index":
   - skip:
@@ -114,7 +120,7 @@ setup:
       version: " - 8.2.99"
       reason: tsdb rollups added in 8.3.0
   - do:
-      catch: /Source index \[non-existing-index\] not found/
+      catch: /no such index \[non-existing-index\]/
       rollup.rollup:
         index: non-existing-index
         rollup_index: rollup-test

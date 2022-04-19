@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.rollup.v2;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
@@ -41,6 +40,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
@@ -114,32 +114,48 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         String sourceIndexName = request.getSourceIndex();
         IndexMetadata sourceIndexMetadata = state.getMetadata().index(sourceIndexName);
         if (sourceIndexMetadata == null) {
-            throw new ResourceNotFoundException("Source index [" + sourceIndexName + "] not found.");
+            listener.onFailure(new IndexNotFoundException(sourceIndexName));
+            return;
         }
-
         if (IndexSettings.MODE.get(sourceIndexMetadata.getSettings()) != IndexMode.TIME_SERIES) {
-            throw new IllegalArgumentException(
-                "Rollup requires setting ["
-                    + IndexSettings.MODE.getKey()
-                    + "="
-                    + IndexMode.TIME_SERIES
-                    + "] for index ["
-                    + sourceIndexName
-                    + "]"
+            listener.onFailure(
+                new ElasticsearchException(
+                    "Rollup requires setting ["
+                        + IndexSettings.MODE.getKey()
+                        + "="
+                        + IndexMode.TIME_SERIES
+                        + "] for index ["
+                        + sourceIndexName
+                        + "]"
+                )
             );
+            return;
+        }
+        if (IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.get(sourceIndexMetadata.getSettings()) == false) {
+            listener.onFailure(
+                new ElasticsearchException(
+                    "Rollup requires setting [" + IndexMetadata.SETTING_BLOCKS_WRITE + " = true] for index [" + sourceIndexName + "]"
+                )
+            );
+            return;
         }
 
         final String rollupIndexName = request.getRollupIndex();
         if (state.getMetadata().index(rollupIndexName) != null) {
-            throw new ResourceAlreadyExistsException("Rollup index [" + rollupIndexName + "] already exists.");
+            listener.onFailure(new ResourceAlreadyExistsException("Rollup index [{}] already exists.", rollupIndexName));
+            return;
         }
         final String tmpIndexName = createTmpIndexName(rollupIndexName);
+        if (state.getMetadata().index(tmpIndexName) != null) {
+            listener.onFailure(new ResourceAlreadyExistsException("Temporary rollup index [{}] already exists.", tmpIndexName));
+            return;
+        }
 
         // 1. Extract rollup config from source index field caps
-        // 2. Create a hidden temporary index
+        // 2. Create a hidden temporary rollup index
         // 3. Run rollup indexer
         // 4. Make temp index read-only
-        // 5. Shrink index
+        // 5. Clone the final rollup index from the temporary rollup index
         // 6. Publish rollup metadata and add rollup index to data stream
         // 7. Delete temporary rollup index
         // At any point if there is an issue, cleanup temp index
@@ -466,7 +482,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                     sourceIndexName,
                     tmpIndexName,
                     listener,
-                    new ElasticsearchException("failed to publish new cluster state with rollup metadata", e)
+                    new ElasticsearchException("Failed to publish new cluster state with rollup metadata", e)
                 );
             }
         }, newExecutor());

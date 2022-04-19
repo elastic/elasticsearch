@@ -157,6 +157,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             .field(FIELD_NUMERIC_2, randomInt() * randomDouble())
             .endObject();
         bulkIndex(sourceSupplier);
+        setReadOnly(sourceIndex);
         rollup(sourceIndex, rollupIndex, config);
         assertRollupIndex(config, sourceIndex, rollupIndex);
     }
@@ -219,6 +220,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             .field(FIELD_NUMERIC_1, randomDouble())
             .endObject();
         bulkIndex(sourceSupplier);
+        setReadOnly(sourceIndex);
         rollup(sourceIndex, rollupIndex, config);
         assertRollupIndex(config, sourceIndex, rollupIndex);
         ResourceAlreadyExistsException exception = expectThrows(
@@ -228,10 +230,24 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         assertThat(exception.getMessage(), containsString("Rollup index [" + rollupIndex + "] already exists."));
     }
 
+    public void testCannotRollupWriteableIndex() {
+        RollupActionConfig config = new RollupActionConfig(randomInterval());
+        Exception exception = expectThrows(ElasticsearchException.class, () -> rollup(sourceIndex, rollupIndex, config));
+        assertThat(exception.getMessage(), containsString("Rollup requires setting [index.blocks.write = true] for index"));
+    }
+
+    public void testCannotRollupMissingIndex() {
+        RollupActionConfig config = new RollupActionConfig(randomInterval());
+        IndexNotFoundException exception = expectThrows(IndexNotFoundException.class, () -> rollup("missing-index", rollupIndex, config));
+        assertEquals("missing-index", exception.getIndex().getName());
+        assertThat(exception.getMessage(), containsString("no such index [missing-index]"));
+    }
+
     public void testTemporaryIndexCannotBeCreatedAlreadyExists() {
         assertTrue(
             client().admin().indices().prepareCreate(TransportRollupAction.TMP_ROLLUP_INDEX_PREFIX + rollupIndex).get().isAcknowledged()
         );
+        setReadOnly(sourceIndex);
         RollupActionConfig config = new RollupActionConfig(randomInterval());
         Exception exception = expectThrows(ElasticsearchException.class, () -> rollup(sourceIndex, rollupIndex, config));
         assertThat(exception.getMessage(), containsString("already exists"));
@@ -246,6 +262,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             .field(FIELD_NUMERIC_1, randomDouble())
             .endObject();
         bulkIndex(sourceSupplier);
+        setReadOnly(sourceIndex);
         client().execute(RollupAction.INSTANCE, new RollupAction.Request(sourceIndex, rollupIndex, config), ActionListener.noop());
         ResourceAlreadyExistsException exception = expectThrows(
             ResourceAlreadyExistsException.class,
@@ -314,6 +331,15 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         int docsIndexed = docCount - duplicates;
         logger.info("Indexed [" + docsIndexed + "] documents");
         assertHitCount(client().prepareSearch(indexName).setSize(0).get(), docsIndexed);
+    }
+
+    private void setReadOnly(String sourceIndex) {
+        AcknowledgedResponse r = client().admin()
+            .indices()
+            .prepareUpdateSettings(sourceIndex)
+            .setSettings(Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), true).build())
+            .get();
+        assertTrue(r.isAcknowledged());
     }
 
     private void rollup(String sourceIndex, String rollupIndex, RollupActionConfig config) {

@@ -12,7 +12,6 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.security.SecurityContext;
@@ -38,7 +37,6 @@ import java.util.stream.Collectors;
  */
 public class TransportHasPrivilegesAction extends HandledTransportAction<HasPrivilegesRequest, HasPrivilegesResponse> {
 
-    private final ThreadPool threadPool;
     private final AuthorizationService authorizationService;
     private final NativePrivilegeStore privilegeStore;
     private final SecurityContext securityContext;
@@ -46,7 +44,6 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
 
     @Inject
     public TransportHasPrivilegesAction(
-        ThreadPool threadPool,
         TransportService transportService,
         ActionFilters actionFilters,
         AuthorizationService authorizationService,
@@ -55,7 +52,6 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
         NamedXContentRegistry xContentRegistry
     ) {
         super(HasPrivilegesAction.NAME, transportService, actionFilters, HasPrivilegesRequest::new);
-        this.threadPool = threadPool;
         this.authorizationService = authorizationService;
         this.privilegeStore = privilegeStore;
         this.xContentRegistry = xContentRegistry;

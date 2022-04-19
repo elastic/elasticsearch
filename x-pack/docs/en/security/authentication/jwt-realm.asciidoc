@@ -117,7 +117,7 @@ JWS header `alg` is required, and must be in the realm's allow list. JWS header 
 JWT claims `iss`, `aud`, `sub`, `exp`, `iat`, `nbf`, and `auth_time` are validated using OpenID Connect ID Token validation rules.
 JWT Claims `principal`, `groups`, `name`, `mail`, and `dn` are validated using {es} validation rules.
 
-IMPORTANT: `nonce` claim is ignored; it is only applicable inside an OIDC workflow, not application to JWT realm.
+IMPORTANT: `nonce` claim is ignored; it is only applicable inside an OIDC workflow, not to the JWT realm.
 
 NOTE: Validation of the JWT time-based claims `exp`, `iat`, `nbf`, and `auth_time` can be relaxed via the realm setting `allowed_clock_skew`.
 
@@ -150,13 +150,13 @@ An optional regular expression can be configured via the realm setting `claims.m
 An optional regular expression can be configured via the realm setting `claims.dn_pattern` to extract a substring value.
 
 [[jwt-authorization]]
-==== JWT Realm Authorization
+==== JWT realm authorization
 
 JWT realm authorization supports role mapping API or delegated authorization realms.
 
 WARNING: JWT realm does not support using the role_mapping.yml file.
 
-==== JWT Realm Authorization via Role Mapping API
+===== JWT realm authorization via Role Mapping API
 
 .If JWT realm role mapping is used for authorization, these claims are available for role mapping.
 * `principal` claim: JWT claim in the form of a string is used as the {es} user's principal string value.
@@ -186,7 +186,7 @@ PUT /_security/role_mapping/jwt1_users
 }
 --------------------------------------------------
 
-==== JWT Realm Authorization via Delegated Authorization
+===== JWT realm authorization via authorization delegation
 
 .If Delegated Realms are used for authorization, this claim is available for roles lookup.
 * `principal` claim: JWT claim in the form of a string is used as the {es} user's principal value.
@@ -197,7 +197,7 @@ WARNING: When Delegated Authorization is enabled in JWT realm, claims for `group
          Only the JWT `principal` claim is passed through to Delegated Authorization realms.
          The Delegated Authorization realms become responsible for populating all of the {es} user's values, not the JWT realm.
 
-===== Example JWT Realm Delegated Authorization:
+====== Example JWT realm delegated authorization:
 
 Example JWT realm using Delegated Authorization to multiple other realms.
 

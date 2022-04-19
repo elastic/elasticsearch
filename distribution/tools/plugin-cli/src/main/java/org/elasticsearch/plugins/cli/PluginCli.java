@@ -9,8 +9,8 @@
 package org.elasticsearch.plugins.cli;
 
 import org.elasticsearch.cli.Command;
-import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.cli.MultiCommand;
+import org.elasticsearch.core.IOUtils;
 
 import java.io.IOException;
 import java.util.Collection;

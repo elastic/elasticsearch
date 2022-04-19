@@ -46,7 +46,7 @@ module org.elasticsearch.server {
     requires org.apache.lucene.suggest;
 
     exports org.elasticsearch;
-    exports org.elasticsearch.action; // #### temp, do not export, what does the IDE do for core plugin that uses type from action
+    exports org.elasticsearch.action;
     exports org.elasticsearch.action.admin.cluster.allocation;
     exports org.elasticsearch.action.admin.cluster.configuration;
     exports org.elasticsearch.action.admin.cluster.health;
@@ -274,6 +274,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.persistent;
     exports org.elasticsearch.persistent.decider;
     exports org.elasticsearch.plugins;
+    exports org.elasticsearch.plugins.restwrapper to org.elasticsearch.security;
     exports org.elasticsearch.plugins.spi;
     exports org.elasticsearch.repositories;
     exports org.elasticsearch.repositories.blobstore;

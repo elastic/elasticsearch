@@ -76,6 +76,7 @@ import org.elasticsearch.plugins.ScriptPlugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.ShutdownAwarePlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.plugins.restwrapper.RestWrapper;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.rest.RestController;
@@ -130,7 +131,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
         IndexStorePlugin,
         SystemIndexPlugin,
         SearchPlugin,
-        ShutdownAwarePlugin {
+        ShutdownAwarePlugin,
+        RestWrapper {
 
     private XPackLicenseState licenseState;
     private SSLService sslService;
@@ -434,6 +436,8 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
 
         // There can be only one.
         List<UnaryOperator<RestHandler>> items = filterPlugins(ActionPlugin.class).stream()
+            .filter(RestWrapper.class::isInstance)
+            .map(RestWrapper.class::cast)
             .map(p -> p.getRestHandlerWrapper(threadContext))
             .filter(Objects::nonNull)
             .collect(Collectors.toList());

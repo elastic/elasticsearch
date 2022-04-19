@@ -256,4 +256,5 @@ tasks.named("licenseHeaders").configure {
 tasks.named("compileJava").configure {
   options.compilerArgs.add("-Xlint:-missing-explicit-ctor,-requires-automatic,-requires-transitive-automatic")
   options.compilerArgs.add("-Xlint:-exports") // class XXX in module org.elasticsearch.server is not accessible to clients that require this module
+  options.compilerArgs.add("-Xlint:-module") // warning: [module] module not found: org.elasticsearch.security
 }

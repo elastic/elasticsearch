@@ -268,6 +268,7 @@ import org.elasticsearch.persistent.StartPersistentTaskAction;
 import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.ActionPlugin.ActionHandler;
+import org.elasticsearch.plugins.restwrapper.RestWrapper;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
@@ -476,8 +477,9 @@ public class ActionModule extends AbstractModule {
         ).collect(Collectors.toSet());
         UnaryOperator<RestHandler> restWrapper = null;
         for (ActionPlugin plugin : actionPlugins) {
-            UnaryOperator<RestHandler> newRestWrapper = plugin.getRestHandlerWrapper(threadPool.getThreadContext());
-            if (newRestWrapper != null) {
+            if (plugin instanceof RestWrapper restWrapperPlugin) {
+                UnaryOperator<RestHandler> newRestWrapper = restWrapperPlugin.getRestHandlerWrapper(threadPool.getThreadContext());
+                assert newRestWrapper != null;
                 logger.debug("Using REST wrapper from plugin " + plugin.getClass().getName());
                 if (plugin.getClass().getCanonicalName() == null
                     || plugin.getClass().getCanonicalName().startsWith("org.elasticsearch.xpack") == false) {

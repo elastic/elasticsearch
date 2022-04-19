@@ -65,6 +65,7 @@ import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
+import org.elasticsearch.plugins.restwrapper.RestWrapper;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
@@ -362,7 +363,8 @@ public class Security extends Plugin
         DiscoveryPlugin,
         MapperPlugin,
         ExtensiblePlugin,
-        SearchPlugin {
+        SearchPlugin,
+        RestWrapper {
 
     public static final String SECURITY_CRYPTO_THREAD_POOL_NAME = XPackField.SECURITY + "-crypto";
 

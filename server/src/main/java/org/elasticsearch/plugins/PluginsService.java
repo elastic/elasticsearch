@@ -34,6 +34,7 @@ import org.elasticsearch.threadpool.ExecutorBuilder;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.lang.module.Configuration;
+import java.lang.module.ModuleDescriptor;
 import java.lang.module.ModuleFinder;
 import java.lang.reflect.Constructor;
 import java.net.URI;
@@ -751,11 +752,21 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             var controller = ModuleLayer.defineModulesWithOneLoader(configuration, pls, parentLoader);
             var layer = controller.layer();
             ClassLoader loader = layer.findLoader(moduleName);
-            var mainModule = layer.findModule(moduleName).get();
+            var pluginModule = layer.findModule(moduleName).get();
+            var serverModule = PluginsService.class.getModule();
             if (className != null) {
                 // ensure that the main class is accessible to server
-                controller.addOpens(mainModule, toPackageName(className), PluginsService.class.getModule());
+                controller.addOpens(pluginModule, toPackageName(className), serverModule);
             }
+            // Reinstate qualified exports, if any, from server to plugin module (in child layer)
+            PluginsService.class.getModule()
+                .getDescriptor()
+                .exports()
+                .stream()
+                .filter(ModuleDescriptor.Exports::isQualified)
+                .filter(export -> export.targets().contains(moduleName))
+                .forEach(export -> serverModule.addExports(export.source(), pluginModule));
+
             logger.debug(() -> "created module layer and loader for module " + moduleName);
             return new LayerAndLoader(layer, loader);
         };

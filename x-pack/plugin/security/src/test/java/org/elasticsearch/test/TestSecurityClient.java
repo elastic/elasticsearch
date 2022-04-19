@@ -19,6 +19,8 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
+import org.elasticsearch.client.RestHighLevelClient;
+import org.elasticsearch.client.security.ClearRealmCacheRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.SecureString;
@@ -37,11 +39,13 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static org.elasticsearch.test.SecuritySettingsSource.SECURITY_REQUEST_OPTIONS;
 import static org.elasticsearch.test.rest.ESRestTestCase.entityAsMap;
 
 public class TestSecurityClient {
@@ -385,6 +389,16 @@ public class TestSecurityClient {
             ((Number) responseBody.get("previously_invalidated_tokens")).intValue(),
             errors == null ? List.of() : errors.stream().map(this::toException).toList()
         );
+    }
+
+    /**
+     * Uses the REST API to clear the cache for one or more realms
+     * @see org.elasticsearch.xpack.security.rest.action.realm.RestClearRealmCacheAction
+     */
+    public void clearRealmCache(String realm) throws IOException {
+        final String endpoint = "/_security/realm/" + realm + "/_clear_cache";
+        final Request request = new Request(HttpPost.METHOD_NAME, endpoint);
+        execute(request);
     }
 
     private static String toJson(Map<String, ? extends Object> map) throws IOException {

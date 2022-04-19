@@ -37,26 +37,6 @@ public final class SecurityClient {
     }
 
     /**
-     * Clears the cache in one or more realms.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-clear-cache.html">
-     * the docs</a> for more.
-     *
-     * @param request the request with the realm names and usernames to clear the cache for
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the response from the clear realm cache call
-     * @throws IOException in case there is a problem sending the request or parsing back the response
-     */
-    public ClearRealmCacheResponse clearRealmCache(ClearRealmCacheRequest request, RequestOptions options) throws IOException {
-        return restHighLevelClient.performRequestAndParseEntity(
-            request,
-            SecurityRequestConverters::clearRealmCache,
-            options,
-            ClearRealmCacheResponse::fromXContent,
-            emptySet()
-        );
-    }
-
-    /**
      * Get an Elasticsearch access token from an {@code X509Certificate} chain. The certificate chain is that of the client from a mutually
      * authenticated TLS session, and it is validated by the PKI realms with {@code delegation.enabled} toggled to {@code true}.<br>
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-delegate-pki-authentication.html"> the

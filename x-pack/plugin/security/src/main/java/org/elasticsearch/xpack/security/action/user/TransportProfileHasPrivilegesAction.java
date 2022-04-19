@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.security.action.user;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesRes
 
 public class TransportProfileHasPrivilegesAction extends HandledTransportAction<ProfileHasPrivilegesRequest, ProfileHasPrivilegesResponse> {
 
+    @Inject
     protected TransportProfileHasPrivilegesAction(TransportService transportService, ActionFilters actionFilters) {
         super(ProfileHasPrivilegesAction.NAME, transportService, actionFilters, ProfileHasPrivilegesRequest::new);
     }

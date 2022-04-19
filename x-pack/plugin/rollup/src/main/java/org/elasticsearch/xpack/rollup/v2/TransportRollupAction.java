@@ -366,8 +366,8 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
             TimeSeriesParams.MetricType metricType = e.getValue().getMetricType();
 
             List<String> aggs = List.of(metricType.supportedAggs());
-            // We choose value_count as the default metric for no special reason
-            String defaultMetric = aggs.contains("value_count") ? "value_count" : aggs.get(0);
+            // We choose max as the default metric
+            String defaultMetric = aggs.contains("max") ? "max" : aggs.get(0);
             builder.startObject(e.getKey())
                 .field("type", AggregateDoubleMetricFieldMapper.CONTENT_TYPE)
                 .stringListField(AggregateDoubleMetricFieldMapper.Names.METRICS, aggs)

@@ -195,7 +195,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         assertThat(exception.getMessage(), containsString("rollup configuration is missing"));
     }
 
-//    @LuceneTestCase.AwaitsFix(bugUrl = "TODO: Fix this")
+    @LuceneTestCase.AwaitsFix(bugUrl = "TODO: Fix this")
     public void testRollupSparseMetrics() throws IOException {
         RollupActionConfig config = new RollupActionConfig(randomInterval());
         SourceSupplier sourceSupplier = () -> {

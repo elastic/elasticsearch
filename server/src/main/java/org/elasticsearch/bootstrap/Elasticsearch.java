@@ -58,7 +58,7 @@ class Elasticsearch extends EnvironmentAwareCommand {
     /**
      * Main entry point for starting elasticsearch
      */
-    public static void main(final String[] args) throws Exception {
+    public static void main(final String[] args) {
         overrideDnsCachePolicyProperties();
         org.elasticsearch.bootstrap.Security.prepopulateSecurityCaller();
 
@@ -77,7 +77,14 @@ class Elasticsearch extends EnvironmentAwareCommand {
         });
         LogConfigurator.registerErrorListener();
         final Elasticsearch elasticsearch = new Elasticsearch();
-        int status = main(args, elasticsearch, Terminal.DEFAULT);
+        final Terminal terminal = Terminal.DEFAULT;
+        int status;
+        try {
+            status = main(args, elasticsearch, terminal);
+        } catch (Exception e) {
+            status = 1; // mimic JDK exit code on exception
+            e.printStackTrace(terminal.getErrorWriter());
+        }
         if (status != ExitCodes.OK) {
             printLogsSuggestion();
             exit(status);

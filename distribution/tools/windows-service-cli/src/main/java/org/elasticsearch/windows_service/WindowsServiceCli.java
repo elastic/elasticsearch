@@ -8,6 +8,7 @@
 
 package org.elasticsearch.windows_service;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.MultiCommand;
@@ -43,7 +44,6 @@ class WindowsServiceCli extends MultiCommand {
             addArg(args, "--StartClass", "org.elasticsearch.launcher.CliToolLauncher");
             addArg(args, "--StartMethod", "main");
             addArg(args, "++StartParams", "--quiet");
-            // TODO: add close method back to CliToolLauncher
             addArg(args, "--StopClass", "org.elasticsearch.launcher.CliToolLauncher");
             addArg(args, "--StopMethod", "close");
             addArg(args, "--Classpath", System.getProperty("java.class.path"));
@@ -51,8 +51,8 @@ class WindowsServiceCli extends MultiCommand {
             addArg(args, "--JvmMx", "64m");
             addArg(args, "--JvmOptions", getJvmOptions());
             addArg(args, "--PidFile", "%s.pid".formatted(serviceId));
-            // TODO: get ES version
-            addArg(args, "--DisplayName", env.getOrDefault("SERVICE_DISPLAY_NAME", "Elasticsearch ES_VERSION (%s)".formatted(serviceId)));
+            addArg(args, "--DisplayName",
+                env.getOrDefault("SERVICE_DISPLAY_NAME", "Elasticsearch %s (%s)".formatted(Version.CURRENT, serviceId)));
             addArg(
                 args,
                 "--Description",
@@ -93,7 +93,7 @@ class WindowsServiceCli extends MultiCommand {
             List<String> jvmOptions = new ArrayList<>();
             jvmOptions.add("-XX:+UseSerialGC");
             // passthrough these properties
-            for (var prop : List.of("es.path.home", "es.path.conf", "es.distribution.flavor", "es.distribution.type", "es.bundled_jdk")) {
+            for (var prop : List.of("es.path.home", "es.path.conf", "es.distribution.type")) {
                 jvmOptions.add("-D%s=%s".formatted(prop, System.getProperty(prop)));
             }
             return String.join(";", jvmOptions);

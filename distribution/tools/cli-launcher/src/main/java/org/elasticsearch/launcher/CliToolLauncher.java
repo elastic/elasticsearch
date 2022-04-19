@@ -16,6 +16,7 @@ import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 
+import java.io.IOException;
 import java.util.Map;
 import java.util.Properties;
 import java.util.stream.Collectors;
@@ -27,6 +28,8 @@ import java.util.stream.Collectors;
  */
 class CliToolLauncher {
     private static final String SCRIPT_PREFIX = "elasticsearch-";
+
+    private static volatile Command command;
 
     /**
      * Runs a CLI tool.
@@ -53,7 +56,7 @@ class CliToolLauncher {
         String toolname = getToolName(sysprops);
         String libs = sysprops.getOrDefault("cli.libs", "");
 
-        Command command = CliToolProvider.load(toolname, libs).create();
+        command = CliToolProvider.load(toolname, libs).create();
         exit(command.main(args, Terminal.DEFAULT));
     }
 
@@ -93,5 +96,18 @@ class CliToolLauncher {
         final String loggerLevel = sysprops.getOrDefault("es.logger.level", Level.INFO.name());
         final Settings settings = Settings.builder().put("logger.level", loggerLevel).build();
         LogConfigurator.configureWithoutConfig(settings);
+    }
+
+    /**
+      * Required method that's called by Apache Commons procrun when
+      * running as a service on Windows, when the service is stopped.
+      *
+      * http://commons.apache.org/proper/commons-daemon/procrun.html
+      *
+      * NOTE: If this method is renamed and/or moved, make sure to
+      * update elasticsearch-service.bat!
+      */
+    static void close(String[] args) throws IOException {
+        command.close();
     }
 }

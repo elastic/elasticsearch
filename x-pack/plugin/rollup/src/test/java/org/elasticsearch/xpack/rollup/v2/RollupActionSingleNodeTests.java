@@ -195,15 +195,14 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         assertThat(exception.getMessage(), containsString("rollup configuration is missing"));
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "TODO: Fix")
+//    @LuceneTestCase.AwaitsFix(bugUrl = "TODO: Fix this")
     public void testRollupSparseMetrics() throws IOException {
         RollupActionConfig config = new RollupActionConfig(randomInterval());
         SourceSupplier sourceSupplier = () -> {
             XContentBuilder builder = XContentFactory.jsonBuilder()
                 .startObject()
                 .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
-                .field(FIELD_DIMENSION_1, randomFrom(dimensionValues))
-                .field(FIELD_DIMENSION_2, randomIntBetween(0, 10));
+                .field(FIELD_DIMENSION_1, randomFrom(dimensionValues));
             if (randomBoolean()) {
                 builder.field(FIELD_NUMERIC_1, randomInt());
             }
@@ -213,6 +212,7 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             return builder.endObject();
         };
         bulkIndex(sourceSupplier);
+        prepareSourceIndex(sourceIndex);
         rollup(sourceIndex, rollupIndex, config);
         assertRollupIndex(config, sourceIndexClone, rollupIndex);
     }

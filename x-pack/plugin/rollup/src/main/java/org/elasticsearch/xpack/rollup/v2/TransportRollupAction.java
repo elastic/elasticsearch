@@ -388,7 +388,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
 
         /*
          * Add the source index name and UUID to the rollup index metadata.
-         * If the original index is a rollup index itself, we will add the name and UUID
+         * If the source index is a rollup index, we will add the name and UUID
          * of the first index that we initially rolled up.
          */
         String originalIndexName = IndexMetadata.INDEX_ROLLUP_SOURCE_NAME.exists(sourceIndexMetadata.getSettings())

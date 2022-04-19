@@ -480,7 +480,7 @@ public class ActionModule extends AbstractModule {
             if (plugin instanceof RestWrapper restWrapperPlugin) {
                 UnaryOperator<RestHandler> newRestWrapper = restWrapperPlugin.getRestHandlerWrapper(threadPool.getThreadContext());
                 // assert newRestWrapper != null; // TODO: cannot assert because of LocalStateCompositeXPackPlugin, is this ok, probably ?
-                if (newRestWrapper != null ) {
+                if (newRestWrapper != null) {
                     logger.debug("Using REST wrapper from plugin " + plugin.getClass().getName());
                     if (plugin.getClass().getCanonicalName() == null
                         || plugin.getClass().getCanonicalName().startsWith("org.elasticsearch.xpack") == false) {

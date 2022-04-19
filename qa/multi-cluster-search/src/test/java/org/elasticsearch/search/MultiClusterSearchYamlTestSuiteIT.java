@@ -44,7 +44,7 @@ public class MultiClusterSearchYamlTestSuiteIT extends ESClientYamlSuiteTestCase
              */
             @Override
             public Version esVersion() {
-                    Version clientEsVersion = clientYamlTestClient.getEsVersion();
+                Version clientEsVersion = clientYamlTestClient.getEsVersion();
                 if (remoteEsVersion == null) {
                     return clientEsVersion;
                 } else {

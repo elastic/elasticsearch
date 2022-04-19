@@ -47,7 +47,7 @@ public class GeoIpCli extends Command {
     private final OptionSpec<String> targetDirectory;
 
     public GeoIpCli() {
-        super("A CLI tool to prepare local GeoIp database service", () -> {});
+        super("A CLI tool to prepare local GeoIp database service");
         sourceDirectory = parser.acceptsAll(Arrays.asList("s", "source"), "Source directory").withRequiredArg().required();
         targetDirectory = parser.acceptsAll(Arrays.asList("t", "target"), "Target directory").withRequiredArg();
 

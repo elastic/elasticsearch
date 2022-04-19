@@ -34,12 +34,11 @@ public class MultiCommand extends Command {
 
     /**
      * Construct the multi-command with the specified command description and runnable to execute before main is invoked.
+     *  @param description the multi-command description
      *
-     * @param description the multi-command description
-     * @param beforeMain the before-main runnable
      */
-    public MultiCommand(final String description, final Runnable beforeMain) {
-        super(description, beforeMain);
+    public MultiCommand(final String description) {
+        super(description);
         this.settingOption = parser.accepts("E", "Configure a setting").withRequiredArg().ofType(KeyValuePair.class);
         parser.posixlyCorrect(true);
     }

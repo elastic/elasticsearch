@@ -11,11 +11,11 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.MultiCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
-import org.elasticsearch.common.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -31,7 +31,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Predicate;
 
-class FileTokensTool extends LoggingAwareMultiCommand {
+class FileTokensTool extends MultiCommand {
 
     FileTokensTool() {
         super("Manages elasticsearch service account file-tokens");

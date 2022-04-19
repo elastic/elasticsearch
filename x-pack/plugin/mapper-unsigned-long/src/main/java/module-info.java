@@ -12,8 +12,7 @@ module org.elasticsearch.mapper.unsigned_long {
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.painless.spi;
 
-    // TODO: Argh! this qualified export is dropped since painless in not in a parent layer
-    exports org.elasticsearch.xpack.unsignedlong; // to org.elasticsearch.painless; // painless script engine
+    exports org.elasticsearch.xpack.unsignedlong to org.elasticsearch.painless; // painless script engine
 
     opens org.elasticsearch.xpack.unsignedlong to org.elasticsearch.painless.spi; // whitelist resource access
 }

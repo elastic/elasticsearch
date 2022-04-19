@@ -93,7 +93,7 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
             bindCredentials = new SimpleBindRequest();
         } else {
             if (bindPassword == null) {
-                deprecationLogger.warn(
+                deprecationLogger.critical(
                     DeprecationCategory.SECURITY,
                     "bind_dn_set_without_password",
                     "[{}] is set but no bind password is specified. Without a corresponding bind password, "

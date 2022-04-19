@@ -216,7 +216,7 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
         );
 
         try (LdapUserSearchSessionFactory ignored = getLdapUserSearchSessionFactory(config, sslService, threadPool)) {
-            assertWarnings(
+            assertCriticalWarnings(
                 ("[%s] is set but no bind password is specified. Without a corresponding bind password, "
                     + "all ldap realm authentication will fail. Specify a bind password via [%s] or [%s]. "
                     + "In the next major release, nodes with incomplete bind credentials will fail to start.").formatted(

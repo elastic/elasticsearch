@@ -160,7 +160,6 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.ml.inference.persistence;
     exports org.elasticsearch.xpack.core.ml.inference.preprocessing;
     exports org.elasticsearch.xpack.core.ml.inference.preprocessing.customwordembedding;
-    exports org.elasticsearch.xpack.core.ml.inference.allocation;
     exports org.elasticsearch.xpack.core.ml.notifications;
     exports org.elasticsearch.xpack.core.ml.stats;
     exports org.elasticsearch.xpack.core.ml.process.writer;

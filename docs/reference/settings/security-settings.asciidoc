@@ -193,6 +193,30 @@ The hashing algorithm that is used for the
 in-memory cached API key credentials. For possible values, see <<cache-hash-algo>>.
 Defaults to `ssha256`.
 
+ifeval::["{release-state}"!="released"]
+[discrete]
+[[security-domain-settings]]
+==== Security domain settings
+// tag::security-domain-settings-description-tag[]
+You configure security domain settings in the `xpack.security.authc.domains`
+namespace in `elasticsearch.yml`.
+
+For example:
+
+[source, yaml]
+------------------------------------------------------------
+xpack:
+  security:
+    authc:
+      domains:
+        my_domain: <1>
+          realms: [ 'default_native', 'saml1' ] <2>
+------------------------------------------------------------
+<1> Specifies the name of the security domain
+<2> Specifies the realms that belong to the domain
+// end::security-domain-settings-description-tag[]
+endif::[]
+
 [discrete]
 [[realm-settings]]
 ==== Realm settings

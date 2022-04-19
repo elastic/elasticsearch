@@ -74,6 +74,10 @@ public class NodesShutdownMetadata implements Metadata.Custom {
         return Optional.of(state).map(ClusterState::metadata).map(m -> m.custom(TYPE));
     }
 
+    public static NodesShutdownMetadata getShutdownsOrEmpty(final ClusterState state) {
+        return getShutdowns(state).orElse(EMPTY);
+    }
+
     private final Map<String, SingleNodeShutdownMetadata> nodes;
 
     public NodesShutdownMetadata(Map<String, SingleNodeShutdownMetadata> nodes) {

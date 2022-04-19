@@ -38,6 +38,7 @@ public class RestPostStartTrialLicense extends BaseRestHandler {
         PostStartTrialRequest startTrialRequest = new PostStartTrialRequest();
         startTrialRequest.setType(request.param("type", License.LicenseType.TRIAL.getTypeName()));
         startTrialRequest.acknowledge(request.paramAsBoolean("acknowledge", false));
+        startTrialRequest.masterNodeTimeout(request.paramAsTime("master_node_timeout", startTrialRequest.masterNodeTimeout()));
         return channel -> client.execute(PostStartTrialAction.INSTANCE, startTrialRequest, new RestBuilderListener<>(channel) {
             @Override
             public RestResponse buildResponse(PostStartTrialResponse response, XContentBuilder builder) throws Exception {

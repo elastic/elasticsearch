@@ -398,7 +398,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     /**
      * Remove license from the cluster state metadata
      */
-    public void removeLicense(final ActionListener<PostStartBasicResponse> listener) {
+    public void removeLicense(final ActionListener<PostStartBasicResponse> listener, TimeValue masterNodeTimeout) {
         final PostStartBasicRequest startBasicRequest = new PostStartBasicRequest().acknowledge(true);
         final StartBasicClusterTask task = new StartBasicClusterTask(
             logger,
@@ -411,7 +411,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         clusterService.submitStateUpdateTask(
             task.getDescription(),
             task,
-            ClusterStateTaskConfig.build(Priority.NORMAL, startBasicRequest.masterNodeTimeout()),
+            ClusterStateTaskConfig.build(Priority.NORMAL, masterNodeTimeout),
             startBasicExecutor
         );
     }

@@ -137,7 +137,7 @@ public class LicensesManagerServiceTests extends ESSingleNodeTestCase {
             public void onFailure(Exception throwable) {
                 latch.countDown();
             }
-        });
+        }, TimeValue.MINUS_ONE);
         try {
             latch.await();
         } catch (InterruptedException e) {

@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.core.internal.net;
+package org.elasticsearch.transport.netty4;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.core.internal.io.IOUtils;

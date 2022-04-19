@@ -456,7 +456,9 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                     // considered a write index
                     backingIndices.add(rollupIndex);
                     // Add all indices except the source index
-                    backingIndices.addAll(originalDataStream.getIndices().stream().filter(i -> i.getName() != sourceIndexName).toList());
+                    backingIndices.addAll(
+                        originalDataStream.getIndices().stream().filter(idx -> idx.getName().equals(sourceIndexName) == false).toList()
+                    );
                     DataStream dataStream = new DataStream(
                         originalDataStream.getName(),
                         backingIndices,

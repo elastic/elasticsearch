@@ -23,6 +23,7 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
@@ -379,12 +380,59 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         }
     }
 
+    public static RoleDescriptor parsePrivilegesCheck(String description, XContentParser parser) throws IOException {
+        XContentParser.Token token;
+        String currentFieldName = null;
+        IndicesPrivileges[] indexPrivileges = null;
+        String[] clusterPrivileges = null;
+        ApplicationResourcePrivileges[] applicationPrivileges = null;
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (Fields.INDEX.match(currentFieldName, parser.getDeprecationHandler())) {
+                indexPrivileges = parseIndices(description, parser, false);
+            } else if (Fields.CLUSTER.match(currentFieldName, parser.getDeprecationHandler())) {
+                clusterPrivileges = readStringArray(description, parser, true);
+            } else if (Fields.APPLICATIONS.match(currentFieldName, parser.getDeprecationHandler())
+                || Fields.APPLICATION.match(currentFieldName, parser.getDeprecationHandler())) {
+                    applicationPrivileges = parseApplicationPrivileges(description, parser);
+                } else {
+                    throw new ElasticsearchParseException(
+                        "failed to parse privileges check [{}]. unexpected field [{}]",
+                        description,
+                        currentFieldName
+                    );
+                }
+        }
+        if (indexPrivileges == null && clusterPrivileges == null && applicationPrivileges == null) {
+            throw new ElasticsearchParseException(
+                "failed to parse privileges check [{}]. All privilege fields [{},{},{}] are missing",
+                description,
+                Fields.CLUSTER,
+                Fields.INDEX,
+                Fields.APPLICATIONS
+            );
+        }
+        if (indexPrivileges != null) {
+            if (Arrays.stream(indexPrivileges).anyMatch(IndicesPrivileges::isUsingFieldLevelSecurity)) {
+                throw new ElasticsearchParseException(
+                    "Field [{}] is not supported in a has_privileges request",
+                    RoleDescriptor.Fields.FIELD_PERMISSIONS
+                );
+            }
+            if (Arrays.stream(indexPrivileges).anyMatch(IndicesPrivileges::isUsingDocumentLevelSecurity)) {
+                throw new ElasticsearchParseException("Field [{}] is not supported in a has_privileges request", Fields.QUERY);
+            }
+        }
+        return new RoleDescriptor(description, clusterPrivileges, indexPrivileges, applicationPrivileges, null, null, null, null);
+    }
+
     public static RoleDescriptor parsePrivilegesCheck(String description, BytesReference source, XContentType xContentType)
         throws IOException {
         try (
             InputStream stream = source.streamInput();
             XContentParser parser = xContentType.xContent()
-                .createParser(NamedXContentRegistry.EMPTY, LoggingDeprecationHandler.INSTANCE, stream)
+                .createParser(XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE), stream)
         ) {
             // advance to the START_OBJECT token
             XContentParser.Token token = parser.nextToken();
@@ -395,49 +443,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                     token
                 );
             }
-            String currentFieldName = null;
-            IndicesPrivileges[] indexPrivileges = null;
-            String[] clusterPrivileges = null;
-            ApplicationResourcePrivileges[] applicationPrivileges = null;
-            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (Fields.INDEX.match(currentFieldName, parser.getDeprecationHandler())) {
-                    indexPrivileges = parseIndices(description, parser, false);
-                } else if (Fields.CLUSTER.match(currentFieldName, parser.getDeprecationHandler())) {
-                    clusterPrivileges = readStringArray(description, parser, true);
-                } else if (Fields.APPLICATIONS.match(currentFieldName, parser.getDeprecationHandler())
-                    || Fields.APPLICATION.match(currentFieldName, parser.getDeprecationHandler())) {
-                        applicationPrivileges = parseApplicationPrivileges(description, parser);
-                    } else {
-                        throw new ElasticsearchParseException(
-                            "failed to parse privileges check [{}]. unexpected field [{}]",
-                            description,
-                            currentFieldName
-                        );
-                    }
-            }
-            if (indexPrivileges == null && clusterPrivileges == null && applicationPrivileges == null) {
-                throw new ElasticsearchParseException(
-                    "failed to parse privileges check [{}]. All privilege fields [{},{},{}] are missing",
-                    description,
-                    Fields.CLUSTER,
-                    Fields.INDEX,
-                    Fields.APPLICATIONS
-                );
-            }
-            if (indexPrivileges != null) {
-                if (Arrays.stream(indexPrivileges).anyMatch(IndicesPrivileges::isUsingFieldLevelSecurity)) {
-                    throw new ElasticsearchParseException(
-                        "Field [{}] is not supported in a has_privileges request",
-                        RoleDescriptor.Fields.FIELD_PERMISSIONS
-                    );
-                }
-                if (Arrays.stream(indexPrivileges).anyMatch(IndicesPrivileges::isUsingDocumentLevelSecurity)) {
-                    throw new ElasticsearchParseException("Field [{}] is not supported in a has_privileges request", Fields.QUERY);
-                }
-            }
-            return new RoleDescriptor(description, clusterPrivileges, indexPrivileges, applicationPrivileges, null, null, null, null);
+            return parsePrivilegesCheck(description, parser);
         }
     }
 
@@ -913,6 +919,10 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
             }
             builder.field(RoleDescriptor.Fields.ALLOW_RESTRICTED_INDICES.getPreferredName(), allowRestrictedIndices);
             return builder.endObject();
+        }
+
+        public static void write(StreamOutput out, IndicesPrivileges privileges) throws IOException {
+            privileges.writeTo(out);
         }
 
         public static class Builder {

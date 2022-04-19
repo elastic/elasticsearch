@@ -77,12 +77,6 @@ public class MachineDependentHeapTests extends LaunchersTestCase {
         assertThat(options, containsInAnyOrder("-Xmx128m", "-Xms128m"));
     }
 
-    public void testFallbackOptions() throws Exception {
-        MachineDependentHeap machineDependentHeap = new MachineDependentHeap(errorThrowingMemoryInfo());
-        List<String> options = machineDependentHeap.determineHeapSettings(configPath(), Collections.emptyList());
-        assertThat(options, containsInAnyOrder("-Xmx1024m", "-Xms1024m"));
-    }
-
     private static List<String> calculateHeap(double memoryInGigabytes, String... roles) {
         MachineDependentHeap machineDependentHeap = new MachineDependentHeap(systemMemoryInGigabytes(memoryInGigabytes));
         String configYaml = "node.roles: [" + String.join(",", roles) + "]";
@@ -99,10 +93,6 @@ public class MachineDependentHeapTests extends LaunchersTestCase {
 
     private static SystemMemoryInfo systemMemoryInGigabytes(double gigabytes) {
         return () -> (long) (gigabytes * 1024 * 1024 * 1024);
-    }
-
-    private static SystemMemoryInfo errorThrowingMemoryInfo() {
-        return () -> { throw new SystemMemoryInfo.SystemMemoryInfoException("something went wrong"); };
     }
 
     private static Path configPath() {

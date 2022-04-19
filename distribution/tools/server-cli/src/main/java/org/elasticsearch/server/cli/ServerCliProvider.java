@@ -8,10 +8,10 @@
 
 package org.elasticsearch.server.cli;
 
+import org.elasticsearch.cli.CliToolProvider;
 import org.elasticsearch.cli.Command;
-import org.elasticsearch.cli.ToolProvider;
 
-public class ServerCliProvider implements ToolProvider {
+public class ServerCliProvider implements CliToolProvider {
     @Override
     public String name() {
         return "server";

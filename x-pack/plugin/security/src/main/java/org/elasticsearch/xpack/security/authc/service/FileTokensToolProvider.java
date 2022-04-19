@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.security.authc.service;
 
+import org.elasticsearch.cli.CliToolProvider;
 import org.elasticsearch.cli.Command;
-import org.elasticsearch.cli.ToolProvider;
 
-public class FileTokensToolProvider implements ToolProvider {
+public class FileTokensToolProvider implements CliToolProvider {
     @Override
     public String name() {
         return "service-tokens";

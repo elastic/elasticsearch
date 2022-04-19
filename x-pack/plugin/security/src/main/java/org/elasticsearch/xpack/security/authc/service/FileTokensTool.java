@@ -31,9 +31,9 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Predicate;
 
-public class FileTokensTool extends MultiCommand {
+class FileTokensTool extends MultiCommand {
 
-    public FileTokensTool() {
+    FileTokensTool() {
         super("Manages elasticsearch service account file-tokens");
         subcommands.put("create", newCreateFileTokenCommand());
         subcommands.put("delete", newDeleteFileTokenCommand());

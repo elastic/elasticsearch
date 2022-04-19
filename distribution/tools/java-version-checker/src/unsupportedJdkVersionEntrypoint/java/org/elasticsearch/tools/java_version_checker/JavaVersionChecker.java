@@ -18,7 +18,7 @@ final class JavaVersionChecker {
 
     private JavaVersionChecker() {}
 
-    public static void main(String[] args) {
+    public static void main(final String[] args) {
         // no leniency!
         if (args.length != 0) {
             throw new IllegalArgumentException("expected zero arguments but was " + Arrays.toString(args));

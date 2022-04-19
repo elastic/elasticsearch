@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.security.cli;
 
+import org.elasticsearch.cli.CliToolProvider;
 import org.elasticsearch.cli.Command;
-import org.elasticsearch.cli.ToolProvider;
 
-public class CertificateToolProvider implements ToolProvider {
+public class CertificateToolProvider implements CliToolProvider {
 
     @Override
     public String name() {

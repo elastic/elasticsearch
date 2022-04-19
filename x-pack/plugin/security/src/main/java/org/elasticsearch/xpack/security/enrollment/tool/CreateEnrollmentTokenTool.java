@@ -26,7 +26,7 @@ import java.net.URL;
 import java.util.List;
 import java.util.function.Function;
 
-public class CreateEnrollmentTokenTool extends BaseRunAsSuperuserCommand {
+class CreateEnrollmentTokenTool extends BaseRunAsSuperuserCommand {
 
     private final OptionSpec<String> scope;
     private final Function<Environment, CommandLineHttpClient> clientFunction;
@@ -34,7 +34,6 @@ public class CreateEnrollmentTokenTool extends BaseRunAsSuperuserCommand {
     static final List<String> ALLOWED_SCOPES = List.of("node", "kibana");
 
     CreateEnrollmentTokenTool() {
-
         this(
             environment -> new CommandLineHttpClient(environment),
             environment -> KeyStoreWrapper.load(environment.configFile()),

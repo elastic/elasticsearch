@@ -8,10 +8,10 @@
 
 package org.elasticsearch.geoip;
 
+import org.elasticsearch.cli.CliToolProvider;
 import org.elasticsearch.cli.Command;
-import org.elasticsearch.cli.ToolProvider;
 
-public class GeoIpCliProvider implements ToolProvider {
+public class GeoIpCliProvider implements CliToolProvider {
     @Override
     public String name() {
         return "geoip";

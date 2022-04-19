@@ -8,9 +8,8 @@ rem 2.0.
 setlocal enabledelayedexpansion
 setlocal enableextensions
 
-set SCRIPT_NAME=%~n0
-set LAUNCHER_TOOLNAME=%SCRIPT_NAME:elasticsearch-=%
-set LAUNCHER_LIBS=modules/x-pack-core,modules/x-pack-security
+set CLI_SCRIPT=%~0
+set CLI_LIBS=modules/x-pack-core,modules/x-pack-security
 call "%~dp0elasticsearch-cli.bat" ^
   %%* ^
   || goto exit

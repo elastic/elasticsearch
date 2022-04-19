@@ -9,7 +9,6 @@
 package org.elasticsearch.server.cli;
 
 import org.elasticsearch.server.cli.BootstrapJvmOptions.PluginInfo;
-import org.hamcrest.Matchers;
 
 import java.util.List;
 import java.util.Properties;

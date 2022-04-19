@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.security.cli;
 
+import org.elasticsearch.cli.CliToolProvider;
 import org.elasticsearch.cli.Command;
-import org.elasticsearch.cli.ToolProvider;
 
-public class AutoConfigureNodeToolProvider implements ToolProvider {
+public class AutoConfigureNodeToolProvider implements CliToolProvider {
     @Override
     public String name() {
         return "auto-configure-node";

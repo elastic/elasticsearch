@@ -4,7 +4,7 @@ sourceSets {
   unsupportedJdkVersionEntrypoint
 }
 
-tasks.named('compileUnsupportedJdkVersionEntrypointJava').configure {
+tasks.named(sourceSets.unsupportedJdkVersionEntrypoint.compileJavaTaskName).configure {
   targetCompatibility = JavaVersion.VERSION_1_7
 }
 
@@ -20,4 +20,8 @@ tasks.named("jar") {
       details.relativePath = details.relativePath.prepend("META-INF/versions/17")
     }
   }
+}
+
+["test", "javadoc"].each {
+  tasks.named(it).configure { enabled = false }
 }

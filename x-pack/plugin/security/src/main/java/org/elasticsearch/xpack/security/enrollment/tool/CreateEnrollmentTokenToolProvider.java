@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.security.enrollment.tool;
 
+import org.elasticsearch.cli.CliToolProvider;
 import org.elasticsearch.cli.Command;
-import org.elasticsearch.cli.ToolProvider;
 
-public class CreateEnrollmentTokenToolProvider implements ToolProvider {
+public class CreateEnrollmentTokenToolProvider implements CliToolProvider {
     @Override
     public String name() {
         return "create-enrollment-token";

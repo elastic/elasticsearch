@@ -5,5 +5,5 @@
 # 2.0; you may not use this file except in compliance with the Elastic License
 # 2.0.
 
-LAUNCHER_LIBS="modules/x-pack-core,modules/x-pack-security"
+CLI_LIBS="modules/x-pack-core,modules/x-pack-security"
 source "`dirname "$0"`"/elasticsearch-cli

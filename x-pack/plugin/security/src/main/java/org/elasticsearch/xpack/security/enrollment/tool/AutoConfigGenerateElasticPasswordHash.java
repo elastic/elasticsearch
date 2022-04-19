@@ -36,9 +36,9 @@ import static org.elasticsearch.xpack.security.tool.CommandUtils.generatePasswor
  *
  * The generated password is written to stdout upon success. Error messages are printed to stderr.
  */
-public class AutoConfigGenerateElasticPasswordHash extends KeyStoreAwareCommand {
+class AutoConfigGenerateElasticPasswordHash extends KeyStoreAwareCommand {
 
-    public AutoConfigGenerateElasticPasswordHash() {
+    AutoConfigGenerateElasticPasswordHash() {
         super("Generates a password hash for for the elastic user and stores it in elasticsearch.keystore");
     }
 

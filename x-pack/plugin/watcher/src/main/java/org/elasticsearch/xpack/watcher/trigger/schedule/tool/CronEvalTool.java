@@ -24,7 +24,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 
-public class CronEvalTool extends Command {
+class CronEvalTool extends Command {
 
     private static final DateFormatter UTC_FORMATTER = DateFormatter.forPattern("EEE, d MMM yyyy HH:mm:ss")
         .withZone(ZoneOffset.UTC)

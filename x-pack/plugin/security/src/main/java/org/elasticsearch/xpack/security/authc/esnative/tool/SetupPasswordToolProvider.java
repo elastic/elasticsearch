@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.security.authc.esnative.tool;
 
+import org.elasticsearch.cli.CliToolProvider;
 import org.elasticsearch.cli.Command;
-import org.elasticsearch.cli.ToolProvider;
 
-public class SetupPasswordToolProvider implements ToolProvider {
+public class SetupPasswordToolProvider implements CliToolProvider {
     @Override
     public String name() {
         return "setup-passwords";

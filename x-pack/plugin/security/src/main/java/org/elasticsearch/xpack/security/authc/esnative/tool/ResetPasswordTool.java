@@ -34,7 +34,7 @@ import java.util.function.Function;
 import static org.elasticsearch.xpack.core.security.CommandLineHttpClient.createURL;
 import static org.elasticsearch.xpack.security.tool.CommandUtils.generatePassword;
 
-public class ResetPasswordTool extends BaseRunAsSuperuserCommand {
+class ResetPasswordTool extends BaseRunAsSuperuserCommand {
 
     private final Function<Environment, CommandLineHttpClient> clientFunction;
     private final OptionSpecBuilder interactive;
@@ -42,7 +42,7 @@ public class ResetPasswordTool extends BaseRunAsSuperuserCommand {
     private final OptionSpecBuilder batch;
     private final OptionSpec<String> usernameOption;
 
-    public ResetPasswordTool() {
+    ResetPasswordTool() {
         this(CommandLineHttpClient::new, environment -> KeyStoreWrapper.load(environment.configFile()));
     }
 

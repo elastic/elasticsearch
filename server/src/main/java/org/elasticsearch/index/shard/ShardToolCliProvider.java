@@ -8,10 +8,10 @@
 
 package org.elasticsearch.index.shard;
 
+import org.elasticsearch.cli.CliToolProvider;
 import org.elasticsearch.cli.Command;
-import org.elasticsearch.cli.ToolProvider;
 
-public class ShardToolCliProvider implements ToolProvider {
+public class ShardToolCliProvider implements CliToolProvider {
     @Override
     public String name() {
         return "shard";

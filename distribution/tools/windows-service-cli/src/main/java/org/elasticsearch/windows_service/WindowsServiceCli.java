@@ -40,10 +40,11 @@ class WindowsServiceCli extends MultiCommand {
             List<String> args = new ArrayList<>();
             addArg(args, "--Startup", env.getOrDefault("ES_START_TYPE", "manual"));
             addArg(args, "--StopTimeout", env.getOrDefault("ES_STOP_TIMEOUT", "0"));
-            addArg(args, "--StartClass", "org.elasticsearch.launcher.Launcher");
+            addArg(args, "--StartClass", "org.elasticsearch.launcher.CliToolLauncher");
             addArg(args, "--StartMethod", "main");
             addArg(args, "++StartParams", "--quiet");
-            addArg(args, "--StopClass", "org.elasticsearch.launcher.Launcher");
+            // TODO: add close method back to CliToolLauncher
+            addArg(args, "--StopClass", "org.elasticsearch.launcher.CliToolLauncher");
             addArg(args, "--StopMethod", "close");
             addArg(args, "--Classpath", System.getProperty("java.class.path"));
             addArg(args, "--JvmMs", "4m");

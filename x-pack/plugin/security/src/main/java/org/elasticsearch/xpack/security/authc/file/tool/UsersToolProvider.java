@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.security.authc.file.tool;
 
+import org.elasticsearch.cli.CliToolProvider;
 import org.elasticsearch.cli.Command;
-import org.elasticsearch.cli.ToolProvider;
 
-public class UsersToolProvider implements ToolProvider {
+public class UsersToolProvider implements CliToolProvider {
     @Override
     public String name() {
         return "users";

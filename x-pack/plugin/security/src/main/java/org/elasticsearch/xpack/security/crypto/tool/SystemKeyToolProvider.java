@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.security.crypto.tool;
 
+import org.elasticsearch.cli.CliToolProvider;
 import org.elasticsearch.cli.Command;
-import org.elasticsearch.cli.ToolProvider;
 
-public class SystemKeyToolProvider implements ToolProvider {
+public class SystemKeyToolProvider implements CliToolProvider {
     @Override
     public String name() {
         return "syskeygen";

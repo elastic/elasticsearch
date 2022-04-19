@@ -71,7 +71,7 @@ import static java.util.Arrays.asList;
  * elastic user and the ChangePassword API for setting the password of the rest of the built-in users when needed.
  */
 @Deprecated
-public class SetupPasswordTool extends MultiCommand {
+class SetupPasswordTool extends MultiCommand {
 
     private static final char[] CHARS = ("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789").toCharArray();
     public static final List<String> USERS = asList(

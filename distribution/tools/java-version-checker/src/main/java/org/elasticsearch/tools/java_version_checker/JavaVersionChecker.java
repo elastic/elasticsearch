@@ -9,10 +9,9 @@
 package org.elasticsearch.tools.java_version_checker;
 
 import java.util.Arrays;
-import java.util.Locale;
 
 /**
- * Java 17 compatible main which exits with no-error.
+ * Java 17 compatible main which just exits without error.
  */
 final class JavaVersionChecker {
 
@@ -23,6 +22,5 @@ final class JavaVersionChecker {
         if (args.length != 0) {
             throw new IllegalArgumentException("expected zero arguments but was " + Arrays.toString(args));
         }
-        System.exit(0);
     }
 }

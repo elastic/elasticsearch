@@ -8,13 +8,13 @@
 
 package org.elasticsearch.windows_service;
 
+import org.elasticsearch.cli.CliToolProvider;
 import org.elasticsearch.cli.Command;
-import org.elasticsearch.cli.ToolProvider;
 
 /**
  * Provides a tool for managing an Elasticsearch service on Windows
  */
-public class WindowsServiceCliProvider implements ToolProvider {
+public class WindowsServiceCliProvider implements CliToolProvider {
     @Override
     public String name() {
         return "windows-service";

@@ -3,8 +3,8 @@
 setlocal enabledelayedexpansion
 setlocal enableextensions
 
-set LAUNCHER_TOOLNAME=windows-service
-set LAUNCHER_LIBS=lib/tools/windows-service-cli
+set CLI_TOOLNAME=windows-service
+set CLI_LIBS=lib/tools/windows-service-cli
 call "%~dp0elasticsearch-cli.bat" ^
   %%* ^
   || goto exit

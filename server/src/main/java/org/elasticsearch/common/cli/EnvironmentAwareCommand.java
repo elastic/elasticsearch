@@ -27,9 +27,13 @@ import java.nio.file.Paths;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 /** A cli command which requires an {@link org.elasticsearch.env.Environment} to use current paths and settings. */
 public abstract class EnvironmentAwareCommand extends Command {
+
+    private static final String DOCKER_UPPERCASE_SETTING_PREFIX = "ES_SETTING_";
+    private static final Pattern DOCKER_LOWERCASE_SETTING_REGEX = Pattern.compile("[-a-z0-9_]+(\\.[-a-z0-9_]+)+");
 
     protected final OptionSpec<KeyValuePair> settingOption;
 
@@ -49,28 +53,15 @@ public abstract class EnvironmentAwareCommand extends Command {
         execute(terminal, options, createEnv(options));
     }
 
-    // Note, isUpperCase is used so that non-letters are considered lowercase
-    private static boolean isLowerCase(String s) {
-        for (int i = 0; i < s.length(); ++i) {
-            if (Character.isUpperCase(s.charAt(i))) {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private static final String DOCKER_SETTING_PREFIX = "ES_SETTING_";
-
     private void putDockerEnvSettings(Map<String, String> settings, Map<String, String> envVars) {
-
         for (var envVar : envVars.entrySet()) {
             String key = envVar.getKey();
-            if (isLowerCase(key)) {
+            if (DOCKER_LOWERCASE_SETTING_REGEX.matcher(key).matches()) {
                 // all lowercase, like cluster.name, so just put directly
                 settings.put(key, envVar.getValue());
-            } else if (key.startsWith(DOCKER_SETTING_PREFIX)) {
+            } else if (key.startsWith(DOCKER_UPPERCASE_SETTING_PREFIX)) {
                 // remove prefix
-                key = key.substring(DOCKER_SETTING_PREFIX.length());
+                key = key.substring(DOCKER_UPPERCASE_SETTING_PREFIX.length());
                 // insert dots for underscores
                 key = key.replace('_', '.');
                 // unescape double dots, which were originally double underscores
@@ -103,15 +94,15 @@ public abstract class EnvironmentAwareCommand extends Command {
             settings.put(kvp.key, kvp.value);
         }
 
-        if (Build.CURRENT.type() == Build.Type.DOCKER) {
-            putDockerEnvSettings(settings, System.getenv());
+        if (getBuildType() == Build.Type.DOCKER) {
+            putDockerEnvSettings(settings, envVars);
         }
 
-        putSystemPropertyIfSettingIsMissing(settings, "path.data", "es.path.data");
-        putSystemPropertyIfSettingIsMissing(settings, "path.home", "es.path.home");
-        putSystemPropertyIfSettingIsMissing(settings, "path.logs", "es.path.logs");
+        putSystemPropertyIfSettingIsMissing(sysprops, settings, "path.data", "es.path.data");
+        putSystemPropertyIfSettingIsMissing(sysprops, settings, "path.home", "es.path.home");
+        putSystemPropertyIfSettingIsMissing(sysprops, settings, "path.logs", "es.path.logs");
 
-        final String esPathConf = System.getProperty("es.path.conf");
+        final String esPathConf = sysprops.get("es.path.conf");
         if (esPathConf == null) {
             throw new UserException(ExitCodes.CONFIG, "the system property [es.path.conf] must be set");
         }
@@ -120,8 +111,13 @@ public abstract class EnvironmentAwareCommand extends Command {
             settings,
             getConfigPath(esPathConf),
             // HOSTNAME is set by elasticsearch-env and elasticsearch-env.bat so it is always available
-            () -> System.getenv("HOSTNAME")
+            () -> envVars.get("HOSTNAME")
         );
+    }
+
+    // protected to allow tests to override
+    protected Build.Type getBuildType() {
+        return Build.CURRENT.type();
     }
 
     @SuppressForbidden(reason = "need path to construct environment")
@@ -130,8 +126,13 @@ public abstract class EnvironmentAwareCommand extends Command {
     }
 
     /** Ensure the given setting exists, reading it from system properties if not already set. */
-    private static void putSystemPropertyIfSettingIsMissing(final Map<String, String> settings, final String setting, final String key) {
-        final String value = System.getProperty(key);
+    private static void putSystemPropertyIfSettingIsMissing(
+        final Map<String, String> sysprops,
+        final Map<String, String> settings,
+        final String setting,
+        final String key
+    ) {
+        final String value = sysprops.get(key);
         if (value != null) {
             if (settings.containsKey(setting)) {
                 final String message = String.format(

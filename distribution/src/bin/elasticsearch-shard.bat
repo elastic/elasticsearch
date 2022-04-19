@@ -3,8 +3,7 @@
 setlocal enabledelayedexpansion
 setlocal enableextensions
 
-set SCRIPT_NAME=%~n0
-set LAUNCHER_TOOLNAME=%SCRIPT_NAME:elasticsearch-=%
+set CLI_SCRIPT=%~0
 call "%~dp0elasticsearch-cli.bat" ^
   %%* ^
   || goto exit

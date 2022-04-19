@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.security.authc.saml;
 
+import org.elasticsearch.cli.CliToolProvider;
 import org.elasticsearch.cli.Command;
-import org.elasticsearch.cli.ToolProvider;
 
-public class SamlMetadataToolProvider implements ToolProvider {
+public class SamlMetadataToolProvider implements CliToolProvider {
     @Override
     public String name() {
         return "saml-metadata";

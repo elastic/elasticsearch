@@ -15,9 +15,21 @@ for %%I in ("%ES_HOME%..") do set ES_HOME=%%~dpfI
 
 rem now set the classpath
 set ES_CLASSPATH=!ES_HOME!\lib\*
-set LAUNCHERS_CLASSPATH=!ES_CLASSPATH!;!ES_HOME!\lib\launchers\*
+set SERVER_CLI_CLASSPATH=!ES_CLASSPATH!;!ES_HOME!\lib\tools\server-cli\*
 
-rem TODO: remove this, no longer needed
+set HOSTNAME=%COMPUTERNAME%
+
+if not defined ES_PATH_CONF (
+  set ES_PATH_CONF=!ES_HOME!\config
+)
+
+rem now make ES_PATH_CONF absolute
+for %%I in ("%ES_PATH_CONF%..") do set ES_PATH_CONF=%%~dpfI
+
+set ES_DISTRIBUTION_TYPE=@es.distribution.type@
+
+cd /d "%ES_HOME%"
+
 rem now set the path to java, pass "nojava" arg to skip setting ES_JAVA_HOME and JAVA
 if "%1" == "nojava" (
    exit /b
@@ -30,18 +42,18 @@ if defined ES_JAVA_HOME (
   set JAVA="%ES_JAVA_HOME%\bin\java.exe"
   set JAVA_TYPE=ES_JAVA_HOME
 
-  rem TODO: add version check
-  rem TODO: add dll check
+  if not exist !JAVA! (
+    echo "could not find java in !JAVA_TYPE! at !JAVA!" >&2
+    exit /b 1
+  )
+
+  rem check the user supplied jdk version
+  !JAVA! -cp "%ES_HOME%\lib\java-version-checker\*" "org.elasticsearch.tools.java_version_checker.JavaVersionChecker" || exit /b 1
 ) else (
   rem use the bundled JDK (default)
   set JAVA="%ES_HOME%\jdk\bin\java.exe"
   set "ES_JAVA_HOME=%ES_HOME%\jdk"
   set JAVA_TYPE=bundled JDK
-)
-
-if not exist !JAVA! (
-  echo "could not find java in !JAVA_TYPE! at !JAVA!" >&2
-  exit /b 1
 )
 
 rem do not let JAVA_TOOL_OPTIONS slip in (as the JVM does by default)

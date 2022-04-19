@@ -56,11 +56,10 @@ public class ProfileIT extends ESRestTestCase {
                 "node_name": "node1"
               },
               "email": "foo@example.com",
-              "full_name": "User Foo",
-              "active": true
+              "full_name": "User Foo"
             },
             "last_synchronized": %s,
-            "access": {
+            "labels": {
             },
             "application_data": {
               "app1": { "name": "app1" },
@@ -127,7 +126,7 @@ public class ProfileIT extends ESRestTestCase {
         final Request updateProfileRequest1 = new Request(randomFrom("PUT", "POST"), "_security/profile/" + uid + "/_data");
         updateProfileRequest1.setJsonEntity("""
             {
-              "access": {
+              "labels": {
                 "app1": { "tags": [ "prod", "east" ] }
               },
               "data": {
@@ -137,7 +136,7 @@ public class ProfileIT extends ESRestTestCase {
         assertOK(adminClient().performRequest(updateProfileRequest1));
 
         final Map<String, Object> profileMap1 = doGetProfile(uid, "app1");
-        assertThat(castToMap(profileMap1.get("access")), equalTo(Map.of("app1", Map.of("tags", List.of("prod", "east")))));
+        assertThat(castToMap(profileMap1.get("labels")), equalTo(Map.of("app1", Map.of("tags", List.of("prod", "east")))));
         assertThat(castToMap(profileMap1.get("data")), equalTo(Map.of("app1", Map.of("theme", "default"))));
     }
 

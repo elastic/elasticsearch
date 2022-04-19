@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.watcher.trigger.schedule.tool;
 
+import org.elasticsearch.cli.CliToolProvider;
 import org.elasticsearch.cli.Command;
-import org.elasticsearch.cli.ToolProvider;
 
-public class CronEvalToolProvider implements ToolProvider {
+public class CronEvalToolProvider implements CliToolProvider {
     @Override
     public String name() {
         return "croneval";

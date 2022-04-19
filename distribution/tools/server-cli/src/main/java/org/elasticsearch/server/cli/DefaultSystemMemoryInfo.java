@@ -13,24 +13,26 @@ import com.sun.management.OperatingSystemMXBean;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.lang.management.ManagementFactory;
+import java.util.function.LongSupplier;
 
 /**
  * A {@link SystemMemoryInfo} which delegates to {@link OperatingSystemMXBean}.
- *
- * <p>Prior to JDK 14 {@link OperatingSystemMXBean} did not take into consideration container memory limits when reporting total system
- * memory. Therefore attempts to use this implementation on earlier JDKs will result in an {@link SystemMemoryInfoException}.
  */
-@SuppressForbidden(reason = "Using com.sun internals is the only way to query total system memory")
 public final class DefaultSystemMemoryInfo implements SystemMemoryInfo {
-    private final OperatingSystemMXBean operatingSystemMXBean;
+    private final LongSupplier totalMemory;
 
     public DefaultSystemMemoryInfo() {
-        this.operatingSystemMXBean = (OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
+        this.totalMemory = getOSBeanMemoryGetter();
+    }
+
+    @SuppressForbidden(reason = "Using com.sun internals is the only way to query total system memory")
+    private static LongSupplier getOSBeanMemoryGetter() {
+        OperatingSystemMXBean bean = (OperatingSystemMXBean) ManagementFactory.getOperatingSystemMXBean();
+        return bean::getTotalMemorySize;
     }
 
     @Override
-    @SuppressWarnings("deprecation")
-    public long availableSystemMemory() throws SystemMemoryInfoException {
-        return operatingSystemMXBean.getTotalPhysicalMemorySize();
+    public long availableSystemMemory() {
+        return totalMemory.getAsLong();
     }
 }

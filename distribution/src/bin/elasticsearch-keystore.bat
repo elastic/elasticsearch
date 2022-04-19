@@ -3,9 +3,8 @@
 setlocal enabledelayedexpansion
 setlocal enableextensions
 
-set SCRIPT_NAME=%~n0
-set LAUNCHER_TOOLNAME=%SCRIPT_NAME:elasticsearch-=%
-set LAUNCHER_LIBS=lib/tools/keystore-cli
+set CLI_SCRIPT=%~0
+set CLI_LIBS=lib/tools/keystore-cli
 call "%~dp0elasticsearch-cli.bat" ^
   %%* ^
   || goto exit

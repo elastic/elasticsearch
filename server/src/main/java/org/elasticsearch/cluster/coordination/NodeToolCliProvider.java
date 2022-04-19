@@ -8,10 +8,10 @@
 
 package org.elasticsearch.cluster.coordination;
 
+import org.elasticsearch.cli.CliToolProvider;
 import org.elasticsearch.cli.Command;
-import org.elasticsearch.cli.ToolProvider;
 
-public class NodeToolCliProvider implements ToolProvider {
+public class NodeToolCliProvider implements CliToolProvider {
     @Override
     public String name() {
         return "node";

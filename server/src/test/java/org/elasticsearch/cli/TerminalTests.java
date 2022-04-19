@@ -90,18 +90,6 @@ public class TerminalTests extends ESTestCase {
         assertFalse(terminal.promptYesNo("Answer?", true));
     }
 
-    public void testMaxSecretLength() throws Exception {
-        MockTerminal terminal = new MockTerminal();
-        String secret = "A very long secret, too long in fact for our purposes.";
-        terminal.addSecretInput(secret);
-
-        expectThrows(
-            IllegalStateException.class,
-            "Secret exceeded maximum length of ",
-            () -> terminal.readSecret("Secret? ", secret.length() - 1)
-        );
-    }
-
     private void assertPrinted(MockTerminal logTerminal, Terminal.Verbosity verbosity, String text) throws Exception {
         logTerminal.println(verbosity, text);
         String output = logTerminal.getOutput();
@@ -147,15 +135,15 @@ public class TerminalTests extends ESTestCase {
         assertReadLines("one\r\ntwo\r\n\r\nthree", "one", "two", "", "three");
     }
 
-    public void testSystemTerminalLineExceedsMaxCharacters() throws Exception {
-        try (StringReader reader = new StringReader("hellohellohello!\n")) {
-            expectThrows(RuntimeException.class, "Input exceeded maximum length of 10", () -> readLineToCharArray(reader, 10));
-        }
+    public void testReadLineToCharArrayBufferExpansion() throws Exception {
+        String passphrase = randomAlphaOfLength(128);
+        assertRead(passphrase + "\n", passphrase);
+        assertRead(passphrase + "\r\n", passphrase);
     }
 
     private void assertRead(String source, String expected) {
         try (StringReader reader = new StringReader(source)) {
-            char[] result = readLineToCharArray(reader, 10);
+            char[] result = readLineToCharArray(reader);
             assertThat(result, equalTo(expected.toCharArray()));
         }
     }
@@ -164,7 +152,7 @@ public class TerminalTests extends ESTestCase {
         try (StringReader reader = new StringReader(source)) {
             char[] result;
             for (String exp : expected) {
-                result = readLineToCharArray(reader, 10);
+                result = readLineToCharArray(reader);
                 assertThat(result, equalTo(exp.toCharArray()));
             }
         }

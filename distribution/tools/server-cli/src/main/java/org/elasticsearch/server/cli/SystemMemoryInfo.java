@@ -19,13 +19,6 @@ public interface SystemMemoryInfo {
     /**
      *
      * @return total system memory available to heap or native process allocation in bytes
-     * @throws SystemMemoryInfoException if unable to determine available system memory
      */
-    long availableSystemMemory() throws SystemMemoryInfoException;
-
-    class SystemMemoryInfoException extends Exception {
-        public SystemMemoryInfoException(String message) {
-            super(message);
-        }
-    }
+    long availableSystemMemory();
 }

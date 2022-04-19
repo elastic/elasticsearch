@@ -11,9 +11,9 @@ import org.elasticsearch.cli.MultiCommand;
 import org.elasticsearch.env.NodeRepurposeCommand;
 import org.elasticsearch.env.OverrideNodeVersionCommand;
 
-public class NodeToolCli extends MultiCommand {
+class NodeToolCli extends MultiCommand {
 
-    public NodeToolCli() {
+    NodeToolCli() {
         super("A CLI tool to do unsafe cluster and index manipulations on current node");
         subcommands.put("repurpose", new NodeRepurposeCommand());
         subcommands.put("unsafe-bootstrap", new UnsafeBootstrapMasterCommand());

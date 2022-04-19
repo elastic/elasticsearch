@@ -8,10 +8,11 @@
 
 package org.elasticsearch.cli.keystore;
 
+import org.elasticsearch.cli.CliToolProvider;
 import org.elasticsearch.cli.Command;
-import org.elasticsearch.cli.ToolProvider;
 
-public class KeyStoreCliProvider implements ToolProvider {
+public class KeyStoreCliProvider implements CliToolProvider {
+
     @Override
     public String name() {
         return "keystore";

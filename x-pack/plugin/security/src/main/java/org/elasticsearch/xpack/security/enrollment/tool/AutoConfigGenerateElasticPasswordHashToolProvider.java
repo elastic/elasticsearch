@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.security.enrollment.tool;
 
+import org.elasticsearch.cli.CliToolProvider;
 import org.elasticsearch.cli.Command;
-import org.elasticsearch.cli.ToolProvider;
 
-public class AutoConfigGenerateElasticPasswordHashToolProvider implements ToolProvider {
+public class AutoConfigGenerateElasticPasswordHashToolProvider implements CliToolProvider {
     @Override
     public String name() {
         return "auto-config-gen-passwd";

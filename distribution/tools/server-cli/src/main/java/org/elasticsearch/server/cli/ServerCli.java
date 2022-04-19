@@ -15,10 +15,10 @@ import joptsimple.util.PathConverter;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.bootstrap.ServerArgs;
+import org.elasticsearch.cli.CliToolProvider;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cli.ToolProvider;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
@@ -183,7 +183,6 @@ class ServerCli extends EnvironmentAwareCommand {
             Locale.ROOT,
             "Version: %s, Build: %s/%s/%s/%s, JVM: %s",
             Build.CURRENT.qualifiedVersion(),
-            Build.CURRENT.flavor().displayName(),
             Build.CURRENT.type().displayName(),
             Build.CURRENT.hash(),
             Build.CURRENT.date(),
@@ -196,7 +195,7 @@ class ServerCli extends EnvironmentAwareCommand {
         try {
             KeyStoreWrapper keystore = KeyStoreWrapper.load(KeyStoreWrapper.keystorePath(configDir));
             if (keystore != null && keystore.hasPassword()) {
-                return new SecureString(terminal.readSecret(KeyStoreWrapper.PROMPT, KeyStoreWrapper.MAX_PASSPHRASE_LENGTH));
+                return new SecureString(terminal.readSecret(KeyStoreWrapper.PROMPT));
             } else {
                 return new SecureString(new char[0]);
             }
@@ -217,7 +216,7 @@ class ServerCli extends EnvironmentAwareCommand {
         });
 
         String autoConfigLibs = "modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli";
-        Command autoConfigNode = ToolProvider.loadTool("auto-configure-node", autoConfigLibs).create();
+        Command autoConfigNode = CliToolProvider.load("auto-configure-node", autoConfigLibs).create();
         if (options.has(enrollmentTokenOption)) {
             final String enrollmentToken = enrollmentTokenOption.value(options);
             args.add("--enrollment-token");

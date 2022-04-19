@@ -14,7 +14,6 @@ for %%a in (!ES_HOME!\bin\elasticsearch-sql-cli-*.jar) do set CLI_JAR=%%a
 
 %JAVA% ^
   -cp "%CLI_JAR%" ^
-  -Des.distribution.flavor="%ES_DISTRIBUTION_FLAVOR%" ^
   -Des.distribution.type="%ES_DISTRIBUTION_TYPE%" ^
   org.elasticsearch.xpack.sql.cli.Cli ^
   %*

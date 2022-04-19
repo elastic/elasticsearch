@@ -32,7 +32,7 @@ import java.util.Set;
 import javax.crypto.KeyGenerator;
 import javax.crypto.SecretKey;
 
-public class SystemKeyTool extends EnvironmentAwareCommand {
+class SystemKeyTool extends EnvironmentAwareCommand {
 
     static final String KEY_ALGO = "HmacSHA512";
     static final int KEY_SIZE = 1024;

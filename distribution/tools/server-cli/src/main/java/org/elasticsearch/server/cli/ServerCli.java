@@ -92,7 +92,7 @@ class ServerCli extends EnvironmentAwareCommand {
         ServerArgs serverArgs = new ServerArgs(daemonize, pidFile, env.settings(), env.configFile());
 
         List<String> jvmOptions = JvmOptionsParser.determine(env.configFile(), env.pluginsFile(), tempDir, envVars.get("ES_JAVA_OPTS"));
-        //jvmOptions.add("-Des.path.conf=" + env.configFile());
+        // jvmOptions.add("-Des.path.conf=" + env.configFile());
         jvmOptions.add("-Des.distribution.flavor=" + System.getProperty("es.distribution.flavor"));
         jvmOptions.add("-Des.distribution.type=" + System.getProperty("es.distribution.type"));
         jvmOptions.add("-Des.bundled_jdk=" + System.getProperty("es.bundled_jdk"));
@@ -156,7 +156,6 @@ class ServerCli extends EnvironmentAwareCommand {
         } catch (InterruptedException e) {
             throw new UserException(ExitCodes.IO_ERROR, "Interrupted while waiting for Elasticsearch process");
         }
-
 
         // TODO: add ctrl-c handler so we can wait for subprocess
         // TODO: check the java.io.tmpdir
@@ -228,8 +227,10 @@ class ServerCli extends EnvironmentAwareCommand {
         } else {
             int ret = autoConfigNode.main(args.toArray(new String[0]), autoConfigTerminal);
             switch (ret) {
-                case ExitCodes.OK, ExitCodes.CANT_CREATE, ExitCodes.CONFIG, ExitCodes.NOOP: break;
-                default: throw new UserException(ret, "Auto security enrollment failed");
+                case ExitCodes.OK, ExitCodes.CANT_CREATE, ExitCodes.CONFIG, ExitCodes.NOOP:
+                    break;
+                default:
+                    throw new UserException(ret, "Auto security enrollment failed");
             }
         }
     }

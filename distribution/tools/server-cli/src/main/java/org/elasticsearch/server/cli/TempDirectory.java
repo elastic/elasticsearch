@@ -17,7 +17,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.attribute.FileAttribute;
-import java.util.Arrays;
 import java.util.Map;
 
 /**
@@ -47,7 +46,8 @@ final class TempDirectory {
                     path = createTempDirectory("elasticsearch-");
                 }
             } catch (IOException e) {
-                // TODO: don't mask this exception, should we just propagate or try to summarize? in shell-land we would have printed it and exited
+                // TODO: don't mask this exception, should we just propagate or try to summarize? in shell-land we would have printed it and
+                // exited
                 throw new UserException(ExitCodes.CONFIG, "Could not create temporary directory");
             }
         }

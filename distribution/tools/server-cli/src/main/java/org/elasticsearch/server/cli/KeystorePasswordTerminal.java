@@ -11,7 +11,6 @@ package org.elasticsearch.server.cli;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.settings.SecureString;
 
-import java.io.IOException;
 import java.io.OutputStream;
 import java.io.Reader;
 

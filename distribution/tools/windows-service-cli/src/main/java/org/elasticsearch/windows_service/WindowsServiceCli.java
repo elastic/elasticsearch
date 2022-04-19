@@ -52,10 +52,12 @@ class WindowsServiceCli extends MultiCommand {
             addArg(args, "--JvmOptions", getJvmOptions());
             addArg(args, "--PidFile", "%s.pid".formatted(serviceId));
             // TODO: get ES version
-            addArg(args, "--DisplayName",
-                env.getOrDefault("SERVICE_DISPLAY_NAME", "Elasticsearch ES_VERSION (%s)".formatted(serviceId)));
-            addArg(args, "--Description",
-                env.getOrDefault("SERVICE_DESCRIPTION", "Elasticsearch ES_VERSION Windows Service - https://elastic.co"));
+            addArg(args, "--DisplayName", env.getOrDefault("SERVICE_DISPLAY_NAME", "Elasticsearch ES_VERSION (%s)".formatted(serviceId)));
+            addArg(
+                args,
+                "--Description",
+                env.getOrDefault("SERVICE_DESCRIPTION", "Elasticsearch ES_VERSION Windows Service - https://elastic.co")
+            );
             addArg(args, "--Jvm", javaDll.toString());
             addArg(args, "--StartMode", "jvm");
             addArg(args, "--StartPath", esHome.toString());
@@ -103,9 +105,13 @@ class WindowsServiceCli extends MultiCommand {
             terminal.println("Using ES_JAVA_HOME : %s".formatted(javaHome.toString()));
 
             if (Files.exists(javaDll) == false) {
-                throw new UserException(ExitCodes.CONFIG,
-                    "Invalid java installation (no jvm.dll found in %s\\jre\\bin\\server\\ or %s\\bin\\server\"). Exiting..."
-                        .formatted(javaHome.toString(), javaHome.toString()));
+                throw new UserException(
+                    ExitCodes.CONFIG,
+                    "Invalid java installation (no jvm.dll found in %s\\jre\\bin\\server\\ or %s\\bin\\server\"). Exiting...".formatted(
+                        javaHome.toString(),
+                        javaHome.toString()
+                    )
+                );
             }
         }
 
@@ -161,6 +167,7 @@ class WindowsServiceCli extends MultiCommand {
         protected String getExecutable() {
             return "elasticsearch-service-mgr.exe";
         }
+
         @Override
         protected String getSuccessMessage(String serviceId) {
             return "Successfully started service manager for '%s'".formatted(serviceId);

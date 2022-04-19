@@ -10,7 +10,6 @@ package org.elasticsearch.cli;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.BufferedReader;
 import java.io.StringReader;
 
 import static org.elasticsearch.cli.Terminal.readLineToCharArray;

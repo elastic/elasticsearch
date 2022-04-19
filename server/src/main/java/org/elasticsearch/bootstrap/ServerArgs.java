@@ -20,12 +20,7 @@ import java.nio.file.Path;
 public record ServerArgs(boolean daemonize, Path pidFile, Settings nodeSettings, Path configDir) implements Writeable {
 
     public ServerArgs(StreamInput in) throws IOException {
-        this(
-          in.readBoolean(),
-          readPidFile(in),
-          Settings.readSettingsFromStream(in),
-          PathUtils.get(in.readString())
-        );
+        this(in.readBoolean(), readPidFile(in), Settings.readSettingsFromStream(in), PathUtils.get(in.readString()));
     }
 
     private static Path readPidFile(StreamInput in) throws IOException {

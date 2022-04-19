@@ -21,7 +21,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -71,12 +70,7 @@ final class JvmOptionsParser {
         substitutions.put("ES_PATH_CONF", configDir.toString());
 
         try {
-            return parser.jvmOptions(
-                configDir,
-                pluginsDir,
-                envOptions,
-                substitutions
-            );
+            return parser.jvmOptions(configDir, pluginsDir, envOptions, substitutions);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         } catch (final JvmOptionsFileParserException e) {

@@ -56,10 +56,12 @@ class Elasticsearch {
         PrintStream err = System.err;
         int exitCode = 0;
         try {
-            elasticsearch.init(serverArgs.daemonize(),
+            elasticsearch.init(
+                serverArgs.daemonize(),
                 serverArgs.pidFile(),
                 false,
-                new Environment(serverArgs.nodeSettings(), serverArgs.configDir()));
+                new Environment(serverArgs.nodeSettings(), serverArgs.configDir())
+            );
         } catch (NodeValidationException e) {
             exitCode = ExitCodes.CONFIG;
             err.print('\24');

@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -30,24 +31,29 @@ import java.util.stream.Collectors;
  * memory, so when a node comes up it does not have any knowledge of previous master history before that point.
  */
 public class MasterHistory implements ClusterStateListener, Writeable, Writeable.Reader<MasterHistory> {
-    private List<TimeAndMaster> masterHistory;
+    private volatile List<TimeAndMaster> masterHistory;
+    private final Object mutex;
     Supplier<Long> nowSupplier = System::currentTimeMillis; // Can be changed for testing
 
     public MasterHistory(ClusterService clusterService) {
         this.masterHistory = new ArrayList<>();
+        this.mutex = new Object();
         clusterService.addListener(this);
     }
 
     public MasterHistory(StreamInput streamInput) throws IOException {
         this.masterHistory = streamInput.readList(TimeAndMaster::new);
+        this.mutex = new Object();
     }
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         DiscoveryNode currentMaster = event.state().nodes().getMasterNode();
         DiscoveryNode previousMaster = event.previousState().nodes().getMasterNode();
-        if (currentMaster == null || currentMaster.equals(previousMaster) == false || masterHistory.isEmpty()) {
-            masterHistory.add(new TimeAndMaster(nowSupplier.get(), currentMaster));
+        synchronized (mutex) {
+            if (currentMaster == null || currentMaster.equals(previousMaster) == false || masterHistory.isEmpty()) {
+                masterHistory.add(new TimeAndMaster(nowSupplier.get(), currentMaster));
+            }
         }
         removeOldMasterHistory();
     }
@@ -130,15 +136,17 @@ public class MasterHistory implements ClusterStateListener, Writeable, Writeable
      * more than 30 minutes old). Rather than being scheduled, this method is called from other methods in this class as needed
      */
     private void removeOldMasterHistory() {
-        if (masterHistory.size() < 2) {
-            return;
-        }
-        long now = nowSupplier.get();
-        long thirtyMinutesAgo = now - (30 * 60 * 1000);
-        TimeAndMaster mostRecent = masterHistory.isEmpty() ? null : masterHistory.get(masterHistory.size() - 1);
-        masterHistory = masterHistory.stream().filter(timeAndMaster -> timeAndMaster.time > thirtyMinutesAgo).collect(Collectors.toList());
-        if (masterHistory.isEmpty() && mostRecent != null) { // The most recent entry was more than 30 minutes ago
-            masterHistory.add(mostRecent);
+        synchronized (mutex) {
+            if (masterHistory.size() < 2) {
+                return;
+            }
+            long now = nowSupplier.get();
+            long thirtyMinutesAgo = now - (30 * 60 * 1000);
+            TimeAndMaster mostRecent = masterHistory.isEmpty() ? null : masterHistory.get(masterHistory.size() - 1);
+            masterHistory = masterHistory.stream().filter(timeAndMaster -> timeAndMaster.time > thirtyMinutesAgo).collect(Collectors.toList());
+            if (masterHistory.isEmpty() && mostRecent != null) { // The most recent entry was more than 30 minutes ago
+                masterHistory.add(mostRecent);
+            }
         }
     }
 

@@ -16,13 +16,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -126,7 +127,8 @@ public class MasterHistory implements ClusterStateListener, Writeable, Writeable
      */
     public boolean hasSeenMasterInLastNSeconds(int n) {
         long now = nowSupplier.get();
-        long nSecondsAgo = now - (n * 1000L);
+        TimeValue nSeconds = new TimeValue(n, TimeUnit.SECONDS);
+        long nSecondsAgo = now - nSeconds.getMillis();
         return getCurrentMaster() != null
             || masterHistory.stream().anyMatch(timeAndMaster -> timeAndMaster.time > nSecondsAgo && timeAndMaster.master != null);
     }
@@ -141,9 +143,12 @@ public class MasterHistory implements ClusterStateListener, Writeable, Writeable
                 return;
             }
             long now = nowSupplier.get();
-            long thirtyMinutesAgo = now - (30 * 60 * 1000);
+            TimeValue thirtyMinutes = new TimeValue(30, TimeUnit.MINUTES);
+            long thirtyMinutesAgo = now - thirtyMinutes.getMillis();
             TimeAndMaster mostRecent = masterHistory.isEmpty() ? null : masterHistory.get(masterHistory.size() - 1);
-            masterHistory = masterHistory.stream().filter(timeAndMaster -> timeAndMaster.time > thirtyMinutesAgo).collect(Collectors.toList());
+            masterHistory = masterHistory.stream()
+                .filter(timeAndMaster -> timeAndMaster.time > thirtyMinutesAgo)
+                .collect(Collectors.toList());
             if (masterHistory.isEmpty() && mostRecent != null) { // The most recent entry was more than 30 minutes ago
                 masterHistory.add(mostRecent);
             }

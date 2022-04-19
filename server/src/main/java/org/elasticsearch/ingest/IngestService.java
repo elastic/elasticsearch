@@ -25,7 +25,6 @@ import org.elasticsearch.action.ingest.DeletePipelineRequest;
 import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
@@ -104,6 +103,46 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private final IngestMetric totalMetrics = new IngestMetric();
     private final List<Consumer<ClusterState>> ingestClusterStateListeners = new CopyOnWriteArrayList<>();
     private volatile ClusterState state;
+
+    private static final ClusterStateTaskExecutor<PipelineClusterStateUpdateTask> PIPELINE_TASK_EXECUTOR = (currentState, taskContexts) -> {
+        ClusterState state = currentState;
+        for (final var taskContext : taskContexts) {
+            try {
+                final var task = taskContext.getTask();
+                state = task.execute(state);
+                taskContext.success(new ClusterStateTaskExecutor.LegacyClusterTaskResultActionListener(task, currentState));
+            } catch (Exception e) {
+                taskContext.onFailure(e);
+            }
+        }
+        return state;
+    };
+
+    private abstract static class PipelineClusterStateUpdateTask extends ClusterStateUpdateTask {
+        private final ActionListener<AcknowledgedResponse> listener;
+
+        PipelineClusterStateUpdateTask(TimeValue timeout, ActionListener<AcknowledgedResponse> listener) {
+            super(timeout);
+            this.listener = listener;
+        }
+
+        public abstract ClusterState doExecute(ClusterState currentState) throws Exception;
+
+        @Override
+        public ClusterState execute(ClusterState currentState) throws Exception {
+            return doExecute(currentState);
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
+        }
+
+        @Override
+        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+            listener.onResponse(AcknowledgedResponse.TRUE);
+        }
+    }
 
     public IngestService(
         ClusterService clusterService,
@@ -285,12 +324,16 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * Deletes the pipeline specified by id in the request.
      */
     public void delete(DeletePipelineRequest request, ActionListener<AcknowledgedResponse> listener) {
-        clusterService.submitStateUpdateTask("delete-pipeline-" + request.getId(), new AckedClusterStateUpdateTask(request, listener) {
-            @Override
-            public ClusterState execute(ClusterState currentState) {
-                return innerDelete(request, currentState);
-            }
-        }, newExecutor());
+        clusterService.submitStateUpdateTask(
+            "delete-pipeline-" + request.getId(),
+            new PipelineClusterStateUpdateTask(request.timeout(), listener) {
+                @Override
+                public ClusterState doExecute(ClusterState currentState) {
+                    return innerDelete(request, currentState);
+                }
+            },
+            PIPELINE_TASK_EXECUTOR
+        );
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
@@ -443,12 +486,16 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             }
 
             validatePipeline(ingestInfos, request.getId(), config);
-            clusterService.submitStateUpdateTask("put-pipeline-" + request.getId(), new AckedClusterStateUpdateTask(request, listener) {
-                @Override
-                public ClusterState execute(ClusterState currentState) {
-                    return innerPut(request, currentState);
-                }
-            }, newExecutor());
+            clusterService.submitStateUpdateTask(
+                "put-pipeline-" + request.getId(),
+                new PipelineClusterStateUpdateTask(request.timeout(), listener) {
+                    @Override
+                    public ClusterState doExecute(ClusterState currentState) {
+                        return innerPut(request, currentState);
+                    }
+                },
+                PIPELINE_TASK_EXECUTOR
+            );
         }, listener::onFailure));
     }
 

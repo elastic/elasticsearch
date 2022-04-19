@@ -479,18 +479,8 @@ public class ActionModule extends AbstractModule {
         for (ActionPlugin plugin : actionPlugins) {
             if (plugin instanceof RestWrapper restWrapperPlugin) {
                 UnaryOperator<RestHandler> newRestWrapper = restWrapperPlugin.getRestHandlerWrapper(threadPool.getThreadContext());
-                // assert newRestWrapper != null; // TODO: cannot assert because of LocalStateCompositeXPackPlugin, is this ok, probably ?
                 if (newRestWrapper != null) {
                     logger.debug("Using REST wrapper from plugin " + plugin.getClass().getName());
-                    if (plugin.getClass().getCanonicalName() == null
-                        || plugin.getClass().getCanonicalName().startsWith("org.elasticsearch.xpack") == false) {
-                        throw new IllegalArgumentException(
-                            "The "
-                                + plugin.getClass().getName()
-                                + " plugin tried to install a custom REST "
-                                + "wrapper. This functionality is not available anymore."
-                        );
-                    }
                     if (restWrapper != null) {
                         throw new IllegalArgumentException("Cannot have more than one plugin implementing a REST wrapper");
                     }

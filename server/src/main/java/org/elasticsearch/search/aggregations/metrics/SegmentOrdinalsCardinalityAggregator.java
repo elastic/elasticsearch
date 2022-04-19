@@ -10,7 +10,6 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -26,7 +25,7 @@ import java.util.Map;
  */
 public class SegmentOrdinalsCardinalityAggregator extends CardinalityAggregator {
 
-    ValuesSource.Bytes.WithOrdinals source;
+    private final ValuesSource.Bytes.WithOrdinals source;
 
     public SegmentOrdinalsCardinalityAggregator(
         String name,
@@ -37,11 +36,7 @@ public class SegmentOrdinalsCardinalityAggregator extends CardinalityAggregator 
         Map<String, Object> metadata
     ) throws IOException {
         super(name, valuesSourceConfig, precision, context, parent, metadata);
-        if (valuesSourceConfig.getValuesSource()instanceof ValuesSource.Bytes.WithOrdinals bytesVS) {
-            source = bytesVS;
-        } else {
-            throw new AggregationExecutionException("Selected segment ordinals cardinality aggregator for non-keyword source");
-        }
+        source = (ValuesSource.Bytes.WithOrdinals) valuesSourceConfig.getValuesSource();
     }
 
     @Override

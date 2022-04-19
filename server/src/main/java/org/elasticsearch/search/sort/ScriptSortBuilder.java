@@ -64,6 +64,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField SCRIPT_FIELD = new ParseField("script");
     public static final ParseField SORTMODE_FIELD = new ParseField("mode");
+    public static final ParseField FORMAT = new ParseField("format");
 
     private final Script script;
 
@@ -72,6 +73,8 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     private SortMode sortMode;
 
     private NestedSortBuilder nestedSort;
+
+    private String format;
 
     /**
      * Constructs a script sort builder with the given script.
@@ -180,6 +183,10 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         return this;
     }
 
+    public void setFormat(String fmt) {
+        this.format = fmt;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params builderParams) throws IOException {
         builder.startObject();
@@ -192,6 +199,9 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         }
         if (nestedSort != null) {
             builder.field(NESTED_FIELD.getPreferredName(), nestedSort);
+        }
+        if (format != null) {
+            builder.field(FORMAT.getPreferredName(), format);
         }
         builder.endObject();
         builder.endObject();
@@ -230,6 +240,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
             },
             NESTED_FILTER_FIELD
         );
+        PARSER.declareString((b, v) -> b.setFormat(v), FORMAT);
     }
 
     /**
@@ -247,9 +258,13 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
     @Override
     public SortFieldAndFormat build(SearchExecutionContext context) throws IOException {
+        DocValueFormat docValueFormat = DocValueFormat.RAW;
+        if (docValueFormat != null) {
+            docValueFormat = context.getFieldType(this.format).docValueFormat(null, null);
+        }
         return new SortFieldAndFormat(
             new SortField("_script", fieldComparatorSource(context), order == SortOrder.DESC),
-            DocValueFormat.RAW
+            docValueFormat
         );
     }
 

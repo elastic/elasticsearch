@@ -595,6 +595,7 @@ public class TokenServiceTests extends ESTestCase {
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/85902")
     public void testInvalidateRefreshTokenThatIsAlreadyInvalidated() throws Exception {
         when(securityMainIndex.indexExists()).thenReturn(true);
         TokenService tokenService = createTokenService(tokenServiceEnabledSettings, systemUTC());

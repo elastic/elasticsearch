@@ -375,7 +375,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
                             @Override
                             public BytesRef binaryValue() {
-                                return leafScript.execute();
+                                return leafScript.execute().toBytesRef();
                             }
                         };
                         return FieldData.singleton(values);

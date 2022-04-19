@@ -7,8 +7,6 @@
  */
 package org.elasticsearch.script;
 
-import org.apache.lucene.util.BytesRef;
-
 import java.io.IOException;
 import java.util.Map;
 
@@ -22,7 +20,7 @@ public abstract class BytesRefSortScript extends AbstractSortScript {
         super(params, docReader);
     }
 
-    public abstract BytesRef execute();
+    public abstract BytesRefProducer execute();
 
     /**
      * A factory to construct {@link BytesRefSortScript} instances.

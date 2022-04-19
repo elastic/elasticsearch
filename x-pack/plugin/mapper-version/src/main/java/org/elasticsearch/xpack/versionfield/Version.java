@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.versionfield;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.script.BytesRefProducer;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -17,7 +19,7 @@ import java.io.IOException;
  * TODO(stu): implement {@code Comparable<Version>} based on {@code VersionEncoder#prefixDigitGroupsWithLength(String, BytesRefBuilder)}
  * See: https://github.com/elastic/elasticsearch/issues/82287
  */
-public class Version implements ToXContent {
+public class Version implements ToXContent, BytesRefProducer, Comparable<Version> {
     protected String version;
 
     public Version(String version) {
@@ -37,5 +39,16 @@ public class Version implements ToXContent {
     @Override
     public boolean isFragment() {
         return false;
+    }
+
+    @Override
+    public BytesRef toBytesRef() {
+        //TODO cache it, or even better, copy it when the object is created
+        return VersionEncoder.encodeVersion(version).bytesRef;
+    }
+
+    @Override
+    public int compareTo(Version o) {
+        return toBytesRef().compareTo(o.toBytesRef());
     }
 }

@@ -9,8 +9,6 @@ CLI_PARAMETERS="$@"
 
 source "`dirname "$0"`"/elasticsearch-env
 
-source "$ES_HOME"/bin/x-pack-env
-
 CLI_JAR=$(ls "$ES_HOME"/bin/elasticsearch-sql-cli-*.jar)
 
 exec \

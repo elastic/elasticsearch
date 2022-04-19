@@ -53,6 +53,7 @@ List projects = [
   'distribution:bwc:minor',
   'distribution:bwc:staged',
   'distribution:tools:java-version-checker',
+  'distribution:tools:cli-launcher',
   'distribution:tools:launchers',
   'distribution:tools:plugin-cli',
   'distribution:tools:keystore-cli',

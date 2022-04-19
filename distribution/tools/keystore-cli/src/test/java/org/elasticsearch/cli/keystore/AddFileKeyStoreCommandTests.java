@@ -8,6 +8,8 @@
 
 package org.elasticsearch.cli.keystore;
 
+import joptsimple.OptionSet;
+
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
@@ -20,7 +22,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.anyOf;
@@ -31,7 +32,7 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
     protected Command newCommand() {
         return new AddFileKeyStoreCommand() {
             @Override
-            protected Environment createEnv(Map<String, String> settings) throws UserException {
+            protected Environment createEnv(OptionSet options) throws UserException {
                 return env;
             }
         };

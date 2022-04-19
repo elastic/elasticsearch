@@ -440,29 +440,23 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         String rollupIndexName,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        // Update rollup metadata to include this index
+        // Update cluster state for the data stream to include the rollup index and exclude the source index
         clusterService.submitStateUpdateTask("update-rollup-metadata", new ClusterStateUpdateTask() {
             @Override
-            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                // 7. Delete the source index
-                deleteSourceIndex(sourceIndexName, tmpIndexName, listener);
-            }
-
-            @Override
             public ClusterState execute(ClusterState currentState) {
-                IndexMetadata rollupIndexMetadata = currentState.getMetadata().index(rollupIndexName);
-                Index rollupIndex = rollupIndexMetadata.getIndex();
                 IndexAbstraction sourceIndex = currentState.getMetadata().getIndicesLookup().get(sourceIndexName);
-
                 Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
                 if (sourceIndex.getParentDataStream() != null) {
+                    IndexMetadata rollupIndexMetadata = currentState.getMetadata().index(rollupIndexName);
+                    Index rollupIndex = rollupIndexMetadata.getIndex();
                     // If rolling up a backing index of a data stream, add rolled up index to backing data stream
                     DataStream originalDataStream = sourceIndex.getParentDataStream().getDataStream();
-                    List<Index> backingIndices = new ArrayList<>(originalDataStream.getIndices().size() + 1);
-                    // Adding rollup indices to the beginning of the list will prevent rollup indices from ever being
+                    List<Index> backingIndices = new ArrayList<>(originalDataStream.getIndices().size());
+                    // Adding the rollup index to the beginning of the list will prevent it from ever being
                     // considered a write index
                     backingIndices.add(rollupIndex);
-                    backingIndices.addAll(originalDataStream.getIndices());
+                    // Add all indices except the source index
+                    backingIndices.addAll(originalDataStream.getIndices().stream().filter(i -> i.getName() != sourceIndexName).toList());
                     DataStream dataStream = new DataStream(
                         originalDataStream.getName(),
                         backingIndices,
@@ -477,6 +471,12 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                     metadataBuilder.put(dataStream);
                 }
                 return ClusterState.builder(currentState).metadata(metadataBuilder.build()).build();
+            }
+
+            @Override
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                // 7. Delete the source index
+                deleteSourceIndex(sourceIndexName, tmpIndexName, listener);
             }
 
             @Override

@@ -22,6 +22,7 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
+import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -34,6 +35,7 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
@@ -205,7 +207,6 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
             if (randomBoolean()) {
                 builder.field(FIELD_NUMERIC_1, randomInt());
             }
-
             if (randomBoolean()) {
                 builder.field(FIELD_NUMERIC_2, randomDouble());
             }
@@ -276,25 +277,34 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
         assertThat(exception.getMessage(), containsString(TransportRollupAction.TMP_ROLLUP_INDEX_PREFIX + rollupIndex));
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "TODO")
     public void testRollupDatastream() throws Exception {
         RollupActionConfig config = new RollupActionConfig(randomInterval());
         String dataStreamName = createDataStream();
 
+        Instant now = Instant.now();
         SourceSupplier sourceSupplier = () -> XContentFactory.jsonBuilder()
             .startObject()
-            .field(FIELD_TIMESTAMP, randomDateForInterval(config.getInterval()))
-            .field(FIELD_DIMENSION_1, randomAlphaOfLength(1))
-            .field(FIELD_NUMERIC_1, randomDouble())
+            .field(FIELD_TIMESTAMP, randomDateForRange(now.minusSeconds(60 * 60).toEpochMilli(), now.plusSeconds(60 * 60).toEpochMilli()))
+            .field(FIELD_DIMENSION_1, randomFrom(dimensionValues))
+            .field(FIELD_NUMERIC_1, randomInt())
+            .field(FIELD_NUMERIC_2, randomInt() * randomDouble())
             .endObject();
         bulkIndex(dataStreamName, sourceSupplier);
 
-        String oldIndexName = rollover(dataStreamName).getOldIndex();
-        String rollupIndexName = ".rollup-" + oldIndexName;
-        rollup(oldIndexName, rollupIndexName, config);
-        assertRollupIndex(config, oldIndexName, rollupIndexName);
-        rollup(oldIndexName, rollupIndexName + "-2", config);
-        assertRollupIndex(config, oldIndexName, rollupIndexName + "-2");
+        this.sourceIndex = rollover(dataStreamName).getOldIndex();
+        this.sourceIndexClone = sourceIndex + "-clone";
+        this.rollupIndex = ".rollup-" + sourceIndex;
+        prepareSourceIndex(sourceIndex);
+        rollup(sourceIndex, rollupIndex, config);
+        assertRollupIndex(config, sourceIndexClone, rollupIndex);
+
+        var r = client().execute(GetDataStreamAction.INSTANCE, new GetDataStreamAction.Request(new String[] { dataStreamName })).get();
+        assertEquals(1, r.getDataStreams().size());
+        List<Index> indices = r.getDataStreams().get(0).getDataStream().getIndices();
+        // Assert that the rollup index is a member of the data stream
+        assertFalse(indices.stream().filter(i -> i.getName().equals(rollupIndex)).toList().isEmpty());
+        // Assert that the source index is not a member of the data stream
+        assertTrue(indices.stream().filter(i -> i.getName().equals(sourceIndex)).toList().isEmpty());
     }
 
     private DateHistogramInterval randomInterval() {
@@ -303,7 +313,11 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
 
     private String randomDateForInterval(DateHistogramInterval interval) {
         long endTime = startTime + MAX_NUM_BUCKETS * interval.estimateMillis();
-        return DATE_FORMATTER.formatMillis(randomLongBetween(startTime, endTime));
+        return randomDateForRange(startTime, endTime);
+    }
+
+    private String randomDateForRange(long start, long end) {
+        return DATE_FORMATTER.formatMillis(randomLongBetween(start, end));
     }
 
     private void cloneSourceIndex(String sourceIndex, String sourceIndexClone) {
@@ -366,11 +380,9 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
     }
 
     private void rollup(String sourceIndex, String rollupIndex, RollupActionConfig config) {
-        AcknowledgedResponse rollupResponse = client().execute(
-            RollupAction.INSTANCE,
-            new RollupAction.Request(sourceIndex, rollupIndex, config)
-        ).actionGet();
-        assertTrue(rollupResponse.isAcknowledged());
+        AcknowledgedResponse response = client().execute(RollupAction.INSTANCE, new RollupAction.Request(sourceIndex, rollupIndex, config))
+            .actionGet();
+        assertTrue(response.isAcknowledged());
     }
 
     private RolloverResponse rollover(String dataStreamName) throws ExecutionException, InterruptedException {
@@ -508,25 +520,55 @@ public class RollupActionSingleNodeTests extends ESSingleNodeTestCase {
 
     private String createDataStream() throws Exception {
         String dataStreamName = randomAlphaOfLength(10).toLowerCase(Locale.getDefault());
-        Template idxTemplate = new Template(null, new CompressedXContent("""
-            {"properties":{"%s":{"type":"date"}, "%s":{"type":"keyword"}}}
-            """.formatted(FIELD_TIMESTAMP, FIELD_DIMENSION_1)), null);
-        ComposableIndexTemplate template = new ComposableIndexTemplate(
-            List.of(dataStreamName + "*"),
-            idxTemplate,
-            null,
-            null,
-            null,
-            null,
-            new ComposableIndexTemplate.DataStreamTemplate(),
+        Template indexTemplate = new Template(
+            Settings.builder()
+                .put("index.number_of_shards", numOfShards)
+                .put("index.number_of_replicas", numOfReplicas)
+                .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), List.of(FIELD_DIMENSION_1))
+                .build(),
+            new CompressedXContent("""
+                {
+                    "properties": {
+                        "@timestamp" : {
+                            "type": "date"
+                        },
+                        "dimension_kw": {
+                            "type": "keyword",
+                            "time_series_dimension": true
+                        },
+                        "dimension_long": {
+                            "type": "long",
+                            "time_series_dimension": true
+                        },
+                        "numeric_1": {
+                            "type": "long",
+                            "time_series_metric": "gauge"
+                        },
+                        "numeric_2": {
+                            "type": "double",
+                            "time_series_metric": "counter"
+                        }
+                    }
+                }
+                """),
             null
         );
-        assertTrue(
-            client().execute(
-                PutComposableIndexTemplateAction.INSTANCE,
-                new PutComposableIndexTemplateAction.Request(dataStreamName + "_template").indexTemplate(template)
-            ).actionGet().isAcknowledged()
+
+        ComposableIndexTemplate template = new ComposableIndexTemplate(
+            List.of(dataStreamName + "*"),
+            indexTemplate,
+            null,
+            null,
+            null,
+            null,
+            new ComposableIndexTemplate.DataStreamTemplate(false, false, IndexMode.TIME_SERIES),
+            null
         );
+        PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(dataStreamName + "_template")
+            .indexTemplate(template);
+        AcknowledgedResponse response = client().execute(PutComposableIndexTemplateAction.INSTANCE, request).actionGet();
+
+        assertTrue(response.isAcknowledged());
         assertTrue(
             client().execute(CreateDataStreamAction.INSTANCE, new CreateDataStreamAction.Request(dataStreamName)).get().isAcknowledged()
         );

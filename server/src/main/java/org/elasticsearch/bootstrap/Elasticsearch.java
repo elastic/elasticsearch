@@ -87,9 +87,9 @@ class Elasticsearch extends EnvironmentAwareCommand {
         }
         if (status != ExitCodes.OK) {
             printLogsSuggestion();
+            terminal.flush();
+            exit(status);
         }
-        terminal.flush();
-        exit(status);
     }
 
     /**

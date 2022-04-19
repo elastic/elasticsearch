@@ -170,7 +170,7 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
             final Authentication differentRealmType = AuthenticationTestHelper.builder()
                 .user(new User("test", "role"))
                 .realmRef(new Authentication.RealmRef("realm", randomAlphaOfLength(10), "node"))
-                .build();
+                .build(false);
             differentRealmType.writeToContext(indexService.getSecurityContext().getThreadContext());
             assertFalse(indexService.getSecurityContext().canIAccessResourcesCreatedWithHeaders(getAuthenticationAsHeaders(original)));
         }
@@ -180,7 +180,7 @@ public class AsyncTaskServiceTests extends ESSingleNodeTestCase {
             final Authentication differentUser = AuthenticationTestHelper.builder()
                 .user(new User("test2", "role"))
                 .realmRef(new Authentication.RealmRef("realm", "file", "node"))
-                .build();
+                .build(false);
             differentUser.writeToContext(indexService.getSecurityContext().getThreadContext());
             assertFalse(indexService.getSecurityContext().canIAccessResourcesCreatedWithHeaders(getAuthenticationAsHeaders(original)));
         }

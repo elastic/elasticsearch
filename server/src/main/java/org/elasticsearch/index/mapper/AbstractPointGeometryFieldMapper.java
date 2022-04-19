@@ -120,8 +120,14 @@ public abstract class AbstractPointGeometryFieldMapper<T> extends AbstractGeomet
                     consumer.accept(validate(point));
                 } else {
                     while (token != XContentParser.Token.END_ARRAY) {
-                        parseAndConsumeFromObject(parser, point, consumer, onMalformed);
-                        point = pointSupplier.get();
+                        if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
+                            if (nullValue != null) {
+                                consumer.accept(nullValue);
+                            }
+                        } else {
+                            parseAndConsumeFromObject(parser, point, consumer, onMalformed);
+                            point = pointSupplier.get();
+                        }
                         token = parser.nextToken();
                     }
                 }

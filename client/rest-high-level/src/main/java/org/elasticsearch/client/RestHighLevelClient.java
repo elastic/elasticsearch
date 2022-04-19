@@ -271,7 +271,6 @@ public class RestHighLevelClient implements Closeable {
     /** Do not access directly but through getVersionValidationFuture() */
     private volatile ListenableFuture<Optional<String>> versionValidationFuture;
 
-    private final SnapshotClient snapshotClient = new SnapshotClient(this);
     private final SecurityClient securityClient = new SecurityClient(this);
     private final EqlClient eqlClient = new EqlClient(this);
 
@@ -343,15 +342,6 @@ public class RestHighLevelClient implements Closeable {
     @Override
     public final void close() throws IOException {
         doClose.accept(client);
-    }
-
-    /**
-     * Provides a {@link SnapshotClient} which can be used to access the Snapshot API.
-     *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html">Snapshot API on elastic.co</a>
-     */
-    public final SnapshotClient snapshot() {
-        return snapshotClient;
     }
 
     /**

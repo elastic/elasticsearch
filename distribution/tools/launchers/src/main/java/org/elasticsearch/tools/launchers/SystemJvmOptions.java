@@ -8,8 +8,6 @@
 
 package org.elasticsearch.tools.launchers;
 
-import org.elasticsearch.tools.java_version_checker.JavaVersion;
-
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -44,8 +42,6 @@ final class SystemJvmOptions {
              * debugging.
              */
             "-XX:-OmitStackTraceInFastThrow",
-            // enable helpful NullPointerExceptions (https://openjdk.java.net/jeps/358), if they are supported
-            maybeShowCodeDetailsInExceptionMessages(),
             // flags to configure Netty
             "-Dio.netty.noUnsafe=true",
             "-Dio.netty.noKeySetOptimization=true",
@@ -65,16 +61,29 @@ final class SystemJvmOptions {
              *
              * TODO: either modularlize Elasticsearch so that we can limit the opening of this module, or find an alternative
              */
-            "--add-opens=java.base/java.io=ALL-UNNAMED"
+            "--add-opens=java.base/java.io=ALL-UNNAMED",
+            maybeOverrideDockerCgroup()
         ).stream().filter(e -> e.isEmpty() == false).collect(Collectors.toList());
     }
 
-    private static String maybeShowCodeDetailsInExceptionMessages() {
-        if (JavaVersion.majorVersion(JavaVersion.CURRENT) >= 14) {
-            return "-XX:+ShowCodeDetailsInExceptionMessages";
-        } else {
-            return "";
+    /*
+     * The virtual file /proc/self/cgroup should list the current cgroup
+     * membership. For each hierarchy, you can follow the cgroup path from
+     * this file to the cgroup filesystem (usually /sys/fs/cgroup/) and
+     * introspect the statistics for the cgroup for the given
+     * hierarchy. Alas, Docker breaks this by mounting the container
+     * statistics at the root while leaving the cgroup paths as the actual
+     * paths. Therefore, Elasticsearch provides a mechanism to override
+     * reading the cgroup path from /proc/self/cgroup and instead uses the
+     * cgroup path defined the JVM system property
+     * es.cgroups.hierarchy.override. Therefore, we set this value here so
+     * that cgroup statistics are available for the container this process
+     * will run in.
+     */
+    private static String maybeOverrideDockerCgroup() {
+        if ("docker".equals(System.getProperty("es.distribution.type"))) {
+            return "-Des.cgroups.hierarchy.override=/";
         }
+        return "";
     }
-
 }

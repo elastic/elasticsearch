@@ -55,7 +55,7 @@ dependencies {
   // MS Office
   api "org.apache.poi:poi-scratchpad:${versions.poi}"
   // Apple iWork
-  api 'org.apache.commons:commons-compress:1.19'
+  api 'org.apache.commons:commons-compress:1.21'
   // Outlook documents
   api "org.apache.james:apache-mime4j-core:${versions.mime4j}"
   api "org.apache.james:apache-mime4j-dom:${versions.mime4j}"

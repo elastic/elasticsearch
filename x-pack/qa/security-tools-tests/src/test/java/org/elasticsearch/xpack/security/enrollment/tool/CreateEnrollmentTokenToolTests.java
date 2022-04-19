@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.security.enrollment.tool;
 
+import joptsimple.OptionSet;
+
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
 
@@ -72,7 +74,7 @@ public class CreateEnrollmentTokenToolTests extends CommandTestCase {
             environment -> externalEnrollmentTokenGenerator
         ) {
             @Override
-            protected Environment createEnv(Map<String, String> settings) {
+            protected Environment createEnv(OptionSet options) {
                 return new Environment(CreateEnrollmentTokenToolTests.this.settings, confDir);
             }
         };

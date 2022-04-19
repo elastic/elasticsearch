@@ -12,7 +12,6 @@ import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
@@ -65,7 +64,6 @@ import org.elasticsearch.client.core.MultiTermVectorsRequest;
 import org.elasticsearch.client.core.MultiTermVectorsResponse;
 import org.elasticsearch.client.core.TermVectorsRequest;
 import org.elasticsearch.client.core.TermVectorsResponse;
-import org.elasticsearch.client.tasks.TaskSubmissionResponse;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
@@ -273,9 +271,7 @@ public class RestHighLevelClient implements Closeable {
     /** Do not access directly but through getVersionValidationFuture() */
     private volatile ListenableFuture<Optional<String>> versionValidationFuture;
 
-    private final SnapshotClient snapshotClient = new SnapshotClient(this);
     private final SecurityClient securityClient = new SecurityClient(this);
-    private final TransformClient transformClient = new TransformClient(this);
     private final EqlClient eqlClient = new EqlClient(this);
 
     /**
@@ -349,15 +345,6 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Provides a {@link SnapshotClient} which can be used to access the Snapshot API.
-     *
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-snapshots.html">Snapshot API on elastic.co</a>
-     */
-    public final SnapshotClient snapshot() {
-        return snapshotClient;
-    }
-
-    /**
      * Provides methods for accessing the Elastic Licensed Security APIs that
      * are shipped with the Elastic Stack distribution of Elasticsearch. All of
      * these APIs will 404 if run against the OSS distribution of Elasticsearch.
@@ -369,20 +356,6 @@ public class RestHighLevelClient implements Closeable {
      */
     public SecurityClient security() {
         return securityClient;
-    }
-
-    /**
-     * Provides methods for accessing the Elastic Licensed Data Frame APIs that
-     * are shipped with the Elastic Stack distribution of Elasticsearch. All of
-     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/transform-apis.html">
-     *     Transform APIs on elastic.co</a> for more information.
-     *
-     * @return the client wrapper for making Data Frame API calls
-     */
-    public TransformClient transform() {
-        return transformClient;
     }
 
     /**
@@ -447,23 +420,6 @@ public class RestHighLevelClient implements Closeable {
     }
 
     /**
-     * Submits a reindex task.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-reindex.html">Reindex API on elastic.co</a>
-     * @param reindexRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the submission response
-     */
-    public final TaskSubmissionResponse submitReindexTask(ReindexRequest reindexRequest, RequestOptions options) throws IOException {
-        return performRequestAndParseEntity(
-            reindexRequest,
-            RequestConverters::submitReindex,
-            options,
-            TaskSubmissionResponse::fromXContent,
-            emptySet()
-        );
-    }
-
-    /**
      * Asynchronously executes a reindex request.
      * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-reindex.html">Reindex API on elastic.co</a>
      * @param reindexRequest the request
@@ -501,25 +457,6 @@ public class RestHighLevelClient implements Closeable {
             options,
             BulkByScrollResponse::fromXContent,
             singleton(409)
-        );
-    }
-
-    /**
-     * Submits a update by query task.
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-update-by-query.html">
-     *     Update By Query API on elastic.co</a>
-     * @param updateByQueryRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the submission response
-     */
-    public final TaskSubmissionResponse submitUpdateByQueryTask(UpdateByQueryRequest updateByQueryRequest, RequestOptions options)
-        throws IOException {
-        return performRequestAndParseEntity(
-            updateByQueryRequest,
-            RequestConverters::submitUpdateByQuery,
-            options,
-            TaskSubmissionResponse::fromXContent,
-            emptySet()
         );
     }
 
@@ -562,25 +499,6 @@ public class RestHighLevelClient implements Closeable {
             options,
             BulkByScrollResponse::fromXContent,
             singleton(409)
-        );
-    }
-
-    /**
-     * Submits a delete by query task
-     * See <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/docs-delete-by-query.html">
-     *      Delete By Query API on elastic.co</a>
-     * @param deleteByQueryRequest the request
-     * @param options the request options (e.g. headers), use {@link RequestOptions#DEFAULT} if nothing needs to be customized
-     * @return the submission response
-     */
-    public final TaskSubmissionResponse submitDeleteByQueryTask(DeleteByQueryRequest deleteByQueryRequest, RequestOptions options)
-        throws IOException {
-        return performRequestAndParseEntity(
-            deleteByQueryRequest,
-            RequestConverters::submitDeleteByQuery,
-            options,
-            TaskSubmissionResponse::fromXContent,
-            emptySet()
         );
     }
 
@@ -2589,17 +2507,6 @@ public class RestHighLevelClient implements Closeable {
         if (major == 6 || (major == 7 && minor < 14)) {
             if ("You Know, for Search".equalsIgnoreCase(mainResponse.getTagline()) == false) {
                 return Optional.of("Invalid or missing tagline [" + mainResponse.getTagline() + "]");
-            }
-
-            if (major == 7) {
-                // >= 7.0 and < 7.14
-                String responseFlavor = mainResponse.getVersion().getBuildFlavor();
-                if ("default".equals(responseFlavor) == false) {
-                    // Flavor is unknown when running tests, and non-mocked responses will return an unknown flavor
-                    if (Build.CURRENT.flavor() != Build.Flavor.UNKNOWN || "unknown".equals(responseFlavor) == false) {
-                        return Optional.of("Invalid or missing build flavor [" + responseFlavor + "]");
-                    }
-                }
             }
 
             return Optional.empty();

@@ -69,7 +69,7 @@ import java.util.stream.Collectors;
 /**
  * CLI tool to generate SAML Metadata for a Service Provider (realm)
  */
-public class SamlMetadataCommand extends KeyStoreAwareCommand {
+class SamlMetadataCommand extends KeyStoreAwareCommand {
 
     static final String METADATA_SCHEMA = "saml-schema-metadata-2.0.xsd";
 
@@ -90,18 +90,14 @@ public class SamlMetadataCommand extends KeyStoreAwareCommand {
     private final CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction;
     private KeyStoreWrapper keyStoreWrapper;
 
-    public static void main(String[] args) throws Exception {
-        exit(new SamlMetadataCommand().main(args, Terminal.DEFAULT));
-    }
-
-    public SamlMetadataCommand() {
+    SamlMetadataCommand() {
         this((environment) -> {
             KeyStoreWrapper ksWrapper = KeyStoreWrapper.load(environment.configFile());
             return ksWrapper;
         });
     }
 
-    public SamlMetadataCommand(CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction) {
+    SamlMetadataCommand(CheckedFunction<Environment, KeyStoreWrapper, Exception> keyStoreFunction) {
         super("Generate Service Provider Metadata for a SAML realm");
         outputPathSpec = parser.accepts("out", "path of the xml file that should be generated").withRequiredArg();
         batchSpec = parser.accepts("batch", "Do not prompt");

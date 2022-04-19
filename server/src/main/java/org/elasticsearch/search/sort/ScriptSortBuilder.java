@@ -34,6 +34,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.BytesRefProducer;
 import org.elasticsearch.script.BytesRefSortScript;
 import org.elasticsearch.script.DocValuesDocReader;
 import org.elasticsearch.script.NumberSortScript;
@@ -73,6 +74,8 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     private SortMode sortMode;
 
     private NestedSortBuilder nestedSort;
+
+    private MappedFieldType versionFieldType;
 
     /**
      * Constructs a script sort builder with the given script.
@@ -250,11 +253,11 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     public SortFieldAndFormat build(SearchExecutionContext context) throws IOException {
         DocValueFormat docValueFormat = DocValueFormat.RAW;
         if ("version".equals(this.type.toString())) {
-            MappedFieldType fieldType = context.getFieldType("version");
-            if (fieldType != null) {
-                // TODO else throw a meaningful error...
-                docValueFormat = fieldType.docValueFormat(null, null);
+            if (versionFieldType == null) {
+                // TODO there must be a better way to get the field type...
+                versionFieldType = context.buildAnonymousFieldType("version");
             }
+            docValueFormat = versionFieldType.docValueFormat(null, null);
         }
         return new SortFieldAndFormat(new SortField("_script", fieldComparatorSource(context), order == SortOrder.DESC), docValueFormat);
     }
@@ -381,7 +384,18 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
                             @Override
                             public BytesRef binaryValue() {
-                                return leafScript.execute().toBytesRef();
+                                Object result = leafScript.execute();
+                                if (result == null) {
+                                    return null;
+                                }
+                                if (result instanceof BytesRefProducer) {
+                                    return ((BytesRefProducer) result).toBytesRef();
+                                }
+
+                                if (versionFieldType == null) {
+                                    throw new IllegalArgumentException("Invalid sort type: version");
+                                }
+                                return versionFieldType.docValueFormat(null, null).parseBytesRef(result);
                             }
                         };
                         return FieldData.singleton(values);
@@ -449,7 +463,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         STRING,
         /** script sort for a numeric value **/
         NUMBER,
-        /** script sort for a BytesRef field value **/
+        /** script sort for a Version field value **/
         VERSION;
 
         @Override

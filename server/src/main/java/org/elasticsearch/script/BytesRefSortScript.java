@@ -20,7 +20,7 @@ public abstract class BytesRefSortScript extends AbstractSortScript {
         super(params, docReader);
     }
 
-    public abstract BytesRefProducer execute();
+    public abstract Object execute();
 
     /**
      * A factory to construct {@link BytesRefSortScript} instances.

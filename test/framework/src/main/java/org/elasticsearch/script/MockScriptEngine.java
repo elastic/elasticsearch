@@ -823,11 +823,11 @@ public class MockScriptEngine implements ScriptEngine {
         public BytesRefSortScript.LeafFactory newFactory(Map<String, Object> parameters) {
             return docReader -> new BytesRefSortScript(parameters, docReader) {
                 @Override
-                public String execute() {
+                public BytesRefProducer execute() {
                     Map<String, Object> vars = new HashMap<>(parameters);
                     vars.put("params", parameters);
                     vars.put("doc", getDoc());
-                    return String.valueOf(script.apply(vars));
+                    return (BytesRefProducer) script.apply(vars);
                 }
             };
         }

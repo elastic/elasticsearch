@@ -338,7 +338,7 @@ public class AuthenticationTestHelper {
                         );
                     }
                     case TOKEN -> {
-                        if (isServiceAccount) {
+                        if (isServiceAccount != null && isServiceAccount) {
                             // service account
                             assert user != null && user.principal().contains("/") : "invalid service account principal";
                             assert realmRef == null : "cannot specify realm type for service account authentication";

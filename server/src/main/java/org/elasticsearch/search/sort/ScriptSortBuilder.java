@@ -65,7 +65,6 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField SCRIPT_FIELD = new ParseField("script");
     public static final ParseField SORTMODE_FIELD = new ParseField("mode");
-    public static final ParseField FORMAT = new ParseField("format");
 
     private final Script script;
 
@@ -74,8 +73,6 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     private SortMode sortMode;
 
     private NestedSortBuilder nestedSort;
-
-    private String format;
 
     /**
      * Constructs a script sort builder with the given script.
@@ -184,10 +181,6 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         return this;
     }
 
-    public void setFormat(String fmt) {
-        this.format = fmt;
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params builderParams) throws IOException {
         builder.startObject();
@@ -200,9 +193,6 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         }
         if (nestedSort != null) {
             builder.field(NESTED_FIELD.getPreferredName(), nestedSort);
-        }
-        if (format != null) {
-            builder.field(FORMAT.getPreferredName(), format);
         }
         builder.endObject();
         builder.endObject();
@@ -241,7 +231,6 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
             },
             NESTED_FILTER_FIELD
         );
-        PARSER.declareString((b, v) -> b.setFormat(v), FORMAT);
     }
 
     /**
@@ -260,8 +249,8 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     @Override
     public SortFieldAndFormat build(SearchExecutionContext context) throws IOException {
         DocValueFormat docValueFormat = DocValueFormat.RAW;
-        if (docValueFormat != null) {
-            MappedFieldType fieldType = context.getFieldType(this.format);
+        if ("version".equals(this.type.toString())) {
+            MappedFieldType fieldType = context.getFieldType("version");
             if (fieldType != null) {
                 // TODO else throw a meaningful error...
                 docValueFormat = fieldType.docValueFormat(null, null);
@@ -373,7 +362,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                     }
                 };
             }
-            case CUSTOM -> {
+            case VERSION -> {
                 final BytesRefSortScript.Factory factory = context.compile(script, BytesRefSortScript.CONTEXT);
                 final BytesRefSortScript.LeafFactory searchScript = factory.newFactory(script.getParams());
                 return new BytesRefFieldComparatorSource(null, null, valueMode, nested) {
@@ -461,7 +450,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         /** script sort for a numeric value **/
         NUMBER,
         /** script sort for a BytesRef field value **/
-        CUSTOM;
+        VERSION;
 
         @Override
         public void writeTo(final StreamOutput out) throws IOException {
@@ -480,7 +469,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
             return switch (str.toLowerCase(Locale.ROOT)) {
                 case ("string") -> ScriptSortType.STRING;
                 case ("number") -> ScriptSortType.NUMBER;
-                case ("custom") -> ScriptSortType.CUSTOM;
+                case ("version") -> ScriptSortType.VERSION;
                 default -> throw new IllegalArgumentException("Unknown ScriptSortType [" + str + "]");
             };
         }

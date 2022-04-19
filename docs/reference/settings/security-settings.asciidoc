@@ -1984,23 +1984,6 @@ The maximum allowed clock skew to be taken into consideration when validating
 JWTs with regards to their creation, not before, and expiration times.
 // end::jwt-allowed-clock-skew-tag[]
 
-// tag::jwt-jwkset-path-tag[]
-`jwkset_path` {ess-icon}::
-(<<static-cluster-setting,Static>>)
-The file path or URL to a JSON Web Key Set with the key material that the JWT
-Issuer uses for signing tokens and claims responses.
-If a path is provided, then it is resolved relative to the {es} config
-directory.
-If a URL is provided, then it must be either a `file` URL or a `https` URL.
-{es} automatically caches the retrieved JWK set to avoid unnecessary HTTP
-requests but will attempt to refresh the JWK upon signature verification
-failure, as this might indicate that the JWT Provider has
-rotated the signing keys.
-+
-File-based resources are polled at a frequency determined by the global {es}
-`resource.reload.interval.high` setting, which defaults to 5 seconds.
-// end::jwt-jwkset-path-tag[]
-
 // tag::jwt-claims-principal-tag[]
 `claims.principal`::
 (<<static-cluster-setting,Static>>)
@@ -2043,17 +2026,23 @@ provided by the JWT claims. Defaults to `true`.
 `client_authentication.type` {ess-icon}::
 (<<static-cluster-setting,Static>>)
 Specifies whether to use `shared_secret` or `none` to authenticate
-incoming client requests. Defaults to `shared_secret`.
-It is recommended to enable client authentication. If JWT bearer
+incoming client requests. If this value is `shared_secret`, the client is 
+authenticated using an HTTP request header that must match a pre-configured
+secret value. The client must provide this shared secret with every request in
+the `ES-Client-Authentication` header. If this value is `none`, then the
+request header `ES-Client-Authentication` is ignored. Defaults to
+`shared_secret`.
++
+Enabling client authentication is recommended. If JWT bearer
 tokens are shared with other clients or services, client authentication
-restricts which ones are allowed to submit those JWTs to Elasticsearch.
+restricts which ones are allowed to submit those JWTs to {es}. 
 // end::jwt-client-authentication-type-tag[]
 
 // tag::jwt-client-authentication-shared-secret-tag[]
 `client_authentication.shared_secret` {ess-icon}::
-(<<static-cluster-setting,Static>>)
+(<<secure-settings,Secure>>)
 Secret value string for client authentication.
-Required if client_authentication.type is `shared_secret`.
+Required if `client_authentication.type` is `shared_secret`.
 // end::jwt-client-authentication-shared-secret-tag[]
 
 `authorization_realms`::
@@ -2118,6 +2107,23 @@ Controls the behavior of the http client used for fetching the JSON Web Key Set
 from a remote URL. Specifies the maximum number of
 connections allowed per endpoint.
 // end::jwt-http-max-endpoint-connections-tag[]
+
+// tag::jwt-jwkset-path-tag[]
+`pkc_jwkset_path` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The file path or URL to a JSON Web Key Set with the key material that the JWT
+Issuer uses for signing tokens and claims responses.
+If a path is provided, then it is resolved relative to the {es} config
+directory.
+If a URL is provided, then it must be either a `file` URL or a `https` URL.
+{es} automatically caches the retrieved JWK set to avoid unnecessary HTTP
+requests but will attempt to refresh the JWK upon signature verification
+failure, as this might indicate that the JWT Provider has
+rotated the signing keys.
++
+File-based resources are polled at a frequency determined by the global {es}
+`resource.reload.interval.high` setting, which defaults to 5 seconds.
+// end::jwt-jwkset-path-tag[]
 
 [discrete]
 [[ref-jwt-ssl-settings]]

@@ -6,7 +6,6 @@
 # Side Public License, v 1.
 #
 
-
 class org.elasticsearch.xpack.versionfield.VersionScriptDocValues {
     String get(int)
     String getValue()

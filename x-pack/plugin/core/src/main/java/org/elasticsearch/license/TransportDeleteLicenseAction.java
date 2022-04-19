@@ -63,8 +63,7 @@ public class TransportDeleteLicenseAction extends AcknowledgedTransportMasterNod
         licenseService.removeLicense(
             listener.delegateFailure(
                 (l, postStartBasicResponse) -> l.onResponse(AcknowledgedResponse.of(postStartBasicResponse.isAcknowledged()))
-            ),
-            request.masterNodeTimeout()
+            )
         );
     }
 }

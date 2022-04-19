@@ -398,7 +398,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
     /**
      * Remove license from the cluster state metadata
      */
-    public void removeLicense(final ActionListener<PostStartBasicResponse> listener, TimeValue masterNodeTimeout) {
+    public void removeLicense(final ActionListener<PostStartBasicResponse> listener) {
         final PostStartBasicRequest startBasicRequest = new PostStartBasicRequest().acknowledge(true);
         final StartBasicClusterTask task = new StartBasicClusterTask(
             logger,
@@ -411,7 +411,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         clusterService.submitStateUpdateTask(
             task.getDescription(),
             task,
-            ClusterStateTaskConfig.build(Priority.NORMAL, masterNodeTimeout),
+            ClusterStateTaskConfig.build(Priority.NORMAL), // TODO should pass in request.masterNodeTimeout() here
             startBasicExecutor
         );
     }
@@ -439,7 +439,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         clusterService.submitStateUpdateTask(
             StartTrialClusterTask.TASK_SOURCE,
             new StartTrialClusterTask(logger, clusterService.getClusterName().value(), clock, request, listener),
-            ClusterStateTaskConfig.build(Priority.NORMAL, request.masterNodeTimeout()),
+            ClusterStateTaskConfig.build(Priority.NORMAL), // TODO should pass in request.masterNodeTimeout() here
             startTrialExecutor
         );
     }
@@ -456,7 +456,7 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
         clusterService.submitStateUpdateTask(
             task.getDescription(),
             task,
-            ClusterStateTaskConfig.build(Priority.NORMAL, request.masterNodeTimeout()),
+            ClusterStateTaskConfig.build(Priority.NORMAL), // TODO should pass in request.masterNodeTimeout() here
             startBasicExecutor
         );
     }

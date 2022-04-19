@@ -15,7 +15,6 @@
           values:
             - amazon
             - "centos-7&&immutable"
-            - "centos-8&&immutable"
             - "debian-9&&immutable"
             - "debian-10&&immutable"
             - "fedora-32&&immutable"

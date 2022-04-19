@@ -1,8 +1,8 @@
 ---
 "Test ingest attachment processor with .doc file":
   - skip:
-      version: " - 7.99.99"
-      reason: "new fields added in 8.0.0"
+      version: " - 8.2.99"
+      reason: "tika upgraded in 8.3.0"
   - do:
       ingest.put_pipeline:
         id: "my_pipeline"
@@ -44,8 +44,8 @@
 ---
 "Test ingest attachment processor with .docx file":
   - skip:
-      version: " - 7.99.99"
-      reason: "new fields added in 8.0.0"
+      version: " - 8.2.99"
+      reason: "tika upgraded in 8.3.0"
   - do:
       ingest.put_pipeline:
         id: "my_pipeline"

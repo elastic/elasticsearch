@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -83,35 +84,7 @@ public class SuggestProfilesRequest extends ActionRequest {
             validationException = addValidationError("[size] parameter cannot be negative but was [" + size + "]", validationException);
         }
         if (hint != null) {
-            validationException = validateHint(validationException);
-        }
-        return validationException;
-    }
-
-    private ActionRequestValidationException validateHint(ActionRequestValidationException validationException) {
-        final List<String> uids = hint.getUids();
-        final Map<String, List<String>> labels = hint.getLabels();
-
-        if (uids == null && labels == null) {
-            return addValidationError("[hint] parameter cannot be empty", validationException);
-        }
-
-        if (uids != null && uids.isEmpty()) {
-            validationException = addValidationError("[uids] hint cannot be empty", validationException);
-        }
-
-        if (labels != null) {
-            if (labels.size() != 1) {
-                return addValidationError(
-                    "[labels] hint supports a single key, got [" + Strings.collectionToCommaDelimitedString(labels.keySet()) + "]",
-                    validationException
-                );
-            }
-
-            final List<String> values = labels.values().iterator().next();
-            if (values.isEmpty()) {
-                return addValidationError("[labels] hint cannot be empty", validationException);
-            }
+            validationException = hint.validate(validationException);
         }
         return validationException;
     }
@@ -122,7 +95,6 @@ public class SuggestProfilesRequest extends ActionRequest {
         @Nullable
         private final Map<String, List<String>> labels;
 
-        @SuppressWarnings("rawtypes")
         public Hint(List<String> uids, Map<String, Object> labelsInput) {
             this.uids = uids == null ? null : List.copyOf(uids);
             // Convert the data type. Business logic, e.g. single key, is enforced in request validation
@@ -130,11 +102,9 @@ public class SuggestProfilesRequest extends ActionRequest {
                 final HashMap<String, List<String>> labels = new HashMap<>();
                 for (Map.Entry<String, Object> entry : labelsInput.entrySet()) {
                     final Object value = entry.getValue();
-                    if (false == value instanceof String && false == value instanceof List) {
-                        throw new IllegalArgumentException("[labels] hint supports either string or list of strings as its value");
-                    }
-
-                    if (value instanceof final List listValue) {
+                    if (value instanceof String) {
+                        labels.put(entry.getKey(), List.of((String) value));
+                    } else if (value instanceof final List<?> listValue) {
                         final ArrayList<String> values = new ArrayList<>();
                         for (Object v : listValue) {
                             if (v instanceof final String stringValue) {
@@ -145,7 +115,7 @@ public class SuggestProfilesRequest extends ActionRequest {
                         }
                         labels.put(entry.getKey(), List.copyOf(values));
                     } else {
-                        labels.put(entry.getKey(), List.of((String) value));
+                        throw new IllegalArgumentException("[labels] hint supports either string or list of strings as its value");
                     }
                 }
                 this.labels = Map.copyOf(labels);
@@ -163,14 +133,46 @@ public class SuggestProfilesRequest extends ActionRequest {
             return uids;
         }
 
-        public Map<String, List<String>> getLabels() {
-            return labels;
+        public Tuple<String, List<String>> getSingleLabel() {
+            if (labels == null) {
+                return null;
+            }
+            assert labels.size() == 1 : "labels hint support exactly one key";
+            final String labelKey = labels.keySet().iterator().next();
+            final List<String> labelValues = labels.get(labelKey);
+            assert false == labelValues.isEmpty() : "label values cannot be empty";
+            return new Tuple<>(labelKey, labelValues);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeStringCollection(uids);
             out.writeMapOfLists(labels, StreamOutput::writeString, StreamOutput::writeString);
+        }
+
+        private ActionRequestValidationException validate(ActionRequestValidationException validationException) {
+            if (uids == null && labels == null) {
+                return addValidationError("[hint] parameter cannot be empty", validationException);
+            }
+
+            if (uids != null && uids.isEmpty()) {
+                validationException = addValidationError("[uids] hint cannot be empty", validationException);
+            }
+
+            if (labels != null) {
+                if (labels.size() != 1) {
+                    return addValidationError(
+                        "[labels] hint supports a single key, got [" + Strings.collectionToCommaDelimitedString(labels.keySet()) + "]",
+                        validationException
+                    );
+                }
+
+                final List<String> values = labels.values().iterator().next();
+                if (values.isEmpty()) {
+                    return addValidationError("[labels] hint cannot be empty", validationException);
+                }
+            }
+            return validationException;
         }
     }
 }

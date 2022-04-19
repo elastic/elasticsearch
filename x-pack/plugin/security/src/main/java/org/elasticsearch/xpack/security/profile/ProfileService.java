@@ -38,6 +38,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
@@ -255,18 +256,18 @@ public class ProfileService {
         }
         final SuggestProfilesRequest.Hint hint = request.getHint();
         if (hint != null) {
-            if (hint.getUids() != null) {
-                assert false == hint.getUids().isEmpty() : "uids hint cannot be empty";
-                query.should(QueryBuilders.termsQuery("user_profile.uid", hint.getUids()));
+            final List<String> hintedUids = hint.getUids();
+            if (hintedUids != null) {
+                assert false == hintedUids.isEmpty() : "uids hint cannot be empty";
+                query.should(QueryBuilders.termsQuery("user_profile.uid", hintedUids));
             }
-            if (hint.getLabels() != null) {
-                assert hint.getLabels().size() == 1 : "labels hint support exactly one key";
-                final String labelKey = hint.getLabels().keySet().iterator().next();
-                final List<String> labelValues = hint.getLabels().get(labelKey);
+            final Tuple<String, List<String>> label = hint.getSingleLabel();
+            if (label != null) {
+                final List<String> labelValues = label.v2();
                 if (labelValues.size() == 1) {
-                    query.should(QueryBuilders.termQuery("user_profile.labels." + labelKey, labelValues.get(0)));
+                    query.should(QueryBuilders.termQuery("user_profile.labels." + label.v1(), labelValues.get(0)));
                 } else {
-                    query.should(QueryBuilders.termsQuery("user_profile.labels." + labelKey, labelValues));
+                    query.should(QueryBuilders.termsQuery("user_profile.labels." + label.v1(), labelValues));
                 }
             }
             query.minimumShouldMatch(0);

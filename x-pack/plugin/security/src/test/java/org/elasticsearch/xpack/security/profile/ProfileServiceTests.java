@@ -21,6 +21,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -294,18 +295,18 @@ public class ProfileServiceTests extends ESTestCase {
             if (hint.getUids() != null) {
                 assertThat(shouldQueries.remove(0), equalTo(QueryBuilders.termsQuery("user_profile.uid", hint.getUids())));
             }
-            final Map<String, List<String>> labels = hint.getLabels();
-            if (labels != null) {
-                final Map.Entry<String, List<String>> entry = labels.entrySet().iterator().next();
-                if (entry.getValue().size() == 1) {
+            final Tuple<String, List<String>> label = hint.getSingleLabel();
+            if (label != null) {
+                final List<String> labelValues = label.v2();
+                if (labelValues.size() == 1) {
                     assertThat(
                         shouldQueries.remove(0),
-                        equalTo(QueryBuilders.termQuery("user_profile.labels." + entry.getKey(), entry.getValue().get(0)))
+                        equalTo(QueryBuilders.termQuery("user_profile.labels." + label.v1(), labelValues.get(0)))
                     );
                 } else {
                     assertThat(
                         shouldQueries.remove(0),
-                        equalTo(QueryBuilders.termsQuery("user_profile.labels." + entry.getKey(), entry.getValue()))
+                        equalTo(QueryBuilders.termsQuery("user_profile.labels." + label.v1(), labelValues))
                     );
                 }
             }

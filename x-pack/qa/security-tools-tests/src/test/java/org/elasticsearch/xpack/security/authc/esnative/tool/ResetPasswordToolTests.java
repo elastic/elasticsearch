@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.security.authc.esnative.tool;
 
+import joptsimple.OptionSet;
+
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
 
@@ -66,7 +68,7 @@ public class ResetPasswordToolTests extends CommandTestCase {
     protected Command newCommand() {
         return new ResetPasswordTool(environment -> client, environment -> keyStoreWrapper) {
             @Override
-            protected Environment createEnv(Map<String, String> settings) throws UserException {
+            protected Environment createEnv(OptionSet options) throws UserException {
                 return new Environment(ResetPasswordToolTests.this.settings, confDir);
             }
         };

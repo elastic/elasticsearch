@@ -385,11 +385,10 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         }
 
         // lets do some early termination and prevent any kind of rewriting if we have a mandatory query that is a MatchNoneQueryBuilder
-        Optional<QueryBuilder> any = Stream.concat(newBuilder.mustClauses.stream(), newBuilder.filterClauses.stream())
-            .filter(b -> b instanceof MatchNoneQueryBuilder)
-            .findAny();
-        if (any.isPresent()) {
-            return any.get();
+        if (newBuilder.mustClauses.stream().anyMatch(b -> b instanceof MatchNoneQueryBuilder) ||
+            newBuilder.filterClauses.stream().anyMatch(b -> b instanceof MatchNoneQueryBuilder) ||
+            newBuilder.mustNotClauses.stream().anyMatch(b -> b instanceof MatchAllQueryBuilder)) {
+            return new MatchNoneQueryBuilder();
         }
 
         if (changed) {

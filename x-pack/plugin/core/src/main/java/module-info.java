@@ -149,6 +149,7 @@ module org.elasticsearch.xcore {
     exports org.elasticsearch.xpack.core.ml.job.process.autodetect.output;
     exports org.elasticsearch.xpack.core.ml.job.process.autodetect.state;
     exports org.elasticsearch.xpack.core.ml.inference;
+    exports org.elasticsearch.xpack.core.ml.inference.assignment;
     exports org.elasticsearch.xpack.core.ml.inference.trainedmodel;
     exports org.elasticsearch.xpack.core.ml.inference.trainedmodel.tree;
     exports org.elasticsearch.xpack.core.ml.inference.trainedmodel.langident;

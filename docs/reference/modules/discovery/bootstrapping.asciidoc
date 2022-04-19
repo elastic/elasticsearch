@@ -31,8 +31,9 @@ node:
 
 When you start a master-eligible node, you can provide this setting on the
 command line or in the `elasticsearch.yml` file. After the cluster has formed,
-this setting is no longer required. It should not be set for master-ineligible
-nodes, master-eligible nodes joining an existing cluster, or cluster restarts.
+remove this setting from each node's configuration. It should not be set for
+master-ineligible nodes, master-eligible nodes joining an existing cluster, or
+when restarting one or more nodes.
 
 It is technically sufficient to set `cluster.initial_master_nodes` on a single
 master-eligible node in the cluster, and only to mention that single node in the

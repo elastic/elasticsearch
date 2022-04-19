@@ -50,9 +50,11 @@ this setting, see <<single-node-discovery>>.
 
 `cluster.initial_master_nodes`::
 (<<static-cluster-setting,Static>>)
-Sets the initial set of master-eligible nodes in a brand-new cluster. By default
-this list is empty, meaning that this node expects to join a cluster that has
-already been bootstrapped. See <<initial_master_nodes>>.
+Sets the initial set of master-eligible nodes in a brand-new cluster. By
+default this list is empty, meaning that this node expects to join a cluster
+that has already been bootstrapped. Remove this setting once the cluster has
+formed. Do not use this setting when restarting nodes or when adding new nodes
+to an existing cluster. See <<initial_master_nodes>>.
 
 [discrete]
 ==== Expert settings

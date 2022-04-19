@@ -166,8 +166,8 @@ class RandomizedAssignmentRounding {
             for (Model m : models) {
                 Tuple<Model, Node> index = Tuple.tuple(m, n);
                 if (softAllocations.get(index) > 0) {
-                    quality += (1 + (m.currentAllocationByNodeId().containsKey(n.id()) ? 1 : 0)) * softAllocations.get(index)
-                        * m.threadsPerAllocation();
+                    quality += (1 + (m.currentAllocationByNodeId().containsKey(n.id()) ? 1 : 0)) * softAllocations.get(index) * m
+                        .threadsPerAllocation();
                 }
             }
             return quality;
@@ -365,10 +365,13 @@ class RandomizedAssignmentRounding {
             long remainingNodeMemory,
             int remainingModelAllocations
         ) {
+            // as java.lang.Math#abs(long) is a forbidden API, we compute an abs manually
+            int distanceOfRemainingCoresToModelThreads = remainingNodeCores - remainingModelAllocations * m.threadsPerAllocation();
+            if (distanceOfRemainingCoresToModelThreads < 0) {
+                distanceOfRemainingCoresToModelThreads = -distanceOfRemainingCoresToModelThreads;
+            }
             return (m.currentAllocationByNodeId().containsKey(n.id()) ? 0 : 1) + (remainingNodeCores <= remainingModelAllocations * m
-                .threadsPerAllocation() ? 0 : 0.5) + (0.01 * Math.abs(
-                    remainingNodeCores - remainingModelAllocations * m.threadsPerAllocation()
-                )) + (0.01 * remainingNodeMemory);
+                .threadsPerAllocation() ? 0 : 0.5) + (0.01 * distanceOfRemainingCoresToModelThreads) + (0.01 * remainingNodeMemory);
         }
     }
 

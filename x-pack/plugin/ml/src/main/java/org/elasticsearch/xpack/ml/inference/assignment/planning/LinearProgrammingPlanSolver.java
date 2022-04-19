@@ -110,8 +110,8 @@ class LinearProgrammingPlanSolver {
     }
 
     private double weightForAllocationVar(Model m, Node n, Map<Tuple<Model, Node>, Double> weights) {
-        return (1 + weights.get(Tuple.tuple(m, n)) - (m.memoryBytes() > n.availableMemoryBytes() ? 10 : 0)) - L1
-            * normalizedMemoryPerModel.get(m) / maxNodeCores;
+        return (1 + weights.get(Tuple.tuple(m, n)) - (m.memoryBytes() > n.availableMemoryBytes() ? 10 : 0)) - L1 * normalizedMemoryPerModel
+            .get(m) / maxNodeCores;
     }
 
     private Tuple<Map<Tuple<Model, Node>, Double>, AssignmentPlan> calculateWeightsAndBinPackingPlan() {
@@ -167,10 +167,15 @@ class LinearProgrammingPlanSolver {
     }
 
     private double dsafNodeOrder(Node n, Model m, AssignmentPlan.Builder assignmentPlan) {
+        // as java.lang.Math#abs(long) is a forbidden API, we compute an abs manually
+        int distanceOfRemainingCoresToModelThreads = assignmentPlan.getRemainingCores(n) - assignmentPlan.getRemainingThreads(m);
+        if (distanceOfRemainingCoresToModelThreads < 0) {
+            distanceOfRemainingCoresToModelThreads = -distanceOfRemainingCoresToModelThreads;
+        }
         return (m.currentAllocationByNodeId().containsKey(n.id()) ? 0 : 1) + (assignmentPlan.getRemainingCores(n) >= assignmentPlan
-            .getRemainingThreads(m) ? 0 : 1) + (0.01 * Math.abs(
-                assignmentPlan.getRemainingCores(n) - assignmentPlan.getRemainingThreads(m)
-            )) - (0.01 * assignmentPlan.getRemainingMemory(n));
+            .getRemainingThreads(m) ? 0 : 1) + (0.01 * distanceOfRemainingCoresToModelThreads) - (0.01 * assignmentPlan.getRemainingMemory(
+                n
+            ));
     }
 
     private double minWeight(Model m, Node n, double w) {
@@ -227,7 +232,6 @@ class LinearProgrammingPlanSolver {
         // The max value for t_i is C, where C is the max number of cores across nodes. Thus, we can write L1 * C / N_j < 1.
         // We define L1' so that L1' = L1 * C / N_j < 1. Solving for L1, we get L1 = L1' * N_j / C.
         // Replacing L1 with L1' in the objective function we get: maximize sum(a_i_j * w_i_j) - L1' * sum(m_i * a_i_j / C).
-
 
         ExpressionsBasedModel model = new ExpressionsBasedModel(
             new Optimisation.Options().abort(new CalendarDateDuration(10, CalendarDateUnit.SECOND))

@@ -8,8 +8,11 @@
 
 package org.elasticsearch.ingest.attachment;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.tika.exception.ZeroByteFileException;
-import org.apache.tika.language.LanguageIdentifier;
+import org.apache.tika.language.detect.LanguageDetector;
+import org.apache.tika.language.detect.LanguageResult;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.metadata.Office;
 import org.apache.tika.metadata.TikaCoreProperties;
@@ -39,6 +42,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
     public static final String TYPE = "attachment";
 
     private static final int NUMBER_OF_CHARS_INDEXED = 100000;
+    private static final Logger LOGGER = LogManager.getLogger(AttachmentProcessor.class);
 
     private final String field;
     private final String targetField;
@@ -48,6 +52,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
     private final boolean removeBinary;
     private final String indexedCharsField;
     private final String resourceName;
+    private LanguageDetector languageDetector;
 
     AttachmentProcessor(
         String tag,
@@ -70,6 +75,17 @@ public final class AttachmentProcessor extends AbstractProcessor {
         this.indexedCharsField = indexedCharsField;
         this.resourceName = resourceName;
         this.removeBinary = removeBinary;
+        try {
+            this.languageDetector = LanguageDetector.getDefaultLanguageDetector().loadModels();
+        } catch (Exception e) {
+            String noLangDetectMessage = "No language detector on the classpath. Language detection will not run";
+            if (properties != null && properties.contains(Property.LANGUAGE)) {
+                LOGGER.error(noLangDetectMessage, e);
+            } else {
+                LOGGER.trace(noLangDetectMessage, e);
+            }
+            this.languageDetector = null;
+        }
     }
 
     boolean isIgnoreMissing() {
@@ -84,7 +100,6 @@ public final class AttachmentProcessor extends AbstractProcessor {
     @Override
     public IngestDocument execute(IngestDocument ingestDocument) {
         Map<String, Object> additionalFields = new HashMap<>();
-
         byte[] input = ingestDocument.getFieldValueAsBytes(field, ignoreMissing);
         String resourceNameInput = null;
         if (resourceName != null) {
@@ -109,7 +124,7 @@ public final class AttachmentProcessor extends AbstractProcessor {
 
         Metadata metadata = new Metadata();
         if (resourceNameInput != null) {
-            metadata.set(Metadata.RESOURCE_NAME_KEY, resourceNameInput);
+            metadata.set(TikaCoreProperties.RESOURCE_NAME_KEY, resourceNameInput);
         }
         String parsedContent = "";
         try {
@@ -127,10 +142,19 @@ public final class AttachmentProcessor extends AbstractProcessor {
         }
 
         if (properties.contains(Property.LANGUAGE) && Strings.hasLength(parsedContent)) {
-            // TODO: stop using LanguageIdentifier...
-            LanguageIdentifier identifier = new LanguageIdentifier(parsedContent);
-            String language = identifier.getLanguage();
-            additionalFields.put(Property.LANGUAGE.toLowerCase(), language);
+            if (languageDetector != null) {
+                LanguageResult languageResult = languageDetector.detect(parsedContent);
+                String language = languageResult.getLanguage();
+                if (languageResult.isReasonablyCertain() == false && LOGGER.isTraceEnabled()) {
+                    String title = metadata.get(TikaCoreProperties.TITLE);
+                    LOGGER.trace(
+                        "Not reasonably confident about language {} detected for document {}",
+                        language,
+                        title == null ? "" : title
+                    );
+                }
+                additionalFields.put(Property.LANGUAGE.toLowerCase(), language);
+            }
         }
 
         addAdditionalField(additionalFields, Property.DATE, metadata.get(TikaCoreProperties.CREATED));

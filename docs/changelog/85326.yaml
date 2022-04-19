@@ -1,5 +1,5 @@
 pr: 85326
-summary: Log error if LDAP/AD realm has bind DN set but is missing bind password
+summary: Deprecation warning if LDAP/AD realm has bind DN set but is missing bind password
 area: Authentication
 type: enhancement
 issues:

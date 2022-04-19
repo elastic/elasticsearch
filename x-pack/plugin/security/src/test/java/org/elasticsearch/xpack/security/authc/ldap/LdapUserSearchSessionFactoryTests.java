@@ -15,12 +15,8 @@ import com.unboundid.ldap.sdk.LDAPURL;
 import com.unboundid.ldap.sdk.SimpleBindRequest;
 import com.unboundid.ldap.sdk.SingleServerSet;
 
-import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
@@ -28,7 +24,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.TestEnvironment;
-import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -220,31 +215,16 @@ public class LdapUserSearchSessionFactoryTests extends LdapTestCase {
             new ThreadContext(globalSettings)
         );
 
-        MockLogAppender mockAppender = new MockLogAppender();
-        Logger logger = LogManager.getLogger(LdapUserSearchSessionFactory.class);
-        try {
-            mockAppender.start();
-            Loggers.addAppender(logger, mockAppender);
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "log error on missing bind password",
-                    LdapUserSearchSessionFactory.class.getName(),
-                    Level.ERROR,
-                    ("[%s] is set but no bind password is specified. Without a corresponding bind password, "
-                        + "ldap realm authentication will fail for all actions against the node. "
-                        + "Specify a bind password via [%s] or [%s].").formatted(
-                            RealmSettings.getFullSettingKey(config, BIND_DN),
-                            RealmSettings.getFullSettingKey(config, SECURE_BIND_PASSWORD),
-                            RealmSettings.getFullSettingKey(config, LEGACY_BIND_PASSWORD)
-                        )
-                )
+        try (LdapUserSearchSessionFactory ignored = getLdapUserSearchSessionFactory(config, sslService, threadPool)) {
+            assertWarnings(
+                ("[%s] is set but no bind password is specified. Without a corresponding bind password, "
+                    + "all ldap realm authentication will fail. Specify a bind password via [%s] or [%s]. "
+                    + "In the next major release, nodes with incomplete bind credentials will fail to start.").formatted(
+                        RealmSettings.getFullSettingKey(config, BIND_DN),
+                        RealmSettings.getFullSettingKey(config, SECURE_BIND_PASSWORD),
+                        RealmSettings.getFullSettingKey(config, LEGACY_BIND_PASSWORD)
+                    )
             );
-            try (LdapUserSearchSessionFactory ignored = getLdapUserSearchSessionFactory(config, sslService, threadPool)) {
-                mockAppender.assertAllExpectationsMatched();
-            }
-        } finally {
-            Loggers.removeAppender(logger, mockAppender);
-            mockAppender.stop();
         }
     }
 

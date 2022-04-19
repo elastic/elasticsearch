@@ -17,6 +17,7 @@ import com.unboundid.ldap.sdk.SimpleBindRequest;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.CharArrays;
@@ -92,10 +93,12 @@ abstract class PoolingSessionFactory extends SessionFactory implements Releasabl
             bindCredentials = new SimpleBindRequest();
         } else {
             if (bindPassword == null) {
-                logger.error(
+                deprecationLogger.warn(
+                    DeprecationCategory.SECURITY,
+                    "bind_dn_set_without_password",
                     "[{}] is set but no bind password is specified. Without a corresponding bind password, "
-                        + "{} realm authentication will fail for all actions against the node. "
-                        + "Specify a bind password via [{}] or [{}].",
+                        + "all {} realm authentication will fail. Specify a bind password via [{}] or [{}]. "
+                        + "In the next major release, nodes with incomplete bind credentials will fail to start.",
                     RealmSettings.getFullSettingKey(config, BIND_DN),
                     config.type(),
                     RealmSettings.getFullSettingKey(config, SECURE_BIND_PASSWORD),

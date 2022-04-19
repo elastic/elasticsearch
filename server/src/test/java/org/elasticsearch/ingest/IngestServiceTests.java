@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.DataStream.TimestampField;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -1788,6 +1789,35 @@ public class IngestServiceTests extends ESTestCase {
         }
 
         assertThat(reference.get(), is(instanceOf(byte[].class)));
+    }
+
+    public void testPostIngest() {
+        IngestService ingestService = createWithProcessors(
+            Collections.singletonMap("mock", (factories, tag, description, config) -> mockCompoundProcessor())
+        );
+
+        PutPipelineRequest putRequest = new PutPipelineRequest(
+            "_id",
+            new BytesArray("{\"processors\": [{\"mock\" : {}}]}"),
+            XContentType.JSON
+        );
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+        ClusterState previousClusterState = clusterState;
+        clusterState = IngestService.innerPut(putRequest, clusterState);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+
+        BulkRequest bulkRequest = new BulkRequest();
+        IndexRequest indexRequest1 = new IndexRequest("idx").setPipeline("_id")
+            .setFinalPipeline("_id")
+            .source(Map.of(TimestampField.FIXED_TIMESTAMP_FIELD, 10));
+        IndexRequest indexRequest2 = new IndexRequest("idx").setPipeline("_id").setFinalPipeline("_id").source(Map.of("foo", "bar"));
+        bulkRequest.add(indexRequest1);
+        bulkRequest.add(indexRequest2);
+
+        ingestService.executeBulkRequest(2, bulkRequest.requests(), (integer, e) -> {}, (thread, e) -> {}, indexReq -> {}, Names.WRITE);
+
+        assertThat(indexRequest1.getRawTimestamp(), equalTo(10));
+        assertThat(indexRequest2.getRawTimestamp(), nullValue());
     }
 
     public void testResolveRequiredOrDefaultPipelineDefaultPipeline() {

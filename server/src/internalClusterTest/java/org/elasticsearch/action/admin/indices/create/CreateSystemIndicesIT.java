@@ -98,9 +98,25 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
      * settings when it is first used, when it is referenced via its concrete
      * index name.
      */
-    public void testNonPrimarySystemIndexIsAutoCreatedViaConcreteName() {
+    public void testNonPrimarySystemIndexIsAutoCreatedViaConcreteName() throws Exception {
         final String nonPrimarySystemIndex = INDEX_NAME + "-2";
-        doCreateTest(() -> indexDoc(nonPrimarySystemIndex, "1", "foo", "bar"), nonPrimarySystemIndex);
+        internalCluster().startNodes(1);
+
+        // Trigger the creation of the system index
+        indexDoc(nonPrimarySystemIndex, "1", "foo", "bar");
+        ensureGreen(nonPrimarySystemIndex);
+
+        assertFalse(indexExists(PRIMARY_INDEX_NAME));
+        assertTrue(indexExists(INDEX_NAME + "-2"));
+
+        // Check that a non-primary system index is not automatically assigned an alias
+        final GetAliasesResponse getAliasesResponse = client().admin()
+            .indices()
+            .getAliases(new GetAliasesRequest().indicesOptions(IndicesOptions.strictExpandHidden()))
+            .actionGet();
+
+        assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
+        assertThat(getAliasesResponse.getAliases().get(nonPrimarySystemIndex).size(), equalTo(0));
     }
 
     /**
@@ -228,7 +244,7 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
             }
         };
         for (int i = 0; i < count; i++) {
-            client.bulk(new BulkRequest().add(new IndexRequest(INDEX_NAME).source(Map.of("foo", "bar"))), listener);
+            client.bulk(new BulkRequest().add(new IndexRequest(PRIMARY_INDEX_NAME).source(Map.of("foo", "bar"))), listener);
         }
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
@@ -253,7 +269,6 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
             .getAliases(new GetAliasesRequest().indicesOptions(IndicesOptions.strictExpandHidden()))
             .get();
 
-        // Attempting to directly create a non-primary system index only creates the primary index
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
         assertThat(getAliasesResponse.getAliases().get(PRIMARY_INDEX_NAME).size(), equalTo(2));
         assertThat(

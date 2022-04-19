@@ -336,7 +336,9 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                 if (settings != null) {
                     updateRequest.settings(settings);
                 }
-                if (aliasName != null) {
+                // don't auto-create an alias for a non-primary index, to avoid having to set
+                // a write index for the system alias
+                if (aliasName != null && concreteIndexName.equals(descriptor.getPrimaryIndex())) {
                     updateRequest.aliases(Set.of(new Alias(aliasName).isHidden(true)));
                 }
 

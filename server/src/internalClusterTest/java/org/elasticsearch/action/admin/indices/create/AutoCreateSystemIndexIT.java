@@ -8,12 +8,14 @@
 
 package org.elasticsearch.action.admin.indices.create;
 
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
+import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
@@ -26,6 +28,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
 import org.elasticsearch.snapshots.SystemIndicesSnapshotIT;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentType;
 import org.junit.After;
 
 import java.util.Collection;
@@ -86,6 +89,21 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
         assertThat(response.indices().length, is(1));
     }
 
+    public void testAutoCreateSystemIndicesAllowsWriteToAlias() throws Exception {
+        {
+            CreateIndexRequest request = new CreateIndexRequest(PRIMARY_INDEX_NAME);
+            client().execute(AutoCreateAction.INSTANCE, request).get();
+        }
+
+        {
+            CreateIndexRequest request = new CreateIndexRequest(INDEX_NAME + "-2");
+            client().execute(AutoCreateAction.INSTANCE, request).get();
+        }
+
+        IndexResponse response = client().prepareIndex(INDEX_NAME).setSource("{\"foo\":\"bar\"}", XContentType.JSON).get();
+        assertThat(response.getResult(), equalTo(DocWriteResponse.Result.CREATED));
+    }
+
     public void testSystemIndicesAutoCreatedAsHidden() throws Exception {
         CreateIndexRequest request = new CreateIndexRequest(UnmanagedSystemIndexTestPlugin.SYSTEM_INDEX_NAME);
         client().execute(AutoCreateAction.INSTANCE, request).get();
@@ -134,7 +152,7 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
 
         assertTrue(indexExists(nonPrimaryIndex));
 
-        assertAliasesHidden(nonPrimaryIndex, Set.of(".test-index", ".test-index-legacy-alias"));
+        assertAliasesHidden(nonPrimaryIndex, Set.of(".test-index-legacy-alias"));
 
         assertAcked(client().admin().indices().prepareDeleteTemplate("*").get());
     }
@@ -168,7 +186,7 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
 
         assertTrue(indexExists(nonPrimaryIndex));
 
-        assertAliasesHidden(nonPrimaryIndex, Set.of(".test-index", ".test-index-composable-alias"));
+        assertAliasesHidden(nonPrimaryIndex, Set.of(".test-index-composable-alias"));
 
         assertAcked(
             client().execute(
@@ -185,7 +203,7 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
             .get();
 
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
-        assertThat(getAliasesResponse.getAliases().get(nonPrimaryIndex).size(), equalTo(2));
+        assertThat(getAliasesResponse.getAliases().get(nonPrimaryIndex).size(), equalTo(1));
         assertThat(
             getAliasesResponse.getAliases().get(nonPrimaryIndex).stream().map(AliasMetadata::alias).collect(Collectors.toSet()),
             equalTo(aliasNames)

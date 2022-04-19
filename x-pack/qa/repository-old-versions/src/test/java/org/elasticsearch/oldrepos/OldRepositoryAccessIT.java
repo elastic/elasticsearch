@@ -12,12 +12,7 @@ import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusRequest;
-import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -27,14 +22,12 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
 import org.elasticsearch.client.core.ShardsAcknowledgedResponse;
-import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -42,9 +35,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
-import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -61,10 +52,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
@@ -204,58 +196,54 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         if (sourceOnlyRepository) {
             repoSettingsBuilder.put("delegate_type", "fs");
         }
-        ElasticsearchAssertions.assertAcked(
-            client.snapshot()
-                .createRepository(
-                    new PutRepositoryRequest(repoName).type(sourceOnlyRepository ? "source" : "fs").settings(repoSettingsBuilder),
-                    RequestOptions.DEFAULT
-                )
+        Request createRepo = new Request("PUT", "/_snapshot/" + repoName);
+        createRepo.setJsonEntity(
+            Strings.toString(new PutRepositoryRequest().type(sourceOnlyRepository ? "source" : "fs").settings(repoSettingsBuilder.build()))
         );
+        assertAcknowledged(client().performRequest(createRepo));
 
         // list snapshots on new ES
-        List<SnapshotInfo> snapshotInfos = client.snapshot()
-            .get(new GetSnapshotsRequest(repoName).snapshots(new String[] { "_all" }), RequestOptions.DEFAULT)
-            .getSnapshots();
-        assertThat(snapshotInfos, hasSize(1));
-        SnapshotInfo snapshotInfo = snapshotInfos.get(0);
-        assertEquals(snapshotName, snapshotInfo.snapshotId().getName());
-        assertEquals(repoName, snapshotInfo.repository());
-        assertEquals(Arrays.asList(indexName), snapshotInfo.indices());
-        assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
-        assertEquals(numberOfShards, snapshotInfo.successfulShards());
-        assertEquals(numberOfShards, snapshotInfo.totalShards());
-        assertEquals(0, snapshotInfo.failedShards());
-        assertEquals(oldVersion, snapshotInfo.version());
+        Request getSnaps = new Request("GET", "/_snapshot/" + repoName + "/_all");
+        Response getResponse = client().performRequest(getSnaps);
+        ObjectPath getResp = ObjectPath.createFromResponse(getResponse);
+        assertThat(getResp.evaluate("total"), equalTo(1));
+        assertThat(getResp.evaluate("snapshots.0.snapshot"), equalTo(snapshotName));
+        assertThat(getResp.evaluate("snapshots.0.repository"), equalTo(repoName));
+        assertThat(getResp.evaluate("snapshots.0.indices"), contains(indexName));
+        assertThat(getResp.evaluate("snapshots.0.state"), equalTo(SnapshotState.SUCCESS.toString()));
+        assertEquals(numberOfShards, (int) getResp.evaluate("snapshots.0.shards.successful"));
+        assertEquals(numberOfShards, (int) getResp.evaluate("snapshots.0.shards.total"));
+        assertEquals(0, (int) getResp.evaluate("snapshots.0.shards.failed"));
+        assertEquals(oldVersion.toString(), getResp.evaluate("snapshots.0.version"));
 
         // list specific snapshot on new ES
-        snapshotInfos = client.snapshot()
-            .get(new GetSnapshotsRequest(repoName).snapshots(new String[] { snapshotName }), RequestOptions.DEFAULT)
-            .getSnapshots();
-        assertThat(snapshotInfos, hasSize(1));
-        snapshotInfo = snapshotInfos.get(0);
-        assertEquals(snapshotName, snapshotInfo.snapshotId().getName());
-        assertEquals(repoName, snapshotInfo.repository());
-        assertEquals(Arrays.asList(indexName), snapshotInfo.indices());
-        assertEquals(SnapshotState.SUCCESS, snapshotInfo.state());
-        assertEquals(numberOfShards, snapshotInfo.successfulShards());
-        assertEquals(numberOfShards, snapshotInfo.totalShards());
-        assertEquals(0, snapshotInfo.failedShards());
-        assertEquals(oldVersion, snapshotInfo.version());
+        getSnaps = new Request("GET", "/_snapshot/" + repoName + "/" + snapshotName);
+        getResponse = client().performRequest(getSnaps);
+        getResp = ObjectPath.createFromResponse(getResponse);
+        assertThat(getResp.evaluate("total"), equalTo(1));
+        assertThat(getResp.evaluate("snapshots.0.snapshot"), equalTo(snapshotName));
+        assertThat(getResp.evaluate("snapshots.0.repository"), equalTo(repoName));
+        assertThat(getResp.evaluate("snapshots.0.indices"), contains(indexName));
+        assertThat(getResp.evaluate("snapshots.0.state"), equalTo(SnapshotState.SUCCESS.toString()));
+        assertEquals(numberOfShards, (int) getResp.evaluate("snapshots.0.shards.successful"));
+        assertEquals(numberOfShards, (int) getResp.evaluate("snapshots.0.shards.total"));
+        assertEquals(0, (int) getResp.evaluate("snapshots.0.shards.failed"));
+        assertEquals(oldVersion.toString(), getResp.evaluate("snapshots.0.version"));
 
         // list advanced snapshot info on new ES
-        SnapshotsStatusResponse snapshotsStatusResponse = client.snapshot()
-            .status(new SnapshotsStatusRequest(repoName).snapshots(new String[] { snapshotName }), RequestOptions.DEFAULT);
-        assertThat(snapshotsStatusResponse.getSnapshots(), hasSize(1));
-        SnapshotStatus snapshotStatus = snapshotsStatusResponse.getSnapshots().get(0);
-        assertEquals(snapshotName, snapshotStatus.getSnapshot().getSnapshotId().getName());
-        assertEquals(repoName, snapshotStatus.getSnapshot().getRepository());
-        assertEquals(Sets.newHashSet(indexName), snapshotStatus.getIndices().keySet());
-        assertEquals(SnapshotsInProgress.State.SUCCESS, snapshotStatus.getState());
-        assertEquals(numberOfShards, snapshotStatus.getShardsStats().getDoneShards());
-        assertEquals(numberOfShards, snapshotStatus.getShardsStats().getTotalShards());
-        assertEquals(0, snapshotStatus.getShardsStats().getFailedShards());
-        assertThat(snapshotStatus.getStats().getTotalSize(), greaterThan(0L));
-        assertThat(snapshotStatus.getStats().getTotalFileCount(), greaterThan(0));
+        getSnaps = new Request("GET", "/_snapshot/" + repoName + "/" + snapshotName + "/_status");
+        getResponse = client().performRequest(getSnaps);
+        getResp = ObjectPath.createFromResponse(getResponse);
+        assertThat(((List<?>) getResp.evaluate("snapshots")).size(), equalTo(1));
+        assertThat(getResp.evaluate("snapshots.0.snapshot"), equalTo(snapshotName));
+        assertThat(getResp.evaluate("snapshots.0.repository"), equalTo(repoName));
+        assertThat(((Map<?, ?>) getResp.evaluate("snapshots.0.indices")).keySet(), contains(indexName));
+        assertThat(getResp.evaluate("snapshots.0.state"), equalTo(SnapshotState.SUCCESS.toString()));
+        assertEquals(numberOfShards, (int) getResp.evaluate("snapshots.0.shards_stats.done"));
+        assertEquals(numberOfShards, (int) getResp.evaluate("snapshots.0.shards_stats.total"));
+        assertEquals(0, (int) getResp.evaluate("snapshots.0.shards_stats.failed"));
+        assertThat(getResp.evaluate("snapshots.0.stats.total.size_in_bytes"), greaterThan(0));
+        assertThat(getResp.evaluate("snapshots.0.stats.total.file_count"), greaterThan(0));
 
         // restore / mount and check whether searches work
         restoreMountAndVerify(
@@ -271,10 +259,9 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         );
 
         // close indices
-        RestClient llClient = client.getLowLevelClient();
-        assertTrue(closeIndex(llClient, "restored_" + indexName).isShardsAcknowledged());
-        assertTrue(closeIndex(llClient, "mounted_full_copy_" + indexName).isShardsAcknowledged());
-        assertTrue(closeIndex(llClient, "mounted_shared_cache_" + indexName).isShardsAcknowledged());
+        assertTrue(closeIndex(client(), "restored_" + indexName).isShardsAcknowledged());
+        assertTrue(closeIndex(client(), "mounted_full_copy_" + indexName).isShardsAcknowledged());
+        assertTrue(closeIndex(client(), "mounted_shared_cache_" + indexName).isShardsAcknowledged());
 
         // restore / mount again
         restoreMountAndVerify(
@@ -311,23 +298,20 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         String snapshotName
     ) throws IOException {
         // restore index
-        RestoreSnapshotResponse restoreSnapshotResponse = client.snapshot()
-            .restore(
-                new RestoreSnapshotRequest(repoName, snapshotName).indices(indexName)
-                    .renamePattern("(.+)")
-                    .renameReplacement("restored_$1")
-                    .waitForCompletion(true),
-                RequestOptions.DEFAULT
-            );
-        assertNotNull(restoreSnapshotResponse.getRestoreInfo());
-        assertEquals(numberOfShards, restoreSnapshotResponse.getRestoreInfo().totalShards());
-        assertEquals(numberOfShards, restoreSnapshotResponse.getRestoreInfo().successfulShards());
+        Request restoreRequest = new Request("POST", "/_snapshot/" + repoName + "/" + snapshotName + "/_restore");
+        restoreRequest.setJsonEntity(
+            Strings.toString(new RestoreSnapshotRequest().indices(indexName).renamePattern("(.+)").renameReplacement("restored_$1"))
+        );
+        restoreRequest.addParameter("wait_for_completion", "true");
+        Response restoreResponse = client().performRequest(restoreRequest);
+        ObjectPath restore = ObjectPath.createFromResponse(restoreResponse);
+        assertEquals(numberOfShards, (int) restore.evaluate("snapshot.shards.total"));
+        assertEquals(numberOfShards, (int) restore.evaluate("snapshot.shards.successful"));
 
         ensureGreen("restored_" + indexName);
 
         String restoredIndex = "restored_" + indexName;
-        RestClient llClient = client.getLowLevelClient();
-        var response = responseAsMap(llClient.performRequest(new Request("GET", "/" + restoredIndex + "/_mapping")));
+        var response = responseAsMap(client().performRequest(new Request("GET", "/" + restoredIndex + "/_mapping")));
         Map<?, ?> mapping = ObjectPath.evaluate(response, restoredIndex + ".mappings");
         logger.info("mapping for {}: {}", restoredIndex, mapping);
         assertThat(mapping, hasKey("_meta"));

@@ -727,7 +727,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             contains(
                 new DeprecationIssue(
                     DeprecationIssue.Level.WARNING,
-                    "setting [index.data_path] is deprecated",
+                    "Setting [index.data_path] is deprecated",
                     expectedUrl,
                     "Remove the [index.data_path] setting. This setting has had no effect since 6.0.",
                     false,

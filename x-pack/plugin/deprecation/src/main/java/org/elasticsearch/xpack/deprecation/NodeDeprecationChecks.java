@@ -691,7 +691,7 @@ class NodeDeprecationChecks {
                 "Remove the [%s] setting. This setting has had no effect since 6.0.",
                 Environment.PATH_SHARED_DATA_SETTING.getKey()
             );
-            return new DeprecationIssue(DeprecationIssue.Level.CRITICAL, message, url, details, false, null);
+            return new DeprecationIssue(DeprecationIssue.Level.WARNING, message, url, details, false, null);
         }
         return null;
     }

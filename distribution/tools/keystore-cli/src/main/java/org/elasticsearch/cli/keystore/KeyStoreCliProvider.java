@@ -12,7 +12,6 @@ import org.elasticsearch.cli.CliToolProvider;
 import org.elasticsearch.cli.Command;
 
 public class KeyStoreCliProvider implements CliToolProvider {
-
     @Override
     public String name() {
         return "keystore";

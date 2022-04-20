@@ -14,7 +14,7 @@ import org.elasticsearch.common.settings.SecureString;
 import java.io.OutputStream;
 import java.io.Reader;
 
-public class KeystorePasswordTerminal extends Terminal {
+class KeystorePasswordTerminal extends Terminal {
 
     private final Terminal delegate;
 

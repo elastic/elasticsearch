@@ -1,4 +1,0 @@
-org.elasticsearch.xpack.security.cli.CertificateToolProvider
-org.elasticsearch.xpack.security.cli.CertificateGenerateToolProvider
-org.elasticsearch.xpack.security.cli.ReconfigureNodeToolProvider
-org.elasticsearch.xpack.security.cli.AutoConfigureNodeToolProvider

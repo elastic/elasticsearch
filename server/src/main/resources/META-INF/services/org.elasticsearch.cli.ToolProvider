@@ -1,2 +1,0 @@
-org.elasticsearch.cluster.coordination.NodeToolCliProvider
-org.elasticsearch.index.shard.ShardToolCliProvider

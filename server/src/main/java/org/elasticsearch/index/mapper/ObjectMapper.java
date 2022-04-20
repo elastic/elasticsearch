@@ -271,23 +271,14 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     }
 
                     Mapper.TypeParser typeParser = parserContext.typeParser(type);
-                    if (typeParser == null && parserContext.indexVersionCreated().isLegacyIndexVersion() == false) {
+                    if (typeParser == null) {
                         throw new MapperParsingException("No handler for type [" + type + "] declared on field [" + fieldName + "]");
                     }
                     String[] fieldNameParts = fieldName.split("\\.");
                     String realFieldName = fieldNameParts[fieldNameParts.length - 1];
-
-                    Mapper.Builder fieldBuilder;
-                    // check if typeParser supports legacy fields
-                    if (typeParser == null
-                        || (parserContext.indexVersionCreated().isLegacyIndexVersion() && typeParser.supportsLegacyField() == false)) {
-                        // add default field instead that fails all queries
-                        fieldBuilder = PlaceHolderFieldMapper.PARSER.apply(type).parse(realFieldName, propNode, parserContext);
-                    } else {
-                        fieldBuilder = typeParser.parse(realFieldName, propNode, parserContext);
-                    }
+                    Mapper.Builder fieldBuilder = typeParser.parse(realFieldName, propNode, parserContext);
                     for (int i = fieldNameParts.length - 2; i >= 0; --i) {
-                        Builder intermediate = new Builder(fieldNameParts[i]);
+                        ObjectMapper.Builder intermediate = new ObjectMapper.Builder(fieldNameParts[i]);
                         intermediate.add(fieldBuilder);
                         fieldBuilder = intermediate;
                     }
@@ -306,7 +297,6 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
             MappingParser.checkNoRemainingFields(propsNode, "DocType mapping definition has unsupported parameters: ");
         }
-
     }
 
     private final String fullPath;

@@ -51,11 +51,23 @@ public final class MapperRegistry {
     }
 
     /**
-     * Return a map of the mappers that have been registered. The
+     * Return a map of the non-legacy mappers that have been registered. The
      * returned map uses the type of the field as a key.
      */
     public Map<String, Mapper.TypeParser> getMapperParsers() {
         return mapperParsers;
+    }
+
+    /**
+     * Return a mapper parser for the given type and index creation version.
+     */
+    public Mapper.TypeParser getMapperParser(String type, Version indexVersionCreated) {
+        Mapper.TypeParser parser = mapperParsers.get(type);
+        if (indexVersionCreated.isLegacyIndexVersion() && (parser == null || parser.supportsLegacyField() == false)) {
+            return LegacyTypeFieldMapper.PARSER;
+        } else {
+            return parser;
+        }
     }
 
     public Map<String, RuntimeField.Parser> getRuntimeFieldParsers() {

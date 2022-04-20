@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
+import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
@@ -227,7 +228,13 @@ public class AuthenticationTestHelper {
 
         public AuthenticationTestBuilder internal() {
             return internal(
-                ESTestCase.randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE, XPackSecurityUser.INSTANCE, AsyncSearchUser.INSTANCE)
+                ESTestCase.randomFrom(
+                    SystemUser.INSTANCE,
+                    XPackUser.INSTANCE,
+                    XPackSecurityUser.INSTANCE,
+                    SecurityProfileUser.INSTANCE,
+                    AsyncSearchUser.INSTANCE
+                )
             );
         }
 
@@ -404,6 +411,7 @@ public class AuthenticationTestHelper {
                                 SystemUser.INSTANCE,
                                 XPackUser.INSTANCE,
                                 XPackSecurityUser.INSTANCE,
+                                SecurityProfileUser.INSTANCE,
                                 AsyncSearchUser.INSTANCE
                             );
                         }

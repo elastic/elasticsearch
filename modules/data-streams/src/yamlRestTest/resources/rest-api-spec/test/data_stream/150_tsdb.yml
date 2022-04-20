@@ -11,11 +11,11 @@ setup:
         name: my-template1
         body:
           index_patterns: [k8s*]
-          data_stream:
-            index_mode : time_series
+          data_stream: {}
           template:
             settings:
               index:
+                mode: time_series
                 number_of_replicas: 0
                 number_of_shards: 2
                 routing_path: [metricset, time_series_dimension]

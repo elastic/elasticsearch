@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.cluster.coordination.MasterHistory;
+import org.elasticsearch.cluster.coordination.ImmutableMasterHistory;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
@@ -66,14 +67,14 @@ public class MasterHistoryAction extends ActionType<MasterHistoryAction.Response
 
     public static class Response extends ActionResponse {
 
-        private final MasterHistory masterHistory;
+        private final ImmutableMasterHistory masterHistory;
 
-        public Response(MasterHistory masterHistory) {
+        public Response(ImmutableMasterHistory masterHistory) {
             this.masterHistory = masterHistory;
         }
 
         public Response(StreamInput in) throws IOException {
-            this(new MasterHistory(in));
+            this(new ImmutableMasterHistory(in));
         }
 
         public MasterHistory getMasterHistory() {

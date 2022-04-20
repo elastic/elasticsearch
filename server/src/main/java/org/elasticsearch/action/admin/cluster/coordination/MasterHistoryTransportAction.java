@@ -34,6 +34,6 @@ public class MasterHistoryTransportAction extends HandledTransportAction<MasterH
 
     @Override
     protected void doExecute(Task task, MasterHistoryAction.Request request, ActionListener<MasterHistoryAction.Response> listener) {
-        listener.onResponse(new MasterHistoryAction.Response(masterHistoryService.getLocalMasterHistory()));
+        listener.onResponse(new MasterHistoryAction.Response(masterHistoryService.getLocalMasterHistory().getImmutableView()));
     }
 }

@@ -13,6 +13,7 @@ import org.elasticsearch.action.admin.cluster.coordination.MasterHistoryAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.ExecutionException;
 
@@ -21,11 +22,11 @@ import java.util.concurrent.ExecutionException;
  */
 public class MasterHistoryService {
     private final NodeClient client;
-    private final MasterHistory masterHistory;
+    private final MutableMasterHistory localMasterHistory;
 
-    public MasterHistoryService(NodeClient client, ClusterService clusterService) {
+    public MasterHistoryService(NodeClient client, ThreadPool threadPool, ClusterService clusterService) {
         this.client = client;
-        this.masterHistory = new MasterHistory(clusterService);
+        this.localMasterHistory = new MutableMasterHistory(threadPool, clusterService);
     }
 
     /**
@@ -33,8 +34,8 @@ public class MasterHistoryService {
      * ClusterState on this node is updated with new information about the master.
      * @return The MasterHistory from this node's point of view. This MasterHistory object will be updated whenever the ClusterState changes
      */
-    public MasterHistory getLocalMasterHistory() {
-        return masterHistory;
+    public MutableMasterHistory getLocalMasterHistory() {
+        return localMasterHistory;
     }
 
     /**

@@ -12,7 +12,7 @@ module org.elasticsearch.mapper.unsigned_long {
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.painless.spi;
 
-    exports org.elasticsearch.xpack.unsignedlong to org.elasticsearch.painless; // painless script engine
+    exports org.elasticsearch.xpack.unsignedlong; // for the painless script engine
 
     opens org.elasticsearch.xpack.unsignedlong to org.elasticsearch.painless.spi; // whitelist resource access
 }

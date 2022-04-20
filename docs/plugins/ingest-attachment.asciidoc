@@ -251,7 +251,7 @@ Returns this:
     "data": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0=",
     "attachment": {
       "content_type": "application/rtf",
-      "language": "sl",
+      "language": "is",
       "content": "Lorem ipsum",
       "content_length": 11
     }
@@ -300,7 +300,7 @@ Returns this:
     "max_size": 5,
     "attachment": {
       "content_type": "application/rtf",
-      "language": "ro",
+      "language": "sl",
       "content": "Lorem",
       "content_length": 5
     }

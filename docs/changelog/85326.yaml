@@ -1,7 +1,7 @@
 pr: 85326
 summary: Deprecate LDAP/AD realm settings missing bind password for bind DN
 area: Authentication
-type: "enhancement, deprecation"
+type: deprecation
 issues:
  - 47191
 deprecation:

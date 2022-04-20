@@ -1,15 +1,13 @@
 pr: 85326
-summary: Deprecation notice if LDAP/AD realm has bind DN set but is
-  missing bind password
+summary: Deprecation notice if LDAP/AD realm is missing bind password for bind DN
 area: Authentication
-type: "enhancement, deprecation"
+type: deprecation
 issues:
   - 47191
 deprecation:
-  title: Deprecation notice if LDAP/AD realm has bind DN set but is
-  missing bind password
-  area: Authentication
-  details: LDAP/AD authentication realms can be configured to
+  title: Deprecation notice if LDAP/AD realm is missing bind password for bind DN
+  area: Cluster and node setting
+  details: "LDAP/AD authentication realms can be configured to
   authenticate through LDAP via a bind user. For this it's necessary to
   set a bind DN together with a bind password. Setting a bind DN
   without a bind password will cause all LDAP/AD realm authentication
@@ -18,6 +16,5 @@ deprecation:
   Documentation on how to set a bind password is available for
   [LDAP](https://www.elastic.co/guide/en/elasticsearch/reference/current/ldap-realm.html#ldap-realm-configuration)
   and
-  [AD](https://www.elastic.co/guide/en/elasticsearch/reference/current/active-directory-realm.html#ad-realm-configuration).
-  impact: In the next major release, nodes will fail to start if they
-  have a bind DN set but are missing a bind password for LDAP/AD realms.
+  [AD](https://www.elastic.co/guide/en/elasticsearch/reference/current/active-directory-realm.html#ad-realm-configuration)."
+  impact: In the next major release, nodes will fail to start if they have a bind DN set but are missing a bind password for LDAP/AD realms.

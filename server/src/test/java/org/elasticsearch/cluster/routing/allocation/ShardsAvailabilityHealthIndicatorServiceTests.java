@@ -860,8 +860,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             )
         );
 
-        assertThat(actions, hasSize(1));
-        assertThat(actions, contains(ACTION_CHECK_ALLOCATION_EXPLAIN_API));
+        // checkDataTierRelatedIssues will leave list empty. Diagnosis methods upstream will add "Check allocation explain" action.
+        assertThat(actions, hasSize(0));
     }
 
     public void testDiagnoseIncreaseTierCapacity() throws IOException {

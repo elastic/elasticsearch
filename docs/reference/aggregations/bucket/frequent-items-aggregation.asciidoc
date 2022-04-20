@@ -142,6 +142,7 @@ The API returns a response similar to the following one:
   }
 }
 -------------------------------------------------
+// TEST[skip:setup kibana sample data]
 
 The response shows that the categories customers purcashe from most frequently 
 together are `Women's Clothing` and `Women's Shoes`. It means that customers who 

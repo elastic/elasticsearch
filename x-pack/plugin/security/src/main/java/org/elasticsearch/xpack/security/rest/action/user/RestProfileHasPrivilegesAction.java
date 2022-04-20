@@ -53,7 +53,7 @@ public class RestProfileHasPrivilegesAction extends SecurityBaseRestHandler {
 
     @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
-        try (XContentParser parser = request.contentParser()) {
+        try (XContentParser parser = request.contentOrSourceParamParser()) {
             ProfileHasPrivilegesRequestBuilder requestBuilder = new ProfileHasPrivilegesRequestBuilder(client).parse(parser);
             return channel -> requestBuilder.execute(new RestBuilderListener<>(channel) {
                 @Override

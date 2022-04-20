@@ -11,13 +11,13 @@ setup:
         name: my-template1
         body:
           index_patterns: [k8s*]
-          data_stream: {}
+          data_stream:
+            index_mode : time_series
           template:
             settings:
               index:
                 number_of_replicas: 0
                 number_of_shards: 2
-                mode: time_series
                 routing_path: [metricset, time_series_dimension]
                 time_series:
                   start_time: 2021-04-28T00:00:00Z
@@ -46,19 +46,34 @@ setup:
                               type: long
                             rx:
                               type: long
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field": "pipeline",
+                  "value": "pipeline"
+                }
+              }
+            ]
+          }
 
   - do:
       bulk:
         refresh: true
         index: k8s
         body:
-          - '{"create": {}}'
+          - '{"create": {"pipeline" : "my_pipeline"}}'
           - '{"@timestamp": "2021-04-28T18:50:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
-          - '{"create": {}}'
+          - '{"create": {"pipeline" : "my_pipeline"}}'
           - '{"@timestamp": "2021-04-28T18:50:24.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2005177954, "rx": 801479970}}}}'
-          - '{"create": {}}'
+          - '{"create": {"pipeline" : "my_pipeline"}}'
           - '{"@timestamp": "2021-04-28T18:50:44.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2006223737, "rx": 802337279}}}}'
-          - '{"create": {}}'
+          - '{"create": {"pipeline" : "my_pipeline"}}'
           - '{"@timestamp": "2021-04-28T18:51:04.467Z", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.2", "network": {"tx": 2012916202, "rx": 803685721}}}}'
           - '{"create": {}}'
           - '{"@timestamp": "2021-04-28T18:50:03.142Z", "metricset": "pod", "k8s": {"pod": {"name": "dog", "uid":"df3145b3-0563-4d3b-a0f7-897eb2876ea9", "ip": "10.10.55.3", "network": {"tx": 1434521831, "rx": 530575198}}}}'
@@ -141,3 +156,22 @@ fetch the tsid:
   - match: {aggregations.tsids.buckets.0.doc_count: 4}
   - match: {aggregations.tsids.buckets.1.key: {k8s.pod.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9, metricset: pod}}
   - match: {aggregations.tsids.buckets.1.doc_count: 4}
+
+---
+index without timestamp:
+  - do:
+      catch: /Error extracting data stream timestamp field\:\ Failed to parse object/
+      index:
+        index: k8s
+        body:
+          - '{"metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'
+
+---
+index without timestamp with pipeline:
+  - do:
+      catch: /Error extracting data stream timestamp field\:\ failed to parse date field \[wrong_format\] with format \[strict_date_optional_time_nanos||strict_date_optional_time||epoch_millis\]/
+      index:
+        index: k8s
+        pipeline: my_pipeline
+        body:
+          - '{"@timestamp": "wrong_format", "metricset": "pod", "k8s": {"pod": {"name": "cat", "uid":"947e4ced-1786-4e53-9e0c-5c447e959507", "ip": "10.10.55.1", "network": {"tx": 2001818691, "rx": 802133794}}}}'

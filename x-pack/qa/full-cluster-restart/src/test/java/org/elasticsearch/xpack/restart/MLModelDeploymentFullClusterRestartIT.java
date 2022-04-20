@@ -15,7 +15,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.upgrades.AbstractFullClusterRestartTestCase;
-import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationStatus;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AllocationStatus;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -66,7 +66,7 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractFullClusterRe
         Request loggingSettings = new Request("PUT", "_cluster/settings");
         loggingSettings.setJsonEntity("""
             {"persistent" : {
-                    "logger.org.elasticsearch.xpack.ml.inference.allocation" : "TRACE",
+                    "logger.org.elasticsearch.xpack.ml.inference.assignment" : "TRACE",
                     "logger.org.elasticsearch.xpack.ml.inference.deployment" : "TRACE",
                     "logger.org.elasticsearch.xpack.ml.process.logging" : "TRACE"
                 }}""");
@@ -115,7 +115,7 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractFullClusterRe
                 equalTo("fully_allocated")
             );
             assertThat(stat.toString(), XContentMapValues.extractValue("deployment_stats.state", stat), equalTo("started"));
-        }, 30, TimeUnit.SECONDS);
+        }, 90, TimeUnit.SECONDS);
     }
 
     private void assertInfer(String modelId) throws IOException {

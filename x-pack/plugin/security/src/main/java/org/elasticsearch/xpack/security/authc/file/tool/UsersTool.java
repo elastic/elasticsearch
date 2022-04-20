@@ -11,11 +11,11 @@ import joptsimple.OptionSpec;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.MultiCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
-import org.elasticsearch.common.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
@@ -43,7 +43,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-class UsersTool extends LoggingAwareMultiCommand {
+class UsersTool extends MultiCommand {
 
     UsersTool() {
         super("Manages elasticsearch file users");

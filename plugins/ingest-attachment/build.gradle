@@ -26,19 +26,8 @@ dependencies {
   // mandatory for tika
   api "org.apache.tika:tika-core:${versions.tika}"
   api "org.apache.tika:tika-langdetect:${versions.tika}"
-  api "org.apache.tika:tika-langdetect-optimaize:${versions.tika}"
-  api "com.optimaize.languagedetector:language-detector:0.6"
-  runtimeOnly "com.google.guava:guava:31.1-jre" //optimaize
+  api "org.apache.tika:tika-langdetect-tika:${versions.tika}"
   api "org.apache.tika:tika-parsers-standard-package:${versions.tika}"
-  //api "org.apache.tika:tika-parser-html-module:${versions.tika}"
-  //api "org.apache.tika:tika-parser-microsoft-module:${versions.tika}"
-  //api "org.apache.tika:tika-parser-pdf-module:${versions.tika}"
-  //api "org.apache.tika:tika-parser-xml-module:${versions.tika}"
-  //api "org.apache.tika:tika-parser-text-module:${versions.tika}"
-  //api "org.apache.tika:tika-parser-miscoffice-module:${versions.tika}"
-  //api "org.apache.tika:tika-parser-apple-module:${versions.tika}"
-  //api "org.apache.tika:tika-parser-xmp-commons:${versions.tika}"
-  //api "org.apache.tika:tika-parser-zip-commons:${versions.tika}"
   api 'org.tukaani:xz:1.8'
   api 'commons-io:commons-io:2.11.0'
   api "org.slf4j:slf4j-api:${versions.slf4j}"
@@ -106,23 +95,6 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
 
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses()
-  ignoreViolations(
-    // uses internal java api: sun.misc.Unsafe
-    'com.google.common.cache.Striped64',
-    'com.google.common.cache.Striped64$1',
-    'com.google.common.cache.Striped64$Cell',
-    'com.google.common.hash.Striped64',
-    'com.google.common.hash.Striped64$1',
-    'com.google.common.hash.Striped64$Cell',
-    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
-    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
-    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',
-    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper',
-    'com.google.common.util.concurrent.AbstractFuture$UnsafeAtomicHelper$1',
-    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator',
-    'com.google.common.primitives.UnsignedBytes$LexicographicalComparatorHolder$UnsafeComparator$1'
-  )
 }
 
 if (BuildParams.inFipsJvm) {

@@ -1,8 +1,8 @@
 ---
 "Test ingest attachment processor with .doc file":
   - skip:
-      version: " - 8.2.99"
-      reason: "tika upgraded in 8.3.0"
+      version: " - 7.99.99"
+      reason: "new fields added in 8.0.0"
   - do:
       ingest.put_pipeline:
         id: "my_pipeline"
@@ -32,7 +32,7 @@
         id: "1"
   - length: { _source.attachment: 8 }
   - match: { _source.attachment.content: "Test elasticsearch" }
-  - match: { _source.attachment.language: "en" }
+  - match: { _source.attachment.language: "et" }
   - match: { _source.attachment.author: "David Pilato" }
   - match: { _source.attachment.date: "2016-03-10T08:25:00Z" }
   - match: { _source.attachment.content_length: 19 }
@@ -75,7 +75,7 @@
         id: "1"
   - length: { _source.attachment: 8 }
   - match: { _source.attachment.content: "Test elasticsearch\n\n/docProps/thumbnail.jpeg" }
-  - match: { _source.attachment.language: "en" }
+  - match: { _source.attachment.language: "et" }
   - match: { _source.attachment.author: "David Pilato" }
   - match: { _source.attachment.date: "2016-03-10T08:24:00Z" }
   - match: { _source.attachment.content_length: 46 }

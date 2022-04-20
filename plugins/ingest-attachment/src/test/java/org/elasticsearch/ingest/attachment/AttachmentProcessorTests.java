@@ -128,7 +128,7 @@ public class AttachmentProcessorTests extends ESTestCase {
 
         assertThat(attachmentData.keySet(), hasItem("language"));
         // lt seems some standard for not detected
-        assertThat(attachmentData.get("language"), is("sl"));
+        assertThat(attachmentData.get("language"), is("lt"));
     }
 
     public void testEmptyTextDocument() throws Exception {
@@ -492,7 +492,7 @@ public class AttachmentProcessorTests extends ESTestCase {
         attachmentData = parseDocument("text-in-english.txt", processor, Collections.singletonMap("max_length", 10));
 
         assertThat(attachmentData.keySet(), containsInAnyOrder("language", "content", "content_type", "content_length"));
-        assertThat(attachmentData.get("language"), is("hr"));
+        assertThat(attachmentData.get("language"), is("sk"));
         assertThat(attachmentData.get("content"), is("\"God Save"));
         assertThat(attachmentData.get("content_type").toString(), containsString("text/plain"));
         assertThat(attachmentData.get("content_length"), is(10L));

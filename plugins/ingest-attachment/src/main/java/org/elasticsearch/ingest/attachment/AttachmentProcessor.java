@@ -11,8 +11,7 @@ package org.elasticsearch.ingest.attachment;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.tika.exception.ZeroByteFileException;
-import org.apache.tika.language.detect.LanguageDetector;
-import org.apache.tika.language.detect.LanguageResult;
+import org.apache.tika.langdetect.tika.LanguageIdentifier;
 import org.apache.tika.metadata.Metadata;
 import org.apache.tika.metadata.Office;
 import org.apache.tika.metadata.TikaCoreProperties;
@@ -52,7 +51,6 @@ public final class AttachmentProcessor extends AbstractProcessor {
     private final boolean removeBinary;
     private final String indexedCharsField;
     private final String resourceName;
-    private LanguageDetector languageDetector;
 
     AttachmentProcessor(
         String tag,
@@ -75,17 +73,6 @@ public final class AttachmentProcessor extends AbstractProcessor {
         this.indexedCharsField = indexedCharsField;
         this.resourceName = resourceName;
         this.removeBinary = removeBinary;
-        try {
-            this.languageDetector = LanguageDetector.getDefaultLanguageDetector().loadModels();
-        } catch (Exception e) {
-            String noLangDetectMessage = "No language detector on the classpath. Language detection will not run";
-            if (properties != null && properties.contains(Property.LANGUAGE)) {
-                LOGGER.error(noLangDetectMessage, e);
-            } else {
-                LOGGER.trace(noLangDetectMessage, e);
-            }
-            this.languageDetector = null;
-        }
     }
 
     boolean isIgnoreMissing() {
@@ -142,19 +129,9 @@ public final class AttachmentProcessor extends AbstractProcessor {
         }
 
         if (properties.contains(Property.LANGUAGE) && Strings.hasLength(parsedContent)) {
-            if (languageDetector != null) {
-                LanguageResult languageResult = languageDetector.detect(parsedContent);
-                String language = languageResult.getLanguage();
-                if (languageResult.isReasonablyCertain() == false && LOGGER.isTraceEnabled()) {
-                    String title = metadata.get(TikaCoreProperties.TITLE);
-                    LOGGER.trace(
-                        "Not reasonably confident about language {} detected for document {}",
-                        language,
-                        title == null ? "" : title
-                    );
-                }
-                additionalFields.put(Property.LANGUAGE.toLowerCase(), language);
-            }
+            LanguageIdentifier identifier = new LanguageIdentifier(parsedContent);
+            String language = identifier.getLanguage();
+            additionalFields.put(Property.LANGUAGE.toLowerCase(), language);
         }
 
         addAdditionalField(additionalFields, Property.DATE, metadata.get(TikaCoreProperties.CREATED));

@@ -83,7 +83,7 @@ public class TimeSeriesIndexSearcher {
                 // this is needed to trigger actions in some bucketCollectors that bypass the normal iteration logic
                 // for example, global aggregator triggers a separate iterator that ignores the query but still needs
                 // to know all leaves
-                bucketCollector.getLeafCollector(new AggregationExecutionContext(leaf, null));
+                bucketCollector.getLeafCollector(new AggregationExecutionContext(leaf, null, null));
             }
         }
 
@@ -179,7 +179,7 @@ public class TimeSeriesIndexSearcher {
         long timestamp;
 
         LeafWalker(LeafReaderContext context, Scorer scorer, BucketCollector bucketCollector, LeafReaderContext leaf) throws IOException {
-            AggregationExecutionContext aggCtx = new AggregationExecutionContext(leaf, scratch::get);
+            AggregationExecutionContext aggCtx = new AggregationExecutionContext(leaf, scratch::get, () -> timestamp);
             this.collector = bucketCollector.getLeafCollector(aggCtx);
             liveDocs = context.reader().getLiveDocs();
             this.collector.setScorer(scorer);
@@ -208,7 +208,8 @@ public class TimeSeriesIndexSearcher {
         }
 
         BytesRef getTsid() throws IOException {
-            scratch.copyBytes(tsids.lookupOrd(tsids.ordValue()));
+            tsidOrd = tsids.ordValue();
+            scratch.copyBytes(tsids.lookupOrd(tsidOrd));
             return scratch.get();
         }
 
@@ -221,13 +222,11 @@ public class TimeSeriesIndexSearcher {
 
         // true if the TSID ord has changed since the last time we checked
         boolean shouldPop() throws IOException {
-            if (tsidOrd == -1) {
-                tsidOrd = tsids.ordValue();
-            } else if (tsidOrd != tsids.ordValue()) {
-                tsidOrd = tsids.ordValue();
+            if (tsidOrd != tsids.ordValue()) {
                 return true;
+            } else {
+                return false;
             }
-            return false;
         }
     }
 }

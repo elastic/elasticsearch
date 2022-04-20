@@ -12,6 +12,7 @@ import org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin;
 import org.elasticsearch.gradle.internal.ElasticsearchTestBasePlugin;
 import org.elasticsearch.gradle.internal.FixtureStop;
 import org.elasticsearch.gradle.internal.InternalTestClustersPlugin;
+import org.elasticsearch.gradle.internal.precommit.InternalPrecommitTasks;
 import org.elasticsearch.gradle.test.SystemPropertyCommandLineArgumentProvider;
 import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask;
@@ -48,6 +49,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
         project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
         project.getPluginManager().apply(ElasticsearchTestBasePlugin.class);
         project.getPluginManager().apply(InternalTestClustersPlugin.class);
+        InternalPrecommitTasks.create(project, false);
         project.getTasks().withType(RestIntegTestTask.class).configureEach(restIntegTestTask -> {
             @SuppressWarnings("unchecked")
             NamedDomainObjectContainer<ElasticsearchCluster> testClusters = (NamedDomainObjectContainer<ElasticsearchCluster>) project

@@ -95,7 +95,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
         createComposableTemplate(
             client(),
-            randomAlphaOfLengthBetween(5, 10).toLowerCase(),
+            randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT),
             dataStream,
             new Template(Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy).build(), null, null)
         );
@@ -126,7 +126,12 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         createSnapshotRepo(client(), snapshotRepo, randomBoolean());
         createNewSingletonPolicy(client(), policy, "cold", new SearchableSnapshotAction(snapshotRepo, true));
 
-        createComposableTemplate(client(), randomAlphaOfLengthBetween(5, 10).toLowerCase(), dataStream, new Template(null, null, null));
+        createComposableTemplate(
+            client(),
+            randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT),
+            dataStream,
+            new Template(null, null, null)
+        );
 
         for (int i = 0; i < randomIntBetween(5, 10); i++) {
             indexDocument(client(), dataStream, true);
@@ -196,7 +201,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
         createComposableTemplate(
             client(),
-            randomAlphaOfLengthBetween(5, 10).toLowerCase(),
+            randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT),
             dataStream,
             new Template(Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy).build(), null, null)
         );
@@ -290,7 +295,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
         createComposableTemplate(
             client(),
-            randomAlphaOfLengthBetween(5, 10).toLowerCase(),
+            randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT),
             dataStream,
             new Template(
                 Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 5).put(LifecycleSettings.LIFECYCLE_NAME, policy).build(),
@@ -382,7 +387,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
         createComposableTemplate(
             client(),
-            randomAlphaOfLengthBetween(5, 10).toLowerCase(),
+            randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT),
             dataStream,
             new Template(
                 Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 5).put(LifecycleSettings.LIFECYCLE_NAME, policy).build(),
@@ -648,7 +653,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
         createComposableTemplate(
             client(),
-            randomAlphaOfLengthBetween(5, 10).toLowerCase(),
+            randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT),
             dataStream,
             new Template(
                 Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).put(LifecycleSettings.LIFECYCLE_NAME, policy).build(),
@@ -695,7 +700,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
 
         createComposableTemplate(
             client(),
-            randomAlphaOfLengthBetween(5, 10).toLowerCase(),
+            randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT),
             dataStream,
             new Template(Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy).build(), null, null)
         );

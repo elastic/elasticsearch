@@ -12,15 +12,31 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.search.SearchAction;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.MultiMatchQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.FieldSortBuilder;
+import org.elasticsearch.search.sort.ScoreSortBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.profile.Profile;
+import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesRequest;
+import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesRequestTests;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
 import org.elasticsearch.xpack.core.security.authc.Subject;
@@ -38,6 +54,7 @@ import org.mockito.Mockito;
 import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -47,7 +64,9 @@ import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ALIAS;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -114,6 +133,9 @@ public class ProfileServiceTests extends ESTestCase {
         );
         this.client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
+        when(client.prepareSearch(SECURITY_PROFILE_ALIAS)).thenReturn(
+            new SearchRequestBuilder(client, SearchAction.INSTANCE).setIndices(SECURITY_PROFILE_ALIAS)
+        );
         this.profileIndex = SecurityMocks.mockSecurityIndexManager(SECURITY_PROFILE_ALIAS);
         this.profileService = new ProfileService(Settings.EMPTY, Clock.systemUTC(), client, profileIndex, threadPool);
     }
@@ -226,6 +248,62 @@ public class ProfileServiceTests extends ESTestCase {
         );
         final ElasticsearchException e3 = expectThrows(ElasticsearchException.class, future3::actionGet);
         assertThat(e3.getMessage(), containsString("differentiator is not a number"));
+    }
+
+    public void testBuildSearchRequest() {
+        final String name = randomAlphaOfLengthBetween(0, 8);
+        final int size = randomIntBetween(0, Integer.MAX_VALUE);
+        final SuggestProfilesRequest.Hint hint = SuggestProfilesRequestTests.randomHint();
+        final SuggestProfilesRequest suggestProfilesRequest = new SuggestProfilesRequest(Set.of(), name, size, hint);
+
+        final SearchRequest searchRequest = profileService.buildSearchRequest(suggestProfilesRequest);
+        final SearchSourceBuilder searchSourceBuilder = searchRequest.source();
+
+        assertThat(
+            searchSourceBuilder.sorts(),
+            equalTo(List.of(new ScoreSortBuilder(), new FieldSortBuilder("user_profile.last_synchronized").order(SortOrder.DESC)))
+        );
+        assertThat(searchSourceBuilder.size(), equalTo(size));
+
+        assertThat(searchSourceBuilder.query(), instanceOf(BoolQueryBuilder.class));
+
+        final BoolQueryBuilder query = (BoolQueryBuilder) searchSourceBuilder.query();
+        if (Strings.hasText(name)) {
+            assertThat(
+                query.must(),
+                equalTo(
+                    List.of(
+                        QueryBuilders.multiMatchQuery(
+                            name,
+                            "user_profile.user.username",
+                            "user_profile.user.username._2gram",
+                            "user_profile.user.username._3gram",
+                            "user_profile.user.full_name",
+                            "user_profile.user.full_name._2gram",
+                            "user_profile.user.full_name._3gram",
+                            "user_profile.user.email"
+                        ).type(MultiMatchQueryBuilder.Type.BOOL_PREFIX).fuzziness(Fuzziness.AUTO)
+                    )
+                )
+            );
+        } else {
+            assertThat(query.must(), empty());
+        }
+
+        if (hint != null) {
+            final List<QueryBuilder> shouldQueries = new ArrayList<>(query.should());
+            if (hint.getUids() != null) {
+                assertThat(shouldQueries.remove(0), equalTo(QueryBuilders.termsQuery("user_profile.uid", hint.getUids())));
+            }
+            final Tuple<String, List<String>> label = hint.getSingleLabel();
+            if (label != null) {
+                final List<String> labelValues = label.v2();
+                assertThat(shouldQueries.remove(0), equalTo(QueryBuilders.termsQuery("user_profile.labels." + label.v1(), labelValues)));
+            }
+            assertThat(query.minimumShouldMatch(), equalTo("0"));
+        } else {
+            assertThat(query.should(), empty());
+        }
     }
 
     private void mockGetRequest(String uid, long lastSynchronized) {

@@ -509,7 +509,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
 
         final SetOnce<SecureString> nodeKeystorePassword = new SetOnce<>();
         try (KeyStoreWrapper nodeKeystore = KeyStoreWrapper.bootstrap(env.configFile(), () -> {
-            nodeKeystorePassword.set(new SecureString(terminal.readSecret("", KeyStoreWrapper.MAX_PASSPHRASE_LENGTH)));
+            nodeKeystorePassword.set(new SecureString(terminal.readSecret("")));
             return nodeKeystorePassword.get().clone();
         })) {
             // do not overwrite keystore entries
@@ -1252,9 +1252,7 @@ public class AutoConfigureNode extends EnvironmentAwareCommand {
             try (
                 KeyStoreWrapper existingKeystore = KeyStoreWrapper.load(env.configFile());
                 SecureString keystorePassword = existingKeystore.hasPassword()
-                    ? new SecureString(
-                        terminal.readSecret("Enter password for the elasticsearch keystore: ", KeyStoreWrapper.MAX_PASSPHRASE_LENGTH)
-                    )
+                    ? new SecureString(terminal.readSecret("Enter password for the elasticsearch keystore: "))
                     : new SecureString(new char[0]);
             ) {
                 existingKeystore.decrypt(keystorePassword.getChars());

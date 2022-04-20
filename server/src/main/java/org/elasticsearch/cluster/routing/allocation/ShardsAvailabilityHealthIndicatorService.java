@@ -47,6 +47,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -158,18 +159,20 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         null
     );
 
-    public static final UserAction.Definition ACTION_ENABLE_TIERS = new UserAction.Definition(
-        "enable_data_tiers",
-        "Elasticsearch isn't allowed to allocate shards from these indices because the indices expect to be allocated to data tier nodes, "
-            + "but none were found in the cluster. Add nodes with data tier roles ("
-            + DataTier.DATA_HOT
-            + ", "
-            + DataTier.DATA_WARM
-            + ", "
-            + DataTier.DATA_COLD
-            + ", etc.) to the cluster.",
-        null
-    );
+    public static final Map<String, UserAction.Definition> ACTION_ENABLE_TIERS_LOOKUP;
+    static {
+        Map<String, UserAction.Definition> lookup = DataTier.ALL_DATA_TIERS.stream()
+            .collect(Collectors.toMap(tier -> tier, tier -> new UserAction.Definition(
+                "enable_data_tiers_" + tier,
+                "Elasticsearch isn't allowed to allocate shards from these indices because the indices expect to be allocated to data "
+                    + "tier nodes, but there were not any nodes with the expected tiers found in the cluster. Add nodes with the ["
+                    + tier
+                    + "] role to the cluster.",
+                null
+            )));
+        ACTION_ENABLE_TIERS_LOOKUP = Collections.unmodifiableMap(lookup);
+    }
+
     public static final UserAction.Definition ACTION_SHARD_LIMIT = new UserAction.Definition(
         "increase_shard_limit",
         "Elasticsearch isn't allowed to allocate some shards from these indices to any of the nodes in its data tier because each node in "
@@ -410,7 +413,11 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 .filter(hasDeciderResult(DATA_TIER_ALLOCATION_DECIDER_NAME, Decision.Type.YES))
                 .toList();
             if (dataTierAllocationResults.isEmpty()) {
-                actions.add(ACTION_ENABLE_TIERS);
+                // Shard must be allocated on specific tiers but no nodes were enabled for those tiers.
+                for (String tier : indexMetadata.getTierPreference()) {
+                    Optional.ofNullable(ACTION_ENABLE_TIERS_LOOKUP.get(tier))
+                        .ifPresent(actions::add);
+                }
             } else {
                 // All tier nodes at shards limit?
                 if (dataTierAllocationResults.stream().allMatch(hasDeciderResult(ShardsLimitAllocationDecider.NAME, Decision.Type.NO))) {

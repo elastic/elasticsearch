@@ -58,7 +58,7 @@ import static org.elasticsearch.cluster.routing.ShardRouting.newUnassigned;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_CHECK_ALLOCATION_EXPLAIN_API;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_ENABLE_CLUSTER_ROUTING_ALLOCATION;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_ENABLE_INDEX_ROUTING_ALLOCATION;
-import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_ENABLE_TIERS;
+import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_ENABLE_TIERS_LOOKUP;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_TIER_CAPACITY;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_MIGRATE_TIERS;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_RESTORE_FROM_SNAPSHOT;
@@ -723,7 +723,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
 
         assertThat(actions, hasSize(1));
-        assertThat(actions, contains(ACTION_ENABLE_TIERS));
+        assertThat(actions, contains(ACTION_ENABLE_TIERS_LOOKUP.get(DataTier.DATA_HOT)));
     }
 
     public void testDiagnoseIncreaseShardLimit() throws IOException {

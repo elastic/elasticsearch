@@ -83,8 +83,8 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
      * @param script
      *            The script to use.
      * @param type
-     *            The type of the script, can be either {@link ScriptSortType#STRING} or
-     *            {@link ScriptSortType#NUMBER}
+     *            The type of the script, can be {@link ScriptSortType#STRING},
+     *            {@link ScriptSortType#NUMBER} or {@link ScriptSortType#VERSION}
      */
     public ScriptSortBuilder(Script script, ScriptSortType type) {
         Objects.requireNonNull(script, "script cannot be null");
@@ -253,11 +253,15 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
     public SortFieldAndFormat build(SearchExecutionContext context) throws IOException {
         DocValueFormat docValueFormat = DocValueFormat.RAW;
         if ("version".equals(this.type.toString())) {
-            if (versionFieldType == null) {
-                // TODO there must be a better way to get the field type...
-                versionFieldType = context.buildAnonymousFieldType("version");
+            try {
+                if (versionFieldType == null) {
+                    // TODO there must be a better way to get the field type...
+                    versionFieldType = context.buildAnonymousFieldType("version");
+                }
+                docValueFormat = versionFieldType.docValueFormat(null, null);
+            } catch (Exception e) {
+                // "version" type is not available, fall back to RAW and sort as a string
             }
-            docValueFormat = versionFieldType.docValueFormat(null, null);
         }
         return new SortFieldAndFormat(new SortField("_script", fieldComparatorSource(context), order == SortOrder.DESC), docValueFormat);
     }

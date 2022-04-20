@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.versionfield;
 
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.field.AbstractScriptFieldFactory;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
@@ -120,7 +121,7 @@ public class VersionStringDocValuesField extends AbstractScriptFieldFactory<Vers
             return defaultValue;
         }
 
-        return new Version(getInternal(index));
+        return getVersionFromInternal(index);
     }
 
     /**
@@ -143,8 +144,19 @@ public class VersionStringDocValuesField extends AbstractScriptFieldFactory<Vers
                 if (hasNext() == false) {
                     throw new NoSuchElementException();
                 }
-                return new Version(getInternal(index++));
+
+                return getVersionFromInternal(index++);
             }
         };
+    }
+
+    private Version getVersionFromInternal(int index) {
+        try {
+            BytesRef bytes = input.lookupOrd(ords[index]);
+            // TODO deep copy of the BytesRef?
+            return new Version(VersionEncoder.decodeVersion(bytes), bytes);
+        } catch (IOException ex) {
+            throw new RuntimeException(ex);
+        }
     }
 }

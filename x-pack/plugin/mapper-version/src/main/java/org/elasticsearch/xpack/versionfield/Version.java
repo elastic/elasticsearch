@@ -16,14 +16,18 @@ import java.io.IOException;
 
 /**
  * Script value class.
- * TODO(stu): implement {@code Comparable<Version>} based on {@code VersionEncoder#prefixDigitGroupsWithLength(String, BytesRefBuilder)}
- * See: https://github.com/elastic/elasticsearch/issues/82287
  */
 public class Version implements ToXContent, BytesRefProducer, Comparable<Version> {
     protected String version;
+    protected BytesRef bytes;
 
     public Version(String version) {
+        this(version, VersionEncoder.encodeVersion(version).bytesRef);
+    }
+
+    protected Version(String version, BytesRef bytes) {
         this.version = version;
+        this.bytes = bytes;
     }
 
     @Override
@@ -43,8 +47,7 @@ public class Version implements ToXContent, BytesRefProducer, Comparable<Version
 
     @Override
     public BytesRef toBytesRef() {
-        // TODO cache it, or even better, copy it when the object is created
-        return VersionEncoder.encodeVersion(version).bytesRef;
+        return bytes;
     }
 
     @Override

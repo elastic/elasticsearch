@@ -144,7 +144,7 @@ Contains data about the calling user or application.
 Signature::
 The data that's used to validate the token.
 
-[source,json]
+[source,js]
 ----
 Header: {"typ":"JWT","alg":"HS256"}
 Claims: {"aud":"aud8","sub":"security_test_user","iss":"iss8","exp":4070908800,"iat":946684800}
@@ -253,7 +253,7 @@ JWT realm authorization supports role mapping API or delegated authorization rea
 IMPORTANT: You cannot map roles in the JWT realm does using the
 `role_mapping.yml` file.
 
-===== JWT realm authorization via Role Mapping API
+===== JWT realm authorization using the role mapping API
 
 .If JWT realm role mapping is used for authorization, these claims are available for role mapping.
 * `principal` claim: JWT claim in the form of a string is used as the {es} user's principal string value.
@@ -334,7 +334,7 @@ WARNING: HMAC UTF-8 keys need to be longer than HMAC random byte keys to achieve
 
 These values are for a custom authentication service that issues JWTs; external to {es}.
 
-[source,json]
+[source,js]
 ----
 Issuer:     iss8
 Audiences:  aud8
@@ -389,7 +389,7 @@ PUT /_security/role_mapping/jwt8_users
 
 These settings are for an {es} client.
 
-[source,json]
+[source,js]
 ----
 ES-Client-Authentication: SharedSecret client-shared-secret-string
 Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJpc3M4IiwiYXVkIjoiYXVkOCIsInN1YiI6InNlY3VyaXR5X3Rlc3RfdXNlciIsImV4cCI6NDA3MDkwODgwMCwiaWF0Ijo5NDY2ODQ4MDB9.UnnFmsoFKfNmKMsVoDQmKI_3-j95PCaKdgqqau3jPMY

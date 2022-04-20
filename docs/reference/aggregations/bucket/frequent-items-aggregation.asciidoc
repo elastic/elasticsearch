@@ -105,7 +105,7 @@ The API returns a response similar to the following one:
 -------------------------------------------------
 (...)
 "aggregations" : {
-    "frequ" : {
+    "my_agg" : {
       "buckets" : [
         {
           "key" : {

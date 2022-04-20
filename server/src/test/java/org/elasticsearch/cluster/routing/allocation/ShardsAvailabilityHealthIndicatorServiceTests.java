@@ -53,6 +53,8 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.toMap;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX;
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.RESTART;
 import static org.elasticsearch.cluster.routing.ShardRouting.newUnassigned;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_CHECK_ALLOCATION_EXPLAIN_API;
@@ -752,7 +754,81 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         assertThat(actions, contains(ACTION_SHARD_LIMIT));
     }
 
-    public void testDiagnoseMigrateToDataTiers() throws IOException {
+    public void testDiagnoseMigrateDataRequiredToDataTiers() throws IOException {
+        // Index definition, 1 primary no replicas, in the hot tier, with require attribute data:hot
+        IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(DataTier.TIER_PREFERENCE, DataTier.DATA_HOT)
+                    .put(INDEX_ROUTING_REQUIRE_GROUP_PREFIX + ".data", "hot")
+                    .build()
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+
+        var service = createAllocationHealthIndicatorService();
+
+        // Get the list of user actions that are generated for this unassigned index shard
+        List<UserAction.Definition> actions = new ArrayList<>();
+        service.checkDataTierRelatedIssues(
+            actions,
+            indexMetadata,
+            List.of(
+                // Shard is allowed on data tier, but disallowed because of allocation filters
+                new NodeAllocationResult(
+                    // Node has no data attributes on it
+                    new DiscoveryNode(randomNodeId(), buildNewFakeTransportAddress(), Version.CURRENT),
+                    new Decision.Multi().add(Decision.single(Decision.Type.YES, "data_tier", null))
+                        .add(Decision.single(Decision.Type.NO, FilterAllocationDecider.NAME, null)),
+                    1
+                )
+            )
+        );
+
+        assertThat(actions, hasSize(1));
+        assertThat(actions, contains(ACTION_MIGRATE_TIERS));
+    }
+
+    public void testDiagnoseMigrateDataIncludedToDataTiers() throws IOException {
+        // Index definition, 1 primary no replicas, in the hot tier, with include attribute data:hot
+        IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(DataTier.TIER_PREFERENCE, DataTier.DATA_HOT)
+                    .put(INDEX_ROUTING_INCLUDE_GROUP_PREFIX + ".data", "hot")
+                    .build()
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+
+        var service = createAllocationHealthIndicatorService();
+
+        // Get the list of user actions that are generated for this unassigned index shard
+        List<UserAction.Definition> actions = new ArrayList<>();
+        service.checkDataTierRelatedIssues(
+            actions,
+            indexMetadata,
+            List.of(
+                // Shard is allowed on data tier, but disallowed because of allocation filters
+                new NodeAllocationResult(
+                    // Node has no data attributes on it
+                    new DiscoveryNode(randomNodeId(), buildNewFakeTransportAddress(), Version.CURRENT),
+                    new Decision.Multi().add(Decision.single(Decision.Type.YES, "data_tier", null))
+                        .add(Decision.single(Decision.Type.NO, FilterAllocationDecider.NAME, null)),
+                    1
+                )
+            )
+        );
+
+        assertThat(actions, hasSize(1));
+        assertThat(actions, contains(ACTION_MIGRATE_TIERS));
+    }
+
+    public void testDiagnoseOtherFilteringIssue() throws IOException {
         // Index definition, 1 primary no replicas, in the hot tier
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(
@@ -775,6 +851,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             List.of(
                 // Shard is allowed on data tier, but disallowed because of allocation filters
                 new NodeAllocationResult(
+                    // Node does not have data attribute on it
                     new DiscoveryNode(randomNodeId(), buildNewFakeTransportAddress(), Version.CURRENT),
                     new Decision.Multi().add(Decision.single(Decision.Type.YES, "data_tier", null))
                         .add(Decision.single(Decision.Type.NO, FilterAllocationDecider.NAME, null)),
@@ -784,7 +861,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
 
         assertThat(actions, hasSize(1));
-        assertThat(actions, contains(ACTION_MIGRATE_TIERS));
+        assertThat(actions, contains(ACTION_CHECK_ALLOCATION_EXPLAIN_API));
     }
 
     public void testDiagnoseIncreaseTierCapacity() throws IOException {

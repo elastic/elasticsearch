@@ -17,6 +17,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -56,6 +58,8 @@ import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.cluster.health.ClusterShardHealth.getInactivePrimaryHealth;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
@@ -429,9 +433,32 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     actions.add(ACTION_SHARD_LIMIT);
                 }
 
-                // All tier nodes conflict with allocation filters?
+                // Check if index has filter requirements on the old "data" attribute that might be keeping it from allocating.
                 if (dataTierAllocationResults.stream().allMatch(hasDeciderResult(FilterAllocationDecider.NAME, Decision.Type.NO))) {
-                    actions.add(ACTION_MIGRATE_TIERS);
+                    Map<String, List<String>> requireAttributes = INDEX_ROUTING_REQUIRE_GROUP_SETTING.getAsMap(indexMetadata.getSettings());
+                    List<String> requireDataAttributes = requireAttributes.get("data");
+                    DiscoveryNodeFilters requireFilter = requireDataAttributes == null ? null : DiscoveryNodeFilters.buildFromKeyValues(
+                        DiscoveryNodeFilters.OpType.AND,
+                        Map.of("data", requireDataAttributes)
+                    );
+
+                    Map<String, List<String>> includeAttributes = INDEX_ROUTING_INCLUDE_GROUP_SETTING.getAsMap(indexMetadata.getSettings());
+                    List<String> includeDataAttributes = includeAttributes.get("data");
+                    DiscoveryNodeFilters includeFilter = includeDataAttributes == null ? null : DiscoveryNodeFilters.buildFromKeyValues(
+                        DiscoveryNodeFilters.OpType.OR,
+                        Map.of("data", includeDataAttributes)
+                    );
+                    if (requireFilter != null || includeFilter != null) {
+                        List<DiscoveryNode> dataTierNodes = dataTierAllocationResults.stream().map(NodeAllocationResult::getNode).toList();
+                        // Check if the data tier nodes this shard is allowed on have data attributes that match
+                        if (requireFilter != null && dataTierNodes.stream().noneMatch(requireFilter::match)) {
+                            // No data tier nodes match the required data attribute
+                            actions.add(ACTION_MIGRATE_TIERS);
+                        } else if (includeFilter != null && dataTierNodes.stream().noneMatch(includeFilter::match)) {
+                            // No data tier nodes match the included data attributes
+                            actions.add(ACTION_MIGRATE_TIERS);
+                        }
+                    }
                 }
 
                 // Not enough tier nodes to hold shards on different nodes?

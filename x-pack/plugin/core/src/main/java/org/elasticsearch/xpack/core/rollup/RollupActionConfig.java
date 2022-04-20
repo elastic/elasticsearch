@@ -104,6 +104,13 @@ public class RollupActionConfig implements NamedWriteable, ToXContentObject {
         timeZone = in.readString();
     }
 
+    @Override
+    public void writeTo(final StreamOutput out) throws IOException {
+        out.writeString(FIXED_INTERVAL);
+        fixedInterval.writeTo(out);
+        out.writeString(timeZone);
+    }
+
     /**
      * Get the timestamp field to be used for rolling up data. Currently,
      * only the "@timestamp" value is supported.
@@ -150,13 +157,6 @@ public class RollupActionConfig implements NamedWriteable, ToXContentObject {
     @Override
     public String getWriteableName() {
         return NAME;
-    }
-
-    @Override
-    public void writeTo(final StreamOutput out) throws IOException {
-        out.writeString(FIXED_INTERVAL);
-        fixedInterval.writeTo(out);
-        out.writeString(timeZone);
     }
 
     @Override

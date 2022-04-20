@@ -125,7 +125,11 @@ public class RollupIndexerAction extends ActionType<RollupIndexerAction.Response
 
         @Override
         public int hashCode() {
-            return Objects.hash(rollupIndex, rollupRequest, dimensionFields, metricFields);
+            int result = rollupIndex.hashCode();
+            result = 31 * result + rollupRequest.hashCode();
+            result = 31 * result + Arrays.hashCode(dimensionFields);
+            result = 31 * result + Arrays.hashCode(metricFields);
+            return result;
         }
 
         @Override

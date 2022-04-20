@@ -142,6 +142,7 @@ public class PluginBuildPlugin implements Plugin<Project> {
                 });
             }
         });
+
         final var resolveModuleName = project.getTasks().register("resolveModuleName", t -> {
             t.doLast(task -> {
                 var mainSourceSet = project.getExtensions().getByType(SourceSetContainer.class).getByName(SourceSet.MAIN_SOURCE_SET_NAME);
@@ -175,6 +176,7 @@ public class PluginBuildPlugin implements Plugin<Project> {
                 t.getExtensions().add("resolvedModuleName", moduleName);
             });
         });
+
         final var buildProperties = project.getTasks().register("pluginProperties", Copy.class, copy -> {
             copy.dependsOn(copyPluginPropertiesTemplate);
             copy.from(templateFile);

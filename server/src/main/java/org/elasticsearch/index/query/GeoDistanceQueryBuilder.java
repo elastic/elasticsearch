@@ -244,7 +244,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
 
         final GeoShapeQueryable geoShapeQueryable = (GeoShapeQueryable) fieldType;
         final Circle circle = new Circle(center.lon(), center.lat(), this.distance);
-        return geoShapeQueryable.geoShapeQuery(circle, fieldType.name(), SpatialStrategy.RECURSIVE, ShapeRelation.INTERSECTS, context);
+        return geoShapeQueryable.geoShapeQuery(context, fieldType.name(), SpatialStrategy.RECURSIVE, ShapeRelation.INTERSECTS, circle);
     }
 
     @Override

@@ -24,6 +24,7 @@ import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 
 import java.net.UnknownHostException;
@@ -179,7 +180,9 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
      */
     private static MasterHistoryService createMasterHistoryService() throws ExecutionException, InterruptedException {
         var clusterService = mock(ClusterService.class);
-        MasterHistory localMasterHistory = new MasterHistory(clusterService);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.relativeTimeInMillis()).thenReturn(System.currentTimeMillis());
+        MutableMasterHistory localMasterHistory = new MutableMasterHistory(threadPool, clusterService);
         MasterHistoryService masterHistoryService = mock(MasterHistoryService.class);
         when(masterHistoryService.getLocalMasterHistory()).thenReturn(localMasterHistory);
         MasterHistory remoteMasterHistory = mock(MasterHistory.class);

@@ -99,7 +99,8 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
                             "--add-opens=java.management/java.lang.management=ALL-UNNAMED"
                         );
                     }
-                    if (BuildParams.getRuntimeJavaVersion().isCompatibleWith(JavaVersion.VERSION_17)) {
+                    if (BuildParams.getIsRuntimeJavaHomeSet() == false ||
+                            BuildParams.getRuntimeJavaVersion().isCompatibleWith(JavaVersion.VERSION_18)) {
                         test.jvmArgs("-Djava.security.manager=allow");
                     }
                 }

@@ -32,9 +32,7 @@ formation:
     themselves. As this auto-bootstrapping is
     <<modules-discovery-quorums,inherently unsafe>>, running a node in
     <<dev-vs-prod-mode,production mode>> requires bootstrapping to be
-    explicitly configured via the
-    <<modules-discovery-bootstrap-cluster,`cluster.initial_master_nodes`
-    setting>>.
+    <<modules-discovery-bootstrap-cluster,explicitly configured>>.
 
 <<modules-discovery-adding-removing-nodes,Adding and removing master-eligible nodes>>::
 

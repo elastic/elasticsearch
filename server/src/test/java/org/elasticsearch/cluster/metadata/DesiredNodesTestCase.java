@@ -15,6 +15,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.List;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
@@ -38,11 +39,15 @@ public abstract class DesiredNodesTestCase extends ESTestCase {
     }
 
     public static DesiredNodes randomDesiredNodes(Version version, Consumer<Settings.Builder> settingsConsumer) {
-        return new DesiredNodes(
-            UUIDs.randomBase64UUID(),
-            randomIntBetween(1, 20),
-            randomList(1, 10, () -> randomDesiredNode(version, settingsConsumer))
-        );
+        return new DesiredNodes(UUIDs.randomBase64UUID(), randomIntBetween(1, 20), randomDesiredNodeList(version, settingsConsumer));
+    }
+
+    public static List<DesiredNode> randomDesiredNodeListWithRandomSettings(Version version) {
+        return randomDesiredNodeList(version, DesiredNodesTestCase::putRandomSetting);
+    }
+
+    public static List<DesiredNode> randomDesiredNodeList(Version version, Consumer<Settings.Builder> settingsConsumer) {
+        return randomList(2, 10, () -> randomDesiredNode(version, settingsConsumer));
     }
 
     public static DesiredNode randomDesiredNodeWithRandomSettings() {

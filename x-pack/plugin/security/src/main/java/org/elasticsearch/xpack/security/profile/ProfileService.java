@@ -34,9 +34,11 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
@@ -66,6 +68,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -153,8 +156,8 @@ public class ProfileService {
                 builder.field("user_profile");
                 builder.startObject();
                 {
-                    if (false == request.getAccess().isEmpty()) {
-                        builder.field("access", request.getAccess());
+                    if (false == request.getLabels().isEmpty()) {
+                        builder.field("labels", request.getLabels());
                     }
                     if (false == request.getData().isEmpty()) {
                         builder.field("application_data", request.getData());
@@ -183,27 +186,7 @@ public class ProfileService {
                 new TotalHits(0, TotalHits.Relation.EQUAL_TO)
             );
         })).ifPresent(frozenProfileIndex -> {
-            final BoolQueryBuilder query = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("user_profile.enabled", true));
-            if (Strings.hasText(request.getName())) {
-                query.must(
-                    QueryBuilders.multiMatchQuery(
-                        request.getName(),
-                        "user_profile.user.username",
-                        "user_profile.user.username._2gram",
-                        "user_profile.user.username._3gram",
-                        "user_profile.user.full_name",
-                        "user_profile.user.full_name._2gram",
-                        "user_profile.user.full_name._3gram",
-                        "user_profile.user.email"
-                    ).type(MultiMatchQueryBuilder.Type.BOOL_PREFIX)
-                );
-            }
-            final SearchRequest searchRequest = client.prepareSearch(SECURITY_PROFILE_ALIAS)
-                .setQuery(query)
-                .setSize(request.getSize())
-                .addSort("_score", SortOrder.DESC)
-                .addSort("user_profile.last_synchronized", SortOrder.DESC)
-                .request();
+            final SearchRequest searchRequest = buildSearchRequest(request);
 
             frozenProfileIndex.checkIndexVersionThenExecute(
                 listener::onFailure,
@@ -252,6 +235,46 @@ public class ProfileService {
             return;
         }
         doUpdate(buildUpdateRequest(uid, builder, refreshPolicy, -1, -1), listener.map(updateResponse -> AcknowledgedResponse.TRUE));
+    }
+
+    // package private for testing
+    SearchRequest buildSearchRequest(SuggestProfilesRequest request) {
+        final BoolQueryBuilder query = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("user_profile.enabled", true));
+        if (Strings.hasText(request.getName())) {
+            query.must(
+                QueryBuilders.multiMatchQuery(
+                    request.getName(),
+                    "user_profile.user.username",
+                    "user_profile.user.username._2gram",
+                    "user_profile.user.username._3gram",
+                    "user_profile.user.full_name",
+                    "user_profile.user.full_name._2gram",
+                    "user_profile.user.full_name._3gram",
+                    "user_profile.user.email"
+                ).type(MultiMatchQueryBuilder.Type.BOOL_PREFIX).fuzziness(Fuzziness.AUTO)
+            );
+        }
+        final SuggestProfilesRequest.Hint hint = request.getHint();
+        if (hint != null) {
+            final List<String> hintedUids = hint.getUids();
+            if (hintedUids != null) {
+                assert false == hintedUids.isEmpty() : "uids hint cannot be empty";
+                query.should(QueryBuilders.termsQuery("user_profile.uid", hintedUids));
+            }
+            final Tuple<String, List<String>> label = hint.getSingleLabel();
+            if (label != null) {
+                final List<String> labelValues = label.v2();
+                query.should(QueryBuilders.termsQuery("user_profile.labels." + label.v1(), labelValues));
+            }
+            query.minimumShouldMatch(0);
+        }
+
+        return client.prepareSearch(SECURITY_PROFILE_ALIAS)
+            .setQuery(query)
+            .setSize(request.getSize())
+            .addSort("_score", SortOrder.DESC)
+            .addSort("user_profile.last_synchronized", SortOrder.DESC)
+            .request();
     }
 
     private void getVersionedDocument(String uid, ActionListener<VersionedDocument> listener) {
@@ -581,8 +604,8 @@ public class ProfileService {
         builder.field(
             "user_profile",
             profileDocument,
-            // NOT including the access and data in the update request so they will not be changed
-            new ToXContent.MapParams(Map.of("include_access", Boolean.FALSE.toString(), "include_data", Boolean.FALSE.toString()))
+            // NOT including the labels and data in the update request so they will not be changed
+            new ToXContent.MapParams(Map.of("include_labels", Boolean.FALSE.toString(), "include_data", Boolean.FALSE.toString()))
         );
         builder.endObject();
         return builder;
@@ -617,10 +640,9 @@ public class ProfileService {
                 subject.getRealm(),
                 // Replace with incoming information even when they are null
                 subjectUser.email(),
-                subjectUser.fullName(),
-                subjectUser.enabled()
+                subjectUser.fullName()
             ),
-            doc.access(),
+            doc.labels(),
             doc.applicationData()
         );
     }
@@ -645,7 +667,7 @@ public class ProfileService {
                 doc.enabled(),
                 doc.lastSynchronized(),
                 doc.user().toProfileUser(),
-                doc.access(),
+                doc.labels(),
                 applicationData,
                 new Profile.VersionControl(primaryTerm, seqNo)
             );

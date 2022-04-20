@@ -9,6 +9,8 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.geo.LatLonGeometry;
+import org.apache.lucene.geo.Point;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -27,6 +29,7 @@ import org.elasticsearch.search.runtime.GeoPointScriptFieldExistsQuery;
 import org.elasticsearch.search.runtime.GeoPointScriptFieldGeoShapeQuery;
 
 import java.time.ZoneId;
+import java.util.Arrays;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -103,6 +106,9 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
 
     @Override
     public Query geoShapeQuery(SearchExecutionContext context, String fieldName, ShapeRelation relation, LatLonGeometry... geometries) {
+        if (relation == ShapeRelation.CONTAINS && Arrays.stream(geometries).anyMatch(g -> (g instanceof Point) == false)) {
+            return new MatchNoDocsQuery();
+        }
         return new GeoPointScriptFieldGeoShapeQuery(script, leafFactory(context), fieldName, relation, geometries);
     }
 

@@ -53,5 +53,4 @@ subprojects {
       "${-> testClusters.integTest.singleNode().getAuditLog().getParentFile()}/integTest_audit-${new Date().format('yyyy-MM-dd')}-1.json.gz"
   }
 
-  tasks.named("testingConventions").configure { enabled = false }
 }

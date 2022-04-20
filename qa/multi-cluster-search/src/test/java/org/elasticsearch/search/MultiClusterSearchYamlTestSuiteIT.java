@@ -40,7 +40,9 @@ public class MultiClusterSearchYamlTestSuiteIT extends ESClientYamlSuiteTestCase
         return new ClientYamlTestExecutionContext(clientYamlTestCandidate, clientYamlTestClient, randomizeContentType()) {
 
             /**
-             * for mixed cluster tests we also take the remote cluster version into account and return the minimum here
+             * Since the esVersion is used to skip tests in ESClientYamlSuiteTestCase, we also take into account the
+             * remote cluster version here and return it if it is lower than the local client version. This is used to
+             * skip tests if some feature isn't available on the remote cluster yet.
              */
             @Override
             public Version esVersion() {

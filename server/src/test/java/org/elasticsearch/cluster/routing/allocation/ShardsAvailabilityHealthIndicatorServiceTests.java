@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationD
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.HealthIndicatorDetails;
@@ -55,7 +56,8 @@ import static java.util.stream.Collectors.toMap;
 import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.RESTART;
 import static org.elasticsearch.cluster.routing.ShardRouting.newUnassigned;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_CHECK_ALLOCATION_EXPLAIN_API;
-import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_ENABLE_ALLOCATIONS;
+import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_ENABLE_CLUSTER_ROUTING_ALLOCATION;
+import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_ENABLE_INDEX_ROUTING_ALLOCATION;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_ENABLE_TIERS;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_TIER_CAPACITY;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_MIGRATE_TIERS;
@@ -73,6 +75,7 @@ import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
 import static org.elasticsearch.health.ServerHealthComponents.DATA;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
@@ -572,10 +575,15 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         assertThat(actions, contains(ACTION_CHECK_ALLOCATION_EXPLAIN_API));
     }
 
-    public void testDiagnoseEnableAllocation() throws IOException {
-        // Index definition, 1 primary no replicas
+    public void testDiagnoseEnableIndexAllocation() throws IOException {
+        // Index definition, 1 primary no replicas, allocation is not allowed
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
-            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build())
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
+                    .build()
+            )
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
@@ -586,9 +594,10 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         List<UserAction.Definition> actions = new ArrayList<>();
         service.checkIsAllocationDisabled(
             actions,
+            indexMetadata,
             List.of(
                 new NodeAllocationResult(
-                    // Shard allocation is disabled for some reason
+                    // Shard allocation is disabled on index
                     new DiscoveryNode(randomNodeId(), buildNewFakeTransportAddress(), Version.CURRENT),
                     new Decision.Multi().add(Decision.single(Decision.Type.NO, EnableAllocationDecider.NAME, null)),
                     1
@@ -597,8 +606,91 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
 
         assertThat(actions, hasSize(1));
-        assertThat(actions, contains(ACTION_ENABLE_ALLOCATIONS));
+        assertThat(actions, contains(ACTION_ENABLE_INDEX_ROUTING_ALLOCATION));
     }
+
+    public void testDiagnoseEnableClusterAllocation() throws IOException {
+        // Index definition, 1 primary no replicas
+        IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .build()
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+
+        // Disallow allocations in cluster settings
+        var service = createAllocationHealthIndicatorService(
+            Settings.builder()
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
+                .build(),
+            ClusterState.EMPTY_STATE,
+            Map.of()
+        );
+
+        // Get the list of user actions that are generated for this unassigned index shard
+        List<UserAction.Definition> actions = new ArrayList<>();
+        service.checkIsAllocationDisabled(
+            actions,
+            indexMetadata,
+            List.of(
+                new NodeAllocationResult(
+                    // Shard allocation is disabled on index
+                    new DiscoveryNode(randomNodeId(), buildNewFakeTransportAddress(), Version.CURRENT),
+                    new Decision.Multi().add(Decision.single(Decision.Type.NO, EnableAllocationDecider.NAME, null)),
+                    1
+                )
+            )
+        );
+
+        assertThat(actions, hasSize(1));
+        assertThat(actions, contains(ACTION_ENABLE_CLUSTER_ROUTING_ALLOCATION));
+    }
+
+    public void testDiagnoseEnableRoutingAllocation() throws IOException {
+        // Index definition, 1 primary no replicas, allocation is not allowed
+        IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
+                    .build()
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+
+        // Disallow allocations in cluster settings
+        var service = createAllocationHealthIndicatorService(
+            Settings.builder()
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
+                .build(),
+            ClusterState.EMPTY_STATE,
+            Map.of()
+        );
+
+        // Get the list of user actions that are generated for this unassigned index shard
+        List<UserAction.Definition> actions = new ArrayList<>();
+        service.checkIsAllocationDisabled(
+            actions,
+            indexMetadata,
+            List.of(
+                new NodeAllocationResult(
+                    // Shard allocation is disabled on index
+                    new DiscoveryNode(randomNodeId(), buildNewFakeTransportAddress(), Version.CURRENT),
+                    new Decision.Multi().add(Decision.single(Decision.Type.NO, EnableAllocationDecider.NAME, null)),
+                    1
+                )
+            )
+        );
+
+        // Fix both settings
+        assertThat(actions, hasSize(2));
+        assertThat(actions, containsInAnyOrder(ACTION_ENABLE_INDEX_ROUTING_ALLOCATION, ACTION_ENABLE_CLUSTER_ROUTING_ALLOCATION));
+    }
+
 
     public void testDiagnoseEnableDataTiers() throws IOException {
         // Index definition, 1 primary no replicas, in the hot tier
@@ -998,8 +1090,18 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         ClusterState clusterState,
         final Map<ShardRoutingKey, ShardAllocationDecision> decisions
     ) {
+        return createAllocationHealthIndicatorService(Settings.EMPTY, clusterState, decisions);
+    }
+
+    private static ShardsAvailabilityHealthIndicatorService createAllocationHealthIndicatorService(
+        Settings nodeSettings,
+        ClusterState clusterState,
+        final Map<ShardRoutingKey, ShardAllocationDecision> decisions
+    ) {
         var clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(clusterState);
+        var clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         var allocationService = mock(AllocationService.class);
         when(allocationService.explainShardAllocation(any(), any())).thenAnswer((Answer<ShardAllocationDecision>) invocation -> {
             ShardRouting shardRouting = invocation.getArgument(0);

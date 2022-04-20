@@ -27,6 +27,8 @@ import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDeci
 import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
@@ -53,6 +55,7 @@ import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.cluster.health.ClusterShardHealth.getInactivePrimaryHealth;
+import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
@@ -133,18 +136,28 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             + "from allocating a shard there.",
         null
     );
-    public static final UserAction.Definition ACTION_ENABLE_ALLOCATIONS = new UserAction.Definition(
-        "enable_allocations",
+
+    public static final UserAction.Definition ACTION_ENABLE_INDEX_ROUTING_ALLOCATION = new UserAction.Definition(
+        "enable_index_allocations",
         "Elasticsearch isn't allowed to allocate some shards from these indices because allocation for those shards has been disabled. "
             + "Check that the ["
-            + EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey()
-            + "] index settings and the ["
-            + EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey()
-            + "] cluster setting are not set to ["
-            + EnableAllocationDecider.Allocation.NONE.toString().toLowerCase(Locale.getDefault())
+            + INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.getKey()
+            + "] index settings are set to ["
+            + EnableAllocationDecider.Allocation.ALL.toString().toLowerCase(Locale.getDefault())
             + "].",
         null
     );
+    public static final UserAction.Definition ACTION_ENABLE_CLUSTER_ROUTING_ALLOCATION = new UserAction.Definition(
+        "enable_cluster_allocations",
+        "Elasticsearch isn't allowed to allocate some shards from these indices because allocation for those shards has been disabled. "
+            + "Check that the ["
+            + EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey()
+            + "] cluster setting is set to ["
+            + EnableAllocationDecider.Allocation.ALL.toString().toLowerCase(Locale.getDefault())
+            + "].",
+        null
+    );
+
     public static final UserAction.Definition ACTION_ENABLE_TIERS = new UserAction.Definition(
         "enable_data_tiers",
         "Elasticsearch isn't allowed to allocate shards from these indices because the indices expect to be allocated to data tier nodes, "
@@ -329,9 +342,9 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         ClusterState state,
         List<NodeAllocationResult> nodeAllocationResults
     ) {
-        checkIsAllocationDisabled(actions, nodeAllocationResults);
         IndexMetadata index = state.metadata().index(shardRouting.index());
         if (index != null) {
+            checkIsAllocationDisabled(actions, index, nodeAllocationResults);
             checkDataTierRelatedIssues(actions, index, nodeAllocationResults);
         }
         if (actions.isEmpty()) {
@@ -357,9 +370,27 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
      * @param actions Any user actions generated from this method will be added to this list.
      * @param nodeAllocationResults allocation decision results for all nodes in the cluster.
      */
-    void checkIsAllocationDisabled(List<UserAction.Definition> actions, List<NodeAllocationResult> nodeAllocationResults) {
+    void checkIsAllocationDisabled(
+        List<UserAction.Definition> actions,
+        IndexMetadata indexMetadata,
+        List<NodeAllocationResult> nodeAllocationResults
+    ) {
         if (nodeAllocationResults.stream().allMatch(hasDeciderResult(EnableAllocationDecider.NAME, Decision.Type.NO))) {
-            actions.add(ACTION_ENABLE_ALLOCATIONS);
+            // Check the routing settings for index
+            Settings indexSettings = indexMetadata.getSettings();
+            EnableAllocationDecider.Allocation indexLevelAllocation = INDEX_ROUTING_ALLOCATION_ENABLE_SETTING.get(indexSettings);
+            ClusterSettings clusterSettings = clusterService.getClusterSettings();
+            EnableAllocationDecider.Allocation clusterLevelAllocation = clusterSettings.get(
+                EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING
+            );
+            if (EnableAllocationDecider.Allocation.ALL != indexLevelAllocation) {
+                // Index setting is not ALL
+                actions.add(ACTION_ENABLE_INDEX_ROUTING_ALLOCATION);
+            }
+            if (EnableAllocationDecider.Allocation.ALL != clusterLevelAllocation) {
+                // Cluster setting is not ALL
+                actions.add(ACTION_ENABLE_CLUSTER_ROUTING_ALLOCATION);
+            }
         }
     }
 

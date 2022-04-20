@@ -405,7 +405,9 @@ public abstract class PackagingTestCase extends Assert {
             // error should be in the logs
             assertThat(installation.logs.resolve("elasticsearch.log"), fileExists());
             String logfile = FileUtils.slurp(installation.logs.resolve("elasticsearch.log"));
-
+            if (logfile.isBlank()) {
+                // bootstrap errors still
+            }
             assertThat(logfile, anyOf(stringMatchers));
 
         } else if (distribution().isPackage() && Platforms.isSystemd()) {

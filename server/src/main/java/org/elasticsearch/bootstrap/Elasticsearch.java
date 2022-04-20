@@ -13,12 +13,15 @@ import joptsimple.OptionSpec;
 import joptsimple.OptionSpecBuilder;
 import joptsimple.util.PathConverter;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Build;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.NodeValidationException;
@@ -83,6 +86,12 @@ class Elasticsearch extends EnvironmentAwareCommand {
             status = main(args, elasticsearch, terminal);
         } catch (Exception e) {
             status = 1; // mimic JDK exit code on exception
+            if (System.getProperty("es.logs.base_path") != null) {
+                // this is a horrible hack to see if logging has been initialized
+                // we need to find a better way!
+                Logger logger = LogManager.getLogger(Elasticsearch.class);
+                logger.error(e);
+            }
             e.printStackTrace(terminal.getErrorWriter());
         }
         if (status != ExitCodes.OK) {

@@ -78,15 +78,7 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
         // recreate hashes
         for (int i = 0; i < byteRefs.size(); ++i) {
             byteRefs.get(i, spare);
-            int code = rehash(spare.hashCode());
-            final long slot = slot(code, mask);
-            for (long index = slot;; index = nextSlot(index, mask)) {
-                final long curId = id(index);
-                if (curId == -1) { // means unset
-                    id(index, i);
-                    break;
-                }
-            }
+            reset(rehash(spare.hashCode()), i);
         }
     }
 

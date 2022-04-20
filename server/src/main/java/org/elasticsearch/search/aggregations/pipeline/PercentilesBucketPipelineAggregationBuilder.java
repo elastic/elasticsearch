@@ -156,7 +156,7 @@ public class PercentilesBucketPipelineAggregationBuilder extends BucketMetricsPi
                 while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                     percents.add(parser.doubleValue());
                 }
-                params.put(PERCENTS_FIELD.getPreferredName(), percents.toArray());
+                params.put(PERCENTS_FIELD.getPreferredName(), percents.stream().mapToDouble(Double::doubleValue).toArray());
                 return true;
             } else if (KEYED_FIELD.match(field, parser.getDeprecationHandler()) && token == XContentParser.Token.VALUE_BOOLEAN) {
                 params.put(KEYED_FIELD.getPreferredName(), parser.booleanValue());

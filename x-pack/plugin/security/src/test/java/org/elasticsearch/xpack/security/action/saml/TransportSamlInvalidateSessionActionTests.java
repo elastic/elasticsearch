@@ -399,7 +399,6 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
                     .user(new User("bob"))
                     .realmRef(new RealmRef("native", NativeRealmSettings.TYPE, "node01"))
                     .build(false)
-                    .token()
             )
         );
 
@@ -447,6 +446,7 @@ public class TransportSamlInvalidateSessionActionTests extends SamlTestCase {
 
     private TokenService.CreateTokenResult storeToken(String userTokenId, String refreshToken, SamlNameId nameId, String session) {
         Authentication authentication = AuthenticationTestHelper.builder()
+            .realm()
             .user(new User("bob"))
             .realmRef(new RealmRef("native", NativeRealmSettings.TYPE, "node01"))
             .build(false);

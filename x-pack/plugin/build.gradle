@@ -118,16 +118,28 @@ tasks.named("yamlRestTestV7CompatTransform").configure { task ->
     "ml/datafeeds_crud/Test update datafeed to point to job already attached to another datafeed",
     "behaviour change #44752 - not allowing to update datafeed job_id"
   )
+  task.skipTest(
+    "ml/trained_model_cat_apis/Test cat trained models",
+    "A type field was added to cat.ml_trained_models #73660, this is a backwards compatible change. Still this is a cat api, and we don't support them with rest api compatibility. (the test would be very hard to transform too)"
+  )
+  task.skipTest(
+    "ml/categorization_agg/Test categorization agg simple",
+    "categorize_text was changed in 8.3, but experimental prior to the change"
+  )
+  task.skipTest(
+    "ml/categorization_agg/Test categorization aggregation against unsupported field",
+    "categorize_text was changed in 8.3, but experimental prior to the change"
+  )
+  task.skipTest(
+    "ml/categorization_agg/Test categorization aggregation with poor settings",
+    "categorize_text was changed in 8.3, but experimental prior to the change"
+  )
   task.skipTest("rollup/delete_job/Test basic delete_job", "rollup was an experimental feature, also see #41227")
   task.skipTest("rollup/delete_job/Test delete job twice", "rollup was an experimental feature, also see #41227")
   task.skipTest("rollup/delete_job/Test delete running job", "rollup was an experimental feature, also see #41227")
   task.skipTest("rollup/get_jobs/Test basic get_jobs", "rollup was an experimental feature, also see #41227")
   task.skipTest("rollup/put_job/Test basic put_job", "rollup was an experimental feature, also see #41227")
   task.skipTest("rollup/start_job/Test start job twice", "rollup was an experimental feature, also see #41227")
-  task.skipTest(
-    "ml/trained_model_cat_apis/Test cat trained models",
-    "A type field was added to cat.ml_trained_models #73660, this is a backwards compatible change. Still this is a cat api, and we don't support them with rest api compatibility. (the test would be very hard to transform too)"
-  )
   task.skipTest("indices.freeze/30_usage/Usage stats on frozen indices", "#70192 -- the freeze index API is removed from 8.0")
   task.skipTest("indices.freeze/20_stats/Translog stats on frozen indices", "#70192 -- the freeze index API is removed from 8.0")
   task.skipTest("indices.freeze/10_basic/Basic", "#70192 -- the freeze index API is removed from 8.0")

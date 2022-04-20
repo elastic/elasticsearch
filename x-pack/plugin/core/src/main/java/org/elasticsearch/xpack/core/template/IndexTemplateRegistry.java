@@ -492,7 +492,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         });
     }
 
-    protected static Map<String, ComposableIndexTemplate> parseComposableTemplates(IndexTemplateConfig... config) {
+    public static Map<String, ComposableIndexTemplate> parseComposableTemplates(IndexTemplateConfig... config) {
         return Arrays.stream(config).collect(Collectors.toUnmodifiableMap(IndexTemplateConfig::getTemplateName, indexTemplateConfig -> {
             try {
                 return ComposableIndexTemplate.parse(

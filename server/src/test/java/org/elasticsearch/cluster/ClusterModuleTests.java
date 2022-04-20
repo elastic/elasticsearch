@@ -138,7 +138,7 @@ public class ClusterModuleTests extends ModuleTestCase {
                 public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
                     return Collections.singletonList(new EnableAllocationDecider(settings, clusterSettings));
                 }
-            }), clusterInfoService, null, threadContext, EmptySystemIndices.INSTANCE)
+            }), clusterInfoService, null, threadContext, EmptySystemIndices.INSTANCE, null)
         );
         assertEquals(e.getMessage(), "Cannot specify allocation decider [" + EnableAllocationDecider.class.getName() + "] twice");
     }
@@ -149,7 +149,7 @@ public class ClusterModuleTests extends ModuleTestCase {
             public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
                 return Collections.singletonList(new FakeAllocationDecider());
             }
-        }), clusterInfoService, null, threadContext, EmptySystemIndices.INSTANCE);
+        }), clusterInfoService, null, threadContext, EmptySystemIndices.INSTANCE, null);
         assertTrue(module.deciderList.stream().anyMatch(d -> d.getClass().equals(FakeAllocationDecider.class)));
     }
 
@@ -159,7 +159,7 @@ public class ClusterModuleTests extends ModuleTestCase {
             public Map<String, Supplier<ShardsAllocator>> getShardsAllocators(Settings settings, ClusterSettings clusterSettings) {
                 return Collections.singletonMap(name, supplier);
             }
-        }), clusterInfoService, null, threadContext, EmptySystemIndices.INSTANCE);
+        }), clusterInfoService, null, threadContext, EmptySystemIndices.INSTANCE, null);
     }
 
     public void testRegisterShardsAllocator() {
@@ -187,8 +187,8 @@ public class ClusterModuleTests extends ModuleTestCase {
                 clusterInfoService,
                 null,
                 threadContext,
-                EmptySystemIndices.INSTANCE
-            )
+                EmptySystemIndices.INSTANCE,
+                    null)
         );
         assertEquals("Unknown ShardsAllocator [dne]", e.getMessage());
     }
@@ -244,8 +244,8 @@ public class ClusterModuleTests extends ModuleTestCase {
             clusterInfoService,
             null,
             threadContext,
-            EmptySystemIndices.INSTANCE
-        );
+            EmptySystemIndices.INSTANCE,
+                null);
         expectThrows(IllegalArgumentException.class, () -> clusterModule.setExistingShardsAllocators(new TestGatewayAllocator()));
     }
 
@@ -257,8 +257,8 @@ public class ClusterModuleTests extends ModuleTestCase {
             clusterInfoService,
             null,
             threadContext,
-            EmptySystemIndices.INSTANCE
-        );
+            EmptySystemIndices.INSTANCE,
+                null);
         expectThrows(IllegalArgumentException.class, () -> clusterModule.setExistingShardsAllocators(new TestGatewayAllocator()));
     }
 

@@ -21,6 +21,7 @@ import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -121,17 +122,19 @@ public class MetadataIndexTemplateService {
     private final NamedXContentRegistry xContentRegistry;
     private final SystemIndices systemIndices;
     private final Set<IndexSettingProvider> indexSettingProviders;
+    private final BuiltinTemplateManager builtinTemplateManager;
 
     @Inject
     public MetadataIndexTemplateService(
+        Settings settings,
         ClusterService clusterService,
         MetadataCreateIndexService metadataCreateIndexService,
         IndicesService indicesService,
         IndexScopedSettings indexScopedSettings,
         NamedXContentRegistry xContentRegistry,
         SystemIndices systemIndices,
-        IndexSettingProviders indexSettingProviders
-    ) {
+        IndexSettingProviders indexSettingProviders,
+        BuiltinTemplates builtinTemplates) {
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.metadataCreateIndexService = metadataCreateIndexService;
@@ -139,6 +142,13 @@ public class MetadataIndexTemplateService {
         this.xContentRegistry = xContentRegistry;
         this.systemIndices = systemIndices;
         this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
+
+        if (DiscoveryNode.isMasterNode(settings)) {
+            this.builtinTemplateManager = new BuiltinTemplateManager(clusterService, builtinTemplates, this);
+            clusterService.addListener(builtinTemplateManager);
+        } else {
+            this.builtinTemplateManager = null;
+        }
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
@@ -213,7 +223,7 @@ public class MetadataIndexTemplateService {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    return addComponentTemplate(currentState, create, name, template);
+                    return addComponentTemplate(currentState, create, name, template, true);
                 }
 
                 @Override
@@ -230,8 +240,8 @@ public class MetadataIndexTemplateService {
         final ClusterState currentState,
         final boolean create,
         final String name,
-        final ComponentTemplate template
-    ) throws Exception {
+        final ComponentTemplate template,
+        boolean printLog) throws Exception {
         final ComponentTemplate existing = currentState.metadata().componentTemplates().get(name);
         if (create && existing != null) {
             throw new IllegalArgumentException("component template [" + name + "] already exists");
@@ -331,7 +341,9 @@ public class MetadataIndexTemplateService {
             }
         }
 
-        logger.info("{} component template [{}]", existing == null ? "adding" : "updating", name);
+        if (printLog) {
+            logger.info("{} component template [{}]", existing == null ? "adding" : "updating", name);
+        }
         return ClusterState.builder(currentState)
             .metadata(Metadata.builder(currentState.metadata()).put(name, finalComponentTemplate))
             .build();
@@ -502,7 +514,7 @@ public class MetadataIndexTemplateService {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    return addIndexTemplateV2(currentState, create, name, template);
+                    return addIndexTemplateV2(currentState, create, name, template, true);
                 }
 
                 @Override
@@ -543,8 +555,8 @@ public class MetadataIndexTemplateService {
         final ClusterState currentState,
         final boolean create,
         final String name,
-        final ComposableIndexTemplate template
-    ) throws Exception {
+        final ComposableIndexTemplate template,
+        boolean printLog) throws Exception {
         final ComposableIndexTemplate existing = currentState.metadata().templatesV2().get(name);
         if (create && existing != null) {
             throw new IllegalArgumentException("index template [" + name + "] already exists");
@@ -620,12 +632,14 @@ public class MetadataIndexTemplateService {
         }
 
         validateIndexTemplateV2(name, finalIndexTemplate, currentState);
-        logger.info(
-            "{} index template [{}] for index patterns {}",
-            existing == null ? "adding" : "updating",
-            name,
-            template.indexPatterns()
-        );
+        if (printLog) {
+            logger.info(
+                "{} index template [{}] for index patterns {}",
+                existing == null ? "adding" : "updating",
+                name,
+                template.indexPatterns()
+            );
+        }
         return ClusterState.builder(currentState).metadata(Metadata.builder(currentState.metadata()).put(name, finalIndexTemplate)).build();
     }
 

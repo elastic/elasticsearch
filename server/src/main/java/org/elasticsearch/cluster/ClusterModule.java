@@ -10,6 +10,7 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.metadata.BuiltinTemplates;
 import org.elasticsearch.cluster.metadata.ComponentTemplateMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamMetadata;
@@ -106,6 +107,8 @@ public class ClusterModule extends AbstractModule {
     final Collection<AllocationDecider> deciderList;
     final ShardsAllocator shardsAllocator;
 
+    final BuiltinTemplates builtinTemplates;
+
     public ClusterModule(
         Settings settings,
         ClusterService clusterService,
@@ -113,8 +116,8 @@ public class ClusterModule extends AbstractModule {
         ClusterInfoService clusterInfoService,
         SnapshotsInfoService snapshotsInfoService,
         ThreadContext threadContext,
-        SystemIndices systemIndices
-    ) {
+        SystemIndices systemIndices,
+        BuiltinTemplates builtinTemplates) {
         this.clusterPlugins = clusterPlugins;
         this.deciderList = createAllocationDeciders(settings, clusterService.getClusterSettings(), clusterPlugins);
         this.allocationDeciders = new AllocationDeciders(deciderList);
@@ -123,6 +126,7 @@ public class ClusterModule extends AbstractModule {
         this.indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, systemIndices);
         this.allocationService = new AllocationService(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService);
         this.metadataDeleteIndexService = new MetadataDeleteIndexService(settings, clusterService, allocationService);
+        this.builtinTemplates = builtinTemplates;
     }
 
     public static List<Entry> getNamedWriteables() {
@@ -347,6 +351,7 @@ public class ClusterModule extends AbstractModule {
 
     @Override
     protected void configure() {
+        bind(BuiltinTemplates.class).toInstance(builtinTemplates);
         bind(GatewayAllocator.class).asEagerSingleton();
         bind(AllocationService.class).toInstance(allocationService);
         bind(ClusterService.class).toInstance(clusterService);

@@ -257,7 +257,7 @@ dependencies {
   integTestImplementation("org.junit.jupiter:junit-jupiter") {
     because 'allows to write and run Jupiter tests'
   }
-  integTestImplementation("net.bytebuddy:byte-buddy:1.11.0") {
+  integTestImplementation("net.bytebuddy:byte-buddy:1.12.9") {
     because 'Generating dynamic mocks of internal libraries like JdkJarHell'
   }
   testRuntimeOnly("org.junit.vintage:junit-vintage-engine") {

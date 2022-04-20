@@ -8,8 +8,6 @@
 
 package org.elasticsearch.action.termvectors;
 
-import com.carrotsearch.hppc.IntArrayList;
-
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,12 +18,12 @@ import java.util.List;
 
 public class MultiTermVectorsShardResponse extends ActionResponse {
 
-    final IntArrayList locations;
+    final List<Integer> locations;
     final List<TermVectorsResponse> responses;
     final List<MultiTermVectorsResponse.Failure> failures;
 
     MultiTermVectorsShardResponse() {
-        locations = new IntArrayList();
+        locations = new ArrayList<>();
         responses = new ArrayList<>();
         failures = new ArrayList<>();
     }
@@ -33,7 +31,7 @@ public class MultiTermVectorsShardResponse extends ActionResponse {
     MultiTermVectorsShardResponse(StreamInput in) throws IOException {
         super(in);
         int size = in.readVInt();
-        locations = new IntArrayList(size);
+        locations = new ArrayList<>(size);
         responses = new ArrayList<>(size);
         failures = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {

@@ -59,7 +59,6 @@ import org.elasticsearch.xpack.core.rollup.action.RollupIndexerAction;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -444,33 +443,17 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
         clusterService.submitStateUpdateTask("update-rollup-metadata", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                IndexAbstraction sourceIndex = currentState.getMetadata().getIndicesLookup().get(sourceIndexName);
-                Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
-                if (sourceIndex.getParentDataStream() != null) {
-                    IndexMetadata rollupIndexMetadata = currentState.getMetadata().index(rollupIndexName);
-                    Index rollupIndex = rollupIndexMetadata.getIndex();
-                    // If rolling up a backing index of a data stream, add rolled up index to backing data stream
-                    DataStream originalDataStream = sourceIndex.getParentDataStream().getDataStream();
-                    List<Index> backingIndices = new ArrayList<>(originalDataStream.getIndices().size());
-                    // Adding the rollup index to the beginning of the list will prevent it from ever being
-                    // considered a write index
-                    backingIndices.add(rollupIndex);
-                    // Add all indices except the source index
-                    backingIndices.addAll(
-                        originalDataStream.getIndices().stream().filter(idx -> idx.getName().equals(sourceIndexName) == false).toList()
-                    );
-                    DataStream dataStream = new DataStream(
-                        originalDataStream.getName(),
-                        backingIndices,
-                        originalDataStream.getGeneration(),
-                        originalDataStream.getMetadata(),
-                        originalDataStream.isHidden(),
-                        originalDataStream.isReplicated(),
-                        originalDataStream.isSystem(),
-                        originalDataStream.isAllowCustomRouting(),
-                        originalDataStream.getIndexMode()
-                    );
-                    metadataBuilder.put(dataStream);
+                Metadata metadata = currentState.metadata();
+                Metadata.Builder metadataBuilder = Metadata.builder(metadata);
+                IndexAbstraction sourceIndexAbstraction = metadata.getIndicesLookup().get(sourceIndexName);
+                // If rolling up a backing index of a data stream, replace the source index with
+                // the rolled up index to the data stream
+                if (sourceIndexAbstraction.getParentDataStream() != null) {
+                    DataStream originalDataStream = sourceIndexAbstraction.getParentDataStream().getDataStream();
+                    Index rollupIndex = metadata.index(rollupIndexName).getIndex();
+                    Index sourceIndex = metadata.index(sourceIndexName).getIndex();
+                    DataStream updatedDataStream = originalDataStream.replaceBackingIndex(sourceIndex, rollupIndex);
+                    metadataBuilder.put(updatedDataStream);
                 }
                 return ClusterState.builder(currentState).metadata(metadataBuilder.build()).build();
             }

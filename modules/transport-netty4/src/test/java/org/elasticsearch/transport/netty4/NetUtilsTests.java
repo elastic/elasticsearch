@@ -9,7 +9,7 @@
 package org.elasticsearch.transport.netty4;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.test.ESTestCase;
 
 public class NetUtilsTests extends ESTestCase {

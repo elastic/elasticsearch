@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.core.internal.io;
+package org.elasticsearch.core;
 
 import java.io.IOException;
 import java.io.InputStream;

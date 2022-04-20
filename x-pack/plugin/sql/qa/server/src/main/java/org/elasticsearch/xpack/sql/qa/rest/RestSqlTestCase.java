@@ -278,7 +278,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
 
         assertNull(cursor);
 
-        deleteIndex("test_date_timezone");
+        deleteIndexWithProvisioningClient("test_date_timezone");
     }
 
     @AwaitsFix(bugUrl = "Unclear status, https://github.com/elastic/x-pack-elasticsearch/issues/2074")
@@ -1152,7 +1152,7 @@ public abstract class RestSqlTestCase extends BaseRestSqlTestCase implements Err
         expected.put("rows", singletonList(singletonList(nullId)));
         assertResponse(expected, runSql(mode, "SELECT id FROM " + indexPattern("test_binary") + " WHERE binary IS NULL", false));
 
-        deleteIndex("test_binary");
+        deleteIndexWithProvisioningClient("test_binary");
     }
 
     public void testPreventedUnsignedLongMaskedAccess() throws IOException {

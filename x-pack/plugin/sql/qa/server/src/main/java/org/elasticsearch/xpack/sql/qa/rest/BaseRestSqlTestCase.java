@@ -212,10 +212,10 @@ public abstract class BaseRestSqlTestCase extends RemoteClusterAwareSqlRestTestC
     }
 
     protected void deleteTestIndex() throws IOException {
-        deleteIndex(TEST_INDEX);
+        deleteIndexWithProvisioningClient(TEST_INDEX);
     }
 
-    protected static void deleteIndex(String name) throws IOException {
+    protected static void deleteIndexWithProvisioningClient(String name) throws IOException {
         deleteIndex(provisioningClient(), name);
     }
 

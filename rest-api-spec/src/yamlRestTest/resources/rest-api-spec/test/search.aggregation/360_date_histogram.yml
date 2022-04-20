@@ -315,11 +315,12 @@ setup:
 ---
 "Multi-value date histogram":
   - skip:
-      version: "all"
-      reason:  AwaitsFix https://github.com/elastic/elasticsearch/issues/85509
+      version: " - 8.1.99"
+      reason:  Bug fixed in 8.2.0
 
   - do:
       search:
+        index: test_date_hist
         body:
           query:
             match:
@@ -336,11 +337,12 @@ setup:
 ---
 "Multi-value date histogram docvalues only":
   - skip:
-      version: "all"
-      reason:  AwaitsFix https://github.com/elastic/elasticsearch/issues/85509
+      version: " - 8.1.99"
+      reason: Bug fixed in 8.2.0
 
   - do:
       search:
+        index: test_date_hist
         body:
           profile: true
           query:

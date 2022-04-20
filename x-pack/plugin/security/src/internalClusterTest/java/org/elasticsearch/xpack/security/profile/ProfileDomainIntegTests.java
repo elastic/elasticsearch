@@ -31,9 +31,9 @@ import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.time.Instant;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -285,6 +285,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
                 }
                 """.formatted("not-" + username), XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).request();
             client().update(updateRequest).actionGet();
+            logger.info("manually creating a collision document: [{}]", existingUid);
         } else {
             existingUid = null;
         }
@@ -293,7 +294,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
         final Thread[] threads = new Thread[randomIntBetween(5, 10)];
         final CountDownLatch readyLatch = new CountDownLatch(threads.length);
         final CountDownLatch startLatch = new CountDownLatch(1);
-        final Set<String> allUids = new HashSet<>();
+        final Set<String> allUids = ConcurrentHashMap.newKeySet();
         for (int i = 0; i < threads.length; i++) {
             threads[i] = new Thread(() -> {
                 try {
@@ -305,7 +306,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
                     startLatch.await();
                     try {
                         final String uid = future.actionGet().uid();
-                        logger.info("create profile [{}] for authentication [{}]", uid, authentication);
+                        logger.info("created profile [{}] for authentication [{}]", uid, authentication);
                         allUids.add(uid);
                     } catch (VersionConflictEngineException e) {
                         // Updating existing profile can error with version conflict. This is the current way
@@ -327,7 +328,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
                 thread.join();
             }
             // Exactly one profile is created
-            assertThat(allUids, hasSize(1));
+            assertThat("All created profile uids: " + allUids, allUids, hasSize(1));
             final String uid = allUids.iterator().next();
             if (existingCollision) {
                 assertThat(uid, endsWith("_1"));

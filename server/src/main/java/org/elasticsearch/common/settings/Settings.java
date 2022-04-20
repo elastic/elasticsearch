@@ -26,9 +26,9 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -753,7 +753,7 @@ public final class Settings implements ToXContentFragment {
                     validateValue(key, parser.text(), parser, allowNullValues);
                     builder.put(key, parser.booleanValue());
                 } else {
-                    XContentParserUtils.throwUnknownToken(parser.currentToken(), parser.getTokenLocation());
+                    XContentParserUtils.throwUnknownToken(parser.currentToken(), parser);
                 }
         }
     }

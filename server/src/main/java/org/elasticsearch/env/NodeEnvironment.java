@@ -35,11 +35,11 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.gateway.CorruptStateException;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.gateway.PersistedClusterStateService;
@@ -181,6 +181,11 @@ public final class NodeEnvironment implements Closeable {
      * Searchable snapshot's Lucene index directory.
      */
     private static final String SNAPSHOT_CACHE_FOLDER = "snapshot_cache";
+
+    /**
+     * Searchable snapshot's shared cache file
+     */
+    static final String SEARCHABLE_SHARED_CACHE_FILE = "shared_snapshot_cache";
 
     public static class NodeLock implements Releasable {
 
@@ -417,7 +422,13 @@ public final class NodeEnvironment implements Closeable {
                 );
 
                 final Set<String> ignoredFileNames = new HashSet<>(
-                    Arrays.asList(NODE_LOCK_FILENAME, TEMP_FILE_NAME, TEMP_FILE_NAME + ".tmp", TEMP_FILE_NAME + ".final")
+                    Arrays.asList(
+                        NODE_LOCK_FILENAME,
+                        TEMP_FILE_NAME,
+                        TEMP_FILE_NAME + ".tmp",
+                        TEMP_FILE_NAME + ".final",
+                        SEARCHABLE_SHARED_CACHE_FILE
+                    )
                 );
 
                 try (DirectoryStream<Path> stream = Files.newDirectoryStream(legacyNodePath.path)) {

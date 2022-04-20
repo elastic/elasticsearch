@@ -8,10 +8,10 @@
 
 package org.elasticsearch.action.admin.cluster.coordination;
 
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.cluster.coordination.ImmutableMasterHistory;
 import org.elasticsearch.cluster.coordination.MasterHistory;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -32,7 +32,7 @@ public class MasterHistoryAction extends ActionType<MasterHistoryAction.Response
         super(NAME, MasterHistoryAction.Response::new);
     }
 
-    public static class Request extends MasterNodeReadRequest<MasterHistoryAction.Request> {
+    public static class Request extends ActionRequest {
 
         public Request() {}
 

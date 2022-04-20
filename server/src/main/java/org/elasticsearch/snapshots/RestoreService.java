@@ -1288,7 +1288,7 @@ public class RestoreService implements ClusterStateApplier {
                 );
                 if (snapshotIndexMetadata.getCompatibilityVersion().before(minIndexCompatibilityVersion)) {
                     // adapt index metadata so that it can be understood by current version
-                    snapshotIndexMetadata = convertLegacyIndex(snapshotIndexMetadata, currentState);
+                    snapshotIndexMetadata = convertLegacyIndex(snapshotIndexMetadata, currentState, indexMetadataVerifier);
                 }
                 try {
                     snapshotIndexMetadata = indexMetadataVerifier.verifyIndexMetadata(snapshotIndexMetadata, minIndexCompatibilityVersion);
@@ -1578,7 +1578,11 @@ public class RestoreService implements ClusterStateApplier {
         }
     }
 
-    private static IndexMetadata convertLegacyIndex(IndexMetadata snapshotIndexMetadata, ClusterState clusterState) {
+    private static IndexMetadata convertLegacyIndex(
+        IndexMetadata snapshotIndexMetadata,
+        ClusterState clusterState,
+        IndexMetadataVerifier indexMetadataVerifier
+    ) {
         if (snapshotIndexMetadata.getCreationVersion().before(Version.fromString("5.0.0"))) {
             throw new IllegalArgumentException("can't restore an index created before version 5.0.0");
         }

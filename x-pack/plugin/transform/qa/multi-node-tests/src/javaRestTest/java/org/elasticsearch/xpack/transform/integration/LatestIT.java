@@ -46,12 +46,12 @@ public class LatestIT extends TransformIntegTestCase {
 
     private static final String TRANSFORM_NAME = "transform-crud-latest";
 
-    private static final Integer getUserIdForRow(int row) {
+    private static Integer getUserIdForRow(int row) {
         int userId = row % (NUM_USERS + 1);
         return userId < NUM_USERS ? userId : null;
     }
 
-    private static final String getDateStringForRow(int row) {
+    private static String getDateStringForRow(int row) {
         int month = 1 + (row / 28);
         int day = 1 + (row % 28);
         return "2017-" + (month < 10 ? "0" + month : month) + "-" + (day < 10 ? "0" + day : day) + "T12:30:00Z";
@@ -64,7 +64,7 @@ public class LatestIT extends TransformIntegTestCase {
     private static final String STARS = "stars";
     private static final String COMMENT = "comment";
 
-    private static final Map<String, Object> row(String userId, String businessId, int count, int stars, String timestamp, String comment) {
+    private static Map<String, Object> row(String userId, String businessId, int count, int stars, String timestamp, String comment) {
         return new HashMap<String, Object>() {
             {
                 if (userId != null) {

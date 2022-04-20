@@ -40,11 +40,31 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
 
     // Constructor with configurable capacity and load factor.
     public BytesRefHash(long capacity, float maxLoadFactor, BigArrays bigArrays) {
+        this(null, capacity, maxLoadFactor, bigArrays);
+    }
+
+    public BytesRefHash(BytesRefArray bytesRefArray, BigArrays bigArrays) {
+        this(bytesRefArray, DEFAULT_MAX_LOAD_FACTOR, bigArrays);
+    }
+
+    public BytesRefHash(BytesRefArray bytesRefs, float maxLoadFactor, BigArrays bigArrays) {
+        this(bytesRefs, bytesRefs.size() + 1, maxLoadFactor, bigArrays);
+
+        // recreate hashes
+        for (int i = 0; i < bytesRefs.size(); ++i) {
+            bytesRefs.get(i, spare);
+            reset(rehash(spare.hashCode()), i);
+        }
+    }
+
+    private BytesRefHash(BytesRefArray byteRefs, long capacity, float maxLoadFactor, BigArrays bigArrays) {
         super(capacity, maxLoadFactor, bigArrays);
+
         boolean success = false;
         try {
+            this.bytesRefs = byteRefs != null ? byteRefs : new BytesRefArray(capacity, bigArrays);
+
             // `super` allocates a big array so we have to `close` if we fail here or we'll leak it.
-            bytesRefs = new BytesRefArray(capacity, bigArrays);
             hashes = bigArrays.newIntArray(capacity, false);
             success = true;
         } finally {
@@ -53,33 +73,6 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
             }
         }
         spare = new BytesRef();
-    }
-
-    public BytesRefHash(BytesRefArray bytesRefArray, BigArrays bigArrays) {
-        this(bytesRefArray, DEFAULT_MAX_LOAD_FACTOR, bigArrays);
-    }
-
-    public BytesRefHash(BytesRefArray byteRefs, float maxLoadFactor, BigArrays bigArrays) {
-        super(byteRefs.size() + 1, maxLoadFactor, bigArrays);
-        this.bytesRefs = byteRefs;
-
-        boolean success = false;
-        try {
-            // `super` allocates a big array so we have to `close` if we fail here or we'll leak it.
-            hashes = bigArrays.newIntArray(capacity(), false);
-            success = true;
-        } finally {
-            if (false == success) {
-                close();
-            }
-        }
-        spare = new BytesRef();
-
-        // recreate hashes
-        for (int i = 0; i < byteRefs.size(); ++i) {
-            byteRefs.get(i, spare);
-            reset(rehash(spare.hashCode()), i);
-        }
     }
 
     // BytesRef has a weak hashCode function so we try to improve it by rehashing using Murmur3

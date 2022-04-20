@@ -337,7 +337,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
                 allowCustomRouting = false;
             }
             if (in.getVersion().onOrAfter(Version.V_8_1_0) && in.getVersion().before(Version.V_8_3_0)) {
-                // Accidentally include index_mode to binary node to node format protocol.
+                // Accidentally included index_mode to binary node to node protocol in previous releases.
                 // (index_mode is removed and was part of code based when behind feature flag)
                 // (index_mode was behind a feature in the xcontent parser, so it could never actually used)
                 // (this used to be an optional enum, so just need to (de-)serialize a false boolean value here)
@@ -383,6 +383,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
                 out.writeBoolean(allowCustomRouting);
             }
             if (out.getVersion().onOrAfter(Version.V_8_1_0) && out.getVersion().before(Version.V_8_3_0)) {
+                // See comment in constructor.
                 out.writeBoolean(false);
             }
         }

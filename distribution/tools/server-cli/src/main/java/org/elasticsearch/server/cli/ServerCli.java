@@ -93,9 +93,7 @@ class ServerCli extends EnvironmentAwareCommand {
 
         List<String> jvmOptions = JvmOptionsParser.determine(env.configFile(), env.pluginsFile(), tempDir, envVars.get("ES_JAVA_OPTS"));
         // jvmOptions.add("-Des.path.conf=" + env.configFile());
-        jvmOptions.add("-Des.distribution.flavor=" + System.getProperty("es.distribution.flavor"));
         jvmOptions.add("-Des.distribution.type=" + System.getProperty("es.distribution.type"));
-        jvmOptions.add("-Des.bundled_jdk=" + System.getProperty("es.bundled_jdk"));
 
         Path esHome = PathUtils.get(System.getProperty("es.path.home"));
         Path javaHome = PathUtils.get(System.getProperty("java.home"));

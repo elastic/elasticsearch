@@ -42,7 +42,7 @@ public class MockTerminal extends Terminal {
     private boolean hasOutputStream = true;
 
     public MockTerminal() {
-        super("\n"); // always *nix newlines for tests
+        super(null, null, null, "\n"); // always *nix newlines for tests
     }
 
     @Override

@@ -13,9 +13,7 @@ dependencies {
   compileOnly project(":server")
   compileOnly project(":libs:elasticsearch-cli")
 
-  testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  testImplementation "junit:junit:${versions.junit}"
-  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
+  testImplementation project(":test:framework")
 }
 
 tasks.withType(CheckForbiddenApis).configureEach {

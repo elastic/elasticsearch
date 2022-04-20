@@ -6,6 +6,8 @@
  */
 package org.elasticsearch.xpack.security.authc.file.tool;
 
+import joptsimple.OptionSet;
+
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
 
@@ -38,7 +40,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
@@ -118,7 +119,7 @@ public class UsersToolTests extends CommandTestCase {
             protected AddUserCommand newAddUserCommand() {
                 return new AddUserCommand() {
                     @Override
-                    protected Environment createEnv(Map<String, String> settings) throws UserException {
+                    protected Environment createEnv(OptionSet options) throws UserException {
                         return new Environment(UsersToolTests.this.settings, confDir);
                     }
                 };
@@ -128,7 +129,7 @@ public class UsersToolTests extends CommandTestCase {
             protected DeleteUserCommand newDeleteUserCommand() {
                 return new DeleteUserCommand() {
                     @Override
-                    protected Environment createEnv(Map<String, String> settings) throws UserException {
+                    protected Environment createEnv(OptionSet options) throws UserException {
                         return new Environment(UsersToolTests.this.settings, confDir);
                     }
                 };
@@ -138,7 +139,7 @@ public class UsersToolTests extends CommandTestCase {
             protected PasswordCommand newPasswordCommand() {
                 return new PasswordCommand() {
                     @Override
-                    protected Environment createEnv(Map<String, String> settings) throws UserException {
+                    protected Environment createEnv(OptionSet options) throws UserException {
                         return new Environment(UsersToolTests.this.settings, confDir);
                     }
                 };
@@ -148,7 +149,7 @@ public class UsersToolTests extends CommandTestCase {
             protected RolesCommand newRolesCommand() {
                 return new RolesCommand() {
                     @Override
-                    protected Environment createEnv(Map<String, String> settings) throws UserException {
+                    protected Environment createEnv(OptionSet options) throws UserException {
                         return new Environment(UsersToolTests.this.settings, confDir);
                     }
                 };
@@ -158,7 +159,7 @@ public class UsersToolTests extends CommandTestCase {
             protected ListCommand newListCommand() {
                 return new ListCommand() {
                     @Override
-                    protected Environment createEnv(Map<String, String> settings) throws UserException {
+                    protected Environment createEnv(OptionSet options) throws UserException {
                         return new Environment(UsersToolTests.this.settings, confDir);
                     }
                 };

@@ -34,7 +34,7 @@ ES_HOME=`dirname "$ES_HOME"`
 
 # now set the classpath
 ES_CLASSPATH="$ES_HOME/lib/*"
-LAUNCHERS_CLASSPATH="$ES_CLASSPATH:$ES_HOME/lib/java-version-checker/*:$ES_HOME/lib/launchers/*"
+SERVER_CLI_CLASSPATH="$ES_CLASSPATH:$ES_HOME/lib/tools/server-cli/*"
 
 # now set the path to java
 if [ ! -z "$ES_JAVA_HOME" ]; then
@@ -90,73 +90,5 @@ fi
 ES_PATH_CONF=`cd "$ES_PATH_CONF"; pwd`
 
 ES_DISTRIBUTION_TYPE=@es.distribution.type@
-
-if [[ "$ES_DISTRIBUTION_TYPE" == "docker" ]]; then
-  # Allow environment variables to be set by creating a file with the
-  # contents, and setting an environment variable with the suffix _FILE to
-  # point to it. This can be used to provide secrets to a container, without
-  # the values being specified explicitly when running the container.
-  source "$ES_HOME/bin/elasticsearch-env-from-file"
-
-  # Parse Docker env vars to customize Elasticsearch
-  #
-  # e.g. Setting the env var cluster.name=testcluster or ES_CLUSTER_NAME=testcluster
-  #
-  # will cause Elasticsearch to be invoked with -Ecluster.name=testcluster
-  #
-  # see https://www.elastic.co/guide/en/elasticsearch/reference/current/settings.html#_setting_default_settings
-
-  declare -a es_arg_array
-
-  containsElement () {
-    local e match="$1"
-    shift
-    for e; do [[ "$e" == "$match" ]] && return 0; done
-    return 1
-  }
-
-  # Elasticsearch settings need to either:
-  # a. have at least two dot separated lower case words, e.g. `cluster.name`, or
-  while IFS='=' read -r envvar_key envvar_value; do
-    es_opt=""
-    if [[ -n "$envvar_value" ]]; then
-      es_opt="-E${envvar_key}=${envvar_value}"
-    fi
-    if [[ ! -z "${es_opt}" ]] && ! containsElement "${es_opt}" "$@" ; then
-      es_arg_array+=("${es_opt}")
-    fi
-  done <<< "$(env | grep -E '^[-a-z0-9_]+(\.[-a-z0-9_]+)+=')"
-
-  # b. be upper cased with underscore separators and prefixed with `ES_SETTING_`, e.g. `ES_SETTING_CLUSTER_NAME`.
-  #    Underscores in setting names are escaped by writing them as a double-underscore e.g. "__"
-  while IFS='=' read -r envvar_key envvar_value; do
-    es_opt=""
-    if [[ -n "$envvar_value" ]]; then
-      # The long-hand sed `y` command works in any sed variant.
-      envvar_key="$(echo "$envvar_key" | sed -e 's/^ES_SETTING_//; s/_/./g ; s/\.\./_/g; y/ABCDEFGHIJKLMNOPQRSTUVWXYZ/abcdefghijklmnopqrstuvwxyz/' )"
-      es_opt="-E${envvar_key}=${envvar_value}"
-    fi
-    if [[ ! -z "${es_opt}" ]] && ! containsElement "${es_opt}" "$@" ; then
-      es_arg_array+=("${es_opt}")
-    fi
-  done <<< "$(env | grep -E '^ES_SETTING(_{1,2}[A-Z]+)+=')"
-
-  # Reset the positional parameters to the es_arg_array values and any existing positional params
-  set -- "$@" "${es_arg_array[@]}"
-
-  # The virtual file /proc/self/cgroup should list the current cgroup
-  # membership. For each hierarchy, you can follow the cgroup path from
-  # this file to the cgroup filesystem (usually /sys/fs/cgroup/) and
-  # introspect the statistics for the cgroup for the given
-  # hierarchy. Alas, Docker breaks this by mounting the container
-  # statistics at the root while leaving the cgroup paths as the actual
-  # paths. Therefore, Elasticsearch provides a mechanism to override
-  # reading the cgroup path from /proc/self/cgroup and instead uses the
-  # cgroup path defined the JVM system property
-  # es.cgroups.hierarchy.override. Therefore, we set this value here so
-  # that cgroup statistics are available for the container this process
-  # will run in.
-  export ES_JAVA_OPTS="-Des.cgroups.hierarchy.override=/ $ES_JAVA_OPTS"
-fi
 
 cd "$ES_HOME"

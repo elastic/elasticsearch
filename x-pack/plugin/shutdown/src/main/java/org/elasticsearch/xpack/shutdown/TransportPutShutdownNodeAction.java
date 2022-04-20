@@ -31,6 +31,10 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Objects;
+
+import static org.elasticsearch.cluster.metadata.NodesShutdownMetadata.getShutdownsOrEmpty;
+
 public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterNodeAction<PutShutdownNodeAction.Request> {
     private static final Logger logger = LogManager.getLogger(TransportPutShutdownNodeAction.class);
 
@@ -61,13 +65,18 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
         ClusterState state,
         ActionListener<AcknowledgedResponse> listener
     ) throws Exception {
+        if (isNoop(state, request)) {
+            listener.onResponse(AcknowledgedResponse.TRUE);
+            return;
+        }
         clusterService.submitStateUpdateTask("put-node-shutdown-" + request.getNodeId(), new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                var currentShutdownMetadata = currentState.metadata().custom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY);
+                if (isNoop(currentState, request)) {
+                    return currentState;
+                }
 
                 final boolean nodeSeen = currentState.getNodes().nodeExists(request.getNodeId());
-
                 SingleNodeShutdownMetadata newNodeMetadata = SingleNodeShutdownMetadata.builder()
                     .setNodeId(request.getNodeId())
                     .setType(request.getType())
@@ -78,7 +87,8 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
                     .setTargetNodeName(request.getTargetNodeName())
                     .build();
 
-                // Verify that there's not already a shutdown metadata for this node
+                // log the update
+                var currentShutdownMetadata = getShutdownsOrEmpty(currentState);
                 SingleNodeShutdownMetadata existingRecord = currentShutdownMetadata.getAllNodeMetadataMap().get(request.getNodeId());
                 if (existingRecord != null) {
                     logger.info("updating existing shutdown record {} with new record {}", existingRecord, newNodeMetadata);
@@ -102,40 +112,44 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
 
             @Override
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                if (SingleNodeShutdownMetadata.Type.REMOVE.equals(request.getType())
-                    || SingleNodeShutdownMetadata.Type.REPLACE.equals(request.getType())) {
+                boolean shouldReroute = switch (request.getType()) {
+                    case REMOVE, REPLACE -> true;
+                    default -> false;
+                };
+
+                if (shouldReroute) {
                     clusterService.getRerouteService()
-                        .reroute("node registered for removal from cluster", Priority.NORMAL, new ActionListener<ClusterState>() {
+                        .reroute("node registered for removal from cluster", Priority.URGENT, new ActionListener<>() {
                             @Override
-                            public void onResponse(ClusterState clusterState) {
-                                logger.trace("started reroute after registering node [{}] for removal", request.getNodeId());
-                                listener.onResponse(AcknowledgedResponse.TRUE);
-                            }
+                            public void onResponse(ClusterState clusterState) {}
 
                             @Override
                             public void onFailure(Exception e) {
-                                logger.warn(
-                                    new ParameterizedMessage(
-                                        "failed to start reroute after registering node [{}] for removal",
-                                        request.getNodeId()
-                                    ),
-                                    e
-                                );
-                                listener.onFailure(e);
+                                logger.warn(() -> "failed to reroute after registering node [" + request.getNodeId() + "] for shutdown", e);
                             }
                         });
                 } else {
                     logger.trace(
-                        "not starting reroute after registering node ["
+                        () -> "not starting reroute after registering node ["
                             + request.getNodeId()
                             + "] for shutdown of type ["
                             + request.getType()
                             + "]"
                     );
-                    listener.onResponse(AcknowledgedResponse.TRUE);
                 }
+                listener.onResponse(AcknowledgedResponse.TRUE);
             }
         }, newExecutor());
+    }
+
+    private static boolean isNoop(ClusterState state, PutShutdownNodeAction.Request request) {
+        var currentShutdownMetadata = getShutdownsOrEmpty(state);
+        var existing = currentShutdownMetadata.getAllNodeMetadataMap().get(request.getNodeId());
+        return existing != null
+            && existing.getType().equals(request.getType())
+            && existing.getReason().equals(request.getReason())
+            && Objects.equals(existing.getAllocationDelay(), request.getAllocationDelay())
+            && Objects.equals(existing.getTargetNodeName(), request.getTargetNodeName());
     }
 
     @Override

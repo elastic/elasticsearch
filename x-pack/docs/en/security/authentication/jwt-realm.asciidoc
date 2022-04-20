@@ -84,17 +84,18 @@ case-insensitive match to the realm's `client_authentication.shared_secret`.
 
 `allowed_issuer`::
 Sets a verifiable identifier for your JWT issuer. This value is typically a
-case-sensitive URL that uses the HTTPS scheme, which contains a scheme and host.
+URL, UUID, or some other case-sensitive string value.
 
 `allowed_audiences`::
-Specifies a list of allowed JWT audiences that {es} should verify.
+Specifies a list JWT audiences that the realm will allow.
+These values are typically URLs, UUIDs, or other case-sensitive string values.
 
 `allowed_signature_algorithms`::
 Indicates that {es} should use the `RS256` and `HS256` signature algorithms to
 verify the signature of the JWT from the JWT issuer.
 
 `pkc_jwkset_path`::
-The file pathto a JSON Web Key (JWK) set containing the key material that the
+The file path to a JSON Web Key (JWK) set containing the key material that the
 JWT issuer uses to sign tokens and claim responses. 
 
 `claims.principal`::
@@ -116,11 +117,11 @@ SHA-256 algorithm `HS256` in the example:
 ----
 bin/elasticsearch-keystore add-file xpack.security.authc.realms.jwt.jwt1.hmac_jwkset <path> <1>
 ----
-<1> Path to a JWK, which is a resource for a set of JSON-encoded public keys.
+<1> Path to a JWK Set, which is a resource for a set of JSON-encoded public keys.
 +
 [NOTE]
 ====
-Using the JWK is preferred. However, you can add an HMAC key in string format
+Using the JWK Set is preferred. However, you can add an HMAC key in string format
 using the following command. This format is compatible with OIDC HMAC keys, but
 only supports a single key with no attributes. You can only use one HMAC format
 simultaneously.
@@ -182,11 +183,11 @@ validated using OIDC ID token rules.
 
 NOTE: You can relax validation of any of the time-based claims by setting 
 `allowed_clock_skew`. This value sets the maximum allowed clock skew before
-validating JWTs with respect to their creation (`iat`), not before (`nbf`), and
+validating JWTs with respect to their authentication time (`auth_time`), creation (`iat`), not before (`nbf`), and
 expiration times (`exp`).
 
 `aud`::
-(Required, String) Indicates the audience that the ID token is for, expressed as a 
+(Required, String) Indicates the audiences that the ID token is for, expressed as a 
 comma-separated value (CSV). One of the values must be an exact, case-sensitive
 match to any of the CSV values in the `allowed_audiences` setting.
 
@@ -207,7 +208,7 @@ be an exact, case-sensitive match to the value in the `allowed_issuer` setting.
 expressed as UTC milliseconds since epoch.
 
 `auth_time`::
-(Optional, integer) Time when the user authenticated using the ID token,
+(Optional, integer) Time when the user authenticated to the JWT issuer,
 expressed as UTC milliseconds since epoch.
 
 [[jwt-validation-es]]
@@ -291,7 +292,7 @@ PUT /_security/role_mapping/jwt1_users?refresh=true
 
 See <<ref-jwt-settings>>.
 
-WARNING: When Delegated Authorization is enabled in JWT realm, claims for `groups`, `dn`, and `metadata` not used for the {es} user's values.
+WARNING: When Delegated Authorization is enabled in JWT realm, claims for `groups`, `dn`, `mail`, `name`, and `metadata` not used for the {es} user's values.
          Only the JWT `principal` claim is passed through to Delegated Authorization realms.
          The Delegated Authorization realms become responsible for populating all of the {es} user's values, not the JWT realm.
 

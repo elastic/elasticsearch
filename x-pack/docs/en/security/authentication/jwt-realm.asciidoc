@@ -58,7 +58,7 @@ authentication is possible, but strongly discouraged.
 . Add your JWT realm to the `elasticsearch.yml` file:
 +
 --
-[source, yaml]
+[source,yaml]
 ----
 xpack.security.authc.realms.jwt.jwt1:
   order: 3
@@ -87,7 +87,7 @@ Sets a verifiable identifier for your JWT issuer. This value is typically a
 URL, UUID, or some other case-sensitive string value.
 
 `allowed_audiences`::
-Specifies a list JWT audiences that the realm will allow.
+Specifies a list of JWT audiences that the realm will allow.
 These values are typically URLs, UUIDs, or other case-sensitive string values.
 
 `allowed_signature_algorithms`::
@@ -175,11 +175,17 @@ as `HS256`. The algorithm must be in the realm's allow list.
 `typ`::
 (Optional, String) Indicates the token type, which must be `JWT`.
 
-[[jwt-validation-oidc]]
-===== Payload claims validated by OIDC
+[[jwt-validation-payload]]
+===== Payload claims
 OIDC ID tokens contain several claims, which provide information about the user
-who is issuing the token, and the token itself. The following claims are
-validated using OIDC ID token rules.
+who is issuing the token, and the token itself.
+
+[[jwt-validation-payload-oidc]]
+====== OIDC payload claims
+The following claims are validated by a subset of OIDC ID token rules.
+
+{es} doesn't validate `nonce` claims, but a custom JWT issuer can add a
+random `nonce` claim to introduce entropy into the signature.
 
 NOTE: You can relax validation of any of the time-based claims by setting 
 `allowed_clock_skew`. This value sets the maximum allowed clock skew before
@@ -211,12 +217,9 @@ expressed as UTC milliseconds since epoch.
 (Optional, integer) Time when the user authenticated to the JWT issuer,
 expressed as UTC milliseconds since epoch.
 
-[[jwt-validation-es]]
-===== Payload claims validated by {es}
+[[jwt-validation-payload-es]]
+====== {es} payload claims
 {es} validates the following OIDC ID token claims.
-
-NOTE: {es} doesn't validate `nonce` claims, but a custom JWT issuer can add a
-random `nonce` claim to introduce entropy into the signature.
 
 `sub`::
 (Required, String) Name of the JWT claim that contains the user's principal 
@@ -250,24 +253,16 @@ can configure an optional regular expression using the realm setting
 
 [[jwt-authorization]]
 ==== JWT realm authorization
-JWT realm authorization supports role mapping API or delegated authorization realms.
+The JWT realm authorization supports the create or update role mappings API and 
+delegating authorization to another realm.
 
-IMPORTANT: You cannot map roles in the JWT realm does using the
-`role_mapping.yml` file.
+IMPORTANT: You cannot map roles in the JWT realm using the `role_mapping.yml`
+file.
 
-===== JWT realm authorization using the role mapping API
-
-.If JWT realm role mapping is used for authorization, these claims are available for role mapping.
-* `principal` claim: JWT claim in the form of a string is used as the {es} user's principal string value.
-* `dn` claim: JWT claim in the form of a Distinguished Name string is used as the {es} user's DN string value.
-* `groups` claim: JWT claim in the form of a comma separate list is used as the {es} user's groups list value.
-* `metadata` claims: JWTs claims in the form of strings, numbers, booleans, and collections are used as the {es} user's metadata, formatted as `metadata.jwt_claim_<key>` = `<value>` pairs.
-
-See <<ref-jwt-settings>>.
-
-===== Example JWT Realm Role Mapping Rule
-
-Example JWT realm role mapping rule.
+===== Authorizing with the role mapping API
+You can use the
+<<security-api-put-role-mapping,create or update role mappings API>> to define
+role mappings in the JWT realm:
 
 [source,console]
 ----
@@ -285,27 +280,48 @@ PUT /_security/role_mapping/jwt1_users?refresh=true
 }
 ----
 
-===== JWT realm authorization via authorization delegation
+If you use this API in the JWT realm, the following claims are available for
+role mapping:
 
-.If Delegated Realms are used for authorization, this claim is available for roles lookup.
-* `principal` claim: JWT claim in the form of a string is used as the {es} user's principal value.
+`principal`::
+(Required, String) Principal claim that is used as the {es} user's username.
 
-See <<ref-jwt-settings>>.
+`dn`::
+(Optional, String) Distinguished Name (DN) that is used as the {es} user's DN.
 
-WARNING: When Delegated Authorization is enabled in JWT realm, claims for `groups`, `dn`, `mail`, `name`, and `metadata` not used for the {es} user's values.
-         Only the JWT `principal` claim is passed through to Delegated Authorization realms.
-         The Delegated Authorization realms become responsible for populating all of the {es} user's values, not the JWT realm.
+`groups`::
+(Optional, String) Comma-separated value (CSV) list that is used as the {es}
+user's list of groups.
 
-====== Example JWT realm delegated authorization:
+`metadata`::
+(Optional, object) Additional metadata about the user, such as strings, integers,
+boolean values, and collections that are used as the {es} user's metadata.
+These values are key value pairs formatted as
+`metadata.jwt_claim_<key>` = `<value>`.
 
-Example JWT realm using Delegated Authorization to multiple other realms.
+===== Delegating JWT authorization to another realm
+If you <<authorization_realms,delegate authorization>> to another realm from the
+JWT realm, only the `principal` claim is available for role lookup. When
+delegating the assignment and lookup of roles to another realm from the JWT
+realm, claims for `dn`, `groups`, `mail`, `metadata`, and `name` are not used
+for the {es} user's values. Only the JWT `principal` claim is passed to the
+delegated authorization realm. The realm that is delegated for authorization
+- not the JWT realm - becomes responsible for populating all of the {es} user's
+values. 
+
+The following example shows how you define delegation authorization in the
+`elasticsearch.yml` file to multiple other realms from the JWT realm. A JWT
+realm named `jwt2` is authorization delegation to multiple realms:
 
 [source,yaml]
 ----
 xpack.security.authc.realms.jwt.jwt2.authorization_realms: file1,native1,ldap1,ad1
 ----
 
-Example role mapping in realm `native1` for principal `principalname1`.
+You can then use the
+<<security-api-put-role-mapping,create or update role mappings API>> to map
+roles. The following example maps roles in the `native1` realm for the
+`principalname1` JWT principal.
 
 [source,console]
 ----
@@ -320,12 +336,14 @@ PUT /_security/role_mapping/native1_users?refresh=true
 }
 ----
 
-If realm `jwt2` successfully authenticates a client, and a JWT for principal `principalname1`, and Delegates Authorization to realm `native1`,
-then realm `native1` can lookup that {es} user's values, including using this role mapping rule linked to realm `native1`.
+If realm `jwt2` successfully authenticates a client with a JWT for principal
+`principalname1`, and delegates authorization to one of the listed realms
+(such as `native1`), then that realm can look up the {es} user's values. With
+this defined role mapping, the realm can also look up this role mapping rule
+linked to realm `native1`.
 
 [[hmac-oidc-example]]
 ==== JWT Realm Example with OIDC HMAC Key
-
 These settings are for a JWT issuer, {es}, and a client of {es}.
 The example HMAC key is in OIDC HMAC compatible format; key bytes are UTF-8 encoded UNICODE characters.
 
@@ -346,11 +364,11 @@ HMAC OIDC:  hmac-oidc-key-string-for-hs256-algorithm
 // NOTCONSOLE
 
 [[hmac-oidc-example-jwt-realm]]
-===== JWT realm clear settings
+===== JWT realm settings
 
 These settings are for `elasticsearch.yml`.
 
-[source,yml]
+[source,yaml]
 ----
 xpack.security.authc.realms.jwt.jwt8.order: 8
 xpack.security.authc.realms.jwt.jwt8.allowed_issuer: iss8
@@ -364,7 +382,7 @@ xpack.security.authc.realms.jwt.jwt8.client_authentication.type: shared_secret
 
 These settings are for `elasticsearch-keystore`.
 
-[source,yml]
+[source,yaml]
 ----
 xpack.security.authc.realms.jwt.jwt8.hmac_key: hmac-oidc-key-string-for-hs256-algorithm
 xpack.security.authc.realms.jwt.jwt8.client_authentication.shared_secret: client-shared-secret-string

@@ -150,6 +150,7 @@ Header: {"typ":"JWT","alg":"HS256"}
 Claims: {"aud":"aud8","sub":"security_test_user","iss":"iss8","exp":4070908800,"iat":946684800}
 Signature: UnnFmsoFKfNmKMsVoDQmKI_3-j95PCaKdgqqau3jPMY
 ----
+// NOTCONSOLE
 
 This example illustrates a partial decoding of a JWT. The validity period is
 from 2000 to 2099 (inclusive), as defined by the issue time (`iat`) and
@@ -341,6 +342,7 @@ Audiences:  aud8
 Algorithms: HS256
 HMAC OIDC:  hmac-oidc-key-string-for-hs256-algorithm
 ----
+// NOTCONSOLE
 
 [[hmac-oidc-example-jwt-realm]]
 ===== JWT realm clear settings
@@ -394,3 +396,4 @@ These settings are for an {es} client.
 ES-Client-Authentication: SharedSecret client-shared-secret-string
 Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpc3MiOiJpc3M4IiwiYXVkIjoiYXVkOCIsInN1YiI6InNlY3VyaXR5X3Rlc3RfdXNlciIsImV4cCI6NDA3MDkwODgwMCwiaWF0Ijo5NDY2ODQ4MDB9.UnnFmsoFKfNmKMsVoDQmKI_3-j95PCaKdgqqau3jPMY
 ----
+// NOTCONSOLE

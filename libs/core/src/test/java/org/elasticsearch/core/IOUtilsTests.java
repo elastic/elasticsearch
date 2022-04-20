@@ -16,13 +16,11 @@
  * limitations under the License.
  */
 
-package org.elasticsearch.core.internal.io;
+package org.elasticsearch.core;
 
 import org.apache.lucene.tests.mockfile.FilterFileSystemProvider;
 import org.apache.lucene.tests.mockfile.FilterPath;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.Closeable;

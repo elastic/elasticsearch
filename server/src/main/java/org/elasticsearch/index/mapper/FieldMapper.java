@@ -37,7 +37,6 @@ import java.util.Comparator;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -64,7 +63,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
     protected final CopyTo copyTo;
     protected final boolean hasScript;
     protected final String onScriptError;
-    protected final Map<String, Object> unknownParams = new LinkedHashMap<>();
 
     /**
      * Create a FieldMapper with no index analyzers
@@ -1172,10 +1170,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         protected final MultiFields.Builder multiFieldsBuilder = new MultiFields.Builder();
         protected final CopyTo.Builder copyTo = new CopyTo.Builder();
-        // Parameters of legacy indices that are not interpreted by the current ES version. We still need to capture them here so that
-        // they can be preserved in the mapping that is serialized out based on the toXContent method.
-        // We use LinkedHashMap to preserve the parameter order.
-        protected final Map<String, Object> unknownParams = new LinkedHashMap<>();
 
         /**
          * Creates a new Builder with a field name
@@ -1194,11 +1188,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             for (FieldMapper subField : initializer.multiFields.mappers) {
                 multiFieldsBuilder.add(subField);
             }
-            unknownParams.putAll(initializer.unknownParams);
             return this;
         }
 
-        private void merge(FieldMapper in, Conflicts conflicts) {
+        protected void merge(FieldMapper in, Conflicts conflicts) {
             for (Parameter<?> param : getParameters()) {
                 param.merge(in, conflicts);
             }
@@ -1206,7 +1199,6 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 multiFieldsBuilder.update(newSubField, MapperBuilderContext.forPath(parentPath(newSubField.name())));
             }
             this.copyTo.reset(in.copyTo);
-            unknownParams.putAll(in.unknownParams);
             validate();
         }
 
@@ -1246,13 +1238,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
          * Writes the current builder parameter values as XContent
          */
         @Override
-        public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             boolean includeDefaults = params.paramAsBoolean("include_defaults", false);
             for (Parameter<?> parameter : getParameters()) {
                 parameter.toXContent(builder, includeDefaults);
-            }
-            for (Map.Entry<String, Object> unknownParam : unknownParams.entrySet()) {
-                builder.field(unknownParam.getKey(), unknownParam.getValue());
             }
             return builder;
         }
@@ -1316,8 +1305,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 }
                 if (parameter == null) {
                     if (parserContext.indexVersionCreated().isLegacyIndexVersion()) {
-                        // ignore but preserve unknown parameters on legacy indices
-                        unknownParams.put(propName, propNode);
+                        // ignore unknown parameters on legacy indices
+                        handleUnknownParam(propName, propNode);
                         iterator.remove();
                         continue;
                     }
@@ -1367,6 +1356,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 iterator.remove();
             }
             validate();
+        }
+
+        protected void handleUnknownParam(String propName, Object propNode) {
+            // ignore
         }
 
         protected static ContentPath parentPath(String name) {

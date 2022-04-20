@@ -23,9 +23,11 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -45,9 +47,42 @@ public class PlaceHolderFieldMapper extends FieldMapper {
 
         private final String type;
 
+        // Parameters of legacy indices that are not interpreted by the current ES version. We still need to capture them here so that
+        // they can be preserved in the mapping that is serialized out based on the toXContent method.
+        // We use LinkedHashMap to preserve the parameter order.
+        protected final Map<String, Object> unknownParams = new LinkedHashMap<>();
+
         public Builder(String name, String type) {
             super(name);
             this.type = type;
+        }
+
+        @Override
+        public FieldMapper.Builder init(FieldMapper initializer) {
+            assert initializer instanceof PlaceHolderFieldMapper;
+            unknownParams.putAll(((PlaceHolderFieldMapper) initializer).unknownParams);
+            return super.init(initializer);
+        }
+
+        @Override
+        protected void merge(FieldMapper in, Conflicts conflicts) {
+            assert in instanceof PlaceHolderFieldMapper;
+            unknownParams.putAll(((PlaceHolderFieldMapper) in).unknownParams);
+            super.merge(in, conflicts);
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder = super.toXContent(builder, params);
+            for (Map.Entry<String, Object> unknownParam : unknownParams.entrySet()) {
+                builder.field(unknownParam.getKey(), unknownParam.getValue());
+            }
+            return builder;
+        }
+
+        @Override
+        protected void handleUnknownParam(String propName, Object propNode) {
+            unknownParams.put(propName, propNode);
         }
 
         @Override
@@ -220,6 +255,8 @@ public class PlaceHolderFieldMapper extends FieldMapper {
             return "can't run " + query + " on field type " + type + " of legacy index";
         }
     }
+
+    protected final Map<String, Object> unknownParams = new LinkedHashMap<>();
 
     public PlaceHolderFieldMapper(
         String simpleName,

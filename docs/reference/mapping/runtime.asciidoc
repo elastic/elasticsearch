@@ -154,7 +154,6 @@ The `runtime` section can be any of these data types:
 * `date`
 * `double`
 * `geo_point`
-* `geo_shape`
 * `ip`
 * `keyword`
 * `long`

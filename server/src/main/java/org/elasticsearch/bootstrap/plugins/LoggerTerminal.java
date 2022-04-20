@@ -48,11 +48,6 @@ public final class LoggerTerminal extends Terminal {
     }
 
     @Override
-    public char[] readSecret(String prompt, int maxLength) {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
     public PrintWriter getWriter() {
         throw new UnsupportedOperationException();
     }

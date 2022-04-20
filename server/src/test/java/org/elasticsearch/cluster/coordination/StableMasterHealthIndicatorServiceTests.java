@@ -60,7 +60,7 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
 
     public void testThreeMasters() throws Exception {
         MasterHistoryService masterHistoryService = createMasterHistoryService();
-        MasterHistory localMasterHistory = masterHistoryService.getLocalMasterHistory();
+        MutableMasterHistory localMasterHistory = masterHistoryService.getLocalMasterHistory();
         StableMasterHealthIndicatorService service = createAllocationHealthIndicatorService(nullMasterClusterState, masterHistoryService);
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
         HealthIndicatorResult result = service.calculate(true);
@@ -96,7 +96,7 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
 
     public void testMasterGoesNull() throws Exception {
         MasterHistoryService masterHistoryService = createMasterHistoryService();
-        MasterHistory localMasterHistory = masterHistoryService.getLocalMasterHistory();
+        MutableMasterHistory localMasterHistory = masterHistoryService.getLocalMasterHistory();
         StableMasterHealthIndicatorService service = createAllocationHealthIndicatorService(nullMasterClusterState, masterHistoryService);
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, nullMasterClusterState));
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));

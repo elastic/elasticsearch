@@ -19,7 +19,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 
 import java.io.FileNotFoundException;
 import java.io.FilterOutputStream;
@@ -314,7 +314,7 @@ public class FsBlobContainer extends AbstractBlobContainer {
     private void writeToPath(InputStream inputStream, Path tempBlobPath, long blobSize) throws IOException {
         try (OutputStream outputStream = Files.newOutputStream(tempBlobPath, StandardOpenOption.CREATE_NEW)) {
             final int bufferSize = blobStore.bufferSizeInBytes();
-            org.elasticsearch.core.internal.io.Streams.copy(
+            org.elasticsearch.core.Streams.copy(
                 inputStream,
                 outputStream,
                 new byte[blobSize < bufferSize ? Math.toIntExact(blobSize) : bufferSize]

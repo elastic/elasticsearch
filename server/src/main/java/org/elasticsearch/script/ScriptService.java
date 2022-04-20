@@ -31,7 +31,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -359,9 +358,17 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
     void validateCacheSettings(Settings settings) {
         ContextSettings contextSettings = new ContextSettings(settings, contexts.keySet());
         if (contextSettings.useContextSet) {
-            deprecationLogger.warn(DeprecationCategory.SCRIPTING, "scripting-context-cache", USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE);
+            deprecationLogger.warn(
+                DeprecationLogger.DeprecationCategory.SCRIPTING,
+                "scripting-context-cache",
+                USE_CONTEXT_RATE_KEY_DEPRECATION_MESSAGE
+            );
         } else if (contextSettings.hasContextSettings()) {
-            deprecationLogger.warn(DeprecationCategory.SCRIPTING, "scripting-context-cache", contextSettings.deprecationMessage());
+            deprecationLogger.warn(
+                DeprecationLogger.DeprecationCategory.SCRIPTING,
+                "scripting-context-cache",
+                contextSettings.deprecationMessage()
+            );
         }
         if (contextSettings.incompatibleSettings()) {
             throw new IllegalArgumentException(contextSettings.incompatibleSettingsMessage());

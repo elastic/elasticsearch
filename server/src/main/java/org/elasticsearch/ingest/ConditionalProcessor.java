@@ -8,7 +8,6 @@
 
 package org.elasticsearch.ingest;
 
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.script.DynamicMap;
 import org.elasticsearch.script.IngestConditionalScript;
@@ -38,7 +37,7 @@ public class ConditionalProcessor extends AbstractProcessor implements WrappingP
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
     private static final Map<String, Function<Object, Object>> FUNCTIONS = Map.of("_type", value -> {
         deprecationLogger.warn(
-            DeprecationCategory.INDICES,
+            DeprecationLogger.DeprecationCategory.INDICES,
             "conditional-processor__type",
             "[types removal] Looking up doc types [_type] in scripts is deprecated."
         );

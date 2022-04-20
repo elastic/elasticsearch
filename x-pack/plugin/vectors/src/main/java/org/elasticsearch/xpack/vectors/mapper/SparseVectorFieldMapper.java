@@ -16,7 +16,6 @@ import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.search.DocValueFormat;
 
@@ -68,7 +67,7 @@ public class SparseVectorFieldMapper extends FieldMapper {
         if (c.indexVersionCreated().onOrAfter(Version.V_8_0_0)) {
             throw new IllegalArgumentException(ERROR_MESSAGE);
         } else {
-            deprecationLogger.warn(DeprecationCategory.MAPPINGS, "sparse_vector", ERROR_MESSAGE_7X);
+            deprecationLogger.warn(DeprecationLogger.DeprecationCategory.MAPPINGS, "sparse_vector", ERROR_MESSAGE_7X);
             return new Builder(n);
         }
     });

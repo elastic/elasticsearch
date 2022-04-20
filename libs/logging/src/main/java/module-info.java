@@ -23,6 +23,8 @@ module org.elasticsearch.logging {
 
     exports org.elasticsearch.logging.bootstrap to org.elasticsearch.server;
     exports org.elasticsearch.logging.spi;
+    exports org.elasticsearch.logging.message;
+    exports org.elasticsearch.logging.format;
 
     uses LoggingSupportProvider;
     uses ServerSupport;

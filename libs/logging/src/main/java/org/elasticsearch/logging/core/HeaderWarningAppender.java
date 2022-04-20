@@ -8,8 +8,8 @@
 
 package org.elasticsearch.logging.core;
 
-import org.elasticsearch.logging.ESMapMessage;
-import org.elasticsearch.logging.Message;
+import org.elasticsearch.logging.message.ESMapMessage;
+import org.elasticsearch.logging.message.Message;
 import org.elasticsearch.logging.spi.ServerSupport;
 
 public class HeaderWarningAppender implements Appender {

@@ -39,7 +39,6 @@ import org.apache.lucene.search.similarities.NormalizationH3;
 import org.apache.lucene.search.similarities.NormalizationZ;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.lucene.similarity.LegacyBM25Similarity;
 
@@ -106,7 +105,7 @@ final class SimilarityProviders {
                     );
                 } else {
                     deprecationLogger.warn(
-                        DeprecationCategory.INDICES,
+                        DeprecationLogger.DeprecationCategory.INDICES,
                         basicModel + "_similarity_model_replaced",
                         "Basic model ["
                             + basicModel
@@ -145,7 +144,7 @@ final class SimilarityProviders {
                     );
                 } else {
                     deprecationLogger.warn(
-                        DeprecationCategory.INDICES,
+                        DeprecationLogger.DeprecationCategory.INDICES,
                         afterEffect + "_after_effect_replaced",
                         "After effect ["
                             + afterEffect
@@ -243,7 +242,7 @@ final class SimilarityProviders {
                 throw new IllegalArgumentException("Unknown settings for similarity of type [" + type + "]: " + unknownSettings);
             } else {
                 deprecationLogger.warn(
-                    DeprecationCategory.INDICES,
+                    DeprecationLogger.DeprecationCategory.INDICES,
                     "unknown_similarity_setting",
                     "Unknown settings for similarity of type [" + type + "]: " + unknownSettings
                 );

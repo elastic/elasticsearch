@@ -8,7 +8,6 @@
 
 package org.elasticsearch.common.time;
 
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 
 import java.time.Clock;
@@ -168,7 +167,7 @@ public class DateUtils {
         String deprecatedId = DEPRECATED_SHORT_TIMEZONES.get(zoneId);
         if (deprecatedId != null) {
             deprecationLogger.warn(
-                DeprecationCategory.PARSING,
+                DeprecationLogger.DeprecationCategory.PARSING,
                 "timezone",
                 "Use of short timezone id " + zoneId + " is deprecated. Use " + deprecatedId + " instead"
             );

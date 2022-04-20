@@ -17,7 +17,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -178,7 +177,7 @@ public abstract class SessionFactory implements Closeable {
             final String deprecationKey = "deprecated_setting_" + fullSettingKey.replace('.', '_');
             DeprecationLogger.getLogger(logger.getName())
                 .warn(
-                    DeprecationCategory.SETTINGS,
+                    DeprecationLogger.DeprecationCategory.SETTINGS,
                     deprecationKey,
                     "the setting [{}] has been deprecated and will be removed in a future version. use [{}] instead",
                     fullSettingKey,

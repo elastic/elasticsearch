@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ml.utils;
 
 import org.elasticsearch.common.io.Streams;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 
 import java.io.IOException;
@@ -170,7 +169,7 @@ public final class DomainSplitFunction {
         // NOTE: we don't check SpecialPermission because this will be called (indirectly) from scripts
         AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
             deprecationLogger.warn(
-                DeprecationCategory.API,
+                DeprecationLogger.DeprecationCategory.API,
                 "domainSplit",
                 "Method [domainSplit] taking params is deprecated. Remove the params argument."
             );

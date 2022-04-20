@@ -20,7 +20,7 @@ import org.elasticsearch.indices.recovery.plan.ShardSnapshot;
 import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
+import org.elasticsearch.logging.message.Message;
 
 import java.util.Collections;
 import java.util.List;

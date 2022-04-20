@@ -38,8 +38,8 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.logging.PrefixLogger;
+import org.elasticsearch.logging.message.Message;
 import org.elasticsearch.repositories.IndexId;
 
 import java.io.IOException;

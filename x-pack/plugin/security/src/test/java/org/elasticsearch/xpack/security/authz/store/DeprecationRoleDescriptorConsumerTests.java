@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.VersionUtils;
@@ -369,7 +368,7 @@ public final class DeprecationRoleDescriptorConsumerTests extends ESTestCase {
 
     private void verifyLogger(DeprecationLogger deprecationLogger, String roleName, String aliasName, String indexNames) {
         verify(deprecationLogger).warn(
-            DeprecationCategory.SECURITY,
+            DeprecationLogger.DeprecationCategory.SECURITY,
             "index_permissions_on_alias",
             "Role ["
                 + roleName

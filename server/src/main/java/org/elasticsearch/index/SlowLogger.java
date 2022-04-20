@@ -6,8 +6,11 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.logging;
+package org.elasticsearch.index;
 
+import org.elasticsearch.logging.Level;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.logging.spi.LogLevelSupport;
 import org.elasticsearch.logging.spi.MessageFactory;
 

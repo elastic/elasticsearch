@@ -42,7 +42,6 @@ import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensesMetadata;
 import org.elasticsearch.license.Licensing;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.EnginePlugin;
@@ -398,7 +397,7 @@ public class XPackPlugin extends XPackClientPlugin
             Path legacyConfig = env.configFile().resolve("x-pack").resolve(name);
             if (Files.exists(legacyConfig)) {
                 deprecationLogger.warn(
-                    DeprecationCategory.OTHER,
+                    DeprecationLogger.DeprecationCategory.OTHER,
                     "config_file_path",
                     "Config file ["
                         + name

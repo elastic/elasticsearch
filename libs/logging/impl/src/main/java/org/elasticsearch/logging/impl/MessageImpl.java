@@ -8,7 +8,7 @@
 
 package org.elasticsearch.logging.impl;
 
-import org.elasticsearch.logging.Message;
+import org.elasticsearch.logging.message.Message;
 
 public class MessageImpl implements Message {
     org.apache.logging.log4j.message.Message log4jMessage;

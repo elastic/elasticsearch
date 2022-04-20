@@ -17,7 +17,6 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ObjectParser.ValueType;
@@ -1216,7 +1215,7 @@ public class Job implements SimpleDiffable<Job>, Writeable, ToXContentObject {
             if (analysisConfig.getBucketSpan().seconds() > SECONDS_IN_A_DAY) {
                 if (analysisConfig.getBucketSpan().seconds() % SECONDS_IN_A_DAY != 0) {
                     deprecationLogger.critical(
-                        DeprecationCategory.OTHER,
+                        DeprecationLogger.DeprecationCategory.OTHER,
                         "bucket_span",
                         "bucket_span {} [{}s] is not an integral multiple of the number of seconds in 1d [{}s]. This is now deprecated.",
                         analysisConfig.getBucketSpan().toString(),
@@ -1227,7 +1226,7 @@ public class Job implements SimpleDiffable<Job>, Writeable, ToXContentObject {
             } else {
                 if (SECONDS_IN_A_DAY % analysisConfig.getBucketSpan().seconds() != 0) {
                     deprecationLogger.critical(
-                        DeprecationCategory.OTHER,
+                        DeprecationLogger.DeprecationCategory.OTHER,
                         "bucket_span",
                         "bucket_span {} [{}s] is not an integral divisor of the number of seconds in 1d [{}s]. This is now deprecated.",
                         analysisConfig.getBucketSpan().toString(),

@@ -14,7 +14,6 @@ import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -48,7 +47,7 @@ public class RestCloseIndexAction extends BaseRestHandler {
         String waitForActiveShards = request.param("wait_for_active_shards");
         if ("index-setting".equalsIgnoreCase(waitForActiveShards)) {
             deprecationLogger.warn(
-                DeprecationCategory.SETTINGS,
+                DeprecationLogger.DeprecationCategory.SETTINGS,
                 "close-index-wait_for_active_shards-index-setting",
                 "?wait_for_active_shards=index-setting is now the default behaviour; the 'index-setting' value for this parameter "
                     + "should no longer be used since it will become unsupported in version "

@@ -10,7 +10,7 @@ package org.elasticsearch.action.bulk;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
+import org.elasticsearch.logging.message.Message;
 import org.elasticsearch.threadpool.Scheduler;
 
 import java.util.concurrent.CountDownLatch;

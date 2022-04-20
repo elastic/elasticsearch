@@ -8,6 +8,8 @@
 
 package org.elasticsearch.logging;
 
+import org.elasticsearch.logging.message.Message;
+
 public interface Logger {
 
     void log(Level level, Object message, Object... params);

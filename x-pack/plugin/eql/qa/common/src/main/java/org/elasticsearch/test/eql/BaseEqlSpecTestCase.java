@@ -22,7 +22,7 @@ import org.elasticsearch.client.eql.EqlSearchResponse.Hits;
 import org.elasticsearch.client.eql.EqlSearchResponse.Sequence;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.logging.LoggerMessageFormat;
+import org.elasticsearch.logging.format.LoggerMessageFormat;
 import org.junit.AfterClass;
 import org.junit.Before;
 

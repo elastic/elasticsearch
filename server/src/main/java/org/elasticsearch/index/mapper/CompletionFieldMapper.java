@@ -24,7 +24,6 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.search.suggest.completion.CompletionSuggester;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
@@ -216,7 +215,7 @@ public class CompletionFieldMapper extends FieldMapper {
                     );
                 } else {
                     deprecationLogger.warn(
-                        DeprecationCategory.MAPPINGS,
+                        DeprecationLogger.DeprecationCategory.MAPPINGS,
                         "excessive_completion_contexts",
                         "You have defined more than ["
                             + COMPLETION_CONTEXTS_LIMIT

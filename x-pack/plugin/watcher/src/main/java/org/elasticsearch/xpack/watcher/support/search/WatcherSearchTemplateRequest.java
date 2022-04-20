@@ -13,7 +13,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -206,7 +205,11 @@ public class WatcherSearchTemplateRequest implements ToXContentObject {
                     }
                     // Empty types arrays still generate the same deprecation warning they did in 7.x.
                     // Ideally they should be removed from the definition.
-                    deprecationLogger.critical(DeprecationCategory.PARSING, "watcher_search_input", TYPES_DEPRECATION_MESSAGE);
+                    deprecationLogger.critical(
+                        DeprecationLogger.DeprecationCategory.PARSING,
+                        "watcher_search_input",
+                        TYPES_DEPRECATION_MESSAGE
+                    );
                 } else {
                     throw new ElasticsearchParseException(
                         "could not read search request. unexpected array field [" + currentFieldName + "]"

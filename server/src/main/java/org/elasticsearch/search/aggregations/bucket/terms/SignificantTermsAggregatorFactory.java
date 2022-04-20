@@ -11,7 +11,6 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.DocValueFormat;
@@ -400,7 +399,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
                 return GLOBAL_ORDINALS;
             } else if ("global_ordinals_hash".equals(value)) {
                 deprecationLogger.warn(
-                    DeprecationCategory.AGGREGATIONS,
+                    DeprecationLogger.DeprecationCategory.AGGREGATIONS,
                     "global_ordinals_hash",
                     "global_ordinals_hash is deprecated. Please use [global_ordinals] instead."
                 );

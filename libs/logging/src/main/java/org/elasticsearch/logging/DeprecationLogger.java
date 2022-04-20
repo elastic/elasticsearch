@@ -8,12 +8,16 @@
 
 package org.elasticsearch.logging;
 
+import org.elasticsearch.logging.message.ESMapMessage;
+import org.elasticsearch.logging.message.Message;
+import org.elasticsearch.logging.spi.MessageFactory;
 import org.elasticsearch.logging.spi.ServerSupport;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * A logger that logs deprecation notices. Logger should be initialized with a class or name which will be used
@@ -31,6 +35,10 @@ import java.util.List;
  */
 // TODO: PG i wonder if we coudl expose an interface and inject this implementation? the same we would do for a regular Logger interface
 public final class DeprecationLogger {
+    public static final String ELASTIC_ORIGIN_FIELD_NAME = "elasticsearch.elastic_product_origin";
+    public static final String KEY_FIELD_NAME = "event.code";
+    public static final String X_OPAQUE_ID_FIELD_NAME = "elasticsearch.http.request.x_opaque_id";
+    public static final String ECS_VERSION = "1.2.0";
     /**
      * Deprecation messages are logged at this level.
      * More serious that WARN by 1, but less serious than ERROR
@@ -64,6 +72,7 @@ public final class DeprecationLogger {
      * This is a node setting. This method initializes the DeprecationLogger class with the node settings for the node in order to read the
      * "deprecation.skip_deprecated_settings" setting. This only needs to be called once per JVM. If it is not called, the default behavior
      * is to assume that the "deprecation.skip_deprecated_settings" setting is not set.
+     *
      * @param nodeSkipDeprecatedSetting The settings for this node  // TODO: typy this up
      */
     public static void initialize(List<String> nodeSkipDeprecatedSetting) {
@@ -151,5 +160,94 @@ public final class DeprecationLogger {
         Message deprecationMessage = DeprecatedMessage.compatibleDeprecationMessage(key, opaqueId, productOrigin, msg, params);
         logger.log(level, deprecationMessage);
         return this;
+    }
+
+    /**
+     * Deprecation log messages are categorised so that consumers of the logs can easily aggregate them.
+     * <p>
+     * When categorising a message, you should consider the impact of the work required to mitigate the
+     * deprecation. For example, a settings change would normally be categorised as {@link #SETTINGS},
+     * but if the setting in question was related to security configuration, it may be more appropriate
+     * to categorise the deprecation message as {@link #SECURITY}.
+     */
+    public enum DeprecationCategory {
+        AGGREGATIONS,
+        ANALYSIS,
+        API,
+        COMPATIBLE_API,
+        INDICES,
+        MAPPINGS,
+        OTHER,
+        PARSING,
+        PLUGINS,
+        QUERIES,
+        SCRIPTING,
+        SECURITY,
+        SETTINGS,
+        TEMPLATES
+    }
+
+    /**
+     * A logger message used by {@link DeprecationLogger}, enriched with fields
+     * named following ECS conventions. Carries x-opaque-id field if provided in the headers.
+     * Will populate the x-opaque-id field in JSON logs.
+     */
+    // TODO: PG I would prefer to hide it, package private??
+    static final class DeprecatedMessage {
+
+        static final MessageFactory provider = MessageFactory.provider();
+
+        private DeprecatedMessage() {}
+
+        // @SuppressLoggerChecks(reason = "safely delegates to logger")
+        public static Message of(
+            DeprecationCategory category,
+            String key,
+            String xOpaqueId,
+            String productOrigin,
+            String messagePattern,
+            Object... args
+        ) {
+            return getEsLogMessage(category, key, xOpaqueId, productOrigin, messagePattern, args);
+        }
+
+        // @SuppressLoggerChecks(reason = "safely delegates to logger")
+        public static Message compatibleDeprecationMessage(
+            String key,
+            String xOpaqueId,
+            String productOrigin,
+            String messagePattern,
+            Object... args
+        ) {
+            return getEsLogMessage(DeprecationCategory.COMPATIBLE_API, key, xOpaqueId, productOrigin, messagePattern, args);
+        }
+
+        // @SuppressLoggerChecks(reason = "safely delegates to logger")
+        private static Message getEsLogMessage(
+            DeprecationCategory category,
+            String key,
+            String xOpaqueId,
+            String productOrigin,
+            String messagePattern,
+            Object[] args
+        ) {
+            ESMapMessage esLogMessage = provider.createMapMessage(messagePattern, args)
+                .field("data_stream.dataset", "deprecation.elasticsearch")
+                .field("data_stream.type", "logs")
+                .field("data_stream.namespace", "default")
+                .field(KEY_FIELD_NAME, key)
+                .field("elasticsearch.event.category", category.name().toLowerCase(Locale.ROOT));
+
+            if (isNullOrEmpty(xOpaqueId)) {
+                return esLogMessage;
+            }
+
+            return esLogMessage.field(X_OPAQUE_ID_FIELD_NAME, xOpaqueId).field(ELASTIC_ORIGIN_FIELD_NAME, productOrigin);
+        }
+
+        // TODO: move to core Strings?
+        public static boolean isNullOrEmpty(CharSequence str) {
+            return str == null || str.isEmpty();
+        }
     }
 }

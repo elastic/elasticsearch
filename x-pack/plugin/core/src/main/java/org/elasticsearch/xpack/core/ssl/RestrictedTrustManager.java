@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.core.ssl;
 import org.elasticsearch.common.ssl.DerParser;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
+import org.elasticsearch.logging.message.Message;
 
 import java.io.IOException;
 import java.net.Socket;

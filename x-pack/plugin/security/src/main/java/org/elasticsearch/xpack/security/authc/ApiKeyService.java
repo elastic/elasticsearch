@@ -59,11 +59,10 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
+import org.elasticsearch.logging.message.Message;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.DeprecationHandler;
@@ -862,7 +861,7 @@ public class ApiKeyService {
         public void logRenamedField(String parserName, Supplier<XContentLocation> location, String oldName, String currentName) {
             String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
             deprecationLogger.warn(
-                DeprecationCategory.API,
+                DeprecationLogger.DeprecationCategory.API,
                 "api_key_field",
                 "{}Deprecated field [{}] used in api key [{}], expected [{}] instead",
                 prefix,
@@ -876,7 +875,7 @@ public class ApiKeyService {
         public void logReplacedField(String parserName, Supplier<XContentLocation> location, String oldName, String replacedName) {
             String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
             deprecationLogger.warn(
-                DeprecationCategory.API,
+                DeprecationLogger.DeprecationCategory.API,
                 "api_key_field",
                 "{}Deprecated field [{}] used in api key [{}], replaced by [{}]",
                 prefix,
@@ -890,7 +889,7 @@ public class ApiKeyService {
         public void logRemovedField(String parserName, Supplier<XContentLocation> location, String removedName) {
             String prefix = parserName == null ? "" : "[" + parserName + "][" + location.get() + "] ";
             deprecationLogger.warn(
-                DeprecationCategory.API,
+                DeprecationLogger.DeprecationCategory.API,
                 "api_key_field",
                 "{}Deprecated field [{}] used in api key [{}], which is unused and will be removed entirely",
                 prefix,

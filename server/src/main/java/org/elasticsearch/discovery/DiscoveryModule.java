@@ -27,7 +27,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.gateway.GatewayMetaState;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -162,7 +161,7 @@ public class DiscoveryModule {
             assert Version.CURRENT.major == Version.V_7_0_0.major + 1;
             DeprecationLogger.getLogger(DiscoveryModule.class)
                 .critical(
-                    DeprecationCategory.SETTINGS,
+                    DeprecationLogger.DeprecationCategory.SETTINGS,
                     "legacy-discovery-type",
                     "Support for setting [{}] to [{}] is deprecated and will be removed in a future version. Set this setting to [{}] "
                         + "instead.",

@@ -9,7 +9,7 @@ package org.elasticsearch.index.shard;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
+import org.elasticsearch.logging.message.Message;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.transport.TransportRequest;

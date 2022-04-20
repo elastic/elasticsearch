@@ -34,7 +34,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -124,7 +123,7 @@ public class TransportPutRollupJobAction extends AcknowledgedTransportMasterNode
         String modernTZ = DateUtils.DEPRECATED_LONG_TIMEZONES.get(timeZone);
         if (modernTZ != null) {
             deprecationLogger.warn(
-                DeprecationCategory.PARSING,
+                DeprecationLogger.DeprecationCategory.PARSING,
                 "deprecated_timezone",
                 "Creating Rollup job ["
                     + request.getConfig().getId()

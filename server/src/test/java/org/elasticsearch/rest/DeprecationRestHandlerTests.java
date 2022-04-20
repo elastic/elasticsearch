@@ -10,7 +10,6 @@ package org.elasticsearch.rest;
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.test.ESTestCase;
@@ -98,10 +97,11 @@ public class DeprecationRestHandlerTests extends ESTestCase {
                 }
             } else {
                 if (deprecationLevel == null || deprecationLevel == Level.WARN) {
-                    inOrder.verify(deprecationLogger).warn(DeprecationCategory.API, "deprecated_route_GET_/some/path", deprecationMessage);
+                    inOrder.verify(deprecationLogger)
+                        .warn(DeprecationLogger.DeprecationCategory.API, "deprecated_route_GET_/some/path", deprecationMessage);
                 } else {
                     inOrder.verify(deprecationLogger)
-                        .critical(DeprecationCategory.API, "deprecated_route_GET_/some/path", deprecationMessage);
+                        .critical(DeprecationLogger.DeprecationCategory.API, "deprecated_route_GET_/some/path", deprecationMessage);
                 }
             }
 

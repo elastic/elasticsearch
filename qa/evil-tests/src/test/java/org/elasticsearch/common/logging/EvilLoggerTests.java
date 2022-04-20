@@ -20,7 +20,7 @@ import org.elasticsearch.test.ESTestCase;
 //import org.elasticsearch.common.util.concurrent.ThreadContext;
 //import org.elasticsearch.core.PathUtils;
 //import org.elasticsearch.env.Environment;
-//import org.elasticsearch.logging.DeprecationCategory;
+//import org.elasticsearch.logging.DeprecationLogger.DeprecationCategory;
 //import org.elasticsearch.logging.DeprecationLogger;
 //import org.elasticsearch.logging.Level;
 //import org.elasticsearch.logging.LogManager;

@@ -21,7 +21,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -152,7 +151,7 @@ final class Ec2ClientSettings {
             } else {
                 if (key.length() == 0) {
                     deprecationLogger.warn(
-                        DeprecationCategory.SETTINGS,
+                        DeprecationLogger.DeprecationCategory.SETTINGS,
                         "ec2_invalid_settings",
                         "Setting [{}] is set but [{}] is not, which will be unsupported in future",
                         SECRET_KEY_SETTING.getKey(),
@@ -161,7 +160,7 @@ final class Ec2ClientSettings {
                 }
                 if (secret.length() == 0) {
                     deprecationLogger.warn(
-                        DeprecationCategory.SETTINGS,
+                        DeprecationLogger.DeprecationCategory.SETTINGS,
                         "ec2_invalid_settings",
                         "Setting [{}] is set but [{}] is not, which will be unsupported in future",
                         ACCESS_KEY_SETTING.getKey(),

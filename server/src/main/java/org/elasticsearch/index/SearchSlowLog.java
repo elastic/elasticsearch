@@ -12,7 +12,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.SearchOperationListener;
-import org.elasticsearch.logging.SlowLogger;
 import org.elasticsearch.logging.bootstrap.LogMessageUtil;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.Task;

@@ -10,7 +10,6 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -119,13 +118,17 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
                 deprecationLogger.compatibleCritical("compatible_key", COMPATIBLE_API_USAGE);
                 settings = (List<String>) source.get("deprecated_settings");
             } else if (source.containsKey("deprecated_settings")) {
-                deprecationLogger.warn(DeprecationCategory.SETTINGS, "deprecated_settings", DEPRECATED_USAGE);
+                deprecationLogger.warn(DeprecationLogger.DeprecationCategory.SETTINGS, "deprecated_settings", DEPRECATED_USAGE);
                 settings = (List<String>) source.get("deprecated_settings");
             } else if (source.containsKey("deprecation_critical")) {
-                deprecationLogger.critical(DeprecationCategory.SETTINGS, "deprecated_critical_settings", DEPRECATED_USAGE);
+                deprecationLogger.critical(
+                    DeprecationLogger.DeprecationCategory.SETTINGS,
+                    "deprecated_critical_settings",
+                    DEPRECATED_USAGE
+                );
                 settings = (List<String>) source.get("deprecation_critical");
             } else if (source.containsKey("deprecation_warning")) {
-                deprecationLogger.warn(DeprecationCategory.SETTINGS, "deprecated_warn_settings", DEPRECATED_WARN_USAGE);
+                deprecationLogger.warn(DeprecationLogger.DeprecationCategory.SETTINGS, "deprecated_warn_settings", DEPRECATED_WARN_USAGE);
                 settings = (List<String>) source.get("deprecation_warning");
             } else {
                 settings = (List<String>) source.get("settings");

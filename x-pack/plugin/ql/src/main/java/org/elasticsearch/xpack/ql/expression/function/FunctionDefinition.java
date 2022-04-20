@@ -10,7 +10,7 @@ import org.elasticsearch.xpack.ql.session.Configuration;
 
 import java.util.List;
 
-import static org.elasticsearch.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.logging.format.LoggerMessageFormat.format;
 
 public class FunctionDefinition {
     /**

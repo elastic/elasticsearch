@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.watcher.transform.script;
 
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
+import org.elasticsearch.logging.message.Message;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;

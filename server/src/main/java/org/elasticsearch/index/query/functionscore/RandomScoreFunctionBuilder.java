@@ -15,7 +15,6 @@ import org.elasticsearch.common.lucene.search.function.RandomScoreFunction;
 import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -148,7 +147,7 @@ public class RandomScoreFunctionBuilder extends ScoreFunctionBuilder<RandomScore
             String fieldName;
             if (field == null) {
                 deprecationLogger.warn(
-                    DeprecationCategory.QUERIES,
+                    DeprecationLogger.DeprecationCategory.QUERIES,
                     "seed_requires_field",
                     "As of version 7.0 Elasticsearch will require that a [field] parameter is provided when a [seed] is set"
                 );

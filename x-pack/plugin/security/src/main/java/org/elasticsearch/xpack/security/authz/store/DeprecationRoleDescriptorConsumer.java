@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -211,7 +210,7 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
                     aliasName,
                     String.join(", ", inferiorIndexNames)
                 );
-                deprecationLogger.warn(DeprecationCategory.SECURITY, "index_permissions_on_alias", logMessage);
+                deprecationLogger.warn(DeprecationLogger.DeprecationCategory.SECURITY, "index_permissions_on_alias", logMessage);
             }
         }
     }

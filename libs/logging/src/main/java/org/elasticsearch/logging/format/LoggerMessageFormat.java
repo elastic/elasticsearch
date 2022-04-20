@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.logging;
+package org.elasticsearch.logging.format;
 
 import java.util.HashSet;
 import java.util.Set;

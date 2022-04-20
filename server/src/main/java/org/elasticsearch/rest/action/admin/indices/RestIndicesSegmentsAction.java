@@ -12,7 +12,6 @@ import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -52,7 +51,7 @@ public class RestIndicesSegmentsAction extends BaseRestHandler {
         );
         if (request.hasParam("verbose")) {
             DEPRECATION_LOGGER.warn(
-                DeprecationCategory.INDICES,
+                DeprecationLogger.DeprecationCategory.INDICES,
                 "indices_segments_action_verbose",
                 "The [verbose] query parameter for [indices_segments_action] has no effect and is deprecated"
             );

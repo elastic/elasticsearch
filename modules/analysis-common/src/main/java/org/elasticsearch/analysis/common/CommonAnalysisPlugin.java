@@ -119,7 +119,6 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.lucene.analysis.miscellaneous.DisableGraphAttribute;
 import org.elasticsearch.plugins.AnalysisPlugin;
@@ -254,7 +253,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
                         );
                     } else {
                         deprecationLogger.warn(
-                            DeprecationCategory.ANALYSIS,
+                            DeprecationLogger.DeprecationCategory.ANALYSIS,
                             "edgeNGram_deprecation",
                             "The [edgeNGram] token filter name is deprecated and will be removed in a future version. "
                                 + "Please change the filter name to [edge_ngram] instead."
@@ -295,7 +294,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
                         );
                     } else {
                         deprecationLogger.warn(
-                            DeprecationCategory.ANALYSIS,
+                            DeprecationLogger.DeprecationCategory.ANALYSIS,
                             "nGram_deprecation",
                             "The [nGram] token filter name is deprecated and will be removed in a future version. "
                                 + "Please change the filter name to [ngram] instead."
@@ -358,7 +357,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
                 );
             } else if (indexSettings.getIndexVersionCreated().onOrAfter(org.elasticsearch.Version.V_7_6_0)) {
                 deprecationLogger.warn(
-                    DeprecationCategory.ANALYSIS,
+                    DeprecationLogger.DeprecationCategory.ANALYSIS,
                     "nGram_tokenizer_deprecation",
                     "The [nGram] tokenizer name is deprecated and will be removed in a future version. "
                         + "Please change the tokenizer name to [ngram] instead."
@@ -375,7 +374,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
                 );
             } else if (indexSettings.getIndexVersionCreated().onOrAfter(org.elasticsearch.Version.V_7_6_0)) {
                 deprecationLogger.warn(
-                    DeprecationCategory.ANALYSIS,
+                    DeprecationLogger.DeprecationCategory.ANALYSIS,
                     "edgeNGram_tokenizer_deprecation",
                     "The [edgeNGram] tokenizer name is deprecated and will be removed in a future version. "
                         + "Please change the tokenizer name to [edge_ngram] instead."
@@ -613,7 +612,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
                 );
             } else if (version.onOrAfter(org.elasticsearch.Version.V_7_6_0)) {
                 deprecationLogger.warn(
-                    DeprecationCategory.ANALYSIS,
+                    DeprecationLogger.DeprecationCategory.ANALYSIS,
                     "nGram_tokenizer_deprecation",
                     "The [nGram] tokenizer name is deprecated and will be removed in a future version. "
                         + "Please change the tokenizer name to [ngram] instead."
@@ -629,7 +628,7 @@ public class CommonAnalysisPlugin extends Plugin implements AnalysisPlugin, Scri
                 );
             } else if (version.onOrAfter(org.elasticsearch.Version.V_7_6_0)) {
                 deprecationLogger.warn(
-                    DeprecationCategory.ANALYSIS,
+                    DeprecationLogger.DeprecationCategory.ANALYSIS,
                     "edgeNGram_tokenizer_deprecation",
                     "The [edgeNGram] tokenizer name is deprecated and will be removed in a future version. "
                         + "Please change the tokenizer name to [edge_ngram] instead."

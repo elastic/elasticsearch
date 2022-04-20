@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -47,7 +46,7 @@ public class MockDeprecatedQueryBuilder extends AbstractQueryBuilder<MockDepreca
 
     public static MockDeprecatedQueryBuilder fromXContent(XContentParser parser) {
         try {
-            deprecationLogger.warn(DeprecationCategory.OTHER, "deprecated_mock", DEPRECATION_MESSAGE);
+            deprecationLogger.warn(DeprecationLogger.DeprecationCategory.OTHER, "deprecated_mock", DEPRECATION_MESSAGE);
 
             return PARSER.apply(parser, null);
         } catch (IllegalArgumentException e) {

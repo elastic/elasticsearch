@@ -32,7 +32,6 @@ import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 
 import java.time.Instant;
@@ -481,7 +480,7 @@ public class IndexNameExpressionResolver {
         if (resolvedSystemIndices.isEmpty() == false) {
             Collections.sort(resolvedSystemIndices);
             deprecationLogger.warn(
-                DeprecationCategory.API,
+                DeprecationLogger.DeprecationCategory.API,
                 "open_system_index_access",
                 "this request accesses system indices: {}, but in a future major version, direct access to system "
                     + "indices will be prevented by default",

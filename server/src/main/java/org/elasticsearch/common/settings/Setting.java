@@ -21,7 +21,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.logging.DeprecationCategory;
+import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -580,9 +580,14 @@ public class Setting<T> implements ToXContentObject {
             final String key = getKey();
             String message = "[{}] setting was deprecated in Elasticsearch and will be removed in a future release.";
             if (this.isDeprecatedWarningOnly()) {
-                Settings.DeprecationLoggerHolder.deprecationLogger.warn(DeprecationCategory.SETTINGS, key, message, key);
+                Settings.DeprecationLoggerHolder.deprecationLogger.warn(DeprecationLogger.DeprecationCategory.SETTINGS, key, message, key);
             } else {
-                Settings.DeprecationLoggerHolder.deprecationLogger.critical(DeprecationCategory.SETTINGS, key, message, key);
+                Settings.DeprecationLoggerHolder.deprecationLogger.critical(
+                    DeprecationLogger.DeprecationCategory.SETTINGS,
+                    key,
+                    message,
+                    key
+                );
             }
         }
     }

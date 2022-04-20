@@ -34,7 +34,7 @@ import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.analysis.AnalysisModuleTests.AppendCharFilter;
-import org.elasticsearch.logging.DeprecationCategory;
+import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -108,7 +108,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
                 @Override
                 public TokenStream create(TokenStream tokenStream) {
                     deprecationLogger.warn(
-                        DeprecationCategory.ANALYSIS,
+                        DeprecationLogger.DeprecationCategory.ANALYSIS,
                         "deprecated_token_filter_create",
                         "Using deprecated token filter [deprecated]"
                     );
@@ -118,7 +118,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
                 @Override
                 public TokenStream normalize(TokenStream tokenStream) {
                     deprecationLogger.warn(
-                        DeprecationCategory.ANALYSIS,
+                        DeprecationLogger.DeprecationCategory.ANALYSIS,
                         "deprecated_token_filter_normalize",
                         "Using deprecated token filter [deprecated]"
                     );

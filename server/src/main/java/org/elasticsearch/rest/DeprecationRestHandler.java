@@ -10,7 +10,6 @@ package org.elasticsearch.rest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.logging.Level;
 
@@ -78,9 +77,9 @@ public class DeprecationRestHandler implements RestHandler {
         if (compatibleVersionWarning == false) {
             // The default value for deprecated requests without a version warning is WARN
             if (deprecationLevel == null || deprecationLevel == Level.WARN) {
-                deprecationLogger.warn(DeprecationCategory.API, deprecationKey, deprecationMessage);
+                deprecationLogger.warn(DeprecationLogger.DeprecationCategory.API, deprecationKey, deprecationMessage);
             } else {
-                deprecationLogger.critical(DeprecationCategory.API, deprecationKey, deprecationMessage);
+                deprecationLogger.critical(DeprecationLogger.DeprecationCategory.API, deprecationKey, deprecationMessage);
             }
         } else {
             // The default value for deprecated requests with a version warning is CRITICAL,

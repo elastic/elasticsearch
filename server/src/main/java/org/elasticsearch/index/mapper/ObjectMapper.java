@@ -13,7 +13,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -218,7 +217,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                 return true;
             } else if (fieldName.equals("include_in_all")) {
                 deprecationLogger.warn(
-                    DeprecationCategory.MAPPINGS,
+                    DeprecationLogger.DeprecationCategory.MAPPINGS,
                     "include_in_all",
                     "[include_in_all] is deprecated, the _all field have been removed in this version"
                 );

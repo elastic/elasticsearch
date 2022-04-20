@@ -11,7 +11,7 @@ package org.elasticsearch.common.logging;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.logging.LoggerMessageFormat;
+import org.elasticsearch.logging.format.LoggerMessageFormat;
 import org.elasticsearch.tasks.Task;
 
 import java.nio.charset.Charset;

@@ -46,7 +46,6 @@ import org.apache.lucene.analysis.tr.TurkishAnalyzer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 
 import java.io.BufferedReader;
@@ -73,7 +72,7 @@ public class Analysis {
         String sVersion = settings.get("version");
         if (sVersion != null) {
             DEPRECATION_LOGGER.warn(
-                DeprecationCategory.ANALYSIS,
+                DeprecationLogger.DeprecationCategory.ANALYSIS,
                 "analyzer.version",
                 "Setting [version] on analysis component [" + name + "] has no effect and is deprecated"
             );

@@ -22,7 +22,6 @@ import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -282,7 +281,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
             if (mappedFieldType == null) {
                 if (indexVersionCreated.before(Version.V_7_0_0)) {
                     deprecationLogger.warn(
-                        DeprecationCategory.MAPPINGS,
+                        DeprecationLogger.DeprecationCategory.MAPPINGS,
                         "geo_context_mapping",
                         "field [{}] referenced in context [{}] is not defined in the mapping",
                         fieldName,
@@ -298,7 +297,7 @@ public class GeoContextMapping extends ContextMapping<GeoQueryContext> {
             } else if (GeoPointFieldMapper.CONTENT_TYPE.equals(mappedFieldType.typeName()) == false) {
                 if (indexVersionCreated.before(Version.V_7_0_0)) {
                     deprecationLogger.warn(
-                        DeprecationCategory.MAPPINGS,
+                        DeprecationLogger.DeprecationCategory.MAPPINGS,
                         "geo_context_mapping",
                         "field [{}] referenced in context [{}] must be mapped to geo_point, found [{}]",
                         fieldName,

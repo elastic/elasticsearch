@@ -10,7 +10,7 @@ package org.elasticsearch.logging.impl;
 
 import org.apache.logging.log4j.message.ObjectMessage;
 import org.elasticsearch.logging.Level;
-import org.elasticsearch.logging.Message;
+import org.elasticsearch.logging.message.Message;
 
 import java.util.function.Supplier;
 

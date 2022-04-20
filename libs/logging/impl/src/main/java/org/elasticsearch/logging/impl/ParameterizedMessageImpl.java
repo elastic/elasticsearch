@@ -9,7 +9,7 @@
 package org.elasticsearch.logging.impl;
 
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.logging.Message;
+import org.elasticsearch.logging.message.Message;
 
 public class ParameterizedMessageImpl extends ParameterizedMessage implements Message {
 

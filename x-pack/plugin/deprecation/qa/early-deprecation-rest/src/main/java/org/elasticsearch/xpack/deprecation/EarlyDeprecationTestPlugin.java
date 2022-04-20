@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.deprecation;
 
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -19,6 +18,10 @@ public class EarlyDeprecationTestPlugin extends Plugin implements ClusterPlugin 
 
     @Override
     public void onNodeStarted() {
-        deprecationLogger.warn(DeprecationCategory.API, "early_deprecation", "Early deprecation emitted after node is started up");
+        deprecationLogger.warn(
+            DeprecationLogger.DeprecationCategory.API,
+            "early_deprecation",
+            "Early deprecation emitted after node is started up"
+        );
     }
 }

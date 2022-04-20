@@ -8,8 +8,8 @@
 
 package org.elasticsearch.logging.spi;
 
-import org.elasticsearch.logging.ESMapMessage;
-import org.elasticsearch.logging.Message;
+import org.elasticsearch.logging.message.ESMapMessage;
+import org.elasticsearch.logging.message.Message;
 
 /**
  * An SPI to create messages. Ideally we should get rid of parametrized message and use string suppliers

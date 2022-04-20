@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -68,7 +67,11 @@ public class SqlQueryRequest extends AbstractSqlQueryRequest {
         PARSER.declareBoolean(SqlQueryRequest::columnar, COLUMNAR);
         PARSER.declareBoolean(SqlQueryRequest::fieldMultiValueLeniency, FIELD_MULTI_VALUE_LENIENCY);
         PARSER.declareBoolean((r, v) -> {
-            DEPRECATION_LOGGER.warn(DeprecationCategory.API, "sql_index_include_frozen", INDEX_INCLUDE_FROZEN_DEPRECATION_MESSAGE);
+            DEPRECATION_LOGGER.warn(
+                DeprecationLogger.DeprecationCategory.API,
+                "sql_index_include_frozen",
+                INDEX_INCLUDE_FROZEN_DEPRECATION_MESSAGE
+            );
             r.indexIncludeFrozen(v);
         }, INDEX_INCLUDE_FROZEN);
         PARSER.declareBoolean(SqlQueryRequest::binaryCommunication, BINARY_COMMUNICATION);

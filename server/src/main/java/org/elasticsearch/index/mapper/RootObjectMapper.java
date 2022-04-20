@@ -15,7 +15,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.mapper.DynamicTemplate.XContentFieldType;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -454,7 +453,7 @@ public class RootObjectMapper extends ObjectMapper {
                 throw new IllegalArgumentException(message, lastError);
             } else {
                 DEPRECATION_LOGGER.warn(
-                    DeprecationCategory.TEMPLATES,
+                    DeprecationLogger.DeprecationCategory.TEMPLATES,
                     "invalid_dynamic_template",
                     "{}, last error: [{}]",
                     message,

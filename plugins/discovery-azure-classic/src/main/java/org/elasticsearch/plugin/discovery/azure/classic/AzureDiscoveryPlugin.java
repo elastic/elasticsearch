@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.SeedHostsProvider;
 import org.elasticsearch.discovery.azure.classic.AzureSeedHostsProvider;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -38,7 +37,11 @@ public class AzureDiscoveryPlugin extends Plugin implements DiscoveryPlugin {
 
     public AzureDiscoveryPlugin(Settings settings) {
         this.settings = settings;
-        deprecationLogger.warn(DeprecationCategory.PLUGINS, "azure_discovery_plugin", "azure classic discovery plugin is deprecated.");
+        deprecationLogger.warn(
+            DeprecationLogger.DeprecationCategory.PLUGINS,
+            "azure_discovery_plugin",
+            "azure classic discovery plugin is deprecated."
+        );
         logger.trace("starting azure classic discovery plugin...");
     }
 

@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.core.security.support;
 
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
+import org.elasticsearch.logging.message.Message;
 
 import java.util.function.Supplier;
 

@@ -8,7 +8,6 @@
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
 
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -52,7 +51,7 @@ public final class AutoDateHistogramAggregatorFactory extends ValuesSourceAggreg
                 Map<String, Object> metadata) -> {
 
                 DEPRECATION_LOGGER.warn(
-                    DeprecationCategory.AGGREGATIONS,
+                    DeprecationLogger.DeprecationCategory.AGGREGATIONS,
                     "auto-date-histogram-boolean",
                     "Running AutoIntervalDateHistogram aggregations on [boolean] fields is deprecated"
                 );

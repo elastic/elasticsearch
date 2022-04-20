@@ -13,7 +13,6 @@ import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.ingest.useragent.UserAgentParser.Details;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 
 import java.util.Arrays;
@@ -207,7 +206,7 @@ public class UserAgentProcessor extends AbstractProcessor {
             Object ecsValue = config.remove("ecs");
             if (ecsValue != null) {
                 deprecationLogger.warn(
-                    DeprecationCategory.SETTINGS,
+                    DeprecationLogger.DeprecationCategory.SETTINGS,
                     "ingest_useragent_ecs_settings",
                     "setting [ecs] is deprecated as ECS format is the default and only option"
                 );

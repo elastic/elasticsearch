@@ -50,7 +50,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchService;
@@ -886,7 +885,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         }
         if (frozenIndices != null) {
             DEPRECATION_LOGGER.warn(
-                DeprecationCategory.INDICES,
+                DeprecationLogger.DeprecationCategory.INDICES,
                 "search-frozen-indices",
                 FROZEN_INDICES_DEPRECATION_MESSAGE,
                 String.join(",", frozenIndices)

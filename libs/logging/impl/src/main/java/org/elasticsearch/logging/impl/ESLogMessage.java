@@ -12,7 +12,7 @@ import org.apache.logging.log4j.message.MapMessage;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.logging.log4j.util.Chars;
 import org.apache.logging.log4j.util.StringBuilders;
-import org.elasticsearch.logging.ESMapMessage;
+import org.elasticsearch.logging.message.ESMapMessage;
 
 import java.util.ArrayList;
 import java.util.Collections;

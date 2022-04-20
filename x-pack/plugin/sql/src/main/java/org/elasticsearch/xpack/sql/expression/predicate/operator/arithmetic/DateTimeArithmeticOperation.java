@@ -15,7 +15,7 @@ import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.elasticsearch.xpack.sql.type.SqlDataTypeConverter;
 import org.elasticsearch.xpack.sql.type.SqlDataTypes;
 
-import static org.elasticsearch.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.logging.format.LoggerMessageFormat.format;
 
 abstract class DateTimeArithmeticOperation extends SqlArithmeticOperation {
 

@@ -10,7 +10,6 @@ package org.elasticsearch.license;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.protocol.xpack.license.GetLicenseRequest;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -71,7 +70,7 @@ public class RestGetLicenseAction extends BaseRestHandler {
         // TODO Remove this from 9.0
         if (request.hasParam("accept_enterprise")) {
             deprecationLogger.warn(
-                DeprecationCategory.API,
+                DeprecationLogger.DeprecationCategory.API,
                 "get_license_accept_enterprise",
                 "Including [accept_enterprise] in get license requests is deprecated."
                     + " The parameter will be removed in the next major version"

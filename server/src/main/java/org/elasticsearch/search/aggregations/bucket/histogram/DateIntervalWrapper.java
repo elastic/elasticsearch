@@ -16,7 +16,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -104,7 +103,7 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
          but immediately adapt it into either fixed or calendar interval.
          */
         parser.declareField((wrapper, interval) -> {
-            DEPRECATION_LOGGER.warn(DeprecationCategory.AGGREGATIONS, "date-interval-getter", DEPRECATION_TEXT);
+            DEPRECATION_LOGGER.warn(DeprecationLogger.DeprecationCategory.AGGREGATIONS, "date-interval-getter", DEPRECATION_TEXT);
             if (interval instanceof Long) {
                 wrapper.fixedInterval(new DateHistogramInterval(interval + "ms"));
             } else {

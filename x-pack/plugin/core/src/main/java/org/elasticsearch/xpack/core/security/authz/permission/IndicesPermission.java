@@ -16,7 +16,6 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.xpack.core.security.authz.RestrictedIndices;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
@@ -440,7 +439,7 @@ public final class IndicesPermission {
                                 if (PRIVILEGE_NAME_SET_BWC_ALLOW_MAPPING_UPDATE.contains(privilegeName)) {
                                     bwcDeprecationLogActions.add(
                                         () -> deprecationLogger.warn(
-                                            DeprecationCategory.SECURITY,
+                                            DeprecationLogger.DeprecationCategory.SECURITY,
                                             "[" + resource.name + "] mapping update for ingest privilege [" + privilegeName + "]",
                                             "the index privilege ["
                                                 + privilegeName

@@ -26,7 +26,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.lucene.similarity.LegacyBM25Similarity;
 import org.elasticsearch.script.ScriptService;
@@ -116,7 +115,7 @@ public final class SimilarityService {
             : providers.get(SimilarityService.DEFAULT_SIMILARITY).get();
         if (providers.get("base") != null) {
             deprecationLogger.warn(
-                DeprecationCategory.QUERIES,
+                DeprecationLogger.DeprecationCategory.QUERIES,
                 "base_similarity_ignored",
                 "The [base] similarity is ignored since query normalization and coords have been removed"
             );

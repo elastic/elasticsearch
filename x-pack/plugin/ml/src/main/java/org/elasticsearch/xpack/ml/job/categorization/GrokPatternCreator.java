@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.ml.job.categorization;
 import org.elasticsearch.grok.Grok;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
+import org.elasticsearch.logging.message.Message;
 
 import java.util.ArrayList;
 import java.util.Arrays;

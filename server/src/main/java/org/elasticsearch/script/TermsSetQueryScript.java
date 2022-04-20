@@ -9,7 +9,6 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -29,7 +28,7 @@ public abstract class TermsSetQueryScript {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
     private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of("doc", value -> {
         deprecationLogger.warn(
-            DeprecationCategory.SCRIPTING,
+            DeprecationLogger.DeprecationCategory.SCRIPTING,
             "terms-set-query-script_doc",
             "Accessing variable [doc] via [params.doc] from within an terms-set-query-script "
                 + "is deprecated in favor of directly accessing [doc]."
@@ -37,7 +36,7 @@ public abstract class TermsSetQueryScript {
         return value;
     }, "_doc", value -> {
         deprecationLogger.warn(
-            DeprecationCategory.SCRIPTING,
+            DeprecationLogger.DeprecationCategory.SCRIPTING,
             "terms-set-query-script__doc",
             "Accessing variable [doc] via [params._doc] from within an terms-set-query-script "
                 + "is deprecated in favor of directly accessing [doc]."

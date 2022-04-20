@@ -9,7 +9,7 @@ package org.elasticsearch.license;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.license.License.OperationMode;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
+import org.elasticsearch.logging.message.Message;
 import org.elasticsearch.watcher.FileChangesListener;
 import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;

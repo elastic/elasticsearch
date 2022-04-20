@@ -10,7 +10,6 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.BytesRestResponse;
@@ -78,7 +77,7 @@ public class RestGetTrainedModelsAction extends BaseRestHandler {
         final GetTrainedModelsAction.Request request;
         if (restRequest.hasParam(INCLUDE_MODEL_DEFINITION)) {
             deprecationLogger.warn(
-                DeprecationCategory.API,
+                DeprecationLogger.DeprecationCategory.API,
                 INCLUDE_MODEL_DEFINITION,
                 "[{}] parameter is deprecated! Use [include=definition] instead.",
                 INCLUDE_MODEL_DEFINITION

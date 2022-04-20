@@ -27,7 +27,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -721,7 +720,7 @@ class ActiveDirectorySessionFactory extends PoolingSessionFactory {
             );
             if (userSearchFilter.contains("{0}")) {
                 deprecationLogger.warn(
-                    DeprecationCategory.SECURITY,
+                    DeprecationLogger.DeprecationCategory.SECURITY,
                     "ldap_settings",
                     "The use of the account name variable {0} in the setting ["
                         + RealmSettings.getFullSettingKey(config, ActiveDirectorySessionFactorySettings.AD_UPN_USER_SEARCH_FILTER_SETTING)

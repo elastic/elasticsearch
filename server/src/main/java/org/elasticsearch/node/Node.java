@@ -122,7 +122,6 @@ import org.elasticsearch.indices.recovery.plan.ShardSnapshotsService;
 import org.elasticsearch.indices.recovery.plan.SourceOnlyRecoveryPlannerService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.ingest.IngestService;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -343,7 +342,7 @@ public class Node implements Closeable {
                 // NOTE: this must be done with an explicit check here because the deprecation property on a path setting will
                 // cause ES to fail to start since logging is not yet initialized on first read of the setting
                 deprecationLogger.warn(
-                    DeprecationCategory.SETTINGS,
+                    DeprecationLogger.DeprecationCategory.SETTINGS,
                     "shared-data-path",
                     "setting [path.shared_data] is deprecated and will be removed in a future release"
                 );
@@ -352,7 +351,7 @@ public class Node implements Closeable {
             if (initialEnvironment.dataFiles().length > 1) {
                 // NOTE: we use initialEnvironment here, but assertEquivalent below ensures the data paths do not change
                 deprecationLogger.warn(
-                    DeprecationCategory.SETTINGS,
+                    DeprecationLogger.DeprecationCategory.SETTINGS,
                     "multiple-data-paths",
                     "Configuring multiple [path.data] paths is deprecated. Use RAID or other system level features for utilizing "
                         + "multiple disks. This feature will be removed in a future release."
@@ -361,7 +360,7 @@ public class Node implements Closeable {
             if (Environment.dataPathUsesList(tmpSettings)) {
                 // already checked for multiple values above, so if this is a list it is a single valued list
                 deprecationLogger.warn(
-                    DeprecationCategory.SETTINGS,
+                    DeprecationLogger.DeprecationCategory.SETTINGS,
                     "multiple-data-paths-list",
                     "Configuring [path.data] with a list is deprecated. Instead specify as a string value."
                 );

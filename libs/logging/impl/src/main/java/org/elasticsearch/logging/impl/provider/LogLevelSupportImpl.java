@@ -30,6 +30,7 @@ public class LogLevelSupportImpl implements LogLevelSupport {
     @Override
     public void setLevel(Logger logger, String level) {
         // Loggers.setLevelImpl(Util.log4jLogger(logger), level);
+        Loggers.setLevelImpl(Util.log4jLogger(logger), org.apache.logging.log4j.Level.getLevel(level));
 
     }
 

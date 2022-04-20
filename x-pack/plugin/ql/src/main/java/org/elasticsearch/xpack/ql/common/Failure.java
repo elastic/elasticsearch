@@ -15,7 +15,7 @@ import java.util.Collection;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.logging.format.LoggerMessageFormat.format;
 
 public class Failure {
 

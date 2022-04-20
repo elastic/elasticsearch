@@ -9,7 +9,6 @@
 package org.elasticsearch.common.xcontent;
 
 import org.elasticsearch.common.TriConsumer;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.ParseField;
@@ -40,7 +39,7 @@ public class LoggingDeprecationHandler implements DeprecationHandler {
     public static final LoggingDeprecationHandler INSTANCE = new LoggingDeprecationHandler();
 
     private TriConsumer<String, Object[], String> deprecationLoggerFunction = (message, params, field_name) -> deprecationLogger.warn(
-        DeprecationCategory.API,
+        DeprecationLogger.DeprecationCategory.API,
         "deprecated_field_" + field_name,
         message,
         params

@@ -13,9 +13,8 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
-import org.elasticsearch.logging.Message;
+import org.elasticsearch.logging.message.Message;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
@@ -294,7 +293,7 @@ public class ReservedRealm extends CachingUsernamePasswordRealm {
         Map<String, Object> metadata = user.metadata();
         if (Boolean.TRUE.equals(metadata.get(MetadataUtils.DEPRECATED_METADATA_KEY))) {
             deprecationLogger.warn(
-                DeprecationCategory.SECURITY,
+                DeprecationLogger.DeprecationCategory.SECURITY,
                 "deprecated_user-" + user.principal(),
                 "The user ["
                     + user.principal()

@@ -63,12 +63,11 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.SystemIndices;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
+import org.elasticsearch.logging.message.Message;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -196,7 +195,7 @@ public class MetadataCreateIndexService {
                 logger.trace("index [{}] is a hidden index", index);
             } else {
                 deprecationLogger.warn(
-                    DeprecationCategory.INDICES,
+                    DeprecationLogger.DeprecationCategory.INDICES,
                     "index_name_starts_with_dot",
                     "index name [{}] starts with a dot '.', in the next major version, index names "
                         + "starting with a dot are reserved for hidden indices and system indices",
@@ -384,7 +383,7 @@ public class MetadataCreateIndexService {
 
                 if (v1Templates.size() > 1) {
                     deprecationLogger.warn(
-                        DeprecationCategory.TEMPLATES,
+                        DeprecationLogger.DeprecationCategory.TEMPLATES,
                         "index_template_multiple_match",
                         "index [{}] matches multiple legacy templates [{}], composable templates will only match a single template",
                         request.index(),
@@ -1516,7 +1515,7 @@ public class MetadataCreateIndexService {
             && (IndexSettings.INDEX_TRANSLOG_RETENTION_AGE_SETTING.exists(indexSettings)
                 || IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING.exists(indexSettings))) {
             deprecationLogger.warn(
-                DeprecationCategory.SETTINGS,
+                DeprecationLogger.DeprecationCategory.SETTINGS,
                 "translog_retention",
                 "Translog retention settings [index.translog.retention.age] and [index.translog.retention.size] are deprecated and "
                     + "effectively ignored. They will be removed in a future version."
@@ -1528,7 +1527,7 @@ public class MetadataCreateIndexService {
         final String storeType = IndexModule.INDEX_STORE_TYPE_SETTING.get(indexSettings);
         if (IndexModule.Type.SIMPLEFS.match(storeType)) {
             deprecationLogger.warn(
-                DeprecationCategory.SETTINGS,
+                DeprecationLogger.DeprecationCategory.SETTINGS,
                 "store_type_setting",
                 "[simplefs] is deprecated and will be removed in 8.0. Use [niofs] or other file systems instead. "
                     + "Elasticsearch 7.15 or later uses [niofs] for the [simplefs] store type as it offers superior "

@@ -8,10 +8,10 @@
 
 package org.elasticsearch.logging.impl.provider;
 
-import org.elasticsearch.logging.ESMapMessage;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.logging.impl.ESLogMessage;
 import org.elasticsearch.logging.impl.ParameterizedMessageImpl;
+import org.elasticsearch.logging.message.ESMapMessage;
+import org.elasticsearch.logging.message.Message;
 import org.elasticsearch.logging.spi.MessageFactory;
 
 public class Log4JMessageFactoryImpl implements MessageFactory {

@@ -10,7 +10,7 @@ package org.elasticsearch.tasks;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
+import org.elasticsearch.logging.message.Message;
 
 /**
  * A TaskListener that just logs the response at the info level. Used when we

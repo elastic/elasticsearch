@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -56,7 +55,7 @@ public class DeprecatedQueryBuilder extends AbstractQueryBuilder<DeprecatedQuery
 
     @Override
     protected Query doToQuery(SearchExecutionContext context) {
-        deprecationLogger.warn(DeprecationCategory.QUERIES, "to_query", "[deprecated] query");
+        deprecationLogger.warn(DeprecationLogger.DeprecationCategory.QUERIES, "to_query", "[deprecated] query");
         return new MatchAllDocsQuery();
     }
 

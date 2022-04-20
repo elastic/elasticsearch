@@ -19,7 +19,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.lookup.SearchLookup;
@@ -221,7 +220,7 @@ public final class IndexSortConfig {
                     throw new IllegalArgumentException("Cannot use alias [" + sortSpec.field + "] as an index sort field");
                 } else {
                     DEPRECATION_LOGGER.warn(
-                        DeprecationCategory.MAPPINGS,
+                        DeprecationLogger.DeprecationCategory.MAPPINGS,
                         "index-sort-aliases",
                         "Index sort for index ["
                             + indexName

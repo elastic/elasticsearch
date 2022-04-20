@@ -12,11 +12,10 @@ import org.elasticsearch.action.support.ContextPreservingActionListener;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
+import org.elasticsearch.logging.message.Message;
 import org.elasticsearch.xpack.core.common.IteratingActionListener;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
@@ -209,7 +208,7 @@ public class RoleDescriptorStore implements RoleReferenceResolver {
                     "Please check the documentation"
                 );
                 deprecationLogger.critical(
-                    DeprecationCategory.SECURITY,
+                    DeprecationLogger.DeprecationCategory.SECURITY,
                     "deprecated_role-" + rd.getName(),
                     "The role [" + rd.getName() + "] is deprecated and will be removed in a future version of Elasticsearch. " + reason
                 );

@@ -29,7 +29,6 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
 
@@ -404,7 +403,11 @@ public final class GeoIpProcessor extends AbstractProcessor {
             // noop, should be removed in 9.0
             Object value = config.remove("fallback_to_default_databases");
             if (value != null) {
-                DEPRECATION_LOGGER.warn(DeprecationCategory.OTHER, "default_databases_message", DEFAULT_DATABASES_DEPRECATION_MESSAGE);
+                DEPRECATION_LOGGER.warn(
+                    DeprecationLogger.DeprecationCategory.OTHER,
+                    "default_databases_message",
+                    DEFAULT_DATABASES_DEPRECATION_MESSAGE
+                );
             }
 
             DatabaseReaderLazyLoader lazyLoader = databaseNodeService.getDatabase(databaseFile);

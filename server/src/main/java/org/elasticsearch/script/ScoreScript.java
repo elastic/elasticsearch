@@ -9,7 +9,6 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Scorable;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.SourceLookup;
@@ -53,14 +52,14 @@ public abstract class ScoreScript extends DocBasedScript {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(DynamicMap.class);
     private static final Map<String, Function<Object, Object>> PARAMS_FUNCTIONS = Map.of("doc", value -> {
         deprecationLogger.warn(
-            DeprecationCategory.SCRIPTING,
+            DeprecationLogger.DeprecationCategory.SCRIPTING,
             "score-script_doc",
             "Accessing variable [doc] via [params.doc] from within an score-script " + "is deprecated in favor of directly accessing [doc]."
         );
         return value;
     }, "_doc", value -> {
         deprecationLogger.warn(
-            DeprecationCategory.SCRIPTING,
+            DeprecationLogger.DeprecationCategory.SCRIPTING,
             "score-script__doc",
             "Accessing variable [doc] via [params._doc] from within an score-script "
                 + "is deprecated in favor of directly accessing [doc]."

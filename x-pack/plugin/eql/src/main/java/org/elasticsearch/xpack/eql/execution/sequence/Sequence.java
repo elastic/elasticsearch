@@ -20,7 +20,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
-import static org.elasticsearch.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.logging.format.LoggerMessageFormat.format;
 
 /**
  * Holder class representing the instance of a sequence. Used at runtime by the engine to track sequences.

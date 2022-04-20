@@ -35,7 +35,6 @@ import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.Script;
@@ -309,7 +308,7 @@ public final class DateFieldMapper extends FieldMapper {
                     throw new MapperParsingException("Error parsing [null_value] on field [" + name() + "]: " + e.getMessage(), e);
                 } else {
                     DEPRECATION_LOGGER.warn(
-                        DeprecationCategory.MAPPINGS,
+                        DeprecationLogger.DeprecationCategory.MAPPINGS,
                         "date_mapper_null_field",
                         "Error parsing ["
                             + nullValue.getValue()

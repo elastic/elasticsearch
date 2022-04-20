@@ -18,7 +18,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
@@ -1279,7 +1278,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 if (Objects.equals("boost", propName)) {
                     if (parserContext.indexVersionCreated().before(Version.V_8_0_0)) {
                         deprecationLogger.warn(
-                            DeprecationCategory.API,
+                            DeprecationLogger.DeprecationCategory.API,
                             "boost",
                             "Parameter [boost] on field [{}] is deprecated and has no effect",
                             name
@@ -1293,7 +1292,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 Parameter<?> parameter = deprecatedParamsMap.get(propName);
                 if (parameter != null) {
                     deprecationLogger.warn(
-                        DeprecationCategory.API,
+                        DeprecationLogger.DeprecationCategory.API,
                         propName,
                         "Parameter [{}] on mapper [{}] is deprecated, use [{}]",
                         propName,
@@ -1306,7 +1305,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 if (parameter == null) {
                     if (isDeprecatedParameter(propName, parserContext.indexVersionCreated())) {
                         deprecationLogger.warn(
-                            DeprecationCategory.API,
+                            DeprecationLogger.DeprecationCategory.API,
                             propName,
                             "Parameter [{}] has no effect on type [{}] and will be removed in future",
                             propName,
@@ -1319,7 +1318,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                         // The parameter is unknown, but this mapping is from a dynamic template.
                         // Until 7.x it was possible to use unknown parameters there, so for bwc we need to ignore it
                         deprecationLogger.warn(
-                            DeprecationCategory.API,
+                            DeprecationLogger.DeprecationCategory.API,
                             propName,
                             "Parameter [{}] is used in a dynamic template mapping and has no effect on type [{}]. "
                                 + "Usage will result in an error in future major versions and should be removed.",
@@ -1335,7 +1334,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 }
                 if (parameter.deprecated) {
                     deprecationLogger.warn(
-                        DeprecationCategory.API,
+                        DeprecationLogger.DeprecationCategory.API,
                         propName,
                         "Parameter [{}] is deprecated and will be removed in a future version",
                         propName

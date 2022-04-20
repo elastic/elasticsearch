@@ -8,8 +8,9 @@
 
 package org.elasticsearch.logging.core;
 
-import org.elasticsearch.logging.DeprecatedMessage;
-import org.elasticsearch.logging.ESMapMessage;
+import org.elasticsearch.logging.DeprecationLogger;
+import org.elasticsearch.logging.message.ESMapMessage;
+import org.elasticsearch.logging.message.Message;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
@@ -41,12 +42,12 @@ public class RateLimitingFilter implements Filter {
 
     @Override
     public Filter.Result filter(org.elasticsearch.logging.core.LogEvent logEvent) {
-        org.elasticsearch.logging.Message message = logEvent.getMessage();
+        Message message = logEvent.getMessage();
         return filterMessage(message);
     }
 
     @Override
-    public Filter.Result filterMessage(org.elasticsearch.logging.Message message) {
+    public Filter.Result filterMessage(Message message) {
         if (message instanceof final ESMapMessage esLogMessage) { // TODO: just avoid for now
             final String key = getKey(esLogMessage);
             return lruKeyCache.add(key) ? Filter.Result.ACCEPT : Filter.Result.DENY;
@@ -56,13 +57,13 @@ public class RateLimitingFilter implements Filter {
     }
 
     private String getKey(ESMapMessage esLogMessage) {
-        final String key = esLogMessage.get(DeprecatedMessage.KEY_FIELD_NAME);
-        final String productOrigin = esLogMessage.get(DeprecatedMessage.ELASTIC_ORIGIN_FIELD_NAME);
+        final String key = esLogMessage.get(DeprecationLogger.KEY_FIELD_NAME);
+        final String productOrigin = esLogMessage.get(DeprecationLogger.ELASTIC_ORIGIN_FIELD_NAME);
         if (isNullOrEmpty(productOrigin) == false) {
             return productOrigin + key;
         }
         if (useXOpaqueId) {
-            String xOpaqueId = esLogMessage.get(DeprecatedMessage.X_OPAQUE_ID_FIELD_NAME);
+            String xOpaqueId = esLogMessage.get(DeprecationLogger.X_OPAQUE_ID_FIELD_NAME);
             return xOpaqueId + key;
         }
         return key;

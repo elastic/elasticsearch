@@ -18,7 +18,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.logging.SlowLogger;
 import org.elasticsearch.logging.spi.StringBuildersSupport;
 
 import java.io.IOException;

@@ -8,11 +8,11 @@
 
 package org.elasticsearch.common.logging;
 
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.logging.core.Appender;
 import org.elasticsearch.logging.core.Filter;
 import org.elasticsearch.logging.core.Layout;
 import org.elasticsearch.logging.core.LogEvent;
+import org.elasticsearch.logging.message.Message;
 
 public class MockAppender implements Appender {
     public LogEvent lastEvent;

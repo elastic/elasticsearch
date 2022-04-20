@@ -8,11 +8,13 @@
 
 package org.elasticsearch.logging.core;
 
+import org.elasticsearch.logging.message.Message;
+
 public interface Filter {
 
     Result filter(LogEvent logEvent);
 
-    Filter.Result filterMessage(org.elasticsearch.logging.Message message);
+    Filter.Result filterMessage(Message message);
 
     enum Result {
         /**

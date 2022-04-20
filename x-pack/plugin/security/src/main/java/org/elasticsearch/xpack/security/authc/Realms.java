@@ -17,7 +17,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -439,7 +438,7 @@ public class Realms implements Iterable<Realm> {
     private static void logDeprecationForReservedPrefixedRealmNames(List<RealmConfig.RealmIdentifier> realmIdentifiers) {
         if (false == realmIdentifiers.isEmpty()) {
             deprecationLogger.warn(
-                DeprecationCategory.SECURITY,
+                DeprecationLogger.DeprecationCategory.SECURITY,
                 "realm_name_with_reserved_prefix",
                 "Found realm "
                     + (realmIdentifiers.size() == 1 ? "name" : "names")

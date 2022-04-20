@@ -11,11 +11,11 @@ package org.elasticsearch.test.loggerusage;
 //import org.elasticsearch.logging.Logger;
 //import org.apache.logging.log4j.Marker;
 //import org.apache.logging.log4j.message.Message;
-//import org.elasticsearch.logging.Message;
+//import org.elasticsearch.logging.message.Message;
 //import org.apache.logging.log4j.util.MessageSupplier;
 //import java.util.function.Supplier;
 //import org.elasticsearch.common.SuppressLoggerChecks;
-//import org.elasticsearch.logging.DeprecationCategory;
+//import org.elasticsearch.logging.DeprecationLogger.DeprecationCategory;
 //import org.elasticsearch.logging.DeprecationLogger;
 //import org.elasticsearch.logging.internal.ESLogMessage;
 //import org.elasticsearch.test.ESTestCase;
@@ -140,7 +140,7 @@ public class ESLoggerUsageTests extends ESTestCase {
     // }
     //
     // public void checkFailArraySize(String... arr) {
-    // logger.debug(org.elasticsearch.logging.Message.createParameterizedMessage("text {}", (Object[]) arr));
+    // logger.debug(org.elasticsearch.logging.message.Message.createParameterizedMessage("text {}", (Object[]) arr));
     // }
     //
     // public void checkNumberOfArguments1() {
@@ -173,28 +173,30 @@ public class ESLoggerUsageTests extends ESTestCase {
     // }
     //
     // public void checkNumberOfArgumentsParameterizedMessage1() {
-    // logger.info(org.elasticsearch.logging.Message.createParameterizedMessage("Hello {}, {}, {}", "world", 2, "third argument"));
+    // logger.info(org.elasticsearch.logging.message.Message.createParameterizedMessage("Hello {}, {}, {}", "world", 2, "third argument"));
     // }
     //
     // public void checkFailNumberOfArgumentsParameterizedMessage1() {
-    // logger.info(org.elasticsearch.logging.Message.createParameterizedMessage("Hello {}, {}", "world", 2, "third argument"));
+    // logger.info(org.elasticsearch.logging.message.Message.createParameterizedMessage("Hello {}, {}", "world", 2, "third argument"));
     // }
     //
     // public void checkNumberOfArgumentsParameterizedMessage2() {
-    // logger.info(org.elasticsearch.logging.Message.createParameterizedMessage("Hello {}, {}", "world", 2));
+    // logger.info(org.elasticsearch.logging.message.Message.createParameterizedMessage("Hello {}, {}", "world", 2));
     // }
     //
     // public void checkFailNumberOfArgumentsParameterizedMessage2() {
-    // logger.info(org.elasticsearch.logging.Message.createParameterizedMessage("Hello {}, {}, {}", "world", 2));
+    // logger.info(org.elasticsearch.logging.message.Message.createParameterizedMessage("Hello {}, {}, {}", "world", 2));
     // }
     //
     // public void checkNumberOfArgumentsParameterizedMessage3() {
-    // logger.info((java.util.function.Supplier<?>) () -> org.elasticsearch.logging.Message.createParameterizedMessage("Hello {}, {}, {}",
+    // logger.info((java.util.function.Supplier<?>) () -> org.elasticsearch.logging.message.Message.createParameterizedMessage("Hello {},
+    // {}, {}",
     // "world", 2, "third argument"));
     // }
     //
     // public void checkFailNumberOfArgumentsParameterizedMessage3() {
-    // logger.info((java.util.function.Supplier<?>) () -> org.elasticsearch.logging.Message.createParameterizedMessage("Hello {}, {}",
+    // logger.info((java.util.function.Supplier<?>) () -> org.elasticsearch.logging.message.Message.createParameterizedMessage("Hello {},
+    // {}",
     // "world", 2, "third argument"));
     // }
     //
@@ -203,7 +205,8 @@ public class ESLoggerUsageTests extends ESTestCase {
     // }
     //
     // public void checkOrderOfExceptionArgument1() {
-    // logger.info((java.util.function.Supplier<?>) () -> org.elasticsearch.logging.Message.createParameterizedMessage("Hello {}", "world"),
+    // logger.info((java.util.function.Supplier<?>) () -> org.elasticsearch.logging.message.Message.createParameterizedMessage("Hello {}",
+    // "world"),
     // new Exception());
     // }
     //
@@ -212,7 +215,8 @@ public class ESLoggerUsageTests extends ESTestCase {
     // }
     //
     // public void checkOrderOfExceptionArgument2() {
-    // logger.info((java.util.function.Supplier<?>) () -> org.elasticsearch.logging.Message.createParameterizedMessage("Hello {}, {}",
+    // logger.info((java.util.function.Supplier<?>) () -> org.elasticsearch.logging.message.Message.createParameterizedMessage("Hello {},
+    // {}",
     // "world", 42), new Exception());
     // }
     //
@@ -225,7 +229,8 @@ public class ESLoggerUsageTests extends ESTestCase {
     // }
     //
     // public void checkFailNonConstantMessageWithArguments(boolean b) {
-    // logger.info((java.util.function.Supplier<?>) () -> org.elasticsearch.logging.Message.createParameterizedMessage(Boolean.toString(b),
+    // logger.info((java.util.function.Supplier<?>) () ->
+    // org.elasticsearch.logging.message.Message.createParameterizedMessage(Boolean.toString(b),
     // 42), new Exception());
     // }
     //

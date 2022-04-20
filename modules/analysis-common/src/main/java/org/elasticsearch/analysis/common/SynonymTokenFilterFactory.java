@@ -22,7 +22,6 @@ import org.elasticsearch.index.analysis.CharFilterFactory;
 import org.elasticsearch.index.analysis.CustomAnalyzer;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 
 import java.io.Reader;
@@ -47,7 +46,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
         if (settings.get("ignore_case") != null) {
             DEPRECATION_LOGGER.warn(
-                DeprecationCategory.ANALYSIS,
+                DeprecationLogger.DeprecationCategory.ANALYSIS,
                 "synonym_ignore_case_option",
                 "The ignore_case option on the synonym_graph filter is deprecated. "
                     + "Instead, insert a lowercase filter in the filter chain before the synonym_graph filter."

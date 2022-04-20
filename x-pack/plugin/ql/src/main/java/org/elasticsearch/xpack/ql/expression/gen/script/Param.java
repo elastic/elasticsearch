@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.ql.expression.gen.script;
 
 import java.util.Objects;
 
-import static org.elasticsearch.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.logging.format.LoggerMessageFormat.format;
 
 abstract class Param<T> {
     private final T value;

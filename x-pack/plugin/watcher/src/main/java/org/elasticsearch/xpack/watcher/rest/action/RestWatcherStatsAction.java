@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.watcher.rest.action;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -55,7 +54,7 @@ public class RestWatcherStatsAction extends BaseRestHandler {
 
         if (metrics.contains("pending_watches")) {
             deprecationLogger.warn(
-                DeprecationCategory.API,
+                DeprecationLogger.DeprecationCategory.API,
                 "pending_watches",
                 "The pending_watches parameter is deprecated, use queued_watches instead"
             );

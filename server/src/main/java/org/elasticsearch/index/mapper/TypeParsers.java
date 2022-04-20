@@ -11,7 +11,6 @@ package org.elasticsearch.index.mapper;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.similarity.SimilarityProvider;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 
 import java.util.ArrayList;
@@ -90,7 +89,7 @@ public class TypeParsers {
                 // maintain the backwards-compatibility guarantee that we can always load indexes from the previous major version.
                 if (parserContext.indexVersionCreated().before(Version.V_8_0_0)) {
                     deprecationLogger.warn(
-                        DeprecationCategory.INDICES,
+                        DeprecationLogger.DeprecationCategory.INDICES,
                         "multifield_within_multifield",
                         "At least one multi-field, ["
                             + name

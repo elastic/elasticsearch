@@ -9,7 +9,7 @@ package org.elasticsearch.index.shard;
 
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
+import org.elasticsearch.logging.message.Message;
 
 import java.util.List;
 

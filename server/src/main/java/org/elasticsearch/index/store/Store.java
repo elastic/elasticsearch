@@ -67,8 +67,8 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.logging.PrefixLogger;
+import org.elasticsearch.logging.message.Message;
 
 import java.io.Closeable;
 import java.io.EOFException;

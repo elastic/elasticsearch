@@ -11,7 +11,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.xcontent.ParseField;
@@ -356,7 +355,11 @@ public record IndicesOptions(EnumSet<Option> options, EnumSet<WildcardStates> ex
 
     public static IndicesOptions fromRequest(RestRequest request, IndicesOptions defaultSettings) {
         if (request.hasParam("ignore_throttled")) {
-            DEPRECATION_LOGGER.warn(DeprecationCategory.API, "ignore_throttled_param", IGNORE_THROTTLED_DEPRECATION_MESSAGE);
+            DEPRECATION_LOGGER.warn(
+                DeprecationLogger.DeprecationCategory.API,
+                "ignore_throttled_param",
+                IGNORE_THROTTLED_DEPRECATION_MESSAGE
+            );
         }
 
         return fromParameters(

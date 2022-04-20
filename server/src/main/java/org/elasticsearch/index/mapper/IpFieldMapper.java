@@ -24,7 +24,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.script.Script;
@@ -123,7 +122,7 @@ public class IpFieldMapper extends FieldMapper {
                     throw new MapperParsingException("Error parsing [null_value] on field [" + name() + "]: " + e.getMessage(), e);
                 } else {
                     DEPRECATION_LOGGER.warn(
-                        DeprecationCategory.MAPPINGS,
+                        DeprecationLogger.DeprecationCategory.MAPPINGS,
                         "ip_mapper_null_field",
                         "Error parsing ["
                             + nullValue.getValue()

@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.ml.dataframe.stats;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
+import org.elasticsearch.logging.message.Message;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xpack.core.ml.MlStatsIndex;

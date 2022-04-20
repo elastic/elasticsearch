@@ -14,7 +14,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.lucene.analysis.miscellaneous.DisableGraphAttribute;
 
@@ -47,7 +46,7 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
                 );
             } else {
                 DEPRECATION_LOGGER.warn(
-                    DeprecationCategory.ANALYSIS,
+                    DeprecationLogger.DeprecationCategory.ANALYSIS,
                     "excessive_shingle_diff",
                     "Deprecated big difference between maxShingleSize and minShingleSize"
                         + " in Shingle TokenFilter, expected difference must be less than or equal to: ["
@@ -82,7 +81,7 @@ public class ShingleTokenFilterFactory extends AbstractTokenFilterFactory {
             throw new IllegalArgumentException("Token filter [" + name() + "] cannot be used to parse synonyms");
         } else {
             DEPRECATION_LOGGER.warn(
-                DeprecationCategory.ANALYSIS,
+                DeprecationLogger.DeprecationCategory.ANALYSIS,
                 "synonym_tokenfilters",
                 "Token filter " + name() + "] will not be usable to parse synonym after v7.0"
             );

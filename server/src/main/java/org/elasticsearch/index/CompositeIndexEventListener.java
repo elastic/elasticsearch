@@ -17,8 +17,8 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
 import org.elasticsearch.logging.PrefixLogger;
+import org.elasticsearch.logging.message.Message;
 
 import java.util.Collection;
 import java.util.List;

@@ -10,7 +10,6 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -60,7 +59,7 @@ public final class DateHistogramAggregatorFactory extends ValuesSourceAggregator
                 cardinality,
                 metadata) -> {
                 DEPRECATION_LOGGER.warn(
-                    DeprecationCategory.AGGREGATIONS,
+                    DeprecationLogger.DeprecationCategory.AGGREGATIONS,
                     "date-histogram-boolean",
                     "Running DateHistogram aggregations on [boolean] fields is deprecated"
                 );

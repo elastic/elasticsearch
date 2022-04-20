@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.logging;
+package org.elasticsearch.logging.message;
 
 import java.util.Map;
 

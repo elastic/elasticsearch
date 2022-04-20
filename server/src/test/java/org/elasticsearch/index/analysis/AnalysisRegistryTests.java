@@ -29,7 +29,7 @@ import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider;
 import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
-import org.elasticsearch.logging.DeprecationCategory;
+import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.plugins.AnalysisPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
@@ -353,7 +353,7 @@ public class AnalysisRegistryTests extends ESTestCase {
                 public TokenStream create(TokenStream tokenStream) {
                     if (indexSettings.getIndexVersionCreated().equals(Version.CURRENT)) {
                         deprecationLogger.warn(
-                            DeprecationCategory.ANALYSIS,
+                            DeprecationLogger.DeprecationCategory.ANALYSIS,
                             "deprecated_token_filter",
                             "Using deprecated token filter [deprecated]"
                         );
@@ -384,7 +384,11 @@ public class AnalysisRegistryTests extends ESTestCase {
 
                 @Override
                 public TokenStream create(TokenStream tokenStream) {
-                    deprecationLogger.warn(DeprecationCategory.ANALYSIS, "unused_token_filter", "Using deprecated token filter [unused]");
+                    deprecationLogger.warn(
+                        DeprecationLogger.DeprecationCategory.ANALYSIS,
+                        "unused_token_filter",
+                        "Using deprecated token filter [unused]"
+                    );
                     return tokenStream;
                 }
             }
@@ -398,7 +402,7 @@ public class AnalysisRegistryTests extends ESTestCase {
                 @Override
                 public TokenStream create(TokenStream tokenStream) {
                     deprecationLogger.warn(
-                        DeprecationCategory.ANALYSIS,
+                        DeprecationLogger.DeprecationCategory.ANALYSIS,
                         "deprecated_normalizer",
                         "Using deprecated token filter [deprecated_normalizer]"
                     );

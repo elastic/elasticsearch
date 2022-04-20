@@ -10,7 +10,6 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.xpack.ql.expression.Alias;
 import org.elasticsearch.xpack.ql.expression.Expression;
@@ -65,7 +64,7 @@ import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyList;
-import static org.elasticsearch.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.logging.format.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.source;
 import static org.elasticsearch.xpack.ql.parser.ParserUtils.visitList;
 
@@ -78,7 +77,11 @@ abstract class LogicalPlanBuilder extends ExpressionBuilder {
 
     protected void maybeWarnDeprecatedFrozenSyntax(boolean includeFrozen, String syntax) {
         if (includeFrozen) {
-            DEPRECATION_LOGGER.warn(DeprecationCategory.PARSING, "include_frozen_syntax", format(null, FROZEN_DEPRECATION_WARNING, syntax));
+            DEPRECATION_LOGGER.warn(
+                DeprecationLogger.DeprecationCategory.PARSING,
+                "include_frozen_syntax",
+                format(null, FROZEN_DEPRECATION_WARNING, syntax)
+            );
         }
     }
 

@@ -15,7 +15,6 @@ import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -97,7 +96,7 @@ public class TransportInfo implements ReportingService.Info {
             publishAddressString = hostString + '/' + publishAddress.toString();
             if (cnameInPublishAddressProperty) {
                 deprecationLogger.warn(
-                    DeprecationCategory.SETTINGS,
+                    DeprecationLogger.DeprecationCategory.SETTINGS,
                     "cname_in_publish_address",
                     "es.transport.cname_in_publish_address system property is deprecated and no longer affects "
                         + propertyName

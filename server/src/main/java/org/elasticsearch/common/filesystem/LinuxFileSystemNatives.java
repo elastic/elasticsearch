@@ -16,7 +16,7 @@ import com.sun.jna.Structure;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.logging.Message;
+import org.elasticsearch.logging.message.Message;
 
 import java.nio.file.Files;
 import java.nio.file.Path;

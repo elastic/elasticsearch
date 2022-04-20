@@ -15,7 +15,6 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 
 import java.util.Collections;
@@ -96,7 +95,11 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
                             + "removed. Please remove it from your mappings and templates."
                     );
                 } else {
-                    deprecationLogger.warn(DeprecationCategory.TEMPLATES, "field_names_enabled_parameter", ENABLED_DEPRECATION_MESSAGE);
+                    deprecationLogger.warn(
+                        DeprecationLogger.DeprecationCategory.TEMPLATES,
+                        "field_names_enabled_parameter",
+                        ENABLED_DEPRECATION_MESSAGE
+                    );
                 }
             }
             if (Defaults.ENABLED.equals(enabled.getValue())) {
@@ -157,7 +160,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
                 throw new IllegalStateException("Cannot run [exists] queries if the [_field_names] field is disabled");
             }
             deprecationLogger.warn(
-                DeprecationCategory.MAPPINGS,
+                DeprecationLogger.DeprecationCategory.MAPPINGS,
                 "terms_query_on_field_names",
                 "terms query on the _field_names field is deprecated and will be removed, use exists query instead"
             );

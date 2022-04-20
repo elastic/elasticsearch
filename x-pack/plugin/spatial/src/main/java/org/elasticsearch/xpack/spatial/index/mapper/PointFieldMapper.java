@@ -23,7 +23,6 @@ import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.logging.DeprecationCategory;
 import org.elasticsearch.logging.DeprecationLogger;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -96,7 +95,7 @@ public class PointFieldMapper extends AbstractPointGeometryFieldMapper<Cartesian
         public FieldMapper build(MapperBuilderContext context) {
             if (multiFieldsBuilder.hasMultiFields()) {
                 DEPRECATION_LOGGER.warn(
-                    DeprecationCategory.MAPPINGS,
+                    DeprecationLogger.DeprecationCategory.MAPPINGS,
                     "point_multifields",
                     "Adding multifields to [point] mappers has no effect and will be forbidden in future"
                 );

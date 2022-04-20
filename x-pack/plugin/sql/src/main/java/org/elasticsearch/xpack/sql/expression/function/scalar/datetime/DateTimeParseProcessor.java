@@ -30,7 +30,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiFunction;
 
-import static org.elasticsearch.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.logging.format.LoggerMessageFormat.format;
 
 public class DateTimeParseProcessor extends BinaryDateTimeProcessor {
 

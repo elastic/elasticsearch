@@ -44,7 +44,7 @@ import static org.elasticsearch.cluster.metadata.NodesShutdownMetadata.getShutdo
 public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterNodeAction<Request> {
     private static final Logger logger = LogManager.getLogger(TransportPutShutdownNodeAction.class);
 
-    private static final PutShutdownNodeExecutor executor = new PutShutdownNodeExecutor();
+    private final PutShutdownNodeExecutor executor = new PutShutdownNodeExecutor();
 
     private static boolean putShutdownNodeState(
         Map<String, SingleNodeShutdownMetadata> shutdownMetadata,
@@ -107,9 +107,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
     }
 
     // package private for tests
-    record PutShutdownNodeTask(Request request, ActionListener<AcknowledgedResponse> listener, RerouteService rerouteService)
-        implements
-            ClusterStateTaskListener {
+    record PutShutdownNodeTask(Request request, ActionListener<AcknowledgedResponse> listener) implements ClusterStateTaskListener {
         @Override
         public void onFailure(Exception e) {
             logger.error(new ParameterizedMessage("failed to put shutdown for node [{}]", request.getNodeId()), e);
@@ -118,7 +116,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
     }
 
     // package private for tests
-    static class PutShutdownNodeExecutor implements ClusterStateTaskExecutor<PutShutdownNodeTask> {
+    class PutShutdownNodeExecutor implements ClusterStateTaskExecutor<PutShutdownNodeTask> {
         @Override
         public ClusterState execute(ClusterState currentState, List<TaskContext<PutShutdownNodeTask>> taskContexts) throws Exception {
             var shutdownMetadata = new HashMap<>(getShutdownsOrEmpty(currentState).getAllNodeMetadataMap());
@@ -132,7 +130,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
                     taskContext.onFailure(e);
                     continue;
                 }
-                var reroute = taskContext.getTask().rerouteService();
+                var reroute = clusterService.getRerouteService();
                 taskContext.success(taskContext.getTask().listener().delegateFailure((l, s) -> ackAndMaybeReroute(request, l, reroute)));
             }
             if (changed == false) {
@@ -173,7 +171,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
             listener.onResponse(AcknowledgedResponse.TRUE);
             return;
         }
-        var updateTask = new PutShutdownNodeTask(request, listener, clusterService.getRerouteService());
+        var updateTask = new PutShutdownNodeTask(request, listener);
         var taskConfig = ClusterStateTaskConfig.build(Priority.URGENT, request.masterNodeTimeout());
         clusterService.submitStateUpdateTask("put-node-shutdown-" + request.getNodeId(), updateTask, taskConfig, executor);
     }

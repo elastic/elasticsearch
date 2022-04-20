@@ -43,7 +43,7 @@ import static org.elasticsearch.cluster.metadata.NodesShutdownMetadata.getShutdo
 public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMasterNodeAction<Request> {
     private static final Logger logger = LogManager.getLogger(TransportDeleteShutdownNodeAction.class);
 
-    private static final DeleteShutdownNodeExecutor executor = new DeleteShutdownNodeExecutor();
+    private final DeleteShutdownNodeExecutor executor = new DeleteShutdownNodeExecutor();
 
     private static boolean deleteShutdownNodeState(Map<String, SingleNodeShutdownMetadata> shutdownMetadata, Request request) {
         if (shutdownMetadata.containsKey(request.getNodeId()) == false) {
@@ -70,9 +70,7 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
     }
 
     // package private for tests
-    record DeleteShutdownNodeTask(Request request, ActionListener<AcknowledgedResponse> listener, RerouteService rerouteService)
-        implements
-            ClusterStateTaskListener {
+    record DeleteShutdownNodeTask(Request request, ActionListener<AcknowledgedResponse> listener) implements ClusterStateTaskListener {
         @Override
         public void onFailure(Exception e) {
             logger.error(new ParameterizedMessage("failed to delete shutdown for node [{}]", request.getNodeId()), e);
@@ -81,7 +79,7 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
     }
 
     // package private for tests
-    static class DeleteShutdownNodeExecutor implements ClusterStateTaskExecutor<DeleteShutdownNodeTask> {
+    class DeleteShutdownNodeExecutor implements ClusterStateTaskExecutor<DeleteShutdownNodeTask> {
         @Override
         public ClusterState execute(ClusterState currentState, List<TaskContext<DeleteShutdownNodeTask>> taskContexts) throws Exception {
             var shutdownMetadata = new HashMap<>(getShutdownsOrEmpty(currentState).getAllNodeMetadataMap());
@@ -94,7 +92,7 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
                     taskContext.onFailure(e);
                     continue;
                 }
-                var reroute = taskContext.getTask().rerouteService();
+                var reroute = clusterService.getRerouteService();
                 taskContext.success(taskContext.getTask().listener().delegateFailure((l, s) -> ackAndReroute(request, l, reroute)));
             }
             if (changed == false) {
@@ -139,7 +137,7 @@ public class TransportDeleteShutdownNodeAction extends AcknowledgedTransportMast
             }
         }
 
-        var deleteTask = new DeleteShutdownNodeTask(request, listener, clusterService.getRerouteService());
+        var deleteTask = new DeleteShutdownNodeTask(request, listener);
         var taskConfig = ClusterStateTaskConfig.build(Priority.URGENT, request.masterNodeTimeout());
         clusterService.submitStateUpdateTask("delete-node-shutdown-" + request.getNodeId(), deleteTask, taskConfig, executor);
     }

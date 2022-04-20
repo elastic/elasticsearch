@@ -298,17 +298,7 @@ public class ProfileServiceTests extends ESTestCase {
             final Tuple<String, List<String>> label = hint.getSingleLabel();
             if (label != null) {
                 final List<String> labelValues = label.v2();
-                if (labelValues.size() == 1) {
-                    assertThat(
-                        shouldQueries.remove(0),
-                        equalTo(QueryBuilders.termQuery("user_profile.labels." + label.v1(), labelValues.get(0)))
-                    );
-                } else {
-                    assertThat(
-                        shouldQueries.remove(0),
-                        equalTo(QueryBuilders.termsQuery("user_profile.labels." + label.v1(), labelValues))
-                    );
-                }
+                assertThat(shouldQueries.remove(0), equalTo(QueryBuilders.termsQuery("user_profile.labels." + label.v1(), labelValues)));
             }
             assertThat(query.minimumShouldMatch(), equalTo("0"));
         } else {

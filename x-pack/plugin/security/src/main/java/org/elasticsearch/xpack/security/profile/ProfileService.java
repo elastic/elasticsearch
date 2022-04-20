@@ -264,11 +264,7 @@ public class ProfileService {
             final Tuple<String, List<String>> label = hint.getSingleLabel();
             if (label != null) {
                 final List<String> labelValues = label.v2();
-                if (labelValues.size() == 1) {
-                    query.should(QueryBuilders.termQuery("user_profile.labels." + label.v1(), labelValues.get(0)));
-                } else {
-                    query.should(QueryBuilders.termsQuery("user_profile.labels." + label.v1(), labelValues));
-                }
+                query.should(QueryBuilders.termsQuery("user_profile.labels." + label.v1(), labelValues));
             }
             query.minimumShouldMatch(0);
         }

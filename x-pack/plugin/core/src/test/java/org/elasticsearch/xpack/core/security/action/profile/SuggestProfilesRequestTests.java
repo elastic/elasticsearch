@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.security.action.profile;
 
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 
@@ -68,15 +69,26 @@ public class SuggestProfilesRequestTests extends ESTestCase {
             randomDataKeys(),
             randomName(),
             randomSize(),
+            new SuggestProfilesRequest.Hint(
+                null,
+                Map.of(randomFrom("*", "a*", "*b", "a*b"), randomList(1, 5, () -> randomAlphaOfLengthBetween(3, 8)))
+            )
+        );
+        assertThat(request2.validate().getMessage(), containsString("[labels] hint key cannot contain wildcard"));
+
+        final SuggestProfilesRequest request3 = new SuggestProfilesRequest(
+            randomDataKeys(),
+            randomName(),
+            randomSize(),
             new SuggestProfilesRequest.Hint(null, Map.of(randomAlphaOfLength(5), List.of()))
         );
-        assertThat(request2.validate().getMessage(), containsString("[labels] hint cannot be empty"));
+        assertThat(request3.validate().getMessage(), containsString("[labels] hint value cannot be empty"));
     }
 
     public void testErrorOnHintInstantiation() {
 
-        final IllegalArgumentException e1 = expectThrows(
-            IllegalArgumentException.class,
+        final ElasticsearchParseException e1 = expectThrows(
+            ElasticsearchParseException.class,
             () -> new SuggestProfilesRequest.Hint(
                 null,
                 Map.of(randomAlphaOfLength(5), randomFrom(0, 42.0, randomBoolean(), Map.of(randomAlphaOfLength(5), randomAlphaOfLength(5))))
@@ -84,8 +96,8 @@ public class SuggestProfilesRequestTests extends ESTestCase {
         );
         assertThat(e1.getMessage(), containsString("[labels] hint supports either string or list of strings as its value"));
 
-        final IllegalArgumentException e2 = expectThrows(
-            IllegalArgumentException.class,
+        final ElasticsearchParseException e2 = expectThrows(
+            ElasticsearchParseException.class,
             () -> new SuggestProfilesRequest.Hint(null, Map.of(randomAlphaOfLength(5), List.of(0, randomAlphaOfLength(8))))
         );
         assertThat(e2.getMessage(), containsString("[labels] hint supports either string value or list of strings"));

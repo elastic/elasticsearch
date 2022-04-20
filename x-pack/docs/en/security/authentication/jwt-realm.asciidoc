@@ -270,7 +270,7 @@ Example JWT realm role mapping rule.
 
 [source,console]
 ----
-PUT /_security/role_mapping/jwt1_users
+PUT /_security/role_mapping/jwt1_users?refresh=true
 {
   "roles" : [ "user" ],
   "rules" : { "all" : [
@@ -308,7 +308,7 @@ Example role mapping in realm `native1` for principal `principalname1`.
 
 [source,console]
 ----
-PUT /_security/role_mapping/native1_users
+PUT /_security/role_mapping/native1_users?refresh=true
 {
   "roles" : [ "user" ],
   "rules" : { "all" : [
@@ -375,7 +375,7 @@ These settings are for {es} role mapping rules for realm `jwt8` user `principaln
 
 [source,console]
 ----
-PUT /_security/role_mapping/jwt8_users
+PUT /_security/role_mapping/jwt8_users?refresh=true
 {
   "roles" : [ "user" ],
   "rules" : { "all" : [

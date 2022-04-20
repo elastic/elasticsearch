@@ -1,6 +1,14 @@
 pr: 85326
-summary: Deprecation warning if LDAP/AD realm has bind DN set but is missing bind password
+summary: Deprecation warning if LDAP/AD realm has bind DN set but is missing bind
+  password
 area: Authentication
-type: enhancement
+type: "enhancement, breaking"
 issues:
  - 47191
+breaking:
+  title: LDAP/AD realms missing bind password logs error
+  area: Authentication
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

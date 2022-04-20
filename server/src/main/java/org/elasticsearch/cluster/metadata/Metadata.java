@@ -896,6 +896,20 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             .orElse(Collections.emptyMap());
     }
 
+    public boolean isTsdbTemplate(ComposableIndexTemplate indexTemplate) {
+        var template = indexTemplate.template();
+        if (indexTemplate.getDataStreamTemplate() == null || template == null) {
+            return false;
+        }
+
+        var settings = MetadataIndexTemplateService.resolveSettings(indexTemplate, componentTemplates());
+        if (IndexMetadata.INDEX_ROUTING_PATH.exists(settings) == false) {
+            return false;
+        }
+
+        return true;
+    }
+
     public Map<String, DataStream> dataStreams() {
         return Optional.ofNullable((DataStreamMetadata) this.custom(DataStreamMetadata.TYPE))
             .map(DataStreamMetadata::dataStreams)

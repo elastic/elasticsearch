@@ -18,7 +18,6 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -87,7 +86,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
                 null,
                 null,
                 null,
-                new ComposableIndexTemplate.DataStreamTemplate(false, false, IndexMode.TIME_SERIES),
+                new ComposableIndexTemplate.DataStreamTemplate(false, false),
                 null
             )
         );

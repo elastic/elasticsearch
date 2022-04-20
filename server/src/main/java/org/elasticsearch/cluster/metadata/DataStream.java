@@ -265,24 +265,24 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      *
      * @param writeIndex            new write index
      * @param generation            new generation
-     * @param indexModeFromTemplate the index mode as is defined in the template that created this data stream
+     * @param isTsdbTemplate the index mode as is defined in the template that created this data stream
      *
      * @return new {@code DataStream} instance with the rollover operation applied
      */
-    public DataStream rollover(Index writeIndex, long generation, IndexMode indexModeFromTemplate) {
+    public DataStream rollover(Index writeIndex, long generation, boolean isTsdbTemplate) {
         ensureNotReplicated();
 
-        return unsafeRollover(writeIndex, generation, indexModeFromTemplate);
+        return unsafeRollover(writeIndex, generation, isTsdbTemplate);
     }
 
     /**
-     * Like {@link #rollover(Index, long, IndexMode)}, but does no validation, use with care only.
+     * Like {@link #rollover(Index, long, boolean)}, but does no validation, use with care only.
      */
-    public DataStream unsafeRollover(Index writeIndex, long generation, IndexMode indexModeFromTemplate) {
+    public DataStream unsafeRollover(Index writeIndex, long generation, boolean isTsdbTemplate) {
         IndexMode indexMode = this.indexMode;
         // This allows for migrating a data stream to be a tsdb data stream:
         // (only if index_mode=null|standard then allow it to be set to time_series)
-        if ((indexMode == null || indexMode == IndexMode.STANDARD) && indexModeFromTemplate == IndexMode.TIME_SERIES) {
+        if ((indexMode == null || indexMode == IndexMode.STANDARD) && isTsdbTemplate) {
             indexMode = IndexMode.TIME_SERIES;
         }
 
@@ -293,7 +293,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
 
     /**
      * Performs a dummy rollover on a {@code DataStream} instance and returns the tuple of the next write index name and next generation
-     * that this {@code DataStream} should roll over to using {@link #rollover(Index, long, IndexMode)}.
+     * that this {@code DataStream} should roll over to using {@link #rollover(Index, long, boolean)}.
      *
      * @param clusterMetadata Cluster metadata
      *

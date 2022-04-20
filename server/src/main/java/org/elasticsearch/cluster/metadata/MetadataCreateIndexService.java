@@ -841,6 +841,7 @@ public class MetadataCreateIndexService {
         Set<IndexSettingProvider> indexSettingProviders
     ) {
         final boolean isDataStreamIndex = request.dataStreamName() != null;
+        final var metadata = currentState.getMetadata();
 
         // Create builders for the template and request settings. We transform these into builders
         // because we may want settings to be "removed" from these prior to being set on the new
@@ -853,11 +854,10 @@ public class MetadataCreateIndexService {
             final Settings.Builder additionalIndexSettings = Settings.builder();
             final Settings templateAndRequestSettings = Settings.builder().put(combinedTemplateSettings).put(request.settings()).build();
 
-            final IndexMode matchingIndexMode = Optional.of(request)
+            final boolean isTsdbTemplate = Optional.of(request)
                 .map(CreateIndexClusterStateUpdateRequest::matchingTemplate)
-                .map(ComposableIndexTemplate::getDataStreamTemplate)
-                .map(ComposableIndexTemplate.DataStreamTemplate::getIndexMode)
-                .orElse(null);
+                .map(metadata::isTsdbTemplate)
+                .orElse(false);
 
             // Loop through all the explicit index setting providers, adding them to the
             // additionalIndexSettings map
@@ -867,7 +867,7 @@ public class MetadataCreateIndexService {
                     provider.getAdditionalIndexSettings(
                         request.index(),
                         request.dataStreamName(),
-                        matchingIndexMode,
+                        isTsdbTemplate,
                         currentState.getMetadata(),
                         resolvedAt,
                         templateAndRequestSettings

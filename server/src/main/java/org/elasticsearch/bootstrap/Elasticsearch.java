@@ -89,7 +89,7 @@ class Elasticsearch extends EnvironmentAwareCommand {
                 // this is a horrible hack to see if logging has been initialized
                 // we need to find a better way!
                 Logger logger = LogManager.getLogger(Elasticsearch.class);
-                logger.error(e);
+                logger.error("fatal exception while booting Elasticsearch", e);
             }
             e.printStackTrace(terminal.getErrorWriter());
         }

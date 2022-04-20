@@ -11,8 +11,10 @@ package org.elasticsearch.cluster.coordination;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.coordination.MasterHistoryAction;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.ExecutionException;
@@ -24,9 +26,18 @@ public class MasterHistoryService {
     private final NodeClient client;
     private final MutableMasterHistory localMasterHistory;
 
-    public MasterHistoryService(NodeClient client, ThreadPool threadPool, ClusterService clusterService) {
+    public MasterHistoryService(NodeClient client, Coordinator coordinator, ThreadPool threadPool, ClusterService clusterService) {
         this.client = client;
         this.localMasterHistory = new MutableMasterHistory(threadPool, clusterService);
+        // Set the initial state for the local history once it is available:
+        coordinator.addLifecycleListener(new LifecycleListener() {
+            @Override
+            public void afterStart() {
+                localMasterHistory.clusterChanged(
+                    new ClusterChangedEvent(MasterHistoryService.class.getName(), clusterService.state(), clusterService.state())
+                );
+            }
+        });
     }
 
     /**

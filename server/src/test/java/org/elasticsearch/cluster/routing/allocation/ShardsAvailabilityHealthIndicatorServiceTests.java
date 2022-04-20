@@ -612,20 +612,14 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     public void testDiagnoseEnableClusterAllocation() throws IOException {
         // Index definition, 1 primary no replicas
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
-            .settings(
-                Settings.builder()
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
-                    .build()
-            )
+            .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build())
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
 
         // Disallow allocations in cluster settings
         var service = createAllocationHealthIndicatorService(
-            Settings.builder()
-                .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
-                .build(),
+            Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none").build(),
             ClusterState.EMPTY_STATE,
             Map.of()
         );
@@ -664,9 +658,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
         // Disallow allocations in cluster settings
         var service = createAllocationHealthIndicatorService(
-            Settings.builder()
-                .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
-                .build(),
+            Settings.builder().put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none").build(),
             ClusterState.EMPTY_STATE,
             Map.of()
         );
@@ -690,7 +682,6 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         assertThat(actions, hasSize(2));
         assertThat(actions, containsInAnyOrder(ACTION_ENABLE_INDEX_ROUTING_ALLOCATION, ACTION_ENABLE_CLUSTER_ROUTING_ALLOCATION));
     }
-
 
     public void testDiagnoseEnableDataTiers() throws IOException {
         // Index definition, 1 primary no replicas, in the hot tier

@@ -162,14 +162,20 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     public static final Map<String, UserAction.Definition> ACTION_ENABLE_TIERS_LOOKUP;
     static {
         Map<String, UserAction.Definition> lookup = DataTier.ALL_DATA_TIERS.stream()
-            .collect(Collectors.toMap(tier -> tier, tier -> new UserAction.Definition(
-                "enable_data_tiers_" + tier,
-                "Elasticsearch isn't allowed to allocate shards from these indices because the indices expect to be allocated to data "
-                    + "tier nodes, but there were not any nodes with the expected tiers found in the cluster. Add nodes with the ["
-                    + tier
-                    + "] role to the cluster.",
-                null
-            )));
+            .collect(
+                Collectors.toMap(
+                    tier -> tier,
+                    tier -> new UserAction.Definition(
+                        "enable_data_tiers_" + tier,
+                        "Elasticsearch isn't allowed to allocate shards from these indices because the indices expect to be allocated to "
+                            + "data tier nodes, but there were not any nodes with the expected tiers found in the cluster. Add nodes with "
+                            + "the ["
+                            + tier
+                            + "] role to the cluster.",
+                        null
+                    )
+                )
+            );
         ACTION_ENABLE_TIERS_LOOKUP = Collections.unmodifiableMap(lookup);
     }
 
@@ -415,8 +421,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             if (dataTierAllocationResults.isEmpty()) {
                 // Shard must be allocated on specific tiers but no nodes were enabled for those tiers.
                 for (String tier : indexMetadata.getTierPreference()) {
-                    Optional.ofNullable(ACTION_ENABLE_TIERS_LOOKUP.get(tier))
-                        .ifPresent(actions::add);
+                    Optional.ofNullable(ACTION_ENABLE_TIERS_LOOKUP.get(tier)).ifPresent(actions::add);
                 }
             } else {
                 // All tier nodes at shards limit?

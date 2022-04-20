@@ -20,6 +20,7 @@ import org.elasticsearch.action.search.SearchResponseSections;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -352,7 +353,11 @@ public class DatabaseNodeServiceTests extends ESTestCase {
     }
 
     private static ClusterState createClusterState(PersistentTasksCustomMetadata tasksCustomMetadata) {
-        Index index = new Index(GeoIpDownloader.DATABASES_INDEX, UUID.randomUUID().toString());
+        boolean aliasGeoipDatabase = randomBoolean();
+        String indexName = aliasGeoipDatabase
+            ? GeoIpDownloader.DATABASES_INDEX + "-" + randomAlphaOfLength(5)
+            : GeoIpDownloader.DATABASES_INDEX;
+        Index index = new Index(indexName, UUID.randomUUID().toString());
         IndexMetadata.Builder idxMeta = IndexMetadata.builder(index.getName())
             .settings(
                 Settings.builder()
@@ -361,6 +366,9 @@ public class DatabaseNodeServiceTests extends ESTestCase {
                     .put("index.number_of_shards", 1)
                     .put("index.number_of_replicas", 0)
             );
+        if (aliasGeoipDatabase) {
+            idxMeta.putAlias(AliasMetadata.builder(GeoIpDownloader.DATABASES_INDEX));
+        }
         ShardRouting shardRouting = ShardRouting.newUnassigned(
             new ShardId(index, 0),
             true,

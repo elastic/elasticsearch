@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -27,6 +28,7 @@ import java.util.UUID;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class MasterHistoryTests extends ESTestCase {
 
@@ -49,7 +51,9 @@ public class MasterHistoryTests extends ESTestCase {
 
     public void testGetBasicUse() {
         var clusterService = mock(ClusterService.class);
-        MasterHistory masterHistory = new MasterHistory(clusterService);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.relativeTimeInMillis()).thenReturn(System.currentTimeMillis());
+        MutableMasterHistory masterHistory = new MutableMasterHistory(threadPool, clusterService);
         assertNull(masterHistory.getCurrentMaster());
         masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, nullMasterClusterState));
         assertNull(masterHistory.getCurrentMaster());
@@ -69,7 +73,8 @@ public class MasterHistoryTests extends ESTestCase {
 
     public void testHasMasterGoneNull() {
         var clusterService = mock(ClusterService.class);
-        MasterHistory masterHistory = new MasterHistory(clusterService);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        MutableMasterHistory masterHistory = new MutableMasterHistory(threadPool, clusterService);
         long oneHourAgo = System.currentTimeMillis() - (60 * 60 * 1000);
         masterHistory.nowSupplier = () -> oneHourAgo;
         assertFalse(masterHistory.hasSameMasterGoneNullNTimes(3));
@@ -93,7 +98,8 @@ public class MasterHistoryTests extends ESTestCase {
 
     public void testTime() {
         var clusterService = mock(ClusterService.class);
-        MasterHistory masterHistory = new MasterHistory(clusterService);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        MutableMasterHistory masterHistory = new MutableMasterHistory(threadPool, clusterService);
         long oneHourAgo = System.currentTimeMillis() - (60 * 60 * 1000);
         masterHistory.nowSupplier = () -> oneHourAgo;
         masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, nullMasterClusterState));
@@ -110,19 +116,22 @@ public class MasterHistoryTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
         var clusterService = mock(ClusterService.class);
-        MasterHistory masterHistory = new MasterHistory(clusterService);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.relativeTimeInMillis()).thenReturn(System.currentTimeMillis());
+        MutableMasterHistory masterHistory = new MutableMasterHistory(threadPool, clusterService);
         masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, nullMasterClusterState));
         masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
         masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node2MasterClusterState, node1MasterClusterState));
         masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node3MasterClusterState, node2MasterClusterState));
-        MasterHistory copy = copyWriteable(masterHistory, writableRegistry(), MasterHistory::new);
-        assertEquals(masterHistory, copy);
-        assertEquals(masterHistory.hashCode(), copy.hashCode());
+        ImmutableMasterHistory remoteMasterHistory = masterHistory.getImmutableView();
+        ImmutableMasterHistory copy = copyWriteable(remoteMasterHistory, writableRegistry(), ImmutableMasterHistory::new);
+        assertEquals(remoteMasterHistory, copy);
+        assertEquals(remoteMasterHistory.hashCode(), copy.hashCode());
         masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node2MasterClusterState, node3MasterClusterState));
-        assertNotEquals(masterHistory, copy);
+        assertNotEquals(masterHistory.getImmutableView(), copy);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
-            masterHistory,
-            history -> copyWriteable(history, writableRegistry(), MasterHistory::new)
+            masterHistory.getImmutableView(),
+            history -> copyWriteable(history, writableRegistry(), ImmutableMasterHistory::new)
         );
     }
 

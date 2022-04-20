@@ -10,10 +10,12 @@ package org.elasticsearch.action.admin.cluster.coordination;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.cluster.coordination.MutableMasterHistory;
 import org.elasticsearch.cluster.coordination.MasterHistory;
 import org.elasticsearch.cluster.coordination.MasterHistoryService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import static org.mockito.Mockito.mock;
@@ -25,7 +27,9 @@ public class MasterHistoryTransportActionTests extends ESTestCase {
         ActionFilters actionFilters = mock(ActionFilters.class);
         MasterHistoryService masterHistoryService = mock(MasterHistoryService.class);
         ClusterService clusterService = mock(ClusterService.class);
-        MasterHistory masterHistory = new MasterHistory(clusterService);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.relativeTimeInMillis()).thenReturn(System.currentTimeMillis());
+        MutableMasterHistory masterHistory = new MutableMasterHistory(threadPool, clusterService);
         when(masterHistoryService.getLocalMasterHistory()).thenReturn(masterHistory);
         MasterHistoryTransportAction action = new MasterHistoryTransportAction(transportService, actionFilters, masterHistoryService);
         final MasterHistory[] result = new MasterHistory[1];
@@ -41,6 +45,6 @@ public class MasterHistoryTransportActionTests extends ESTestCase {
             }
         };
         action.doExecute(null, new MasterHistoryAction.Request(), listener);
-        assertEquals(masterHistory, result[0]);
+        assertEquals(masterHistory.getImmutableView(), result[0]);
     }
 }

@@ -81,7 +81,7 @@ and want to see the first three frequent item setes with the highest support.
 
 [source,console]
 -------------------------------------------------
-GET kibana_sample_data_ecommerce / _search 
+GET kibana_sample_data_ecommerce /_search 
 {
  "size": 0,
 	"aggs": {
@@ -89,7 +89,9 @@ GET kibana_sample_data_ecommerce / _search
 			"frequent_items": {
 				"minimum_set_size": 2,
 				"fields": [ 
-          {"field": "category.keyword"}
+          {
+            "field": "category.keyword"
+          }
 				],
 				"size": 3
 			}

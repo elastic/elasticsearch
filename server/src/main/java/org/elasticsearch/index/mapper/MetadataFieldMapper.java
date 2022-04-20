@@ -8,6 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -85,7 +86,7 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         }
 
         @Override
-        public boolean supportsLegacyField() {
+        public boolean supportsVersion(Version indexCreatedVersion) {
             return true;
         }
     }
@@ -116,7 +117,7 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         }
 
         @Override
-        public boolean supportsLegacyField() {
+        public boolean supportsVersion(Version indexCreatedVersion) {
             return true;
         }
     }

@@ -1405,28 +1405,28 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         private final BiFunction<String, MappingParserContext, Builder> builderFunction;
         private final BiConsumer<String, MappingParserContext> contextValidator;
-        private boolean supportsLegacyField; // see Mapper.TypeParser#supportsLegacyField()
+        private Version minimumCompatibilityVersion; // see Mapper.TypeParser#supportsVersion()
 
         /**
          * Creates a new TypeParser
          * @param builderFunction a function that produces a Builder from a name and parsercontext
          */
         public TypeParser(BiFunction<String, MappingParserContext, Builder> builderFunction) {
-            this(builderFunction, (n, c) -> {}, false);
+            this(builderFunction, (n, c) -> {}, Version.CURRENT.minimumIndexCompatibilityVersion());
         }
 
-        public TypeParser(BiFunction<String, MappingParserContext, Builder> builderFunction, boolean supportsLegacyField) {
-            this(builderFunction, (n, c) -> {}, supportsLegacyField);
+        public TypeParser(BiFunction<String, MappingParserContext, Builder> builderFunction, Version minimumCompatibilityVersion) {
+            this(builderFunction, (n, c) -> {}, minimumCompatibilityVersion);
         }
 
         public TypeParser(
             BiFunction<String, MappingParserContext, Builder> builderFunction,
             BiConsumer<String, MappingParserContext> contextValidator,
-            boolean supportsLegacyField
+            Version minimumCompatibilityVersion
         ) {
             this.builderFunction = builderFunction;
             this.contextValidator = contextValidator;
-            this.supportsLegacyField = supportsLegacyField;
+            this.minimumCompatibilityVersion = minimumCompatibilityVersion;
         }
 
         @Override
@@ -1438,8 +1438,8 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
         }
 
         @Override
-        public boolean supportsLegacyField() {
-            return supportsLegacyField;
+        public boolean supportsVersion(Version indexCreatedVersion) {
+            return indexCreatedVersion.onOrAfter(minimumCompatibilityVersion);
         }
     }
 

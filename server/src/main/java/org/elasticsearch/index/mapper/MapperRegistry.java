@@ -63,7 +63,7 @@ public final class MapperRegistry {
      */
     public Mapper.TypeParser getMapperParser(String type, Version indexVersionCreated) {
         Mapper.TypeParser parser = mapperParsers.get(type);
-        if (indexVersionCreated.isLegacyIndexVersion() && (parser == null || parser.supportsLegacyField() == false)) {
+        if (indexVersionCreated.isLegacyIndexVersion() && (parser == null || parser.supportsVersion(indexVersionCreated) == false)) {
             return PlaceHolderFieldMapper.PARSER.apply(type);
         } else {
             return parser;

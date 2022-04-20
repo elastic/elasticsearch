@@ -294,9 +294,11 @@ public final class KeywordFieldMapper extends FieldMapper {
         }
     }
 
+    private static final Version minimumCompatibilityVersion = Version.fromString("5.0.0");
+
     public static final TypeParser PARSER = new TypeParser(
         (n, c) -> new Builder(n, c.getIndexAnalyzers(), c.scriptCompiler(), c.indexVersionCreated()),
-        true
+        minimumCompatibilityVersion
     );
 
     public static final class KeywordFieldType extends StringFieldType {

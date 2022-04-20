@@ -14,6 +14,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -110,7 +111,7 @@ public class HistogramFieldMapper extends FieldMapper {
     public static final TypeParser PARSER = new TypeParser(
         (n, c) -> new Builder(n, IGNORE_MALFORMED_SETTING.get(c.getSettings())),
         notInMultiFields(CONTENT_TYPE),
-        false
+        Version.CURRENT.minimumCompatibilityVersion()
     );
 
     private final Explicit<Boolean> ignoreMalformed;

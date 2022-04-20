@@ -173,7 +173,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
     public static class TypeParser implements Mapper.TypeParser {
 
         @Override
-        public boolean supportsLegacyField() {
+        public boolean supportsVersion(Version indexCreatedVersion) {
             return true;
         }
 

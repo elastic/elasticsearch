@@ -37,10 +37,10 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
         Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext) throws MapperParsingException;
 
         /**
-         * Whether we can parse this field on legacy indices (see {@link Version#isLegacyIndexVersion()}).
+         * Whether we can parse this type on indices with the given index created version.
          */
-        default boolean supportsLegacyField() {
-            return false;
+        default boolean supportsVersion(Version indexCreatedVersion) {
+            return indexCreatedVersion.onOrAfter(Version.CURRENT.minimumIndexCompatibilityVersion());
         }
     }
 

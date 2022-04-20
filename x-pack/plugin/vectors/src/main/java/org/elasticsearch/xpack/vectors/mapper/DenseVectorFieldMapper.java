@@ -228,7 +228,7 @@ public class DenseVectorFieldMapper extends FieldMapper implements PerFieldKnnVe
     public static final TypeParser PARSER = new TypeParser(
         (n, c) -> new Builder(n, c.indexVersionCreated()),
         notInMultiFields(CONTENT_TYPE),
-        false
+        Version.CURRENT.minimumCompatibilityVersion()
     );
 
     public static final class DenseVectorFieldType extends SimpleMappedFieldType {

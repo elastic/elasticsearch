@@ -28,7 +28,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
@@ -255,7 +254,6 @@ public class MetadataCreateDataStreamService {
             .collect(Collectors.toCollection(ArrayList::new));
         dsBackingIndices.add(writeIndex.getIndex());
         boolean hidden = isSystem || template.getDataStreamTemplate().isHidden();
-        final IndexMode indexMode = metadata.isTsdbTemplate(template) ? IndexMode.TIME_SERIES : null;
         DataStream newDataStream = new DataStream(
             dataStreamName,
             dsBackingIndices,
@@ -265,7 +263,7 @@ public class MetadataCreateDataStreamService {
             false,
             isSystem,
             template.getDataStreamTemplate().isAllowCustomRouting(),
-            indexMode
+            metadata.isTsdbTemplate(template)
         );
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(newDataStream);
 

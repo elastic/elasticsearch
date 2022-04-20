@@ -146,7 +146,7 @@ public class UpdateTimeSeriesRangeServiceTests extends ESTestCase {
                     true,
                     d.isSystem(),
                     d.isAllowCustomRouting(),
-                    d.getIndexMode()
+                    d.isTimeSeries()
                 )
             )
             .build();

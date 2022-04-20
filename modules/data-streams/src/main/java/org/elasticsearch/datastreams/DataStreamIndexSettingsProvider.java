@@ -38,16 +38,14 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
         if (dataStreamName != null) {
             DataStream dataStream = metadata.dataStreams().get(dataStreamName);
             // First backing index is created and then data stream is rolled over (in a single cluster state update).
-            // So at this point we can't check index_mode==time_series,
-            // so checking that index_mode==null|standard and templateIndexMode == TIME_SERIES
-            boolean migrating = dataStream != null
-                && (dataStream.getIndexMode() == null || dataStream.getIndexMode() == IndexMode.STANDARD)
-                && isTsdbTemplate;
+            // So at this point we can't check timeSeries=true,
+            // so checking that timeSeries=false and template is tsdb
+            boolean migrating = dataStream != null && dataStream.isTimeSeries() == false && isTsdbTemplate;
             IndexMode indexMode;
             if (migrating) {
                 indexMode = IndexMode.TIME_SERIES;
-            } else if (dataStream != null) {
-                indexMode = dataStream.getIndexMode();
+            } else if (dataStream != null && dataStream.isTimeSeries()) {
+                indexMode = IndexMode.TIME_SERIES;
             } else if (isTsdbTemplate) {
                 indexMode = IndexMode.TIME_SERIES;
             } else {

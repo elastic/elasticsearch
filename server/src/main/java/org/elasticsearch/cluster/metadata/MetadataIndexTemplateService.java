@@ -754,7 +754,7 @@ public class MetadataIndexTemplateService {
         Set<String> dataStreamsWithNonTsdbTemplate = null;
 
         for (var dataStream : state.metadata().dataStreams().values()) {
-            if (dataStream.getIndexMode() != IndexMode.TIME_SERIES) {
+            if (dataStream.isTimeSeries() == false) {
                 continue;
             }
 

@@ -36,6 +36,7 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -92,11 +93,10 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
         assertTrue(rolledDs.getIndices().containsAll(ds.getIndices()));
         assertTrue(rolledDs.getIndices().contains(rolledDs.getWriteIndex()));
-        assertThat(rolledDs.getIndexMode(), equalTo(ds.getIndexMode()));
+        assertThat(rolledDs.isTimeSeries(), is(ds.isTimeSeries()));
     }
 
     public void testRolloverIndexMode() {
-        IndexMode indexMode = randomBoolean() ? IndexMode.STANDARD : null;
         DataStream ds = DataStreamTestHelper.randomInstance().promoteDataStream();
         // Unsure index_mode=null
         ds = new DataStream(
@@ -108,7 +108,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
             ds.isReplicated(),
             ds.isSystem(),
             ds.isAllowCustomRouting(),
-            indexMode
+            false
         );
         var newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA);
 
@@ -119,7 +119,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
         assertTrue(rolledDs.getIndices().containsAll(ds.getIndices()));
         assertTrue(rolledDs.getIndices().contains(rolledDs.getWriteIndex()));
-        assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.TIME_SERIES));
+        assertThat(rolledDs.isTimeSeries(), is(true));
     }
 
     public void testRolloverIndexMode_keepIndexMode() {
@@ -133,7 +133,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
             ds.isReplicated(),
             ds.isSystem(),
             ds.isAllowCustomRouting(),
-            IndexMode.TIME_SERIES
+            true
         );
         var newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA);
 
@@ -144,7 +144,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
         assertTrue(rolledDs.getIndices().containsAll(ds.getIndices()));
         assertTrue(rolledDs.getIndices().contains(rolledDs.getWriteIndex()));
-        assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.TIME_SERIES));
+        assertThat(rolledDs.isTimeSeries(), is(true));
     }
 
     public void testRemoveBackingIndex() {
@@ -493,7 +493,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
             preSnapshotDataStream.isReplicated() && randomBoolean(),
             preSnapshotDataStream.isSystem(),
             preSnapshotDataStream.isAllowCustomRouting(),
-            preSnapshotDataStream.getIndexMode()
+            preSnapshotDataStream.isTimeSeries()
         );
 
         var reconciledDataStream = postSnapshotDataStream.snapshot(
@@ -535,7 +535,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
             preSnapshotDataStream.isReplicated(),
             preSnapshotDataStream.isSystem(),
             preSnapshotDataStream.isAllowCustomRouting(),
-            preSnapshotDataStream.getIndexMode()
+            preSnapshotDataStream.isTimeSeries()
         );
 
         assertNull(postSnapshotDataStream.snapshot(preSnapshotDataStream.getIndices().stream().map(Index::getName).toList()));

@@ -379,7 +379,7 @@ public interface IndexAbstraction {
                 return getWriteIndex();
             }
 
-            if (dataStream.getIndexMode() != IndexMode.TIME_SERIES) {
+            if (dataStream.isTimeSeries() == false) {
                 return getWriteIndex();
             }
 

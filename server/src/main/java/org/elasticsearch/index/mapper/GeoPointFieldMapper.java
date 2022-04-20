@@ -14,7 +14,6 @@ import org.apache.lucene.document.StoredField;
 import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
@@ -22,15 +21,12 @@ import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.geo.GeoFormatterFactory;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.GeoShapeUtils;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SimpleVectorTileFormatter;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
-import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.plain.AbstractLatLonPointIndexFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -328,15 +324,12 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
         }
 
         @Override
-        public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
+        public Query geoShapeQuery(SearchExecutionContext context, String fieldName, ShapeRelation relation, LatLonGeometry... geometries) {
             failIfNotIndexedNorDocValuesFallback(context);
-            final LatLonGeometry[] luceneGeometries = GeoShapeUtils.toLuceneGeometry(fieldName, context, shape, relation);
-            if (luceneGeometries.length == 0) {
-                return new MatchNoDocsQuery();
-            }
             final ShapeField.QueryRelation luceneRelation;
-            if (shape.type() == ShapeType.POINT && relation == ShapeRelation.INTERSECTS) {
-                // For point queries and intersects, lucene does not match points that are encoded to Integer.MAX_VALUE.
+            if (relation == ShapeRelation.INTERSECTS && isPointGeometry(geometries)) {
+                // For point queries and intersects, lucene does not match points that are encoded
+                // to Integer.MAX_VALUE because the use of ComponentPredicate for speeding up queries.
                 // We use contains instead.
                 luceneRelation = ShapeField.QueryRelation.CONTAINS;
             } else {
@@ -344,15 +337,19 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
             }
             Query query;
             if (isIndexed()) {
-                query = LatLonPoint.newGeometryQuery(fieldName, luceneRelation, luceneGeometries);
+                query = LatLonPoint.newGeometryQuery(fieldName, luceneRelation, geometries);
                 if (hasDocValues()) {
-                    Query dvQuery = LatLonDocValuesField.newSlowGeometryQuery(fieldName, luceneRelation, luceneGeometries);
+                    Query dvQuery = LatLonDocValuesField.newSlowGeometryQuery(fieldName, luceneRelation, geometries);
                     query = new IndexOrDocValuesQuery(query, dvQuery);
                 }
             } else {
-                query = LatLonDocValuesField.newSlowGeometryQuery(fieldName, luceneRelation, luceneGeometries);
+                query = LatLonDocValuesField.newSlowGeometryQuery(fieldName, luceneRelation, geometries);
             }
             return query;
+        }
+
+        private boolean isPointGeometry(LatLonGeometry[] geometries) {
+            return geometries.length == 1 && geometries[0] instanceof org.apache.lucene.geo.Point;
         }
 
         @Override

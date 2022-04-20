@@ -175,7 +175,7 @@ public abstract class AggregatorBase extends Aggregator {
      * {@link Aggregator} that returns a customer {@linkplain LeafBucketCollector}
      * from this method runs at best {@code O(hits)} time. See the
      * {@link SumAggregator#getLeafCollector(LeafReaderContext, LeafBucketCollector) sum}
-     * {@linkplain Aggregator} for a fairly strait forward example of this.
+     * {@linkplain Aggregator} for a fairly straight forward example of this.
      * <p>
      * Some {@linkplain Aggregator}s are able to correctly collect results on
      * their own, without being iterated by the top level query or the rest

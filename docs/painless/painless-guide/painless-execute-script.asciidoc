@@ -39,7 +39,7 @@ context is specified.
 [%collapsible%open]
 ====
 `painless_test`::
-The default context if no other context is specified. See 
+The default context if no other context is specified. See
 <<painless-execute-test,test context>>.
 
 `filter`::
@@ -61,12 +61,12 @@ NOTE: Result ordering in the field contexts is not guaranteed.
 --
 
 ****
-`boolean_field`:: 
+`boolean_field`::
 The context for {ref}/boolean.html[`boolean` fields]. The script returns a `true`
 or `false` response. See
 <<painless-runtime-boolean,boolean_field context>>.
 
-`date_field`:: 
+`date_field`::
 The context for {ref}/date.html[`date` fields]. `emit` takes a `long` value and
 the script returns a sorted list of dates. See
 <<painless-runtime-datetime,date_time context>>.
@@ -94,6 +94,11 @@ list of `string` values. See
 `long_field`::
 The context for `long` {ref}/number.html[numeric fields]. The script returns a
 sorted list of `long` values. See <<painless-runtime-long,long_field context>>.
+
+`composite_field`::
+The context for `composite` {ref}/runtime.html[runtime fields]. The script returns a
+map of values. See <<painless-runtime-composite,composite_field context>>.
+
 ****
 =====
 ====
@@ -118,12 +123,12 @@ Index containing a mapping that's compatible with the indexed document.
 Specifies any named parameters that are passed into the script as variables.
 
 `query`:: (Optional, object)
-NOTE: This parameter only applies when `score` is specified as the script 
+NOTE: This parameter only applies when `score` is specified as the script
 `context`.
 +
 Use this parameter to specify a query for computing a score. Besides deciding
-whether or not the document matches, the 
-{ref}/query-filter-context.html#query-context[query clause] also calculates a 
+whether or not the document matches, the
+{ref}/query-filter-context.html#query-context[query clause] also calculates a
 relevance score in the `_score` metadata field.
 
 [[painless-execute-test]]
@@ -282,7 +287,7 @@ Choose a field context based on the data type you want to return.
 Use the `boolean_field` field context when you want to return a `true`
 or `false` value from a script valuation. {ref}/boolean.html[Boolean fields]
 accept `true` and `false` values, but can also accept strings that are
-interpreted as either true or false. 
+interpreted as either true or false.
 
 Let's say you have data for the top 100 science fiction books of all time. You
 want to write scripts that return a boolean response such as whether books
@@ -496,7 +501,7 @@ runtime field.
 You need to multiply this value, but only for
 sensors that match a specific model number.
 
-Add the following fields to your index mapping. The `voltage` field is a 
+Add the following fields to your index mapping. The `voltage` field is a
 sub-field of the `measures` object.
 
 [source,console]
@@ -573,7 +578,7 @@ define a geo-point field in several ways, and include values for latitude and
 longitude in the document for your script.
 
 If you already have a known geo-point, it's simpler to clearly state the
-positions of `lat` and `lon` in your index mappings. 
+positions of `lat` and `lon` in your index mappings.
 
 [source,console]
 ----
@@ -617,7 +622,7 @@ POST /_scripts/painless/_execute
 // TEST[continued]
 
 Because this you're working with a geo-point field type, the response includes
-results that are formatted as `coordinates`. 
+results that are formatted as `coordinates`.
 
 [source,console-result]
 ----
@@ -638,7 +643,7 @@ results that are formatted as `coordinates`.
 ===== `ip_field`
 The `ip_field` context is useful for data that includes IP addresses of type
 {ref}/ip.html[`ip`]. For example, let's say you have a `message` field from an Apache
-log. This field contains an IP address, but also other data that you don't need. 
+log. This field contains an IP address, but also other data that you don't need.
 
 You can add the `message` field to your index mappings as a `wildcard` to accept
 pretty much any data you want to put in that field.
@@ -672,7 +677,7 @@ POST /_scripts/painless/_execute
   "script": {
     "source": """
       String clientip=grok('%{COMMONAPACHELOG}').extract(doc["message"].value)?.clientip;
-      if (clientip != null) emit(clientip); 
+      if (clientip != null) emit(clientip);
     """
   },
   "context": "ip_field",
@@ -777,7 +782,7 @@ PUT /my-index-000001/
             "type": "long"
           },
           "end": {
-           "type": "long" 
+           "type": "long"
           }
         }
       }
@@ -822,5 +827,85 @@ The response includes the calculated value from the script valuation:
   "result" : [
     8624909
   ]
+}
+----
+
+[[painless-runtime-composite]]
+===== `composite_field`
+Let's say you have logging data with a raw `message` field which you want to split
+in multiple sub-fields that can be accessed separately.
+
+The following request adds a `message` field to the mappings of type `keyword`:
+
+[source,console]
+----
+PUT /my-index-000001/
+{
+  "mappings": {
+    "properties": {
+      "message": {
+        "type" : "keyword"
+      }
+    }
+  }
+}
+----
+
+You can then define a script that splits such message field into subfields using
+the grok function:
+
+[source,console]
+----
+POST /_scripts/painless/_execute
+{
+  "script": {
+    "source": "emit(grok(\"%{COMMONAPACHELOG}\").extract(doc[\"message\"].value));"
+  },
+  "context": "composite_field",
+  "context_setup": {
+    "index": "my-index-000001",
+    "document": {
+      "timestamp":"2020-04-30T14:31:27-05:00",
+      "message":"252.0.0.0 - - [30/Apr/2020:14:31:27 -0500] \"GET /images/hm_bg.jpg HTTP/1.0\" 200 24736"
+    }
+  }
+}
+----
+// TEST[continued]
+
+The response includes the values that the script emitted:
+
+[source,console-result]
+----
+{
+  "result" : {
+    "composite_field.timestamp" : [
+      "30/Apr/2020:14:31:27 -0500"
+    ],
+    "composite_field.auth" : [
+      "-"
+    ],
+    "composite_field.response" : [
+      "200"
+    ],
+    "composite_field.ident" : [
+      "-"
+    ],
+    "composite_field.httpversion" : [
+      "1.0"
+    ],
+    "composite_field.verb" : [
+      "GET"
+    ],
+    "composite_field.bytes" : [
+      "24736"
+    ],
+    "composite_field.clientip" : [
+      "252.0.0.0"
+    ],
+    "composite_field.request" : [
+      "/images/hm_bg.jpg"
+    ]
+  }
 }
 ----

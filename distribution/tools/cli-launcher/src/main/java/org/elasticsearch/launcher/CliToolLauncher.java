@@ -8,9 +8,12 @@
 
 package org.elasticsearch.launcher;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.cli.CliToolProvider;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.util.Map;
@@ -43,6 +46,10 @@ class CliToolLauncher {
      */
     public static void main(String[] args) throws Exception {
         Map<String, String> sysprops = getSystemProperties();
+
+        // configure logging as early as possible
+        configureLoggingWithoutConfig(sysprops);
+
         String toolname = getToolName(sysprops);
         String libs = sysprops.getOrDefault("cli.libs", "");
 
@@ -75,5 +82,16 @@ class CliToolLauncher {
     @SuppressForbidden(reason = "System#exit")
     private static void exit(int status) {
         System.exit(status);
+    }
+
+    /**
+     * Configures logging without Elasticsearch configuration files based on the system property "es.logger.level" only. As such, any
+     * logging will be written to the console.
+     */
+    private static void configureLoggingWithoutConfig(Map<String, String> sysprops) {
+        // initialize default for es.logger.level because we will not read the log4j2.properties
+        final String loggerLevel = sysprops.getOrDefault("es.logger.level", Level.INFO.name());
+        final Settings settings = Settings.builder().put("logger.level", loggerLevel).build();
+        LogConfigurator.configureWithoutConfig(settings);
     }
 }

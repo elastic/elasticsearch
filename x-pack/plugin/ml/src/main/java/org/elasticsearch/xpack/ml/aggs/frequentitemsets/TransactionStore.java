@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.common.util.BytesRefHash;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.PageCacheRecycler;
@@ -206,7 +207,7 @@ public final class TransactionStore implements Writeable, Releasable {
     private static final int INITIAL_TRANSACTION_CAPACITY = PageCacheRecycler.LONG_PAGE_SIZE;
     private static final int CAPACITY_INCREMENT = PageCacheRecycler.LONG_PAGE_SIZE;
 
-    // how many unique items to consider before pruning
+    // TODO: remove?? how many unique items to consider before pruning
     private static final long UNIQUE_ITEMS_PRUNE_BOUNDARY = 30;
 
     private final BigArrays bigArrays;
@@ -227,30 +228,64 @@ public final class TransactionStore implements Writeable, Releasable {
 
     public TransactionStore(BigArrays bigArrays) {
         this.bigArrays = bigArrays;
-        // Important: as data can be send over the wire, it is better to work with clean buffers, don't set clearOnResize to false
-        this.items = new BytesRefHash(INITIAL_ITEM_CAPACITY, true, bigArrays);
-        this.itemCounts = bigArrays.newLongArray(INITIAL_ITEM_CAPACITY, true);
-        this.transactions = new BytesRefHash(INITIAL_TRANSACTION_CAPACITY, true, bigArrays);
-        this.transactionCounts = bigArrays.newLongArray(INITIAL_TRANSACTION_CAPACITY, true);
+        // we allocate big arrays so we have to `close` if we fail here or we'll leak them.
+        boolean success = false;
+
+        try {
+            this.items = new BytesRefHash(INITIAL_ITEM_CAPACITY, bigArrays);
+            this.itemCounts = bigArrays.newLongArray(INITIAL_ITEM_CAPACITY, true);
+            this.transactions = new BytesRefHash(INITIAL_TRANSACTION_CAPACITY, bigArrays);
+            this.transactionCounts = bigArrays.newLongArray(INITIAL_TRANSACTION_CAPACITY, true);
+            success = true;
+        } finally {
+            if (false == success) {
+                close();
+            }
+        }
     }
 
     public TransactionStore(StreamInput in, BigArrays bigArrays) throws IOException {
         this.bigArrays = bigArrays;
 
-        this.items = new BytesRefHash(in, bigArrays);
-        long itemCountsSize = in.readVLong();
-        this.itemCounts = bigArrays.newLongArray(itemCountsSize, true);
-        for (int i = 0; i < itemCountsSize; ++i) {
-            itemCounts.set(i, in.readVLong());
+        // we allocate big arrays so we have to `close` if we fail here or we'll leak them.
+        boolean success = false;
+
+        // these 2 arrays must be closed if cbe throws at construction
+        BytesRefArray itemsArray = null;
+        BytesRefArray transactionsArray = null;
+
+        try {
+            itemsArray = new BytesRefArray(in, bigArrays);
+            this.items = new BytesRefHash(itemsArray, bigArrays);
+            // unassign to not double close on error
+            itemsArray = null;
+
+            long itemCountsSize = in.readVLong();
+            this.itemCounts = bigArrays.newLongArray(itemCountsSize, true);
+            for (int i = 0; i < itemCountsSize; ++i) {
+                itemCounts.set(i, in.readVLong());
+            }
+            this.totalItemCount = in.readVLong();
+            transactionsArray = new BytesRefArray(in, bigArrays);
+            this.transactions = new BytesRefHash(transactionsArray, bigArrays);
+            // unassign to not double close on error
+            transactionsArray = null;
+
+            long transactionsCountsSize = in.readVLong();
+            this.transactionCounts = bigArrays.newLongArray(transactionsCountsSize, true);
+            for (int i = 0; i < transactionsCountsSize; ++i) {
+                transactionCounts.set(i, in.readVLong());
+            }
+            this.totalTransactionCount = in.readVLong();
+
+            success = true;
+        } finally {
+            if (false == success) {
+                try (Releasable releasable = Releasables.wrap(itemsArray, transactionsArray)) {
+                    close();
+                }
+            }
         }
-        this.totalItemCount = in.readVLong();
-        this.transactions = new BytesRefHash(in, bigArrays);
-        long transactionsCountsSize = in.readVLong();
-        this.transactionCounts = bigArrays.newLongArray(transactionsCountsSize, true);
-        for (int i = 0; i < transactionsCountsSize; ++i) {
-            transactionCounts.set(i, in.readVLong());
-        }
-        this.totalTransactionCount = in.readVLong();
     }
 
     /**
@@ -467,52 +502,6 @@ public final class TransactionStore implements Writeable, Releasable {
         other.close();
     }
 
-    public void dumpItems() {
-        for (int i = 0; i < items.capacity(); ++i) {
-            long id = items.id(i);
-            if (id >= 0) {
-                items.get(id, scratchBytesRef);
-
-                scratchBytesRefDataInput.reset(scratchBytesRef.bytes, scratchBytesRef.offset, scratchBytesRef.length);
-
-                long mask = items.capacity() - 1;
-                final long slot = BytesRefHash.slot(BytesRefHash.rehash(scratchBytesRef.hashCode()), mask);
-
-                if (items.find(scratchBytesRef) == -1) {
-                    BytesRef spare = new BytesRef();
-                    for (long index = slot;; index = (index + 1) & mask) {
-                        final long id2 = items.id(index);
-                        if (id2 > 0) {
-                            items.get(id2, spare);
-                        }
-
-                        logger.info("find probing: slot: {} id: {} id2: {} bytesRef: {}", index, id, id2, spare);
-
-                        if (id2 == -1L || scratchBytesRef.bytesEquals(spare)) {
-
-                            break;
-                        }
-                    }
-                }
-
-                try {
-                    logger.info(
-                        "dump: [{}:{}] ({}) i:{} hash: {} find: {} slot: {}",
-                        scratchBytesRefDataInput.readString(),
-                        scratchBytesRefDataInput.readString(),
-                        id,
-                        i,
-                        scratchBytesRef.hashCode(),
-                        items.find(scratchBytesRef),
-                        slot
-                    );
-                } catch (IOException e) {
-                    logger.info("log error", e);
-                }
-            }
-        }
-    }
-
     // TODO: this prunes _AND_ rearranges transactions for faster lookup
     // that's why shortcuts are disabled for now!
     public void prune(double minSupport) {
@@ -539,7 +528,7 @@ public final class TransactionStore implements Writeable, Releasable {
 
         try {
             // start with a smaller array as we expect to cut off a looooong tail
-            prunedItems = new BytesRefHash(items.capacity() >> 3, true, bigArrays);
+            prunedItems = new BytesRefHash(items.capacity() >> 3, bigArrays);
             prunedItemCounts = bigArrays.newLongArray(items.capacity() >> 3, true);
 
             // step 1: prune items
@@ -570,7 +559,7 @@ public final class TransactionStore implements Writeable, Releasable {
             logger.info("Pruned items, before: {}, after: {}", items.size(), prunedItems.size());
 
             // step2 prune transactions, TODO: can we use a better factor after item pruning?
-            prunedTransactions = new BytesRefHash(transactions.capacity() >> 3, true, bigArrays);
+            prunedTransactions = new BytesRefHash(transactions.capacity() >> 3, bigArrays);
             prunedTransactionCounts = bigArrays.newLongArray(transactions.capacity() >> 3, true);
             List<Long> itemBuffer = new ArrayList<>();
 
@@ -735,15 +724,15 @@ public final class TransactionStore implements Writeable, Releasable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        items.writeTo(out);
-        long itemCountsSize = itemCounts.size();
+        items.getBytesRefs().writeTo(out);
+        long itemCountsSize = items.size();
         long transactionCountsSize = transactions.size();
         out.writeVLong(itemCountsSize);
         for (int i = 0; i < itemCountsSize; ++i) {
             out.writeVLong(itemCounts.get(i));
         }
         out.writeVLong(totalItemCount);
-        transactions.writeTo(out);
+        transactions.getBytesRefs().writeTo(out);
         out.writeVLong(transactionCountsSize);
         for (int i = 0; i < transactionCountsSize; ++i) {
             out.writeVLong(transactionCounts.get(i));

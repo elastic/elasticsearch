@@ -390,6 +390,14 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
             for (Entry<Long, AggregatorFunction> entry : timeBucketMetrics.entrySet()) {
                 Long timestamp = entry.getKey();
                 AggregatorFunction value = entry.getValue();
+                logger.info(
+                    "collect time_series, time={}, value={}, tsid={}, hashcode={}",
+                    timestamp,
+                    value.get(),
+                    TimeSeriesIdFieldMapper.decodeTsid(preTsid),
+                    this.hashCode()
+                );
+
                 long ord = timestampOrds.add(bucketOrd, timestamp);
                 if (ord < 0) { // already seen
                     ord = -1 - ord;

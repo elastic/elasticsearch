@@ -23,6 +23,8 @@ import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 public class Last extends InternalNumericMetricsAggregation.SingleValue {
+    public static final String NAME = "last";
+
     private final double last;
     private final long timestamp;
 
@@ -50,7 +52,7 @@ public class Last extends InternalNumericMetricsAggregation.SingleValue {
 
     @Override
     public String getWriteableName() {
-        return "last";
+        return NAME;
     }
 
     public InternalAggregation finalizeSampling(SamplingContext samplingContext) {

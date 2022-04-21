@@ -153,6 +153,7 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
         downsampleRange = in.readOptionalWriteable(DateHistogramInterval::new);
         downsampleFunction = in.readOptionalString();
         order = InternalOrder.Streams.readOrder(in);
+        bucketCountThresholds = new TermsAggregator.BucketCountThresholds(in);
     }
 
     @Override
@@ -166,6 +167,7 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
         out.writeOptionalWriteable(downsampleRange);
         out.writeOptionalString(downsampleFunction);
         order.writeTo(out);
+        bucketCountThresholds.writeTo(out);
     }
 
     @Override

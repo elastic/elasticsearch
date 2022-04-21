@@ -27,6 +27,8 @@ import java.util.Map;
 import java.util.TreeMap;
 
 public class TSIDInternalAggregation extends InternalAggregation {
+    public static final String NAME = "tsid";
+
     private final Map<BytesRef, InternalAggregation> values;
     private final String aggreagator;
     private final DocValueFormat formatter;
@@ -54,7 +56,7 @@ public class TSIDInternalAggregation extends InternalAggregation {
 
     @Override
     public String getWriteableName() {
-        return "tsid";
+        return NAME;
     }
 
     @Override
@@ -127,6 +129,7 @@ public class TSIDInternalAggregation extends InternalAggregation {
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        return null;
+        builder.field(CommonFields.VALUE.getPreferredName(), aggreagator);
+        return builder;
     }
 }

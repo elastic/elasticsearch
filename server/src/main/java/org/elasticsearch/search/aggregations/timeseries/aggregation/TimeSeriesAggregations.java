@@ -17,6 +17,7 @@ import org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfuncti
 import org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunction.SumBucketFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.AggregatorFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.AvgFunction;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.function.LastFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.MaxFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.MinFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.SumFunction;
@@ -35,6 +36,8 @@ public class TimeSeriesAggregations {
                 return new SumFunction();
             case count:
                 return new ValueCountFunction();
+            case last:
+                return new LastFunction();
         }
         return new AvgFunction();
     }

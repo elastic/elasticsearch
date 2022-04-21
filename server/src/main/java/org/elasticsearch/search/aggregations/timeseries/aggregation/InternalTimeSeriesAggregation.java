@@ -18,7 +18,6 @@ import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.KeyComparable;
 import org.elasticsearch.search.aggregations.bucket.terms.AbstractInternalTerms;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.InternalTimeSeriesAggregation.InternalBucket;
-import org.elasticsearch.search.aggregations.timeseries.aggregation.internal.TSIDInternalAggregation;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -120,6 +119,10 @@ public class InternalTimeSeriesAggregation extends AbstractInternalTerms<Interna
         @Override
         public long getDocCount() {
             return docCount;
+        }
+
+        public Map<Long, InternalAggregation> getTimeBucketValues() {
+            return timeBucketValues;
         }
 
         @Override
@@ -420,8 +423,8 @@ public class InternalTimeSeriesAggregation extends AbstractInternalTerms<Interna
     public InternalBucket reduceBucket(List<InternalBucket> buckets, AggregationReduceContext context) {
         InternalBucket reduced = null;
         List<InternalAggregations> aggregationsList = new ArrayList<>(buckets.size());
-        Map<Long, InternalAggregation> tsidInternalAggs = new HashMap<>();
-        Map<Long, InternalAggregation> timeBucketValues = new TreeMap<>();
+        Map<Long, InternalAggregation> timeBucketResults = new TreeMap<>();
+        Map<Long, List<InternalAggregation>> timeBucketAggregationsList = new TreeMap<>();
         long docCountError = 0;
         for (InternalBucket bucket : buckets) {
             if (docCountError != -1) {
@@ -441,35 +444,29 @@ public class InternalTimeSeriesAggregation extends AbstractInternalTerms<Interna
                     bucket.showDocCountError,
                     docCountError
                 );
-                timeBucketValues.putAll(bucket.timeBucketValues);
             } else {
                 reduced.docCount += bucket.docCount;
-                for (Entry<Long, InternalAggregation> entry : bucket.timeBucketValues.entrySet()) {
-                    Long timestamp = entry.getKey();
-                    InternalAggregation value = entry.getValue();
-                    InternalAggregation aggregation = timeBucketValues.get(timestamp);
-                    if (aggregation == null) {
-                        timeBucketValues.put(timestamp, value);
-                        if (value instanceof TSIDInternalAggregation) {
-                            tsidInternalAggs.put(timestamp, value);
-                        }
-                    } else {
-                        InternalAggregation result = aggregation.reduce(List.of(value), context);
-                        if (result instanceof TSIDInternalAggregation) {
-                            tsidInternalAggs.put(timestamp, result);
-                        } else {
-                            tsidInternalAggs.remove(timestamp);
-                        }
-                        timeBucketValues.put(timestamp, result);
-                    }
+            }
+            for (Entry<Long, InternalAggregation> entry : bucket.timeBucketValues.entrySet()) {
+                Long timestamp = entry.getKey();
+                InternalAggregation value = entry.getValue();
+                List<InternalAggregation> values = timeBucketAggregationsList.get(timestamp);
+                if (values == null) {
+                    values = new ArrayList<>();
+                    timeBucketAggregationsList.put(timestamp, values);
                 }
+                values.add(value);
             }
             aggregationsList.add(bucket.aggregations);
         }
-        if (context.isFinalReduce()) {
-            tsidInternalAggs.forEach((timestamp, value) -> { timeBucketValues.put(timestamp, value.reduce(List.of(value), context)); });
-        }
-        reduced.timeBucketValues = timeBucketValues;
+
+        timeBucketAggregationsList.forEach((timestamp, aggs) -> {
+            if (aggs.size() > 0) {
+                InternalAggregation first = aggs.get(0);
+                timeBucketResults.put(timestamp, first.reduce(aggs, context));
+            }
+        });
+        reduced.timeBucketValues = timeBucketResults;
         reduced.docCountError = docCountError;
         if (reduced.docCountError == -1) {
             reduced.showDocCountError = false;

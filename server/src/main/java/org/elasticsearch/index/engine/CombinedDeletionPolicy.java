@@ -163,13 +163,17 @@ public class CombinedDeletionPolicy extends IndexDeletionPolicy {
                 + "], releasing commit ["
                 + releasingCommit
                 + "]";
-        final int refCount = snapshottedCommits.merge(releasingCommit, -1, Integer::sum); // release refCount
-        assert refCount >= 0 : "Number of snapshots can not be negative [" + refCount + "]";
-        if (refCount == 0) {
-            snapshottedCommits.remove(releasingCommit);
-        }
+        // release refCount
+        final Integer refCount = snapshottedCommits.compute(releasingCommit, (key, count) -> {
+            if (count == 1) {
+                return null;
+            }
+            return count - 1;
+        });
+
+        assert refCount == null || refCount > 0 : "Number of snapshots can not be negative [" + refCount + "]";
         // The commit can be clean up only if no pending snapshot and it is neither the safe commit nor last commit.
-        return refCount == 0 && releasingCommit.equals(safeCommit) == false && releasingCommit.equals(lastCommit) == false;
+        return refCount == null && releasingCommit.equals(safeCommit) == false && releasingCommit.equals(lastCommit) == false;
     }
 
     /**

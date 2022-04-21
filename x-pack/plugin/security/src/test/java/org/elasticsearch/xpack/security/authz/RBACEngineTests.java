@@ -140,7 +140,7 @@ public class RBACEngineTests extends ESTestCase {
         );
 
         assertThat(request, instanceOf(UserRequest.class));
-        assertTrue(engine.checkSameUserPermissions(action, request, authentication));
+        assertTrue(RBACEngine.checkSameUserPermissions(action, request, authentication));
     }
 
     public void testSameUserPermissionDoesNotAllowNonMatchingUsername() {
@@ -163,7 +163,7 @@ public class RBACEngineTests extends ESTestCase {
         when(authentication.getAuthenticationType()).thenReturn(Authentication.AuthenticationType.REALM);
 
         assertThat(request, instanceOf(UserRequest.class));
-        assertFalse(engine.checkSameUserPermissions(action, request, authentication));
+        assertFalse(RBACEngine.checkSameUserPermissions(action, request, authentication));
 
         when(authentication.getUser()).thenReturn(user);
         final Authentication.RealmRef lookedUpBy = mock(Authentication.RealmRef.class);
@@ -172,14 +172,14 @@ public class RBACEngineTests extends ESTestCase {
             changePasswordRequest ? randomFrom(ReservedRealm.TYPE, NativeRealmSettings.TYPE) : randomAlphaOfLengthBetween(4, 12)
         );
         // this should still fail since the username is still different
-        assertFalse(engine.checkSameUserPermissions(action, request, authentication));
+        assertFalse(RBACEngine.checkSameUserPermissions(action, request, authentication));
 
         if (request instanceof ChangePasswordRequest) {
             ((ChangePasswordRequest) request).username("joe");
         } else {
             ((AuthenticateRequest) request).username("joe");
         }
-        assertTrue(engine.checkSameUserPermissions(action, request, authentication));
+        assertTrue(RBACEngine.checkSameUserPermissions(action, request, authentication));
     }
 
     public void testSameUserPermissionDoesNotAllowOtherActions() {
@@ -202,7 +202,7 @@ public class RBACEngineTests extends ESTestCase {
         when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
         when(authenticatedBy.getType()).thenReturn(randomAlphaOfLengthBetween(4, 12));
 
-        assertFalse(engine.checkSameUserPermissions(action, request, authentication));
+        assertFalse(RBACEngine.checkSameUserPermissions(action, request, authentication));
         verifyNoMoreInteractions(user, request, authentication);
     }
 
@@ -225,10 +225,10 @@ public class RBACEngineTests extends ESTestCase {
         when(lookedUpBy.getType()).thenReturn(
             changePasswordRequest ? randomFrom(ReservedRealm.TYPE, NativeRealmSettings.TYPE) : randomAlphaOfLengthBetween(4, 12)
         );
-        assertTrue(engine.checkSameUserPermissions(action, request, authentication));
+        assertTrue(RBACEngine.checkSameUserPermissions(action, request, authentication));
 
         when(authentication.getUser()).thenReturn(authUser);
-        assertFalse(engine.checkSameUserPermissions(action, request, authentication));
+        assertFalse(RBACEngine.checkSameUserPermissions(action, request, authentication));
     }
 
     public void testSameUserPermissionDoesNotAllowChangePasswordForOtherRealms() {
@@ -251,7 +251,7 @@ public class RBACEngineTests extends ESTestCase {
         );
 
         assertThat(request, instanceOf(UserRequest.class));
-        assertFalse(engine.checkSameUserPermissions(action, request, authentication));
+        assertFalse(RBACEngine.checkSameUserPermissions(action, request, authentication));
         verify(authenticatedBy).getType();
         verify(authentication).getAuthenticatedBy();
         verify(authentication, times(2)).getUser();
@@ -271,7 +271,7 @@ public class RBACEngineTests extends ESTestCase {
         when(authenticatedBy.getType()).thenReturn(AuthenticationField.API_KEY_REALM_TYPE);
 
         assertThat(request, instanceOf(UserRequest.class));
-        assertFalse(engine.checkSameUserPermissions(action, request, authentication));
+        assertFalse(RBACEngine.checkSameUserPermissions(action, request, authentication));
         verify(authenticatedBy).getType();
         verify(authentication).getAuthenticatedBy();
         verify(authentication, times(2)).getUser();
@@ -291,7 +291,7 @@ public class RBACEngineTests extends ESTestCase {
         when(authenticatedBy.getType()).thenReturn(NativeRealmSettings.TYPE);
 
         assertThat(request, instanceOf(UserRequest.class));
-        assertFalse(engine.checkSameUserPermissions(action, request, authentication));
+        assertFalse(RBACEngine.checkSameUserPermissions(action, request, authentication));
         verify(authenticatedBy).getType();
         verify(authentication).getAuthenticatedBy();
         verify(authentication, times(2)).getUser();
@@ -322,7 +322,7 @@ public class RBACEngineTests extends ESTestCase {
         );
 
         assertThat(request, instanceOf(UserRequest.class));
-        assertFalse(engine.checkSameUserPermissions(action, request, authentication));
+        assertFalse(RBACEngine.checkSameUserPermissions(action, request, authentication));
         verify(authentication).getLookedUpBy();
         verify(authentication, times(2)).getUser();
         verify(lookedUpBy).getType();
@@ -346,7 +346,7 @@ public class RBACEngineTests extends ESTestCase {
         when(authentication.isAuthenticatedAsApiKey()).thenCallRealMethod();
         when(authentication.isApiKey()).thenCallRealMethod();
 
-        assertTrue(engine.checkSameUserPermissions(GetApiKeyAction.NAME, request, authentication));
+        assertTrue(RBACEngine.checkSameUserPermissions(GetApiKeyAction.NAME, request, authentication));
     }
 
     public void testSameUserPermissionDeniesApiKeyInfoRetrievalWhenAuthenticatedByADifferentApiKey() {
@@ -364,7 +364,7 @@ public class RBACEngineTests extends ESTestCase {
         when(authentication.isAuthenticatedAsApiKey()).thenCallRealMethod();
         when(authentication.isApiKey()).thenCallRealMethod();
 
-        assertFalse(engine.checkSameUserPermissions(GetApiKeyAction.NAME, request, authentication));
+        assertFalse(RBACEngine.checkSameUserPermissions(GetApiKeyAction.NAME, request, authentication));
     }
 
     public void testSameUserPermissionDeniesApiKeyInfoRetrievalWhenLookedupByIsPresent() {
@@ -387,7 +387,7 @@ public class RBACEngineTests extends ESTestCase {
         when(authentication.isAuthenticatedAsApiKey()).thenCallRealMethod();
         when(authentication.isApiKey()).thenCallRealMethod();
 
-        assertFalse(engine.checkSameUserPermissions(GetApiKeyAction.NAME, request, authentication));
+        assertFalse(RBACEngine.checkSameUserPermissions(GetApiKeyAction.NAME, request, authentication));
     }
 
     /**
@@ -1360,7 +1360,7 @@ public class RBACEngineTests extends ESTestCase {
             .runAs(new Privilege(Sets.newHashSet("user01", "user02"), "user01", "user02"))
             .build();
 
-        final GetUserPrivilegesResponse response = engine.buildUserPrivilegesResponseObject(role);
+        final GetUserPrivilegesResponse response = RBACEngine.buildUserPrivilegesResponseObject(role);
 
         assertThat(response.getClusterPrivileges(), containsInAnyOrder("monitor", "manage_watcher"));
         assertThat(response.getConditionalClusterPrivileges(), containsInAnyOrder(manageApplicationPrivileges));

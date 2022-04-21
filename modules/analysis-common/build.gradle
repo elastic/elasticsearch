@@ -25,7 +25,6 @@ dependencies {
   compileOnly project(':modules:lang-painless')
 }
 
-
 tasks.named("yamlRestTestV7CompatTransform").configure { task ->
   task.skipTest("indices.analyze/10_analyze/htmlStrip_deprecated", "Cleanup versioned deprecations in analysis #41560")
   task.skipTest("analysis-common/40_token_filters/delimited_payload_filter_error", "Remove preconfigured delimited_payload_filter #43686")

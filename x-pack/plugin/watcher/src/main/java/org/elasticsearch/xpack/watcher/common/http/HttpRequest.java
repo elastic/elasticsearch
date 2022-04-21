@@ -26,11 +26,11 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UnsupportedEncodingException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -142,19 +142,11 @@ public class HttpRequest implements ToXContentObject {
     }
 
     public static String encodeUrl(String text) {
-        try {
-            return URLEncoder.encode(text, "UTF-8");
-        } catch (UnsupportedEncodingException e) {
-            throw new IllegalArgumentException("failed to URL encode text [" + text + "]", e);
-        }
+        return URLEncoder.encode(text, StandardCharsets.UTF_8);
     }
 
     public static String decodeUrl(String text) {
-        try {
-            return URLDecoder.decode(text, "UTF-8");
-        } catch (UnsupportedEncodingException e) {
-            throw new IllegalArgumentException("failed to URL decode text [" + text + "]", e);
-        }
+        return URLDecoder.decode(text, StandardCharsets.UTF_8);
     }
 
     @Override

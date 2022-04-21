@@ -71,7 +71,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-import static org.apache.lucene.util.ByteBlockPool.BYTE_BLOCK_SIZE;
+import static org.apache.lucene.index.IndexWriter.MAX_TERM_LENGTH;
 
 /**
  * A field mapper for keywords. This mapper accepts strings and indexes them as-is.
@@ -914,14 +914,14 @@ public final class KeywordFieldMapper extends FieldMapper {
         // back the changes, will mark the (possibly partially indexed) document as deleted. This results in deletes, even in an append-only
         // workload, which in turn leads to slower merges, as these will potentially have to fall back to MergeStrategy.DOC instead of
         // MergeStrategy.BULK. To avoid this, we do a preflight check here before indexing the document into Lucene.
-        if (binaryValue.length > BYTE_BLOCK_SIZE - 2) {
+        if (binaryValue.length > MAX_TERM_LENGTH) {
             byte[] prefix = new byte[30];
             System.arraycopy(binaryValue.bytes, binaryValue.offset, prefix, 0, 30);
             String msg = "Document contains at least one immense term in field=\""
                 + fieldType().name()
                 + "\" (whose "
                 + "UTF8 encoding is longer than the max length "
-                + (BYTE_BLOCK_SIZE - 2)
+                + MAX_TERM_LENGTH
                 + "), all of which were "
                 + "skipped. Please correct the analyzer to not produce such terms. The prefix of the first immense "
                 + "term is: '"

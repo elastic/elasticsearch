@@ -139,7 +139,7 @@ public class ParsedMediaType {
         return null;
     }
 
-    private boolean isValidParameter(String paramName, String value, Map<String, Pattern> registeredParams) {
+    private static boolean isValidParameter(String paramName, String value, Map<String, Pattern> registeredParams) {
         if (registeredParams.containsKey(paramName)) {
             Pattern regex = registeredParams.get(paramName);
             return regex.matcher(value).matches();
@@ -162,7 +162,7 @@ public class ParsedMediaType {
         return mediaTypeWithoutParameters() + formatParameters(params);
     }
 
-    private String formatParameters(Map<String, String> params) {
+    private static String formatParameters(Map<String, String> params) {
         String joined = params.entrySet().stream().map(e -> e.getKey() + "=" + e.getValue()).collect(Collectors.joining(";"));
         return joined.isEmpty() ? "" : ";" + joined;
     }

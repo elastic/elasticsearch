@@ -64,7 +64,7 @@ public final class TransportCreateApiKeyAction extends HandledTransportAction<Cr
         }
     }
 
-    private boolean grantsAnyPrivileges(CreateApiKeyRequest request) {
+    private static boolean grantsAnyPrivileges(CreateApiKeyRequest request) {
         return request.getRoleDescriptors() == null
             || request.getRoleDescriptors().isEmpty()
             || false == request.getRoleDescriptors().stream().allMatch(RoleDescriptor::isEmpty);

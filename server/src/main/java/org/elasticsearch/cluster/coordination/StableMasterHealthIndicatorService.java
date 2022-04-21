@@ -27,7 +27,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.health.ServerHealthComponents.CLUSTER_COORDINATION;
@@ -70,24 +69,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         MasterHistory localMasterHistory = masterHistoryService.getLocalMasterHistory();
         if (hasSeenMasterInLast30Seconds()) {
             logger.trace("Have seen a master in the last 30 seconds");
-            Set<DiscoveryNode> mastersInLast30Minutes = localMasterHistory.getDistinctMastersSeen();
-            if (mastersInLast30Minutes.size() > 3) {
-                logger.trace("Have seen " + mastersInLast30Minutes.size() + " masters in the last 30 seconds");
-                stableMasterStatus = HealthStatus.YELLOW;
-                summary = String.format(Locale.ROOT, "%d nodes have acted as master in the last 30 minutes", mastersInLast30Minutes.size());
-                impacts.add(
-                    new HealthIndicatorImpact(
-                        3,
-                        "The cluster currently has a master node, but having multiple master nodes in a short time is an indicator "
-                            + "that the cluster is at risk of of not being able to create, delete, or rebalance indices",
-                        List.of(ImpactArea.INGEST)
-                    )
-                );
-                if (includeDetails) {
-                    details.put("current_master", localMasterHistory.getCurrentMaster());
-                    details.put("recent_masters", mastersInLast30Minutes);
-                }
-            } else if (localMasterHistory.hasSameMasterGoneNullNTimes(3)) {
+            if (localMasterHistory.hasSameMasterGoneNullNTimes(3)) {
                 DiscoveryNode master = localMasterHistory.getMostRecentNonNullMaster();
                 logger.trace("One master has gone null 3 or more times recently: " + master);
                 try {
@@ -138,6 +120,23 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                     Thread.currentThread().interrupt();
                     throw new RuntimeException(e);
                 }
+            } else if (localMasterHistory.getDistinctMastersSeen().size() > 1 && localMasterHistory.getImmutableView().size() > 3) {
+                List<DiscoveryNode> mastersInLast30Minutes = localMasterHistory.getImmutableView();
+                logger.trace("Have seen " + mastersInLast30Minutes.size() + " masters in the last 30 seconds");
+                stableMasterStatus = HealthStatus.YELLOW;
+                summary = String.format(Locale.ROOT, "%d nodes have acted as master in the last 30 minutes", mastersInLast30Minutes.size());
+                impacts.add(
+                    new HealthIndicatorImpact(
+                        3,
+                        "The cluster currently has a master node, but having multiple master nodes in a short time is an indicator "
+                            + "that the cluster is at risk of of not being able to create, delete, or rebalance indices",
+                        List.of(ImpactArea.INGEST)
+                    )
+                );
+                if (includeDetails) {
+                    details.put("current_master", localMasterHistory.getCurrentMaster());
+                    details.put("recent_masters", mastersInLast30Minutes);
+                }
             } else {
                 logger.trace("The cluster has a stable master node");
                 stableMasterStatus = HealthStatus.GREEN;
@@ -159,7 +158,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     private boolean masterThinksItIsUnstable(DiscoveryNode master) throws ExecutionException, InterruptedException {
         logger.trace(String.format(Locale.ROOT, "Reaching out to %s to see if it thinks it has been unstable", master));
         List<DiscoveryNode> remoteHistory = masterHistoryService.getRemoteMasterHistory(master);
-        return MasterHistory.hasSameMasterGoneNullNTimes(remoteHistory,3);
+        return MasterHistory.hasSameMasterGoneNullNTimes(remoteHistory, 3);
     }
 
     private boolean hasSeenMasterInLast30Seconds() {

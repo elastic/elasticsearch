@@ -15,12 +15,12 @@ import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
 import java.util.List;
 
-import static org.mockito.Mockito.mock;
-
 public class MasterHistoryActionTests extends ESTestCase {
     public void testSerialization() {
-        List<DiscoveryNode> masterHistory = List.of( new DiscoveryNode("_id1", buildNewFakeTransportAddress(), Version.CURRENT),
-            new DiscoveryNode("_id2", buildNewFakeTransportAddress(), Version.CURRENT));
+        List<DiscoveryNode> masterHistory = List.of(
+            new DiscoveryNode("_id1", buildNewFakeTransportAddress(), Version.CURRENT),
+            new DiscoveryNode("_id2", buildNewFakeTransportAddress(), Version.CURRENT)
+        );
         MasterHistoryAction.Response response = new MasterHistoryAction.Response(masterHistory);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             response,

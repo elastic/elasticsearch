@@ -29,9 +29,9 @@ import org.junit.Before;
 
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
 
@@ -81,10 +81,6 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
 
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node3MasterClusterState, node1MasterClusterState));
         result = service.calculate(true);
-        assertThat(result.status(), equalTo(HealthStatus.GREEN)); // TODO: Should return yellow here.
-
-        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node4MasterClusterState, node1MasterClusterState));
-        result = service.calculate(true);
         assertThat(result.status(), equalTo(HealthStatus.YELLOW));
         assertThat(result.summary(), equalTo("4 nodes have acted as master in the last 30 minutes"));
         assertThat(1, equalTo(result.impacts().size()));
@@ -99,8 +95,8 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
         assertThat(ImpactArea.INGEST, equalTo(impact.impactAreas().get(0)));
         SimpleHealthIndicatorDetails details = (SimpleHealthIndicatorDetails) result.details();
         assertThat(2, equalTo(details.details().size()));
-        assertThat(node4MasterClusterState.nodes().getMasterNode(), equalTo(details.details().get("current_master")));
-        assertThat(4, equalTo(((Set) details.details().get("recent_masters")).size()));
+        assertThat(node3MasterClusterState.nodes().getMasterNode(), equalTo(details.details().get("current_master")));
+        assertThat(4, equalTo(((Collection<DiscoveryNode>) details.details().get("recent_masters")).size()));
     }
 
     public void testMasterGoesNull() throws Exception {

@@ -17,7 +17,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -92,7 +91,10 @@ public class MasterHistory implements ClusterStateListener {
      */
     public boolean hasSameMasterGoneNullNTimes(int n) {
         List<TimeAndMaster> masterHistoryCopy = getMasterHistoryForLast30Minutes();
-        return hasSameMasterGoneNullNTimes(masterHistoryCopy.stream().map(timeAndMaster -> timeAndMaster.master).collect(Collectors.toList()), n);
+        return hasSameMasterGoneNullNTimes(
+            masterHistoryCopy.stream().map(timeAndMaster -> timeAndMaster.master).collect(Collectors.toList()),
+            n
+        );
     }
 
     public static boolean hasSameMasterGoneNullNTimes(List<DiscoveryNode> masters, int n) {
@@ -112,9 +114,7 @@ public class MasterHistory implements ClusterStateListener {
     }
 
     private static Set<DiscoveryNode> getDistinctMastersSeen(List<DiscoveryNode> masters) {
-        return masters.stream()
-            .filter(Objects::nonNull)
-            .collect(Collectors.toSet());
+        return masters.stream().filter(Objects::nonNull).collect(Collectors.toSet());
     }
 
     /**

@@ -29,11 +29,14 @@ import org.gradle.api.Task;
 import org.gradle.api.Transformer;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.file.CopySpec;
+import org.gradle.api.file.FileCollection;
+import org.gradle.api.file.FileTree;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
@@ -41,6 +44,7 @@ import org.gradle.api.tasks.Sync;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Zip;
 
+import javax.inject.Inject;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -48,10 +52,8 @@ import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.Callable;
-import java.util.stream.Collectors;
 
 /**
  * Encapsulates build configuration for an Elasticsearch plugin.
@@ -62,6 +64,13 @@ public class PluginBuildPlugin implements Plugin<Project> {
     public static final String BUNDLE_PLUGIN_TASK_NAME = "bundlePlugin";
     public static final String EXPLODED_BUNDLE_PLUGIN_TASK_NAME = "explodedBundlePlugin";
     public static final String EXPLODED_BUNDLE_CONFIG = "explodedBundleZip";
+
+    private final ProviderFactory providerFactory;
+
+    @Inject
+    public PluginBuildPlugin(ProviderFactory providerFactory) {
+        this.providerFactory = providerFactory;
+    }
 
     @Override
     public void apply(final Project project) {
@@ -118,112 +127,40 @@ public class PluginBuildPlugin implements Plugin<Project> {
      * Adds bundle tasks which builds the dir and zip containing the plugin jars,
      * metadata, properties, and packaging files
      */
-    private static TaskProvider<Zip> createBundleTasks(final Project project, PluginPropertiesExtension extension) {
+    private TaskProvider<Zip> createBundleTasks(final Project project, PluginPropertiesExtension extension) {
         final var pluginMetadata = project.file("src/main/plugin-metadata");
-        final var templateFile = new File(project.getBuildDir(), "templates/plugin-descriptor.properties");
 
-        // create tasks to build the properties file for this plugin
-        final var copyPluginPropertiesTemplate = project.getTasks().register("copyPluginPropertiesTemplate", new Action<Task>() {
-            @Override
-            public void execute(Task task) {
-                task.getOutputs().file(templateFile);
-                // intentionally an Action and not a lambda to avoid issues with up-to-date check
-                task.doLast(new Action<Task>() {
-                    @Override
-                    public void execute(Task task) {
-                        InputStream resourceTemplate = PluginBuildPlugin.class.getResourceAsStream("/" + templateFile.getName());
-                        try {
-                            String templateText = IOUtils.toString(resourceTemplate, StandardCharsets.UTF_8.name());
-                            FileUtils.write(templateFile, templateText, "UTF-8");
-                        } catch (IOException e) {
-                            throw new GradleException("Unable to copy plugin properties", e);
-                        }
-                    }
-                });
-            }
-        });
-
-        final var resolveModuleName = project.getTasks().register("resolveModuleName", t -> {
-            t.doLast(task -> {
-                var mainSourceSet = project.getExtensions().getByType(SourceSetContainer.class).getByName(SourceSet.MAIN_SOURCE_SET_NAME);
-                Path moduleInfoSource = null;
-                for (File srcDir : mainSourceSet.getAllJava().getSrcDirs()) {
-                    Path potentialModuleInfo = srcDir.toPath().resolve("module-info.java");
-                    if (Files.exists(potentialModuleInfo)) {
-                        moduleInfoSource = potentialModuleInfo;
-                        break;
-                    }
+        final var buildProperties = project.getTasks().register("pluginProperties", GeneratePluginPropertiesTask.class, task -> {
+            task.doFirst(t -> {
+                if (extension.getName() == null) {
+                    throw new InvalidUserDataException("name is a required setting for esplugin");
                 }
 
-                String moduleName = "";
-                if (moduleInfoSource != null) {
-                    try (var reader = Files.newBufferedReader(moduleInfoSource, StandardCharsets.UTF_8)) {
-                        String line;
-                        while ((line = reader.readLine()) != null) {
-                            if (line.startsWith("module")) {
-                                // This is a simple and hacky way to extract the module name from the module declaration.
-                                // We could properly parse the entire file, but the module keyword is unique in the file, and
-                                // the module name is guaranteed to not have spaces, so this is much simpler and quicker.
-                                moduleName = line.split(" ")[1];
-                                break;
-                            }
-                        }
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
+                if (extension.getDescription() == null) {
+                    throw new InvalidUserDataException("description is a required setting for esplugin");
                 }
 
-                t.getExtensions().add("resolvedModuleName", moduleName);
+                if (extension.getType().equals(PluginType.BOOTSTRAP) == false && extension.getClassname() == null) {
+                    throw new InvalidUserDataException("classname is a required setting for esplugin");
+                }
             });
-        });
+            task.getPluginName().set(providerFactory.provider(extension::getName));
+            task.getPluginDescription().set(providerFactory.provider(extension::getDescription));
+            task.getPluginVersion().set(providerFactory.provider(extension::getVersion));
+            task.getElasticsearchVersion().set(Version.fromString(VersionProperties.getElasticsearch()).toString());
+            var javaExtension = project.getExtensions().getByType(JavaPluginExtension.class);
+            task.getJavaVersion().set(providerFactory.provider(() -> javaExtension.getTargetCompatibility().toString()));
+            task.getClassname().set(providerFactory.provider(extension::getClassname));
+            task.getExtendedPlugins().set(providerFactory.provider(extension::getExtendedPlugins));
+            task.getHasNativeController().set(providerFactory.provider(extension::isHasNativeController));
+            task.getRequiresKeystore().set(providerFactory.provider(extension::isRequiresKeystore));
+            task.getPluginType().set(providerFactory.provider(extension::getType));
+            task.getJavaOpts().set(providerFactory.provider(extension::getJavaOpts));
+            task.getIsLicensed().set(providerFactory.provider(extension::isLicensed));
 
-        final var buildProperties = project.getTasks().register("pluginProperties", Copy.class, copy -> {
-            copy.dependsOn(copyPluginPropertiesTemplate);
-            copy.from(templateFile);
-            copy.into(new File(project.getBuildDir(), "generated-resources"));
-
-            if (extension.getName() == null) {
-                throw new InvalidUserDataException("name is a required setting for esplugin");
-            }
-
-            if (extension.getDescription() == null) {
-                throw new InvalidUserDataException("description is a required setting for esplugin");
-            }
-
-            if (extension.getType().equals(PluginType.BOOTSTRAP) == false && extension.getClassname() == null) {
-                throw new InvalidUserDataException("classname is a required setting for esplugin");
-            }
-
-            Map<String, Object> map = new LinkedHashMap<>(12);
-            map.put("name", extension.getName());
-            map.put("description", extension.getDescription());
-            map.put("version", extension.getVersion());
-            map.put("elasticsearchVersion", Version.fromString(VersionProperties.getElasticsearch()).toString());
-            map.put("javaVersion", project.getExtensions().getByType(JavaPluginExtension.class).getTargetCompatibility().toString());
-            map.put("classname", extension.getType().equals(PluginType.BOOTSTRAP) ? "" : extension.getClassname());
-            map.put("extendedPlugins", extension.getExtendedPlugins().stream().collect(Collectors.joining(",")));
-            map.put("hasNativeController", extension.isHasNativeController());
-            map.put("requiresKeystore", extension.isRequiresKeystore());
-            map.put("type", extension.getType().toString());
-            map.put("javaOpts", extension.getJavaOpts());
-            map.put("licensed", extension.isLicensed());
-
-            var lazyModuleName = new Callable<String>() {
-                @Override
-                public String call() {
-                    return resolveModuleName.map(t -> t.getExtensions().getByName("resolvedModuleName")).get().toString();
-                }
-
-                @Override
-                public String toString() {
-                    return call();
-                }
-            };
-            map.put("modulename", lazyModuleName);
-            copy.dependsOn(resolveModuleName);
-
-            copy.expand(map);
-            copy.getInputs().properties(map);
+            var mainSourceSet = project.getExtensions().getByType(SourceSetContainer.class).getByName(SourceSet.MAIN_SOURCE_SET_NAME);
+            FileCollection moduleInfoFile = mainSourceSet.getJava().matching(pattern -> pattern.include("module-info.java"));
+            task.getModuleInfoFile().setFrom(moduleInfoFile);
         });
         // add the plugin properties and metadata to test resources, so unit tests can
         // know about the plugin (used by test security code to statically initialize the plugin in unit tests)
@@ -257,7 +194,8 @@ public class PluginBuildPlugin implements Plugin<Project> {
         return bundle;
     }
 
-    private static CopySpec createBundleSpec(Project project, File pluginMetadata, TaskProvider<Copy> buildProperties) {
+    private static CopySpec createBundleSpec(Project project, File pluginMetadata,
+                                             TaskProvider<GeneratePluginPropertiesTask> buildProperties) {
         var bundleSpec = project.copySpec();
         bundleSpec.from(buildProperties);
         bundleSpec.from(pluginMetadata, copySpec -> {

@@ -44,7 +44,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.stubbing.Answer;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -458,7 +457,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
     }
 
-    public void testUserActionsNotGeneratedWhenNotDrillingDown() throws IOException {
+    public void testUserActionsNotGeneratedWhenNotDrillingDown() {
         // Index definition, 1 primary no replicas
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build())
@@ -493,7 +492,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
     }
 
-    public void testDiagnoseRestoreIndexAfterDataLoss() throws IOException {
+    public void testDiagnoseRestoreIndexAfterDataLoss() {
         // Index definition, 1 primary no replicas
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build())
@@ -514,7 +513,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         assertThat(definitions, contains(ACTION_RESTORE_FROM_SNAPSHOT));
     }
 
-    public void testDiagnoseUnknownAllocationDeciderIssue() throws IOException {
+    public void testDiagnoseUnknownAllocationDeciderIssue() {
         // Index definition, 1 primary no replicas
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build())
@@ -579,7 +578,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         assertThat(actions, contains(ACTION_CHECK_ALLOCATION_EXPLAIN_API));
     }
 
-    public void testDiagnoseEnableIndexAllocation() throws IOException {
+    public void testDiagnoseEnableIndexAllocation() {
         // Index definition, 1 primary no replicas, allocation is not allowed
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(
@@ -613,7 +612,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         assertThat(actions, contains(ACTION_ENABLE_INDEX_ROUTING_ALLOCATION));
     }
 
-    public void testDiagnoseEnableClusterAllocation() throws IOException {
+    public void testDiagnoseEnableClusterAllocation() {
         // Index definition, 1 primary no replicas
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT).build())
@@ -647,7 +646,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         assertThat(actions, contains(ACTION_ENABLE_CLUSTER_ROUTING_ALLOCATION));
     }
 
-    public void testDiagnoseEnableRoutingAllocation() throws IOException {
+    public void testDiagnoseEnableRoutingAllocation() {
         // Index definition, 1 primary no replicas, allocation is not allowed
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(
@@ -687,7 +686,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         assertThat(actions, containsInAnyOrder(ACTION_ENABLE_INDEX_ROUTING_ALLOCATION, ACTION_ENABLE_CLUSTER_ROUTING_ALLOCATION));
     }
 
-    public void testDiagnoseEnableDataTiers() throws IOException {
+    public void testDiagnoseEnableDataTiers() {
         // Index definition, 1 primary no replicas, in the hot tier
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(
@@ -721,7 +720,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         assertThat(actions, contains(ACTION_ENABLE_TIERS_LOOKUP.get(DataTier.DATA_HOT)));
     }
 
-    public void testDiagnoseIncreaseShardLimitInTier() throws IOException {
+    public void testDiagnoseIncreaseShardLimitInTier() {
         // Index definition, 1 primary no replicas, in the hot tier
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(
@@ -763,7 +762,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         assertThat(actions, contains(ACTION_SHARD_LIMIT_LOOKUP.get(DataTier.DATA_HOT)));
     }
 
-    public void testDiagnoseIncreaseShardLimitInGeneral() throws IOException {
+    public void testDiagnoseIncreaseShardLimitInGeneral() {
         // Index definition, 1 primary no replicas, in the hot tier
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(
@@ -805,7 +804,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         assertThat(actions, contains(ACTION_SHARD_LIMIT));
     }
 
-    public void testDiagnoseMigrateDataRequiredToDataTiers() throws IOException {
+    public void testDiagnoseMigrateDataRequiredToDataTiers() {
         // Index definition, 1 primary no replicas, in the hot tier, with require attribute data:hot
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(
@@ -842,7 +841,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         assertThat(actions, contains(ACTION_MIGRATE_TIERS));
     }
 
-    public void testDiagnoseMigrateDataIncludedToDataTiers() throws IOException {
+    public void testDiagnoseMigrateDataIncludedToDataTiers() {
         // Index definition, 1 primary no replicas, in the hot tier, with include attribute data:hot
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(
@@ -879,7 +878,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         assertThat(actions, contains(ACTION_MIGRATE_TIERS));
     }
 
-    public void testDiagnoseOtherFilteringIssue() throws IOException {
+    public void testDiagnoseOtherFilteringIssue() {
         // Index definition, 1 primary no replicas, in the hot tier
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(
@@ -915,7 +914,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         assertThat(actions, hasSize(0));
     }
 
-    public void testDiagnoseIncreaseTierCapacity() throws IOException {
+    public void testDiagnoseIncreaseTierCapacity() {
         // Index definition, 1 primary no replicas, in the hot tier
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(

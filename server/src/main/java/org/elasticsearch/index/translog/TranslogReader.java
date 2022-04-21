@@ -152,6 +152,7 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
     public long getLastModifiedTime() throws IOException {
         long modified = this.lastModifiedTime;
         if (modified == -1) {
+            // cache the lastModifiedTime and return it forever, translogs are immutable
             modified = super.getLastModifiedTime();
             this.lastModifiedTime = modified;
         }

@@ -4,7 +4,7 @@
 
 beta::[]
 
-{es} can be configured to trust JSON Web Tokens (JWTs) that are issued as an 
+{es} can be configured to trust JSON Web Tokens (JWTs) that are issued as an
 authentication credential from an external service.
 
 When a JWT realm is used to authenticate with {es}, a distinction is made
@@ -12,7 +12,7 @@ between the _client_ that is connecting to {es}, and the _user_ on whose behalf
 the request should run. The JWT identifies the user, and a separate credential
 is used to authenticate the client.
 
-A common scenario that uses JWTs is when an existing front-end application uses 
+A common scenario that uses JWTs is when an existing front-end application uses
 OpenID Connect (OIDC) as an authentication method, and then accesses {es}
 on behalf of the authenticated user.
 
@@ -52,7 +52,7 @@ values in the {es} keystore.
 NOTE: The example values are not intended for every use case, and are included
 only to highlight some common settings for this realm.
 
-Client authentication is enabled by default for the JWT realms. Disabling client 
+Client authentication is enabled by default for the JWT realms. Disabling client
 authentication is possible, but strongly discouraged.
 
 . Add your JWT realm to the `elasticsearch.yml` file:
@@ -73,7 +73,7 @@ xpack.security.authc.realms.jwt.jwt1:
 `order`::
 Specifies a realm `order` of `3`, which indicates the order in which the
 configured realm is checked when authenticating a user. Realms are consulted in
-ascending order, where the realm with the lowest order value is consulted first. 
+ascending order, where the realm with the lowest order value is consulted first.
 
 `client_authentication.type`::
 Specifies the client authentication type as `shared_secret`, which means that
@@ -95,8 +95,8 @@ Indicates that {es} should use the `RS256` and `HS256` signature algorithms to
 verify the signature of the JWT from the JWT issuer.
 
 `pkc_jwkset_path`::
-The file path to a JSON Web Key (JWK) set containing the key material that the
-JWT issuer uses to sign tokens and claim responses. 
+The file path to a JSON Web Key (JWK) set containing the public key material that the
+JWT realm uses to verify JWT signatures.
 
 `claims.principal`::
 The name of the JWT claim that contains the user's principal (username).
@@ -117,7 +117,8 @@ SHA-256 algorithm `HS256` in the example:
 ----
 bin/elasticsearch-keystore add-file xpack.security.authc.realms.jwt.jwt1.hmac_jwkset <path> <1>
 ----
-<1> Path to a JWK Set, which is a resource for a set of JSON-encoded public keys.
+<1> Path to a JWK Set, which is a resource for a set of JSON-encoded secret keys.
+The file can be removed after the contents are loaded into the {es} keystore setting.
 +
 [NOTE]
 ====
@@ -157,10 +158,10 @@ This example illustrates a partial decoding of a JWT. The validity period is
 from 2000 to 2099 (inclusive), as defined by the issue time (`iat`) and
 expiration time (`exp`). JWTs typically have a validity period shorter than
 100 years. The signature in this example is deterministic because the header,
-claims, and HMAC key are fixed. 
+claims, and HMAC key are fixed.
 
-The supported JWT encoding is JSON Web Signature (JWS). The JWS `Header` and 
-`Signature` are validated using OpenID Connect ID Token validation rules. Some 
+The supported JWT encoding is JSON Web Signature (JWS). The JWS `Header` and
+`Signature` are validated using OpenID Connect ID Token validation rules. Some
 validation is customizable through <<ref-jwt-settings,JWT realm settings>>.
 
 [[jwt-validation-header]]
@@ -187,13 +188,13 @@ The following claims are validated by a subset of OIDC ID token rules.
 {es} doesn't validate `nonce` claims, but a custom JWT issuer can add a
 random `nonce` claim to introduce entropy into the signature.
 
-NOTE: You can relax validation of any of the time-based claims by setting 
+NOTE: You can relax validation of any of the time-based claims by setting
 `allowed_clock_skew`. This value sets the maximum allowed clock skew before
 validating JWTs with respect to their authentication time (`auth_time`), creation (`iat`), not before (`nbf`), and
 expiration times (`exp`).
 
 `aud`::
-(Required, String) Indicates the audiences that the ID token is for, expressed as a 
+(Required, String) Indicates the audiences that the ID token is for, expressed as a
 comma-separated value (CSV). One of the values must be an exact, case-sensitive
 match to any of the CSV values in the `allowed_audiences` setting.
 
@@ -221,9 +222,10 @@ expressed as UTC milliseconds since epoch.
 ====== {es} payload claims
 {es} validates the following OIDC ID token claims.
 
-`sub`::
-(Required, String) Name of the JWT claim that contains the user's principal 
+`principal`::
+(Required, String) Name of the JWT claim that contains the user's principal
 (username). The value is configurable using the realm setting `claims.principal`.
+If not set, the value defaults to `sub`.
 You can configure an optional regular expression using the
 `claims.principal_pattern` to extract a substring.
 
@@ -234,19 +236,22 @@ configure an optional regular expression using the realm setting
 `claims.groups_pattern` to extract a substring value.
 
 `name`::
-(Optional, String) Human-readable identifier of the token's subject. The value
+(Optional, String) Name of the JWT claim that contains the user's human-readable
+identifier of the token's subject. The value
 is configurable using the realm setting `claims.name`. You can configure an
-optional regular expression using the realm setting `claims.name_pattern` to 
+optional regular expression using the realm setting `claims.name_pattern` to
 extract a substring value.
 
 `mail`::
-(Optional, String) E-mail address to associate with the user. The value is
+(Optional, String) Name of the JWT claim that contains the user's e-mail address
+to associate with the user. The value is
 configurable using the realm setting `claims.mail`. You can configure an
-optional regular expression using the realm setting `claims.mail_pattern` to 
+optional regular expression using the realm setting `claims.mail_pattern` to
 extract a substring value.
 
 `dn`::
-(Optional, String) The Distinguished Name (DN) that uniquely identifies a user
+(Optional, String) Name of the JWT claim that contains the user's the
+Distinguished Name (DN) that uniquely identifies a user
 or group. The value is configurable using the realm setting `claims.dn`. You
 can configure an optional regular expression using the realm setting
 `claims.dn_pattern` to extract a substring value.
@@ -307,7 +312,7 @@ realm, claims for `dn`, `groups`, `mail`, `metadata`, and `name` are not used
 for the {es} user's values. Only the JWT `principal` claim is passed to the
 delegated authorization realm. The realm that is delegated for authorization
 - not the JWT realm - becomes responsible for populating all of the {es} user's
-values. 
+values.
 
 The following example shows how you define delegation authorization in the
 `elasticsearch.yml` file to multiple other realms from the JWT realm. A JWT
@@ -345,16 +350,15 @@ linked to realm `native1`.
 [[hmac-oidc-example]]
 ==== Authorizing to the JWT realm with an OIDC HMAC key
 The following settings are for a JWT issuer, {es}, and a client of {es}. The
-example HMAC key is in an OIDC HMAC compatible format. The key bytes are in 
-UTF-8 encoded UNICODE characters.
+example HMAC key is in an OIDC HMAC compatible format. The key bytes are the
+UTF-8 encoding of the UNICODE characters.
 
 IMPORTANT: HMAC UTF-8 keys need to be longer than HMAC random byte keys to
 achieve the same key strength.
 
 [[hmac-oidc-example-jwt-issuer]]
 ===== JWT issuer
-The following values are for a custom authentication service that issues JWTs
-which are external to {es}.
+The following values are for the bespoke JWT issuer.
 
 [source,js]
 ----
@@ -390,7 +394,7 @@ xpack.security.authc.realms.jwt.jwt8.client_authentication.shared_secret: client
 ----
 
 ===== JWT realm role mapping rule
-The following request creates role mappings for {es} in the `jwt8` realm for 
+The following request creates role mappings for {es} in the `jwt8` realm for
 the user `principalname1`:
 
 [source,console]

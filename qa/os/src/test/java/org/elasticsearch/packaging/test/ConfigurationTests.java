@@ -71,7 +71,7 @@ public class ConfigurationTests extends PackagingTestCase {
         Files.createSymbolicLink(symlinkedData, data);
 
         withCustomConfig(confPath -> {
-            updateConfig(confPath, "path.data", "path.data: " + symlinkedData);
+            ServerUtils.addSettingToExistingConfiguration(confPath, "path.data", symlinkedData.toString());
             // security auto-config requires that the archive owner and the node process user be the same
             Platforms.onWindows(() -> sh.chown(confPath, installation.getOwner()));
             assertWhileRunning(() -> {

@@ -700,18 +700,4 @@ public abstract class PackagingTestCase extends Assert {
             assertThat(caCert.toString(), Matchers.not(Matchers.containsString("certs")));
         }
     }
-
-    public void updateConfig(Path confPath, String key, String replacement) throws IOException {
-        Path yml = confPath.resolve("elasticsearch.yml");
-        List<String> lines;
-        try (Stream<String> allLines = Files.readAllLines(yml).stream()) {
-            lines = allLines.map(l -> {
-                if (l.contains(key)) {
-                    return replacement;
-                }
-                return l;
-            }).collect(Collectors.toList());
-        }
-        Files.write(yml, lines, TRUNCATE_EXISTING);
-    }
 }

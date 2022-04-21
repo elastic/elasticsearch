@@ -262,6 +262,9 @@ import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata;
+import org.elasticsearch.operator.OperatorHandler;
+import org.elasticsearch.operator.OperatorSettingsController;
+import org.elasticsearch.operator.action.OperatorClusterSettingsAction;
 import org.elasticsearch.persistent.CompletionPersistentTaskAction;
 import org.elasticsearch.persistent.RemovePersistentTaskAction;
 import org.elasticsearch.persistent.StartPersistentTaskAction;
@@ -441,6 +444,7 @@ public class ActionModule extends AbstractModule {
     private final RequestValidators<PutMappingRequest> mappingRequestValidators;
     private final RequestValidators<IndicesAliasesRequest> indicesAliasesRequestRequestValidators;
     private final ThreadPool threadPool;
+    private final OperatorSettingsController operatorController;
 
     public ActionModule(
         Settings settings,
@@ -502,6 +506,7 @@ public class ActionModule extends AbstractModule {
         );
 
         restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService);
+        operatorController = new OperatorSettingsController();
     }
 
     public Map<String, ActionHandler<?, ?>> getActions() {
@@ -872,6 +877,17 @@ public class ActionModule extends AbstractModule {
             }
         }
         registerHandler.accept(new RestCatAction(catActions));
+    }
+
+    public void initOperatorHandlers() {
+        List<OperatorHandler> handlers = new ArrayList<>();
+
+        handlers.add(new OperatorClusterSettingsAction());
+        for (ActionPlugin plugin : actionPlugins) {
+            handlers.addAll(plugin.getOperatorHandlers());
+        }
+
+        operatorController.initHandlers(handlers);
     }
 
     @Override

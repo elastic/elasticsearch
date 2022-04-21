@@ -29,6 +29,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.operator.OperatorHandler;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -105,6 +106,7 @@ import org.elasticsearch.xpack.ilm.action.TransportRemoveIndexLifecyclePolicyAct
 import org.elasticsearch.xpack.ilm.action.TransportRetryAction;
 import org.elasticsearch.xpack.ilm.action.TransportStartILMAction;
 import org.elasticsearch.xpack.ilm.action.TransportStopILMAction;
+import org.elasticsearch.xpack.ilm.action.operator.OperatorLifecycleAction;
 import org.elasticsearch.xpack.ilm.history.ILMHistoryStore;
 import org.elasticsearch.xpack.ilm.history.ILMHistoryTemplateRegistry;
 import org.elasticsearch.xpack.slm.SLMInfoTransportAction;
@@ -376,6 +378,11 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
             )
         );
         return handlers;
+    }
+
+    @Override
+    public List<OperatorHandler> getOperatorHandlers() {
+        return List.of(new OperatorLifecycleAction());
     }
 
     @Override

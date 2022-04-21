@@ -1026,6 +1026,8 @@ public class Node implements Closeable {
 
             logger.debug("initializing HTTP handlers ...");
             actionModule.initRestHandlers(() -> clusterService.state().nodes());
+            logger.debug("initializing operator handlers ...");
+            actionModule.initOperatorHandlers();
             logger.info("initialized");
 
             success = true;

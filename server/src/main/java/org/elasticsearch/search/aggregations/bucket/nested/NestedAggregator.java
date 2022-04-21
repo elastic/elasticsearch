@@ -33,7 +33,6 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.xcontent.ParseField;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -194,14 +193,9 @@ public class NestedAggregator extends BucketsAggregator implements SingleBucketA
 
             for (; childDocId < currentParentDoc; childDocId = childDocs.nextDoc()) {
                 cachedScorer.doc = childDocId;
-                final int docId = childDocId;
-                bucketBuffer.stream().mapToLong(Long::longValue).forEach(bucket -> {
-                    try {
-                        collectBucket(sub, docId, bucket);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                });
+                for (var bucket : bucketBuffer) {
+                    collectBucket(sub, childDocId, bucket);
+                }
             }
             bucketBuffer.clear();
         }

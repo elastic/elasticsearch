@@ -22,8 +22,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.packaging.util.Archives;
 import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.FileMatcher;
@@ -405,7 +405,9 @@ public abstract class PackagingTestCase extends Assert {
             // error should be in the logs
             assertThat(installation.logs.resolve("elasticsearch.log"), fileExists());
             String logfile = FileUtils.slurp(installation.logs.resolve("elasticsearch.log"));
-
+            if (logfile.isBlank()) {
+                // bootstrap errors still
+            }
             assertThat(logfile, anyOf(stringMatchers));
 
         } else if (distribution().isPackage() && Platforms.isSystemd()) {

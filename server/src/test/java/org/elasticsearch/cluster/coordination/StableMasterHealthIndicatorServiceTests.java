@@ -45,6 +45,7 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
     private ClusterState node1MasterClusterState;
     private ClusterState node2MasterClusterState;
     private ClusterState node3MasterClusterState;
+    private ClusterState node4MasterClusterState;
     private static final String TEST_SOURCE = "test";
 
     @Before
@@ -52,10 +53,12 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
         String node1 = randomNodeId();
         String node2 = randomNodeId();
         String node3 = randomNodeId();
+        String node4 = randomNodeId();
         nullMasterClusterState = createClusterState(null);
         node1MasterClusterState = createClusterState(node1);
         node2MasterClusterState = createClusterState(node2);
         node3MasterClusterState = createClusterState(node3);
+        node4MasterClusterState = createClusterState(node4);
     }
 
     public void testThreeMasters() throws Exception {
@@ -74,10 +77,14 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
         result = service.calculate(true);
         assertThat(result.status(), equalTo(HealthStatus.GREEN));
 
-        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node3MasterClusterState, node2MasterClusterState));
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node3MasterClusterState, node1MasterClusterState));
+        result = service.calculate(true);
+        assertThat(result.status(), equalTo(HealthStatus.GREEN)); // TODO: Should return yellow here.
+
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node4MasterClusterState, node1MasterClusterState));
         result = service.calculate(true);
         assertThat(result.status(), equalTo(HealthStatus.YELLOW));
-        assertThat(result.summary(), equalTo("3 nodes have acted as master in the last 30 minutes"));
+        assertThat(result.summary(), equalTo("4 nodes have acted as master in the last 30 minutes"));
         assertThat(1, equalTo(result.impacts().size()));
         HealthIndicatorImpact impact = result.impacts().get(0);
         assertThat(3, equalTo(impact.severity()));
@@ -90,8 +97,8 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
         assertThat(ImpactArea.INGEST, equalTo(impact.impactAreas().get(0)));
         SimpleHealthIndicatorDetails details = (SimpleHealthIndicatorDetails) result.details();
         assertThat(2, equalTo(details.details().size()));
-        assertThat(node3MasterClusterState.nodes().getMasterNode(), equalTo(details.details().get("current_master")));
-        assertThat(3, equalTo(((Set) details.details().get("recent_masters")).size()));
+        assertThat(node4MasterClusterState.nodes().getMasterNode(), equalTo(details.details().get("current_master")));
+        assertThat(4, equalTo(((Set) details.details().get("recent_masters")).size()));
     }
 
     public void testMasterGoesNull() throws Exception {

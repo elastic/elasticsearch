@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.health.collector;
+package org.elasticsearch.health.node.selection;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -18,19 +18,19 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-import static org.elasticsearch.health.collector.NodeHealthCache.NODE_HEALTH_STATE_COLLECTOR;
+import static org.elasticsearch.health.node.selection.HealthNodeSelector.HEALTH_NODE_SELECTOR_TASK_NAME;
 
-class NodeHealthCacheTaskParams implements PersistentTaskParams {
+class HealthNodeSelectorTaskParams implements PersistentTaskParams {
 
-    public static final ObjectParser<NodeHealthCacheTaskParams, Void> PARSER = new ObjectParser<>(
-        NODE_HEALTH_STATE_COLLECTOR,
+    public static final ObjectParser<HealthNodeSelectorTaskParams, Void> PARSER = new ObjectParser<>(
+        HEALTH_NODE_SELECTOR_TASK_NAME,
         true,
-        NodeHealthCacheTaskParams::new
+        HealthNodeSelectorTaskParams::new
     );
 
-    NodeHealthCacheTaskParams() {}
+    HealthNodeSelectorTaskParams() {}
 
-    NodeHealthCacheTaskParams(StreamInput in) {}
+    HealthNodeSelectorTaskParams(StreamInput in) {}
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -41,7 +41,7 @@ class NodeHealthCacheTaskParams implements PersistentTaskParams {
 
     @Override
     public String getWriteableName() {
-        return NODE_HEALTH_STATE_COLLECTOR;
+        return HEALTH_NODE_SELECTOR_TASK_NAME;
     }
 
     @Override
@@ -52,7 +52,7 @@ class NodeHealthCacheTaskParams implements PersistentTaskParams {
     @Override
     public void writeTo(StreamOutput out) {}
 
-    public static NodeHealthCacheTaskParams fromXContent(XContentParser parser) {
+    public static HealthNodeSelectorTaskParams fromXContent(XContentParser parser) {
         return PARSER.apply(parser, null);
     }
 
@@ -63,6 +63,6 @@ class NodeHealthCacheTaskParams implements PersistentTaskParams {
 
     @Override
     public boolean equals(Object obj) {
-        return obj instanceof NodeHealthCacheTaskParams;
+        return obj instanceof HealthNodeSelectorTaskParams;
     }
 }

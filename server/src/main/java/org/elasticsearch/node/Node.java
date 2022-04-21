@@ -99,7 +99,8 @@ import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.health.HealthService;
-import org.elasticsearch.health.collector.NodeHealthCacheTaskExecutor;
+import org.elasticsearch.health.node.selection.HealthNodeSelectorLifecycleHandler;
+import org.elasticsearch.health.node.selection.HealthNodeSelectorTaskExecutor;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexSettings;
@@ -485,7 +486,8 @@ public class Node implements Closeable {
                 searchModule.getNamedWriteables().stream(),
                 pluginsService.filterPlugins(Plugin.class).stream().flatMap(p -> p.getNamedWriteables().stream()),
                 ClusterModule.getNamedWriteables().stream(),
-                SystemIndexMigrationExecutor.getNamedWriteables().stream()
+                SystemIndexMigrationExecutor.getNamedWriteables().stream(),
+                HealthNodeSelectorTaskExecutor.getNamedWriteables().stream()
             ).flatMap(Function.identity()).toList();
             final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
             NamedXContentRegistry xContentRegistry = new NamedXContentRegistry(
@@ -495,7 +497,8 @@ public class Node implements Closeable {
                     searchModule.getNamedXContents().stream(),
                     pluginsService.filterPlugins(Plugin.class).stream().flatMap(p -> p.getNamedXContent().stream()),
                     ClusterModule.getNamedXWriteables().stream(),
-                    SystemIndexMigrationExecutor.getNamedXContentParsers().stream()
+                    SystemIndexMigrationExecutor.getNamedXContentParsers().stream(),
+                    HealthNodeSelectorTaskExecutor.getNamedXContentParsers().stream()
                 ).flatMap(Function.identity()).collect(toList())
             );
             final Map<String, SystemIndices.Feature> featuresMap = pluginsService.filterPlugins(SystemIndexPlugin.class)
@@ -864,14 +867,17 @@ public class Node implements Closeable {
                 metadataCreateIndexService,
                 settingsModule.getIndexScopedSettings()
             );
-            final NodeHealthCacheTaskExecutor nodeHealthCacheTaskExecutor = new NodeHealthCacheTaskExecutor(
+            final HealthNodeSelectorTaskExecutor healthNodeSelectorTaskExecutor = new HealthNodeSelectorTaskExecutor(
                 client,
                 clusterService,
                 threadPool
             );
+            final HealthNodeSelectorLifecycleHandler healthNodeSelectorLifecycleHandler = new HealthNodeSelectorLifecycleHandler(
+                healthNodeSelectorTaskExecutor
+            );
             final List<PersistentTasksExecutor<?>> builtinTaskExecutors = List.of(
                 systemIndexMigrationExecutor,
-                nodeHealthCacheTaskExecutor
+                healthNodeSelectorTaskExecutor
             );
             final List<PersistentTasksExecutor<?>> persistentTasksExecutors = pluginsService.filterPlugins(PersistentTaskPlugin.class)
                 .stream()
@@ -991,6 +997,8 @@ public class Node implements Closeable {
                 b.bind(DesiredNodesSettingsValidator.class).toInstance(desiredNodesSettingsValidator);
                 b.bind(HealthService.class).toInstance(healthService);
                 b.bind(StatsRequestLimiter.class).toInstance(statsRequestLimiter);
+                b.bind(HealthNodeSelectorTaskExecutor.class).toInstance(healthNodeSelectorTaskExecutor);
+                b.bind(HealthNodeSelectorLifecycleHandler.class).toInstance(healthNodeSelectorLifecycleHandler);
             });
 
             if (ReadinessService.enabled(environment)) {
@@ -1265,6 +1273,8 @@ public class Node implements Closeable {
             }
         }
 
+        injector.getInstance(HealthNodeSelectorLifecycleHandler.class).start();
+
         logger.info("started {}", transportService.getLocalNode());
 
         pluginsService.filterPlugins(ClusterPlugin.class).forEach(ClusterPlugin::onNodeStarted);
@@ -1307,6 +1317,7 @@ public class Node implements Closeable {
         injector.getInstance(GatewayService.class).stop();
         injector.getInstance(SearchService.class).stop();
         injector.getInstance(TransportService.class).stop();
+        injector.getInstance(HealthNodeSelectorLifecycleHandler.class).stop();
 
         pluginLifecycleComponents.forEach(LifecycleComponent::stop);
         // we should stop this last since it waits for resources to get released

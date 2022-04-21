@@ -81,6 +81,7 @@ import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
+import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
@@ -131,6 +132,7 @@ import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
@@ -1910,6 +1912,30 @@ public class CompositeRolesStoreTests extends ESTestCase {
         }
     }
 
+    public void testSecurityProfileUserHasAccessForOnlyProfileIndex() {
+        for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, SearchAction.NAME, IndexAction.NAME)) {
+            Predicate<IndexAbstraction> predicate = getSecurityProfileRole().indices().allowedIndicesMatcher(action);
+
+            List.of(
+                ".security-profile",
+                ".security-profile-8",
+                ".security-profile-" + randomIntBetween(0, 16) + randomAlphaOfLengthBetween(0, 10)
+            ).forEach(name -> assertThat(predicate.test(mockIndexAbstraction(name)), is(true)));
+
+            List.of(
+                ".security-profile" + randomAlphaOfLengthBetween(1, 10),
+                ".security-profile-" + randomAlphaOfLengthBetween(1, 10),
+                ".security",
+                ".security-" + randomIntBetween(0, 16) + randomAlphaOfLengthBetween(0, 10),
+                "." + randomAlphaOfLengthBetween(1, 20)
+            ).forEach(name -> assertThat(predicate.test(mockIndexAbstraction(name)), is(false)));
+        }
+
+        final Subject subject = mock(Subject.class);
+        when(subject.getUser()).thenReturn(SecurityProfileUser.INSTANCE);
+        assertThat(CompositeRolesStore.tryGetRoleDescriptorForInternalUser(subject).get().getClusterPrivileges(), emptyArray());
+    }
+
     public void testXPackUserCanAccessNonRestrictedIndices() {
         for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, SearchAction.NAME, IndexAction.NAME)) {
             Predicate<IndexAbstraction> predicate = getXPackUserRole().indices().allowedIndicesMatcher(action);
@@ -2045,6 +2071,10 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
     private Role getXPackSecurityRole() {
         return getInternalUserRole(XPackSecurityUser.INSTANCE);
+    }
+
+    private Role getSecurityProfileRole() {
+        return getInternalUserRole(SecurityProfileUser.INSTANCE);
     }
 
     private Role getXPackUserRole() {

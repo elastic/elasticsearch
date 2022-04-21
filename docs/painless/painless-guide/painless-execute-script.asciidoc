@@ -589,7 +589,7 @@ PUT /my-index-000001/
       "lat": {
         "type": "double"
       },
-     "lon": {
+      "lon": {
         "type": "double"
       }
     }
@@ -638,6 +638,10 @@ results that are formatted as `coordinates`.
   ]
 }
 ----
+
+[NOTE]
+The emit function for {ref}/geo-point.html[geo-point] fields takes two parameters ordered with
+`lat` before `lon`, but the output GeoJSON format orders the `coordinates` as `[ lon, lat ]`.
 
 [[painless-runtime-ip]]
 ===== `ip_field`

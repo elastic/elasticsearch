@@ -43,10 +43,39 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
         this(null, capacity, maxLoadFactor, bigArrays);
     }
 
+    /**
+     * Construct a BytesRefHash given a BytesRefArray with default maximum load factor.
+     *
+     * Note the comments below regarding leakage protection of the given BytesRefArray.
+     */
     public BytesRefHash(BytesRefArray bytesRefArray, BigArrays bigArrays) {
         this(bytesRefArray, DEFAULT_MAX_LOAD_FACTOR, bigArrays);
     }
 
+    /**
+     * Construct a BytesRefHash given a BytesRefArray.
+     *
+     * Note: The ownership over BytesRefArray is taken over by the created BytesRefHash.
+     *
+     * Because BytesRefHash construction potentially throws a circuit breaker exception, the BytesRefArray must be
+     * protected against leakage, e.g.
+     *
+     * boolean success = false;
+     * BytesRefArray array = null;
+     * try {
+     *     array = new BytesRefArray(...);
+     *     hash = new BytesRefHash(array, bigArrays);
+     *     success = true;
+     * } finally {
+     *     if (false == success) {
+     *         try (Releasable releasable = Releasables.wrap(array)) {
+                    close(); // assuming hash is a member and close() closes it
+               }
+     *     }
+     * }
+     *
+     * Iff the BytesRefHash instance got created successfully, it is managed by BytesRefHash and does not need to be closed.
+     */
     public BytesRefHash(BytesRefArray bytesRefs, float maxLoadFactor, BigArrays bigArrays) {
         this(bytesRefs, bytesRefs.size() + 1, maxLoadFactor, bigArrays);
 
@@ -62,10 +91,9 @@ public final class BytesRefHash extends AbstractHash implements Accountable {
 
         boolean success = false;
         try {
-            this.bytesRefs = byteRefs != null ? byteRefs : new BytesRefArray(capacity, bigArrays);
-
             // `super` allocates a big array so we have to `close` if we fail here or we'll leak it.
             hashes = bigArrays.newIntArray(capacity, false);
+            this.bytesRefs = byteRefs != null ? byteRefs : new BytesRefArray(capacity, bigArrays);
             success = true;
         } finally {
             if (false == success) {

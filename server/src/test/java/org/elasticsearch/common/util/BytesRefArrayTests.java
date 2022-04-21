@@ -19,6 +19,23 @@ import java.io.IOException;
 
 public class BytesRefArrayTests extends ESTestCase {
 
+    public static BytesRefArray randomArray() {
+        return randomArray(randomIntBetween(0, 100), randomIntBetween(10, 50), mockBigArrays());
+    }
+
+    public static BytesRefArray randomArray(long capacity, int entries, BigArrays bigArrays) {
+        BytesRefArray bytesRefs = new BytesRefArray(capacity, bigArrays);
+        BytesRefBuilder ref = new BytesRefBuilder();
+
+        for (int i = 0; i < entries; i++) {
+            String str = randomUnicodeOfLengthBetween(4, 20);
+            ref.copyChars(str);
+            bytesRefs.append(ref.get());
+        }
+
+        return bytesRefs;
+    }
+
     public void testRandomWithSerialization() throws IOException {
         int runs = randomIntBetween(2, 20);
         BytesRefArray array = randomArray();
@@ -40,22 +57,8 @@ public class BytesRefArrayTests extends ESTestCase {
         array.close();
     }
 
-    private BigArrays mockBigArrays() {
+    private static BigArrays mockBigArrays() {
         return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
-    }
-
-    private BytesRefArray randomArray() {
-        BytesRefArray bytesRefs = new BytesRefArray(randomIntBetween(0, 100), mockBigArrays());
-        BytesRefBuilder ref = new BytesRefBuilder();
-        int entries = randomIntBetween(10, 50);
-
-        for (int i = 0; i < entries; i++) {
-            String str = randomUnicodeOfLengthBetween(4, 20);
-            ref.copyChars(str);
-            bytesRefs.append(ref.get());
-        }
-
-        return bytesRefs;
     }
 
     private void assertEquality(BytesRefArray original, BytesRefArray copy) {

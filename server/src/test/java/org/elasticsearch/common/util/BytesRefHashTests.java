@@ -12,8 +12,14 @@ import org.apache.lucene.tests.util.TestUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.indices.breaker.AllCircuitBreakerStats;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.breaker.CircuitBreakerStats;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
@@ -25,8 +31,99 @@ import java.util.Map.Entry;
 import java.util.Set;
 
 public class BytesRefHashTests extends ESTestCase {
+
+    private static class ThrowingCircuitBreakerService extends CircuitBreakerService {
+
+        private static class ThrowingCircuitBreaker implements CircuitBreaker {
+            private final int startThrowingAfter;
+            private int count = 0;
+
+            ThrowingCircuitBreaker(int startThrowingAfter) {
+                this.startThrowingAfter = startThrowingAfter;
+            }
+
+            @Override
+            public void circuitBreak(String fieldName, long bytesNeeded) {}
+
+            @Override
+            public void addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException {
+                if (count >= startThrowingAfter) {
+                    throw new CircuitBreakingException("cbe after " + count + " call(s)", Durability.PERMANENT);
+                }
+                ++count;
+            }
+
+            @Override
+            public void addWithoutBreaking(long bytes) {}
+
+            @Override
+            public long getUsed() {
+                return 0;
+            }
+
+            @Override
+            public long getLimit() {
+                return 0;
+            }
+
+            @Override
+            public double getOverhead() {
+                return 0;
+            }
+
+            @Override
+            public long getTrippedCount() {
+                return 0;
+            }
+
+            @Override
+            public String getName() {
+                return CircuitBreaker.FIELDDATA;
+            }
+
+            @Override
+            public Durability getDurability() {
+                return null;
+            }
+
+            @Override
+            public void setLimitAndOverhead(long limit, double overhead) {
+
+            }
+        };
+
+        private final CircuitBreaker breaker;
+
+        ThrowingCircuitBreakerService(int startThrowingAfter) {
+            breaker = new ThrowingCircuitBreaker(startThrowingAfter);
+        }
+
+        @Override
+        public CircuitBreaker getBreaker(String name) {
+            return breaker;
+        }
+
+        @Override
+        public AllCircuitBreakerStats stats() {
+            return new AllCircuitBreakerStats(new CircuitBreakerStats[] { stats(CircuitBreaker.FIELDDATA) });
+        }
+
+        @Override
+        public CircuitBreakerStats stats(String name) {
+            return new CircuitBreakerStats(CircuitBreaker.FIELDDATA, -1, -1, 0, 0);
+        }
+    }
+
     private BigArrays mockBigArrays() {
         return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new NoneCircuitBreakerService());
+    }
+
+    private BigArrays mockBigArraysWithThrowingCircuitBreaker() {
+        return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new ThrowingCircuitBreakerService(0)).withCircuitBreaking();
+    }
+
+    private BigArrays mockBigArraysWithThrowingCircuitBreakerAfterOneAllocation() {
+        return new MockBigArrays(new MockPageCacheRecycler(Settings.EMPTY), new ThrowingCircuitBreakerService(1)).withCircuitBreaking();
     }
 
     private BytesRefHash randomHash() {
@@ -307,5 +404,101 @@ public class BytesRefHashTests extends ESTestCase {
             hash = randomHash();
         }
         hash.close();
+    }
+
+    // demonstrates how a given BytesRefArray must be secured against leakage
+    public void testDontLeakBytesRefArray() {
+        BytesRefArray array = null;
+        boolean success = false;
+        boolean thrown = false;
+        BytesRefHash hash = null;
+        try {
+            // create a big array, so it is allocated using ordinary java arrays
+            array = BytesRefArrayTests.randomArray(
+                PageCacheRecycler.LONG_PAGE_SIZE + 100,
+                PageCacheRecycler.LONG_PAGE_SIZE + 100,
+                mockBigArrays()
+            );
+            hash = new BytesRefHash(array, mockBigArraysWithThrowingCircuitBreaker());
+            success = true;
+        } catch (CircuitBreakingException ce) {
+            assertEquals("cbe after 0 call(s)", ce.getMessage());
+            thrown = true;
+        } finally {
+            if (false == success) {
+                // if you have more than 1 resource:
+                // try (Releasable releasable = Releasables.wrap(r1, r2, ...)) { ... }
+                Releasables.close(array);
+            }
+        }
+
+        assertFalse(success);
+        assertTrue(thrown);
+        assertNotNull(array);
+        assertNull(hash);
+    }
+
+    // demonstrates how a given BytesRefArray must be secured against leakage, special case
+    public void testDontLeakBytesRefArray2() {
+        BytesRefArray array = null;
+        boolean success = false;
+        boolean thrown = false;
+        BytesRefHash hash = null;
+        try {
+            // create a big array, so it is allocated using ordinary java arrays
+            array = BytesRefArrayTests.randomArray(
+                PageCacheRecycler.LONG_PAGE_SIZE + 100,
+                PageCacheRecycler.LONG_PAGE_SIZE + 100,
+                mockBigArrays()
+            );
+            hash = new BytesRefHash(array, mockBigArraysWithThrowingCircuitBreakerAfterOneAllocation());
+            success = true;
+        } catch (CircuitBreakingException ce) {
+            assertEquals("cbe after 1 call(s)", ce.getMessage());
+            thrown = true;
+        } finally {
+            if (false == success) {
+                // if you have more than 1 resource:
+                // try (Releasable releasable = Releasables.wrap(r1, r2, ...)) { ... }
+                Releasables.close(array);
+            }
+        }
+
+        assertFalse(success);
+        assertTrue(thrown);
+        assertNotNull(array);
+        assertNull(hash);
+    }
+
+    // demonstrates how a given BytesRefArray must be secured against leakage, special case when the array creation already throws
+    public void testDontLeakBytesRefArray3() {
+        BytesRefArray array = null;
+        boolean success = false;
+        boolean thrown = false;
+        BytesRefHash hash = null;
+        try {
+            // create a big array, so it is allocated using ordinary java arrays
+            array = BytesRefArrayTests.randomArray(
+                PageCacheRecycler.LONG_PAGE_SIZE + 100,
+                PageCacheRecycler.LONG_PAGE_SIZE + 100,
+                mockBigArraysWithThrowingCircuitBreaker()
+            );
+            hash = new BytesRefHash(array, mockBigArrays());
+            success = true;
+        } catch (CircuitBreakingException ce) {
+            assertEquals("cbe after 0 call(s)", ce.getMessage());
+            thrown = true;
+        } finally {
+            if (false == success) {
+                // if you have more than 1 resource:
+                // try (Releasable releasable = Releasables.wrap(r1, r2, ...)) { ... }
+                Releasables.close(array);
+            }
+        }
+
+        assertFalse(success);
+        assertTrue(thrown);
+        assertNull(array);
+        assertNull(hash);
     }
 }

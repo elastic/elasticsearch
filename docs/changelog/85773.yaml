@@ -1,0 +1,5 @@
+pr: 85773
+summary: Log node identity at startup
+area: Network
+type: enhancement
+issues: []

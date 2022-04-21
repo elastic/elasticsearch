@@ -26,6 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthStatus;
+import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
@@ -69,7 +70,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 createExpectedResult(
                     GREEN,
@@ -98,7 +99,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 createExpectedResult(
                     YELLOW,
@@ -115,8 +116,9 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     ),
                     List.of(
                         new HealthIndicatorImpact(
-                            3,
-                            "Searches might return slower than usual. Fewer redundant copies of the data exist on 1 index [yellow-index]."
+                            2,
+                            "Searches might return slower than usual. Fewer redundant copies of the data exist on 1 index [yellow-index].",
+                            List.of(ImpactArea.SEARCH)
                         )
                     )
                 )
@@ -132,14 +134,18 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 createExpectedResult(
                     RED,
                     "This cluster has 1 unavailable primary.",
                     Map.of("unassigned_primaries", 1, "started_replicas", 1),
                     List.of(
-                        new HealthIndicatorImpact(1, "Cannot add data to 1 index [red-index]. Searches might return incomplete results.")
+                        new HealthIndicatorImpact(
+                            1,
+                            "Cannot add data to 1 index [red-index]. Searches might return incomplete results.",
+                            List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
+                        )
                     )
                 )
             )
@@ -151,14 +157,18 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 createExpectedResult(
                     RED,
                     "This cluster has 1 unavailable primary.",
                     Map.of("unassigned_primaries", 1),
                     List.of(
-                        new HealthIndicatorImpact(1, "Cannot add data to 1 index [red-index]. Searches might return incomplete results.")
+                        new HealthIndicatorImpact(
+                            1,
+                            "Cannot add data to 1 index [red-index]. Searches might return incomplete results.",
+                            List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
+                        )
                     )
                 )
             )
@@ -172,13 +182,17 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
         var service = createAllocationHealthIndicatorService(clusterState);
 
-        HealthIndicatorResult result = service.calculate();
+        HealthIndicatorResult result = service.calculate(true);
         assertEquals(RED, result.status());
         assertEquals("This cluster has 1 unavailable primary, 1 unavailable replica.", result.summary());
         assertEquals(1, result.impacts().size());
         assertEquals(
             result.impacts().get(0),
-            new HealthIndicatorImpact(1, "Cannot add data to 1 index [red-index]. Searches might return incomplete results.")
+            new HealthIndicatorImpact(
+                1,
+                "Cannot add data to 1 index [red-index]. Searches might return incomplete results.",
+                List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
+            )
         );
     }
 
@@ -197,22 +211,27 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
         var service = createAllocationHealthIndicatorService(clusterState);
 
-        HealthIndicatorResult result = service.calculate();
+        HealthIndicatorResult result = service.calculate(true);
         assertEquals(RED, result.status());
         assertEquals("This cluster has 1 unavailable primary, 2 unavailable replicas.", result.summary());
         assertEquals(2, result.impacts().size());
         assertEquals(
             result.impacts().get(0),
-            new HealthIndicatorImpact(1, "Cannot add data to 1 index [red-index]. Searches might return incomplete results.")
+            new HealthIndicatorImpact(
+                1,
+                "Cannot add data to 1 index [red-index]. Searches might return incomplete results.",
+                List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
+            )
         );
         // yellow-index-2 has the higher priority so it ought to be listed first:
         assertThat(
             result.impacts().get(1),
             equalTo(
                 new HealthIndicatorImpact(
-                    3,
+                    2,
                     "Searches might return slower than usual. Fewer redundant copies of the data exist on 2 indices [yellow-index-2, "
-                        + "yellow-index-1]."
+                        + "yellow-index-1].",
+                    List.of(ImpactArea.SEARCH)
                 )
             )
         );
@@ -235,15 +254,16 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
         var service = createAllocationHealthIndicatorService(clusterState);
 
-        HealthIndicatorResult result = service.calculate();
+        HealthIndicatorResult result = service.calculate(true);
         // index-2 has the higher priority so it ought to be listed first, followed by index-1 then index-3 which have the same priority:
         assertThat(
             result.impacts().get(0),
             equalTo(
                 new HealthIndicatorImpact(
-                    3,
+                    2,
                     "Searches might return slower than usual. Fewer redundant copies of the data exist on 3 indices [index-2, "
-                        + "index-1, index-3]."
+                        + "index-1, index-3].",
+                    List.of(ImpactArea.SEARCH)
                 )
             )
         );
@@ -263,7 +283,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 createExpectedResult(
                     GREEN,
@@ -283,7 +303,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 createExpectedResult(
                     GREEN,
@@ -309,7 +329,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 createExpectedResult(
                     YELLOW,
@@ -317,9 +337,10 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     Map.of("started_primaries", 1, "unassigned_replicas", 1),
                     List.of(
                         new HealthIndicatorImpact(
-                            3,
+                            2,
                             "Searches might return slower than usual. Fewer redundant copies of the data exist on 1 index "
-                                + "[restarting-index]."
+                                + "[restarting-index].",
+                            List.of(ImpactArea.SEARCH)
                         )
                     )
                 )
@@ -335,7 +356,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 createExpectedResult(
                     GREEN,
@@ -355,7 +376,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 createExpectedResult(
                     GREEN,
@@ -380,7 +401,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService(clusterState);
 
         assertThat(
-            service.calculate(),
+            service.calculate(true),
             equalTo(
                 createExpectedResult(
                     RED,
@@ -389,7 +410,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     List.of(
                         new HealthIndicatorImpact(
                             1,
-                            "Cannot add data to 1 index [restarting-index]. Searches might return incomplete results."
+                            "Cannot add data to 1 index [restarting-index]. Searches might return incomplete results.",
+                            List.of(ImpactArea.INGEST, ImpactArea.SEARCH)
                         )
                     )
                 )

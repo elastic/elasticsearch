@@ -22,15 +22,19 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.BucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.sort.SortOrder;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
+
+import static org.elasticsearch.index.IndexSortConfig.TIME_SERIES_SORT;
 
 /**
  * An IndexSearcher wrapper that executes the searches in time-series indices by traversing them by tsid and timestamp
@@ -43,10 +47,18 @@ public class TimeSeriesIndexSearcher {
     // IndexSearcher would most of the time be a ContextIndexSearcher that has important logic related to e.g. document-level security.
     private final IndexSearcher searcher;
     private final List<Runnable> cancellations;
+    private final boolean tsidReverse;
+    private final boolean timestampReverse;
 
     public TimeSeriesIndexSearcher(IndexSearcher searcher, List<Runnable> cancellations) {
         this.searcher = searcher;
         this.cancellations = cancellations;
+
+        assert TIME_SERIES_SORT.length == 2;
+        assert TIME_SERIES_SORT[0].getField().equals(TimeSeriesIdFieldMapper.NAME);
+        assert TIME_SERIES_SORT[1].getField().equals(DataStreamTimestampFieldMapper.DEFAULT_PATH);
+        this.tsidReverse = TIME_SERIES_SORT[0].getOrder() == SortOrder.DESC;
+        this.timestampReverse = TIME_SERIES_SORT[1].getOrder() == SortOrder.DESC;
     }
 
     public void search(Query query, BucketCollector bucketCollector) throws IOException {
@@ -78,7 +90,11 @@ public class TimeSeriesIndexSearcher {
         PriorityQueue<LeafWalker> queue = new PriorityQueue<>(searcher.getIndexReader().leaves().size()) {
             @Override
             protected boolean lessThan(LeafWalker a, LeafWalker b) {
-                return a.timestamp < b.timestamp;
+                if (timestampReverse) {
+                    return a.timestamp > b.timestamp;
+                } else {
+                    return a.timestamp < b.timestamp;
+                }
             }
         };
 
@@ -103,7 +119,7 @@ public class TimeSeriesIndexSearcher {
     }
 
     // Re-populate the queue with walkers on the same TSID.
-    private static boolean populateQueue(List<LeafWalker> leafWalkers, PriorityQueue<LeafWalker> queue) throws IOException {
+    private boolean populateQueue(List<LeafWalker> leafWalkers, PriorityQueue<LeafWalker> queue) throws IOException {
         BytesRef currentTsid = null;
         assert queue.size() == 0;
         Iterator<LeafWalker> it = leafWalkers.iterator();
@@ -120,16 +136,15 @@ public class TimeSeriesIndexSearcher {
                 currentTsid = tsid;
             }
             int comp = tsid.compareTo(currentTsid);
-            if (comp < 0) {
+            if (comp == 0) {
+                queue.add(leafWalker);
+            } else if ((tsidReverse && comp > 0) || (false == tsidReverse && comp < 0)) {
                 // We've found a walker on a lower TSID, so we remove all walkers
                 // collected so far from the queue and reset our comparison TSID
                 // to be the lower value
                 queue.clear();
                 queue.add(leafWalker);
                 currentTsid = tsid;
-            }
-            if (comp == 0) {
-                queue.add(leafWalker);
             }
         }
         assert queueAllHaveTsid(queue, currentTsid);
@@ -193,7 +208,8 @@ public class TimeSeriesIndexSearcher {
         }
 
         BytesRef getTsid() throws IOException {
-            scratch.copyBytes(tsids.lookupOrd(tsids.ordValue()));
+            tsidOrd = tsids.ordValue();
+            scratch.copyBytes(tsids.lookupOrd(tsidOrd));
             return scratch.get();
         }
 
@@ -206,13 +222,11 @@ public class TimeSeriesIndexSearcher {
 
         // true if the TSID ord has changed since the last time we checked
         boolean shouldPop() throws IOException {
-            if (tsidOrd == -1) {
-                tsidOrd = tsids.ordValue();
-            } else if (tsidOrd != tsids.ordValue()) {
-                tsidOrd = tsids.ordValue();
+            if (tsidOrd != tsids.ordValue()) {
                 return true;
+            } else {
+                return false;
             }
-            return false;
         }
     }
 }

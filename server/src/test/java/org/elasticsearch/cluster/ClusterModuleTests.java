@@ -188,7 +188,8 @@ public class ClusterModuleTests extends ModuleTestCase {
                 null,
                 threadContext,
                 EmptySystemIndices.INSTANCE,
-                    null)
+                null
+            )
         );
         assertEquals("Unknown ShardsAllocator [dne]", e.getMessage());
     }
@@ -245,7 +246,8 @@ public class ClusterModuleTests extends ModuleTestCase {
             null,
             threadContext,
             EmptySystemIndices.INSTANCE,
-                null);
+            null
+        );
         expectThrows(IllegalArgumentException.class, () -> clusterModule.setExistingShardsAllocators(new TestGatewayAllocator()));
     }
 
@@ -258,7 +260,8 @@ public class ClusterModuleTests extends ModuleTestCase {
             null,
             threadContext,
             EmptySystemIndices.INSTANCE,
-                null);
+            null
+        );
         expectThrows(IllegalArgumentException.class, () -> clusterModule.setExistingShardsAllocators(new TestGatewayAllocator()));
     }
 

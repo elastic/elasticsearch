@@ -114,7 +114,8 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
                 request.getIndexTemplateRequest().create(),
                 simulateTemplateToAdd,
                 request.getIndexTemplateRequest().indexTemplate(),
-                    true);
+                true
+            );
         } else {
             simulateTemplateToAdd = null;
             stateWithTemplate = state;

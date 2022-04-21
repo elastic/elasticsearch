@@ -134,7 +134,8 @@ public class MetadataIndexTemplateService {
         NamedXContentRegistry xContentRegistry,
         SystemIndices systemIndices,
         IndexSettingProviders indexSettingProviders,
-        BuiltinTemplates builtinTemplates) {
+        BuiltinTemplates builtinTemplates
+    ) {
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.metadataCreateIndexService = metadataCreateIndexService;
@@ -241,7 +242,8 @@ public class MetadataIndexTemplateService {
         final boolean create,
         final String name,
         final ComponentTemplate template,
-        boolean printLog) throws Exception {
+        boolean printLog
+    ) throws Exception {
         final ComponentTemplate existing = currentState.metadata().componentTemplates().get(name);
         if (create && existing != null) {
             throw new IllegalArgumentException("component template [" + name + "] already exists");
@@ -556,7 +558,8 @@ public class MetadataIndexTemplateService {
         final boolean create,
         final String name,
         final ComposableIndexTemplate template,
-        boolean printLog) throws Exception {
+        boolean printLog
+    ) throws Exception {
         final ComposableIndexTemplate existing = currentState.metadata().templatesV2().get(name);
         if (create && existing != null) {
             throw new IllegalArgumentException("index template [" + name + "] already exists");

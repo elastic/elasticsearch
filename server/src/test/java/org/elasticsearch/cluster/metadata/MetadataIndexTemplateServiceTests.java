@@ -775,7 +775,13 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             null,
             null
         );
-        ClusterState state = metadataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "v2-template", v2Template, true);
+        ClusterState state = metadataIndexTemplateService.addIndexTemplateV2(
+            ClusterState.EMPTY_STATE,
+            false,
+            "v2-template",
+            v2Template,
+            true
+        );
 
         MetadataIndexTemplateService.PutRequest req = new MetadataIndexTemplateService.PutRequest("cause", "v1-template");
         req.patterns(Arrays.asList("*", "baz"));
@@ -806,7 +812,13 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             null,
             null
         );
-        ClusterState state = metadataIndexTemplateService.addIndexTemplateV2(ClusterState.EMPTY_STATE, false, "v2-template", v2Template, true);
+        ClusterState state = metadataIndexTemplateService.addIndexTemplateV2(
+            ClusterState.EMPTY_STATE,
+            false,
+            "v2-template",
+            v2Template,
+            true
+        );
 
         MetadataIndexTemplateService.PutRequest req = new MetadataIndexTemplateService.PutRequest("cause", "v1-template");
         req.patterns(Arrays.asList("egg*", "baz"));
@@ -2082,7 +2094,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             xContentRegistry,
             EmptySystemIndices.INSTANCE,
             new IndexSettingProviders(Set.of()),
-            null);
+            null
+        );
 
         final List<Throwable> throwables = new ArrayList<>();
         service.putTemplate(request, new MetadataIndexTemplateService.PutListener() {
@@ -2146,7 +2159,8 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             xContentRegistry(),
             EmptySystemIndices.INSTANCE,
             new IndexSettingProviders(Set.of()),
-            null);
+            null
+        );
     }
 
     public static void assertTemplatesEqual(ComposableIndexTemplate actual, ComposableIndexTemplate expected) {

@@ -119,7 +119,8 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
                     request.getIndexTemplateRequest().create(),
                     simulateTemplateToAdd,
                     request.getIndexTemplateRequest().indexTemplate(),
-                        true),
+                    true
+                ),
                 request.getIndexName()
             );
         } else {

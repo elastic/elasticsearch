@@ -202,6 +202,7 @@ public class BootstrapForTesting {
         addClassCodebase(codebases, "elasticsearch-secure-sm", "org.elasticsearch.secure_sm.SecureSM");
         addClassCodebase(codebases, "elasticsearch-rest-client", "org.elasticsearch.client.RestClient");
         addClassCodebase(codebases, "elasticsearch-x-content", "org.elasticsearch.xcontent.XContent");
+        addClassCodebase(codebases, "elasticsearch-cli", "org.elasticsearch.cli.Command");
         return codebases;
     }
 

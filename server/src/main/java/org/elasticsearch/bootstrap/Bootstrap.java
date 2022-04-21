@@ -30,8 +30,8 @@ import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.common.settings.SecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.monitor.jvm.HotThreads;
@@ -45,8 +45,8 @@ import org.elasticsearch.node.NodeValidationException;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
-import java.io.UnsupportedEncodingException;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
 import java.util.Collections;
@@ -387,21 +387,10 @@ final class Bootstrap {
             if (e instanceof CreationException) {
                 // guice: log the shortened exc to the log file
                 ByteArrayOutputStream os = new ByteArrayOutputStream();
-                PrintStream ps = null;
-                try {
-                    ps = new PrintStream(os, false, "UTF-8");
-                } catch (UnsupportedEncodingException uee) {
-                    assert false;
-                    e.addSuppressed(uee);
-                }
+                PrintStream ps = new PrintStream(os, false, StandardCharsets.UTF_8);
                 new StartupException(e).printStackTrace(ps);
                 ps.flush();
-                try {
-                    logger.error("Guice Exception: {}", os.toString("UTF-8"));
-                } catch (UnsupportedEncodingException uee) {
-                    assert false;
-                    e.addSuppressed(uee);
-                }
+                logger.error("Guice Exception: {}", os.toString(StandardCharsets.UTF_8));
             } else if (e instanceof NodeValidationException) {
                 logger.error("node validation exception\n{}", e.getMessage());
             } else {

@@ -24,6 +24,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.Writeable.Writer;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
@@ -193,8 +194,7 @@ public abstract class StreamOutput extends OutputStream {
 
     public final void writeShort(short v) throws IOException {
         final byte[] buffer = scratch.get();
-        buffer[0] = (byte) (v >> 8);
-        buffer[1] = (byte) v;
+        ByteUtils.writeShortBE(v, buffer, 0);
         writeBytes(buffer, 0, 2);
     }
 
@@ -203,10 +203,7 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void writeInt(int i) throws IOException {
         final byte[] buffer = scratch.get();
-        buffer[0] = (byte) (i >> 24);
-        buffer[1] = (byte) (i >> 16);
-        buffer[2] = (byte) (i >> 8);
-        buffer[3] = (byte) i;
+        ByteUtils.writeIntBE(i, buffer, 0);
         writeBytes(buffer, 0, 4);
     }
 
@@ -246,14 +243,7 @@ public abstract class StreamOutput extends OutputStream {
      */
     public void writeLong(long i) throws IOException {
         final byte[] buffer = scratch.get();
-        buffer[0] = (byte) (i >> 56);
-        buffer[1] = (byte) (i >> 48);
-        buffer[2] = (byte) (i >> 40);
-        buffer[3] = (byte) (i >> 32);
-        buffer[4] = (byte) (i >> 24);
-        buffer[5] = (byte) (i >> 16);
-        buffer[6] = (byte) (i >> 8);
-        buffer[7] = (byte) i;
+        ByteUtils.writeLongBE(i, buffer, 0);
         writeBytes(buffer, 0, 8);
     }
 

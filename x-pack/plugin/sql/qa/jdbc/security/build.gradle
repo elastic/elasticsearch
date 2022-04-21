@@ -47,6 +47,4 @@ subprojects {
     nonInputProperties.systemProperty 'tests.audit.yesterday.logfile',
       "${-> testClusters.integTest.singleNode().getAuditLog().getParentFile()}/integTest_audit-${new Date().format('yyyy-MM-dd')}.json"
   }
-
-  tasks.named("testingConventions").configure { enabled = false }
 }

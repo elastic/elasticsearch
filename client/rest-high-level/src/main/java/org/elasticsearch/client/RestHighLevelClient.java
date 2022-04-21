@@ -271,7 +271,6 @@ public class RestHighLevelClient implements Closeable {
     /** Do not access directly but through getVersionValidationFuture() */
     private volatile ListenableFuture<Optional<String>> versionValidationFuture;
 
-    private final SecurityClient securityClient = new SecurityClient(this);
     private final EqlClient eqlClient = new EqlClient(this);
 
     /**
@@ -342,20 +341,6 @@ public class RestHighLevelClient implements Closeable {
     @Override
     public final void close() throws IOException {
         doClose.accept(client);
-    }
-
-    /**
-     * Provides methods for accessing the Elastic Licensed Security APIs that
-     * are shipped with the Elastic Stack distribution of Elasticsearch. All of
-     * these APIs will 404 if run against the OSS distribution of Elasticsearch.
-     * <p>
-     * See the <a href="https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api.html">
-     * Security APIs on elastic.co</a> for more information.
-     *
-     * @return the client wrapper for making Security API calls
-     */
-    public SecurityClient security() {
-        return securityClient;
     }
 
     /**

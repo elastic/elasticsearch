@@ -140,7 +140,7 @@ public class TransportAuthenticateActionTests extends ESTestCase {
         });
 
         assertThat(responseRef.get(), notNullValue());
-        if (anonymousUser.enabled()) {
+        if (anonymousUser.enabled() && false == authentication.isApiKey()) {
             final Authentication auth = responseRef.get().authentication();
             final User authUser = auth.getUser();
             assertThat(

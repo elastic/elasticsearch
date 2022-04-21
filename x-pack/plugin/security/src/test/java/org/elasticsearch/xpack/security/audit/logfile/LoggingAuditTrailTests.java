@@ -2647,59 +2647,6 @@ public class LoggingAuditTrailTests extends ESTestCase {
             authc -> authc.getAuthenticationType() == AuthenticationType.INTERNAL,
             () -> AuthenticationTestHelper.builder().build()
         );
-        // final RealmRef lookedUpBy;
-        // final RealmRef authBy;
-        // final User user;
-        // final AuthenticationType authenticationType;
-        // final Map<String, Object> authMetadata;
-        // switch (randomIntBetween(0, 2)) {
-        // case 0 -> {
-        // user = new User(randomAlphaOfLength(4), new String[] { "r1" }, new User("authenticated_username", "r2"));
-        // lookedUpBy = new RealmRef(randomAlphaOfLength(4), "lookup", "by");
-        // authBy = new RealmRef("authRealm", "auth", "foo");
-        // authenticationType = randomFrom(
-        // AuthenticationType.REALM,
-        // AuthenticationType.TOKEN,
-        // AuthenticationType.INTERNAL,
-        // AuthenticationType.ANONYMOUS
-        // );
-        // authMetadata = Map.of();
-        // }
-        // case 1 -> {
-        // user = new User(randomAlphaOfLength(4), "r1");
-        // lookedUpBy = null;
-        // authBy = new RealmRef(randomAlphaOfLength(4), "auth", "by");
-        // authenticationType = randomFrom(
-        // AuthenticationType.REALM,
-        // AuthenticationType.TOKEN,
-        // AuthenticationType.INTERNAL,
-        // AuthenticationType.ANONYMOUS
-        // );
-        // authMetadata = Map.of();
-        // }
-        // default -> { // service account
-        // final String principal = randomAlphaOfLengthBetween(3, 8) + "/" + randomAlphaOfLengthBetween(3, 8);
-        // user = new User(
-        // principal,
-        // Strings.EMPTY_ARRAY,
-        // "Service account - " + principal,
-        // null,
-        // Map.of("_elastic_service_account", true),
-        // true
-        // );
-        // lookedUpBy = null;
-        // authBy = new RealmRef("_service_account", "_service_account", randomAlphaOfLengthBetween(3, 8));
-        // authenticationType = AuthenticationType.TOKEN;
-        // final TokenInfo.TokenSource tokenSource = randomFrom(TokenInfo.TokenSource.values());
-        // authMetadata = Map.of(
-        // "_token_name",
-        // ValidationTests.randomTokenName(),
-        // "_token_source",
-        // tokenSource.name().toLowerCase(Locale.ROOT)
-        // );
-        // }
-        // }
-        // return new Authentication(user, authBy, lookedUpBy, Version.CURRENT, authenticationType, authMetadata);
     }
 
     private AuthenticationToken createAuthenticationToken() {

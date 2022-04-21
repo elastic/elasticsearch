@@ -18,9 +18,7 @@
  * Modifications copyright (C) 2020 Elasticsearch B.V.
  */
 
-package org.elasticsearch.core.internal.io;
-
-import org.elasticsearch.core.Nullable;
+package org.elasticsearch.core;
 
 import java.io.Closeable;
 import java.io.IOException;

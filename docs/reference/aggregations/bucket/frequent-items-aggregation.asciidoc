@@ -8,7 +8,8 @@ A bucket aggregation which finds frequent item sets. Finding frequent item sets
 is a form of association rules mining that identifies items that are often occur 
 together. Items that are frequently purchased together or log events that tend 
 to co-occur are examples of frequent item sets. Finding frequent item sets helps 
-to discover relationships between different data points (items) in a data set.
+to discover relationships between different data points (items) in a data set 
+and to create association rules based on those relationships.
 
 
 ==== Syntax
@@ -88,12 +89,12 @@ GET kibana_sample_data_ecommerce /_search
      "my_agg": {
        "frequent_items": {
          "minimum_set_size": 2,
-	 "fields": [ 
+	       "fields": [ 
             {
               "field": "category.keyword"
             }
-	 ],
-	 "size": 3
+	       ],
+	       "size": 3
        }
      }
    }

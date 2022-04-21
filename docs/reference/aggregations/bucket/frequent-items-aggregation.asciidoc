@@ -88,20 +88,20 @@ support.
 -------------------------------------------------
 GET kibana_sample_data_ecommerce /_search 
 {
- "size": 0,
-   "aggs": {
-     "my_agg": {
-       "frequent_items": {
-         "minimum_set_size": 2,
-	       "fields": [ 
-            {
-              "field": "category.keyword"
-            }
-	       ],
-	       "size": 3
-       }
-     }
-   }
+  "size": 0,
+  "aggs": {
+    "my_agg": {
+      "frequent_items": {
+        "minimum_set_size": 2,
+        "fields": [
+          {
+            "field": "category.keyword"
+          }
+        ],
+        "size": 3
+      }
+    }
+  }
 }
 -------------------------------------------------
 // TEST[skip:setup kibana sample data]

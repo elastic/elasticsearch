@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -185,12 +186,33 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
     public static final UserAction.Definition ACTION_SHARD_LIMIT = new UserAction.Definition(
         "increase_shard_limit",
-        "Elasticsearch isn't allowed to allocate some shards from these indices to any of the nodes in its data tier because each node in "
-            + "the tier has reached its shard limit. Increase the values for the ["
+        "Elasticsearch isn't allowed to allocate some shards from these indices to any data nodes because each node has reached its shard "
+            + "limit. Increase the values for the ["
             + ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()
             + "] index setting on each index or add more nodes to the target tiers.",
         null
     );
+
+    public static final Map<String, UserAction.Definition> ACTION_SHARD_LIMIT_LOOKUP;
+    static {
+        Map<String, UserAction.Definition> lookup = DataTier.ALL_DATA_TIERS.stream()
+            .collect(
+                Collectors.toMap(
+                    tier -> tier,
+                    tier -> new UserAction.Definition(
+                        "increase_shard_limit_" + tier,
+                        "Elasticsearch isn't allowed to allocate some shards from these indices because each node in the ["
+                            + tier
+                            + "] tier has reached this index's shard limit. Increase the values for the ["
+                            + ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()
+                            + "] index setting on each index or add more nodes to the target tiers.",
+                        null
+                    )
+                )
+            );
+        ACTION_SHARD_LIMIT_LOOKUP = Collections.unmodifiableMap(lookup);
+    }
+
     public static final UserAction.Definition ACTION_MIGRATE_TIERS = new UserAction.Definition(
         "migrate_data_tiers",
         "Elasticsearch isn't allowed to allocate some shards from these indices to any of the nodes in their data tiers because no nodes "
@@ -430,7 +452,28 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             } else {
                 // All tier nodes at shards limit?
                 if (dataTierAllocationResults.stream().allMatch(hasDeciderResult(ShardsLimitAllocationDecider.NAME, Decision.Type.NO))) {
-                    actions.add(ACTION_SHARD_LIMIT);
+                    // Collect the unique roles from the nodes it would normally be allowed on
+                    Set<String> dataTierRolesAvailable = dataTierAllocationResults.stream()
+                        .map(NodeAllocationResult::getNode)
+                        .map(DiscoveryNode::getRoles)
+                        .flatMap(Set::stream)
+                        .map(DiscoveryNodeRole::roleName)
+                        .collect(Collectors.toSet());
+
+                    // Determine which tier this index would most prefer to live on
+                    Optional<String> preferredTier = indexMetadata.getTierPreference()
+                        .stream()
+                        .filter(dataTierRolesAvailable::contains)
+                        .findFirst();
+
+                    if (preferredTier.isPresent()) {
+                        // We cannot allocate the shard to the most preferred tier because the shard limit is reached.
+                        Optional.ofNullable(ACTION_SHARD_LIMIT_LOOKUP.get(preferredTier.get())).ifPresent(actions::add);
+                    } else {
+                        // We couldn't determine a desired tier. This is likely because there are no tiers in the cluster,
+                        // only `data` nodes. Give a generic ask for increasing the shard limit.
+                        actions.add(ACTION_SHARD_LIMIT);
+                    }
                 }
 
                 // Check if index has filter requirements on the old "data" attribute that might be keeping it from allocating.

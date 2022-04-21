@@ -474,15 +474,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         configurationFrozen.set(true);
     }
 
-    /**
-     * Returns a stream of lines in the generated logs similar to Files.lines
-     *
-     * @return stream of log lines
-     */
-    public Stream<String> logLines() throws IOException {
-        return Files.lines(esLogFile, StandardCharsets.UTF_8);
-    }
-
     @Override
     public synchronized void start() {
         LOGGER.info("Starting `{}`", this);

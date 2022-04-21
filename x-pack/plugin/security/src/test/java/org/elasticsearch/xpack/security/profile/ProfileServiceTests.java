@@ -38,13 +38,10 @@ import org.elasticsearch.xpack.core.security.action.profile.Profile;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesRequest;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesRequestTests;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
 import org.elasticsearch.xpack.core.security.authc.Subject;
-import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.test.SecurityMocks;
 import org.junit.After;
@@ -207,13 +204,7 @@ public class ProfileServiceTests extends ESTestCase {
     }
 
     public void testActivateProfileShouldFailForInternalUser() {
-        final User user = randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE, XPackSecurityUser.INSTANCE, AsyncSearchUser.INSTANCE);
-        final Authentication.RealmRef realmRef = new Authentication.RealmRef(
-            randomAlphaOfLengthBetween(3, 8),
-            randomAlphaOfLengthBetween(3, 8),
-            randomAlphaOfLength(5)
-        );
-        final Authentication authentication = new Authentication(user, realmRef, null);
+        final Authentication authentication = AuthenticationTestHelper.builder().internal().build();
 
         final PlainActionFuture<Profile> future1 = new PlainActionFuture<>();
         profileService.activateProfile(authentication, future1);

@@ -21,15 +21,12 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.ElasticUser;
 import org.elasticsearch.xpack.core.security.user.KibanaUser;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 
 import java.util.Collections;
 import java.util.Map;
@@ -54,11 +51,7 @@ public class TransportAuthenticateActionTests extends ESTestCase {
 
     public void testInternalUser() {
         SecurityContext securityContext = mock(SecurityContext.class);
-        final Authentication authentication = new Authentication(
-            randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE, XPackSecurityUser.INSTANCE, AsyncSearchUser.INSTANCE),
-            new RealmRef("native", "default_native", "node1"),
-            null
-        );
+        final Authentication authentication = AuthenticationTestHelper.builder().internal().build();
         when(securityContext.getAuthentication()).thenReturn(authentication);
         TransportService transportService = new TransportService(
             Settings.EMPTY,

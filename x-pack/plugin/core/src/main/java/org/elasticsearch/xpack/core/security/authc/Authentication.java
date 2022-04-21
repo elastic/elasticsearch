@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
@@ -198,12 +199,64 @@ public class Authentication implements ToXContentObject {
             getUser(),
             getAuthenticatedBy(),
             getLookedUpBy(),
-            Version.CURRENT,
+            getVersion(),
             AuthenticationType.TOKEN,
             getMetadata()
         );
         assert Objects.equals(getDomain(), newTokenAuthentication.getDomain());
         return newTokenAuthentication;
+    }
+
+    /**
+      * The final list of roles a user has should include all roles granted to the anonymous user when
+      *  1. Anonymous access is enable
+      *  2. The user itself is not the anonymous user
+      *  3. The authentication is not an API key or service account
+      *
+      *  Depending on whether the above criteria is satisfied, the method may either return a new
+      *  authentication object incorporating anonymous roles or the same authentication object (if anonymous
+      *  roles are not applicable)
+      *
+      *  NOTE this method is an artifact of how anonymous roles are resolved today on each node as opposed to
+      *  just on the coordinating node. Whether this behaviour should be changed is an ongoing discussion.
+      *  Therefore, using this method in more places other than its current usage requires careful consideration.
+      */
+    public Authentication maybeAddAnonymousRoles(@Nullable AnonymousUser anonymousUser) {
+        final boolean shouldAddAnonymousRoleNames = anonymousUser != null
+            && anonymousUser.enabled()
+            && false == anonymousUser.equals(getUser())
+            && false == User.isInternal(getUser())
+            && false == isApiKey()
+            && false == isServiceAccount();
+
+        if (false == shouldAddAnonymousRoleNames) {
+            return this;
+        }
+
+        // TODO: should we validate enable status and length of role names on instantiation time of anonymousUser?
+        if (anonymousUser.roles().length == 0) {
+            throw new IllegalStateException("anonymous is only enabled when the anonymous user has roles");
+        }
+        final String[] allRoleNames = ArrayUtils.concat(getUser().roles(), anonymousUser.roles());
+
+        return new Authentication(
+            new User(
+                new User(
+                    getUser().principal(),
+                    allRoleNames,
+                    getUser().fullName(),
+                    getUser().email(),
+                    getUser().metadata(),
+                    getUser().enabled()
+                ),
+                getUser().authenticatedUser()
+            ),
+            getAuthenticatedBy(),
+            getLookedUpBy(),
+            getVersion(),
+            getAuthenticationType(),
+            getMetadata()
+        );
     }
 
     /**

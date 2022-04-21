@@ -406,14 +406,14 @@ public class BytesRefHashTests extends ESTestCase {
         hash.close();
     }
 
-    // demonstrates how a given BytesRefArray must be secured against leakage
+    // demonstrates how a given BytesRefArray must be protected against leakage
     public void testDontLeakBytesRefArray() {
         BytesRefArray array = null;
         boolean success = false;
         boolean thrown = false;
         BytesRefHash hash = null;
         try {
-            // create a big array, so it is allocated using ordinary java arrays
+            // create a big array, so it is not allocated using ordinary java arrays
             array = BytesRefArrayTests.randomArray(
                 PageCacheRecycler.LONG_PAGE_SIZE + 100,
                 PageCacheRecycler.LONG_PAGE_SIZE + 100,
@@ -438,14 +438,14 @@ public class BytesRefHashTests extends ESTestCase {
         assertNull(hash);
     }
 
-    // demonstrates how a given BytesRefArray must be secured against leakage, special case
+    // demonstrates how a given BytesRefArray must be protected against leakage, special case
     public void testDontLeakBytesRefArray2() {
         BytesRefArray array = null;
         boolean success = false;
         boolean thrown = false;
         BytesRefHash hash = null;
         try {
-            // create a big array, so it is allocated using ordinary java arrays
+            // create a big array, so it is not allocated using ordinary java arrays
             array = BytesRefArrayTests.randomArray(
                 PageCacheRecycler.LONG_PAGE_SIZE + 100,
                 PageCacheRecycler.LONG_PAGE_SIZE + 100,
@@ -470,14 +470,14 @@ public class BytesRefHashTests extends ESTestCase {
         assertNull(hash);
     }
 
-    // demonstrates how a given BytesRefArray must be secured against leakage, special case when the array creation already throws
+    // demonstrates how a given BytesRefArray must be protected against leakage, special case when the array creation already throws
     public void testDontLeakBytesRefArray3() {
         BytesRefArray array = null;
         boolean success = false;
         boolean thrown = false;
         BytesRefHash hash = null;
         try {
-            // create a big array, so it is allocated using ordinary java arrays
+            // create a big array, so it is not allocated using ordinary java arrays
             array = BytesRefArrayTests.randomArray(
                 PageCacheRecycler.LONG_PAGE_SIZE + 100,
                 PageCacheRecycler.LONG_PAGE_SIZE + 100,

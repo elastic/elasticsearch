@@ -12,6 +12,7 @@ import groovy.text.SimpleTemplateEngine;
 import groovy.text.Template;
 
 import org.gradle.api.DefaultTask;
+import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.file.RegularFileProperty;
@@ -19,6 +20,7 @@ import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
+import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
 
@@ -59,6 +61,7 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
     @Input
     public abstract Property<String> getJavaVersion();
 
+    @Optional
     @Input
     public abstract Property<String> getClassname();
 
@@ -88,14 +91,19 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
 
     @TaskAction
     public void generatePropertiesFile() throws IOException {
+        PluginType pluginType = getPluginType().get();
+        String classname = getClassname().getOrElse("");
+        if (pluginType.equals(PluginType.BOOTSTRAP) == false && classname.isEmpty()) {
+            throw new InvalidUserDataException("classname is a required setting for esplugin");
+        }
+
         Map<String, Object> props = new HashMap<>();
         props.put("name", getPluginName().get());
         props.put("description", getPluginDescription().get());
         props.put("version", getPluginVersion().get());
         props.put("elasticsearchVersion", getElasticsearchVersion().get());
         props.put("javaVersion", getJavaVersion().get());
-        PluginType pluginType = getPluginType().get();
-        props.put("classname", pluginType.equals(PluginType.BOOTSTRAP) ? "" : getClassname().get());
+        props.put("classname", classname);
         props.put("extendedPlugins", String.join(",", getExtendedPlugins().get()));
         props.put("hasNativeController", getHasNativeController().get());
         props.put("requiresKeystore", getRequiresKeystore().get());

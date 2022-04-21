@@ -17,7 +17,6 @@ import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.RunTask;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
-import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -120,19 +119,6 @@ public class PluginBuildPlugin implements Plugin<Project> {
         final var pluginMetadata = project.file("src/main/plugin-metadata");
 
         final var buildProperties = project.getTasks().register("pluginProperties", GeneratePluginPropertiesTask.class, task -> {
-            /*task.doFirst(t -> {
-                if (extension.getName() == null) {
-                    throw new InvalidUserDataException("name is a required setting for esplugin");
-                }
-
-                if (extension.getDescription() == null) {
-                    throw new InvalidUserDataException("description is a required setting for esplugin");
-                }
-
-                if (extension.getType().equals(PluginType.BOOTSTRAP) == false && extension.getClassname() == null) {
-                    throw new InvalidUserDataException("classname is a required setting for esplugin");
-                }
-            });*/
             task.getPluginName().set(providerFactory.provider(extension::getName));
             task.getPluginDescription().set(providerFactory.provider(extension::getDescription));
             task.getPluginVersion().set(providerFactory.provider(extension::getVersion));

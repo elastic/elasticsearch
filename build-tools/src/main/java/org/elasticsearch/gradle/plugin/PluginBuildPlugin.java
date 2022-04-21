@@ -138,6 +138,7 @@ public class PluginBuildPlugin implements Plugin<Project> {
                 });
             }
         });
+
         final var buildProperties = project.getTasks().register("pluginProperties", Copy.class, copy -> {
             copy.dependsOn(copyPluginPropertiesTemplate);
             copy.from(templateFile);

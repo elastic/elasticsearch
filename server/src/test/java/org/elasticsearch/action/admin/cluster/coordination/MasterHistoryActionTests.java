@@ -8,19 +8,19 @@
 
 package org.elasticsearch.action.admin.cluster.coordination;
 
-import org.elasticsearch.cluster.coordination.ImmutableMasterHistory;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
-import java.util.Collections;
+import java.util.List;
 
 import static org.mockito.Mockito.mock;
 
 public class MasterHistoryActionTests extends ESTestCase {
     public void testSerialization() {
-        var clusterService = mock(ClusterService.class);
-        ImmutableMasterHistory masterHistory = new ImmutableMasterHistory(Collections.emptyList());
+        List<DiscoveryNode> masterHistory = List.of( new DiscoveryNode("_id1", buildNewFakeTransportAddress(), Version.CURRENT),
+            new DiscoveryNode("_id2", buildNewFakeTransportAddress(), Version.CURRENT));
         MasterHistoryAction.Response response = new MasterHistoryAction.Response(masterHistory);
         EqualsHashCodeTestUtils.checkEqualsAndHashCode(
             response,

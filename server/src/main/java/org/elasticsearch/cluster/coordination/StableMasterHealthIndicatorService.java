@@ -158,7 +158,8 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
 
     private boolean masterThinksItIsUnstable(DiscoveryNode master) throws ExecutionException, InterruptedException {
         logger.trace(String.format(Locale.ROOT, "Reaching out to %s to see if it thinks it has been unstable", master));
-        return masterHistoryService.getRemoteMasterHistory(master).hasSameMasterGoneNullNTimes(3);
+        List<DiscoveryNode> remoteHistory = masterHistoryService.getRemoteMasterHistory(master);
+        return MasterHistory.hasSameMasterGoneNullNTimes(remoteHistory,3);
     }
 
     private boolean hasSeenMasterInLast30Seconds() {

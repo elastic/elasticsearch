@@ -12,12 +12,13 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.cluster.coordination.ImmutableMasterHistory;
-import org.elasticsearch.cluster.coordination.MasterHistory;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -67,23 +68,36 @@ public class MasterHistoryAction extends ActionType<MasterHistoryAction.Response
 
     public static class Response extends ActionResponse {
 
-        private final ImmutableMasterHistory masterHistory;
+        private final List<DiscoveryNode> masterHistory;
 
-        public Response(ImmutableMasterHistory masterHistory) {
+        public Response(List<DiscoveryNode> masterHistory) {
             this.masterHistory = masterHistory;
         }
 
         public Response(StreamInput in) throws IOException {
-            this(new ImmutableMasterHistory(in));
+            int mastersCount = in.readVInt();
+            masterHistory = new ArrayList<>(mastersCount);
+            for (int i = 0; i < mastersCount; i++) {
+                masterHistory.add(in.readOptionalWriteable(DiscoveryNode::new));
+            }
         }
 
-        public MasterHistory getMasterHistory() {
+        /**
+         * Returns an ordered list of DiscoveryNodes that the node responding has seen to be master nodes over the last 30 minutes, ordered
+         * oldest first. Note that these DiscoveryNodes can be null.
+         * @return a list of DiscoveryNodes that the node responding has seen to be master nodes over the last 30 minutes, ordered oldest
+         * first
+         */
+        public List<DiscoveryNode> getMasterHistory() {
             return masterHistory;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            masterHistory.writeTo(out);
+            out.writeVInt(masterHistory.size());
+            for (DiscoveryNode master : masterHistory) {
+                out.writeOptionalWriteable(master);
+            }
         }
 
         @Override

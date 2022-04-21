@@ -28,7 +28,9 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.Before;
 
 import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ExecutionException;
@@ -63,7 +65,7 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
 
     public void testThreeMasters() throws Exception {
         MasterHistoryService masterHistoryService = createMasterHistoryService();
-        MutableMasterHistory localMasterHistory = masterHistoryService.getLocalMasterHistory();
+        MasterHistory localMasterHistory = masterHistoryService.getLocalMasterHistory();
         StableMasterHealthIndicatorService service = createAllocationHealthIndicatorService(nullMasterClusterState, masterHistoryService);
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
         HealthIndicatorResult result = service.calculate(true);
@@ -103,7 +105,7 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
 
     public void testMasterGoesNull() throws Exception {
         MasterHistoryService masterHistoryService = createMasterHistoryService();
-        MutableMasterHistory localMasterHistory = masterHistoryService.getLocalMasterHistory();
+        MasterHistory localMasterHistory = masterHistoryService.getLocalMasterHistory();
         StableMasterHealthIndicatorService service = createAllocationHealthIndicatorService(nullMasterClusterState, masterHistoryService);
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, nullMasterClusterState));
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
@@ -126,7 +128,8 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
         assertThat(result.status(), equalTo(HealthStatus.GREEN));
         assertThat(result.summary(), equalTo("The cluster has a stable master node"));
         // But if we have the remote history look like the local history and confirm that it has gone null 3 times, we get a yellow status:
-        when(masterHistoryService.getRemoteMasterHistory(any())).thenReturn(localMasterHistory);
+        List<DiscoveryNode> sameAsLocalHistory = localMasterHistory.getImmutableView();
+        when(masterHistoryService.getRemoteMasterHistory(any())).thenReturn(sameAsLocalHistory);
         result = service.calculate(true);
         assertThat(result.status(), equalTo(HealthStatus.YELLOW));
         assertThat(result.summary(), startsWith("The cluster's master has alternated between "));
@@ -189,10 +192,10 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
         var clusterService = mock(ClusterService.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.relativeTimeInMillis()).thenReturn(System.currentTimeMillis());
-        MutableMasterHistory localMasterHistory = new MutableMasterHistory(threadPool, clusterService);
+        MasterHistory localMasterHistory = new MasterHistory(threadPool, clusterService);
         MasterHistoryService masterHistoryService = mock(MasterHistoryService.class);
         when(masterHistoryService.getLocalMasterHistory()).thenReturn(localMasterHistory);
-        MasterHistory remoteMasterHistory = mock(MasterHistory.class);
+        List<DiscoveryNode> remoteMasterHistory = new ArrayList<>();
         when(masterHistoryService.getRemoteMasterHistory(any())).thenReturn(remoteMasterHistory);
         return masterHistoryService;
     }

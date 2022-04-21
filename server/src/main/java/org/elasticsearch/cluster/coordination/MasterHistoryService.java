@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.List;
 import java.util.concurrent.ExecutionException;
 
 /**
@@ -24,11 +25,11 @@ import java.util.concurrent.ExecutionException;
  */
 public class MasterHistoryService {
     private final NodeClient client;
-    private final MutableMasterHistory localMasterHistory;
+    private final MasterHistory localMasterHistory;
 
     public MasterHistoryService(NodeClient client, Coordinator coordinator, ThreadPool threadPool, ClusterService clusterService) {
         this.client = client;
-        this.localMasterHistory = new MutableMasterHistory(threadPool, clusterService);
+        this.localMasterHistory = new MasterHistory(threadPool, clusterService);
         // Set the initial state for the local history once it is available:
         coordinator.addLifecycleListener(new LifecycleListener() {
             @Override
@@ -45,7 +46,7 @@ public class MasterHistoryService {
      * ClusterState on this node is updated with new information about the master.
      * @return The MasterHistory from this node's point of view. This MasterHistory object will be updated whenever the ClusterState changes
      */
-    public MutableMasterHistory getLocalMasterHistory() {
+    public MasterHistory getLocalMasterHistory() {
         return localMasterHistory;
     }
 
@@ -57,7 +58,7 @@ public class MasterHistoryService {
      * @throws ExecutionException If an exception occurs while trying to fetch the remote node's MasterHistory
      * @throws InterruptedException If the thread is interrupted
      */
-    public MasterHistory getRemoteMasterHistory(DiscoveryNode node) throws ExecutionException, InterruptedException {
+    public List<DiscoveryNode> getRemoteMasterHistory(DiscoveryNode node) throws ExecutionException, InterruptedException {
         MasterHistoryAction.Request getMasterHistoryRequest = new MasterHistoryAction.Request();
         getMasterHistoryRequest.remoteAddress(node.getAddress().address());
         ActionFuture<MasterHistoryAction.Response> result = client.execute(MasterHistoryAction.INSTANCE, getMasterHistoryRequest);

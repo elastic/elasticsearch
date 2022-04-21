@@ -12,11 +12,13 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.coordination.MasterHistory;
 import org.elasticsearch.cluster.coordination.MasterHistoryService;
-import org.elasticsearch.cluster.coordination.MutableMasterHistory;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+
+import java.util.List;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -29,10 +31,10 @@ public class MasterHistoryTransportActionTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.relativeTimeInMillis()).thenReturn(System.currentTimeMillis());
-        MutableMasterHistory masterHistory = new MutableMasterHistory(threadPool, clusterService);
+        MasterHistory masterHistory = new MasterHistory(threadPool, clusterService);
         when(masterHistoryService.getLocalMasterHistory()).thenReturn(masterHistory);
         MasterHistoryTransportAction action = new MasterHistoryTransportAction(transportService, actionFilters, masterHistoryService);
-        final MasterHistory[] result = new MasterHistory[1];
+        final List<DiscoveryNode>[] result = new List[1];
         ActionListener<MasterHistoryAction.Response> listener = new ActionListener<>() {
             @Override
             public void onResponse(MasterHistoryAction.Response response) {

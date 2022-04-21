@@ -81,6 +81,9 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     private final boolean replicated;
     private final boolean system;
     private final boolean allowCustomRouting;
+    // This boolean field is for keeping track of whether a data stream is a tsdb data stream.
+    // This will be set to true if at the time of creation the template of the data stream had `index.routing_value` index setting and
+    // mapping with keyword fields with time_series_dimension enabled.
     private final boolean timeSeries;
 
     public DataStream(

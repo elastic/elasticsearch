@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.ml.aggs.categorization;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -46,6 +47,13 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
 
     public static final String NAME = "categorize_text";
 
+    // In 8.3 the algorithm used by this aggregation was completely changed.
+    // Prior to 8.3 the Drain algorithm was used. From 8.3 the same algorithm
+    // we use in our C++ categorization code was used. As a result of this
+    // the aggregation will not perform well in mixed version clusters where
+    // some nodes are pre-8.3 and others are newer, so we throw an error in
+    // this situation. The aggregation was experimental at the time this change
+    // was made, so this is acceptable.
     public static final Version ALGORITHM_CHANGED_VERSION = Version.V_8_3_0;
 
     static final ParseField FIELD_NAME = new ParseField("field");
@@ -116,15 +124,18 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
 
     public CategorizeTextAggregationBuilder(StreamInput in) throws IOException {
         super(in);
+        // Disallow this aggregation in mixed version clusters that cross the algorithm change boundary.
+        if (in.getVersion().before(ALGORITHM_CHANGED_VERSION)) {
+            throw new ElasticsearchException(
+                "["
+                    + NAME
+                    + "] aggregation cannot be used in a cluster where some nodes have version ["
+                    + ALGORITHM_CHANGED_VERSION
+                    + "] or higher and others have a version before this"
+            );
+        }
         this.bucketCountThresholds = new TermsAggregator.BucketCountThresholds(in);
         this.fieldName = in.readString();
-        // If the coordinating node is an older version then we might still receive messages from older
-        // nodes. In this case we can send back results for this node created using the new algorithm.
-        // They won't necessarily merge well with results from other nodes, but are better than nothing.
-        if (in.getVersion().before(ALGORITHM_CHANGED_VERSION)) {
-            in.readVInt(); // maxUniqueTokens
-            in.readVInt(); // maxMatchedTokens
-        }
         this.similarityThreshold = in.readVInt();
         this.categorizationAnalyzerConfig = in.readOptionalWriteable(CategorizationAnalyzerConfig::new);
     }
@@ -269,6 +280,16 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
+        // Disallow this aggregation in mixed version clusters that cross the algorithm change boundary.
+        if (out.getVersion().before(ALGORITHM_CHANGED_VERSION)) {
+            throw new ElasticsearchException(
+                "["
+                    + NAME
+                    + "] aggregation cannot be used in a cluster where some nodes have version ["
+                    + ALGORITHM_CHANGED_VERSION
+                    + "] or higher and others have a version before this"
+            );
+        }
         bucketCountThresholds.writeTo(out);
         out.writeString(fieldName);
         out.writeVInt(similarityThreshold);

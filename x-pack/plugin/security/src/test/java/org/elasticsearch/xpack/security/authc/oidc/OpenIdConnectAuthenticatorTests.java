@@ -46,7 +46,6 @@ import com.nimbusds.openid.connect.sdk.validators.InvalidHashException;
 import org.apache.http.HttpResponse;
 import org.apache.http.HttpVersion;
 import org.apache.http.ProtocolVersion;
-import org.apache.http.entity.BasicHttpEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHttpResponse;
@@ -69,7 +68,6 @@ import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
 
-import java.io.ByteArrayInputStream;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
@@ -86,6 +84,7 @@ import java.util.Collections;
 import java.util.Date;
 import java.util.Map;
 import java.util.UUID;
+
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 

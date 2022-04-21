@@ -104,6 +104,7 @@ public class JdbcShardFailureIT extends JdbcIntegrationTestCase {
             assertOK(provisioningClient().performRequest(request));
 
             request = new Request("POST", indexName + "/_doc");
+            request.addParameter("refresh", "true");
             request.setJsonEntity("{\"bool\": " + (indexWithDocVals || randomBoolean()) + "}");
             assertOK(provisioningClient().performRequest(request));
         }

@@ -117,7 +117,8 @@ public class ClusterModule extends AbstractModule {
         SnapshotsInfoService snapshotsInfoService,
         ThreadContext threadContext,
         SystemIndices systemIndices,
-        BuiltinTemplates builtinTemplates) {
+        BuiltinTemplates builtinTemplates
+    ) {
         this.clusterPlugins = clusterPlugins;
         this.deciderList = createAllocationDeciders(settings, clusterService.getClusterSettings(), clusterPlugins);
         this.allocationDeciders = new AllocationDeciders(deciderList);

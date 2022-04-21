@@ -113,7 +113,7 @@ Search::
 * `TransportBroadcastAction` should always set response for each shard {es-pull}84926[#84926]
 
 Security::
-* Authentication.token now uses version from the existing authentication {es-pull}85978[#85978]
+* `Authentication.token` now uses version from the existing authentication {es-pull}85978[#85978]
 * Ensure tokens represent effective user's identity in all cases {es-pull}84263[#84263]
 
 Snapshot/Restore::

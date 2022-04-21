@@ -2087,14 +2087,14 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         );
         MetadataIndexTemplateService service = new MetadataIndexTemplateService(
             Settings.EMPTY,
-            null,
+            clusterService,
             createIndexService,
             null,
             new IndexScopedSettings(Settings.EMPTY, IndexScopedSettings.BUILT_IN_INDEX_SETTINGS),
             xContentRegistry,
             EmptySystemIndices.INSTANCE,
             new IndexSettingProviders(Set.of()),
-            null
+            new BuiltinTemplates(List.of())
         );
 
         final List<Throwable> throwables = new ArrayList<>();

@@ -44,7 +44,7 @@ import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
-import org.elasticsearch.cluster.metadata.IndexTemplateConfig;
+import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;

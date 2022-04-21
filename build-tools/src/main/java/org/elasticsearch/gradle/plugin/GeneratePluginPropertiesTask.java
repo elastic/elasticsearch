@@ -92,10 +92,10 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
         props.put("name", getPluginName().get());
         props.put("description", getPluginDescription().get());
         props.put("version", getPluginVersion().get());
-        props.put("elasticsearchVersion", getPluginVersion().get());
+        props.put("elasticsearchVersion", getElasticsearchVersion().get());
         props.put("javaVersion", getJavaVersion().get());
         PluginType pluginType = getPluginType().get();
-        props.put("classname", pluginType.equals(PluginType.BOOTSTRAP) ? "" : getClassname());
+        props.put("classname", pluginType.equals(PluginType.BOOTSTRAP) ? "" : getClassname().get());
         props.put("extendedPlugins", String.join(",", getExtendedPlugins().get()));
         props.put("hasNativeController", getHasNativeController().get());
         props.put("requiresKeystore", getRequiresKeystore().get());

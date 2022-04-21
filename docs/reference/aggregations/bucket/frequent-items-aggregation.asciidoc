@@ -46,11 +46,12 @@ Support represents the frequency of an item set normalized between 0
 and 1. It is calculated by dividing the number of documents containing the item 
 set by the total number of documents.
 
-For example, if a given item set is contained by 5 documents and the total 
+For example, if a given item set is contained by five documents and the total 
 number of documents is 20, then the support of the item set is 5/20 = 0.25. 
 Therefore, this set is returned only if the minimum support is 0.25 or lower. As 
 a lower minimum support prunes more items, the calculation is less resource 
-intensive. This parameter has an effect on memory and runtime.
+intensive. The `minimum_support` parameter has an effect on the required memory 
+and the runtime of the aggregation.
 
 
 [discrete]
@@ -59,8 +60,8 @@ intensive. This parameter has an effect on memory and runtime.
 
 The minimum set size is the minimum number of item the set needs to contain. A 
 value of 1 returns the frequency of single items. The higher the minimum set 
-size the less items are returned. For example, the item set `apple, banana, 
-orange` is only returned if the minimum set size is 3 or lower.
+size the less items are returned. For example, the item set `cat, dog, 
+crocodile` is only returned if the minimum set size is 3 or lower.
 
 
 [discrete]
@@ -69,16 +70,19 @@ orange` is only returned if the minimum set size is 3 or lower.
 
 This parameter defines the maximum number of item sets to return. The result 
 contains top-k item sets; the item sets with the highest support values. This 
-parameter has a significant effect on memory and runtime.
+parameter has a significant effect on the required memory and the runtime of the 
+aggregation.
+
 
 [discrete]
 [[frequent-items-example]]
 ==== Example
 
-In this example, we use the e-commerce {kib} sample data set. The goal is to 
-find out from what product categories customers frequently purchase products 
-together based on transaction data. We are interested in sets with two items, 
-and want to see the first three frequent item setes with the highest support. 
+In the following example, we use the e-commerce {kib} sample data set. The goal 
+is to find out from what product categories the customers purchase products 
+frequently together based on transaction data. We are interested in sets with 
+two items, and want to see the first three frequent item setes with the highest 
+support.
 
 [source,console]
 -------------------------------------------------

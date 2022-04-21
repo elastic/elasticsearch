@@ -8,14 +8,16 @@
 
 package org.elasticsearch.cluster.coordination;
 
-import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.admin.cluster.coordination.MasterHistoryAction;
-import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -24,11 +26,16 @@ import java.util.concurrent.ExecutionException;
  * This service provides access to this node's view of the master history, as well as access to other nodes' view of master stability.
  */
 public class MasterHistoryService {
-    private final NodeClient client;
+    private final TransportService transportService;
     private final MasterHistory localMasterHistory;
 
-    public MasterHistoryService(NodeClient client, Coordinator coordinator, ThreadPool threadPool, ClusterService clusterService) {
-        this.client = client;
+    public MasterHistoryService(
+        TransportService transportService,
+        Coordinator coordinator,
+        ThreadPool threadPool,
+        ClusterService clusterService
+    ) {
+        this.transportService = transportService;
         this.localMasterHistory = new MasterHistory(threadPool, clusterService);
         // Set the initial state for the local history once it is available:
         coordinator.addLifecycleListener(new LifecycleListener() {
@@ -60,9 +67,56 @@ public class MasterHistoryService {
      */
     public List<DiscoveryNode> getRemoteMasterHistory(DiscoveryNode node) throws ExecutionException, InterruptedException {
         MasterHistoryAction.Request getMasterHistoryRequest = new MasterHistoryAction.Request();
-        getMasterHistoryRequest.remoteAddress(node.getAddress().address());
-        ActionFuture<MasterHistoryAction.Response> result = client.execute(MasterHistoryAction.INSTANCE, getMasterHistoryRequest);
-        MasterHistoryAction.Response response = result.get();
-        return response.getMasterHistory();
+        final MasterHistoryAction.Response[] responseArray = new MasterHistoryAction.Response[1];
+        final Exception[] exceptionArray = new Exception[1];
+        final Object lock = new Object();
+        transportService.connectToNode(node, new ActionListener<>() {
+            @Override
+            public void onResponse(Releasable releasable) {
+                transportService.sendRequest(
+                    node,
+                    MasterHistoryAction.NAME,
+                    getMasterHistoryRequest,
+                    new ActionListenerResponseHandler<>(new ActionListener<>() {
+
+                        @Override
+                        public void onResponse(MasterHistoryAction.Response response) {
+                            responseArray[0] = response;
+                            synchronized (lock) {
+                                lock.notifyAll();
+                            }
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            exceptionArray[0] = e;
+                            synchronized (lock) {
+                                lock.notifyAll();
+                            }
+                        }
+                    }, MasterHistoryAction.Response::new)
+                );
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                exceptionArray[0] = e;
+                synchronized (lock) {
+                    lock.notifyAll();
+                }
+            }
+        });
+
+        while (responseArray[0] == null && exceptionArray[0] == null) {
+            synchronized (lock) {
+                if (responseArray[0] == null && exceptionArray[0] == null) {
+                    lock.wait(1000);
+                }
+            }
+        }
+        if (exceptionArray[0] != null) {
+            throw new ExecutionException(exceptionArray[0]);
+        }
+        return responseArray[0].getMasterHistory();
     }
 }

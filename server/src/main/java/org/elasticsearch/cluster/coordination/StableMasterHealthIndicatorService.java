@@ -120,15 +120,19 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                     Thread.currentThread().interrupt();
                     throw new RuntimeException(e);
                 }
-            } else if (localMasterHistory.getDistinctMastersSeen().size() > 1 && localMasterHistory.getImmutableView().size() > 3) {
+            } else if (localMasterHistory.getDistinctMastersSeen().size() > 1 && localMasterHistory.getImmutableView().size() > 4) {
                 List<DiscoveryNode> mastersInLast30Minutes = localMasterHistory.getImmutableView();
-                logger.trace("Have seen " + mastersInLast30Minutes.size() + " masters in the last 30 seconds");
+                logger.trace("Have seen " + (mastersInLast30Minutes.size() - 1) + " master changes in the last 30 seconds");
                 stableMasterStatus = HealthStatus.YELLOW;
-                summary = String.format(Locale.ROOT, "%d nodes have acted as master in the last 30 minutes", mastersInLast30Minutes.size());
+                summary = String.format(
+                    Locale.ROOT,
+                    "The master has changed %d times in the last 30 minutes",
+                    mastersInLast30Minutes.size() - 1
+                );
                 impacts.add(
                     new HealthIndicatorImpact(
                         3,
-                        "The cluster currently has a master node, but having multiple master nodes in a short time is an indicator "
+                        "The cluster currently has a master node, but having multiple master node changes in a short time is an indicator "
                             + "that the cluster is at risk of of not being able to create, delete, or rebalance indices",
                         List.of(ImpactArea.INGEST)
                     )

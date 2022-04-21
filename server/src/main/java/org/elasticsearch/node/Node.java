@@ -902,7 +902,7 @@ public class Node implements Closeable {
             );
 
             MasterHistoryService masterHistoryService = new MasterHistoryService(
-                client,
+                transportService,
                 discoveryModule.getCoordinator(),
                 threadPool,
                 clusterService

@@ -67,7 +67,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
         void close() {
             this.span().end();
-            this.scope.close();
+//            this.scope.close();
         }
     }
 
@@ -172,7 +172,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             setSpanAttributes(threadContext, traceable, spanBuilder);
             final Span span = spanBuilder.startSpan();
             final Context contextForNewSpan = Context.current().with(span);
-            final Scope scope = contextForNewSpan.makeCurrent();
+//            final Scope scope = contextForNewSpan.makeCurrent();
 
             final Map<String, String> spanHeaders = new HashMap<>();
             services.openTelemetry.getPropagators().getTextMapPropagator().inject(contextForNewSpan, spanHeaders, Map::put);
@@ -184,7 +184,8 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             // propagated
             threadContext.putHeader(spanHeaders);
 
-            return new ContextScope(contextForNewSpan, scope);
+//            return new ContextScope(contextForNewSpan, scope);
+            return new ContextScope(contextForNewSpan, null);
         }));
     }
 

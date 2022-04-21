@@ -14,54 +14,86 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.test.rest.ESRestTestCase;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
-import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.not;
 
 public class ApmIT extends ESRestTestCase {
 
-    public void testName() throws Exception {
-        final Request nodesRequest = new Request("GET", "/_nodes/stats");
-        final Response nodesResponse = client().performRequest(nodesRequest);
-        assertOK(nodesResponse);
+    /**
+     * Check that if we send HTTP traffic to Elasticsearch, then traces are captured in APM server.
+     */
+    public void testCapturesTracesForHttpTraffic() throws Exception {
+        for (int i = 0; i < 20; i++) {
+            final Request nodesRequest = new Request("GET", "/_nodes/stats");
+            final Response nodesResponse = client().performRequest(nodesRequest);
+            assertOK(nodesResponse);
+        }
 
         assertBusy(() -> {
+            logger.error("Looping...");
             final Request tracesSearchRequest = new Request("GET", "/traces-apm-default/_search");
             tracesSearchRequest.setJsonEntity("""
-            {
-              "query": {
-                "match": {
-                  "transaction.name": "GET /_nodes/stats"
+              {
+                "query": {
+                   "match": { "transaction.name": "GET /_nodes/stats" }
                 }
-              }
-            }""");
+              }""");
             final Response tracesSearchResponse = performRequestTolerantly(tracesSearchRequest);
             assertOK(tracesSearchResponse);
 
-            final List<Map<String, Object>> documents = getDocuments(nodesResponse);
-            assertThat(documents, hasSize(1));
-        });
+            final List<Map<String, Object>> documents = getDocuments(tracesSearchResponse);
+            assertThat(documents, not(empty()));
+        }, 1, TimeUnit.MINUTES);
     }
 
-    @SuppressWarnings("unchecked")
-    private List<Map<String, Object>> getDocuments(Response response) throws IOException {
-        final Map<String, Object> stringObjectMap = ESRestTestCase.entityAsMap(response);
-        return (List<Map<String, Object>>) XContentMapValues.extractValue(
-            "hits.hits._source",
-            stringObjectMap
-        );
+    /**
+     * We don't need to clean up the cluster, particularly as we have Kibana and APM server using ES.
+     */
+    @Override
+    protected boolean preserveClusterUponCompletion() {
+        return true;
     }
 
+    /**
+     * Turns exceptions into assertion failures so that {@link #assertBusy(CheckedRunnable)} can still retry.
+     */
     private Response performRequestTolerantly(Request request) {
         try {
             return client().performRequest(request);
         } catch (Exception e) {
             throw new AssertionError(e);
         }
+    }
+
+    /**
+     * Customizes the client settings to use the same username / password that is configured in Docke.r
+     */
+    @Override
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue("admin", new SecureString("changeme".toCharArray()));
+        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
+    }
+
+    /**
+     * Constructs the correct cluster address by looking up the dynamic port that Elasticsearch is exposed on.
+     */
+    @Override
+    protected String getTestRestCluster() {
+        return "localhost:" + getProperty("test.fixtures.elasticsearch.tcp.9200");
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> getDocuments(Response response) throws IOException {
+        final Map<String, Object> stringObjectMap = ESRestTestCase.entityAsMap(response);
+        return (List<Map<String, Object>>) XContentMapValues.extractValue("hits.hits._source", stringObjectMap);
     }
 
     private String getProperty(String key) {
@@ -73,16 +105,5 @@ public class ApmIT extends ESRestTestCase {
             );
         }
         return value;
-    }
-
-    @Override
-    protected Settings restClientSettings() {
-        String token = basicAuthHeaderValue("admin", new SecureString("changeme".toCharArray()));
-        return Settings.builder().put(ThreadContext.PREFIX + ".Authorization", token).build();
-    }
-
-    @Override
-    protected String getTestRestCluster() {
-        return "localhost:" + getProperty("test.fixtures.elasticsearch.tcp.9200");
     }
 }

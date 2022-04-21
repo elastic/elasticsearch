@@ -23,7 +23,7 @@ public class MlIndexTemplateRegistry extends IndexTemplateRegistry {
     private static final String ROOT_RESOURCE_PATH = "/org/elasticsearch/xpack/core/ml/";
     private static final String ML_SIZE_BASED_ILM_POLICY_NAME = "ml-size-based-ilm-policy";
 
-        public MlIndexTemplateRegistry(
+    public MlIndexTemplateRegistry(
         Settings nodeSettings,
         ClusterService clusterService,
         ThreadPool threadPool,

@@ -74,6 +74,7 @@ public class MonitoringTemplateRegistryTests extends ESTestCase {
     private ClusterService clusterService;
     private ThreadPool threadPool;
     private VerifyingClient client;
+    private Monitoring plugin;
 
     @Before
     public void createRegistryAndClient() {
@@ -81,6 +82,7 @@ public class MonitoringTemplateRegistryTests extends ESTestCase {
         client = new VerifyingClient(threadPool);
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
         registry = new MonitoringTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, NamedXContentRegistry.EMPTY);
+        plugin = new Monitoring(Settings.EMPTY);
     }
 
     @After
@@ -115,8 +117,9 @@ public class MonitoringTemplateRegistryTests extends ESTestCase {
             client,
             NamedXContentRegistry.EMPTY
         );
+        Monitoring plugin = new Monitoring(settings);
         assertThat(disabledRegistry.getLegacyTemplateConfigs(), is(empty()));
-        assertThat(disabledRegistry.getComposableTemplateConfigs(), anEmptyMap());
+        assertThat(plugin.getComposableIndexTemplates(), anEmptyMap());
         assertThat(disabledRegistry.getPolicyConfigs(), hasSize(0));
     }
 
@@ -129,7 +132,7 @@ public class MonitoringTemplateRegistryTests extends ESTestCase {
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> verifyComposableTemplateInstalled(calledTimes, action, request, listener));
         registry.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getComposableTemplateConfigs().size())));
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(plugin.getComposableIndexTemplates().size())));
 
         calledTimes.set(0);
 
@@ -296,7 +299,7 @@ public class MonitoringTemplateRegistryTests extends ESTestCase {
 
         ClusterChangedEvent event = createClusterChangedEvent(
             Collections.singletonMap(
-                MonitoringTemplateRegistry.ES_STACK_INDEX_TEMPLATE_NAME,
+                Monitoring.ES_STACK_INDEX_TEMPLATE_NAME,
                 MonitoringTemplateRegistry.STACK_MONITORING_REGISTRY_VERSION - 1
             ),
             nodes
@@ -304,7 +307,7 @@ public class MonitoringTemplateRegistryTests extends ESTestCase {
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> verifyComposableTemplateInstalled(calledTimes, action, request, listener));
         registry.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(registry.getComposableTemplateConfigs().size())));
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(plugin.getComposableIndexTemplates().size())));
     }
 
     /**

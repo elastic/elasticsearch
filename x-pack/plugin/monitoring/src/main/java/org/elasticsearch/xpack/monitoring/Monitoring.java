@@ -268,10 +268,7 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
     private static final String STACK_MONITORING_REGISTRY_VERSION_VARIABLE = "xpack.stack.monitoring.template.release.version";
     private static final String STACK_TEMPLATE_VERSION = "8";
     private static final String STACK_TEMPLATE_VERSION_VARIABLE = "xpack.stack.monitoring.template.version";
-    private static final Map<String, String> STACK_TEMPLATE_VARIABLES = Map.of(
-        STACK_TEMPLATE_VERSION_VARIABLE,
-        STACK_TEMPLATE_VERSION
-    );
+    private static final Map<String, String> STACK_TEMPLATE_VARIABLES = Map.of(STACK_TEMPLATE_VERSION_VARIABLE, STACK_TEMPLATE_VERSION);
 
     //////////////////////////////////////////////////////////
     // Beats metricbeat template (for matching ".monitoring-beats-8-*" indices)

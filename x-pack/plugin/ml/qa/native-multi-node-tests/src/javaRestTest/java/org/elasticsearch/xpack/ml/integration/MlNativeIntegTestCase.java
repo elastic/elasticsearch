@@ -89,7 +89,6 @@ import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.autoscaling.MlScalingReason;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
-import org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegistry;
 import org.elasticsearch.xpack.transform.Transform;
 
 import java.io.IOException;
@@ -217,7 +216,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
                 AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
                 AnomalyDetectorsIndex.jobResultsIndexPrefix(),
                 InferenceIndexConstants.LATEST_INDEX_NAME,
-                SnapshotLifecycleTemplateRegistry.SLM_TEMPLATE_NAME,
+                IndexLifecycle.SLM_TEMPLATE_NAME,
                 ".deprecation-indexing-template",
                 ".deprecation-indexing-settings",
                 ".deprecation-indexing-mappings"

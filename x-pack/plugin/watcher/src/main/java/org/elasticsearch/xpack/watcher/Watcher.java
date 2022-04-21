@@ -281,7 +281,8 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
     public Watcher(final Settings settings) {
         this.settings = settings;
         this.enabled = XPackSettings.WATCHER_ENABLED.get(settings);
-        this.ilmManagementEnabled = Watcher.USE_ILM_INDEX_MANAGEMENT.get(settings);;
+        this.ilmManagementEnabled = Watcher.USE_ILM_INDEX_MANAGEMENT.get(settings);
+        ;
     }
 
     // overridable by tests

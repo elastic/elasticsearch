@@ -23,6 +23,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicy;
+import org.elasticsearch.xpack.ilm.IndexLifecycle;
 import org.junit.After;
 import org.junit.Before;
 
@@ -51,7 +52,7 @@ public class SnapshotHistoryStoreTests extends ESTestCase {
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
         ClusterState state = clusterService.state();
         Metadata.Builder metadataBuilder = Metadata.builder(state.getMetadata())
-            .indexTemplates(SnapshotLifecycleTemplateRegistry.COMPOSABLE_INDEX_TEMPLATE_CONFIGS);
+            .indexTemplates(IndexLifecycle.COMPOSABLE_INDEX_TEMPLATE_CONFIGS);
         ClusterServiceUtils.setState(clusterService, ClusterState.builder(state).metadata(metadataBuilder).build());
         historyStore = new SnapshotHistoryStore(Settings.EMPTY, client, clusterService);
         clusterService.stop();

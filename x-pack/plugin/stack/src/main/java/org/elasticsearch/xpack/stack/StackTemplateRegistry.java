@@ -37,7 +37,6 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     private final ClusterService clusterService;
     private volatile boolean stackTemplateEnabled;
 
-
     //////////////////////////////////////////////////////////
     // Built in ILM policies for users to use
     //////////////////////////////////////////////////////////

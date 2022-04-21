@@ -247,10 +247,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         ClusterChangedEvent event = createClusterChangedEvent(
-            Collections.singletonMap(
-                StackPlugin.LOGS_SETTINGS_COMPONENT_TEMPLATE_NAME,
-                StackPlugin.REGISTRY_VERSION - 1
-            ),
+            Collections.singletonMap(StackPlugin.LOGS_SETTINGS_COMPONENT_TEMPLATE_NAME, StackPlugin.REGISTRY_VERSION - 1),
             nodes
         );
         AtomicInteger calledTimes = new AtomicInteger(0);
@@ -305,34 +302,13 @@ public class StackTemplateRegistryTests extends ESTestCase {
         registry.clusterChanged(sameVersionEvent);
 
         versions.clear();
-        versions.put(
-            StackPlugin.DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
-            StackPlugin.REGISTRY_VERSION + randomIntBetween(1, 1000)
-        );
-        versions.put(
-            StackPlugin.LOGS_SETTINGS_COMPONENT_TEMPLATE_NAME,
-            StackPlugin.REGISTRY_VERSION + randomIntBetween(1, 1000)
-        );
-        versions.put(
-            StackPlugin.LOGS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
-            StackPlugin.REGISTRY_VERSION + randomIntBetween(1, 1000)
-        );
-        versions.put(
-            StackPlugin.METRICS_SETTINGS_COMPONENT_TEMPLATE_NAME,
-            StackPlugin.REGISTRY_VERSION + randomIntBetween(1, 1000)
-        );
-        versions.put(
-            StackPlugin.METRICS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
-            StackPlugin.REGISTRY_VERSION + randomIntBetween(1, 1000)
-        );
-        versions.put(
-            StackPlugin.SYNTHETICS_SETTINGS_COMPONENT_TEMPLATE_NAME,
-            StackPlugin.REGISTRY_VERSION + randomIntBetween(1, 1000)
-        );
-        versions.put(
-            StackPlugin.SYNTHETICS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
-            StackPlugin.REGISTRY_VERSION + randomIntBetween(1, 1000)
-        );
+        versions.put(StackPlugin.DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackPlugin.REGISTRY_VERSION + randomIntBetween(1, 1000));
+        versions.put(StackPlugin.LOGS_SETTINGS_COMPONENT_TEMPLATE_NAME, StackPlugin.REGISTRY_VERSION + randomIntBetween(1, 1000));
+        versions.put(StackPlugin.LOGS_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackPlugin.REGISTRY_VERSION + randomIntBetween(1, 1000));
+        versions.put(StackPlugin.METRICS_SETTINGS_COMPONENT_TEMPLATE_NAME, StackPlugin.REGISTRY_VERSION + randomIntBetween(1, 1000));
+        versions.put(StackPlugin.METRICS_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackPlugin.REGISTRY_VERSION + randomIntBetween(1, 1000));
+        versions.put(StackPlugin.SYNTHETICS_SETTINGS_COMPONENT_TEMPLATE_NAME, StackPlugin.REGISTRY_VERSION + randomIntBetween(1, 1000));
+        versions.put(StackPlugin.SYNTHETICS_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackPlugin.REGISTRY_VERSION + randomIntBetween(1, 1000));
         ClusterChangedEvent higherVersionEvent = createClusterChangedEvent(versions, nodes);
         registry.clusterChanged(higherVersionEvent);
     }
@@ -346,10 +322,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
             return null;
         });
 
-        ClusterChangedEvent event = createClusterChangedEvent(
-            Collections.singletonMap(StackPlugin.LOGS_INDEX_TEMPLATE_NAME, null),
-            nodes
-        );
+        ClusterChangedEvent event = createClusterChangedEvent(Collections.singletonMap(StackPlugin.LOGS_INDEX_TEMPLATE_NAME, null), nodes);
         registry.clusterChanged(event);
     }
 

@@ -74,6 +74,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationServiceField;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.Realm;
@@ -739,11 +740,11 @@ public class AuthenticationServiceTests extends ESTestCase {
     }
 
     public void testAuthenticateCached() throws Exception {
-        final Authentication authentication = new Authentication(
-            new User("_username", "r1"),
-            new RealmRef("test", "cached", "foo", randomFrom(new RealmDomain("", Set.of()), null)),
-            null
-        );
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .realm()
+            .user(new User("_username", "r1"))
+            .realmRef(new RealmRef("test", "cached", "foo", randomFrom(new RealmDomain("", Set.of()), null)))
+            .build(false);
         authentication.writeToContext(threadContext);
         boolean requestIdAlreadyPresent = randomBoolean();
         SetOnce<String> reqId = new SetOnce<>();
@@ -1861,12 +1862,18 @@ public class AuthenticationServiceTests extends ESTestCase {
     public void testAuthenticateWithToken() throws Exception {
         User user = new User("_username", "r1");
         final AtomicBoolean completed = new AtomicBoolean(false);
-        final Authentication expected = new Authentication(user, new RealmRef("realm", "custom", "node"), null);
+        final Authentication expected = AuthenticationTestHelper.builder()
+            .user(user)
+            .realmRef(new RealmRef("realm", "custom", "node"))
+            .build(false);
         PlainActionFuture<TokenService.CreateTokenResult> tokenFuture = new PlainActionFuture<>();
         final String userTokenId = UUIDs.randomBase64UUID();
         final String refreshToken = UUIDs.randomBase64UUID();
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
-            Authentication originatingAuth = new Authentication(new User("creator"), new RealmRef("test", "test", "test"), null);
+            Authentication originatingAuth = AuthenticationTestHelper.builder()
+                .user(new User("creator"))
+                .realmRef(new RealmRef("test", "test", "test"))
+                .build(false);
             tokenService.createOAuth2Tokens(userTokenId, refreshToken, expected, originatingAuth, Collections.emptyMap(), tokenFuture);
         }
         String token = tokenFuture.get().getAccessToken();
@@ -1912,11 +1919,11 @@ public class AuthenticationServiceTests extends ESTestCase {
         final byte[] randomBytes = new byte[numBytes];
         random().nextBytes(randomBytes);
         final CountDownLatch latch = new CountDownLatch(1);
-        final Authentication expected = new Authentication(
-            user,
-            new RealmRef(firstRealm.name(), firstRealm.type(), "authc_test", firstDomain),
-            null
-        );
+        final Authentication expected = AuthenticationTestHelper.builder()
+            .realm()
+            .user(user)
+            .realmRef(new RealmRef(firstRealm.name(), firstRealm.type(), "authc_test", firstDomain))
+            .build(false);
         AtomicBoolean success = new AtomicBoolean(false);
         boolean requestIdAlreadyPresent = randomBoolean();
         SetOnce<String> reqId = new SetOnce<>();
@@ -1981,12 +1988,18 @@ public class AuthenticationServiceTests extends ESTestCase {
         when(securityIndex.isAvailable()).thenReturn(true);
         when(securityIndex.indexExists()).thenReturn(true);
         User user = new User("_username", "r1");
-        final Authentication expected = new Authentication(user, new RealmRef("realm", "custom", "node"), null);
+        final Authentication expected = AuthenticationTestHelper.builder()
+            .user(user)
+            .realmRef(new RealmRef("realm", "custom", "node"))
+            .build(false);
         PlainActionFuture<TokenService.CreateTokenResult> tokenFuture = new PlainActionFuture<>();
         final String userTokenId = UUIDs.randomBase64UUID();
         final String refreshToken = UUIDs.randomBase64UUID();
         try (ThreadContext.StoredContext ctx = threadContext.stashContext()) {
-            Authentication originatingAuth = new Authentication(new User("creator"), new RealmRef("test", "test", "test"), null);
+            Authentication originatingAuth = AuthenticationTestHelper.builder()
+                .user(new User("creator"))
+                .realmRef(new RealmRef("test", "test", "test"))
+                .build(false);
             tokenService.createOAuth2Tokens(userTokenId, refreshToken, expected, originatingAuth, Collections.emptyMap(), tokenFuture);
         }
         String token = tokenFuture.get().getAccessToken();

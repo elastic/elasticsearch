@@ -34,7 +34,7 @@ ES_HOME=`dirname "$ES_HOME"`
 
 # now set the classpath
 ES_CLASSPATH="$ES_HOME/lib/*"
-LAUNCHERS_CLASSPATH="$ES_CLASSPATH:$ES_HOME/lib/java-version-checker/*:$ES_HOME/lib/launchers/*"
+SERVER_CLI_CLASSPATH="$ES_CLASSPATH:$ES_HOME/lib/tools/server-cli/*"
 
 # now set the path to java
 if [ ! -z "$ES_JAVA_HOME" ]; then

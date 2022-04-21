@@ -91,7 +91,7 @@ Specifies a list of JWT audiences that the realm will allow.
 These values are typically URLs, UUIDs, or other case-sensitive string values.
 
 `allowed_signature_algorithms`::
-Indicates that {es} should use the `RS256` and `HS256` signature algorithms to
+Indicates that {es} should use the `RS256` or `HS256` signature algorithms to
 verify the signature of the JWT from the JWT issuer.
 
 `pkc_jwkset_path`::
@@ -103,7 +103,7 @@ The name of the JWT claim that contains the user's principal (username).
 
 --
 
-. Store the `shared-secret` value for `client_authentication.type`:
+. Store the `shared_secret` value for `client_authentication.type`:
 +
 [source,shell]
 ----

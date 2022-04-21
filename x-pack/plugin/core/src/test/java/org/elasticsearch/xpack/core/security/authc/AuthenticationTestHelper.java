@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -149,6 +150,14 @@ public class AuthenticationTestHelper {
         return new AnonymousUser(
             Settings.builder().put(AnonymousUser.ROLES_SETTING.getKey(), ESTestCase.randomAlphaOfLengthBetween(3, 8)).build()
         );
+    }
+
+    private static User stripRoles(User user) {
+        if (user.roles() != null || user.roles().length == 0) {
+            return new User(user.principal(), Strings.EMPTY_ARRAY, user.fullName(), user.email(), user.metadata(), user.enabled());
+        } else {
+            return user;
+        }
     }
 
     public static class AuthenticationTestBuilder {
@@ -333,6 +342,8 @@ public class AuthenticationTestHelper {
                         if (user == null) {
                             user = randomUser();
                         }
+                        // User associated to API key authentication has empty roles
+                        user = stripRoles(user);
                         prepareApiKeyMetadata();
                         authentication = Authentication.newApiKeyAuthentication(
                             AuthenticationResult.success(user, metadata),
@@ -367,6 +378,8 @@ public class AuthenticationTestHelper {
                                 if (user == null) {
                                     user = randomUser();
                                 }
+                                // User associated to API key authentication has empty roles
+                                user = stripRoles(user);
                                 prepareApiKeyMetadata();
                                 authentication = Authentication.newApiKeyAuthentication(
                                     AuthenticationResult.success(user, metadata),

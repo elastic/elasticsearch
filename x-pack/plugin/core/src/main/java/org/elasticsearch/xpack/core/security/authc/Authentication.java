@@ -722,6 +722,7 @@ public class Authentication implements ToXContentObject {
         assert authResult.isAuthenticated() : "API Key authn result must be successful";
         final User apiKeyUser = authResult.getValue();
         assert false == apiKeyUser.isRunAs();
+        assert apiKeyUser.roles().length == 0 : "The user associated to an API key authentication must have no role";
         final Authentication.RealmRef authenticatedBy = newApiKeyRealmRef(nodeName);
         Authentication authentication = new Authentication(
             apiKeyUser,

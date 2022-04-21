@@ -71,7 +71,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         if (hasSeenMasterInLast30Seconds()) {
             logger.trace("Have seen a master in the last 30 seconds");
             Set<DiscoveryNode> mastersInLast30Minutes = localMasterHistory.getDistinctMastersSeen();
-            if (mastersInLast30Minutes.size() >= 3) {
+            if (mastersInLast30Minutes.size() > 3) {
                 logger.trace("Have seen " + mastersInLast30Minutes.size() + " masters in the last 30 seconds");
                 stableMasterStatus = HealthStatus.YELLOW;
                 summary = String.format(Locale.ROOT, "%d nodes have acted as master in the last 30 minutes", mastersInLast30Minutes.size());

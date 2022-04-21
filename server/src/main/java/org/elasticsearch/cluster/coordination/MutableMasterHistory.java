@@ -47,8 +47,8 @@ public class MutableMasterHistory implements MasterHistory, ClusterStateListener
         DiscoveryNode previousMaster = event.previousState().nodes().getMasterNode();
         if (currentMaster == null || currentMaster.equals(previousMaster) == false || masterHistory.isEmpty()) {
             masterHistory.add(new TimeAndMaster(nowSupplier.get(), currentMaster));
+            removeOldMasterHistory();
         }
-        removeOldMasterHistory();
     }
 
     @Override

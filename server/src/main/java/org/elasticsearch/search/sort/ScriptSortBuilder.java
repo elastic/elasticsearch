@@ -75,7 +75,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
     private NestedSortBuilder nestedSort;
 
-    private MappedFieldType versionFieldType;
+    private DocValueFormat customScriptResultValueFormat = DocValueFormat.RAW;
 
     /**
      * Constructs a script sort builder with the given script.
@@ -251,19 +251,19 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
     @Override
     public SortFieldAndFormat build(SearchExecutionContext context) throws IOException {
-        DocValueFormat docValueFormat = DocValueFormat.RAW;
         if ("version".equals(this.type.toString())) {
             try {
-                if (versionFieldType == null) {
-                    // TODO there must be a better way to get the field type...
-                    versionFieldType = context.buildAnonymousFieldType("version");
-                }
-                docValueFormat = versionFieldType.docValueFormat(null, null);
+                // TODO there must be a better way to get the field type...
+                MappedFieldType scriptFieldType = context.buildAnonymousFieldType(this.type.toString());
+                customScriptResultValueFormat = scriptFieldType.docValueFormat(null, null);
             } catch (Exception e) {
                 // "version" type is not available, fall back to RAW and sort as a string
             }
         }
-        return new SortFieldAndFormat(new SortField("_script", fieldComparatorSource(context), order == SortOrder.DESC), docValueFormat);
+        return new SortFieldAndFormat(
+            new SortField("_script", fieldComparatorSource(context), order == SortOrder.DESC),
+            customScriptResultValueFormat == null ? DocValueFormat.RAW : customScriptResultValueFormat
+        );
     }
 
     @Override
@@ -396,10 +396,10 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                                     return ((BytesRefProducer) result).toBytesRef();
                                 }
 
-                                if (versionFieldType == null) {
+                                if (customScriptResultValueFormat == null) {
                                     throw new IllegalArgumentException("Invalid sort type: version");
                                 }
-                                return versionFieldType.docValueFormat(null, null).parseBytesRef(result);
+                                return customScriptResultValueFormat.parseBytesRef(result);
                             }
                         };
                         return FieldData.singleton(values);

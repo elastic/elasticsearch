@@ -9,21 +9,14 @@ package org.elasticsearch.xpack.versionfield;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptType;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms.Bucket;
-import org.elasticsearch.search.sort.ScriptSortBuilder;
-import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 
-import java.io.IOException;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -38,48 +31,7 @@ public class VersionFieldIT extends ESIntegTestCase {
     public void testTermsAggregation() throws Exception {
         String indexName = "test";
         createIndex(indexName);
-        populateIndex(indexName);
 
-        // terms aggs
-        SearchResponse response = client().prepareSearch(indexName)
-            .addAggregation(AggregationBuilders.terms("myterms").field("version"))
-            .get();
-        Terms terms = response.getAggregations().get("myterms");
-        List<? extends Bucket> buckets = terms.getBuckets();
-
-        assertEquals(5, buckets.size());
-        assertEquals("1.0", buckets.get(0).getKey());
-        assertEquals("1.3.0", buckets.get(1).getKey());
-        assertEquals("2.1.0-alpha", buckets.get(2).getKey());
-        assertEquals("2.1.0", buckets.get(3).getKey());
-        assertEquals("3.11.5", buckets.get(4).getKey());
-    }
-
-    public void testScriptSort1() throws Exception {
-        String indexName = "testscriptsort1";
-        createIndex(indexName);
-        populateIndex(indexName);
-
-        SearchResponse response = client().prepareSearch(indexName)
-            .addSort(
-                SortBuilders.scriptSort(
-                    new Script(ScriptType.INLINE, "painless", "doc['version'].value", Collections.emptyMap()),
-                    ScriptSortBuilder.ScriptSortType.VERSION
-                )
-            )
-
-            .get();
-        SearchHit[] hits = response.getHits().getHits();
-
-        assertEquals(5, hits.length);
-        assertEquals("1.0", hits[0].field("version").getValue());
-        assertEquals("1.3.0", hits[0].field("version").getValue());
-        assertEquals("2.1.0-alpha", hits[0].field("version").getValue());
-        assertEquals("2.1.0", hits[0].field("version").getValue());
-        assertEquals("3.11.5", hits[0].field("version").getValue());
-    }
-
-    private void populateIndex(String indexName) throws IOException {
         client().admin()
             .indices()
             .preparePutMapping(indexName)
@@ -107,5 +59,19 @@ public class VersionFieldIT extends ESIntegTestCase {
         client().prepareIndex(indexName).setId("4").setSource(jsonBuilder().startObject().field("version", "2.1.0").endObject()).get();
         client().prepareIndex(indexName).setId("5").setSource(jsonBuilder().startObject().field("version", "3.11.5").endObject()).get();
         refresh();
+
+        // terms aggs
+        SearchResponse response = client().prepareSearch(indexName)
+            .addAggregation(AggregationBuilders.terms("myterms").field("version"))
+            .get();
+        Terms terms = response.getAggregations().get("myterms");
+        List<? extends Bucket> buckets = terms.getBuckets();
+
+        assertEquals(5, buckets.size());
+        assertEquals("1.0", buckets.get(0).getKey());
+        assertEquals("1.3.0", buckets.get(1).getKey());
+        assertEquals("2.1.0-alpha", buckets.get(2).getKey());
+        assertEquals("2.1.0", buckets.get(3).getKey());
+        assertEquals("3.11.5", buckets.get(4).getKey());
     }
 }

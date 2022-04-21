@@ -94,7 +94,7 @@ setup:
               _script: {
                 script:{
                   lang: "painless",
-                  source: "doc['ver'].value"
+                  source: "field('ver').get(new Version('0'))"
                 },
                 type: "version",
                 order: "desc"

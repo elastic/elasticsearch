@@ -437,17 +437,15 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 if (dataTierAllocationResults.stream().allMatch(hasDeciderResult(FilterAllocationDecider.NAME, Decision.Type.NO))) {
                     Map<String, List<String>> requireAttributes = INDEX_ROUTING_REQUIRE_GROUP_SETTING.getAsMap(indexMetadata.getSettings());
                     List<String> requireDataAttributes = requireAttributes.get("data");
-                    DiscoveryNodeFilters requireFilter = requireDataAttributes == null ? null : DiscoveryNodeFilters.buildFromKeyValues(
-                        DiscoveryNodeFilters.OpType.AND,
-                        Map.of("data", requireDataAttributes)
-                    );
+                    DiscoveryNodeFilters requireFilter = requireDataAttributes == null
+                        ? null
+                        : DiscoveryNodeFilters.buildFromKeyValues(DiscoveryNodeFilters.OpType.AND, Map.of("data", requireDataAttributes));
 
                     Map<String, List<String>> includeAttributes = INDEX_ROUTING_INCLUDE_GROUP_SETTING.getAsMap(indexMetadata.getSettings());
                     List<String> includeDataAttributes = includeAttributes.get("data");
-                    DiscoveryNodeFilters includeFilter = includeDataAttributes == null ? null : DiscoveryNodeFilters.buildFromKeyValues(
-                        DiscoveryNodeFilters.OpType.OR,
-                        Map.of("data", includeDataAttributes)
-                    );
+                    DiscoveryNodeFilters includeFilter = includeDataAttributes == null
+                        ? null
+                        : DiscoveryNodeFilters.buildFromKeyValues(DiscoveryNodeFilters.OpType.OR, Map.of("data", includeDataAttributes));
                     if (requireFilter != null || includeFilter != null) {
                         List<DiscoveryNode> dataTierNodes = dataTierAllocationResults.stream().map(NodeAllocationResult::getNode).toList();
                         // Check if the data tier nodes this shard is allowed on have data attributes that match

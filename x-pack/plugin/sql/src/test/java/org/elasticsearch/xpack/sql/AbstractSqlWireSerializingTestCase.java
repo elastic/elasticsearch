@@ -26,7 +26,7 @@ public abstract class AbstractSqlWireSerializingTestCase<T extends Writeable> ex
         SqlStreamOutput out = SqlStreamOutput.create(version, zoneId);
         instance.writeTo(out);
         out.close();
-        try (SqlStreamInput in = SqlStreamInput.fromString(out.streamAsString(), getNamedWriteableRegistry(), version)) {
+        try (SqlStreamInput in = SqlStreamInput.fromString(out.streamAsString(), getNamedWriteableRegistry())) {
             return instanceReader().read(in);
         }
     }

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.sql.execution.search;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.PriorityQueue;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.ClosePointInTimeAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
@@ -93,7 +94,6 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.action.ActionListener.wrap;
-import static org.elasticsearch.xpack.ql.index.VersionCompatibilityChecks.INTRODUCING_UNSIGNED_LONG;
 
 // TODO: add retry/back-off
 public class Querier {
@@ -125,6 +125,7 @@ public class Querier {
             sourceBuilder,
             cfg.requestTimeout(),
             query.shouldIncludeFrozen(),
+            Version.CURRENT,
             Strings.commaDelimitedListToStringArray(index)
         );
 
@@ -186,10 +187,16 @@ public class Querier {
         }
     }
 
-    public static SearchRequest prepareRequest(SearchSourceBuilder source, TimeValue timeOut, boolean includeFrozen, String... indices) {
+    public static SearchRequest prepareRequest(
+        SearchSourceBuilder source,
+        TimeValue timeOut,
+        boolean includeFrozen,
+        Version minCompatibleVersion,
+        String... indices
+    ) {
         source.timeout(timeOut);
 
-        SearchRequest searchRequest = new SearchRequest(INTRODUCING_UNSIGNED_LONG);
+        SearchRequest searchRequest = new SearchRequest(minCompatibleVersion);
         searchRequest.indices(indices);
         searchRequest.source(source);
         searchRequest.allowPartialSearchResults(false);

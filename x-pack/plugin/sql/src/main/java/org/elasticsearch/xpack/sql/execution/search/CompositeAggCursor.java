@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.execution.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -57,6 +58,7 @@ public class CompositeAggCursor implements Cursor {
     private final BitSet mask;
     private final int limit;
     private final boolean includeFrozen;
+    private final Version minCompatibleVersion;
 
     CompositeAggCursor(
         SearchSourceBuilder nextQuery,
@@ -72,6 +74,7 @@ public class CompositeAggCursor implements Cursor {
         this.mask = mask;
         this.limit = remainingLimit;
         this.includeFrozen = includeFrozen;
+        this.minCompatibleVersion = Version.CURRENT;
     }
 
     public CompositeAggCursor(StreamInput in) throws IOException {
@@ -82,6 +85,7 @@ public class CompositeAggCursor implements Cursor {
         extractors = in.readNamedWriteableList(BucketExtractor.class);
         mask = BitSet.valueOf(in.readByteArray());
         includeFrozen = in.readBoolean();
+        minCompatibleVersion = in.getVersion();
     }
 
     @Override
@@ -134,7 +138,7 @@ public class CompositeAggCursor implements Cursor {
             log.trace("About to execute composite query {} on {}", StringUtils.toString(nextQuery), indices);
         }
 
-        SearchRequest request = prepareRequest(nextQuery, cfg.requestTimeout(), includeFrozen, indices);
+        SearchRequest request = prepareRequest(nextQuery, cfg.requestTimeout(), includeFrozen, minCompatibleVersion, indices);
 
         client.search(request, new ActionListener.Delegating<>(listener) {
             @Override

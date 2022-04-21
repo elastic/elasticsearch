@@ -25,14 +25,10 @@ import java.util.Base64;
  */
 public class SqlStreamInput extends NamedWriteableAwareStreamInput {
 
-    public static SqlStreamInput fromString(String base64encoded, NamedWriteableRegistry namedWriteableRegistry, Version version)
-        throws IOException {
+    public static SqlStreamInput fromString(String base64encoded, NamedWriteableRegistry namedWriteableRegistry) throws IOException {
         byte[] bytes = Base64.getDecoder().decode(base64encoded);
         StreamInput in = StreamInput.wrap(bytes);
         Version inVersion = Version.readVersion(in);
-        if (version.compareTo(inVersion) != 0) {
-            throw new SqlIllegalArgumentException("Unsupported cursor version [{}], expected [{}]", inVersion, version);
-        }
 
         InputStreamStreamInput uncompressingIn = new InputStreamStreamInput(CompressorFactory.COMPRESSOR.threadLocalInputStream(in));
         return new SqlStreamInput(uncompressingIn, namedWriteableRegistry, inVersion);

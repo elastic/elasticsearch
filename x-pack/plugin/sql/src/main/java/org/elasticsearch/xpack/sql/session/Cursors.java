@@ -108,7 +108,7 @@ public final class Cursors {
         if (base64.isEmpty()) {
             return null;
         }
-        try (SqlStreamInput in = SqlStreamInput.fromString(base64, WRITEABLE_REGISTRY, VERSION)) {
+        try (SqlStreamInput in = SqlStreamInput.fromString(base64, WRITEABLE_REGISTRY)) {
             return in.readOptionalWriteable(BasicFormatter::new);
         } catch (IOException ex) {
             throw new SqlIllegalArgumentException("Unexpected failure reading cursor", ex);
@@ -144,7 +144,7 @@ public final class Cursors {
         if (base64.isEmpty()) {
             return new Tuple<>(Cursor.EMPTY, null);
         }
-        try (SqlStreamInput in = SqlStreamInput.fromString(base64, writeableRegistry, VERSION)) {
+        try (SqlStreamInput in = SqlStreamInput.fromString(base64, writeableRegistry)) {
             if (in.readOptionalWriteable(BasicFormatter::new) == null) {
                 Cursor cursor = in.readNamedWriteable(Cursor.class);
                 return new Tuple<>(cursor, in.zoneId());

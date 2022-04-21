@@ -33,7 +33,7 @@ public class SqlStreamTests extends ESTestCase {
         out.close();
         String encoded = out.streamAsString();
 
-        SqlStreamInput in = SqlStreamInput.fromString(encoded, new NamedWriteableRegistry(List.of()), Version.CURRENT);
+        SqlStreamInput in = SqlStreamInput.fromString(encoded, new NamedWriteableRegistry(List.of()));
         BytesRef read = in.readBytesRef();
 
         assertArrayEquals(payload.bytes, read.bytes);
@@ -59,8 +59,7 @@ public class SqlStreamTests extends ESTestCase {
                     + "YW5ndWFnZXMAAAD/AAD/AQAIYmRlZjg4ZTUBBmdlbmRlcgAAAQAAAQEKAQhiZGVmODhlNf8AAgEAAAAA"
                     + "AP////8PAAAAAAAAAAAAAAAAAVoDAAICAAAAAAAAAAAKAP////8PAgFtCDJkMTBjNGJhBXZhbHVlAAEE"
                     + "QllURQFrCGJkZWY4OGU1AAABAwA=",
-                new NamedWriteableRegistry(List.of()),
-                Version.CURRENT
+                new NamedWriteableRegistry(List.of())
             )
         );
 

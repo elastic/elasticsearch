@@ -190,8 +190,8 @@ random `nonce` claim to introduce entropy into the signature.
 
 NOTE: You can relax validation of any of the time-based claims by setting
 `allowed_clock_skew`. This value sets the maximum allowed clock skew before
-validating JWTs with respect to their authentication time (`auth_time`), creation (`iat`), not before (`nbf`), and
-expiration times (`exp`).
+validating JWTs with respect to their authentication time (`auth_time`),
+creation (`iat`), not before (`nbf`), and expiration times (`exp`).
 
 `aud`::
 (Required, String) Indicates the audiences that the ID token is for, expressed as a
@@ -219,42 +219,38 @@ expressed as UTC milliseconds since epoch.
 expressed as UTC milliseconds since epoch.
 
 [[jwt-validation-payload-es]]
-====== {es} payload claims
-{es} validates the following OIDC ID token claims.
+====== {es} settings for consuming OIDC claims
+{es} uses OIDC ID token claims for the following settings.
 
 `principal`::
-(Required, String) Name of the JWT claim that contains the user's principal
-(username). The value is configurable using the realm setting `claims.principal`.
-If not set, the value defaults to `sub`.
-You can configure an optional regular expression using the
+(Required, String) Contains the user's principal (username). The value is
+configurable using the realm setting `claims.principal`. If not set, the value
+defaults to `sub`. You can configure an optional regular expression using the
 `claims.principal_pattern` to extract a substring.
 
 `groups`::
-(Optional, JSON array) Name of the JWT claim that contains the user's groups.
+(Optional, JSON array) Contains the user's group membership.
 The value is configurable using the realm setting `claims.groups`. You can
 configure an optional regular expression using the realm setting
 `claims.groups_pattern` to extract a substring value.
 
 `name`::
-(Optional, String) Name of the JWT claim that contains the user's human-readable
-identifier of the token's subject. The value
-is configurable using the realm setting `claims.name`. You can configure an
-optional regular expression using the realm setting `claims.name_pattern` to
-extract a substring value.
+(Optional, String) Contains a human-readable identifier that identifies the
+subject of the token. The value is configurable using the realm setting
+`claims.name`. You can configure an optional regular expression using the realm
+setting `claims.name_pattern` to extract a substring value.
 
 `mail`::
-(Optional, String) Name of the JWT claim that contains the user's e-mail address
-to associate with the user. The value is
-configurable using the realm setting `claims.mail`. You can configure an
+(Optional, String) Contains the e-mail address to associate with the user. The
+value is configurable using the realm setting `claims.mail`. You can configure an
 optional regular expression using the realm setting `claims.mail_pattern` to
 extract a substring value.
 
 `dn`::
-(Optional, String) Name of the JWT claim that contains the user's the
-Distinguished Name (DN) that uniquely identifies a user
-or group. The value is configurable using the realm setting `claims.dn`. You
-can configure an optional regular expression using the realm setting
-`claims.dn_pattern` to extract a substring value.
+(Optional, String) Contains the user's Distinguished Name (DN), which uniquely
+identifies a user or group. The value is configurable using the realm setting
+`claims.dn`. You can configure an optional regular expression using the realm
+setting `claims.dn_pattern` to extract a substring value.
 
 [[jwt-authorization]]
 ==== JWT realm authorization

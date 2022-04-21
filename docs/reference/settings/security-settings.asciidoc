@@ -1970,6 +1970,13 @@ In addition to the <<ref-realm-settings,settings that are valid for all realms>>
 can specify the following settings.
 // end::jwt-description-tag[]
 
+// tag::jwt-allowed-clock-skew-tag[]
+`allowed_clock_skew` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The maximum allowed clock skew to be taken into consideration when validating
+JWTs with regards to their creation, not before, and expiration times.
+// end::jwt-allowed-clock-skew-tag[]
+
 // tag::jwt-allowed-issuer-tag[]
 `allowed_issuer` {ess-icon}::
 (<<static-cluster-setting,Static>>)
@@ -1981,16 +1988,6 @@ should be provided by your JWT Issuer.
 Examples of `iss` claim are `https://example.com:8443/jwt` and `issuer123`.
 // end::jwt-allowed-issuer-tag[]
 
-// tag::jwt-allowed-audiences-tag[]
-`allowed_audiences` {ess-icon}::
-(<<static-cluster-setting,Static>>)
-A list of allowed JWT audiences that {es} should verify.
-+
-{es} will only consume JWTs that were intended for any of these audiences.
-( as denoted by the `aud` claim in the JWT).
-Examples of `aud` claim are `https://example.com/client1` and `other_service,elasticsearch`.
-// end::jwt-allowed-audiences-tag[]
-
 // tag::jwt-allowed-signature-algorithms-tag[]
 `allowed_signature_algorithms` {ess-icon}::
 (<<static-cluster-setting,Static>>)
@@ -2001,50 +1998,99 @@ Allowed values are `HS256`, `HS384`, `HS512`, `ES256`, `ES384`, `ES512`,
 `RS256`, `RS384`, `RS512`, `PS256`, `PS384`, `PS512`.
 // end::jwt-allowed-signature-algorithms-tag[]
 
-// tag::jwt-allowed-clock-skew-tag[]
-`allowed_clock_skew` {ess-icon}::
+// tag::jwt-allowed-audiences-tag[]
+`allowed_audiences` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-The maximum allowed clock skew to be taken into consideration when validating
-JWTs with regards to their creation, not before, and expiration times.
-// end::jwt-allowed-clock-skew-tag[]
+A list of allowed JWT audiences that {es} should verify.
++
+{es} will only consume JWTs that were intended for any of these audiences.
+( as denoted by the `aud` claim in the JWT).
+Examples of `aud` claim are `https://example.com/client1` and `other_service,elasticsearch`.
+// end::jwt-allowed-audiences-tag[]
 
-// tag::jwt-claims-principal-tag[]
-`claims.principal`::
+`authorization_realms`::
 (<<static-cluster-setting,Static>>)
-The name of the JWT claim that contains the user's principal (username).
-Examples may include 'sub', 'name', 'email', 'dn', and so on.
-// end::jwt-claims-principal-tag[]
+The names of the realms that should be consulted for delegated authorization.
+If this setting is used, then the JWT realm does not perform role
+mapping and instead loads the user from the listed realms.
+See <<authorization_realms>>.
+
+// tag::jwt-claims-dn-tag[]
+`claims.dn` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The name of the JWT claim that contains the user's Distinguished Name (DN),
+which uniquely identifies a user or group. 
+// end::jwt-claims-dn-tag[]
+
+// tag::jwt-claims-pattern-dn-tag[]
+`claims.dn_pattern` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Accepts the same Java regular expression as
+<<jwt-claim-pattern-principal,`claim_patterns.principal`>>, but for the `dn`
+property.
+// end::jwt-claims-pattern-dn-tag[]
 
 // tag::jwt-claims-groups-tag[]
 `claims.groups` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-The name of the JWT claim that contains the user's groups.
-Examples may include 'groups', 'roles', and so on.
+The name of the JWT claim that contains the user's groups, such as `groups` and
+`roles`.
 // end::jwt-claims-groups-tag[]
 
-// tag::jwt-claim-pattern-principal-tag[]
-`claim_patterns.principal` {ess-icon}::
-(<<static-cluster-setting,Static>>)
-A optional Java regular expression that is matched against the JWT claim specified
-by `claims.principal` before it is applied to the user's _principal_ property.
-The attribute value must match the pattern and the value of the first
-_capturing group_ is used as the principal. For example, `^([^@]+)@example\\.com$`
-matches email addresses from the "example.com" domain and uses the local-part as
-the principal. Another example is 'sub' which may not need a pattern setting.
-// end::jwt-claim-pattern-principal-tag[]
-
 // tag::jwt-claim-pattern-groups-tag[]
-`claim_patterns.groups` {ess-icon}::
+`claims.group_patterns` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-As per `claim_patterns.principal`, but for the _group_ property.
+Accepts the same Java regular expression as
+<<jwt-claim-pattern-principal,`claim_patterns.principal`>>, but for the `group`
+property.
 // end::jwt-claim-pattern-groups-tag[]
 
-// tag::jwt-populate-user-metadata-tag[]
-`populate_user_metadata` {ess-icon}::
+// tag::jwt-claims-mail-tag[]
+`claims.mail` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-Specifies whether to populate the {es} user's metadata with the values that are
-provided by the JWT claims. Defaults to `true`.
-// end::jwt-populate-user-metadata-tag[]
+The name of the JWT claim that contains the user's e-mail address.
+// end::jwt-claims-mail-tag[]
+
+// tag::jwt-claims-pattern-mail-tag[]
+`claims.mail_pattern` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Accepts the same Java regular expression as
+<<jwt-claim-pattern-principal,`claim_patterns.principal`>>, but for the `mail`
+property.
+// end::jwt-claims-pattern-mail-tag[]
+
+// tag::jwt-claims-name-tag[]
+`claims.name` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The name of the JWT claim that contains the user's username.
+// end::jwt-claims-name-tag[]
+
+// tag::jwt-claims-pattern-name-tag[]
+`claims.name_pattern` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Accepts the same Java regular expression as
+<<jwt-claim-pattern-principal,`claim_patterns.principal`>>, but for the `name`
+property.
+// end::jwt-claims-pattern-name-tag[]
+
+// tag::jwt-claims-principal-tag[]
+`claims.principal`::
+(<<static-cluster-setting,Static>>)
+The name of the JWT claim that contains the user's principal (username), such as
+`sub`, `name`, `email`, and `dn`.
+// end::jwt-claims-principal-tag[]
+
+[[jwt-claim-pattern-principal]]
+// tag::jwt-claim-pattern-principal-tag[]
+`claims.principal_pattern` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+An optional Java regular expression that is matched against the JWT claim specified
+by `claims.principal` before it is applied to the user's `principal` property.
+The value must match the pattern and the value of the first
+_capturing group_ is used as the principal. For example, `^([^@]+)@example\\.com$`
+matches email addresses from the `example.com` domain and uses the local-part as
+the principal. Another example is `sub` which may not need a pattern setting.
+// end::jwt-claim-pattern-principal-tag[]
 
 // tag::jwt-client-authentication-type-tag[]
 `client_authentication.type` {ess-icon}::
@@ -2068,28 +2114,6 @@ restricts which ones are allowed to submit those JWTs to {es}.
 Secret value string for client authentication.
 Required if `client_authentication.type` is `shared_secret`.
 // end::jwt-client-authentication-shared-secret-tag[]
-
-`authorization_realms`::
-(<<static-cluster-setting,Static>>)
-The names of the realms that should be consulted for delegated authorization.
-If this setting is used, then the JWT realm does not perform role
-mapping and instead loads the user from the listed realms.
-See <<authorization_realms>>.
-
-`jwt.cache.ttl`::
-(<<static-cluster-setting,Static>>)
-Specifies the time-to-live for JWT cache entries.
-JWT entries will be cached for this period of time.
-JWTs can only be cached if client authentication is successful (or disabled).
-Use the standard {es} <<time-units,time units>>.
-Defaults to `20m`. Zero disables JWT cache.
-If clients use a different JWT for every request, set to 0 to disable JWT cache.
-
-`jwt.cache.size`::
-(<<static-cluster-setting,Static>>)
-Specifies the maximum number of JWT cache entries.
-Defaults to `100000`. Zero disables JWT cache.
-If clients use a different JWT for every request, set to 0 to disable JWT cache.
 
 // tag::jwt-http-connect-timeout-tag[]
 `http.connect_timeout` {ess-icon}::
@@ -2132,6 +2156,18 @@ from a remote URL. Specifies the maximum number of
 connections allowed per endpoint.
 // end::jwt-http-max-endpoint-connections-tag[]
 
+`jwt.cache.size`::
+(<<static-cluster-setting,Static>>)
+Specifies the maximum number of JWT cache entries. If clients use a different
+JWT for every request, set to `0` to disable JWT cache. Defaults to `100000`.
+
+`jwt.cache.ttl`::
+(<<static-cluster-setting,Static>>)
+Specifies the time-to-live for the period of time to cache JWT entries.
+JWTs can only be cached if client authentication is successful (or disabled).
+Uses the standard {es} <<time-units,time units>>. If clients use a different JWT
+for every request, set to `0` to disable the JWT cache. Defaults to `20m`.
+
 // tag::jwt-jwkset-path-tag[]
 `pkc_jwkset_path` {ess-icon}::
 (<<static-cluster-setting,Static>>)
@@ -2148,6 +2184,13 @@ rotated the signing keys.
 File-based resources are polled at a frequency determined by the global {es}
 `resource.reload.interval.high` setting, which defaults to 5 seconds.
 // end::jwt-jwkset-path-tag[]
+
+// tag::jwt-populate-user-metadata-tag[]
+`populate_user_metadata` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Specifies whether to populate the {es} user's metadata with the values that are
+provided by the JWT claims. Defaults to `true`.
+// end::jwt-populate-user-metadata-tag[]
 
 [discrete]
 [[ref-jwt-ssl-settings]]

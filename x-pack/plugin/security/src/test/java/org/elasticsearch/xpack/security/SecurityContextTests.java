@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -59,7 +60,10 @@ public class SecurityContextTests extends ESTestCase {
 
     public void testGetAuthenticationAndUser() throws IOException {
         final User user = new User("test");
-        final Authentication authentication = new Authentication(user, new RealmRef("ldap", "foo", "node1"), null);
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .user(user)
+            .realmRef(new RealmRef("ldap", "foo", "node1"))
+            .build(false);
         authentication.writeToContext(threadContext);
 
         assertEquals(authentication, securityContext.getAuthentication());
@@ -93,7 +97,11 @@ public class SecurityContextTests extends ESTestCase {
         final User original;
         if (randomBoolean()) {
             original = new User("test");
-            final Authentication authentication = new Authentication(original, new RealmRef("ldap", "foo", "node1"), null);
+            final Authentication authentication = AuthenticationTestHelper.builder()
+                .realm()
+                .user(original)
+                .realmRef(new RealmRef("ldap", "foo", "node1"))
+                .build(false);
             authentication.writeToContext(threadContext);
         } else {
             original = null;
@@ -124,9 +132,14 @@ public class SecurityContextTests extends ESTestCase {
     }
 
     public void testExecuteAfterRewritingAuthentication() throws IOException {
-        User user = new User("test", null, new User("authUser"));
         RealmRef authBy = new RealmRef("ldap", "foo", "node1");
-        final Authentication original = new Authentication(user, authBy, authBy);
+        final Authentication original = AuthenticationTestHelper.builder()
+            .user(new User("authUser"))
+            .realmRef(authBy)
+            .runAs()
+            .user(new User("test"))
+            .realmRef(authBy)
+            .build();
         original.writeToContext(threadContext);
         final Map<String, String> requestHeaders = Map.of(
             AuthenticationField.PRIVILEGE_CATEGORY_KEY,

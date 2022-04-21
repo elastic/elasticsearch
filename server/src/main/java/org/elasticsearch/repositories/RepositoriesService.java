@@ -41,9 +41,9 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.Snapshot;
@@ -515,6 +515,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                             // TODO: this catch is bogus, it means the old repo is already closed,
                             // but we have nothing to replace it
                             logger.warn(() -> new ParameterizedMessage("failed to change repository [{}]", repositoryMetadata.name()), ex);
+                            repository = new InvalidRepository(repositoryMetadata, ex);
                         }
                     }
                 } else {
@@ -522,12 +523,12 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                         repository = createRepository(repositoryMetadata, typesRegistry, RepositoriesService::createUnknownTypeRepository);
                     } catch (RepositoryException ex) {
                         logger.warn(() -> new ParameterizedMessage("failed to create repository [{}]", repositoryMetadata.name()), ex);
+                        repository = new InvalidRepository(repositoryMetadata, ex);
                     }
                 }
-                if (repository != null) {
-                    logger.debug("registering repository [{}]", repositoryMetadata.name());
-                    builder.put(repositoryMetadata.name(), repository);
-                }
+                assert repository != null : "repository should not be null here";
+                logger.debug("registering repository [{}]", repositoryMetadata.name());
+                builder.put(repositoryMetadata.name(), repository);
             }
             for (Repository repo : builder.values()) {
                 repo.updateState(state);

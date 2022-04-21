@@ -52,6 +52,8 @@ import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.xpack.ql.util.CollectionUtils.combine;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.ALLOW_PARTIAL_SEARCH_RESULTS;
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.INDEX_INCLUDE_FROZEN;
 
 /**
  * Container for various references of the built ES query.
@@ -108,6 +110,7 @@ public class QueryContainer {
     private final boolean includeFrozen;
     // used when pivoting for retrieving at least one pivot row
     private final int minPageSize;
+    private final boolean allowPartialSearchResults;
 
     // computed
     private Boolean aggsOnly;
@@ -116,7 +119,7 @@ public class QueryContainer {
     private Map<Attribute, FieldAttribute> fieldAlias;
 
     public QueryContainer() {
-        this(null, null, null, null, null, null, null, -1, false, false, -1);
+        this(null, null, null, null, null, null, null, -1, false, INDEX_INCLUDE_FROZEN, -1, ALLOW_PARTIAL_SEARCH_RESULTS);
     }
 
     public QueryContainer(
@@ -130,7 +133,8 @@ public class QueryContainer {
         int limit,
         boolean trackHits,
         boolean includeFrozen,
-        int minPageSize
+        int minPageSize,
+        boolean allowPartialSearchResults
     ) {
         this.query = query;
         this.aggs = aggs == null ? Aggs.EMPTY : aggs;
@@ -143,6 +147,7 @@ public class QueryContainer {
         this.trackHits = trackHits;
         this.includeFrozen = includeFrozen;
         this.minPageSize = minPageSize;
+        this.allowPartialSearchResults = allowPartialSearchResults;
     }
 
     /**
@@ -284,6 +289,10 @@ public class QueryContainer {
         return includeFrozen;
     }
 
+    public boolean allowPartialSearchResults() {
+        return allowPartialSearchResults;
+    }
+
     public int minPageSize() {
         return minPageSize;
     }
@@ -304,7 +313,8 @@ public class QueryContainer {
             limit,
             trackHits,
             includeFrozen,
-            minPageSize
+            minPageSize,
+            allowPartialSearchResults
         );
     }
 
@@ -320,12 +330,26 @@ public class QueryContainer {
             limit,
             trackHits,
             includeFrozen,
-            minPageSize
+            minPageSize,
+            allowPartialSearchResults
         );
     }
 
     public QueryContainer withPseudoFunctions(Map<String, GroupByKey> p) {
-        return new QueryContainer(query, aggs, fields, aliases, p, scalarFunctions, sort, limit, trackHits, includeFrozen, minPageSize);
+        return new QueryContainer(
+            query,
+            aggs,
+            fields,
+            aliases,
+            p,
+            scalarFunctions,
+            sort,
+            limit,
+            trackHits,
+            includeFrozen,
+            minPageSize,
+            allowPartialSearchResults
+        );
     }
 
     public QueryContainer with(Aggs a) {
@@ -340,7 +364,8 @@ public class QueryContainer {
             limit,
             trackHits,
             includeFrozen,
-            minPageSize
+            minPageSize,
+            allowPartialSearchResults
         );
     }
 
@@ -358,7 +383,8 @@ public class QueryContainer {
                 l,
                 trackHits,
                 includeFrozen,
-                minPageSize
+                minPageSize,
+                allowPartialSearchResults
             );
     }
 
@@ -376,18 +402,45 @@ public class QueryContainer {
                 limit,
                 true,
                 includeFrozen,
-                minPageSize
+                minPageSize,
+                allowPartialSearchResults
             );
     }
 
     public QueryContainer withFrozen() {
         return includeFrozen
             ? this
-            : new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, scalarFunctions, sort, limit, trackHits, true, minPageSize);
+            : new QueryContainer(
+                query,
+                aggs,
+                fields,
+                aliases,
+                pseudoFunctions,
+                scalarFunctions,
+                sort,
+                limit,
+                trackHits,
+                true,
+                minPageSize,
+                allowPartialSearchResults
+            );
     }
 
     public QueryContainer withScalarProcessors(AttributeMap<Pipe> procs) {
-        return new QueryContainer(query, aggs, fields, aliases, pseudoFunctions, procs, sort, limit, trackHits, includeFrozen, minPageSize);
+        return new QueryContainer(
+            query,
+            aggs,
+            fields,
+            aliases,
+            pseudoFunctions,
+            procs,
+            sort,
+            limit,
+            trackHits,
+            includeFrozen,
+            minPageSize,
+            allowPartialSearchResults
+        );
     }
 
     /**
@@ -411,7 +464,8 @@ public class QueryContainer {
             limit,
             trackHits,
             includeFrozen,
-            minPageSize
+            minPageSize,
+            allowPartialSearchResults
         );
     }
 
@@ -460,7 +514,8 @@ public class QueryContainer {
                 limit,
                 trackHits,
                 includeFrozen,
-                minPageSize
+                minPageSize,
+                allowPartialSearchResults
             ),
             nestedFieldRef
         );
@@ -592,7 +647,8 @@ public class QueryContainer {
             limit,
             trackHits,
             includeFrozen,
-            minPageSize
+            minPageSize,
+            allowPartialSearchResults
         );
     }
 
@@ -626,7 +682,7 @@ public class QueryContainer {
 
     @Override
     public int hashCode() {
-        return Objects.hash(query, aggs, fields, aliases, sort, limit, trackHits, includeFrozen);
+        return Objects.hash(query, aggs, fields, aliases, sort, limit, trackHits, includeFrozen, allowPartialSearchResults);
     }
 
     @Override
@@ -647,7 +703,8 @@ public class QueryContainer {
             && Objects.equals(sort, other.sort)
             && Objects.equals(limit, other.limit)
             && Objects.equals(trackHits, other.trackHits)
-            && Objects.equals(includeFrozen, other.includeFrozen);
+            && Objects.equals(includeFrozen, other.includeFrozen)
+            && Objects.equals(allowPartialSearchResults, other.allowPartialSearchResults);
     }
 
     @Override

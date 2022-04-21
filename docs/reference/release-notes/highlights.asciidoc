@@ -28,5 +28,6 @@ Other versions:
 [discrete]
 [[integrate_filtering_support_for_approximate_nearest_neighbor_search]]
 === Integrate filtering support for approximate nearest neighbor search
-_knn_search endpoint now has a "filter" option that allows to return only the nearest documents that satisfy the provided filter
+The {ref}/knn-search-api.html[_knn_search endpoint] now has a "filter" option that allows to return only the nearest documents
+that satisfy the provided filter
 

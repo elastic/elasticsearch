@@ -21,6 +21,7 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.idp.privileges.ServiceProviderPrivileges;
@@ -147,11 +148,14 @@ public class TransportSamlInitiateSingleSignOnActionTests extends IdpSamlTestCas
         final ActionFilters actionFilters = mock(ActionFilters.class);
         final Environment env = TestEnvironment.newEnvironment(settings);
         when(threadPool.getThreadContext()).thenReturn(threadContext);
-        new Authentication(
-            new User("saml_service_account", "saml_service_role"),
-            new Authentication.RealmRef("default_native", "native", "node_name"),
-            new Authentication.RealmRef("default_native", "native", "node_name")
-        ).writeToContext(threadContext);
+        AuthenticationTestHelper.builder()
+            .user(new User("not-saml_service_account", "not-saml_service_role"))
+            .realmRef(new Authentication.RealmRef("default_native", "native", "node_name"))
+            .runAs()
+            .user(new User("saml_service_account", "saml_service_role"))
+            .realmRef(new Authentication.RealmRef("default_native", "native", "node_name"))
+            .build()
+            .writeToContext(threadContext);
         if (withSecondaryAuth) {
             new SecondaryAuthentication(
                 securityContext,

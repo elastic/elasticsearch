@@ -43,14 +43,23 @@ public class AuthenticationTests extends ESTestCase {
     public void testWillGetLookedUpByWhenItExists() {
         final RealmRef authenticatedBy = new RealmRef("auth_by", "auth_by_type", "node");
         final RealmRef lookedUpBy = new RealmRef("lookup_by", "lookup_by_type", "node");
-        final Authentication authentication = new Authentication(new User("user"), authenticatedBy, lookedUpBy);
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("not-user"))
+            .realmRef(authenticatedBy)
+            .runAs()
+            .user(new User("user"))
+            .realmRef(lookedUpBy)
+            .build();
 
         assertEquals(lookedUpBy, authentication.getSourceRealm());
     }
 
     public void testWillGetAuthenticateByWhenLookupIsNull() {
         final RealmRef authenticatedBy = new RealmRef("auth_by", "auth_by_type", "node");
-        final Authentication authentication = new Authentication(new User("user"), authenticatedBy, null);
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("user"))
+            .realmRef(authenticatedBy)
+            .build(false);
 
         assertEquals(authenticatedBy, authentication.getSourceRealm());
     }
@@ -209,38 +218,22 @@ public class AuthenticationTests extends ESTestCase {
     }
 
     public void testIsServiceAccount() {
-        final User user = new User(
-            randomAlphaOfLengthBetween(3, 8),
-            randomArray(0, 3, String[]::new, () -> randomAlphaOfLengthBetween(3, 8))
-        );
-        final Authentication.RealmRef authRealm;
-        final boolean authRealmIsForServiceAccount = randomBoolean();
-        if (authRealmIsForServiceAccount) {
-            authRealm = new Authentication.RealmRef(
-                ServiceAccountSettings.REALM_NAME,
-                ServiceAccountSettings.REALM_TYPE,
-                randomAlphaOfLengthBetween(3, 8)
-            );
+        final boolean isServiceAccount = randomBoolean();
+        final Authentication authentication;
+        if (isServiceAccount) {
+            authentication = AuthenticationTestHelper.builder().serviceAccount().build();
         } else {
-            authRealm = new Authentication.RealmRef(
-                randomAlphaOfLengthBetween(3, 8),
-                randomAlphaOfLengthBetween(3, 8),
-                randomAlphaOfLengthBetween(3, 8)
+            authentication = randomValueOtherThanMany(
+                authc -> "_service_account".equals(authc.getAuthenticatedBy().getName()),
+                () -> AuthenticationTestHelper.builder().build()
             );
         }
-        final Authentication.RealmRef lookupRealm = randomFrom(
-            new Authentication.RealmRef(
-                randomAlphaOfLengthBetween(3, 8),
-                randomAlphaOfLengthBetween(3, 8),
-                randomAlphaOfLengthBetween(3, 8)
-            ),
-            null
-        );
-        final Authentication authentication = new Authentication(user, authRealm, lookupRealm);
 
-        if (authRealmIsForServiceAccount) {
+        if (isServiceAccount) {
+            assertThat(authentication.isServiceAccount(), is(true));
             assertThat(authentication.isAuthenticatedWithServiceAccount(), is(true));
         } else {
+            assertThat(authentication.isServiceAccount(), is(false));
             assertThat(authentication.isAuthenticatedWithServiceAccount(), is(false));
         }
     }

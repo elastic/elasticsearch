@@ -18,6 +18,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.mockito.Mockito.mock;
@@ -34,11 +35,11 @@ public class MasterHistoryTransportActionTests extends ESTestCase {
         MasterHistory masterHistory = new MasterHistory(threadPool, clusterService);
         when(masterHistoryService.getLocalMasterHistory()).thenReturn(masterHistory);
         MasterHistoryTransportAction action = new MasterHistoryTransportAction(transportService, actionFilters, masterHistoryService);
-        final List<DiscoveryNode>[] result = new List[1];
+        final List<List<DiscoveryNode>> result = new ArrayList<>();
         ActionListener<MasterHistoryAction.Response> listener = new ActionListener<>() {
             @Override
             public void onResponse(MasterHistoryAction.Response response) {
-                result[0] = response.getMasterHistory();
+                result.add(response.getMasterHistory());
             }
 
             @Override
@@ -47,6 +48,6 @@ public class MasterHistoryTransportActionTests extends ESTestCase {
             }
         };
         action.doExecute(null, new MasterHistoryAction.Request(), listener);
-        assertEquals(masterHistory.getImmutableView(), result[0]);
+        assertEquals(masterHistory.getImmutableView(), result.get(0));
     }
 }

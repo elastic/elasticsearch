@@ -63,6 +63,7 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
         node4MasterClusterState = createClusterState(node4);
     }
 
+    @SuppressWarnings("unchecked")
     public void testThreeMasters() throws Exception {
         MasterHistoryService masterHistoryService = createMasterHistoryService();
         MasterHistory localMasterHistory = masterHistoryService.getLocalMasterHistory();

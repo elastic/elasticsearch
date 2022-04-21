@@ -17,6 +17,11 @@ NOTE: If you have considerable memory allocated to your JVM but are receiving ci
       <<search-aggregations-bucket-diversified-sampler-aggregation,diversified sampler>>, or
       <<search-aggregations-random-sampler-aggregation,random sampler>> to explore the created categories.
 
+NOTE: The algorithm used for categorization was completely changed in version 8.3.0. As a result this aggregation
+      will not work in a mixed version cluster where some nodes are on version 8.3.0 or higher and others are
+      on a version older than 8.3.0. Upgrade all nodes in your cluster to the same version if you experience
+      an error related to this change.
+
 [[bucket-categorize-text-agg-syntax]]
 ==== Parameters
 
@@ -69,12 +74,12 @@ The semi-structured text field to categorize.
 `max_matched_tokens`::
 (Optional, integer)
 This parameter does nothing now, but is permitted for compatibility with the original
-implementation.
+pre-8.3.0 implementation.
 
 `max_unique_tokens`::
 (Optional, integer)
 This parameter does nothing now, but is permitted for compatibility with the original
-implementation.
+pre-8.3.0 implementation.
 
 `min_doc_count`::
 (Optional, integer)
@@ -159,7 +164,6 @@ Response:
   }
 }
 --------------------------------------------------
-
 
 Here is an example using `categorization_filters`
 

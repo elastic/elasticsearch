@@ -28,10 +28,6 @@ import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
 
 public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
 
-    public static final String WATCHER_TEMPLATE_VERSION_VARIABLE = "xpack.watcher.template.version";
-
-    private final boolean ilmManagementEnabled;
-
     public WatcherIndexTemplateRegistry(
         Settings nodeSettings,
         ClusterService clusterService,
@@ -40,30 +36,6 @@ public class WatcherIndexTemplateRegistry extends IndexTemplateRegistry {
         NamedXContentRegistry xContentRegistry
     ) {
         super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
-        ilmManagementEnabled = Watcher.USE_ILM_INDEX_MANAGEMENT.get(nodeSettings);
-    }
-
-    private static final Map<String, ComposableIndexTemplate> TEMPLATES_WATCH_HISTORY = parseComposableTemplates(
-        new IndexTemplateConfig(
-            WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME,
-            "/watch-history.json",
-            WatcherIndexTemplateRegistryField.INDEX_TEMPLATE_VERSION,
-            WATCHER_TEMPLATE_VERSION_VARIABLE
-        )
-    );
-
-    private static final Map<String, ComposableIndexTemplate> TEMPLATES_WATCH_HISTORY_NO_ILM = parseComposableTemplates(
-        new IndexTemplateConfig(
-            WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_NO_ILM,
-            "/watch-history-no-ilm.json",
-            WatcherIndexTemplateRegistryField.INDEX_TEMPLATE_VERSION,
-            WATCHER_TEMPLATE_VERSION_VARIABLE
-        )
-    );
-
-    @Override
-    protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
-        return ilmManagementEnabled ? TEMPLATES_WATCH_HISTORY : TEMPLATES_WATCH_HISTORY_NO_ILM;
     }
 
     private static final List<LifecyclePolicy> LIFECYCLE_POLICIES = List.of(

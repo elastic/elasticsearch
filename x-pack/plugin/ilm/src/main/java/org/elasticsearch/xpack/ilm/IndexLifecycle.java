@@ -12,6 +12,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -30,6 +31,7 @@ import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.BuiltinTemplatePlugin;
 import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.RepositoriesService;
@@ -42,6 +44,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.cluster.action.MigrateToDataTiersAction;
+import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
@@ -83,6 +86,7 @@ import org.elasticsearch.xpack.core.slm.action.GetSnapshotLifecycleStatsAction;
 import org.elasticsearch.xpack.core.slm.action.PutSnapshotLifecycleAction;
 import org.elasticsearch.xpack.core.slm.action.StartSLMAction;
 import org.elasticsearch.xpack.core.slm.action.StopSLMAction;
+import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.ilm.action.RestDeleteLifecycleAction;
 import org.elasticsearch.xpack.ilm.action.RestExplainLifecycleAction;
 import org.elasticsearch.xpack.ilm.action.RestGetLifecycleAction;
@@ -142,12 +146,14 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
+import static org.elasticsearch.xpack.core.template.IndexTemplateRegistry.parseComposableTemplates;
 
-public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin {
+public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin, BuiltinTemplatePlugin {
 
     public static final List<NamedXContentRegistry.Entry> NAMED_X_CONTENT_ENTRIES = xContentEntries();
 
@@ -443,5 +449,35 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
         } catch (IOException e) {
             throw new ElasticsearchException("unable to close index lifecycle services", e);
         }
+    }
+
+    // history (please add a comment why you increased the version here)
+    // version 1: initial
+    // version 2: convert to hidden index
+    // version 3: templates moved to composable templates
+    // version 4: add `allow_auto_create` setting
+    // version 5: convert to data stream
+    public static final int INDEX_TEMPLATE_VERSION = 5;
+
+    public static final String ILM_TEMPLATE_VERSION_VARIABLE = "xpack.ilm_history.template.version";
+    public static final String ILM_TEMPLATE_NAME = "ilm-history";
+
+    public static final String SLM_TEMPLATE_VERSION_VARIABLE = "xpack.slm.template.version";
+    public static final String SLM_TEMPLATE_NAME = ".slm-history";
+
+    private static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATE_CONFIGS = parseComposableTemplates(
+        new IndexTemplateConfig(ILM_TEMPLATE_NAME, "/ilm-history.json", INDEX_TEMPLATE_VERSION, ILM_TEMPLATE_VERSION_VARIABLE),
+        new IndexTemplateConfig(SLM_TEMPLATE_NAME, "/slm-history.json", INDEX_TEMPLATE_VERSION, SLM_TEMPLATE_VERSION_VARIABLE)
+    );
+
+    @Override
+    public Map<String, ComposableIndexTemplate> getComposableIndexTemplates() {
+        // TODO: if enabled
+        return COMPOSABLE_INDEX_TEMPLATE_CONFIGS;
+    }
+
+    @Override
+    public String getOrigin() {
+        return ClientHelper.INDEX_LIFECYCLE_ORIGIN;
     }
 }

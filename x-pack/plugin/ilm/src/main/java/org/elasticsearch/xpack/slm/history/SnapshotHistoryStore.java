@@ -25,7 +25,7 @@ import java.io.IOException;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING;
 import static org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegistry.INDEX_TEMPLATE_VERSION;
-import static org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegistry.SLM_TEMPLATE_NAME;
+import static org.elasticsearch.xpack.ilm.IndexLifecycle.SLM_TEMPLATE_NAME;
 
 /**
  * Records Snapshot Lifecycle Management actions as represented by {@link SnapshotHistoryItem} into an index

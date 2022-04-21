@@ -78,9 +78,10 @@ public class BuiltinTemplateManager implements ClusterStateListener {
                     LOGGER.info("installed component templates {}", installedComponentTemplates);
                 }
 
-                // No composable index templates may be found because none of the component templates it uses exist:
+                // Some composable index templates may not be found because none of the component templates it uses existed in cluster state
+                // so if there are component templates installed then attempt to find composable index templates to install another time:
                 var composableIndexTemplatesToInstall = composableIndexTemplates;
-                if (composableIndexTemplatesToInstall.isEmpty()) {
+                if (componentTemplatesToInstall.isEmpty() == false) {
                     composableIndexTemplatesToInstall = getComposableTemplates(currentState);
                 }
 

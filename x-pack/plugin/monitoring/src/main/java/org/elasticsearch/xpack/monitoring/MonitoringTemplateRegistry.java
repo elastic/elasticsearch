@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -159,66 +158,6 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
         ADDITIONAL_TEMPLATE_VARIABLES
     );
 
-    //////////////////////////////////////////////////////////
-    // Beats metricbeat template (for matching ".monitoring-beats-8-*" indices)
-    //////////////////////////////////////////////////////////
-    public static final String BEATS_STACK_INDEX_TEMPLATE_NAME = ".monitoring-beats-mb";
-    public static final IndexTemplateConfig BEATS_STACK_INDEX_TEMPLATE = new IndexTemplateConfig(
-        BEATS_STACK_INDEX_TEMPLATE_NAME,
-        "/monitoring-beats-mb.json",
-        STACK_MONITORING_REGISTRY_VERSION,
-        STACK_MONITORING_REGISTRY_VERSION_VARIABLE,
-        STACK_TEMPLATE_VARIABLES
-    );
-
-    //////////////////////////////////////////////////////////
-    // ES metricbeat template (for matching ".monitoring-es-8-*" indices)
-    //////////////////////////////////////////////////////////
-    public static final String ES_STACK_INDEX_TEMPLATE_NAME = ".monitoring-es-mb";
-    public static final IndexTemplateConfig ES_STACK_INDEX_TEMPLATE = new IndexTemplateConfig(
-        ES_STACK_INDEX_TEMPLATE_NAME,
-        "/monitoring-es-mb.json",
-        STACK_MONITORING_REGISTRY_VERSION,
-        STACK_MONITORING_REGISTRY_VERSION_VARIABLE,
-        STACK_TEMPLATE_VARIABLES
-    );
-
-    //////////////////////////////////////////////////////////
-    // Kibana metricbeat template (for matching ".monitoring-kibana-8-*" indices)
-    //////////////////////////////////////////////////////////
-    public static final String KIBANA_STACK_INDEX_TEMPLATE_NAME = ".monitoring-kibana-mb";
-    public static final IndexTemplateConfig KIBANA_STACK_INDEX_TEMPLATE = new IndexTemplateConfig(
-        KIBANA_STACK_INDEX_TEMPLATE_NAME,
-        "/monitoring-kibana-mb.json",
-        STACK_MONITORING_REGISTRY_VERSION,
-        STACK_MONITORING_REGISTRY_VERSION_VARIABLE,
-        STACK_TEMPLATE_VARIABLES
-    );
-
-    //////////////////////////////////////////////////////////
-    // Logstash metricbeat template (for matching ".monitoring-logstash-8-*" indices)
-    //////////////////////////////////////////////////////////
-    public static final String LOGSTASH_STACK_INDEX_TEMPLATE_NAME = ".monitoring-logstash-mb";
-    public static final IndexTemplateConfig LOGSTASH_STACK_INDEX_TEMPLATE = new IndexTemplateConfig(
-        LOGSTASH_STACK_INDEX_TEMPLATE_NAME,
-        "/monitoring-logstash-mb.json",
-        STACK_MONITORING_REGISTRY_VERSION,
-        STACK_MONITORING_REGISTRY_VERSION_VARIABLE,
-        STACK_TEMPLATE_VARIABLES
-    );
-
-    //////////////////////////////////////////////////////////
-    // Enterprise Search metricbeat template (for matching ".monitoring-ent-search-8-*" indices)
-    //////////////////////////////////////////////////////////
-    public static final String ENTERPRISE_SEARCH_STACK_INDEX_TEMPLATE_NAME = ".monitoring-ent-search-mb";
-    public static final IndexTemplateConfig ENTERPRISE_SEARCH_STACK_INDEX_TEMPLATE = new IndexTemplateConfig(
-        ENTERPRISE_SEARCH_STACK_INDEX_TEMPLATE_NAME,
-        "/monitoring-ent-search-mb.json",
-        STACK_MONITORING_REGISTRY_VERSION,
-        STACK_MONITORING_REGISTRY_VERSION_VARIABLE,
-        STACK_TEMPLATE_VARIABLES
-    );
-
     public static final String[] TEMPLATE_NAMES = new String[] {
         ALERTS_INDEX_TEMPLATE_NAME,
         BEATS_INDEX_TEMPLATE_NAME,
@@ -302,19 +241,6 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
         } else {
             return Collections.emptyList();
         }
-    }
-
-    private static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATE_CONFIGS = parseComposableTemplates(
-        BEATS_STACK_INDEX_TEMPLATE,
-        ES_STACK_INDEX_TEMPLATE,
-        KIBANA_STACK_INDEX_TEMPLATE,
-        LOGSTASH_STACK_INDEX_TEMPLATE,
-        ENTERPRISE_SEARCH_STACK_INDEX_TEMPLATE
-    );
-
-    @Override
-    protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
-        return monitoringTemplatesEnabled ? COMPOSABLE_INDEX_TEMPLATE_CONFIGS : Map.of();
     }
 
     @Override

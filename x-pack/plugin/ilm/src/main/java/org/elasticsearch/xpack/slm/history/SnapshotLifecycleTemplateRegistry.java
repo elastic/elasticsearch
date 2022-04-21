@@ -9,14 +9,12 @@ package org.elasticsearch.xpack.slm.history;
 
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
-import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
@@ -44,9 +42,6 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
     // version 5: add `allow_auto_create` setting
     public static final int INDEX_TEMPLATE_VERSION = 5;
 
-    public static final String SLM_TEMPLATE_VERSION_VARIABLE = "xpack.slm.template.version";
-    public static final String SLM_TEMPLATE_NAME = ".slm-history";
-
     public static final String SLM_POLICY_NAME = "slm-history-ilm-policy";
 
     @Override
@@ -65,18 +60,6 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
     ) {
         super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
         slmHistoryEnabled = SLM_HISTORY_INDEX_ENABLED_SETTING.get(nodeSettings);
-    }
-
-    public static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATE_CONFIGS = parseComposableTemplates(
-        new IndexTemplateConfig(SLM_TEMPLATE_NAME, "/slm-history.json", INDEX_TEMPLATE_VERSION, SLM_TEMPLATE_VERSION_VARIABLE)
-    );
-
-    @Override
-    protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
-        if (slmHistoryEnabled == false) {
-            return Map.of();
-        }
-        return COMPOSABLE_INDEX_TEMPLATE_CONFIGS;
     }
 
     private static final List<LifecyclePolicy> LIFECYCLE_POLICIES = List.of(

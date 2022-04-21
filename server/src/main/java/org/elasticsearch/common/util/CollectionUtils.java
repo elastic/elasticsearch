@@ -102,11 +102,8 @@ public class CollectionUtils {
      */
     public static void ensureNoSelfReferences(Object value, String messageHint) {
         Iterable<?> it = convert(value);
-        final Set<Object> ancestors = Collections.newSetFromMap(new IdentityHashMap<>());
-        // tracking all nodes to prevent duplicate traversal
-        final Set<Object> allNodes = Collections.newSetFromMap(new IdentityHashMap<>());
         if (it != null) {
-            ensureNoSelfReferences(it, value, ancestors, allNodes, messageHint);
+            ensureNoSelfReferences(it, value, Collections.newSetFromMap(new IdentityHashMap<>()), messageHint);
         }
     }
 
@@ -130,7 +127,6 @@ public class CollectionUtils {
         final Iterable<?> value,
         Object originalReference,
         final Set<Object> ancestors,
-        final Set<Object> allNodes,
         String messageHint
     ) {
         if (value != null) {
@@ -138,10 +134,8 @@ public class CollectionUtils {
                 String suffix = Strings.isNullOrEmpty(messageHint) ? "" : String.format(Locale.ROOT, " (%s)", messageHint);
                 throw new IllegalArgumentException("Iterable object is self-referencing itself" + suffix);
             }
-            if (allNodes.add(originalReference)) {
-                for (Object o : value) {
-                    ensureNoSelfReferences(convert(o), o, ancestors, allNodes, messageHint);
-                }
+            for (Object o : value) {
+                ensureNoSelfReferences(convert(o), o, ancestors, messageHint);
             }
             ancestors.remove(originalReference);
         }

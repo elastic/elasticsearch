@@ -46,6 +46,8 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
 
     public static final String NAME = "categorize_text";
 
+    public static final Version ALGORITHM_CHANGED_VERSION = Version.V_8_3_0;
+
     static final ParseField FIELD_NAME = new ParseField("field");
     static final ParseField SIMILARITY_THRESHOLD = new ParseField("similarity_threshold");
     // The next two are unused, but accepted and ignored to avoid breaking client code
@@ -116,6 +118,13 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
         super(in);
         this.bucketCountThresholds = new TermsAggregator.BucketCountThresholds(in);
         this.fieldName = in.readString();
+        // If the coordinating node is an older version then we might still receive messages from older
+        // nodes. In this case we can send back results for this node created using the new algorithm.
+        // They won't necessarily merge well with results from other nodes, but are better than nothing.
+        if (in.getVersion().before(ALGORITHM_CHANGED_VERSION)) {
+            in.readVInt(); // maxUniqueTokens
+            in.readVInt(); // maxMatchedTokens
+        }
         this.similarityThreshold = in.readVInt();
         this.categorizationAnalyzerConfig = in.readOptionalWriteable(CategorizationAnalyzerConfig::new);
     }
@@ -315,6 +324,10 @@ public class CategorizeTextAggregationBuilder extends AbstractAggregationBuilder
 
     @Override
     public Version getMinimalSupportedVersion() {
-        return Version.V_8_3_0;
+        // This isn't strictly true, as the categorize_text aggregation has existed since 7.16.
+        // However, the implementation completely changed in 8.3, so it's best that if the
+        // coordinating node is on 8.3 or above then it should refuse to use this aggregation
+        // until the older nodes are upgraded.
+        return ALGORITHM_CHANGED_VERSION;
     }
 }

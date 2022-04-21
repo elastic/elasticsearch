@@ -36,6 +36,12 @@ public class SerializableTokenListCategory implements Writeable {
      */
     public static final int KEY_BUDGET = 10000;
 
+    /**
+     * Not intended to be used in normal operation. Can be used as a placeholder
+     * when talking to old nodes to avoid null pointer exceptions.
+     */
+    static final SerializableTokenListCategory EMPTY = new SerializableTokenListCategory();
+
     final BytesRef[] baseTokens;
     final int[] baseTokenWeights;
     final int baseUnfilteredLength;
@@ -47,6 +53,21 @@ public class SerializableTokenListCategory implements Writeable {
     final int[] keyTokenIndexes;
     final int origUniqueTokenWeight;
     final long numMatches;
+
+    private SerializableTokenListCategory() {
+        baseTokens = new BytesRef[0];
+        int[] emptyIntArray = new int[0];
+        baseTokenWeights = emptyIntArray;
+        baseUnfilteredLength = 0;
+        maxUnfilteredStringLength = 0;
+        orderedCommonTokenBeginIndex = 0;
+        orderedCommonTokenEndIndex = 0;
+        commonUniqueTokenIndexes = emptyIntArray;
+        commonUniqueTokenWeights = emptyIntArray;
+        keyTokenIndexes = emptyIntArray;
+        origUniqueTokenWeight = 0;
+        numMatches = 0;
+    }
 
     /**
      * @param category     The category to be serialized.

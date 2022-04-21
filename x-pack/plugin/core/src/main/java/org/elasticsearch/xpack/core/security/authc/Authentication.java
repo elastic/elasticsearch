@@ -198,7 +198,7 @@ public class Authentication implements ToXContentObject {
             getUser(),
             getAuthenticatedBy(),
             getLookedUpBy(),
-            Version.CURRENT,
+            getVersion(),
             AuthenticationType.TOKEN,
             getMetadata()
         );

@@ -8,8 +8,6 @@
 
 package org.elasticsearch.gradle.plugin;
 
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.IOUtils;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin;
@@ -19,8 +17,6 @@ import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.RunTask;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
-import org.gradle.api.Action;
-import org.gradle.api.GradleException;
 import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
@@ -30,30 +26,23 @@ import org.gradle.api.Transformer;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.file.CopySpec;
 import org.gradle.api.file.FileCollection;
-import org.gradle.api.file.FileTree;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
-import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.Sync;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Zip;
 
-import javax.inject.Inject;
 import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
 import java.util.Map;
 import java.util.concurrent.Callable;
+
+import javax.inject.Inject;
 
 /**
  * Encapsulates build configuration for an Elasticsearch plugin.
@@ -147,7 +136,8 @@ public class PluginBuildPlugin implements Plugin<Project> {
             task.getPluginName().set(providerFactory.provider(extension::getName));
             task.getPluginDescription().set(providerFactory.provider(extension::getDescription));
             task.getPluginVersion().set(providerFactory.provider(extension::getVersion));
-            task.getElasticsearchVersion().set(Version.fromString(VersionProperties.getElasticsearch()).toString());
+            task.getElasticsearchVersion()
+                .set(providerFactory.provider(() -> Version.fromString(VersionProperties.getElasticsearch()).toString()));
             var javaExtension = project.getExtensions().getByType(JavaPluginExtension.class);
             task.getJavaVersion().set(providerFactory.provider(() -> javaExtension.getTargetCompatibility().toString()));
             task.getClassname().set(providerFactory.provider(extension::getClassname));
@@ -194,8 +184,11 @@ public class PluginBuildPlugin implements Plugin<Project> {
         return bundle;
     }
 
-    private static CopySpec createBundleSpec(Project project, File pluginMetadata,
-                                             TaskProvider<GeneratePluginPropertiesTask> buildProperties) {
+    private static CopySpec createBundleSpec(
+        Project project,
+        File pluginMetadata,
+        TaskProvider<GeneratePluginPropertiesTask> buildProperties
+    ) {
         var bundleSpec = project.copySpec();
         bundleSpec.from(buildProperties);
         bundleSpec.from(pluginMetadata, copySpec -> {

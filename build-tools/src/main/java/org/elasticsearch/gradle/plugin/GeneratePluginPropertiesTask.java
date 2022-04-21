@@ -31,6 +31,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+
 import javax.inject.Inject;
 
 public abstract class GeneratePluginPropertiesTask extends DefaultTask {
@@ -106,9 +107,11 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
         SimpleTemplateEngine engine = new SimpleTemplateEngine();
         Path outputFile = getOutputFile().get().getAsFile().toPath();
         Files.createDirectories(outputFile.getParent());
-        try (var inputStream = GeneratePluginPropertiesTask.class.getResourceAsStream("/" + PROPERTIES_FILENAME);
-             var reader = new BufferedReader(new InputStreamReader(inputStream));
-             var writer = Files.newBufferedWriter(outputFile, StandardCharsets.UTF_8)) {
+        try (
+            var inputStream = GeneratePluginPropertiesTask.class.getResourceAsStream("/" + PROPERTIES_FILENAME);
+            var reader = new BufferedReader(new InputStreamReader(inputStream));
+            var writer = Files.newBufferedWriter(outputFile, StandardCharsets.UTF_8)
+        ) {
             Template template = engine.createTemplate(reader);
             template.make(props).writeTo(writer);
         }

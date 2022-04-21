@@ -94,9 +94,9 @@ GET kibana_sample_data_ecommerce /_search
        "frequent_items": {
          "minimum_set_size": 2,
 	       "fields": [ 
-              {
-              "field": "category.keyword"
-              }
+                  {
+                    "field": "category.keyword"
+                  }
 	       ],
 	       "size": 3
        }

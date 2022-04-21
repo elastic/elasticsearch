@@ -41,7 +41,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.N
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.LeafOrdinalsFieldData;
-import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
 import org.elasticsearch.index.fielddata.plain.SortedSetOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
@@ -58,8 +57,8 @@ import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
-import org.elasticsearch.script.field.DelegateDocValuesField;
-import org.elasticsearch.script.field.ToScriptField;
+import org.elasticsearch.script.field.FlattenedDocValuesField;
+import org.elasticsearch.script.field.ToScriptFieldFactory;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
@@ -145,13 +144,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             Integer.MAX_VALUE
         );
 
-        private final Parameter<String> indexOptions = Parameter.restrictedStringParam(
-            "index_options",
-            false,
-            m -> builder(m).indexOptions.get(),
-            "docs",
-            "freqs"
-        );
+        private final Parameter<String> indexOptions = TextParams.keywordIndexOptions(m -> builder(m).indexOptions.get());
         private final Parameter<SimilarityProvider> similarity = TextParams.similarity(m -> builder(m).similarity.get());
 
         private final Parameter<Boolean> splitQueriesOnWhitespace = Parameter.boolParam(
@@ -199,11 +192,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 hasDocValues.get(),
                 meta.get(),
                 splitQueriesOnWhitespace.get(),
-                eagerGlobalOrdinals.get(),
-                (dv, n) -> new DelegateDocValuesField(
-                    new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
-                    n
-                )
+                eagerGlobalOrdinals.get()
             );
             return new FlattenedFieldMapper(name, ft, this);
         }
@@ -367,14 +356,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         @Override
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
-            return new KeyedFlattenedFieldData.Builder(
-                name(),
-                key,
-                (dv, n) -> new DelegateDocValuesField(
-                    new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
-                    n
-                )
-            );
+            return new KeyedFlattenedFieldData.Builder(name(), key, (dv, n) -> new FlattenedDocValuesField(FieldData.toString(dv), n));
         }
 
         @Override
@@ -490,12 +472,16 @@ public final class FlattenedFieldMapper extends FieldMapper {
     public static class KeyedFlattenedFieldData implements IndexOrdinalsFieldData {
         private final String key;
         private final IndexOrdinalsFieldData delegate;
-        private final ToScriptField<SortedSetDocValues> toScriptField;
+        private final ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory;
 
-        private KeyedFlattenedFieldData(String key, IndexOrdinalsFieldData delegate, ToScriptField<SortedSetDocValues> toScriptField) {
+        private KeyedFlattenedFieldData(
+            String key,
+            IndexOrdinalsFieldData delegate,
+            ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory
+        ) {
             this.delegate = delegate;
             this.key = key;
-            this.toScriptField = toScriptField;
+            this.toScriptFieldFactory = toScriptFieldFactory;
         }
 
         public String getKey() {
@@ -535,25 +521,25 @@ public final class FlattenedFieldMapper extends FieldMapper {
         @Override
         public LeafOrdinalsFieldData load(LeafReaderContext context) {
             LeafOrdinalsFieldData fieldData = delegate.load(context);
-            return new KeyedFlattenedLeafFieldData(key, fieldData, toScriptField);
+            return new KeyedFlattenedLeafFieldData(key, fieldData, toScriptFieldFactory);
         }
 
         @Override
         public LeafOrdinalsFieldData loadDirect(LeafReaderContext context) throws Exception {
             LeafOrdinalsFieldData fieldData = delegate.loadDirect(context);
-            return new KeyedFlattenedLeafFieldData(key, fieldData, toScriptField);
+            return new KeyedFlattenedLeafFieldData(key, fieldData, toScriptFieldFactory);
         }
 
         @Override
         public IndexOrdinalsFieldData loadGlobal(DirectoryReader indexReader) {
             IndexOrdinalsFieldData fieldData = delegate.loadGlobal(indexReader);
-            return new KeyedFlattenedFieldData(key, fieldData, toScriptField);
+            return new KeyedFlattenedFieldData(key, fieldData, toScriptFieldFactory);
         }
 
         @Override
         public IndexOrdinalsFieldData loadGlobalDirect(DirectoryReader indexReader) throws Exception {
             IndexOrdinalsFieldData fieldData = delegate.loadGlobalDirect(indexReader);
-            return new KeyedFlattenedFieldData(key, fieldData, toScriptField);
+            return new KeyedFlattenedFieldData(key, fieldData, toScriptFieldFactory);
         }
 
         @Override
@@ -573,12 +559,12 @@ public final class FlattenedFieldMapper extends FieldMapper {
         public static class Builder implements IndexFieldData.Builder {
             private final String fieldName;
             private final String key;
-            private final ToScriptField<SortedSetDocValues> toScriptField;
+            private final ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory;
 
-            Builder(String fieldName, String key, ToScriptField<SortedSetDocValues> toScriptField) {
+            Builder(String fieldName, String key, ToScriptFieldFactory<SortedSetDocValues> toScriptFieldFactory) {
                 this.fieldName = fieldName;
                 this.key = key;
-                this.toScriptField = toScriptField;
+                this.toScriptFieldFactory = toScriptFieldFactory;
             }
 
             @Override
@@ -591,7 +577,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
                     // The delegate should never be accessed
                     (dv, n) -> { throw new UnsupportedOperationException(); }
                 );
-                return new KeyedFlattenedFieldData(key, delegate, toScriptField);
+                return new KeyedFlattenedFieldData(key, delegate, toScriptFieldFactory);
             }
         }
     }
@@ -603,7 +589,6 @@ public final class FlattenedFieldMapper extends FieldMapper {
     public static final class RootFlattenedFieldType extends StringFieldType implements DynamicFieldType {
         private final boolean splitQueriesOnWhitespace;
         private final boolean eagerGlobalOrdinals;
-        private final ToScriptField<SortedSetDocValues> toScriptField;
 
         public RootFlattenedFieldType(
             String name,
@@ -611,8 +596,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             boolean hasDocValues,
             Map<String, String> meta,
             boolean splitQueriesOnWhitespace,
-            boolean eagerGlobalOrdinals,
-            ToScriptField<SortedSetDocValues> toScriptField
+            boolean eagerGlobalOrdinals
         ) {
             super(
                 name,
@@ -624,7 +608,6 @@ public final class FlattenedFieldMapper extends FieldMapper {
             );
             this.splitQueriesOnWhitespace = splitQueriesOnWhitespace;
             this.eagerGlobalOrdinals = eagerGlobalOrdinals;
-            this.toScriptField = toScriptField;
         }
 
         @Override
@@ -635,6 +618,11 @@ public final class FlattenedFieldMapper extends FieldMapper {
         @Override
         public boolean eagerGlobalOrdinals() {
             return eagerGlobalOrdinals;
+        }
+
+        @Override
+        public boolean mayExistInIndex(SearchExecutionContext context) {
+            return context.fieldExistsInIndex(name());
         }
 
         @Override
@@ -652,10 +640,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
             return new SortedSetOrdinalsIndexFieldData.Builder(
                 name(),
                 CoreValuesSourceType.KEYWORD,
-                (dv, n) -> new DelegateDocValuesField(
-                    new ScriptDocValues.Strings(new ScriptDocValues.StringsSupplier(FieldData.toString(dv))),
-                    n
-                )
+                (dv, n) -> new FlattenedDocValuesField(FieldData.toString(dv), n)
             );
         }
 

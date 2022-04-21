@@ -55,7 +55,7 @@ public class CertGenCliTests extends PackagingTestCase {
 
     public void test20Help() {
         Shell.Result result = installation.executables().certgenTool.run("--help");
-        assertThat(result.stdout, containsString("Simplifies certificate creation"));
+        assertThat(result.stdout(), containsString("Simplifies certificate creation"));
     }
 
     public void test30Generate() throws Exception {
@@ -134,7 +134,7 @@ public class CertGenCliTests extends PackagingTestCase {
 
     private String setElasticPassword() {
         Shell.Result result = installation.executables().resetPasswordTool.run("--auto --batch --silent --username elastic", null);
-        return result.stdout;
+        return result.stdout();
     }
 
 }

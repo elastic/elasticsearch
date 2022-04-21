@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.DataStream.TimestampField;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -42,6 +43,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Tuple;
@@ -1284,8 +1286,11 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testExecuteFailureWithNestedOnFailure() throws Exception {
         final Processor processor = mock(Processor.class);
+        when(processor.isAsync()).thenReturn(true);
         final Processor onFailureProcessor = mock(Processor.class);
+        when(onFailureProcessor.isAsync()).thenReturn(true);
         final Processor onFailureOnFailureProcessor = mock(Processor.class);
+        when(onFailureOnFailureProcessor.isAsync()).thenReturn(true);
         final List<Processor> processors = Collections.singletonList(onFailureProcessor);
         final List<Processor> onFailureProcessors = Collections.singletonList(onFailureOnFailureProcessor);
         final CompoundProcessor compoundProcessor = new CompoundProcessor(
@@ -1356,6 +1361,7 @@ public class IngestServiceTests extends ESTestCase {
         }
 
         CompoundProcessor processor = mock(CompoundProcessor.class);
+        when(processor.isAsync()).thenReturn(true);
         when(processor.getProcessors()).thenReturn(Collections.singletonList(mock(Processor.class)));
         Exception error = new RuntimeException();
         doAnswer(args -> {
@@ -1400,7 +1406,7 @@ public class IngestServiceTests extends ESTestCase {
 
         // Test to make sure that ingest respects content types other than the default index content type
         XContentType xContentType = randomFrom(
-            Arrays.stream(XContentType.values()).filter(t -> Requests.INDEX_CONTENT_TYPE.equals(t) == false).collect(Collectors.toList())
+            Arrays.stream(XContentType.values()).filter(t -> Requests.INDEX_CONTENT_TYPE.equals(t) == false).toList()
         );
 
         logger.info("Using [{}], not randomly determined default [{}]", xContentType, Requests.INDEX_CONTENT_TYPE);
@@ -1420,7 +1426,7 @@ public class IngestServiceTests extends ESTestCase {
             handler.accept(RandomDocumentPicks.randomIngestDocument(random()), null);
             return null;
         }).when(processor).execute(any(), any());
-        Map<String, Processor.Factory> map = new HashMap<>(2);
+        Map<String, Processor.Factory> map = Maps.newMapWithExpectedSize(2);
         map.put("mock", (factories, tag, description, config) -> processor);
 
         IngestService ingestService = createWithProcessors(map);
@@ -1458,6 +1464,8 @@ public class IngestServiceTests extends ESTestCase {
         final Processor processorFailure = mock(Processor.class);
         when(processor.getType()).thenReturn("mock");
         when(processor.getTag()).thenReturn("mockTag");
+        when(processor.isAsync()).thenReturn(true);
+        when(processorFailure.isAsync()).thenReturn(true);
         when(processorFailure.getType()).thenReturn("failure-mock");
         // avoid returning null and dropping the document
         doAnswer(args -> {
@@ -1472,7 +1480,7 @@ public class IngestServiceTests extends ESTestCase {
             handler.accept(null, new RuntimeException("error"));
             return null;
         }).when(processorFailure).execute(any(IngestDocument.class), any());
-        Map<String, Processor.Factory> map = new HashMap<>(2);
+        Map<String, Processor.Factory> map = Maps.newMapWithExpectedSize(2);
         map.put("mock", (factories, tag, description, config) -> processor);
         map.put("failure-mock", (factories, tag, description, config) -> processorFailure);
         IngestService ingestService = createWithProcessors(map);
@@ -1572,9 +1580,9 @@ public class IngestServiceTests extends ESTestCase {
         assertPipelineStats(afterThirdRequestStats.getPipelineStats(), "_id1", 2, 0, 0);
         assertPipelineStats(afterThirdRequestStats.getPipelineStats(), "_id2", 1, 0, 0);
         // The number of processors for the "id1" pipeline changed, so the per-processor metrics are not carried forward. This is
-        // due to the parallel array's used to identify which metrics to carry forward. With out unique ids or semantic equals for each
+        // due to the parallel array's used to identify which metrics to carry forward. Without unique ids or semantic equals for each
         // processor, parallel arrays are the best option for of carrying forward metrics between pipeline changes. However, in some cases,
-        // like this one it may not readily obvious why the metrics were not carried forward.
+        // like this one it may not be readily obvious why the metrics were not carried forward.
         assertProcessorStats(0, afterThirdRequestStats, "_id1", 1, 0, 0);
         assertProcessorStats(1, afterThirdRequestStats, "_id1", 1, 0, 0);
         assertProcessorStats(0, afterThirdRequestStats, "_id2", 1, 0, 0);
@@ -1781,6 +1789,35 @@ public class IngestServiceTests extends ESTestCase {
         }
 
         assertThat(reference.get(), is(instanceOf(byte[].class)));
+    }
+
+    public void testPostIngest() {
+        IngestService ingestService = createWithProcessors(
+            Collections.singletonMap("mock", (factories, tag, description, config) -> mockCompoundProcessor())
+        );
+
+        PutPipelineRequest putRequest = new PutPipelineRequest(
+            "_id",
+            new BytesArray("{\"processors\": [{\"mock\" : {}}]}"),
+            XContentType.JSON
+        );
+        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+        ClusterState previousClusterState = clusterState;
+        clusterState = IngestService.innerPut(putRequest, clusterState);
+        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
+
+        BulkRequest bulkRequest = new BulkRequest();
+        IndexRequest indexRequest1 = new IndexRequest("idx").setPipeline("_id")
+            .setFinalPipeline("_id")
+            .source(Map.of(TimestampField.FIXED_TIMESTAMP_FIELD, 10));
+        IndexRequest indexRequest2 = new IndexRequest("idx").setPipeline("_id").setFinalPipeline("_id").source(Map.of("foo", "bar"));
+        bulkRequest.add(indexRequest1);
+        bulkRequest.add(indexRequest2);
+
+        ingestService.executeBulkRequest(2, bulkRequest.requests(), (integer, e) -> {}, (thread, e) -> {}, indexReq -> {}, Names.WRITE);
+
+        assertThat(indexRequest1.getRawTimestamp(), equalTo(10));
+        assertThat(indexRequest2.getRawTimestamp(), nullValue());
     }
 
     public void testResolveRequiredOrDefaultPipelineDefaultPipeline() {
@@ -2166,6 +2203,7 @@ public class IngestServiceTests extends ESTestCase {
 
     private CompoundProcessor mockCompoundProcessor() {
         CompoundProcessor processor = mock(CompoundProcessor.class);
+        doAnswer(args -> true).when(processor).isAsync();
         doAnswer(args -> {
             @SuppressWarnings("unchecked")
             BiConsumer<IngestDocument, Exception> handler = (BiConsumer) args.getArguments()[1];

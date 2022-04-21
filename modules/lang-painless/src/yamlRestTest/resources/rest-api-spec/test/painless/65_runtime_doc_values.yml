@@ -1,0 +1,1549 @@
+setup:
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            runtime:
+              day_of_week:
+                type: keyword
+                script:
+                  source: |
+                    for (date in field('date')) {
+                      emit(date.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
+                    }
+              total_value_double:
+                type: double
+                script:
+                  source: emit($('short', 0) + $('byte', 0) + $('double', 0.0) + $('float', 0F));
+              total_value_long:
+                type: long
+                script:
+                  source: emit((long)($('integer', 0) + $('half_float', 0F)));
+              date_plus_day:
+                type: date
+                script:
+                  source: |
+                    for (date in field('date')) {
+                      emit(date.plusDays(1).millis);
+                    }
+              reverse_boolean:
+                type: boolean
+                script:
+                  source: emit(!field('boolean').get(true));
+              rt_geo_point:
+                type: geo_point
+                script:
+                  source: |
+                    def gp = field('geo_point').get(null);
+                    if (gp != null) {
+                      emit(gp.lat, gp.lon);
+                    }
+              rt_ip:
+                type: ip
+                script:
+                  source: |
+                    def ip = field('ip').asString(null);
+                    if (ip != null) {
+                      emit(ip);
+                    }
+              doc_day_of_week:
+                type: keyword
+                script:
+                  source: |
+                    if (doc.containsKey('date')) {
+                      for (date in doc['date']) {
+                        emit(date.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
+                      }
+                    }
+              doc_total_value_double:
+                type: double
+                script:
+                  source: |
+                    if (doc.containsKey('short') && doc['short'].empty == false &&
+                        doc.containsKey('byte') && doc['byte'].empty == false &&
+                        doc.containsKey('double') && doc['double'].empty == false &&
+                        doc.containsKey('byte') && doc['byte'].empty == false) {
+                      emit(doc['short'].value + doc['byte'].value + doc['double'].value + doc['float'].value);
+                    } else {
+                      emit(0.0);
+                    }
+              doc_total_value_long:
+                type: long
+                script:
+                  source: |
+                    if (doc.containsKey('integer') && doc['integer'].empty == false &&
+                        doc.containsKey('half_float') && doc['half_float'].empty == false) {
+                      emit((long)(doc['integer'].value + doc['half_float'].value));
+                    } else {
+                      emit(0L);
+                    }
+              doc_date_plus_day:
+                type: date
+                script:
+                  source: |
+                    if (doc.containsKey('date')) {
+                      for (date in doc['date']) {
+                        emit(date.plusDays(1).millis);
+                      }
+                    }
+              doc_reverse_boolean:
+                type: boolean
+                script:
+                  source: |
+                    if (doc.containsKey('boolean') && doc['boolean'].empty == false) {
+                      emit(!doc['boolean'].value);
+                    }
+              doc_rt_geo_point:
+                type: geo_point
+                script:
+                  source: |
+                    if (doc.containsKey('geo_point') && doc['geo_point'].empty == false) {
+                      def gp = doc['geo_point'].value;
+                      emit(gp.lat, gp.lon);
+                    }
+              doc_rt_ip:
+                type: ip
+                script:
+                  source: |
+                    if (doc.containsKey('ip') && doc['ip'].empty == false) {
+                      emit(doc['ip'].value);
+                    }
+            properties:
+              boolean:
+                type: boolean
+              date:
+                type: date
+              nanos:
+                type: date_nanos
+              geo_point:
+                type: geo_point
+              ip:
+                type: ip
+              keyword:
+                type: keyword
+              long:
+                type: long
+              integer:
+                type: integer
+              short:
+                type: short
+              byte:
+                type: byte
+              double:
+                type: double
+              float:
+                type: float
+              half_float:
+                type: half_float
+              scaled_float:
+                type: scaled_float
+                scaling_factor: 100
+              token_count:
+                type: token_count
+                analyzer: standard
+              rank:
+                type: integer
+              flattended:
+                type: flattened
+
+
+  - do:
+      index:
+        index: test
+        id: 1
+        body:
+          rank: 1
+          boolean: true
+          date: 2017-01-01T12:11:12
+          nanos: 2015-01-01T12:10:30.123456789Z
+          geo_point: 41.12,-71.34
+          ip: 192.168.0.19
+          keyword: not split at all
+          long: 12348732141234
+          integer: 134134566
+          short: 1324
+          byte: 12
+          double: 3.14159265358979
+          float: 3.141592654
+          half_float: 3.140625
+          scaled_float: 3.14
+          token_count: count all these words please
+
+  - do:
+      index:
+        index: test
+        id: 2
+        body:
+          rank: 2
+
+  - do:
+      index:
+        index: test
+        id: 3
+        body:
+          rank: 3
+          boolean: [true, false, true]
+          ip: ["10.1.2.3", "2001:db8::2:1"]
+          date: [2017-01-01T12:11:12, 2018-01-01T12:11:12]
+          nanos: [2015-01-01T12:10:30.123456789Z, 2015-01-01T12:10:30.987654321Z]
+          geo_point: [[-71.34,41.12],[60.32,21.25]]
+          keyword: ["one string", "another string"]
+          long: [1152921504606846976, 576460752303423488]
+          integer: [5, 17, 29]
+          short: [6, 18, 30, 45]
+          byte: [16, 32, 64, 8, 4]
+          double: [3.141592653588, 2.141592653587]
+          float: [1.123, 2.234]
+          half_float: [1.123, 2.234]
+          scaled_float: [-3.5, 2.5]
+
+
+  - do:
+      indices.refresh: {}
+
+---
+"field_from_field":
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('day_of_week').get('None')"
+  - match: { hits.hits.0.fields.field.0: "Sunday" }
+  - match: { hits.hits.1.fields.field.0: "None" }
+  - match: { hits.hits.2.fields.field.0: "Monday" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('day_of_week').get(1, 'None')"
+  - match: { hits.hits.0.fields.field.0: "None" }
+  - match: { hits.hits.1.fields.field.0: "None" }
+  - match: { hits.hits.2.fields.field.0: "Sunday" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('total_value_double').get(0.0)"
+  - close_to: { hits.hits.0.fields.field.0: { value: 1342.2831853946025, error: 0.001 } }
+  - close_to: { hits.hits.1.fields.field.0: { value: 0.0, error: 0.001 } }
+  - close_to: { hits.hits.2.fields.field.0: { value: 13.264592679336207, error: 0.001 } }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('total_value_long').get(0L)"
+  - match: { hits.hits.0.fields.field.0: 1.34134568E8 }
+  - match: { hits.hits.1.fields.field.0: 0 }
+  - match: { hits.hits.2.fields.field.0: 6 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('date_plus_day').get(null)"
+  - match: { hits.hits.0.fields.field.0: "2017-01-02T12:11:12.000Z" }
+  - match: { hits.hits.1.fields.field.0: null }
+  - match: { hits.hits.2.fields.field.0: "2017-01-02T12:11:12.000Z" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('date_plus_day').get(1, null)"
+  - match: { hits.hits.0.fields.field.0: null }
+  - match: { hits.hits.1.fields.field.0: null }
+  - match: { hits.hits.2.fields.field.0: "2018-01-02T12:11:12.000Z" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('reverse_boolean').get(false)"
+  - match: { hits.hits.0.fields.field.0: false }
+  - match: { hits.hits.1.fields.field.0: false }
+  - match: { hits.hits.2.fields.field.0: true }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "field('rt_geo_point').get(null)"
+  - match: { hits.hits.0.fields.field.0.lat: 41.1199999647215 }
+  - match: { hits.hits.0.fields.field.0.lon: -71.34000004269183 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('rt_ip').get(null)"
+  - match: { hits.hits.0.fields.field.0: "192.168.0.19" }
+  - match: { hits.hits.1.fields.field.0: null }
+  - match: { hits.hits.2.fields.field.0: "10.1.2.3" }
+
+---
+"field_from_doc":
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('doc_day_of_week').get('None')"
+  - match: { hits.hits.0.fields.field.0: "Sunday" }
+  - match: { hits.hits.1.fields.field.0: "None" }
+  - match: { hits.hits.2.fields.field.0: "Monday" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('doc_day_of_week').get(1, 'None')"
+  - match: { hits.hits.0.fields.field.0: "None" }
+  - match: { hits.hits.1.fields.field.0: "None" }
+  - match: { hits.hits.2.fields.field.0: "Sunday" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('doc_total_value_double').get(0.0)"
+  - close_to: { hits.hits.0.fields.field.0: { value: 1342.2831853946025, error: 0.001 } }
+  - close_to: { hits.hits.1.fields.field.0: { value: 0.0, error: 0.001 } }
+  - close_to: { hits.hits.2.fields.field.0: { value: 13.264592679336207, error: 0.001 } }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('doc_total_value_long').get(0L)"
+  - match: { hits.hits.0.fields.field.0: 1.34134569E8 }
+  - match: { hits.hits.1.fields.field.0: 0 }
+  - match: { hits.hits.2.fields.field.0: 6 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('doc_date_plus_day').get(null)"
+  - match: { hits.hits.0.fields.field.0: "2017-01-02T12:11:12.000Z" }
+  - match: { hits.hits.1.fields.field.0: null }
+  - match: { hits.hits.2.fields.field.0: "2017-01-02T12:11:12.000Z" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('doc_date_plus_day').get(1, null)"
+  - match: { hits.hits.0.fields.field.0: null }
+  - match: { hits.hits.1.fields.field.0: null }
+  - match: { hits.hits.2.fields.field.0: "2018-01-02T12:11:12.000Z" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('doc_reverse_boolean').get(false)"
+  - match: { hits.hits.0.fields.field.0: false }
+  - match: { hits.hits.1.fields.field.0: false }
+  - match: { hits.hits.2.fields.field.0: true }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "field('doc_rt_geo_point').get(null)"
+  - match: { hits.hits.0.fields.field.0.lat: 41.1199999647215 }
+  - match: { hits.hits.0.fields.field.0.lon: -71.34000004269183 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('doc_rt_ip').get(null)"
+  - match: { hits.hits.0.fields.field.0: "192.168.0.19" }
+  - match: { hits.hits.1.fields.field.0: null }
+  - match: { hits.hits.2.fields.field.0: "10.1.2.3" }
+
+---
+"doc_from_field":
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: |
+                  doc.containsKey('day_of_week') && doc['day_of_week'].empty == false ?
+                    doc['day_of_week'].value : "None"
+  - match: { hits.hits.0.fields.field.0: "Sunday" }
+  - match: { hits.hits.1.fields.field.0: "None" }
+  - match: { hits.hits.2.fields.field.0: "Monday" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: |
+                  doc.containsKey('day_of_week') && doc['day_of_week'].size() > 1 ?
+                    doc['day_of_week'][1] : "None"
+  - match: { hits.hits.0.fields.field.0: "None" }
+  - match: { hits.hits.1.fields.field.0: "None" }
+  - match: { hits.hits.2.fields.field.0: "Sunday" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: |
+                  doc.containsKey('total_value_double') && doc['total_value_double'].empty == false ?
+                    doc['total_value_double'].value : 0.0
+  - close_to: { hits.hits.0.fields.field.0: { value: 1342.2831853946025, error: 0.001 } }
+  - close_to: { hits.hits.1.fields.field.0: { value: 0.0, error: 0.001 } }
+  - close_to: { hits.hits.2.fields.field.0: { value: 13.264592679336207, error: 0.001 } }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: |
+                  doc.containsKey('total_value_long') && doc['total_value_long'].empty == false ?
+                    doc['total_value_long'].value : 0.0
+  - match: { hits.hits.0.fields.field.0: 1.34134568E8 }
+  - match: { hits.hits.1.fields.field.0: 0 }
+  - match: { hits.hits.2.fields.field.0: 6 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script: |
+                doc.containsKey('date_plus_day') && doc['date_plus_day'].empty == false ?
+                  doc['date_plus_day'].value : null
+  - match: { hits.hits.0.fields.field.0: "2017-01-02T12:11:12.000Z" }
+  - match: { hits.hits.1.fields.field.0: null }
+  - match: { hits.hits.2.fields.field.0: "2017-01-02T12:11:12.000Z" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: |
+                  doc.containsKey('date_plus_day') && doc['date_plus_day'].size() > 1 ?
+                    doc['date_plus_day'][1] : null
+  - match: { hits.hits.0.fields.field.0: null }
+  - match: { hits.hits.1.fields.field.0: null }
+  - match: { hits.hits.2.fields.field.0: "2018-01-02T12:11:12.000Z" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: |
+                  doc.containsKey('reverse_boolean') && doc['reverse_boolean'].empty == false ?
+                    doc['reverse_boolean'].value : false
+  - match: { hits.hits.0.fields.field.0: false }
+  - match: { hits.hits.1.fields.field.0: false }
+  - match: { hits.hits.2.fields.field.0: true }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: |
+                  doc.containsKey('rt_geo_point') && doc['rt_geo_point'].empty == false ?
+                    doc['rt_geo_point'].value : null
+  - match: { hits.hits.0.fields.field.0.lat: 41.1199999647215 }
+  - match: { hits.hits.0.fields.field.0.lon: -71.34000004269183 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: |
+                  doc.containsKey('rt_ip') && doc['rt_ip'].empty == false ?
+                    doc['rt_ip'].value : null
+  - match: { hits.hits.0.fields.field.0: "192.168.0.19" }
+  - match: { hits.hits.1.fields.field.0: null }
+  - match: { hits.hits.2.fields.field.0: "10.1.2.3" }
+
+---
+"doc_from_doc":
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: |
+                  doc.containsKey('doc_day_of_week') && doc['doc_day_of_week'].empty == false ?
+                    doc['doc_day_of_week'].value : "None"
+  - match: { hits.hits.0.fields.field.0: "Sunday" }
+  - match: { hits.hits.1.fields.field.0: "None" }
+  - match: { hits.hits.2.fields.field.0: "Monday" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: |
+                  doc.containsKey('doc_day_of_week') && doc['doc_day_of_week'].size() > 1 ?
+                    doc['doc_day_of_week'][1] : "None"
+  - match: { hits.hits.0.fields.field.0: "None" }
+  - match: { hits.hits.1.fields.field.0: "None" }
+  - match: { hits.hits.2.fields.field.0: "Sunday" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: |
+                  doc.containsKey('doc_total_value_double') && doc['doc_total_value_double'].empty == false ?
+                    doc['doc_total_value_double'].value : 0.0
+  - close_to: { hits.hits.0.fields.field.0: { value: 1342.2831853946025, error: 0.001 } }
+  - close_to: { hits.hits.1.fields.field.0: { value: 0.0, error: 0.001 } }
+  - close_to: { hits.hits.2.fields.field.0: { value: 13.264592679336207, error: 0.001 } }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: |
+                  doc.containsKey('doc_total_value_long') && doc['doc_total_value_long'].empty == false ?
+                    doc['doc_total_value_long'].value : 0.0
+  - match: { hits.hits.0.fields.field.0: 1.34134569E8 }
+  - match: { hits.hits.1.fields.field.0: 0 }
+  - match: { hits.hits.2.fields.field.0: 6 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script: |
+                doc.containsKey('doc_date_plus_day') && doc['doc_date_plus_day'].empty == false ?
+                  doc['doc_date_plus_day'].value : null
+  - match: { hits.hits.0.fields.field.0: "2017-01-02T12:11:12.000Z" }
+  - match: { hits.hits.1.fields.field.0: null }
+  - match: { hits.hits.2.fields.field.0: "2017-01-02T12:11:12.000Z" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: |
+                  doc.containsKey('doc_date_plus_day') && doc['doc_date_plus_day'].size() > 1 ?
+                    doc['doc_date_plus_day'][1] : null
+  - match: { hits.hits.0.fields.field.0: null }
+  - match: { hits.hits.1.fields.field.0: null }
+  - match: { hits.hits.2.fields.field.0: "2018-01-02T12:11:12.000Z" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: |
+                  doc.containsKey('doc_reverse_boolean') && doc['doc_reverse_boolean'].empty == false ?
+                    doc['doc_reverse_boolean'].value : false
+  - match: { hits.hits.0.fields.field.0: false }
+  - match: { hits.hits.1.fields.field.0: false }
+  - match: { hits.hits.2.fields.field.0: true }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: |
+                  doc.containsKey('doc_rt_geo_point') && doc['doc_rt_geo_point'].empty == false ?
+                    doc['doc_rt_geo_point'].value : null
+  - match: { hits.hits.0.fields.field.0.lat: 41.1199999647215 }
+  - match: { hits.hits.0.fields.field.0.lon: -71.34000004269183 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: |
+                  doc.containsKey('doc_rt_ip') && doc['doc_rt_ip'].empty == false ?
+                    doc['doc_rt_ip'].value : null
+  - match: { hits.hits.0.fields.field.0: "192.168.0.19" }
+  - match: { hits.hits.1.fields.field.0: null }
+  - match: { hits.hits.2.fields.field.0: "10.1.2.3" }
+
+---
+"qt_field_from_field":
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          runtime_mappings:
+            qt_day_of_week:
+              type: keyword
+              script:
+                source: |
+                  for (date in field('date')) {
+                    emit(date.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
+                  }
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('qt_day_of_week').get('None')"
+  - match: { hits.hits.0.fields.field.0: "Sunday" }
+  - match: { hits.hits.1.fields.field.0: "None" }
+  - match: { hits.hits.2.fields.field.0: "Monday" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          runtime_mappings:
+            qt_day_of_week:
+              type: keyword
+              script:
+                source: |
+                  for (date in field('date')) {
+                    emit(date.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
+                  }
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('qt_day_of_week').get(1, 'None')"
+  - match: { hits.hits.0.fields.field.0: "None" }
+  - match: { hits.hits.1.fields.field.0: "None" }
+  - match: { hits.hits.2.fields.field.0: "Sunday" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          runtime_mappings:
+            qt_total_value_double:
+              type: double
+              script:
+                source: emit($('short', 0) + $('byte', 0) + $('double', 0.0) + $('float', 0F));
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('qt_total_value_double').get(0.0)"
+  - close_to: { hits.hits.0.fields.field.0: { value: 1342.2831853946025, error: 0.001 } }
+  - close_to: { hits.hits.1.fields.field.0: { value: 0.0, error: 0.001 } }
+  - close_to: { hits.hits.2.fields.field.0: { value: 13.264592679336207, error: 0.001 } }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          runtime_mappings:
+            qt_total_value_long:
+              type: long
+              script:
+                source: emit((long)($('integer', 0) + $('half_float', 0F)));
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('qt_total_value_long').get(0L)"
+  - match: { hits.hits.0.fields.field.0: 1.34134568E8 }
+  - match: { hits.hits.1.fields.field.0: 0 }
+  - match: { hits.hits.2.fields.field.0: 6 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          runtime_mappings:
+            qt_date_plus_day:
+              type: date
+              script:
+                source: |
+                  for (date in field('date')) {
+                    emit(date.plusDays(1).millis);
+                  }
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('qt_date_plus_day').get(null)"
+  - match: { hits.hits.0.fields.field.0: "2017-01-02T12:11:12.000Z" }
+  - match: { hits.hits.1.fields.field.0: null }
+  - match: { hits.hits.2.fields.field.0: "2017-01-02T12:11:12.000Z" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          runtime_mappings:
+            qt_date_plus_day:
+              type: date
+              script:
+                source: |
+                  for (date in field('date')) {
+                    emit(date.plusDays(1).millis);
+                  }
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('qt_date_plus_day').get(1, null)"
+  - match: { hits.hits.0.fields.field.0: null }
+  - match: { hits.hits.1.fields.field.0: null }
+  - match: { hits.hits.2.fields.field.0: "2018-01-02T12:11:12.000Z" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          runtime_mappings:
+            qt_reverse_boolean:
+              type: boolean
+              script:
+                source: emit(!field('boolean').get(true));
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('qt_reverse_boolean').get(false)"
+  - match: { hits.hits.0.fields.field.0: false }
+  - match: { hits.hits.1.fields.field.0: false }
+  - match: { hits.hits.2.fields.field.0: true }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          runtime_mappings:
+            qt_rt_geo_point:
+              type: geo_point
+              script:
+                source: |
+                  def gp = field('geo_point').get(null);
+                  if (gp != null) {
+                    emit(gp.lat, gp.lon);
+                  }
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "field('qt_rt_geo_point').get(null)"
+  - match: { hits.hits.0.fields.field.0.lat: 41.1199999647215 }
+  - match: { hits.hits.0.fields.field.0.lon: -71.34000004269183 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          runtime_mappings:
+            qt_rt_ip:
+              type: ip
+              script:
+                source: |
+                  def ip = field('ip').asString(null);
+                  if (ip != null) {
+                    emit(ip);
+                  }
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('qt_rt_ip').get(null)"
+  - match: { hits.hits.0.fields.field.0: "192.168.0.19" }
+  - match: { hits.hits.1.fields.field.0: null }
+  - match: { hits.hits.2.fields.field.0: "10.1.2.3" }
+
+---
+"qt_field_from_doc":
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          runtime_mappings:
+            qt_doc_day_of_week:
+              type: keyword
+              script:
+                source: |
+                  if (doc.containsKey('date')) {
+                    for (date in doc['date']) {
+                      emit(date.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
+                    }
+                  }
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('qt_doc_day_of_week').get('None')"
+  - match: { hits.hits.0.fields.field.0: "Sunday" }
+  - match: { hits.hits.1.fields.field.0: "None" }
+  - match: { hits.hits.2.fields.field.0: "Monday" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          runtime_mappings:
+            qt_doc_day_of_week:
+              type: keyword
+              script:
+                source: |
+                  if (doc.containsKey('date')) {
+                    for (date in doc['date']) {
+                      emit(date.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
+                    }
+                  }
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('qt_doc_day_of_week').get(1, 'None')"
+  - match: { hits.hits.0.fields.field.0: "None" }
+  - match: { hits.hits.1.fields.field.0: "None" }
+  - match: { hits.hits.2.fields.field.0: "Sunday" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          runtime_mappings:
+            qt_doc_total_value_double:
+              type: double
+              script:
+                source: |
+                  if (doc.containsKey('short') && doc['short'].empty == false &&
+                      doc.containsKey('byte') && doc['byte'].empty == false &&
+                      doc.containsKey('double') && doc['double'].empty == false &&
+                      doc.containsKey('byte') && doc['byte'].empty == false) {
+                    emit(doc['short'].value + doc['byte'].value + doc['double'].value + doc['float'].value);
+                  } else {
+                    emit(0.0);
+                  }
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('qt_doc_total_value_double').get(0.0)"
+  - close_to: { hits.hits.0.fields.field.0: { value: 1342.2831853946025, error: 0.001 } }
+  - close_to: { hits.hits.1.fields.field.0: { value: 0.0, error: 0.001 } }
+  - close_to: { hits.hits.2.fields.field.0: { value: 13.264592679336207, error: 0.001 } }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          runtime_mappings:
+            qt_doc_total_value_long:
+              type: long
+              script:
+                source: |
+                  if (doc.containsKey('integer') && doc['integer'].empty == false &&
+                      doc.containsKey('half_float') && doc['half_float'].empty == false) {
+                    emit((long)(doc['integer'].value + doc['half_float'].value));
+                  } else {
+                    emit(0L);
+                  }
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('qt_doc_total_value_long').get(0L)"
+  - match: { hits.hits.0.fields.field.0: 1.34134569E8 }
+  - match: { hits.hits.1.fields.field.0: 0 }
+  - match: { hits.hits.2.fields.field.0: 6 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          runtime_mappings:
+            qt_doc_date_plus_day:
+              type: date
+              script:
+                source: |
+                  if (doc.containsKey('date')) {
+                    for (date in doc['date']) {
+                      emit(date.plusDays(1).millis);
+                    }
+                  }
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('qt_doc_date_plus_day').get(null)"
+  - match: { hits.hits.0.fields.field.0: "2017-01-02T12:11:12.000Z" }
+  - match: { hits.hits.1.fields.field.0: null }
+  - match: { hits.hits.2.fields.field.0: "2017-01-02T12:11:12.000Z" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          runtime_mappings:
+            qt_doc_date_plus_day:
+              type: date
+              script:
+                source: |
+                  if (doc.containsKey('date')) {
+                    for (date in doc['date']) {
+                      emit(date.plusDays(1).millis);
+                    }
+                  }
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('qt_doc_date_plus_day').get(1, null)"
+  - match: { hits.hits.0.fields.field.0: null }
+  - match: { hits.hits.1.fields.field.0: null }
+  - match: { hits.hits.2.fields.field.0: "2018-01-02T12:11:12.000Z" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          runtime_mappings:
+            qt_doc_reverse_boolean:
+              type: boolean
+              script:
+                source: |
+                  if (doc.containsKey('boolean') && doc['boolean'].empty == false) {
+                    emit(!doc['boolean'].value);
+                  }
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('qt_doc_reverse_boolean').get(false)"
+  - match: { hits.hits.0.fields.field.0: false }
+  - match: { hits.hits.1.fields.field.0: false }
+  - match: { hits.hits.2.fields.field.0: true }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          runtime_mappings:
+            qt_doc_rt_geo_point:
+              type: geo_point
+              script:
+                source: |
+                  if (doc.containsKey('geo_point') && doc['geo_point'].empty == false) {
+                    def gp = doc['geo_point'].value;
+                    emit(gp.lat, gp.lon);
+                  }
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: "field('qt_doc_rt_geo_point').get(null)"
+  - match: { hits.hits.0.fields.field.0.lat: 41.1199999647215 }
+  - match: { hits.hits.0.fields.field.0.lon: -71.34000004269183 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          runtime_mappings:
+            qt_doc_rt_ip:
+              type: ip
+              script:
+                source: |
+                  if (doc.containsKey('ip') && doc['ip'].empty == false) {
+                    emit(doc['ip'].value);
+                  }
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: "field('qt_doc_rt_ip').get(null)"
+  - match: { hits.hits.0.fields.field.0: "192.168.0.19" }
+  - match: { hits.hits.1.fields.field.0: null }
+  - match: { hits.hits.2.fields.field.0: "10.1.2.3" }
+
+---
+"qt_doc_from_field":
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          runtime_mappings:
+            qt_day_of_week:
+              type: keyword
+              script:
+                source: |
+                  for (date in field('date')) {
+                    emit(date.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
+                  }
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: |
+                  doc.containsKey('qt_day_of_week') && doc['qt_day_of_week'].empty == false ?
+                    doc['qt_day_of_week'].value : "None"
+  - match: { hits.hits.0.fields.field.0: "Sunday" }
+  - match: { hits.hits.1.fields.field.0: "None" }
+  - match: { hits.hits.2.fields.field.0: "Monday" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          runtime_mappings:
+            qt_day_of_week:
+              type: keyword
+              script:
+                source: |
+                  for (date in field('date')) {
+                    emit(date.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
+                  }
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: |
+                  doc.containsKey('qt_day_of_week') && doc['qt_day_of_week'].size() > 1 ?
+                    doc['qt_day_of_week'][1] : "None"
+  - match: { hits.hits.0.fields.field.0: "None" }
+  - match: { hits.hits.1.fields.field.0: "None" }
+  - match: { hits.hits.2.fields.field.0: "Sunday" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          runtime_mappings:
+            qt_total_value_double:
+              type: double
+              script:
+                source: emit($('short', 0) + $('byte', 0) + $('double', 0.0) + $('float', 0F));
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: |
+                  doc.containsKey('qt_total_value_double') && doc['qt_total_value_double'].empty == false ?
+                    doc['qt_total_value_double'].value : 0.0
+  - close_to: { hits.hits.0.fields.field.0: { value: 1342.2831853946025, error: 0.001 } }
+  - close_to: { hits.hits.1.fields.field.0: { value: 0.0, error: 0.001 } }
+  - close_to: { hits.hits.2.fields.field.0: { value: 13.264592679336207, error: 0.001 } }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          runtime_mappings:
+            qt_total_value_long:
+              type: long
+              script:
+                source: emit((long)($('integer', 0) + $('half_float', 0F)));
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: |
+                  doc.containsKey('qt_total_value_long') && doc['qt_total_value_long'].empty == false ?
+                    doc['qt_total_value_long'].value : 0.0
+  - match: { hits.hits.0.fields.field.0: 1.34134568E8 }
+  - match: { hits.hits.1.fields.field.0: 0 }
+  - match: { hits.hits.2.fields.field.0: 6 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          runtime_mappings:
+            qt_date_plus_day:
+              type: date
+              script:
+                source: |
+                  for (date in field('date')) {
+                    emit(date.plusDays(1).millis);
+                  }
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script: |
+                doc.containsKey('qt_date_plus_day') && doc['qt_date_plus_day'].empty == false ?
+                  doc['qt_date_plus_day'].value : null
+  - match: { hits.hits.0.fields.field.0: "2017-01-02T12:11:12.000Z" }
+  - match: { hits.hits.1.fields.field.0: null }
+  - match: { hits.hits.2.fields.field.0: "2017-01-02T12:11:12.000Z" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          runtime_mappings:
+            qt_date_plus_day:
+              type: date
+              script:
+                source: |
+                  for (date in field('date')) {
+                    emit(date.plusDays(1).millis);
+                  }
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: |
+                  doc.containsKey('qt_date_plus_day') && doc['qt_date_plus_day'].size() > 1 ?
+                    doc['qt_date_plus_day'][1] : null
+  - match: { hits.hits.0.fields.field.0: null }
+  - match: { hits.hits.1.fields.field.0: null }
+  - match: { hits.hits.2.fields.field.0: "2018-01-02T12:11:12.000Z" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          runtime_mappings:
+            qt_reverse_boolean:
+              type: boolean
+              script:
+                source: emit(!field('boolean').get(true));
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: |
+                  doc.containsKey('qt_reverse_boolean') && doc['qt_reverse_boolean'].empty == false ?
+                    doc['qt_reverse_boolean'].value : false
+  - match: { hits.hits.0.fields.field.0: false }
+  - match: { hits.hits.1.fields.field.0: false }
+  - match: { hits.hits.2.fields.field.0: true }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          runtime_mappings:
+            qt_rt_geo_point:
+              type: geo_point
+              script:
+                source: |
+                  def gp = field('geo_point').get(null);
+                  if (gp != null) {
+                    emit(gp.lat, gp.lon);
+                  }
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: |
+                  doc.containsKey('qt_rt_geo_point') && doc['qt_rt_geo_point'].empty == false ?
+                    doc['qt_rt_geo_point'].value : null
+  - match: { hits.hits.0.fields.field.0.lat: 41.1199999647215 }
+  - match: { hits.hits.0.fields.field.0.lon: -71.34000004269183 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          runtime_mappings:
+            qt_rt_ip:
+              type: ip
+              script:
+                source: |
+                  def ip = field('ip').asString(null);
+                  if (ip != null) {
+                    emit(ip);
+                  }
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: |
+                  doc.containsKey('qt_rt_ip') && doc['qt_rt_ip'].empty == false ?
+                    doc['qt_rt_ip'].value : null
+  - match: { hits.hits.0.fields.field.0: "192.168.0.19" }
+  - match: { hits.hits.1.fields.field.0: null }
+  - match: { hits.hits.2.fields.field.0: "10.1.2.3" }
+
+---
+"qt_doc_from_doc":
+  - skip:
+      features: close_to
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          runtime_mappings:
+            qt_doc_day_of_week:
+              type: keyword
+              script:
+                source: |
+                  if (doc.containsKey('date')) {
+                    for (date in doc['date']) {
+                      emit(date.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
+                    }
+                  }
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: |
+                  doc.containsKey('qt_doc_day_of_week') && doc['qt_doc_day_of_week'].empty == false ?
+                    doc['qt_doc_day_of_week'].value : "None"
+  - match: { hits.hits.0.fields.field.0: "Sunday" }
+  - match: { hits.hits.1.fields.field.0: "None" }
+  - match: { hits.hits.2.fields.field.0: "Monday" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          runtime_mappings:
+            qt_doc_day_of_week:
+              type: keyword
+              script:
+                source: |
+                  if (doc.containsKey('date')) {
+                    for (date in doc['date']) {
+                      emit(date.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
+                    }
+                  }
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: |
+                  doc.containsKey('qt_doc_day_of_week') && doc['qt_doc_day_of_week'].size() > 1 ?
+                    doc['qt_doc_day_of_week'][1] : "None"
+  - match: { hits.hits.0.fields.field.0: "None" }
+  - match: { hits.hits.1.fields.field.0: "None" }
+  - match: { hits.hits.2.fields.field.0: "Sunday" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          runtime_mappings:
+            qt_doc_total_value_double:
+              type: double
+              script:
+                source: |
+                  if (doc.containsKey('short') && doc['short'].empty == false &&
+                      doc.containsKey('byte') && doc['byte'].empty == false &&
+                      doc.containsKey('double') && doc['double'].empty == false &&
+                      doc.containsKey('byte') && doc['byte'].empty == false) {
+                    emit(doc['short'].value + doc['byte'].value + doc['double'].value + doc['float'].value);
+                  } else {
+                    emit(0.0);
+                  }
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: |
+                  doc.containsKey('qt_doc_total_value_double') && doc['qt_doc_total_value_double'].empty == false ?
+                    doc['qt_doc_total_value_double'].value : 0.0
+  - close_to: { hits.hits.0.fields.field.0: { value: 1342.2831853946025, error: 0.001 } }
+  - close_to: { hits.hits.1.fields.field.0: { value: 0.0, error: 0.001 } }
+  - close_to: { hits.hits.2.fields.field.0: { value: 13.264592679336207, error: 0.001 } }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          runtime_mappings:
+            qt_doc_total_value_long:
+              type: long
+              script:
+                source: |
+                  if (doc.containsKey('integer') && doc['integer'].empty == false &&
+                      doc.containsKey('half_float') && doc['half_float'].empty == false) {
+                    emit((long)(doc['integer'].value + doc['half_float'].value));
+                  } else {
+                    emit(0L);
+                  }
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: |
+                  doc.containsKey('qt_doc_total_value_long') && doc['qt_doc_total_value_long'].empty == false ?
+                    doc['qt_doc_total_value_long'].value : 0.0
+  - match: { hits.hits.0.fields.field.0: 1.34134569E8 }
+  - match: { hits.hits.1.fields.field.0: 0 }
+  - match: { hits.hits.2.fields.field.0: 6 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          runtime_mappings:
+            qt_doc_date_plus_day:
+              type: date
+              script:
+                source: |
+                  if (doc.containsKey('date')) {
+                    for (date in doc['date']) {
+                      emit(date.plusDays(1).millis);
+                    }
+                  }
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script: |
+                doc.containsKey('qt_doc_date_plus_day') && doc['qt_doc_date_plus_day'].empty == false ?
+                  doc['qt_doc_date_plus_day'].value : null
+  - match: { hits.hits.0.fields.field.0: "2017-01-02T12:11:12.000Z" }
+  - match: { hits.hits.1.fields.field.0: null }
+  - match: { hits.hits.2.fields.field.0: "2017-01-02T12:11:12.000Z" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          runtime_mappings:
+            qt_doc_date_plus_day:
+              type: date
+              script:
+                source: |
+                  if (doc.containsKey('date')) {
+                    for (date in doc['date']) {
+                      emit(date.plusDays(1).millis);
+                    }
+                  }
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: |
+                  doc.containsKey('qt_doc_date_plus_day') && doc['qt_doc_date_plus_day'].size() > 1 ?
+                    doc['qt_doc_date_plus_day'][1] : null
+  - match: { hits.hits.0.fields.field.0: null }
+  - match: { hits.hits.1.fields.field.0: null }
+  - match: { hits.hits.2.fields.field.0: "2018-01-02T12:11:12.000Z" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          runtime_mappings:
+            qt_doc_reverse_boolean:
+              type: boolean
+              script:
+                source: |
+                  if (doc.containsKey('boolean') && doc['boolean'].empty == false) {
+                    emit(!doc['boolean'].value);
+                  }
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: |
+                  doc.containsKey('qt_doc_reverse_boolean') && doc['qt_doc_reverse_boolean'].empty == false ?
+                    doc['qt_doc_reverse_boolean'].value : false
+  - match: { hits.hits.0.fields.field.0: false }
+  - match: { hits.hits.1.fields.field.0: false }
+  - match: { hits.hits.2.fields.field.0: true }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          runtime_mappings:
+            qt_doc_rt_geo_point:
+              type: geo_point
+              script:
+                source: |
+                  if (doc.containsKey('geo_point') && doc['geo_point'].empty == false) {
+                    def gp = doc['geo_point'].value;
+                    emit(gp.lat, gp.lon);
+                  }
+          query: { term: { _id: 1 } }
+          script_fields:
+            field:
+              script:
+                source: |
+                  doc.containsKey('qt_doc_rt_geo_point') && doc['qt_doc_rt_geo_point'].empty == false ?
+                    doc['qt_doc_rt_geo_point'].value : null
+  - match: { hits.hits.0.fields.field.0.lat: 41.1199999647215 }
+  - match: { hits.hits.0.fields.field.0.lon: -71.34000004269183 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body:
+          runtime_mappings:
+            qt_doc_rt_ip:
+              type: ip
+              script:
+                source: |
+                  if (doc.containsKey('ip') && doc['ip'].empty == false) {
+                    emit(doc['ip'].value);
+                  }
+          sort: [ { rank: asc } ]
+          script_fields:
+            field:
+              script:
+                source: |
+                  doc.containsKey('qt_doc_rt_ip') && doc['qt_doc_rt_ip'].empty == false ?
+                    doc['qt_doc_rt_ip'].value : null
+  - match: { hits.hits.0.fields.field.0: "192.168.0.19" }
+  - match: { hits.hits.1.fields.field.0: null }
+  - match: { hits.hits.2.fields.field.0: "10.1.2.3" }

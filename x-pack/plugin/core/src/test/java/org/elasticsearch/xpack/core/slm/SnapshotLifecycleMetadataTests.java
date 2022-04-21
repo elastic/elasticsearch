@@ -8,12 +8,12 @@
 package org.elasticsearch.xpack.core.slm;
 
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.test.AbstractSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
 public class SnapshotLifecycleMetadataTests extends AbstractSerializingTestCase<SnapshotLifecycleMetadata> {
@@ -25,7 +25,7 @@ public class SnapshotLifecycleMetadataTests extends AbstractSerializingTestCase<
     @Override
     protected SnapshotLifecycleMetadata createTestInstance() {
         int policyCount = randomIntBetween(0, 3);
-        Map<String, SnapshotLifecyclePolicyMetadata> policies = new HashMap<>(policyCount);
+        Map<String, SnapshotLifecyclePolicyMetadata> policies = Maps.newMapWithExpectedSize(policyCount);
         for (int i = 0; i < policyCount; i++) {
             String id = "policy-" + randomAlphaOfLength(3);
             policies.put(id, SnapshotLifecyclePolicyMetadataTests.createRandomPolicyMetadata(id));

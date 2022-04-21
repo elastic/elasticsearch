@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.spatial.ingest;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexableField;
-import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.Orientation;
@@ -227,12 +227,12 @@ public class CircleProcessorTests extends ESTestCase {
 
         SearchExecutionContext mockedContext = mock(SearchExecutionContext.class);
         when(mockedContext.getFieldType(any())).thenReturn(shapeType);
-        Query sameShapeQuery = shapeType.geoShapeQuery(geometry, fieldName, ShapeRelation.INTERSECTS, mockedContext);
+        Query sameShapeQuery = shapeType.geoShapeQuery(mockedContext, fieldName, ShapeRelation.INTERSECTS, geometry);
         Query pointOnDatelineQuery = shapeType.geoShapeQuery(
-            new Point(180, circle.getLat()),
+            mockedContext,
             fieldName,
             ShapeRelation.INTERSECTS,
-            mockedContext
+            new Point(180, circle.getLat())
         );
 
         try (Directory dir = newDirectory(); RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {

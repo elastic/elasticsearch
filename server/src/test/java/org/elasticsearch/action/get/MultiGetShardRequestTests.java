@@ -48,7 +48,7 @@ public class MultiGetShardRequestTests extends ESTestCase {
                 item.versionType(randomFrom(VersionType.values()));
             }
             if (randomBoolean()) {
-                item.fetchSourceContext(new FetchSourceContext(randomBoolean()));
+                item.fetchSourceContext(FetchSourceContext.of(randomBoolean()));
             }
             multiGetShardRequest.add(0, item);
         }

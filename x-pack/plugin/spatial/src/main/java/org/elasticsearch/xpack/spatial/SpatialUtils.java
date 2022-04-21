@@ -28,7 +28,7 @@ public class SpatialUtils {
      * This does not split the polygon across the date-line. Relies on {@link GeoShapeIndexer} to
      * split prepare polygon for indexing.
      *
-     * Adapted from from org.apache.lucene.geo.GeoTestUtil
+     * Adapted from from org.apache.lucene.tests.geo.GeoTestUtil
      * */
     public static Polygon createRegularGeoShapePolygon(Circle circle, int gons) {
         if (SloppyMath.haversinMeters(circle.getLat(), circle.getLon(), 90, 0) < circle.getRadiusMeters()) {

@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexAction;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
@@ -101,13 +102,7 @@ public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShr
 
         try (NoOpClient client = getDeleteIndexRequestAssertingClient(shrinkIndexName)) {
             CleanupShrinkIndexStep step = new CleanupShrinkIndexStep(randomStepKey(), randomStepKey(), client);
-            step.performAction(indexMetadata, clusterState, null, new ActionListener<>() {
-                @Override
-                public void onResponse(Void complete) {}
-
-                @Override
-                public void onFailure(Exception e) {}
-            });
+            step.performAction(indexMetadata, clusterState, null, ActionListener.noop());
         }
     }
 
@@ -133,15 +128,7 @@ public class CleanupShrinkIndexStepTests extends AbstractStepTestCase<CleanupShr
 
         try (NoOpClient client = getFailingIfCalledClient()) {
             CleanupShrinkIndexStep step = new CleanupShrinkIndexStep(randomStepKey(), randomStepKey(), client);
-            step.performAction(shrunkIndexMetadata, clusterState, null, new ActionListener<>() {
-                @Override
-                public void onResponse(Void complete) {}
-
-                @Override
-                public void onFailure(Exception e) {
-
-                }
-            });
+            step.performAction(shrunkIndexMetadata, clusterState, null, ActionListener.noop());
         }
     }
 

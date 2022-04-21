@@ -173,7 +173,7 @@ public class ChildrenIT extends AbstractParentChildTestCase {
             assertThat(children.getDocCount(), equalTo(4L));
 
             Sum count = children.getAggregations().get("counts");
-            assertThat(count.getValue(), equalTo(4.));
+            assertThat(count.value(), equalTo(4.));
 
             String idToUpdate = Integer.toString(2 + randomInt(3));
             /*

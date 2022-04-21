@@ -21,6 +21,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -37,7 +38,6 @@ import org.elasticsearch.xpack.rollup.Rollup;
 import org.mockito.ArgumentCaptor;
 
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -242,7 +242,7 @@ public class PutJobStateMachineTests extends ESTestCase {
         ArgumentCaptor<ActionListener> requestCaptor = ArgumentCaptor.forClass(ActionListener.class);
         doAnswer(invocation -> {
             GetMappingsResponse response = mock(GetMappingsResponse.class);
-            Map<String, Object> m = new HashMap<>(2);
+            Map<String, Object> m = Maps.newMapWithExpectedSize(2);
             m.put("random", Collections.singletonMap(job.getConfig().getId(), job.getConfig()));
             MappingMetadata meta = new MappingMetadata(RollupField.TYPE_NAME, Collections.singletonMap("_meta", m));
 
@@ -278,7 +278,7 @@ public class PutJobStateMachineTests extends ESTestCase {
         ArgumentCaptor<ActionListener> requestCaptor = ArgumentCaptor.forClass(ActionListener.class);
         doAnswer(invocation -> {
             GetMappingsResponse response = mock(GetMappingsResponse.class);
-            Map<String, Object> m = new HashMap<>(2);
+            Map<String, Object> m = Maps.newMapWithExpectedSize(2);
             m.put(RollupField.ROLLUP_META, Collections.singletonMap(job.getConfig().getId(), job.getConfig()));
             MappingMetadata meta = new MappingMetadata(RollupField.TYPE_NAME, Collections.singletonMap("_meta", m));
 
@@ -314,7 +314,7 @@ public class PutJobStateMachineTests extends ESTestCase {
         ArgumentCaptor<ActionListener> requestCaptor = ArgumentCaptor.forClass(ActionListener.class);
         doAnswer(invocation -> {
             GetMappingsResponse response = mock(GetMappingsResponse.class);
-            Map<String, Object> m = new HashMap<>(2);
+            Map<String, Object> m = Maps.newMapWithExpectedSize(2);
             m.put(Rollup.ROLLUP_TEMPLATE_VERSION_FIELD, VersionUtils.randomIndexCompatibleVersion(random()));
             m.put(RollupField.ROLLUP_META, Collections.singletonMap(job.getConfig().getId(), job.getConfig()));
             MappingMetadata meta = new MappingMetadata(RollupField.TYPE_NAME, Collections.singletonMap("_meta", m));
@@ -358,7 +358,7 @@ public class PutJobStateMachineTests extends ESTestCase {
         ArgumentCaptor<ActionListener> requestCaptor = ArgumentCaptor.forClass(ActionListener.class);
         doAnswer(invocation -> {
             GetMappingsResponse response = mock(GetMappingsResponse.class);
-            Map<String, Object> m = new HashMap<>(2);
+            Map<String, Object> m = Maps.newMapWithExpectedSize(2);
             m.put(Rollup.ROLLUP_TEMPLATE_VERSION_FIELD, VersionUtils.randomIndexCompatibleVersion(random()));
             m.put(RollupField.ROLLUP_META, Collections.singletonMap(unrelatedJob.getId(), unrelatedJob));
             MappingMetadata meta = new MappingMetadata(RollupField.TYPE_NAME, Collections.singletonMap("_meta", m));

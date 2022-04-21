@@ -16,6 +16,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.core.ml.action.FlushJobAction;
 import org.elasticsearch.xpack.core.ml.action.PersistJobAction;
 import org.elasticsearch.xpack.core.ml.action.PostDataAction;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
+import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
@@ -77,6 +79,7 @@ class DatafeedJob {
     private volatile boolean isIsolated;
     private volatile boolean haveEverSeenData;
     private volatile long consecutiveDelayedDataBuckets;
+    private volatile SearchInterval searchInterval;
 
     DatafeedJob(
         String jobId,
@@ -136,6 +139,11 @@ class DatafeedJob {
 
     public void finishReportingTimingStats() {
         timingStatsReporter.finishReporting();
+    }
+
+    @Nullable
+    public SearchInterval getSearchInterval() {
+        return searchInterval;
     }
 
     Long runLookBack(long startTime, Long endTime) throws Exception {
@@ -358,7 +366,9 @@ class DatafeedJob {
 
             Optional<InputStream> extractedData;
             try {
-                extractedData = dataExtractor.next();
+                DataExtractor.Result result = dataExtractor.next();
+                extractedData = result.data();
+                searchInterval = result.searchInterval();
             } catch (Exception e) {
                 LOGGER.error(new ParameterizedMessage("[{}] error while extracting data", jobId), e);
                 // When extraction problems are encountered, we do not want to advance time.

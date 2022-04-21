@@ -14,6 +14,9 @@ If you run {es} from the command line, {es} prints logs to the standard output
 [[loggin-configuration]]
 === Logging configuration
 
+IMPORTANT: Elastic strongly recommends using the Log4j 2 configuration that is shipped by default.
+
+
 Elasticsearch uses https://logging.apache.org/log4j/2.x/[Log4j 2] for
 logging. Log4j 2 can be configured using the log4j2.properties
 file. Elasticsearch exposes three properties, `${sys:es.logs.base_path}`,

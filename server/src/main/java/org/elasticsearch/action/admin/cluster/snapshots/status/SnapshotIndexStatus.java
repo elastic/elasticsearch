@@ -8,6 +8,7 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -133,7 +134,7 @@ public class SnapshotIndexStatus implements Iterable<SnapshotIndexShardStatus>, 
                 if (shardStatuses == null || shardStatuses.isEmpty()) {
                     indexShards = emptyMap();
                 } else {
-                    indexShards = new HashMap<>(shardStatuses.size());
+                    indexShards = Maps.newMapWithExpectedSize(shardStatuses.size());
                     for (SnapshotIndexShardStatus shardStatus : shardStatuses) {
                         indexShards.put(shardStatus.getShardId().getId(), shardStatus);
                     }

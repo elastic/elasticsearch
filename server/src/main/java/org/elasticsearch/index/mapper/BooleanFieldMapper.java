@@ -14,9 +14,14 @@ import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.ConstantScoreQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermRangeQuery;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
@@ -32,10 +37,12 @@ import org.elasticsearch.script.field.BooleanDocValuesField;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.FieldValues;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -80,7 +87,9 @@ public class BooleanFieldMapper extends FieldMapper {
             false,
             () -> null,
             (n, c, o) -> o == null ? null : XContentMapValues.nodeBooleanValue(o),
-            m -> toType(m).nullValue
+            m -> toType(m).nullValue,
+            XContentBuilder::field,
+            Objects::toString
         ).acceptsNull();
 
         private final Parameter<Script> script = Parameter.scriptParam(m -> toType(m).script);
@@ -90,9 +99,12 @@ public class BooleanFieldMapper extends FieldMapper {
 
         private final ScriptCompiler scriptCompiler;
 
-        public Builder(String name, ScriptCompiler scriptCompiler) {
+        private final Version indexCreatedVersion;
+
+        public Builder(String name, ScriptCompiler scriptCompiler, Version indexCreatedVersion) {
             super(name);
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
+            this.indexCreatedVersion = Objects.requireNonNull(indexCreatedVersion);
             this.script.precludesParameters(nullValue);
             addScriptValidation(script, indexed, docValues);
         }
@@ -106,7 +118,7 @@ public class BooleanFieldMapper extends FieldMapper {
         public BooleanFieldMapper build(MapperBuilderContext context) {
             MappedFieldType ft = new BooleanFieldType(
                 context.buildFullName(name),
-                indexed.getValue(),
+                indexed.getValue() && indexCreatedVersion.isLegacyIndexVersion() == false,
                 stored.getValue(),
                 docValues.getValue(),
                 nullValue.getValue(),
@@ -130,7 +142,7 @@ public class BooleanFieldMapper extends FieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.scriptCompiler()));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.scriptCompiler(), c.indexVersionCreated()));
 
     public static final class BooleanFieldType extends TermBasedFieldType {
 
@@ -152,16 +164,25 @@ public class BooleanFieldMapper extends FieldMapper {
         }
 
         public BooleanFieldType(String name) {
-            this(name, true, false, true, false, null, Collections.emptyMap());
+            this(name, true);
         }
 
-        public BooleanFieldType(String name, boolean searchable) {
-            this(name, searchable, false, true, false, null, Collections.emptyMap());
+        public BooleanFieldType(String name, boolean isIndexed) {
+            this(name, isIndexed, true);
+        }
+
+        public BooleanFieldType(String name, boolean isIndexed, boolean hasDocValues) {
+            this(name, isIndexed, isIndexed, hasDocValues, false, null, Collections.emptyMap());
         }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
+        }
+
+        @Override
+        public boolean isSearchable() {
+            return isIndexed() || hasDocValues();
         }
 
         @Override
@@ -206,6 +227,15 @@ public class BooleanFieldMapper extends FieldMapper {
             };
         }
 
+        private long docValueForSearch(Object value) {
+            BytesRef ref = indexedValueForSearch(value);
+            if (Values.TRUE.equals(ref)) {
+                return 1;
+            } else {
+                return 0;
+            }
+        }
+
         @Override
         public Boolean valueForDisplay(Object value) {
             if (value == null) {
@@ -232,6 +262,30 @@ public class BooleanFieldMapper extends FieldMapper {
         }
 
         @Override
+        public Query termQuery(Object value, SearchExecutionContext context) {
+            failIfNotIndexedNorDocValuesFallback(context);
+            if (isIndexed()) {
+                return super.termQuery(value, context);
+            } else {
+                return SortedNumericDocValuesField.newSlowExactQuery(name(), docValueForSearch(value));
+            }
+        }
+
+        @Override
+        public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
+            failIfNotIndexedNorDocValuesFallback(context);
+            if (isIndexed()) {
+                return super.termsQuery(values, context);
+            } else {
+                BooleanQuery.Builder builder = new BooleanQuery.Builder();
+                for (Object value : values) {
+                    builder.add(termQuery(value, context), BooleanClause.Occur.SHOULD);
+                }
+                return new ConstantScoreQuery(builder.build());
+            }
+        }
+
+        @Override
         public Query rangeQuery(
             Object lowerTerm,
             Object upperTerm,
@@ -239,14 +293,35 @@ public class BooleanFieldMapper extends FieldMapper {
             boolean includeUpper,
             SearchExecutionContext context
         ) {
-            failIfNotIndexed();
-            return new TermRangeQuery(
-                name(),
-                lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
-                upperTerm == null ? null : indexedValueForSearch(upperTerm),
-                includeLower,
-                includeUpper
-            );
+            failIfNotIndexedNorDocValuesFallback(context);
+            if (isIndexed()) {
+                return new TermRangeQuery(
+                    name(),
+                    lowerTerm == null ? null : indexedValueForSearch(lowerTerm),
+                    upperTerm == null ? null : indexedValueForSearch(upperTerm),
+                    includeLower,
+                    includeUpper
+                );
+            } else {
+                long l = 0;
+                long u = 1;
+                if (lowerTerm != null) {
+                    l = docValueForSearch(lowerTerm);
+                    if (includeLower == false) {
+                        l = Math.max(1, l + 1);
+                    }
+                }
+                if (upperTerm != null) {
+                    u = docValueForSearch(upperTerm);
+                    if (includeUpper == false) {
+                        l = Math.min(0, l - 1);
+                    }
+                }
+                if (l > u) {
+                    return new MatchNoDocsQuery();
+                }
+                return SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
+            }
         }
     }
 
@@ -257,6 +332,7 @@ public class BooleanFieldMapper extends FieldMapper {
     private final Script script;
     private final FieldValues<Boolean> scriptValues;
     private final ScriptCompiler scriptCompiler;
+    private final Version indexCreatedVersion;
 
     protected BooleanFieldMapper(
         String simpleName,
@@ -281,6 +357,7 @@ public class BooleanFieldMapper extends FieldMapper {
         this.script = builder.script.get();
         this.scriptValues = builder.scriptValues();
         this.scriptCompiler = builder.scriptCompiler;
+        this.indexCreatedVersion = builder.indexCreatedVersion;
     }
 
     @Override
@@ -335,7 +412,7 @@ public class BooleanFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), scriptCompiler).init(this);
+        return new Builder(simpleName(), scriptCompiler, indexCreatedVersion).init(this);
     }
 
     @Override

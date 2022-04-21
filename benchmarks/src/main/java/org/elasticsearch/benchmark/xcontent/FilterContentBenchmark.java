@@ -61,6 +61,7 @@ public class FilterContentBenchmark {
     private BytesReference source;
     private XContentParserConfiguration parserConfig;
     private Set<String> filters;
+    private XContentParserConfiguration parserConfigMatchDotsInFieldNames;
 
     @Setup
     public void setup() throws IOException {
@@ -72,7 +73,8 @@ public class FilterContentBenchmark {
         };
         source = readSource(sourceFile);
         filters = buildFilters();
-        parserConfig = buildParseConfig();
+        parserConfig = buildParseConfig(false);
+        parserConfigMatchDotsInFieldNames = buildParseConfig(true);
     }
 
     private Set<String> buildFilters() {
@@ -106,8 +108,13 @@ public class FilterContentBenchmark {
     }
 
     @Benchmark
+    public BytesReference filterWithParserConfigCreatedMatchDotsInFieldNames() throws IOException {
+        return filter(this.parserConfigMatchDotsInFieldNames);
+    }
+
+    @Benchmark
     public BytesReference filterWithNewParserConfig() throws IOException {
-        XContentParserConfiguration contentParserConfiguration = buildParseConfig();
+        XContentParserConfiguration contentParserConfiguration = buildParseConfig(false);
         return filter(contentParserConfiguration);
     }
 
@@ -152,7 +159,7 @@ public class FilterContentBenchmark {
         }
     }
 
-    private XContentParserConfiguration buildParseConfig() {
+    private XContentParserConfiguration buildParseConfig(boolean matchDotsInFieldNames) {
         Set<String> includes;
         Set<String> excludes;
         if (inclusive) {
@@ -162,7 +169,7 @@ public class FilterContentBenchmark {
             includes = null;
             excludes = filters;
         }
-        return XContentParserConfiguration.EMPTY.withFiltering(includes, excludes);
+        return XContentParserConfiguration.EMPTY.withFiltering(includes, excludes, matchDotsInFieldNames);
     }
 
     private BytesReference filter(XContentParserConfiguration contentParserConfiguration) throws IOException {

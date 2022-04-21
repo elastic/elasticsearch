@@ -8,6 +8,7 @@
 
 package org.elasticsearch.search.aggregations.bucket.range;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
@@ -62,7 +63,7 @@ public class InternalGeoDistanceTests extends InternalRangeTestCase<InternalGeoD
             int docCount = randomIntBetween(0, 1000);
             double from = range.v1();
             double to = range.v2();
-            buckets.add(new InternalGeoDistance.Bucket("range_" + i, from, from, to, to, docCount, aggregations, keyed));
+            buckets.add(new InternalGeoDistance.Bucket("range_" + i, from, to, docCount, aggregations, keyed));
         }
         return new InternalGeoDistance(name, buckets, keyed, metadata);
     }
@@ -96,21 +97,12 @@ public class InternalGeoDistanceTests extends InternalRangeTestCase<InternalGeoD
                 double from = randomDouble();
                 double to = from + randomDouble();
                 buckets.add(
-                    new InternalGeoDistance.Bucket(
-                        "range_a",
-                        from,
-                        from,
-                        to,
-                        to,
-                        randomNonNegativeLong(),
-                        InternalAggregations.EMPTY,
-                        false
-                    )
+                    new InternalGeoDistance.Bucket("range_a", from, to, randomNonNegativeLong(), InternalAggregations.EMPTY, false)
                 );
             }
             case 3 -> {
                 if (metadata == null) {
-                    metadata = new HashMap<>(1);
+                    metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }

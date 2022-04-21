@@ -36,7 +36,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
-import org.elasticsearch.snapshots.SearchableSnapshotsSettings;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -120,7 +119,6 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
         return Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings)).put(cacheSettings).build();
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/82470")
     public void testBlobStoreCache() throws Exception {
         final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName);
@@ -407,7 +405,7 @@ public class SearchableSnapshotsBlobStoreCacheIntegTests extends BaseFrozenSearc
                 @Override
                 public Decision canAllocate(ShardRouting shardRouting, RoutingAllocation allocation) {
                     final IndexMetadata indexMetadata = allocation.metadata().index(shardRouting.index());
-                    if (SearchableSnapshotsSettings.isSearchableSnapshotStore(indexMetadata.getSettings()) == false) {
+                    if (indexMetadata.isSearchableSnapshot() == false) {
                         return allocation.decision(Decision.YES, name, "index is not a searchable snapshot shard - can allocate");
                     }
                     if (allocation.metadata().hasIndex(SNAPSHOT_BLOB_CACHE_INDEX) == false) {

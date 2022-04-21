@@ -28,7 +28,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 /**
  * A {@link ContextMapping} that uses a simple string as a criteria
@@ -174,7 +173,7 @@ public class CategoryContextMapping extends ContextMapping<CategoryQueryContext>
         internalInternalQueryContexts.addAll(
             queryContexts.stream()
                 .map(queryContext -> new InternalQueryContext(queryContext.getCategory(), queryContext.getBoost(), queryContext.isPrefix()))
-                .collect(Collectors.toList())
+                .toList()
         );
         return internalInternalQueryContexts;
     }

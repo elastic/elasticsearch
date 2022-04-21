@@ -13,13 +13,13 @@ setup:
   - do:
       index:
         index: test
-        id:    1
+        id:    "1"
         body:  {"foo": "bar", "join_field": {"name" : "parent"} }
 
   - do:
       index:
         index: test
-        id:    2
+        id:    "2"
         routing: "1"
         body:  {"bar": "baz", "join_field": { "name" : "child", "parent": "1"} }
 

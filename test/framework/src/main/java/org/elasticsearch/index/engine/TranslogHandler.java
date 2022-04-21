@@ -9,6 +9,7 @@
 package org.elasticsearch.index.engine;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
+import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
@@ -16,7 +17,6 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -26,6 +26,7 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -54,11 +55,11 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
         mapperService = new MapperService(
             indexSettings,
             indexAnalyzers,
-            xContentRegistry,
+            XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry).withDeprecationHandler(LoggingDeprecationHandler.INSTANCE),
             similarityService,
             mapperRegistry,
             () -> null,
-            IdFieldMapper.NO_FIELD_DATA,
+            indexSettings.getMode().buildNoFieldDataIdFieldMapper(),
             null
         );
     }
@@ -91,7 +92,6 @@ public class TranslogHandler implements Engine.TranslogRecoveryRunner {
         switch (operation.opType()) {
             case INDEX -> {
                 final Translog.Index index = (Translog.Index) operation;
-                final String indexName = mapperService.index().getName();
                 final Engine.Index engineIndex = IndexShard.prepareIndex(
                     mapperService,
                     new SourceToParse(index.id(), index.source(), XContentHelper.xContentType(index.source()), index.routing(), Map.of()),

@@ -9,12 +9,17 @@
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.HdrHistogram.DoubleHistogram;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+
+import static org.hamcrest.Matchers.equalTo;
 
 public class InternalHDRPercentilesRanksTests extends InternalPercentilesRanksTestCase<InternalHDRPercentileRanks> {
 
@@ -42,6 +47,20 @@ public class InternalHDRPercentilesRanksTests extends InternalPercentilesRanksTe
             totalCount += ranks.state.getTotalCount();
         }
         assertEquals(totalCount, reduced.state.getTotalCount());
+    }
+
+    @Override
+    protected boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
+    protected void assertSampled(InternalHDRPercentileRanks sampled, InternalHDRPercentileRanks reduced, SamplingContext samplingContext) {
+        Iterator<Percentile> it1 = sampled.iterator();
+        Iterator<Percentile> it2 = reduced.iterator();
+        while (it1.hasNext() && it2.hasNext()) {
+            assertThat(it1.next(), equalTo(it2.next()));
+        }
     }
 
     @Override
@@ -73,7 +92,7 @@ public class InternalHDRPercentilesRanksTests extends InternalPercentilesRanksTe
             case 3 -> keyed = keyed == false;
             case 4 -> {
                 if (metadata == null) {
-                    metadata = new HashMap<>(1);
+                    metadata = Maps.newMapWithExpectedSize(1);
                 } else {
                     metadata = new HashMap<>(instance.getMetadata());
                 }

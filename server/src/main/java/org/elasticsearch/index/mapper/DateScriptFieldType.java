@@ -8,9 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.carrotsearch.hppc.LongHashSet;
-import com.carrotsearch.hppc.LongSet;
-
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.time.DateFormatter;
@@ -38,9 +35,11 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -53,24 +52,27 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
             "format",
             true,
             RuntimeField.initializerNotSupported(),
-            null
-        ).setSerializer((b, n, v) -> {
-            if (v != null && false == v.equals(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern())) {
-                b.field(n, v);
+            null,
+            (b, n, v) -> {
+                if (v != null && false == v.equals(DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern())) {
+                    b.field(n, v);
+                }
             }
-        }, Object::toString).acceptsNull();
+        ).acceptsNull();
 
         private final FieldMapper.Parameter<Locale> locale = new FieldMapper.Parameter<>(
             "locale",
             true,
             () -> null,
             (n, c, o) -> o == null ? null : LocaleUtils.parse(o.toString()),
-            RuntimeField.initializerNotSupported()
-        ).setSerializer((b, n, v) -> {
-            if (v != null && false == v.equals(Locale.ROOT)) {
-                b.field(n, v.toString());
-            }
-        }, Object::toString).acceptsNull();
+            RuntimeField.initializerNotSupported(),
+            (b, n, v) -> {
+                if (v != null && false == v.equals(Locale.ROOT)) {
+                    b.field(n, v.toString());
+                }
+            },
+            Object::toString
+        ).acceptsNull();
 
         Builder(String name) {
             super(name, DateFieldScript.CONTEXT);
@@ -158,7 +160,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
 
     @Override
     public DateScriptFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> lookup) {
-        return new DateScriptFieldData.Builder(name(), leafFactory(lookup.get()), Resolution.MILLISECONDS.getDefaultToScriptField());
+        return new DateScriptFieldData.Builder(name(), leafFactory(lookup.get()), Resolution.MILLISECONDS.getDefaultToScriptFieldFactory());
     }
 
     @Override
@@ -230,7 +232,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
             return Queries.newMatchAllQuery();
         }
         return DateFieldType.handleNow(context, now -> {
-            LongSet terms = new LongHashSet(values.size());
+            Set<Long> terms = new HashSet<>(values.size());
             for (Object value : values) {
                 terms.add(DateFieldType.parseToLong(value, false, null, this.dateMathParser, now, DateFieldMapper.Resolution.MILLISECONDS));
             }

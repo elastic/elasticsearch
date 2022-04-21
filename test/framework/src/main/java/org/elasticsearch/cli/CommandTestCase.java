@@ -11,6 +11,9 @@ package org.elasticsearch.cli;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.nio.file.Path;
+import java.util.Map;
+
 /**
  * A base test case for cli tools.
  */
@@ -25,11 +28,24 @@ public abstract class CommandTestCase extends ESTestCase {
         terminal.setVerbosity(Terminal.Verbosity.NORMAL);
     }
 
+    protected static Map<String, String> mockSystemProperties(Path homeDir) {
+        return Map.of("es.path.home", homeDir.toString(), "es.path.conf", homeDir.resolve("config").toString());
+    }
+
     /** Creates a Command to test execution. */
     protected abstract Command newCommand();
 
     /**
-     * Runs a command with the given args.
+     * Run the main method of a new command with the given args.
+     *
+     * Output can be found in {@link #terminal}.
+     */
+    public int executeMain(String... args) throws Exception {
+        return newCommand().main(args, terminal);
+    }
+
+    /**
+     * Runs a new command with the given args.
      *
      * Output can be found in {@link #terminal}.
      */
@@ -38,7 +54,7 @@ public abstract class CommandTestCase extends ESTestCase {
     }
 
     /**
-     * Runs the specified command with the given args.
+     * Runs the specified command with the given args, throwing exceptions on errors.
      * <p>
      * Output can be found in {@link #terminal}.
      */

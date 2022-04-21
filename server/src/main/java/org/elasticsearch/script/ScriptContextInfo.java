@@ -164,7 +164,7 @@ public class ScriptContextInfo implements ToXContentObject, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject().field(NAME_FIELD, name).startArray(METHODS_FIELD);
         execute.toXContent(builder, params);
-        for (ScriptMethodInfo method : getters.stream().sorted(Comparator.comparing(g -> g.name)).collect(Collectors.toList())) {
+        for (ScriptMethodInfo method : getters.stream().sorted(Comparator.comparing(g -> g.name)).toList()) {
             method.toXContent(builder, params);
         }
         return builder.endArray().endObject();

@@ -26,7 +26,7 @@ class LoggingOutputStream extends OutputStream {
     // limit a single log message to 64k
     static final int MAX_BUFFER_LENGTH = DEFAULT_BUFFER_LENGTH * 64;
 
-    class Buffer {
+    static class Buffer {
 
         /** The buffer of bytes sent to the stream */
         byte[] bytes = new byte[DEFAULT_BUFFER_LENGTH];

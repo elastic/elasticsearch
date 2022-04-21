@@ -59,7 +59,6 @@ import java.util.Set;
 import static org.elasticsearch.index.IndexModule.INDEX_RECOVERY_TYPE_SETTING;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
-import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.isSearchableSnapshotStore;
 
 /**
  * Action that mounts a snapshot as a searchable snapshot, by converting the mount request into a restore request with specific settings
@@ -199,7 +198,7 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
             final SnapshotId snapshotId = matchingSnapshotId.get();
 
             final IndexMetadata indexMetadata = repository.getSnapshotIndexMetaData(repoData, snapshotId, indexId);
-            if (isSearchableSnapshotStore(indexMetadata.getSettings())) {
+            if (indexMetadata.isSearchableSnapshot()) {
                 throw new IllegalArgumentException(
                     String.format(
                         Locale.ROOT,

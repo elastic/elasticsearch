@@ -17,16 +17,17 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.action.MoveToStepAction;
 import org.elasticsearch.xpack.core.ilm.action.MoveToStepAction.Request;
@@ -68,9 +69,11 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Request
             return;
         }
 
-        final String policyName = LifecycleSettings.LIFECYCLE_NAME_SETTING.get(indexMetadata.getSettings());
+        final String policyName = indexMetadata.getLifecyclePolicyName();
         if (policyName == null) {
-            listener.onFailure(new IllegalArgumentException("index [" + request.getIndex() + "] is not managed by ILM"));
+            listener.onFailure(
+                new IllegalArgumentException("index [" + request.getIndex() + "] is not associated with an Index Lifecycle Policy")
+            );
             return;
         }
 
@@ -141,7 +144,7 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Request
                 }
 
                 @Override
-                public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+                public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     IndexMetadata newIndexMetadata = newState.metadata().index(indexMetadata.getIndex());
                     if (newIndexMetadata == null) {
                         // The index has somehow been deleted - there shouldn't be any opportunity for this to happen, but just in case.
@@ -157,8 +160,13 @@ public class TransportMoveToStepAction extends TransportMasterNodeAction<Request
                     indexLifecycleService.maybeRunAsyncAction(newState, newIndexMetadata, concreteTargetKey.get());
                 }
             },
-            ClusterStateTaskExecutor.unbatched()
+            newExecutor()
         );
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 
     @Override

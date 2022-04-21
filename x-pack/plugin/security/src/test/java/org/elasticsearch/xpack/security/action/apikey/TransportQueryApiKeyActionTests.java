@@ -16,7 +16,6 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
 import java.util.Set;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -35,9 +34,7 @@ public class TransportQueryApiKeyActionTests extends ESTestCase {
             "metadata." + randomAlphaOfLengthBetween(3, 8)
         );
 
-        final List<FieldSortBuilder> originals = fieldNames.stream()
-            .map(this::randomFieldSortBuilderWithName)
-            .collect(Collectors.toUnmodifiableList());
+        final List<FieldSortBuilder> originals = fieldNames.stream().map(this::randomFieldSortBuilderWithName).toList();
 
         final SearchSourceBuilder searchSourceBuilder = SearchSourceBuilder.searchSource();
         TransportQueryApiKeyAction.translateFieldSortBuilders(originals, searchSourceBuilder);

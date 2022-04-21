@@ -12,6 +12,8 @@ import org.elasticsearch.xpack.ql.expression.Literal;
 import org.elasticsearch.xpack.ql.tree.Location;
 import org.elasticsearch.xpack.ql.tree.Source;
 
+import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.time.ZonedDateTime;
 
 import static org.elasticsearch.xpack.ql.type.DataTypeConverter.commonType;
@@ -28,8 +30,10 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
 import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.TEXT;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.ql.type.DataTypes.UNSUPPORTED;
 import static org.elasticsearch.xpack.ql.type.DateUtils.asDateTime;
+import static org.elasticsearch.xpack.ql.util.NumericUtils.UNSIGNED_LONG_MAX;
 
 public class DataTypeConversionTests extends ESTestCase {
 
@@ -39,6 +43,12 @@ public class DataTypeConversionTests extends ESTestCase {
             Converter conversion = converterFor(DOUBLE, to);
             assertNull(conversion.convert(null));
             assertEquals("10.0", conversion.convert(10.0));
+        }
+        {
+            Converter conversion = converterFor(UNSIGNED_LONG, to);
+            assertNull(conversion.convert(null));
+            BigInteger bi = randomBigInteger();
+            assertEquals(bi.toString(), conversion.convert(bi));
         }
         {
             Converter conversion = converterFor(DATETIME, to);
@@ -62,6 +72,16 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals(11L, conversion.convert(10.6));
             Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(Double.MAX_VALUE));
             assertEquals("[" + Double.MAX_VALUE + "] out of [long] range", e.getMessage());
+        }
+        {
+            Converter conversion = converterFor(UNSIGNED_LONG, to);
+            assertNull(conversion.convert(null));
+            BigInteger bi = BigInteger.valueOf(randomNonNegativeLong());
+            assertEquals(bi.longValue(), conversion.convert(bi));
+
+            BigInteger longPlus = bi.add(BigInteger.valueOf(Long.MAX_VALUE));
+            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(longPlus));
+            assertEquals("[" + longPlus + "] out of [long] range", e.getMessage());
         }
         {
             Converter conversion = converterFor(INTEGER, to);
@@ -103,6 +123,16 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals(asDateTime(11L), conversion.convert(10.6));
             Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(Double.MAX_VALUE));
             assertEquals("[" + Double.MAX_VALUE + "] out of [long] range", e.getMessage());
+        }
+        {
+            Converter conversion = converterFor(UNSIGNED_LONG, to);
+            assertNull(conversion.convert(null));
+            BigInteger bi = BigInteger.valueOf(randomNonNegativeLong());
+            assertEquals(asDateTime(bi.longValue()), conversion.convert(bi));
+
+            BigInteger longPlus = bi.add(BigInteger.valueOf(Long.MAX_VALUE));
+            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(longPlus));
+            assertEquals("[" + longPlus + "] out of [long] range", e.getMessage());
         }
         {
             Converter conversion = converterFor(INTEGER, to);
@@ -158,6 +188,13 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals(10.6f, (float) conversion.convert(10.6d), 0.00001);
         }
         {
+            Converter conversion = converterFor(UNSIGNED_LONG, to);
+            assertNull(conversion.convert(null));
+
+            BigInteger bi = randomBigInteger();
+            assertEquals(bi.floatValue(), (float) conversion.convert(bi), 0);
+        }
+        {
             Converter conversion = converterFor(INTEGER, to);
             assertNull(conversion.convert(null));
             assertEquals(10.0f, (float) conversion.convert(10), 0.00001);
@@ -198,6 +235,13 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals(10.6, (double) conversion.convert(10.6f), 0.00001);
         }
         {
+            Converter conversion = converterFor(UNSIGNED_LONG, to);
+            assertNull(conversion.convert(null));
+
+            BigInteger bi = randomBigInteger();
+            assertEquals(bi.doubleValue(), (double) conversion.convert(bi), 0);
+        }
+        {
             Converter conversion = converterFor(INTEGER, to);
             assertNull(conversion.convert(null));
             assertEquals(10.0, (double) conversion.convert(10), 0.00001);
@@ -236,6 +280,12 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals(true, conversion.convert(10.0f));
             assertEquals(true, conversion.convert(-10.0f));
             assertEquals(false, conversion.convert(0.0f));
+        }
+        {
+            Converter conversion = converterFor(UNSIGNED_LONG, to);
+            assertNull(conversion.convert(null));
+            assertEquals(true, conversion.convert(BigInteger.valueOf(randomNonNegativeLong())));
+            assertEquals(false, conversion.convert(BigInteger.ZERO));
         }
         {
             Converter conversion = converterFor(INTEGER, to);
@@ -289,6 +339,67 @@ public class DataTypeConversionTests extends ESTestCase {
         }
     }
 
+    public void testConversionToUnsignedLong() {
+        DataType to = UNSIGNED_LONG;
+        {
+            Converter conversion = converterFor(DOUBLE, to);
+            assertNull(conversion.convert(null));
+            double d = Math.abs(randomDouble());
+            assertEquals(BigDecimal.valueOf(d).toBigInteger(), conversion.convert(d));
+
+            Double ulmAsDouble = UNSIGNED_LONG_MAX.doubleValue();
+            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(ulmAsDouble));
+            assertEquals("[" + ulmAsDouble + "] out of [unsigned_long] range", e.getMessage());
+
+            Double nd = -Math.abs(randomDouble());
+            e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(nd));
+            assertEquals("[" + nd + "] out of [unsigned_long] range", e.getMessage());
+        }
+        {
+            Converter conversion = converterFor(LONG, to);
+            assertNull(conversion.convert(null));
+
+            BigInteger bi = BigInteger.valueOf(randomNonNegativeLong());
+            assertEquals(bi, conversion.convert(bi.longValue()));
+
+            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(bi.negate()));
+            assertEquals("[" + bi.negate() + "] out of [unsigned_long] range", e.getMessage());
+        }
+        {
+            Converter conversion = converterFor(DATETIME, to);
+            assertNull(conversion.convert(null));
+
+            long l = randomNonNegativeLong();
+            assertEquals(BigInteger.valueOf(l), conversion.convert(asDateTime(l)));
+
+            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(asDateTime(-l)));
+            assertEquals("[" + -l + "] out of [unsigned_long] range", e.getMessage());
+        }
+        {
+            Converter conversion = converterFor(BOOLEAN, to);
+            assertNull(conversion.convert(null));
+
+            assertEquals(BigInteger.ONE, conversion.convert(true));
+            assertEquals(BigInteger.ZERO, conversion.convert(false));
+        }
+        {
+            Converter conversion = converterFor(KEYWORD, to);
+            assertNull(conversion.convert(null));
+            BigInteger bi = randomBigInteger();
+            assertEquals(bi, conversion.convert(bi.toString()));
+
+            assertEquals(UNSIGNED_LONG_MAX, conversion.convert(UNSIGNED_LONG_MAX.toString()));
+            assertEquals(UNSIGNED_LONG_MAX, conversion.convert(UNSIGNED_LONG_MAX.toString() + ".0"));
+
+            assertEquals(bi, conversion.convert(bi.toString() + "." + randomNonNegativeLong()));
+
+            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(BigInteger.ONE.negate().toString()));
+            assertEquals("[-1] out of [unsigned_long] range", e.getMessage());
+            e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(UNSIGNED_LONG_MAX.add(BigInteger.ONE).toString()));
+            assertEquals("[" + UNSIGNED_LONG_MAX.add(BigInteger.ONE).toString() + "] out of [unsigned_long] range", e.getMessage());
+        }
+    }
+
     public void testConversionToInt() {
         DataType to = INTEGER;
         {
@@ -299,6 +410,16 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals(11, conversion.convert(10.6));
             Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(Long.MAX_VALUE));
             assertEquals("[" + Long.MAX_VALUE + "] out of [integer] range", e.getMessage());
+        }
+        {
+            Converter conversion = converterFor(UNSIGNED_LONG, to);
+            assertNull(conversion.convert(null));
+            BigInteger bi = BigInteger.valueOf(randomIntBetween(0, Integer.MAX_VALUE));
+            assertEquals(bi.intValueExact(), conversion.convert(bi));
+
+            BigInteger bip = BigInteger.valueOf(randomLongBetween(Integer.MAX_VALUE, Long.MAX_VALUE));
+            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(bip));
+            assertEquals("[" + bip + "] out of [integer] range", e.getMessage());
         }
         {
             Converter conversion = converterFor(DATETIME, to);
@@ -325,6 +446,16 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals("[" + Integer.MAX_VALUE + "] out of [short] range", e.getMessage());
         }
         {
+            Converter conversion = converterFor(UNSIGNED_LONG, to);
+            assertNull(conversion.convert(null));
+            BigInteger bi = BigInteger.valueOf(randomIntBetween(0, Short.MAX_VALUE));
+            assertEquals(bi.shortValueExact(), conversion.convert(bi));
+
+            BigInteger bip = BigInteger.valueOf(randomLongBetween(Short.MAX_VALUE, Long.MAX_VALUE));
+            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(bip));
+            assertEquals("[" + bip + "] out of [short] range", e.getMessage());
+        }
+        {
             Converter conversion = converterFor(DATETIME, to);
             assertNull(conversion.convert(null));
             assertEquals((short) 12345, conversion.convert(asDateTime(12345L)));
@@ -346,6 +477,16 @@ public class DataTypeConversionTests extends ESTestCase {
             assertEquals((byte) 11, conversion.convert(10.6));
             Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(Short.MAX_VALUE));
             assertEquals("[" + Short.MAX_VALUE + "] out of [byte] range", e.getMessage());
+        }
+        {
+            Converter conversion = converterFor(UNSIGNED_LONG, to);
+            assertNull(conversion.convert(null));
+            BigInteger bi = BigInteger.valueOf(randomIntBetween(0, Byte.MAX_VALUE));
+            assertEquals(bi.byteValueExact(), conversion.convert(bi));
+
+            BigInteger bip = BigInteger.valueOf(randomLongBetween(Byte.MAX_VALUE, Long.MAX_VALUE));
+            Exception e = expectThrows(QlIllegalArgumentException.class, () -> conversion.convert(bip));
+            assertEquals("[" + bip + "] out of [byte] range", e.getMessage());
         }
         {
             Converter conversion = converterFor(DATETIME, to);
@@ -387,7 +528,9 @@ public class DataTypeConversionTests extends ESTestCase {
         assertEquals(SHORT, commonType(SHORT, BYTE));
         assertEquals(FLOAT, commonType(BYTE, FLOAT));
         assertEquals(FLOAT, commonType(FLOAT, INTEGER));
+        assertEquals(UNSIGNED_LONG, commonType(UNSIGNED_LONG, LONG));
         assertEquals(DOUBLE, commonType(DOUBLE, FLOAT));
+        assertEquals(FLOAT, commonType(FLOAT, UNSIGNED_LONG));
 
         // strings
         assertEquals(TEXT, commonType(TEXT, KEYWORD));

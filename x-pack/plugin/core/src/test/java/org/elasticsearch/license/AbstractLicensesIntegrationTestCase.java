@@ -43,7 +43,7 @@ public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCas
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());
         clusterService.submitStateUpdateTask("putting license", new ClusterStateUpdateTask() {
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 latch.countDown();
             }
 
@@ -55,7 +55,7 @@ public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCas
             }
 
             @Override
-            public void onFailure(String source, @Nullable Exception e) {
+            public void onFailure(@Nullable Exception e) {
                 logger.error("error on metadata cleanup after test", e);
             }
         }, ClusterStateTaskExecutor.unbatched());
@@ -71,7 +71,7 @@ public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCas
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class, internalCluster().getMasterName());
         clusterService.submitStateUpdateTask("delete licensing metadata", new ClusterStateUpdateTask() {
             @Override
-            public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+            public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 latch.countDown();
             }
 
@@ -83,7 +83,7 @@ public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCas
             }
 
             @Override
-            public void onFailure(String source, @Nullable Exception e) {
+            public void onFailure(@Nullable Exception e) {
                 logger.error("error on metadata cleanup after test", e);
             }
         }, ClusterStateTaskExecutor.unbatched());

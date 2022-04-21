@@ -30,6 +30,8 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.metadata.DataStream.TimestampField;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -44,6 +46,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
@@ -88,8 +91,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     public static final String INGEST_ORIGIN = "ingest";
 
     private static final Logger logger = LogManager.getLogger(IngestService.class);
-    private static final IndexNameExpressionResolver.DateMathExpressionResolver DATE_MATH_EXPRESSION_RESOLVER =
-        new IndexNameExpressionResolver.DateMathExpressionResolver();
 
     private final ClusterService clusterService;
     private final ScriptService scriptService;
@@ -264,7 +265,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     }
 
     private static String resolveIndexName(final String unresolvedIndexName, final long epochMillis) {
-        List<String> resolvedNames = DATE_MATH_EXPRESSION_RESOLVER.resolve(
+        List<String> resolvedNames = IndexNameExpressionResolver.DateMathExpressionResolver.resolve(
             new IndexNameExpressionResolver.ResolverContext(epochMillis),
             List.of(unresolvedIndexName)
         );
@@ -289,7 +290,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             public ClusterState execute(ClusterState currentState) {
                 return innerDelete(request, currentState);
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        }, newExecutor());
+    }
+
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
     }
 
     static ClusterState innerDelete(DeletePipelineRequest request, ClusterState currentState) {
@@ -442,7 +448,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 public ClusterState execute(ClusterState currentState) {
                     return innerPut(request, currentState);
                 }
-            }, ClusterStateTaskExecutor.unbatched());
+            }, newExecutor());
         }, listener::onFailure));
     }
 
@@ -872,9 +878,19 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     mergedDynamicTemplates.putAll(map);
                     indexRequest.setDynamicTemplates(mergedDynamicTemplates);
                 }
+                postIngest(ingestDocument, indexRequest);
+
                 handler.accept(null);
             }
         });
+    }
+
+    private void postIngest(IngestDocument ingestDocument, IndexRequest indexRequest) {
+        // cache timestamp from ingest source map
+        Object rawTimestamp = ingestDocument.getSourceAndMetadata().get(TimestampField.FIXED_TIMESTAMP_FIELD);
+        if (rawTimestamp != null && indexRequest.getRawTimestamp() == null) {
+            indexRequest.setRawTimestamp(rawTimestamp);
+        }
     }
 
     @Override

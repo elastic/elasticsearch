@@ -2046,8 +2046,8 @@ public class EnrichPolicyRunnerTests extends ESSingleNodeTestCase {
         assertThat(indexSegments.getShards().size(), is(equalTo(1)));
         IndexShardSegments shardSegments = indexSegments.getShards().get(0);
         assertNotNull(shardSegments);
-        assertThat(shardSegments.getShards().length, is(equalTo(1)));
-        ShardSegments shard = shardSegments.getShards()[0];
+        assertThat(shardSegments.shards().length, is(equalTo(1)));
+        ShardSegments shard = shardSegments.shards()[0];
         assertThat(shard.getSegments().size(), is(equalTo(1)));
         Segment segment = shard.getSegments().iterator().next();
         assertThat(segment.getNumDocs(), is(equalTo(expectedDocs)));

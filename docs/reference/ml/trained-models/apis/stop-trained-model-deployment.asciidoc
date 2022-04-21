@@ -21,10 +21,10 @@ Stops a trained model deployment.
 Requires the `manage_ml` cluster privilege. This privilege is included in the 
 `machine_learning_admin` built-in role.
 
-////
 [[stop-trained-model-deployment-desc]]
 == {api-description-title}
-////
+
+Deployment is required only for trained models that have a PyTorch `model_type`.
 
 [[stop-trained-model-deployment-path-params]]
 == {api-path-parms-title}

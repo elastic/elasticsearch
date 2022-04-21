@@ -30,6 +30,7 @@ public class StartBasicClusterTask extends ClusterStateUpdateTask {
     private final Logger logger;
     private final String clusterName;
     private final PostStartBasicRequest request;
+    private final String description;
     private final ActionListener<PostStartBasicResponse> listener;
     private final Clock clock;
     private AtomicReference<Map<String, String[]>> ackMessages = new AtomicReference<>(Collections.emptyMap());
@@ -39,17 +40,19 @@ public class StartBasicClusterTask extends ClusterStateUpdateTask {
         String clusterName,
         Clock clock,
         PostStartBasicRequest request,
+        String description,
         ActionListener<PostStartBasicResponse> listener
     ) {
         this.logger = logger;
         this.clusterName = clusterName;
         this.request = request;
+        this.description = description;
         this.listener = listener;
         this.clock = clock;
     }
 
     @Override
-    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
         LicensesMetadata oldLicensesMetadata = oldState.metadata().custom(LicensesMetadata.TYPE);
         logger.debug("license prior to starting basic license: {}", oldLicensesMetadata);
         License oldLicense = LicensesMetadata.extractLicense(oldLicensesMetadata);
@@ -90,8 +93,8 @@ public class StartBasicClusterTask extends ClusterStateUpdateTask {
     }
 
     @Override
-    public void onFailure(String source, @Nullable Exception e) {
-        logger.error(new ParameterizedMessage("unexpected failure during [{}]", source), e);
+    public void onFailure(@Nullable Exception e) {
+        logger.error(new ParameterizedMessage("unexpected failure during [{}]", description), e);
         listener.onFailure(e);
     }
 
@@ -99,7 +102,7 @@ public class StartBasicClusterTask extends ClusterStateUpdateTask {
         return currentLicense == null
             || License.LicenseType.isBasic(currentLicense.type()) == false
             || LicenseService.SELF_GENERATED_LICENSE_MAX_NODES != currentLicense.maxNodes()
-            || LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS != currentLicense.expiryDate();
+            || LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS != LicenseService.getExpiryDate(currentLicense);
     }
 
     private License generateBasicLicense(ClusterState currentState) {
@@ -112,5 +115,9 @@ public class StartBasicClusterTask extends ClusterStateUpdateTask {
             .expiryDate(LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS);
 
         return SelfGeneratedLicense.create(specBuilder, currentState.nodes());
+    }
+
+    public String getDescription() {
+        return description;
     }
 }

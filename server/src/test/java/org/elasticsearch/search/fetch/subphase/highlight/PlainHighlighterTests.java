@@ -8,12 +8,12 @@
 
 package org.elasticsearch.search.fetch.subphase.highlight;
 
-import org.apache.lucene.analysis.MockAnalyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.highlight.QueryScorer;
-import org.apache.lucene.util.LuceneTestCase;
+import org.apache.lucene.tests.analysis.MockAnalyzer;
+import org.apache.lucene.tests.util.LuceneTestCase;
 
 public class PlainHighlighterTests extends LuceneTestCase {
 

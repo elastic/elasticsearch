@@ -11,13 +11,14 @@ import joptsimple.OptionSpec;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.MultiCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
-import org.elasticsearch.common.cli.LoggingAwareMultiCommand;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -42,11 +43,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-public class UsersTool extends LoggingAwareMultiCommand {
-
-    public static void main(String[] args) throws Exception {
-        exit(new UsersTool().main(args, Terminal.DEFAULT));
-    }
+class UsersTool extends MultiCommand {
 
     UsersTool() {
         super("Manages elasticsearch file users");
@@ -291,7 +288,7 @@ public class UsersTool extends LoggingAwareMultiCommand {
             roles.addAll(Arrays.asList(addRoles));
             roles.removeAll(Arrays.asList(removeRoles));
 
-            Map<String, String[]> userRolesToWrite = new HashMap<>(userRoles.size());
+            Map<String, String[]> userRolesToWrite = Maps.newMapWithExpectedSize(userRoles.size());
             userRolesToWrite.putAll(userRoles);
             if (roles.isEmpty()) {
                 userRolesToWrite.remove(username);

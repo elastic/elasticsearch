@@ -9,6 +9,7 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.tasks.TaskCancelledException;
@@ -16,6 +17,9 @@ import org.elasticsearch.tasks.TaskCancelledException;
 import java.util.function.IntConsumer;
 import java.util.function.Supplier;
 
+/**
+ * Dependencies used to reduce aggs.
+ */
 public abstract sealed class AggregationReduceContext permits AggregationReduceContext.ForPartial,AggregationReduceContext.ForFinal {
     /**
      * Builds {@link AggregationReduceContext}s.
@@ -35,11 +39,38 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
     private final BigArrays bigArrays;
     private final ScriptService scriptService;
     private final Supplier<Boolean> isCanceled;
+    /**
+     * Builder for the agg being processed or {@code null} if this context
+     * was built for the top level or a pipeline aggregation.
+     */
+    @Nullable
+    private final AggregationBuilder builder;
+    private final AggregatorFactories.Builder subBuilders;
 
-    public AggregationReduceContext(BigArrays bigArrays, ScriptService scriptService, Supplier<Boolean> isCanceled) {
+    private AggregationReduceContext(
+        BigArrays bigArrays,
+        ScriptService scriptService,
+        Supplier<Boolean> isCanceled,
+        AggregatorFactories.Builder subBuilders
+    ) {
         this.bigArrays = bigArrays;
         this.scriptService = scriptService;
         this.isCanceled = isCanceled;
+        this.builder = null;
+        this.subBuilders = subBuilders;
+    }
+
+    private AggregationReduceContext(
+        BigArrays bigArrays,
+        ScriptService scriptService,
+        Supplier<Boolean> isCanceled,
+        AggregationBuilder builder
+    ) {
+        this.bigArrays = bigArrays;
+        this.scriptService = scriptService;
+        this.isCanceled = isCanceled;
+        this.builder = builder;
+        this.subBuilders = builder.factoriesBuilder;
     }
 
     /**
@@ -64,6 +95,14 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
     }
 
     /**
+     * Builder for the agg being processed or {@code null} if this context
+     * was built for the top level or a pipeline aggregation.
+     */
+    public AggregationBuilder builder() {
+        return builder;
+    }
+
+    /**
      * The root of the tree of pipeline aggregations for this request.
      */
     public abstract PipelineTree pipelineTreeRoot();
@@ -83,11 +122,34 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
     protected abstract void consumeBucketCountAndMaybeBreak(int size);
 
     /**
+     * Build a {@link AggregationReduceContext} for a sub-aggregation.
+     */
+    public final AggregationReduceContext forAgg(String name) {
+        for (AggregationBuilder b : subBuilders.getAggregatorFactories()) {
+            if (b.getName().equals(name)) {
+                return forSubAgg(b);
+            }
+        }
+        throw new IllegalArgumentException("reducing an aggregation [" + name + "] that wasn't requested");
+    }
+
+    protected abstract AggregationReduceContext forSubAgg(AggregationBuilder sub);
+
+    /**
      * A {@linkplain AggregationReduceContext} to perform a partial reduction.
      */
     public static final class ForPartial extends AggregationReduceContext {
-        public ForPartial(BigArrays bigArrays, ScriptService scriptService, Supplier<Boolean> isCanceled) {
-            super(bigArrays, scriptService, isCanceled);
+        public ForPartial(
+            BigArrays bigArrays,
+            ScriptService scriptService,
+            Supplier<Boolean> isCanceled,
+            AggregatorFactories.Builder builders
+        ) {
+            super(bigArrays, scriptService, isCanceled, builders);
+        }
+
+        public ForPartial(BigArrays bigArrays, ScriptService scriptService, Supplier<Boolean> isCanceled, AggregationBuilder builder) {
+            super(bigArrays, scriptService, isCanceled, builder);
         }
 
         @Override
@@ -102,6 +164,11 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
         public PipelineTree pipelineTreeRoot() {
             return null;
         }
+
+        @Override
+        protected AggregationReduceContext forSubAgg(AggregationBuilder sub) {
+            return new ForPartial(bigArrays(), scriptService(), isCanceled(), sub);
+        }
     }
 
     /**
@@ -114,11 +181,24 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
         public ForFinal(
             BigArrays bigArrays,
             ScriptService scriptService,
-            IntConsumer multiBucketConsumer,
-            PipelineTree pipelineTreeRoot,
-            Supplier<Boolean> isCanceled
+            Supplier<Boolean> isCanceled,
+            AggregatorFactories.Builder builders,
+            IntConsumer multiBucketConsumer
         ) {
-            super(bigArrays, scriptService, isCanceled);
+            super(bigArrays, scriptService, isCanceled, builders);
+            this.multiBucketConsumer = multiBucketConsumer;
+            this.pipelineTreeRoot = builders == null ? null : builders.buildPipelineTree();
+        }
+
+        public ForFinal(
+            BigArrays bigArrays,
+            ScriptService scriptService,
+            Supplier<Boolean> isCanceled,
+            AggregationBuilder builder,
+            IntConsumer multiBucketConsumer,
+            PipelineTree pipelineTreeRoot
+        ) {
+            super(bigArrays, scriptService, isCanceled, builder);
             this.multiBucketConsumer = multiBucketConsumer;
             this.pipelineTreeRoot = pipelineTreeRoot;
         }
@@ -136,6 +216,11 @@ public abstract sealed class AggregationReduceContext permits AggregationReduceC
         @Override
         public PipelineTree pipelineTreeRoot() {
             return pipelineTreeRoot;
+        }
+
+        @Override
+        protected AggregationReduceContext forSubAgg(AggregationBuilder sub) {
+            return new ForFinal(bigArrays(), scriptService(), isCanceled(), sub, multiBucketConsumer, pipelineTreeRoot);
         }
     }
 }

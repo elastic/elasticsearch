@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
@@ -44,11 +45,11 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static java.util.stream.Collectors.toUnmodifiableList;
 import static org.elasticsearch.tasks.TaskResultsService.TASKS_DESCRIPTOR;
 import static org.elasticsearch.tasks.TaskResultsService.TASKS_FEATURE_NAME;
 
@@ -76,6 +77,8 @@ public class SystemIndices {
     private final CharacterRunAutomaton systemDataStreamIndicesRunAutomaton;
     private final Predicate<String> systemDataStreamPredicate;
     private final Map<String, Feature> featureDescriptors;
+    private final SystemIndexDescriptor[] indexDescriptors;
+    private final Map<String, SystemDataStreamDescriptor> dataStreamDescriptors;
     private final Map<String, CharacterRunAutomaton> productToSystemIndicesMatcher;
     private final ExecutorSelector executorSelector;
 
@@ -86,6 +89,14 @@ public class SystemIndices {
      */
     public SystemIndices(Map<String, Feature> pluginAndModulesDescriptors) {
         featureDescriptors = buildSystemIndexDescriptorMap(pluginAndModulesDescriptors);
+        indexDescriptors = featureDescriptors.values()
+            .stream()
+            .flatMap(f -> f.getIndexDescriptors().stream())
+            .toArray(SystemIndexDescriptor[]::new);
+        dataStreamDescriptors = featureDescriptors.values()
+            .stream()
+            .flatMap(f -> f.getDataStreamDescriptors().stream())
+            .collect(Collectors.toUnmodifiableMap(SystemDataStreamDescriptor::getDataStreamName, Function.identity()));
         checkForOverlappingPatterns(featureDescriptors);
         ensurePatternsAllowSuffix(featureDescriptors);
         checkForDuplicateAliases(this.getSystemIndexDescriptors());
@@ -122,7 +133,7 @@ public class SystemIndices {
                         ).getFormattedMessage()
                     )
             )
-            .collect(Collectors.toList());
+            .toList();
         if (descriptorsWithNoRoomForSuffix.isEmpty() == false) {
             throw new IllegalStateException(
                 new ParameterizedMessage(
@@ -149,7 +160,7 @@ public class SystemIndices {
             .filter(entry -> entry.getValue() > 1)
             .map(Map.Entry::getKey)
             .sorted()
-            .collect(Collectors.toList());
+            .toList();
 
         if (duplicateAliases.isEmpty() == false) {
             throw new IllegalStateException("Found aliases associated with multiple system index descriptors: " + duplicateAliases + "");
@@ -266,78 +277,25 @@ public class SystemIndices {
      * Finds a single matching {@link SystemIndexDescriptor}, if any, for the given index name.
      * @param name the name of the index
      * @return The matching {@link SystemIndexDescriptor} or {@code null} if no descriptor is found
-     * @throws IllegalStateException if multiple descriptors match the name
      */
     public @Nullable SystemIndexDescriptor findMatchingDescriptor(String name) {
-        final List<SystemIndexDescriptor> matchingDescriptors = featureDescriptors.values()
-            .stream()
-            .flatMap(feature -> feature.getIndexDescriptors().stream())
-            .filter(descriptor -> descriptor.matchesIndexPattern(name))
-            .collect(toUnmodifiableList());
-
-        if (matchingDescriptors.isEmpty()) {
-            return null;
-        } else if (matchingDescriptors.size() == 1) {
-            return matchingDescriptors.get(0);
-        } else {
-            // This should be prevented by failing on overlapping patterns at startup time, but is here just in case.
-            StringBuilder errorMessage = new StringBuilder().append("index name [")
-                .append(name)
-                .append("] is claimed as a system index by multiple system index patterns: [")
-                .append(
-                    matchingDescriptors.stream()
-                        .map(
-                            descriptor -> "pattern: ["
-                                + descriptor.getIndexPattern()
-                                + "], description: ["
-                                + descriptor.getDescription()
-                                + "]"
-                        )
-                        .collect(Collectors.joining("; "))
-                );
-            // Throw AssertionError if assertions are enabled, or a regular exception otherwise:
-            assert false : errorMessage.toString();
-            throw new IllegalStateException(errorMessage.toString());
+        SystemIndexDescriptor matchingDescriptor = null;
+        for (SystemIndexDescriptor systemIndexDescriptor : indexDescriptors) {
+            if (systemIndexDescriptor.matchesIndexPattern(name)) {
+                matchingDescriptor = systemIndexDescriptor;
+                break;
+            }
         }
+        return matchingDescriptor;
     }
 
     /**
      * Finds a single matching {@link SystemDataStreamDescriptor}, if any, for the given DataStream name.
      * @param name the name of the DataStream
      * @return The matching {@link SystemDataStreamDescriptor} or {@code null} if no descriptor is found
-     * @throws IllegalStateException if multiple descriptors match the name
      */
     public @Nullable SystemDataStreamDescriptor findMatchingDataStreamDescriptor(String name) {
-        final List<SystemDataStreamDescriptor> matchingDescriptors = featureDescriptors.values()
-            .stream()
-            .flatMap(feature -> feature.getDataStreamDescriptors().stream())
-            .filter(descriptor -> descriptor.getDataStreamName().equals(name))
-            .collect(toUnmodifiableList());
-
-        if (matchingDescriptors.isEmpty()) {
-            return null;
-        } else if (matchingDescriptors.size() == 1) {
-            return matchingDescriptors.get(0);
-        } else {
-            // This should be prevented by failing on overlapping patterns at startup time, but is here just in case.
-            StringBuilder errorMessage = new StringBuilder().append("DataStream name [")
-                .append(name)
-                .append("] is claimed as a system data stream by multiple descriptors: [")
-                .append(
-                    matchingDescriptors.stream()
-                        .map(
-                            descriptor -> "name: ["
-                                + descriptor.getDataStreamName()
-                                + "], description: ["
-                                + descriptor.getDescription()
-                                + "]"
-                        )
-                        .collect(Collectors.joining("; "))
-                );
-            // Throw AssertionError if assertions are enabled, or a regular exception otherwise:
-            assert false : errorMessage.toString();
-            throw new IllegalStateException(errorMessage.toString());
-        }
+        return dataStreamDescriptors.get(name);
     }
 
     /**
@@ -470,14 +428,14 @@ public class SystemIndices {
         }
     }
 
-    public IllegalArgumentException dataStreamAccessException(ThreadContext threadContext, Collection<String> names) {
+    public static IllegalArgumentException dataStreamAccessException(ThreadContext threadContext, Collection<String> names) {
         return dataStreamAccessException(
             threadContext.getHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY),
             names.toArray(Strings.EMPTY_ARRAY)
         );
     }
 
-    public IllegalArgumentException netNewSystemIndexAccessException(ThreadContext threadContext, Collection<String> names) {
+    public static IllegalArgumentException netNewSystemIndexAccessException(ThreadContext threadContext, Collection<String> names) {
         final String product = threadContext.getHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY);
         if (product == null) {
             return new IllegalArgumentException(
@@ -490,7 +448,7 @@ public class SystemIndices {
         }
     }
 
-    IllegalArgumentException dataStreamAccessException(@Nullable String product, String... dataStreamNames) {
+    static IllegalArgumentException dataStreamAccessException(@Nullable String product, String... dataStreamNames) {
         if (product == null) {
             return new IllegalArgumentException(
                 "Data stream(s) " + Arrays.toString(dataStreamNames) + " use and access is reserved for system operations"
@@ -510,7 +468,7 @@ public class SystemIndices {
      * {@link SystemIndexAccessLevel#RESTRICTED} if a subset of system index access should be allowed, or
      * {@link SystemIndexAccessLevel#NONE} if no system index access should be allowed.
      */
-    public SystemIndexAccessLevel getSystemIndexAccessLevel(ThreadContext threadContext) {
+    public static SystemIndexAccessLevel getSystemIndexAccessLevel(ThreadContext threadContext) {
         // This method intentionally cannot return BACKWARDS_COMPATIBLE_ONLY - that access level should only be used manually
         // in known special cases.
         final String headerValue = threadContext.getHeader(SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY);
@@ -554,7 +512,7 @@ public class SystemIndices {
             .stream()
             .flatMap(entry -> entry.getValue().getIndexDescriptors().stream().map(descriptor -> new Tuple<>(entry.getKey(), descriptor)))
             .sorted(Comparator.comparing(d -> d.v1() + ":" + d.v2().getIndexPattern())) // Consistent ordering -> consistent error message
-            .collect(Collectors.toUnmodifiableList());
+            .toList();
         List<Tuple<String, SystemDataStreamDescriptor>> sourceDataStreamDescriptorPair = sourceToFeature.entrySet()
             .stream()
             .filter(entry -> entry.getValue().getDataStreamDescriptors().isEmpty() == false)
@@ -562,7 +520,7 @@ public class SystemIndices {
                 entry -> entry.getValue().getDataStreamDescriptors().stream().map(descriptor -> new Tuple<>(entry.getKey(), descriptor))
             )
             .sorted(Comparator.comparing(d -> d.v1() + ":" + d.v2().getDataStreamName())) // Consistent ordering -> consistent error message
-            .collect(Collectors.toUnmodifiableList());
+            .toList();
 
         // This is O(n^2) with the number of system index descriptors, and each check is quadratic with the number of states in the
         // automaton, but the absolute number of system index descriptors should be quite small (~10s at most), and the number of states
@@ -574,7 +532,7 @@ public class SystemIndices {
                     d -> overlaps(descriptorToCheck.v2(), d.v2())
                         || (d.v2().getAliasName() != null && descriptorToCheck.v2().matchesIndexPattern(d.v2().getAliasName()))
                 )
-                .collect(toUnmodifiableList());
+                .toList();
             if (descriptorsMatchingThisPattern.isEmpty() == false) {
                 throw new IllegalStateException(
                     "a system index descriptor ["
@@ -593,7 +551,7 @@ public class SystemIndices {
                     dsTuple -> descriptorToCheck.v2().matchesIndexPattern(dsTuple.v2().getDataStreamName())
                         || overlaps(descriptorToCheck.v2().getIndexPattern(), dsTuple.v2().getBackingIndexPattern())
                 )
-                .collect(toUnmodifiableList());
+                .toList();
             if (dataStreamsMatching.isEmpty() == false) {
                 throw new IllegalStateException(
                     "a system index descriptor ["
@@ -620,7 +578,7 @@ public class SystemIndices {
     }
 
     private static Map<String, Feature> buildSystemIndexDescriptorMap(Map<String, Feature> featuresMap) {
-        final Map<String, Feature> map = new HashMap<>(featuresMap.size() + SERVER_SYSTEM_INDEX_DESCRIPTORS.size());
+        final Map<String, Feature> map = Maps.newMapWithExpectedSize(featuresMap.size() + SERVER_SYSTEM_INDEX_DESCRIPTORS.size());
         map.putAll(featuresMap);
         // put the server items last since we expect less of them
         SERVER_SYSTEM_INDEX_DESCRIPTORS.forEach((source, feature) -> {
@@ -634,7 +592,7 @@ public class SystemIndices {
     }
 
     Collection<SystemIndexDescriptor> getSystemIndexDescriptors() {
-        return this.featureDescriptors.values().stream().flatMap(f -> f.getIndexDescriptors().stream()).collect(Collectors.toList());
+        return this.featureDescriptors.values().stream().flatMap(f -> f.getIndexDescriptors().stream()).toList();
     }
 
     /**
@@ -830,7 +788,7 @@ public class SystemIndices {
             List<String> allIndices = Stream.concat(indexDescriptors.stream(), associatedIndexDescriptors.stream())
                 .map(descriptor -> descriptor.getMatchingIndices(metadata))
                 .flatMap(List::stream)
-                .collect(Collectors.toList());
+                .toList();
 
             if (allIndices.isEmpty()) {
                 // if no actual indices match the pattern, we can stop here

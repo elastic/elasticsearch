@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.execution.search.extractor;
 
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
@@ -24,7 +25,6 @@ import java.time.ZonedDateTime;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -34,6 +34,7 @@ import static java.util.Collections.singletonList;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.time.DateUtils.toMilliSeconds;
 import static org.elasticsearch.xpack.ql.type.DataTypes.DATETIME;
+import static org.elasticsearch.xpack.ql.type.DataTypes.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.GEO_SHAPE;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.SHAPE;
 import static org.elasticsearch.xpack.sql.util.DateUtils.UTC;
@@ -172,7 +173,7 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         String fieldName = randomAlphaOfLength(5);
         FieldHitExtractor fe = new FieldHitExtractor(fieldName, randomBoolean() ? GEO_SHAPE : SHAPE, UTC, false);
 
-        Map<String, Object> map = new HashMap<>(2);
+        Map<String, Object> map = Maps.newMapWithExpectedSize(2);
         map.put("coordinates", asList(1d, 2d));
         map.put("type", "Point");
         DocumentField field = new DocumentField(fieldName, singletonList(map));
@@ -185,10 +186,10 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
         String fieldName = randomAlphaOfLength(5);
         FieldHitExtractor fe = new FieldHitExtractor(fieldName, randomBoolean() ? GEO_SHAPE : SHAPE, UTC, false);
 
-        Map<String, Object> map1 = new HashMap<>(2);
+        Map<String, Object> map1 = Maps.newMapWithExpectedSize(2);
         map1.put("coordinates", asList(1d, 2d));
         map1.put("type", "Point");
-        Map<String, Object> map2 = new HashMap<>(2);
+        Map<String, Object> map2 = Maps.newMapWithExpectedSize(2);
         map2.put("coordinates", asList(3d, 4d));
         map2.put("type", "Point");
         DocumentField field = new DocumentField(fieldName, asList(map1, map2));
@@ -204,6 +205,19 @@ public class FieldHitExtractorTests extends AbstractSqlWireSerializingTestCase<F
                 new SearchHit(1, null, null, singletonMap(fieldName, new DocumentField(fieldName, singletonList(map2))), null)
             )
         );
+    }
+
+    public void testUnsignedLongExtraction() {
+        BigInteger bi = randomBigInteger();
+        Number number = bi.compareTo(BigInteger.valueOf(Long.MAX_VALUE)) <= 0 ? bi.longValue() : bi;
+        Object value = randomBoolean() ? number.toString() : number;
+
+        String fieldName = randomAlphaOfLength(10);
+        DocumentField field = new DocumentField(fieldName, singletonList(value));
+        SearchHit hit = new SearchHit(1, null, singletonMap(fieldName, field), null);
+        FieldHitExtractor fe = new FieldHitExtractor(fieldName, UNSIGNED_LONG, randomZone(), randomBoolean());
+
+        assertEquals(bi, fe.extract(hit));
     }
 
     private FieldHitExtractor getFieldHitExtractor(String fieldName) {

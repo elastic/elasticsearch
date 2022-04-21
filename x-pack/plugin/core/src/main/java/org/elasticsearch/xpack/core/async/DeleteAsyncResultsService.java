@@ -53,7 +53,7 @@ public class DeleteAsyncResultsService {
      * delete async search submitted by another user.
      */
     private void hasCancelTaskPrivilegeAsync(Consumer<Boolean> consumer) {
-        final Authentication current = store.getAuthentication();
+        final Authentication current = store.getSecurityContext().getAuthentication();
         if (current != null) {
             HasPrivilegesRequest req = new HasPrivilegesRequest();
             req.username(current.getUser().principal());
@@ -83,7 +83,7 @@ public class DeleteAsyncResultsService {
         try {
             AsyncExecutionId searchId = AsyncExecutionId.decode(request.getId());
             AsyncTask task = hasCancelTaskPrivilege
-                ? store.getTask(taskManager, searchId, AsyncTask.class)
+                ? AsyncTaskIndexService.getTask(taskManager, searchId, AsyncTask.class)
                 : store.getTaskAndCheckAuthentication(taskManager, searchId, AsyncTask.class);
             if (task != null) {
                 // the task was found and gets cancelled. The response may or may not be found, but we will return 200 anyways.

@@ -29,7 +29,7 @@ public class DebMetadataTests extends PackagingTestCase {
 
     public void test05CheckLintian() {
         String extraArgs = "";
-        final String helpText = sh.run("lintian --help").stdout;
+        final String helpText = sh.run("lintian --help").stdout();
         if (helpText.contains("fail-on-warnings")) {
             extraArgs = "--fail-on-warnings";
         } else if (helpText.contains("--fail-on error")) {
@@ -44,9 +44,9 @@ public class DebMetadataTests extends PackagingTestCase {
 
         final Shell.Result result = sh.run("dpkg -I " + getDistributionFile(distribution()));
 
-        TestCase.assertTrue(Pattern.compile("(?m)^ Depends:.*bash.*").matcher(result.stdout).find());
+        TestCase.assertTrue(Pattern.compile("(?m)^ Depends:.*bash.*").matcher(result.stdout()).find());
 
         String oppositePackageName = "elasticsearch-oss";
-        TestCase.assertTrue(Pattern.compile("(?m)^ Conflicts: " + oppositePackageName + "$").matcher(result.stdout).find());
+        TestCase.assertTrue(Pattern.compile("(?m)^ Conflicts: " + oppositePackageName + "$").matcher(result.stdout()).find());
     }
 }

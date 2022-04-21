@@ -60,7 +60,7 @@ public class TransportKibanaEnrollmentAction extends HandledTransportAction<Kiba
     @Override
     protected void doExecute(Task task, KibanaEnrollmentRequest request, ActionListener<KibanaEnrollmentResponse> listener) {
 
-        final SslKeyConfig keyConfig = sslService.getHttpTransportSSLConfiguration().getKeyConfig();
+        final SslKeyConfig keyConfig = sslService.getHttpTransportSSLConfiguration().keyConfig();
         if (keyConfig instanceof StoreKeyConfig == false) {
             listener.onFailure(
                 new ElasticsearchException(

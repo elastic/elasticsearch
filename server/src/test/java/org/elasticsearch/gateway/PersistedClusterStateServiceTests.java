@@ -21,7 +21,6 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.mockfile.ExtrasFS;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
@@ -34,11 +33,13 @@ import org.apache.lucene.store.FilterDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.NIOFSDirectory;
+import org.apache.lucene.tests.mockfile.ExtrasFS;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.CoordinationMetadata;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -49,8 +50,8 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeMetadata;
@@ -545,7 +546,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     if (randomBoolean()) {
                         writeState(writer, newTerm, newState, clusterState);
                     } else {
-                        writer.commit(newTerm, newState.version());
+                        writer.commit(newTerm, newState.version(), newState.metadata().oldestIndexVersion());
                     }
                 }).getMessage(), containsString("simulated"));
                 assertFalse(writer.isOpen());
@@ -596,7 +597,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     if (randomBoolean()) {
                         writeState(writer, newTerm, newState, clusterState);
                     } else {
-                        writer.commit(newTerm, newState.version());
+                        writer.commit(newTerm, newState.version(), newState.metadata().oldestIndexVersion());
                     }
                 }).getMessage(), containsString("simulated"));
                 assertFalse(writer.isOpen());
@@ -1120,7 +1121,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 && corruptDocIsLastPage;
             if (isOnlyPageForIndex == false // don't remove the only doc for an index, this just loses the index and doesn't corrupt
                 && rarely()) {
-                documents.remove(between(0, documents.size() - 1));
+                documents.remove(corruptIndex);
             } else {
                 if (randomBoolean()) {
                     corruptDocument.removeFields(PAGE_FIELD_NAME);
@@ -1191,7 +1192,9 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                         "should see warning at threshold",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.WARN,
-                        "writing cluster state took [*] which is above the warn threshold of [*]; " + "wrote full state with [0] indices"
+                        """
+                            writing full cluster state took [*] which is above the warn threshold of [*]; \
+                            wrote global metadata and metadata for [0] indices"""
                     )
                 );
 
@@ -1205,7 +1208,9 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                         "should see warning above threshold",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.WARN,
-                        "writing cluster state took [*] which is above the warn threshold of [*]; " + "wrote full state with [0] indices"
+                        """
+                            writing full cluster state took [*] which is above the warn threshold of [*]; \
+                            wrote global metadata and metadata for [0] indices"""
                     )
                 );
 
@@ -1237,7 +1242,9 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                         "should see warning at reduced threshold",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.WARN,
-                        "writing cluster state took [*] which is above the warn threshold of [*]; " + "wrote full state with [0] indices"
+                        """
+                            writing full cluster state took [*] which is above the warn threshold of [*]; \
+                            wrote global metadata and metadata for [0] indices"""
                     )
                 );
 
@@ -1268,8 +1275,10 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                         "should see warning at threshold",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.WARN,
-                        "writing cluster state took [*] which is above the warn threshold of [*]; "
-                            + "wrote global metadata [false] and metadata for [1] indices and skipped [0] unchanged indices"
+                        """
+                            writing cluster state took [*] which is above the warn threshold of [*]; [skipped writing] global metadata, \
+                            wrote metadata for [1] new indices and [0] existing indices, removed metadata for [0] indices and \
+                            skipped [0] unchanged indices"""
                     )
                 );
 
@@ -1305,7 +1314,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 CorruptionUtils.corruptFile(random(), randomFrom(StreamSupport.stream(directoryStream.spliterator(), false).filter(p -> {
                     final String filename = p.getFileName().toString();
                     return ExtrasFS.isExtra(filename) == false && filename.equals(WRITE_LOCK_NAME) == false;
-                }).collect(Collectors.toList())));
+                }).toList()));
             }
 
             assertThat(
@@ -1462,6 +1471,48 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         }
     }
 
+    public void testOldestIndexVersionIsCorrectlySerialized() throws IOException {
+        final Path[] dataPaths1 = createDataPaths();
+        final Path[] dataPaths2 = createDataPaths();
+        final Path[] combinedPaths = Stream.concat(Arrays.stream(dataPaths1), Arrays.stream(dataPaths2)).toArray(Path[]::new);
+
+        Version oldVersion = Version.fromId(Version.CURRENT.minimumIndexCompatibilityVersion().id - 1);
+
+        final Version[] indexVersions = new Version[] { oldVersion, Version.CURRENT, Version.fromId(Version.CURRENT.id + 1) };
+        int lastIndexNum = randomIntBetween(9, 50);
+        Metadata.Builder b = Metadata.builder();
+        for (Version indexVersion : indexVersions) {
+            String indexUUID = UUIDs.randomBase64UUID(random());
+            IndexMetadata im = IndexMetadata.builder(DataStream.getDefaultBackingIndexName("index", lastIndexNum))
+                .settings(settings(indexVersion).put(IndexMetadata.SETTING_INDEX_UUID, indexUUID))
+                .numberOfShards(1)
+                .numberOfReplicas(1)
+                .build();
+            b.put(im, false);
+            lastIndexNum = randomIntBetween(lastIndexNum + 1, lastIndexNum + 50);
+        }
+
+        Metadata metadata = b.build();
+
+        try (NodeEnvironment nodeEnvironment = newNodeEnvironment(combinedPaths)) {
+            try (Writer writer = newPersistedClusterStateService(nodeEnvironment).createWriter()) {
+                final ClusterState clusterState = loadPersistedClusterState(newPersistedClusterStateService(nodeEnvironment));
+                writeState(
+                    writer,
+                    0L,
+                    ClusterState.builder(clusterState).metadata(metadata).version(randomLongBetween(1L, Long.MAX_VALUE)).build(),
+                    clusterState
+                );
+            }
+
+            PersistedClusterStateService.OnDiskState fromDisk = newPersistedClusterStateService(nodeEnvironment).loadBestOnDiskState();
+            NodeMetadata nodeMetadata = PersistedClusterStateService.nodeMetadata(nodeEnvironment.nodeDataPaths());
+
+            assertEquals(oldVersion, nodeMetadata.oldestIndexVersion());
+            assertEquals(oldVersion, fromDisk.metadata.oldestIndexVersion());
+        }
+    }
+
     private boolean findSegmentInDirectory(Path dataPath) throws IOException {
         Directory d = new NIOFSDirectory(dataPath.resolve(METADATA_DIRECTORY_NAME));
 
@@ -1517,7 +1568,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
     private NodeEnvironment newNodeEnvironment(Path[] dataPaths) throws IOException {
         return newNodeEnvironment(
             Settings.builder()
-                .putList(Environment.PATH_DATA_SETTING.getKey(), Arrays.stream(dataPaths).map(Path::toString).collect(Collectors.toList()))
+                .putList(Environment.PATH_DATA_SETTING.getKey(), Arrays.stream(dataPaths).map(Path::toString).toList())
                 .build()
         );
     }

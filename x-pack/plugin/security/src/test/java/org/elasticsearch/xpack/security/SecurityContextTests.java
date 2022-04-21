@@ -20,8 +20,12 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
+import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.junit.Before;
 
 import java.io.EOFException;
@@ -56,7 +60,10 @@ public class SecurityContextTests extends ESTestCase {
 
     public void testGetAuthenticationAndUser() throws IOException {
         final User user = new User("test");
-        final Authentication authentication = new Authentication(user, new RealmRef("ldap", "foo", "node1"), null);
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .user(user)
+            .realmRef(new RealmRef("ldap", "foo", "node1"))
+            .build(false);
         authentication.writeToContext(threadContext);
 
         assertEquals(authentication, securityContext.getAuthentication());
@@ -71,17 +78,17 @@ public class SecurityContextTests extends ESTestCase {
         assertThat(e.getCause(), instanceOf(EOFException.class));
     }
 
-    public void testSetUser() {
-        final User user = new User("test");
+    public void testSetInternalUser() {
+        final User internalUser = randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE, XPackSecurityUser.INSTANCE, AsyncSearchUser.INSTANCE);
         assertNull(securityContext.getAuthentication());
         assertNull(securityContext.getUser());
-        securityContext.setUser(user, Version.CURRENT);
-        assertEquals(user, securityContext.getUser());
+        securityContext.setInternalUser(internalUser, Version.CURRENT);
+        assertEquals(internalUser, securityContext.getUser());
         assertEquals(AuthenticationType.INTERNAL, securityContext.getAuthentication().getAuthenticationType());
 
         IllegalStateException e = expectThrows(
             IllegalStateException.class,
-            () -> securityContext.setUser(randomFrom(user, SystemUser.INSTANCE), Version.CURRENT)
+            () -> securityContext.setInternalUser(randomFrom(internalUser, SystemUser.INSTANCE), Version.CURRENT)
         );
         assertEquals("authentication ([_xpack_security_authentication]) is already present in the context", e.getMessage());
     }
@@ -90,19 +97,28 @@ public class SecurityContextTests extends ESTestCase {
         final User original;
         if (randomBoolean()) {
             original = new User("test");
-            final Authentication authentication = new Authentication(original, new RealmRef("ldap", "foo", "node1"), null);
+            final Authentication authentication = AuthenticationTestHelper.builder()
+                .realm()
+                .user(original)
+                .realmRef(new RealmRef("ldap", "foo", "node1"))
+                .build(false);
             authentication.writeToContext(threadContext);
         } else {
             original = null;
         }
 
-        final User executionUser = new User("executor");
+        final User executionUser = randomFrom(
+            SystemUser.INSTANCE,
+            XPackUser.INSTANCE,
+            XPackSecurityUser.INSTANCE,
+            AsyncSearchUser.INSTANCE
+        );
         final AtomicReference<StoredContext> contextAtomicReference = new AtomicReference<>();
-        securityContext.executeAsUser(executionUser, (originalCtx) -> {
+        securityContext.executeAsInternalUser(executionUser, Version.CURRENT, (originalCtx) -> {
             assertEquals(executionUser, securityContext.getUser());
             assertEquals(AuthenticationType.INTERNAL, securityContext.getAuthentication().getAuthenticationType());
             contextAtomicReference.set(originalCtx);
-        }, Version.CURRENT);
+        });
 
         final User userAfterExecution = securityContext.getUser();
         assertEquals(original, userAfterExecution);
@@ -116,9 +132,14 @@ public class SecurityContextTests extends ESTestCase {
     }
 
     public void testExecuteAfterRewritingAuthentication() throws IOException {
-        User user = new User("test", null, new User("authUser"));
         RealmRef authBy = new RealmRef("ldap", "foo", "node1");
-        final Authentication original = new Authentication(user, authBy, authBy);
+        final Authentication original = AuthenticationTestHelper.builder()
+            .user(new User("authUser"))
+            .realmRef(authBy)
+            .runAs()
+            .user(new User("test"))
+            .realmRef(authBy)
+            .build();
         original.writeToContext(threadContext);
         final Map<String, String> requestHeaders = Map.of(
             AuthenticationField.PRIVILEGE_CATEGORY_KEY,

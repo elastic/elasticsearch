@@ -29,6 +29,8 @@ import org.elasticsearch.search.aggregations.bucket.composite.TermsValuesSourceB
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
+import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
+import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter.DatafeedTimingStatsPersister;
 import org.junit.Before;
@@ -169,7 +171,9 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
         extractor.setNextResponse(response);
 
         assertThat(extractor.hasNext(), is(true));
-        Optional<InputStream> stream = extractor.next();
+        DataExtractor.Result result = extractor.next();
+        assertThat(result.searchInterval(), equalTo(new SearchInterval(1000L, 4000L)));
+        Optional<InputStream> stream = result.data();
         assertThat(stream.isPresent(), is(true));
         String expectedStream = """
             {"airline":"a","time":1999,"responsetime":11.0,"doc_count":1} \
@@ -202,7 +206,7 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
         extractor.setNextResponse(response);
 
         assertThat(extractor.hasNext(), is(true));
-        assertThat(extractor.next().isPresent(), is(false));
+        assertThat(extractor.next().data().isPresent(), is(false));
         assertThat(extractor.hasNext(), is(false));
 
         assertThat(capturedSearchRequests.size(), equalTo(1));
@@ -215,7 +219,7 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
         extractor.setNextResponse(response);
 
         assertThat(extractor.hasNext(), is(true));
-        assertThat(extractor.next().isPresent(), is(false));
+        assertThat(extractor.next().data().isPresent(), is(false));
         assertThat(extractor.hasNext(), is(false));
 
         assertThat(capturedSearchRequests.size(), equalTo(1));
@@ -259,7 +263,7 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
         // We should have next right now as we have not yet determined if we have handled a page or not
         assertThat(extractor.hasNext(), is(true));
         // Should be empty
-        assertThat(countMatches('{', asString(extractor.next().get())), equalTo(0L));
+        assertThat(countMatches('{', asString(extractor.next().data().get())), equalTo(0L));
         // Determined that we were on the first page and ended
         assertThat(extractor.hasNext(), is(false));
     }
@@ -290,7 +294,7 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
         extractor.setNextResponse(response);
 
         assertThat(extractor.hasNext(), is(true));
-        assertThat(countMatches('{', asString(extractor.next().get())), equalTo(10L));
+        assertThat(countMatches('{', asString(extractor.next().data().get())), equalTo(10L));
         buckets = new ArrayList<>(numBuckets);
         for (int i = 0; i < 6; i++) {
             buckets.add(
@@ -325,7 +329,7 @@ public class CompositeAggregationDataExtractorTests extends ESTestCase {
         assertThat(extractor.hasNext(), is(true));
         assertThat(extractor.isCancelled(), is(true));
         // Only the docs in the previous bucket before cancelling
-        assertThat(countMatches('{', asString(extractor.next().get())), equalTo(6L));
+        assertThat(countMatches('{', asString(extractor.next().data().get())), equalTo(6L));
 
         // Once we have handled the 6 remaining in that time bucket, we shouldn't finish the page and the extractor should end
         assertThat(extractor.hasNext(), is(false));

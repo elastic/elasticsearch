@@ -49,6 +49,11 @@ public abstract class TermBasedFieldType extends SimpleMappedFieldType {
     }
 
     @Override
+    public boolean mayExistInIndex(SearchExecutionContext context) {
+        return context.fieldExistsInIndex(name());
+    }
+
+    @Override
     public Query termQuery(Object value, SearchExecutionContext context) {
         failIfNotIndexed();
         return new TermQuery(new Term(name(), indexedValueForSearch(value)));

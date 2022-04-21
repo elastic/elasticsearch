@@ -11,7 +11,6 @@ package org.elasticsearch.search.aggregations.metrics;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -25,7 +24,7 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
     private final AbstractHyperLogLogPlusPlus counts;
 
     InternalCardinality(String name, AbstractHyperLogLogPlusPlus counts, Map<String, Object> metadata) {
-        super(name, metadata);
+        super(name, null, metadata);
         this.counts = counts;
     }
 
@@ -34,7 +33,6 @@ public final class InternalCardinality extends InternalNumericMetricsAggregation
      */
     public InternalCardinality(StreamInput in) throws IOException {
         super(in);
-        format = in.readNamedWriteable(DocValueFormat.class);
         if (in.readBoolean()) {
             counts = AbstractHyperLogLogPlusPlus.readFrom(in, BigArrays.NON_RECYCLING_INSTANCE);
         } else {

@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.nio.charset.StandardCharsets;
 import java.security.NoSuchAlgorithmException;
@@ -251,11 +252,11 @@ public final class ConsistentSettingsService {
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     logger.error("unable to publish secure settings hashes", e);
                 }
 
-            }, ClusterStateTaskExecutor.unbatched());
+            }, newExecutor());
         }
 
         @Override
@@ -264,4 +265,8 @@ public final class ConsistentSettingsService {
         }
     }
 
+    @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
+    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
+        return ClusterStateTaskExecutor.unbatched();
+    }
 }

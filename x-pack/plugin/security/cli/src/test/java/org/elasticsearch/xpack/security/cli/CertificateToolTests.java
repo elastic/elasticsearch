@@ -36,9 +36,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.common.ssl.PemUtils;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
@@ -164,7 +165,7 @@ public class CertificateToolTests extends ESTestCase {
 
     public void testPromptingForInstanceInformation() throws Exception {
         final int numberOfInstances = scaledRandomIntBetween(1, 12);
-        Map<String, Map<String, String>> instanceInput = new HashMap<>(numberOfInstances);
+        Map<String, Map<String, String>> instanceInput = Maps.newMapWithExpectedSize(numberOfInstances);
         for (int i = 0; i < numberOfInstances; i++) {
             final String name;
             while (true) {

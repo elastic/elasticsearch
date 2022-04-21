@@ -19,6 +19,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.StringFieldScript;
+import org.elasticsearch.script.field.KeywordDocValuesField;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.runtime.StringScriptFieldExistsQuery;
 import org.elasticsearch.search.runtime.StringScriptFieldFuzzyQuery;
@@ -100,7 +101,7 @@ public final class KeywordScriptFieldType extends AbstractScriptFieldType<String
 
     @Override
     public StringScriptFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
-        return new StringScriptFieldData.Builder(name(), leafFactory(searchLookup.get()));
+        return new StringScriptFieldData.Builder(name(), leafFactory(searchLookup.get()), KeywordDocValuesField::new);
     }
 
     @Override

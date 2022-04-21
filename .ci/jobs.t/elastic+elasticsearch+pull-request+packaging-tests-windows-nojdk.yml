@@ -21,10 +21,10 @@
           github-hooks: true
           status-context: elasticsearch-ci/packaging-tests-windows
           cancel-builds-on-update: true
-          # We've removed the no-jdk distribution on master as well
+          # We've removed the no-jdk distribution on main as well
           white-list-target-branches:
+            - 7.17
             - 7.16
-            - 7.15
           excluded-regions:
             - ^docs/.*
           white-list-labels:
@@ -39,6 +39,7 @@
             - "windows-2012-r2"
             - "windows-2016"
             - "windows-2019"
+            - "windows-2022"
       - axis:
           type: user-defined
           name: PACKAGING_TASK

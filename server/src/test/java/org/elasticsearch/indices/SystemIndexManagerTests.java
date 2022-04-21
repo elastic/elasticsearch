@@ -18,6 +18,8 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -30,6 +32,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.SystemIndexManager.UpgradeStatus;
@@ -40,6 +43,8 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -95,6 +100,7 @@ public class SystemIndexManagerTests extends ESTestCase {
             .setPrimaryIndex(".bar-1")
             .setMappings(getMappings())
             .setSettings(getSettings())
+            .setIndexFormat(6)
             .setVersionMetaKey("version")
             .setOrigin("FAKE_ORIGIN")
             .build();
@@ -130,6 +136,7 @@ public class SystemIndexManagerTests extends ESTestCase {
             .setPrimaryIndex(".foo-1")
             .setMappings(getMappings())
             .setSettings(getSettings())
+            .setIndexFormat(6)
             .setVersionMetaKey("version")
             .setOrigin("FAKE_ORIGIN")
             .build();
@@ -138,6 +145,7 @@ public class SystemIndexManagerTests extends ESTestCase {
             .setPrimaryIndex(".bar-1")
             .setMappings(getMappings())
             .setSettings(getSettings())
+            .setIndexFormat(6)
             .setVersionMetaKey("version")
             .setOrigin("FAKE_ORIGIN")
             .build();
@@ -165,22 +173,18 @@ public class SystemIndexManagerTests extends ESTestCase {
      * Check that the manager won't try to upgrade closed indices.
      */
     public void testManagerSkipsClosedIndices() {
-        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
-        SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
-
         final ClusterState.Builder clusterStateBuilder = createClusterState(IndexMetadata.State.CLOSE);
-
-        assertThat(manager.getUpgradeStatus(clusterStateBuilder.build(), DESCRIPTOR), equalTo(UpgradeStatus.CLOSED));
+        assertThat(SystemIndexManager.getUpgradeStatus(clusterStateBuilder.build(), DESCRIPTOR), equalTo(UpgradeStatus.CLOSED));
     }
 
     /**
      * Check that the manager won't try to upgrade unhealthy indices.
      */
     public void testManagerSkipsIndicesWithRedStatus() {
-        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
-        SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
-
-        assertThat(manager.getUpgradeStatus(markShardsUnavailable(createClusterState()), DESCRIPTOR), equalTo(UpgradeStatus.UNHEALTHY));
+        assertThat(
+            SystemIndexManager.getUpgradeStatus(markShardsUnavailable(createClusterState()), DESCRIPTOR),
+            equalTo(UpgradeStatus.UNHEALTHY)
+        );
     }
 
     /**
@@ -188,31 +192,44 @@ public class SystemIndexManagerTests extends ESTestCase {
      * is earlier than an expected value.
      */
     public void testManagerSkipsIndicesWithOutdatedFormat() {
-        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
-        SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
-
-        assertThat(manager.getUpgradeStatus(markShardsAvailable(createClusterState(5)), DESCRIPTOR), equalTo(UpgradeStatus.NEEDS_UPGRADE));
+        assertThat(
+            SystemIndexManager.getUpgradeStatus(markShardsAvailable(createClusterState(5)), DESCRIPTOR),
+            equalTo(UpgradeStatus.NEEDS_UPGRADE)
+        );
     }
 
     /**
      * Check that the manager won't try to upgrade indices where their mappings are already up-to-date.
      */
     public void testManagerSkipsIndicesWithUpToDateMappings() {
-        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
-        SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
-
-        assertThat(manager.getUpgradeStatus(markShardsAvailable(createClusterState()), DESCRIPTOR), equalTo(UpgradeStatus.UP_TO_DATE));
+        assertThat(
+            SystemIndexManager.getUpgradeStatus(markShardsAvailable(createClusterState()), DESCRIPTOR),
+            equalTo(UpgradeStatus.UP_TO_DATE)
+        );
     }
 
     /**
      * Check that the manager will try to upgrade indices where their mappings are out-of-date.
      */
     public void testManagerProcessesIndicesWithOutdatedMappings() {
-        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
-        SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
-
         assertThat(
-            manager.getUpgradeStatus(markShardsAvailable(createClusterState(Strings.toString(getMappings("1.0.0")))), DESCRIPTOR),
+            SystemIndexManager.getUpgradeStatus(
+                markShardsAvailable(createClusterState(Strings.toString(getMappings("1.0.0")))),
+                DESCRIPTOR
+            ),
+            equalTo(UpgradeStatus.NEEDS_MAPPINGS_UPDATE)
+        );
+    }
+
+    /**
+     * Check that the manager will try to upgrade indices where the mappings metadata is null or absent.
+     */
+    public void testManagerProcessesIndicesWithNullMetadata() {
+        assertThat(
+            SystemIndexManager.getUpgradeStatus(
+                markShardsAvailable(createClusterState(Strings.toString(getMappings(builder -> {})))),
+                DESCRIPTOR
+            ),
             equalTo(UpgradeStatus.NEEDS_MAPPINGS_UPDATE)
         );
     }
@@ -221,11 +238,11 @@ public class SystemIndexManagerTests extends ESTestCase {
      * Check that the manager will try to upgrade indices where the version in the metadata is null or absent.
      */
     public void testManagerProcessesIndicesWithNullVersionMetadata() {
-        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
-        SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
-
         assertThat(
-            manager.getUpgradeStatus(markShardsAvailable(createClusterState(Strings.toString(getMappings(null)))), DESCRIPTOR),
+            SystemIndexManager.getUpgradeStatus(
+                markShardsAvailable(createClusterState(Strings.toString(getMappings((String) null)))),
+                DESCRIPTOR
+            ),
             equalTo(UpgradeStatus.NEEDS_MAPPINGS_UPDATE)
         );
     }
@@ -246,11 +263,8 @@ public class SystemIndexManagerTests extends ESTestCase {
      * Check that this
      */
     public void testCanHandleIntegerMetaVersion() {
-        SystemIndices systemIndices = new SystemIndices(Map.of("MyIndex", FEATURE));
-        SystemIndexManager manager = new SystemIndexManager(systemIndices, client);
-
         assertThat(
-            manager.getUpgradeStatus(markShardsAvailable(createClusterState(Strings.toString(getMappings(3)))), DESCRIPTOR),
+            SystemIndexManager.getUpgradeStatus(markShardsAvailable(createClusterState(Strings.toString(getMappings(3)))), DESCRIPTOR),
             equalTo(UpgradeStatus.NEEDS_MAPPINGS_UPDATE)
         );
     }
@@ -319,7 +333,14 @@ public class SystemIndexManagerTests extends ESTestCase {
     }
 
     private static ClusterState state() {
-        final DiscoveryNodes nodes = DiscoveryNodes.builder().masterNodeId("1").localNodeId("1").build();
+        final DiscoveryNode node = new DiscoveryNode(
+            "1",
+            ESTestCase.buildNewFakeTransportAddress(),
+            Collections.emptyMap(),
+            new HashSet<>(DiscoveryNodeRole.roles()),
+            Version.CURRENT
+        );
+        final DiscoveryNodes nodes = DiscoveryNodes.builder().add(node).masterNodeId(node.getId()).localNodeId(node.getId()).build();
         return ClusterState.builder(CLUSTER_NAME).nodes(nodes).metadata(Metadata.builder().generateClusterUuidIfNeeded()).build();
     }
 
@@ -385,42 +406,21 @@ public class SystemIndexManagerTests extends ESTestCase {
     }
 
     private static XContentBuilder getMappings(String version) {
-        try {
-            final XContentBuilder builder = jsonBuilder();
-
-            builder.startObject();
-            {
-                builder.startObject("_meta");
-                builder.field("version", version);
-                builder.endObject();
-
-                builder.field("dynamic", "strict");
-                builder.startObject("properties");
-                {
-                    builder.startObject("completed");
-                    builder.field("type", "boolean");
-                    builder.endObject();
-                }
-                builder.endObject();
-            }
-
-            builder.endObject();
-            return builder;
-        } catch (IOException e) {
-            throw new UncheckedIOException("Failed to build " + SYSTEM_INDEX_NAME + " index mappings", e);
-        }
+        return getMappings(builder -> builder.object("_meta", meta -> meta.field("version", version)));
     }
 
     // Prior to 7.12.0, .tasks had _meta.version: 3 so we need to be sure we can handle that
     private static XContentBuilder getMappings(int version) {
+        return getMappings(builder -> builder.object("_meta", meta -> meta.field("version", version)));
+    }
+
+    private static XContentBuilder getMappings(CheckedConsumer<XContentBuilder, IOException> metaCallback) {
         try {
             final XContentBuilder builder = jsonBuilder();
 
             builder.startObject();
             {
-                builder.startObject("_meta");
-                builder.field("version", version);
-                builder.endObject();
+                metaCallback.accept(builder);
 
                 builder.field("dynamic", "strict");
                 builder.startObject("properties");
@@ -438,4 +438,5 @@ public class SystemIndexManagerTests extends ESTestCase {
             throw new UncheckedIOException("Failed to build " + SYSTEM_INDEX_NAME + " index mappings", e);
         }
     }
+
 }

@@ -101,25 +101,32 @@ multiple data streams, indices, and aliases.
 
 [[roles-global-priv]]
 ==== Global Privileges
-The following describes the structure of a global privileges entry:
+The following describes the structure of the global privileges entry:
 
 [source,js]
 -------
 {
   "application": {
     "manage": {    <1>
-        "applications": [ ... ] <2>
+      "applications": [ ... ] <2>
+    }
+  },
+  "profile": {
+    "write": { <3>
+      "applications": [ ... ] <4>
     }
   }
 }
 -------
 // NOTCONSOLE
 
-<1> The only supported global privilege is the ability to manage application
-    privileges
+<1> The privilege for the ability to manage application privileges
 <2> The list of application names that may be managed. This list supports
     wildcards (e.g. `"myapp-*"`) and regular expressions (e.g.
     `"/app[0-9]*/"`)
+<3> The privilege for the ability to write the `access` and `data` of any user profile
+<4> The list of names, wildcards and regular expressions to which the write
+privilege is restricted to
 
 [[roles-application-priv]]
 ==== Application Privileges
@@ -195,7 +202,7 @@ see <<custom-roles-authorization>>.
 === Role management UI
 
 You can manage users and roles easily in {kib}. To
-manage roles, log in to {kib} and go to *Management / Security / Roles*. 
+manage roles, log in to {kib} and go to *Management / Security / Roles*.
 
 [discrete]
 [[roles-management-api]]
@@ -203,8 +210,8 @@ manage roles, log in to {kib} and go to *Management / Security / Roles*.
 
 The _Role Management APIs_ enable you to add, update, remove and retrieve roles
 dynamically. When you use the APIs to manage roles in the `native` realm, the
-roles are stored in an internal {es} index. For more information and examples, 
-see <<security-role-apis>>. 
+roles are stored in an internal {es} index. For more information and examples,
+see <<security-role-apis>>.
 
 [discrete]
 [[roles-management-file]]

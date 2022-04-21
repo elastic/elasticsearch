@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotReq
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
@@ -109,13 +110,7 @@ public class CleanupSnapshotStepTests extends AbstractStepTestCase<CleanupSnapsh
 
         try (NoOpClient client = getDeleteSnapshotRequestAssertingClient(snapshotName)) {
             CleanupSnapshotStep step = new CleanupSnapshotStep(randomStepKey(), randomStepKey(), client);
-            step.performAction(indexMetadata, clusterState, null, new ActionListener<>() {
-                @Override
-                public void onResponse(Void complete) {}
-
-                @Override
-                public void onFailure(Exception e) {}
-            });
+            step.performAction(indexMetadata, clusterState, null, ActionListener.noop());
         }
     }
 

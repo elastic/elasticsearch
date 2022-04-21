@@ -81,7 +81,9 @@ public class RangeFieldMapper extends FieldMapper {
             false,
             () -> Locale.ROOT,
             (n, c, o) -> LocaleUtils.parse(o.toString()),
-            m -> toType(m).locale
+            m -> toType(m).locale,
+            (xContentBuilder, n, v) -> xContentBuilder.field(n, v.toString()),
+            Objects::toString
         );
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
@@ -222,6 +224,11 @@ public class RangeFieldMapper extends FieldMapper {
         public IndexFieldData.Builder fielddataBuilder(String fullyQualifiedIndexName, Supplier<SearchLookup> searchLookup) {
             failIfNoDocValues();
             return new BinaryIndexFieldData.Builder(name(), CoreValuesSourceType.RANGE);
+        }
+
+        @Override
+        public boolean mayExistInIndex(SearchExecutionContext context) {
+            return context.fieldExistsInIndex(this.name());
         }
 
         @Override

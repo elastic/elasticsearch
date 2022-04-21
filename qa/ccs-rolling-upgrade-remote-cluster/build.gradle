@@ -53,11 +53,17 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     }
   }
 
-  tasks.register("${baseName}#oneThirdUpgraded", StandaloneRestIntegTestTask) {
+  tasks.register("${baseName}#oldClusterTest", StandaloneRestIntegTestTask) {
     dependsOn "processTestResources"
     mustRunAfter("precommit")
     doFirst {
       localCluster.get().nextNodeToNextVersion()
+    }
+  }
+
+  tasks.register("${baseName}#oneThirdUpgraded", StandaloneRestIntegTestTask) {
+    dependsOn "${baseName}#oldClusterTest"
+    doFirst {
       remoteCluster.get().nextNodeToNextVersion()
     }
   }

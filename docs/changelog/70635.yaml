@@ -1,5 +1,0 @@
-pr: 70635
-summary: Tighten up write permissions in Docker image
-area: Packaging
-type: enhancement
-issues: []

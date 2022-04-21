@@ -1,0 +1,5 @@
+pr: 84905
+summary: Upgrade jackson for x-content to 2.13.2
+area: Infra/Core
+type: upgrade
+issues: []

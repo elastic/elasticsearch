@@ -21,7 +21,6 @@ import java.util.Collections;
 import java.util.List;
 import java.util.function.LongSupplier;
 
-import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createTimestampField;
 import static org.hamcrest.Matchers.equalTo;
 
 public class UpdateRolloverLifecycleDateStepTests extends AbstractStepTestCase<UpdateRolloverLifecycleDateStep> {
@@ -80,8 +79,7 @@ public class UpdateRolloverLifecycleDateStepTests extends AbstractStepTestCase<U
 
         UpdateRolloverLifecycleDateStep step = createRandomInstance();
         ClusterState newState = step.performAction(indexMetadata.getIndex(), clusterState);
-        long actualRolloverTime = LifecycleExecutionState.fromIndexMetadata(newState.metadata().index(indexMetadata.getIndex()))
-            .getLifecycleDate();
+        long actualRolloverTime = newState.metadata().index(indexMetadata.getIndex()).getLifecycleExecutionState().lifecycleDate();
         assertThat(actualRolloverTime, equalTo(rolloverTime));
     }
 
@@ -106,11 +104,7 @@ public class UpdateRolloverLifecycleDateStepTests extends AbstractStepTestCase<U
             .metadata(
                 Metadata.builder()
                     .put(
-                        DataStreamTestHelper.newInstance(
-                            dataStreamName,
-                            createTimestampField("@timestamp"),
-                            List.of(originalIndexMeta.getIndex(), rolledIndexMeta.getIndex())
-                        )
+                        DataStreamTestHelper.newInstance(dataStreamName, List.of(originalIndexMeta.getIndex(), rolledIndexMeta.getIndex()))
                     )
                     .put(originalIndexMeta, true)
                     .put(rolledIndexMeta, true)
@@ -119,8 +113,7 @@ public class UpdateRolloverLifecycleDateStepTests extends AbstractStepTestCase<U
 
         UpdateRolloverLifecycleDateStep step = createRandomInstance();
         ClusterState newState = step.performAction(originalIndexMeta.getIndex(), clusterState);
-        long actualRolloverTime = LifecycleExecutionState.fromIndexMetadata(newState.metadata().index(originalIndexMeta.getIndex()))
-            .getLifecycleDate();
+        long actualRolloverTime = newState.metadata().index(originalIndexMeta.getIndex()).getLifecycleExecutionState().lifecycleDate();
         assertThat(actualRolloverTime, equalTo(rolloverTime));
     }
 
@@ -198,8 +191,7 @@ public class UpdateRolloverLifecycleDateStepTests extends AbstractStepTestCase<U
 
         UpdateRolloverLifecycleDateStep step = createRandomInstanceWithFallbackTime(() -> rolloverTime);
         ClusterState newState = step.performAction(indexMetadata.getIndex(), clusterState);
-        long actualRolloverTime = LifecycleExecutionState.fromIndexMetadata(newState.metadata().index(indexMetadata.getIndex()))
-            .getLifecycleDate();
+        long actualRolloverTime = newState.metadata().index(indexMetadata.getIndex()).getLifecycleExecutionState().lifecycleDate();
         assertThat(actualRolloverTime, equalTo(rolloverTime));
     }
 }

@@ -112,13 +112,7 @@ public class SwapAliasesAndDeleteSourceIndexStepTests extends AbstractStepTestCa
                 .metadata(Metadata.builder().put(sourceIndexMetadata, true).put(targetIndexMetadataBuilder).build())
                 .build();
 
-            step.performAction(sourceIndexMetadata, clusterState, null, new ActionListener<>() {
-                @Override
-                public void onResponse(Void complete) {}
-
-                @Override
-                public void onFailure(Exception e) {}
-            });
+            step.performAction(sourceIndexMetadata, clusterState, null, ActionListener.noop());
         }
     }
 

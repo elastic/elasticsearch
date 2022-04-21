@@ -26,6 +26,8 @@ public class UpdateSnapshotLifecycleStatsTask extends ClusterStateUpdateTask {
 
     private final SnapshotLifecycleStats runStats;
 
+    static final String TASK_SOURCE = "update_slm_stats";
+
     UpdateSnapshotLifecycleStatsTask(SnapshotLifecycleStats runStats) {
         this.runStats = runStats;
     }
@@ -52,11 +54,10 @@ public class UpdateSnapshotLifecycleStatsTask extends ClusterStateUpdateTask {
     }
 
     @Override
-    public void onFailure(String source, Exception e) {
+    public void onFailure(Exception e) {
         logger.error(
             new ParameterizedMessage(
-                "failed to update cluster state with snapshot lifecycle stats, " + "source: [{}], missing stats: [{}]",
-                source,
+                "failed to update cluster state with snapshot lifecycle stats, " + "source: [" + TASK_SOURCE + "], missing stats: [{}]",
                 runStats
             ),
             e

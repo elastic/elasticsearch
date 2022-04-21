@@ -17,6 +17,7 @@ import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.profile.aggregation.ProfilingAggregator;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.search.sort.SortValue;
 
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -103,17 +104,7 @@ public class AggregationPath {
         return new AggregationPath(tokens);
     }
 
-    public static class PathElement {
-
-        private final String fullName;
-        public final String name;
-        public final String key;
-
-        public PathElement(String fullName, String name, String key) {
-            this.fullName = fullName;
-            this.name = name;
-            this.key = key;
-        }
+    public record PathElement(String fullName, String name, String key) {
 
         @Override
         public boolean equals(Object o) {
@@ -121,7 +112,6 @@ public class AggregationPath {
             if (o == null || getClass() != o.getClass()) return false;
 
             PathElement token = (PathElement) o;
-
             return Objects.equals(key, token.key) && Objects.equals(name, token.name);
         }
 
@@ -174,7 +164,7 @@ public class AggregationPath {
     /**
      * Looks up the value of this path against a set of aggregation results.
      */
-    public double resolveValue(InternalAggregations aggregations) {
+    public SortValue resolveValue(InternalAggregations aggregations) {
         try {
             Iterator<PathElement> path = pathElements.iterator();
             assert path.hasNext();

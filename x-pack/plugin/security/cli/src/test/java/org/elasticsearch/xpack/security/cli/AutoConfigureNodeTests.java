@@ -24,6 +24,7 @@ import org.elasticsearch.http.HttpTransportSettings;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.net.InetAddress;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.KeyStore;
@@ -31,7 +32,9 @@ import java.security.cert.X509Certificate;
 import java.util.List;
 
 import static java.nio.file.StandardOpenOption.CREATE_NEW;
+import static org.elasticsearch.xpack.security.cli.AutoConfigureNode.anyRemoteHostNodeAddress;
 import static org.elasticsearch.xpack.security.cli.AutoConfigureNode.removePreviousAutoconfiguration;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
 public class AutoConfigureNodeTests extends ESTestCase {
@@ -210,6 +213,43 @@ public class AutoConfigureNodeTests extends ESTestCase {
         }
     }
 
+    public void testAnyRemoteHostNodeAddress() throws Exception {
+        List<String> remoteAddresses = List.of("192.168.0.1:9300", "127.0.0.1:9300");
+        InetAddress[] localAddresses = new InetAddress[] { InetAddress.getByName("192.168.0.1"), InetAddress.getByName("127.0.0.1") };
+        assertThat(anyRemoteHostNodeAddress(remoteAddresses, localAddresses), equalTo(false));
+
+        remoteAddresses = List.of("192.168.0.1:9300", "127.0.0.1:9300", "[::1]:9300");
+        localAddresses = new InetAddress[] { InetAddress.getByName("192.168.0.1"), InetAddress.getByName("127.0.0.1") };
+        assertThat(anyRemoteHostNodeAddress(remoteAddresses, localAddresses), equalTo(false));
+
+        remoteAddresses = List.of("192.168.0.1:9300", "127.0.0.1:9300", "[::1]:9300");
+        localAddresses = new InetAddress[] {
+            InetAddress.getByName("192.168.0.1"),
+            InetAddress.getByName("127.0.0.1"),
+            InetAddress.getByName("10.0.0.1") };
+        assertThat(anyRemoteHostNodeAddress(remoteAddresses, localAddresses), equalTo(false));
+
+        remoteAddresses = List.of("192.168.0.1:9300", "127.0.0.1:9300", "[::1]:9300", "10.0.0.1:9301");
+        localAddresses = new InetAddress[] { InetAddress.getByName("192.168.0.1"), InetAddress.getByName("127.0.0.1") };
+        assertThat(anyRemoteHostNodeAddress(remoteAddresses, localAddresses), equalTo(true));
+
+        remoteAddresses = List.of("127.0.0.1:9300", "[::1]:9300");
+        localAddresses = new InetAddress[] { InetAddress.getByName("[::1]"), InetAddress.getByName("127.0.0.1") };
+        assertThat(anyRemoteHostNodeAddress(remoteAddresses, localAddresses), equalTo(false));
+
+        remoteAddresses = List.of("127.0.0.1:9300", "[::1]:9300");
+        localAddresses = new InetAddress[] { InetAddress.getByName("192.168.2.3") };
+        assertThat(anyRemoteHostNodeAddress(remoteAddresses, localAddresses), equalTo(false));
+
+        remoteAddresses = List.of("1.2.3.4:9300");
+        localAddresses = new InetAddress[] { InetAddress.getByName("[::1]"), InetAddress.getByName("127.0.0.1") };
+        assertThat(anyRemoteHostNodeAddress(remoteAddresses, localAddresses), equalTo(true));
+
+        remoteAddresses = List.of();
+        localAddresses = new InetAddress[] { InetAddress.getByName("192.168.0.1"), InetAddress.getByName("127.0.0.1") };
+        assertThat(anyRemoteHostNodeAddress(remoteAddresses, localAddresses), equalTo(false));
+    }
+
     private boolean checkGeneralNameSan(X509Certificate certificate, String generalName, int generalNameTag) throws Exception {
         for (List<?> san : certificate.getSubjectAlternativeNames()) {
             if (san.get(0).equals(generalNameTag) && san.get(1).equals(generalName)) {
@@ -222,7 +262,7 @@ public class AutoConfigureNodeTests extends ESTestCase {
     private X509Certificate runAutoConfigAndReturnHTTPCertificate(Path configDir, Settings settings) throws Exception {
         final Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", configDir).put(settings).build());
         // runs the command to auto-generate the config files and the keystore
-        new AutoConfigureNode().execute(new MockTerminal(), new OptionParser().parse(), env);
+        new AutoConfigureNode(false).execute(new MockTerminal(), new OptionParser().parse(), env);
 
         KeyStoreWrapper nodeKeystore = KeyStoreWrapper.load(configDir.resolve("config"));
         nodeKeystore.decrypt(new char[0]); // the keystore is always bootstrapped with an empty password

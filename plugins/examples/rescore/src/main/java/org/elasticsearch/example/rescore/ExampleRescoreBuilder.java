@@ -29,6 +29,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.rescore.Rescorer;
 import org.elasticsearch.search.rescore.RescorerBuilder;
+import org.elasticsearch.Version;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -211,5 +212,10 @@ public class ExampleRescoreBuilder extends RescorerBuilder<ExampleRescoreBuilder
             return Explanation.match(context.factor, "test", singletonList(sourceExplanation));
         }
 
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

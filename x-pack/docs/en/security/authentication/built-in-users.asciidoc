@@ -7,7 +7,28 @@ up and running. These users have a fixed set of privileges and cannot be
 authenticated until their passwords have been set. The `elastic` user can be
 used to <<set-built-in-user-passwords,set all of the built-in user passwords>>.
 
+.Create users with minimum privileges
+****
+The built-in users serve specific purposes and are not intended for general
+use. In particular, do not use the `elastic` superuser unless full access to
+the cluster is absolutely required. On self-managed deployments, use the
+`elastic` user to create users that have the minimum necessary roles or 
+privileges for their activities.
+****
+
+[NOTE]
+====
+On {ecloud}, {ref}/operator-privileges.html[operator privileges] are enabled.
+These privileges restrict some infrastructure functionality, even if a role
+would otherwise permit a user to complete an administrative task.
+====
+
 `elastic`:: A built-in <<built-in-roles,superuser>>.
++
+IMPORTANT: Anyone who can log in as the `elastic` user has direct read-only
+access to restricted indices, such as `.security`. This user also has the ability
+to manage security and create roles with unlimited privileges.
+
 `kibana_system`:: The user Kibana uses to connect and communicate with {es}.
 `logstash_system`:: The user Logstash uses when storing monitoring information in {es}.
 `beats_system`:: The user the Beats use when storing monitoring information in {es}.
@@ -15,11 +36,6 @@ used to <<set-built-in-user-passwords,set all of the built-in user passwords>>.
 `remote_monitoring_user`:: The user {metricbeat} uses when collecting and
 storing monitoring information in {es}. It has the `remote_monitoring_agent` and
 `remote_monitoring_collector` built-in roles.
-
-TIP: The built-in users serve specific purposes and are not intended for general
-use. In particular, do not use the `elastic` superuser unless full access to
-the cluster is required. Instead, create users that have the minimum necessary
-roles or privileges for their activities.
 
 [discrete]
 [[built-in-user-explanation]]

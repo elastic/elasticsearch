@@ -7,7 +7,7 @@ setup:
   - do:
       index:
         index:   source
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
@@ -37,7 +37,7 @@ setup:
   - do:
       index:
         index:   source
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
@@ -68,7 +68,7 @@ setup:
   - do:
       index:
         index:   source
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
@@ -99,7 +99,7 @@ setup:
   - do:
       index:
         index:   source
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
@@ -116,7 +116,7 @@ setup:
   - do:
       index:
         index:   source
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       indices.refresh: {}
@@ -133,12 +133,12 @@ setup:
   - do:
       index:
         index:   source
-        id:      1
+        id:      "1"
         body:    { "text": "test" }
   - do:
       index:
         index:   source
-        id:      2
+        id:      "2"
         body:    { "text": "test", "hidden": true }
   - do:
       indices.refresh: {}
@@ -185,7 +185,7 @@ setup:
   - do:
       index:
         index:   source
-        id:      1
+        id:      "1"
         body:    { "text": "test", "foo": "z", "bar": "z" }
   - do:
       indices.refresh: {}
@@ -202,7 +202,7 @@ setup:
   - do:
       get:
         index: source
-        id: 1
+        id: "1"
   # These were visible to the user running the update_by_query so they stayed.
   - match: { _source.foo: z }
   - match: { _source.bar: z }

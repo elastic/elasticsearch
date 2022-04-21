@@ -156,7 +156,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     throw new AssertionError("unexpected", e);
                 }
             }, ClusterStateTaskExecutor.unbatched());
@@ -193,7 +193,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
                 }
 
                 @Override
-                public void onFailure(String source, Exception e) {
+                public void onFailure(Exception e) {
                     throw new AssertionError("unexpected", e);
                 }
             }, ClusterStateTaskExecutor.unbatched());
@@ -440,7 +440,7 @@ public class DynamicMappingIT extends ESIntegTestCase {
             () -> client().prepareIndex("test").setSource("obj.runtime", "value").get()
         );
         assertEquals(
-            "object mapping for [obj.runtime] tried to parse field [obj.runtime] as object, but found a concrete value",
+            "object mapping for [obj.runtime] tried to parse field [runtime] as object, but found a concrete value",
             exception.getMessage()
         );
 

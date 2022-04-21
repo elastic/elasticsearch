@@ -18,7 +18,7 @@
             Content-Type: application/json
         index:
             index: test
-            id: 1
+            id: "1"
             body:
                 binary: "U29tZSBiaW5hcnkgYmxvYg=="
 
@@ -28,7 +28,7 @@
           Content-Type: application/json
         index:
           index: test
-          id: 2
+          id: "2"
           body:
             binary: [
               "U29tZSBiaW5hcnkgYmxvYg==",
@@ -42,7 +42,7 @@
           Content-Type: application/json
         index:
           index: test
-          id: 3
+          id: "3"
           body: {}
 
     - do:

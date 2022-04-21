@@ -378,8 +378,8 @@ public class VersionStringFieldMapper extends FieldMapper {
         }
 
         @Override
-        public BytesRef parseBytesRef(String value) {
-            return VersionEncoder.encodeVersion(value).bytesRef;
+        public BytesRef parseBytesRef(Object value) {
+            return VersionEncoder.encodeVersion(value.toString()).bytesRef;
         }
 
         @Override

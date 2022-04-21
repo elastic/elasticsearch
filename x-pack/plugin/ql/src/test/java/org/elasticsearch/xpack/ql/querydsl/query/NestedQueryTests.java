@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.ql.querydsl.query;
 
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.ql.tree.Source;
@@ -15,7 +16,6 @@ import org.elasticsearch.xpack.ql.util.StringUtils;
 import java.util.AbstractMap.SimpleImmutableEntry;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -42,7 +42,7 @@ public class NestedQueryTests extends ESTestCase {
 
     private static Map<String, Map.Entry<Boolean, String>> randomFields() {
         int size = between(0, 5);
-        Map<String, Map.Entry<Boolean, String>> fields = new HashMap<>(size);
+        Map<String, Map.Entry<Boolean, String>> fields = Maps.newMapWithExpectedSize(size);
         while (fields.size() < size) {
             fields.put(randomAlphaOfLength(5), new SimpleImmutableEntry<>(randomBoolean(), null));
         }

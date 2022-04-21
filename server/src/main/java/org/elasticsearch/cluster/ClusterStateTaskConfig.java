@@ -17,7 +17,7 @@ import org.elasticsearch.core.TimeValue;
 public interface ClusterStateTaskConfig {
     /**
      * The timeout for this cluster state update task configuration. If the cluster state update task isn't processed within this timeout,
-     * the associated {@link ClusterStateTaskListener#onFailure(String, Exception)} is invoked. Tasks arising from client requests should
+     * the associated {@link ClusterStateTaskListener#onFailure(Exception)} is invoked. Tasks arising from client requests should
      * have a timeout which clients can adjust via the {@code ?master_timeout} query parameter, and typically defaults to {@code 30s}. In
      * contrast, internal tasks can reasonably have an infinite timeout, especially if a timeout would simply trigger a retry.
      *
@@ -56,23 +56,5 @@ public interface ClusterStateTaskConfig {
         return new Basic(priority, timeout);
     }
 
-    class Basic implements ClusterStateTaskConfig {
-        final TimeValue timeout;
-        final Priority priority;
-
-        public Basic(Priority priority, TimeValue timeout) {
-            this.timeout = timeout;
-            this.priority = priority;
-        }
-
-        @Override
-        public TimeValue timeout() {
-            return timeout;
-        }
-
-        @Override
-        public Priority priority() {
-            return priority;
-        }
-    }
+    record Basic(Priority priority, TimeValue timeout) implements ClusterStateTaskConfig {}
 }

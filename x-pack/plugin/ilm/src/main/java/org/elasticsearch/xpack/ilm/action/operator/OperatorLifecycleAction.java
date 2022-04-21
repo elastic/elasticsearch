@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.ilm.action.operator;
 
-import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.operator.OperatorHandler;
 import org.elasticsearch.xcontent.XContentParser;
@@ -24,7 +23,7 @@ import java.util.Optional;
 /**
  * TODO: Add docs
  */
-public class OperatorLifecycleAction extends OperatorHandler {
+public class OperatorLifecycleAction implements OperatorHandler<PutLifecycleAction.Request> {
 
     public static final String KEY = "ilm";
 
@@ -35,8 +34,8 @@ public class OperatorLifecycleAction extends OperatorHandler {
 
     @Override
     @SuppressWarnings("unchecked")
-    public Collection<MasterNodeRequest<?>> prepare(Object source) throws IOException {
-        List<MasterNodeRequest<?>> result = new ArrayList<>();
+    public Collection<PutLifecycleAction.Request> prepare(Object source) throws IOException {
+        List<PutLifecycleAction.Request> result = new ArrayList<>();
 
         if (source.getClass().isArray()) {
             Map<String, ?>[] sources = (Map<String, ?>[]) source;
@@ -51,7 +50,7 @@ public class OperatorLifecycleAction extends OperatorHandler {
     }
 
     @SuppressWarnings("unchecked")
-    private MasterNodeRequest<?> prepare(Map<String, ?> source) throws IOException {
+    private PutLifecycleAction.Request prepare(Map<String, ?> source) throws IOException {
         String lifecycleName = (String) source.get(RestPutLifecycleAction.NAME);
         Map<String, ?> content = (Map<String, ?>) source.get(OperatorHandler.CONTENT);
 
@@ -61,7 +60,10 @@ public class OperatorLifecycleAction extends OperatorHandler {
     }
 
     @Override
-    public Optional<ClusterState> transformClusterState(Collection<MasterNodeRequest<?>> requests, ClusterState previous) {
+    public Optional<ClusterState> transformClusterState(
+        Collection<PutLifecycleAction.Request> requests,
+        ClusterState.Builder clusterStateBuilder,
+        ClusterState previous) {
         return Optional.empty();
     }
 }

@@ -22,6 +22,8 @@ public class InternalUserSerializationHelper {
                 return XPackUser.INSTANCE;
             } else if (XPackSecurityUser.is(username)) {
                 return XPackSecurityUser.INSTANCE;
+            } else if (SecurityProfileUser.is(username)) {
+                return SecurityProfileUser.INSTANCE;
             } else if (AsyncSearchUser.is(username)) {
                 return AsyncSearchUser.INSTANCE;
             }
@@ -40,6 +42,9 @@ public class InternalUserSerializationHelper {
         } else if (XPackSecurityUser.is(user)) {
             output.writeBoolean(true);
             output.writeString(XPackSecurityUser.NAME);
+        } else if (SecurityProfileUser.is(user)) {
+            output.writeBoolean(true);
+            output.writeString(SecurityProfileUser.NAME);
         } else if (AsyncSearchUser.is(user)) {
             output.writeBoolean(true);
             output.writeString(AsyncSearchUser.NAME);

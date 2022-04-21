@@ -22,17 +22,42 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
 
+    public enum ExecutionMode {
+        GLOBAL_ORDINAL,
+        SEGMENT_ORDINAL,
+        DIRECT;
+
+        public static ExecutionMode fromString(String value) {
+            if (value == null) {
+                return null;
+            }
+            ExecutionMode toReturn = ExecutionMode.valueOf(value.toUpperCase(Locale.ROOT));
+            if (toReturn != null) {
+                return toReturn;
+            }
+            throw new IllegalArgumentException(
+                "Invalid execution mode for cardinality aggregation.  Got ["
+                    + value
+                    + "]"
+                    + "expected one of [global_ordinal, segment_ordinal, direct]"
+            );
+        }
+    }
+
     private final Long precisionThreshold;
     private final CardinalityAggregatorSupplier aggregatorSupplier;
+    private final ExecutionMode executionMode;
 
     CardinalityAggregatorFactory(
         String name,
         ValuesSourceConfig config,
         Long precisionThreshold,
+        String executionHint,
         AggregationContext context,
         AggregatorFactory parent,
         AggregatorFactories.Builder subFactoriesBuilder,
@@ -43,6 +68,7 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
 
         this.aggregatorSupplier = aggregatorSupplier;
         this.precisionThreshold = precisionThreshold;
+        this.executionMode = ExecutionMode.fromString(executionHint);
     }
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {

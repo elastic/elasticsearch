@@ -8,19 +8,15 @@
 
 package org.elasticsearch.health.node.selection;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.tasks.TaskId;
 
 import java.util.Map;
 
 /**
- * Main component responsible for selecting the health node of the cluster
+ * Main component used for selecting the health node of the cluster
  */
 public class HealthNodeSelector extends AllocatedPersistentTask {
-
-    private static final Logger logger = LogManager.getLogger(HealthNodeSelector.class);
 
     public static final String HEALTH_NODE_SELECTOR_TASK_NAME = "health-node-selector";
 

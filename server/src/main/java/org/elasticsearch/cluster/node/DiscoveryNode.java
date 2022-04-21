@@ -371,7 +371,7 @@ public class DiscoveryNode implements Writeable, ToXContentFragment {
     }
 
     /**
-     * Can this node become master or not.
+     * Can this node ve selected as a health node or not.
      */
     public boolean isHealthNode() {
         return roles.contains(DiscoveryNodeRole.HEALTH_ROLE);

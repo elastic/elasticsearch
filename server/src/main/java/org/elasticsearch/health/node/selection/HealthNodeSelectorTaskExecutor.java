@@ -37,7 +37,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.elasticsearch.health.node.selection.HealthNodeSelector.HEALTH_NODE_SELECTOR_TASK_NAME;
 
 /**
- * Persistent task executor that is managing the {@link HealthNodeSelector}
+ * Persistent task executor that is managing the {@link HealthNodeSelector}.
  */
 public final class HealthNodeSelectorTaskExecutor extends PersistentTasksExecutor<HealthNodeSelectorTaskParams> {
 
@@ -109,7 +109,7 @@ public final class HealthNodeSelectorTaskExecutor extends PersistentTasksExecuto
         if (task != null) {
             String nodeId = clusterService.localNode().getId();
             task.markAsLocallyAborted("Node [" + nodeId + "] is shutting down.");
-            HealthNodeSelectorTaskExecutor.logger.info("Node [" + nodeId + "] is releasing health node selector task due to shutdown");
+            logger.info("Node [" + nodeId + "] is releasing health node selector task due to shutdown");
         }
     }
 

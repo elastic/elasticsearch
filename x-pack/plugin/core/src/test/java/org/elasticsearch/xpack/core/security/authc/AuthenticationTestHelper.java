@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.security.authc.jwt.JwtRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.kerberos.KerberosRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
+import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
@@ -131,6 +132,7 @@ public class AuthenticationTestHelper {
             OpenIdConnectRealmSettings.TYPE,
             SamlRealmSettings.TYPE,
             KerberosRealmSettings.TYPE,
+            PkiRealmSettings.TYPE,
             ESTestCase.randomAlphaOfLengthBetween(3, 8)
         );
         if (includeInternal) {
@@ -352,6 +354,7 @@ public class AuthenticationTestHelper {
                             final int tokenVariant = ESTestCase.randomIntBetween(0, 9);
                             if (tokenVariant == 0 && user == null && realmRef == null) {
                                 // service account
+                                prepareServiceAccountMetadata();
                                 authentication = Authentication.newServiceAccountAuthentication(
                                     new User(
                                         ESTestCase.randomAlphaOfLengthBetween(3, 8) + "/" + ESTestCase.randomAlphaOfLengthBetween(3, 8)

@@ -73,10 +73,12 @@ public class Authentication implements ToXContentObject {
     private final AuthenticationType type;
     private final Map<String, Object> metadata; // authentication contains metadata, includes api_key details (including api_key metadata)
 
+    // TODO: remove this constructor. all usages have been removed
     public Authentication(User user, RealmRef authenticatedBy, RealmRef lookedUpBy) {
         this(user, authenticatedBy, lookedUpBy, Version.CURRENT, AuthenticationType.REALM, Collections.emptyMap());
     }
 
+    // TODO: make this constructor private to favour dedicate methods for instantiation Authentication
     public Authentication(
         User user,
         RealmRef authenticatedBy,

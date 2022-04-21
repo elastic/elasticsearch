@@ -12,7 +12,7 @@ import org.elasticsearch.xpack.core.security.support.MetadataUtils;
 import java.util.Map;
 
 /**
- * internal user that manages xpack security. Has all cluster/indices permissions.
+ * internal user that manages the security profile index. Has no cluster permission.
  */
 public class SecurityProfileUser extends User {
 
@@ -24,7 +24,7 @@ public class SecurityProfileUser extends User {
         null,
         new RoleDescriptor.IndicesPrivileges[] {
             RoleDescriptor.IndicesPrivileges.builder()
-                .indices(".security-profile*")
+                .indices(".security-profile", "/\\.security-profile-[0-9].*/")
                 .privileges("all")
                 .allowRestrictedIndices(true)
                 .build() },

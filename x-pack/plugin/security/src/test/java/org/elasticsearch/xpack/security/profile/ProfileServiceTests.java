@@ -320,6 +320,9 @@ public class ProfileServiceTests extends ESTestCase {
         }
     }
 
+    // Note this method is to test the origin is switched security_profile for all profile related actions.
+    // The actual result of the action is not relevant as long as the action is performed with the correct origin.
+    // Therefore, exceptions (used in this test) work as good as full successful responses.
     public void testSecurityProfileOrigin() {
         // Activate profile
         doAnswer(invocation -> {

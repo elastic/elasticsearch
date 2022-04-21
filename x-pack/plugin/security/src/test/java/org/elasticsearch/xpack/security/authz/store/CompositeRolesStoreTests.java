@@ -1916,14 +1916,19 @@ public class CompositeRolesStoreTests extends ESTestCase {
         for (String action : Arrays.asList(GetAction.NAME, DeleteAction.NAME, SearchAction.NAME, IndexAction.NAME)) {
             Predicate<IndexAbstraction> predicate = getSecurityProfileRole().indices().allowedIndicesMatcher(action);
 
-            final IndexAbstraction index1 = mockIndexAbstraction(".security-profile" + randomIntBetween(0, 16));
-            assertThat(predicate.test(index1), Matchers.is(true));
+            List.of(
+                ".security-profile",
+                ".security-profile-8",
+                ".security-profile-" + randomIntBetween(0, 16) + randomAlphaOfLengthBetween(0, 10)
+            ).forEach(name -> assertThat(predicate.test(mockIndexAbstraction(name)), is(true)));
 
-            final IndexAbstraction index2 = mockIndexAbstraction(".security-" + randomIntBetween(0, 16));
-            assertThat(predicate.test(index2), Matchers.is(false));
-
-            final IndexAbstraction index3 = mockIndexAbstraction("." + randomIntBetween(1, 16));
-            assertThat(predicate.test(index3), Matchers.is(false));
+            List.of(
+                ".security-profile" + randomAlphaOfLengthBetween(1, 10),
+                ".security-profile-" + randomAlphaOfLengthBetween(1, 10),
+                ".security",
+                ".security-" + randomIntBetween(0, 16) + randomAlphaOfLengthBetween(0, 10),
+                "." + randomAlphaOfLengthBetween(1, 20)
+            ).forEach(name -> assertThat(predicate.test(mockIndexAbstraction(name)), is(false)));
         }
 
         final Subject subject = mock(Subject.class);

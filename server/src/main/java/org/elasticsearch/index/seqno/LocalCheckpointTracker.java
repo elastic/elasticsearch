@@ -232,7 +232,7 @@ public class LocalCheckpointTracker {
     private CountedBitSet getBitSetForSeqNo(final Map<Long, CountedBitSet> bitSetMap, final long seqNo) {
         assert Thread.holdsLock(this);
         final long bitSetKey = getBitSetKey(seqNo);
-        return bitSetMap.computeIfAbsent(seqNo, k -> new CountedBitSet(BIT_SET_SIZE));
+        return bitSetMap.computeIfAbsent(bitSetKey, k -> new CountedBitSet(BIT_SET_SIZE));
     }
 
     /**

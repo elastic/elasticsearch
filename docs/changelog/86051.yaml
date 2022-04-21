@@ -1,5 +1,5 @@
 pr: 86051
 summary: Upgrade jackson to 2.13.2
-area: "Snapshot/Restore, Infra/Core"
+area: "Infra/Core"
 type: upgrade
 issues: []

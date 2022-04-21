@@ -47,6 +47,8 @@ import org.apache.http.HttpResponse;
 import org.apache.http.HttpVersion;
 import org.apache.http.ProtocolVersion;
 import org.apache.http.entity.BasicHttpEntity;
+import org.apache.http.entity.ContentType;
+import org.apache.http.entity.StringEntity;
 import org.apache.http.message.BasicHttpResponse;
 import org.apache.http.message.BasicStatusLine;
 import org.elasticsearch.ElasticsearchSecurityException;
@@ -894,14 +896,12 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
         final String sub = randomAlphaOfLengthBetween(4, 36);
         final String inf = randomAlphaOfLength(12);
         final JWTClaimsSet infoClaims = new JWTClaimsSet.Builder().subject(sub).claim("inf", inf).build();
-        final BasicHttpEntity entity = new BasicHttpEntity();
-        entity.setContentType("application/json");
+        final StringEntity entity = new StringEntity(infoClaims.toString(), ContentType.APPLICATION_JSON);
         if (randomBoolean()) {
             entity.setContentEncoding(
                 randomFrom(StandardCharsets.UTF_8.name(), StandardCharsets.UTF_16.name(), StandardCharsets.US_ASCII.name())
             );
         }
-        entity.setContent(new ByteArrayInputStream(infoClaims.toString().getBytes(StandardCharsets.UTF_8)));
         response.setEntity(entity);
 
         final String idx = randomAlphaOfLength(8);
@@ -923,9 +923,7 @@ public class OpenIdConnectAuthenticatorTests extends OpenIdConnectTestCase {
             new BasicStatusLine(httpVersion, RestStatus.NOT_FOUND.getStatus(), "Gone away")
         );
 
-        final BasicHttpEntity entity = new BasicHttpEntity();
-        entity.setContentType("text/html");
-        entity.setContent(new ByteArrayInputStream("<HTML><BODY>Not Found</BODY></HTML>".getBytes(StandardCharsets.UTF_8)));
+        final StringEntity entity = new StringEntity("<HTML><BODY>Not Found</BODY></HTML>", ContentType.TEXT_HTML);
         response.setEntity(entity);
 
         final String sub = randomAlphaOfLengthBetween(4, 36);

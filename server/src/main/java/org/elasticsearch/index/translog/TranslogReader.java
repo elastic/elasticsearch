@@ -34,6 +34,7 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
     private final Checkpoint checkpoint;
     protected final AtomicBoolean closed = new AtomicBoolean(false);
     protected long lastModifiedTime;
+
     /**
      * Create a translog writer against the specified translog file channel.
      *
@@ -155,7 +156,7 @@ public class TranslogReader extends BaseTranslogReader implements Closeable {
 
     @Override
     public long getLastModifiedTime() throws IOException {
-        if(this.lastModifiedTime == -1) {
+        if (this.lastModifiedTime == -1) {
             return super.getLastModifiedTime();
         }
         return this.lastModifiedTime;

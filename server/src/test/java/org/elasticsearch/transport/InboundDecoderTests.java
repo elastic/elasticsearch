@@ -357,36 +357,36 @@ public class InboundDecoderTests extends ESTestCase {
         assertFalse(releasable1.hasReferences());
     }
 
-    public void testEnsureVersionCompatibility() throws IOException {
-        IllegalStateException ise = InboundDecoder.ensureVersionCompatibility(
+    public void testEnsureVersionCompatibility() {
+        InboundDecoder.ensureVersionCompatibility(
             VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.CURRENT),
             Version.CURRENT,
             randomBoolean()
         );
-        assertNull(ise);
 
         final Version version = Version.fromString("7.0.0");
-        ise = InboundDecoder.ensureVersionCompatibility(Version.fromString("6.0.0"), version, true);
-        assertNull(ise);
+        InboundDecoder.ensureVersionCompatibility(Version.fromString("6.0.0"), version, true);
 
-        ise = InboundDecoder.ensureVersionCompatibility(Version.fromString("6.0.0"), version, false);
         assertEquals(
             "Received message from unsupported version: [6.0.0] minimal compatible version is: ["
                 + version.minimumCompatibilityVersion()
                 + "]",
-            ise.getMessage()
+            expectThrows(
+                IllegalStateException.class,
+                () -> InboundDecoder.ensureVersionCompatibility(Version.fromString("6.0.0"), version, false)
+            ).getMessage()
         );
 
         // For handshake we are compatible with N-2
-        ise = InboundDecoder.ensureVersionCompatibility(Version.fromString("5.6.0"), version, true);
-        assertNull(ise);
-
-        ise = InboundDecoder.ensureVersionCompatibility(Version.fromString("5.6.0"), version, false);
+        InboundDecoder.ensureVersionCompatibility(Version.fromString("5.6.0"), version, true);
         assertEquals(
             "Received message from unsupported version: [5.6.0] minimal compatible version is: ["
                 + version.minimumCompatibilityVersion()
                 + "]",
-            ise.getMessage()
+            expectThrows(
+                IllegalStateException.class,
+                () -> InboundDecoder.ensureVersionCompatibility(Version.fromString("5.6.0"), version, false)
+            ).getMessage()
         );
     }
 }

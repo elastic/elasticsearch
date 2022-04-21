@@ -90,7 +90,7 @@ public class InboundPipeline implements Releasable {
         }
     }
 
-    public void doHandleBytes(TcpChannel channel, ReleasableBytesReference reference) throws IOException {
+    private void doHandleBytes(TcpChannel channel, ReleasableBytesReference reference) throws IOException {
         channel.getChannelStats().markAccessed(relativeTimeInMillis.getAsLong());
         statsTracker.markBytesRead(reference.length());
         pending.add(reference.retain());

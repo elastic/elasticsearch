@@ -809,41 +809,11 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     public static int readMessageLength(BytesReference networkBytes) throws IOException {
         if (networkBytes.length() < BYTES_NEEDED_FOR_MESSAGE_SIZE) {
             return -1;
-        } else {
-            return readHeaderBuffer(networkBytes);
         }
-    }
-
-    private static int readHeaderBuffer(BytesReference headerBuffer) throws IOException {
-        if (headerBuffer.get(0) != 'E' || headerBuffer.get(1) != 'S') {
-            if (appearsToBeHTTPRequest(headerBuffer)) {
-                throw new HttpRequestOnTransportException("This is not an HTTP port");
-            }
-
-            if (appearsToBeHTTPResponse(headerBuffer)) {
-                throw new StreamCorruptedException(
-                    "received HTTP response on transport port, ensure that transport port (not "
-                        + "HTTP port) of a remote node is specified in the configuration"
-                );
-            }
-
-            String firstBytes = "("
-                + Integer.toHexString(headerBuffer.get(0) & 0xFF)
-                + ","
-                + Integer.toHexString(headerBuffer.get(1) & 0xFF)
-                + ","
-                + Integer.toHexString(headerBuffer.get(2) & 0xFF)
-                + ","
-                + Integer.toHexString(headerBuffer.get(3) & 0xFF)
-                + ")";
-
-            if (appearsToBeTLS(headerBuffer)) {
-                throw new StreamCorruptedException("SSL/TLS request received but SSL/TLS is not enabled on this node, got " + firstBytes);
-            }
-
-            throw new StreamCorruptedException("invalid internal transport message format, got " + firstBytes);
+        if (networkBytes.get(0) != 'E' || networkBytes.get(1) != 'S') {
+            failOnNoESPrefix(networkBytes);
         }
-        final int messageLength = headerBuffer.getInt(TcpHeader.MARKER_BYTES_SIZE);
+        final int messageLength = networkBytes.getInt(TcpHeader.MARKER_BYTES_SIZE);
 
         if (messageLength == TransportKeepAlive.PING_DATA_SIZE) {
             // This is a ping
@@ -853,18 +823,50 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         if (messageLength <= 0) {
             throw new StreamCorruptedException("invalid data length: " + messageLength);
         }
-
         if (messageLength > THIRTY_PER_HEAP_SIZE) {
-            throw new IllegalArgumentException(
-                "illegal transport message of size ["
-                    + new ByteSizeValue(messageLength)
-                    + "] which exceeds 30% of this node's heap size ["
-                    + new ByteSizeValue(THIRTY_PER_HEAP_SIZE)
-                    + "], closing connection"
-            );
+            failOnMessageTooLarge(messageLength);
         }
 
         return messageLength;
+    }
+
+    private static void failOnMessageTooLarge(int messageLength) {
+        throw new IllegalArgumentException(
+            "illegal transport message of size ["
+                + new ByteSizeValue(messageLength)
+                + "] which exceeds 30% of this node's heap size ["
+                + new ByteSizeValue(THIRTY_PER_HEAP_SIZE)
+                + "], closing connection"
+        );
+    }
+
+    private static void failOnNoESPrefix(BytesReference headerBuffer) throws StreamCorruptedException {
+        if (appearsToBeHTTPRequest(headerBuffer)) {
+            throw new HttpRequestOnTransportException("This is not an HTTP port");
+        }
+
+        if (appearsToBeHTTPResponse(headerBuffer)) {
+            throw new StreamCorruptedException(
+                "received HTTP response on transport port, ensure that transport port (not "
+                    + "HTTP port) of a remote node is specified in the configuration"
+            );
+        }
+
+        String firstBytes = "("
+            + Integer.toHexString(headerBuffer.get(0) & 0xFF)
+            + ","
+            + Integer.toHexString(headerBuffer.get(1) & 0xFF)
+            + ","
+            + Integer.toHexString(headerBuffer.get(2) & 0xFF)
+            + ","
+            + Integer.toHexString(headerBuffer.get(3) & 0xFF)
+            + ")";
+
+        if (appearsToBeTLS(headerBuffer)) {
+            throw new StreamCorruptedException("SSL/TLS request received but SSL/TLS is not enabled on this node, got " + firstBytes);
+        }
+
+        throw new StreamCorruptedException("invalid internal transport message format, got " + firstBytes);
     }
 
     private static boolean appearsToBeHTTPRequest(BytesReference headerBuffer) {

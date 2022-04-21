@@ -95,8 +95,9 @@ Indicates that {es} should use the `RS256` or `HS256` signature algorithms to
 verify the signature of the JWT from the JWT issuer.
 
 `pkc_jwkset_path`::
-The file path to a JSON Web Key (JWK) set containing the public key material that the
-JWT realm uses to verify JWT signatures.
+The file path to a JSON Web Key (JWK) set containing the public key material
+that the JWT realm uses to verify JWT signatures. If a path is provided,
+then it is resolved relative to the {es} configuration directory.
 
 `claims.principal`::
 The name of the JWT claim that contains the user's principal (username).

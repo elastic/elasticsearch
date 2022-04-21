@@ -78,6 +78,7 @@ you to invalidate the tokens. See
 <<security-api-invalidate-token,invalidate token API>> and
 <<security-api-invalidate-api-key,invalidate API key API>>.
 
-IMPORTANT:  Authentication support for JWT bearer tokens was introduced in {es} 8.2.
-            It is available via <<jwt-realm>>, not token-authentication services. Realms
-            offer flexible order and configurable of zero, one, or multiple JWT realms.
+IMPORTANT:  Authentication support for JWT bearer tokens was introduced in {es}
+8.2 through the <<jwt-realm>>, which cannot be enabled through
+token-authentication services. Realms offer flexible order and configurations of
+zero, one, or multiple JWT realms.

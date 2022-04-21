@@ -1970,6 +1970,15 @@ In addition to the <<ref-realm-settings,settings that are valid for all realms>>
 can specify the following settings.
 // end::jwt-description-tag[]
 
+// tag::jwt-allowed-audiences-tag[]
+`allowed_audiences` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+A list of allowed JWT audiences that {es} should verify. {es} will only consume
+JWTs that were intended for any of these audiences, as denoted by the `aud`
+claim in the JWT). Examples of `aud` claim are `https://example.com/client1`
+and `other_service,elasticsearch`.
+// end::jwt-allowed-audiences-tag[]
+
 // tag::jwt-allowed-clock-skew-tag[]
 `allowed_clock_skew` {ess-icon}::
 (<<static-cluster-setting,Static>>)
@@ -1998,16 +2007,6 @@ Allowed values are `HS256`, `HS384`, `HS512`, `ES256`, `ES384`, `ES512`,
 `RS256`, `RS384`, `RS512`, `PS256`, `PS384`, `PS512`.
 // end::jwt-allowed-signature-algorithms-tag[]
 
-// tag::jwt-allowed-audiences-tag[]
-`allowed_audiences` {ess-icon}::
-(<<static-cluster-setting,Static>>)
-A list of allowed JWT audiences that {es} should verify.
-+
-{es} will only consume JWTs that were intended for any of these audiences.
-( as denoted by the `aud` claim in the JWT).
-Examples of `aud` claim are `https://example.com/client1` and `other_service,elasticsearch`.
-// end::jwt-allowed-audiences-tag[]
-
 `authorization_realms`::
 (<<static-cluster-setting,Static>>)
 The names of the realms that should be consulted for delegated authorization.
@@ -2023,7 +2022,7 @@ which uniquely identifies a user or group.
 // end::jwt-claims-dn-tag[]
 
 // tag::jwt-claims-pattern-dn-tag[]
-`claims.dn_pattern` {ess-icon}::
+`claim_patterns.dn` {ess-icon}::
 (<<static-cluster-setting,Static>>)
 Accepts the same Java regular expression as
 <<jwt-claim-pattern-principal,`claim_patterns.principal`>>, but for the `dn`
@@ -2038,7 +2037,7 @@ The name of the JWT claim that contains the user's groups, such as `groups` and
 // end::jwt-claims-groups-tag[]
 
 // tag::jwt-claim-pattern-groups-tag[]
-`claims.group_patterns` {ess-icon}::
+`claim_patterns.group` {ess-icon}::
 (<<static-cluster-setting,Static>>)
 Accepts the same Java regular expression as
 <<jwt-claim-pattern-principal,`claim_patterns.principal`>>, but for the `group`
@@ -2052,7 +2051,7 @@ The name of the JWT claim that contains the user's e-mail address.
 // end::jwt-claims-mail-tag[]
 
 // tag::jwt-claims-pattern-mail-tag[]
-`claims.mail_pattern` {ess-icon}::
+`claim_patterns.mail` {ess-icon}::
 (<<static-cluster-setting,Static>>)
 Accepts the same Java regular expression as
 <<jwt-claim-pattern-principal,`claim_patterns.principal`>>, but for the `mail`
@@ -2066,7 +2065,7 @@ The name of the JWT claim that contains the user's username.
 // end::jwt-claims-name-tag[]
 
 // tag::jwt-claims-pattern-name-tag[]
-`claims.name_pattern` {ess-icon}::
+`claim_patterns.name` {ess-icon}::
 (<<static-cluster-setting,Static>>)
 Accepts the same Java regular expression as
 <<jwt-claim-pattern-principal,`claim_patterns.principal`>>, but for the `name`
@@ -2082,7 +2081,7 @@ The name of the JWT claim that contains the user's principal (username), such as
 
 [[jwt-claim-pattern-principal]]
 // tag::jwt-claim-pattern-principal-tag[]
-`claims.principal_pattern` {ess-icon}::
+`claim_patterns.principal` {ess-icon}::
 (<<static-cluster-setting,Static>>)
 An optional Java regular expression that is matched against the JWT claim specified
 by `claims.principal` before it is applied to the user's `principal` property.
@@ -2118,48 +2117,41 @@ Required if `client_authentication.type` is `shared_secret`.
 // tag::jwt-http-connect-timeout-tag[]
 `http.connect_timeout` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-Controls the behavior of the http client used for fetching the JSON Web Key Set
-from a remote URL. A value of zero means the timeout is not used. Defaults to `5s`.
+Sets the timeout for the HTTP client that is used for fetching the JSON Web Key
+Set from a remote URL. A value of zero means the timeout is not used. Defaults
+to `5s`.
 // end::jwt-http-connect-timeout-tag[]
 
 // tag::jwt-http-read-timeout-tag[]
 `http.connection_read_timeout` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-Controls the behavior of the http client used for fetching the JSON Web Key Set
-from remote a URL. Specifies the timeout used when
-requesting a connection from the connection manager. Defaults to `5s`
+Specifies the HTTP timeout used when requesting a connection from the connection
+manager. Defaults to `5s`.
 // end::jwt-http-read-timeout-tag[]
 
 // tag::jwt-http-socket-timeout[]
 `http.socket_timeout` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-Controls the behavior of the http client used for fetching the JSON Web Key Set
-from remote a URL. Specifies the socket timeout (SO_TIMEOUT)
-in milliseconds, which is the timeout for waiting for data or, put differently,
-a maximum period inactivity between two consecutive data packets. Defaults to
-`5s`.
+Specifies the maximum socket timeout (SO_TIMEOUT) for the HTTP client to wait
+for inactivity between two consecutive data packets. Defaults to `5s`.
 // end::jwt-http-socket-timeout[]
 
 // tag::jwt-http-max-connections-tag[]
 `http.max_connections` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-Controls the behavior of the http client used for fetching the JSON Web Key Set
-from a remote URL. Specifies the maximum number of
-connections allowed across all endpoints.
+Specifies the maximum number of connections allowed across all endpoints.
 // end::jwt-http-max-connections-tag[]
 
 // tag::jwt-http-max-endpoint-connections-tag[]
 `http.max_endpoint_connections` {ess-icon}::
 (<<static-cluster-setting,Static>>)
-Controls the behavior of the http client used for fetching the JSON Web Key Set
-from a remote URL. Specifies the maximum number of
-connections allowed per endpoint.
+Specifies the maximum number of connections allowed per endpoint.
 // end::jwt-http-max-endpoint-connections-tag[]
 
 `jwt.cache.size`::
 (<<static-cluster-setting,Static>>)
 Specifies the maximum number of JWT cache entries. If clients use a different
-JWT for every request, set to `0` to disable JWT cache. Defaults to `100000`.
+JWT for every request, set to `0` to disable the JWT cache. Defaults to `100000`.
 
 `jwt.cache.ttl`::
 (<<static-cluster-setting,Static>>)
@@ -2172,17 +2164,16 @@ for every request, set to `0` to disable the JWT cache. Defaults to `20m`.
 `pkc_jwkset_path` {ess-icon}::
 (<<static-cluster-setting,Static>>)
 The file path or URL to a JSON Web Key Set with the key material that the JWT
-Issuer uses for signing tokens and claims responses.
-If a path is provided, then it is resolved relative to the {es} config
-directory.
-If a URL is provided, then it must be either a `file` URL or a `https` URL.
+Issuer uses for signing tokens and claims responses. If a path is provided,
+then it is resolved relative to the {es} configuration directory.
+If a URL is provided, then it must be either a `file` URL or an `https` URL.
 {es} automatically caches the retrieved JWK set to avoid unnecessary HTTP
-requests but will attempt to refresh the JWK upon signature verification
+requests, but will attempt to refresh the JWK upon signature verification
 failure, as this might indicate that the JWT Provider has
 rotated the signing keys.
 +
 File-based resources are polled at a frequency determined by the global {es}
-`resource.reload.interval.high` setting, which defaults to 5 seconds.
+`resource.reload.interval.high` setting, which defaults to `5s`.
 // end::jwt-jwkset-path-tag[]
 
 // tag::jwt-populate-user-metadata-tag[]
@@ -2196,11 +2187,11 @@ provided by the JWT claims. Defaults to `true`.
 [[ref-jwt-ssl-settings]]
 ===== JWT realm SSL settings
 // tag::jwt-ssl-description-tag[]
-The following settings can be used to configure SSL for fetching the JSON Web Key Set
-from a remote URL.
+The following settings can be used to configure SSL for fetching the JSON Web
+Key Set from a remote URL.
 
 NOTE: These settings are _only_ used for the back-channel communication between
-{es} and the JWT Issuer
+{es} and the JWT Issuer.
 
 // end::jwt-ssl-description-tag[]
 

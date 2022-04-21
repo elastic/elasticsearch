@@ -8,10 +8,10 @@
 
 package org.elasticsearch.plugins.cli;
 
+import joptsimple.OptionSet;
+
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.env.Environment;
-
-import java.util.Map;
 
 public class MockInstallPluginCommand extends InstallPluginCommand {
     private final Environment env;
@@ -25,8 +25,8 @@ public class MockInstallPluginCommand extends InstallPluginCommand {
     }
 
     @Override
-    protected Environment createEnv(Map<String, String> settings) throws UserException {
-        return this.env != null ? this.env : super.createEnv(settings);
+    protected Environment createEnv(OptionSet options) throws UserException {
+        return this.env != null ? this.env : super.createEnv(options);
     }
 
     @Override

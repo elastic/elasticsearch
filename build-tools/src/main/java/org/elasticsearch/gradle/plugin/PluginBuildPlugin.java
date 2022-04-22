@@ -113,8 +113,7 @@ public class PluginBuildPlugin implements Plugin<Project> {
             task.getPluginName().set(providerFactory.provider(extension::getName));
             task.getPluginDescription().set(providerFactory.provider(extension::getDescription));
             task.getPluginVersion().set(providerFactory.provider(extension::getVersion));
-            task.getElasticsearchVersion()
-                .set(Version.fromString(VersionProperties.getElasticsearch()).toString());
+            task.getElasticsearchVersion().set(Version.fromString(VersionProperties.getElasticsearch()).toString());
             var javaExtension = project.getExtensions().getByType(JavaPluginExtension.class);
             task.getJavaVersion().set(providerFactory.provider(() -> javaExtension.getTargetCompatibility().toString()));
             task.getClassname().set(providerFactory.provider(extension::getClassname));

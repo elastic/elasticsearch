@@ -35,6 +35,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+
 import javax.inject.Inject;
 
 public abstract class GeneratePluginPropertiesTask extends DefaultTask {

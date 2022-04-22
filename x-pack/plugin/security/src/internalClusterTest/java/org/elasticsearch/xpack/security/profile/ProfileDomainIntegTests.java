@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationContext;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
@@ -133,16 +134,17 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
 
         final RealmConfig.RealmIdentifier authenticationRealmIdentifier = randomFrom(domainRealms);
 
-        final Authentication authentication = new Authentication(
-            new User("Foo"),
-            new Authentication.RealmRef(
-                authenticationRealmIdentifier.getName(),
-                authenticationRealmIdentifier.getType(),
-                nodeName,
-                realmDomain
-            ),
-            null
-        );
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("Foo"))
+            .realmRef(
+                new Authentication.RealmRef(
+                    authenticationRealmIdentifier.getName(),
+                    authenticationRealmIdentifier.getType(),
+                    nodeName,
+                    realmDomain
+                )
+            )
+            .build(false);
         final Subject subject = AuthenticationContext.fromAuthentication(authentication).getEffectiveSubject();
 
         // Profile does not exist yet
@@ -184,11 +186,10 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
         // Scenario 1
         // The recorded realm_name_1 is no longer part of a domain.
         // Authentication for this realm still works for retrieving the same profile document
-        final Authentication authentication1 = new Authentication(
-            new User("Foo"),
-            new Authentication.RealmRef(realmIdentifier1.getName(), realmIdentifier1.getType(), nodeName),
-            null
-        );
+        final Authentication authentication1 = AuthenticationTestHelper.builder()
+            .user(new User("Foo"))
+            .realmRef(new Authentication.RealmRef(realmIdentifier1.getName(), realmIdentifier1.getType(), nodeName))
+            .build(false);
         final Subject subject1 = AuthenticationContext.fromAuthentication(authentication1).getEffectiveSubject();
 
         final PlainActionFuture<ProfileService.VersionedDocument> future1 = new PlainActionFuture<>();
@@ -201,11 +202,10 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
         // The recorded realm_name_1 is no longer part of a domain.
         // Authentication for realm_name_2 (which is still part of domainA) does not work for retrieving the profile document
         final RealmDomain realmDomain1 = new RealmDomain("domainA", Set.of(realmIdentifier2));
-        final Authentication authentication2 = new Authentication(
-            new User("Foo"),
-            new Authentication.RealmRef(realmIdentifier2.getName(), realmIdentifier2.getType(), nodeName, realmDomain1),
-            null
-        );
+        final Authentication authentication2 = AuthenticationTestHelper.builder()
+            .user(new User("Foo"))
+            .realmRef(new Authentication.RealmRef(realmIdentifier2.getName(), realmIdentifier2.getType(), nodeName, realmDomain1))
+            .build(false);
         final Subject subject2 = AuthenticationContext.fromAuthentication(authentication2).getEffectiveSubject();
 
         final PlainActionFuture<ProfileService.VersionedDocument> future2 = new PlainActionFuture<>();
@@ -214,11 +214,10 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
 
         // Scenario 3
         // Both recorded realm_name_1 and the authentication realm_name_2 are no longer part of a domain.
-        final Authentication authentication3 = new Authentication(
-            new User("Foo"),
-            new Authentication.RealmRef(realmIdentifier2.getName(), realmIdentifier2.getType(), nodeName),
-            null
-        );
+        final Authentication authentication3 = AuthenticationTestHelper.builder()
+            .user(new User("Foo"))
+            .realmRef(new Authentication.RealmRef(realmIdentifier2.getName(), realmIdentifier2.getType(), nodeName))
+            .build(false);
         final Subject subject3 = AuthenticationContext.fromAuthentication(authentication3).getEffectiveSubject();
 
         final PlainActionFuture<ProfileService.VersionedDocument> future3 = new PlainActionFuture<>();

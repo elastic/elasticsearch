@@ -64,9 +64,9 @@ public class TransportProfileHasPrivilegesAction extends HandledTransportAction<
             Arrays.asList(request.applicationPrivileges())
         );
         resolveApplicationPrivileges(request, ActionListener.wrap(applicationPrivilegeDescriptors -> {
-            resolveProfileSubjects(request, ActionListener.wrap(profileSubjects -> {
+            profileService.getProfileSubjects(Arrays.asList(request.profileUids()), ActionListener.wrap(profileSubjectsAndFailures -> {
                 List<String> hasPrivilegeProfiles = new ArrayList<>();
-                for (Map.Entry<String, Subject> profileIdToSubject : profileSubjects.entrySet()) {
+                for (Map.Entry<String, Subject> profileIdToSubject : profileSubjectsAndFailures.v1().entrySet()) {
                     authorizationService.checkPrivileges(
                         profileIdToSubject.getValue(),
                         privilegesToCheck,
@@ -78,7 +78,12 @@ public class TransportProfileHasPrivilegesAction extends HandledTransportAction<
                         }, listener::onFailure)
                     );
                 }
-                listener.onResponse(new ProfileHasPrivilegesResponse(hasPrivilegeProfiles.toArray(new String[0])));
+                listener.onResponse(
+                    new ProfileHasPrivilegesResponse(
+                        hasPrivilegeProfiles.toArray(new String[0]),
+                        profileSubjectsAndFailures.v2().toArray(new String[0])
+                    )
+                );
             }, listener::onFailure));
         }, listener::onFailure));
     }
@@ -91,12 +96,5 @@ public class TransportProfileHasPrivilegesAction extends HandledTransportAction<
             .map(RoleDescriptor.ApplicationResourcePrivileges::getApplication)
             .collect(Collectors.toSet());
         privilegeStore.getPrivileges(applications, null, listener);
-    }
-
-    private void resolveProfileSubjects(ProfileHasPrivilegesRequest request, ActionListener<Map<String, Subject>> listener) {
-        profileService.getProfileSubjects(
-            Arrays.asList(request.profileUids()),
-            listener.map(subjectsAndException -> subjectsAndException.v1())
-        );
     }
 }

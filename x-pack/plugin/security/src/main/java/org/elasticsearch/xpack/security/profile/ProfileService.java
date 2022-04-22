@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
@@ -23,7 +24,6 @@ import org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.MultiGetItemResponse;
-import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
@@ -114,17 +114,21 @@ public class ProfileService {
         );
     }
 
-    public void getProfileSubjects(Collection<String> uids, ActionListener<Tuple<Map<String, Subject>, ElasticsearchException>> listener) {
+    public void getProfileSubjects(Collection<String> uids, ActionListener<Tuple<Map<String, Subject>, List<String>>> listener) {
         getVersionedDocuments(
             uids,
             listener.map(
-                docsAndException -> new Tuple<>(
-                    docsAndException.v1()
-                        .entrySet()
-                        .stream()
-                        .collect(Collectors.toMap(Map.Entry::getKey, profileIdAndDoc -> profileIdAndDoc.getValue().doc.user().toSubject())),
-                    docsAndException.v2()
-                )
+                docsAndException -> docsAndException != null
+                    ? new Tuple<>(
+                        docsAndException.v1()
+                            .entrySet()
+                            .stream()
+                            .collect(
+                                Collectors.toMap(Map.Entry::getKey, profileIdAndDoc -> profileIdAndDoc.getValue().doc.user().toSubject())
+                            ),
+                        docsAndException.v2()
+                    )
+                    : new Tuple<>(Map.of(), List.of())
             )
         );
     }
@@ -329,21 +333,23 @@ public class ProfileService {
 
     private void getVersionedDocuments(
         Collection<String> uids,
-        ActionListener<Tuple<Map<String, VersionedDocument>, ElasticsearchException>> listener
+        ActionListener<Tuple<Map<String, VersionedDocument>, List<String>>> listener
     ) {
         tryFreezeAndCheckIndex(listener).ifPresent(frozenProfileIndex -> {
             new OriginSettingClient(client, SECURITY_PROFILE_ORIGIN).prepareMultiGet()
-                .addIds(SECURITY_PROFILE_ALIAS, uids.stream().map(ProfileService::uidToDocId).collect(Collectors.toList()))
+                .addIds(frozenProfileIndex.aliasName(), uids.stream().map(ProfileService::uidToDocId).toArray(String[]::new))
                 .execute(ActionListener.wrap(multiGetResponse -> {
-                    Map<String, VersionedDocument> retrievedDocs = new HashMap<>(uids.size());
-                    List<MultiGetResponse.Failure> failures = new ArrayList<>(0);
+                    Map<String, VersionedDocument> retrievedDocs = new HashMap<>(multiGetResponse.getResponses().length);
+                    List<String> failures = new ArrayList<>(0);
+                    Exception loggedException = null;
                     for (MultiGetItemResponse itemResponse : multiGetResponse.getResponses()) {
-                        if (itemResponse.isFailed()) {
-                            if (itemResponse.getFailure() != null) {
-                                failures.add(itemResponse.getFailure());
+                        if (itemResponse.isFailed() && itemResponse.getFailure() != null) {
+                            failures.add(docIdToUid(itemResponse.getFailure().getId()));
+                            if (logger.isDebugEnabled() && itemResponse.getFailure().getFailure() != null) {
+                                loggedException = ExceptionsHelper.useOrSuppress(loggedException, itemResponse.getFailure().getFailure());
                             }
-                        } else {
-                            if (itemResponse.getResponse() != null && itemResponse.getResponse().isExists()) {
+                        } else if (false == itemResponse.isFailed() && itemResponse.getResponse() != null) {
+                            if (itemResponse.getResponse().isExists()) {
                                 retrievedDocs.put(
                                     docIdToUid(itemResponse.getResponse().getId()),
                                     new VersionedDocument(
@@ -352,28 +358,17 @@ public class ProfileService {
                                         itemResponse.getResponse().getSeqNo()
                                     )
                                 );
+                            } else if (logger.isDebugEnabled()) {
+                                logger.debug("Profile [{}] not found", docIdToUid(itemResponse.getResponse().getId()));
                             }
+                        } else {
+                            logger.error("Inconsistent get item response [{}] [{}]", itemResponse.getIndex(), itemResponse.getId());
                         }
                     }
-                    if (false == failures.isEmpty()) {
-                        String profileIdsWithFailures = failures.stream()
-                            .filter(failure -> failure.getFailure() != null)
-                            .map(MultiGetResponse.Failure::getId)
-                            .map(ProfileService::docIdToUid)
-                            .collect(Collectors.toList())
-                            .toString();
-                        ElasticsearchException exception = new ElasticsearchException(
-                            "Failed to retrieve profiles " + profileIdsWithFailures
-                        );
-                        failures.stream()
-                            .filter(failure -> failure.getFailure() != null)
-                            .map(MultiGetResponse.Failure::getFailure)
-                            .forEach(failure -> exception.addSuppressed(failure));
-                        logger.throwing(Level.INFO, exception);
-                        listener.onResponse(new Tuple<>(retrievedDocs, exception));
-                    } else {
-                        listener.onResponse(new Tuple<>(retrievedDocs, null));
+                    if (loggedException != null) {
+                        logger.throwing(Level.DEBUG, loggedException);
                     }
+                    listener.onResponse(new Tuple<>(retrievedDocs, failures));
                 }, listener::onFailure));
         });
     }

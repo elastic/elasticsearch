@@ -69,10 +69,8 @@ public class ParsedTimeSeriesAggregation extends ParsedMultiBucketAggregation<Pa
             parser -> ParsedTimeSeriesAggregation.ParsedBucket.fromXContent(parser, false),
             parser -> ParsedTimeSeriesAggregation.ParsedBucket.fromXContent(parser, true)
         );
-        PARSER.declareLong((parsedTerms, value) -> parsedTerms.docCountErrorUpperBound = value,
-            DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME);
-        PARSER.declareLong((parsedTerms, value) -> parsedTerms.sumOtherDocCount = value,
-            SUM_OF_OTHER_DOC_COUNTS);
+        PARSER.declareLong((parsedTerms, value) -> parsedTerms.docCountErrorUpperBound = value, DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME);
+        PARSER.declareLong((parsedTerms, value) -> parsedTerms.sumOtherDocCount = value, SUM_OF_OTHER_DOC_COUNTS);
     }
 
     protected long docCountErrorUpperBound;
@@ -158,8 +156,7 @@ public class ParsedTimeSeriesAggregation extends ParsedMultiBucketAggregation<Pa
             return builder;
         }
 
-        static ParsedTimeSeriesAggregation.ParsedBucket fromXContent(XContentParser parser, boolean keyed)
-            throws IOException {
+        static ParsedTimeSeriesAggregation.ParsedBucket fromXContent(XContentParser parser, boolean keyed) throws IOException {
             ParsedTimeSeriesAggregation.ParsedBucket bucket = new ParsedBucket();
             bucket.setKeyed(keyed);
             String currentFieldName = parser.currentName();
@@ -170,7 +167,7 @@ public class ParsedTimeSeriesAggregation extends ParsedMultiBucketAggregation<Pa
                 ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
             }
 
-            List<Aggregation> aggregations = new ArrayList();
+            List<Aggregation> aggregations = new ArrayList<>();
             while ((token = parser.nextToken()) != Token.END_OBJECT) {
                 if (token == Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
@@ -179,8 +176,7 @@ public class ParsedTimeSeriesAggregation extends ParsedMultiBucketAggregation<Pa
                         bucket.setKeyAsString(parser.text());
                     } else if (CommonFields.DOC_COUNT.getPreferredName().equals(currentFieldName)) {
                         bucket.setDocCount(parser.longValue());
-                    } else if (InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME.getPreferredName().equals(
-                        currentFieldName)) {
+                    } else if (InternalTerms.DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME.getPreferredName().equals(currentFieldName)) {
                         bucket.docCountError = parser.longValue();
                         bucket.showDocCountError = true;
                     } else if (CommonFields.VALUES.getPreferredName().equals(currentFieldName)) {

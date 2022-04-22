@@ -24,7 +24,7 @@ import org.elasticsearch.search.aggregations.timeseries.aggregation.function.Sum
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.ValueCountFunction;
 
 public class TimeSeriesAggregations {
-    public static AggregatorFunction getAggregatorFunction(TimeSeriesAggregation.Function function) {
+    public static AggregatorFunction<?, ?> getAggregatorFunction(TimeSeriesAggregation.Function function) {
         switch (function) {
             case avg:
                 return new AvgFunction();
@@ -42,7 +42,10 @@ public class TimeSeriesAggregations {
         return new AvgFunction();
     }
 
-    public static AggregatorBucketFunction getAggregatorBucketFunction(TimeSeriesAggregation.Aggregator aggregator, BigArrays bigArrays) {
+    public static AggregatorBucketFunction<?> getAggregatorBucketFunction(
+        TimeSeriesAggregation.Aggregator aggregator,
+        BigArrays bigArrays
+    ) {
         if (aggregator == null) {
             return new NoAggregatorBucketFunction();
         }

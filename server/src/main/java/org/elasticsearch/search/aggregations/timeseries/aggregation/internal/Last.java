@@ -8,11 +8,6 @@
 
 package org.elasticsearch.search.aggregations.timeseries.aggregation.internal;
 
-import java.io.IOException;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
@@ -21,6 +16,11 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 public class Last extends InternalNumericMetricsAggregation.SingleValue {
     public static final String NAME = "last";
@@ -88,10 +88,16 @@ public class Last extends InternalNumericMetricsAggregation.SingleValue {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) {return true;}
-        if (o == null || getClass() != o.getClass()) {return false;}
-        if (!super.equals(o)) {return false;}
-        Last last1 = (Last)o;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        if (!super.equals(o)) {
+            return false;
+        }
+        Last last1 = (Last) o;
         return Double.compare(last1.last, last) == 0 && timestamp == last1.timestamp;
     }
 

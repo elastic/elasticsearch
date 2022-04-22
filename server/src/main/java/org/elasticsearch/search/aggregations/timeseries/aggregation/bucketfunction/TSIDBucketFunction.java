@@ -19,7 +19,7 @@ import java.util.Map;
 
 /**
  * The function is used to aggregator time series lines in the coordinate reduce phase.
- * The _tsid may be exist in many indices, when the bucket ranges will flowout the range of the index,
+ * The _tsid may be exist in many indices, when the bucket ranges will overflow the range of the index,
  * it may be exist
  * e.g a index settings and query config is:<ul>
  * <li>time_series.start_time = 10
@@ -31,6 +31,7 @@ import java.util.Map;
  * can't compute in the datanode. the tsid bucket function gather all _tsid and the value, and aggregator
  * the result in the coordinate reduce phase.
  */
+@SuppressWarnings({ "unchecked", "rawtypes" })
 public class TSIDBucketFunction implements AggregatorBucketFunction<TSIDValue> {
     private Map<Long, Map<BytesRef, InternalAggregation>> values = new HashMap<>();
     private final AggregatorBucketFunction aggregatorBucketFunction;

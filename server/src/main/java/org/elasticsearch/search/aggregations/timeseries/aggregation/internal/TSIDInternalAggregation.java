@@ -18,6 +18,7 @@ import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggre
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation.SingleValue;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.TimeSeriesAggregation;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.TimeSeriesAggregations;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunction.TSIDBucketFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.AggregatorFunction;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -26,6 +27,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
 
+/**
+ * The tsid internal aggregation is used to aggregator the tsid values in the coordinate reduce phase.
+ * The {@link TSIDBucketFunction} collect the data, and this internal aggregation compute the reduce result.
+ */
+@SuppressWarnings({ "unchecked", "rawtypes" })
 public class TSIDInternalAggregation extends InternalAggregation {
     public static final String NAME = "tsid";
 
@@ -51,7 +57,6 @@ public class TSIDInternalAggregation extends InternalAggregation {
         formatter = in.readNamedWriteable(DocValueFormat.class);
         aggreagator = in.readString();
         values = in.readOrderedMap(StreamInput::readBytesRef, stream -> stream.readNamedWriteable(InternalAggregation.class));
-
     }
 
     @Override

@@ -19,10 +19,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.timeseries.aggregation.TimeSeriesAggregation;
-import org.elasticsearch.search.aggregations.timeseries.aggregation.TimeSeriesAggregation.Avg;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.TimeSeriesAggregation.Function;
-import org.elasticsearch.search.aggregations.timeseries.aggregation.TimeSeriesAggregation.ValueCount;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.TimeSeriesAggregationAggregator;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.AggregatorFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.AvgFunction;
@@ -34,6 +31,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+@SuppressWarnings({ "unchecked", "rawtypes" })
 public class AggregateMetricTimeSeriesAggregationAggregator extends TimeSeriesAggregationAggregator {
     private final AggregateMetricsValuesSource.AggregateDoubleMetric valuesSource;
 

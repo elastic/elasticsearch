@@ -533,10 +533,7 @@ public class TimeSeriesAggregationsIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("index")
             .setSize(0)
             .addAggregation(
-                timeSeriesAggregation("by_ts").field("metric_0")
-                    .interval(fixedInterval)
-                    .downsampleFunction("sum")
-                    .size(data.size())
+                timeSeriesAggregation("by_ts").field("metric_0").interval(fixedInterval).downsampleFunction("sum").size(data.size())
             )
             .get();
         Aggregations aggregations = response.getAggregations();
@@ -564,7 +561,7 @@ public class TimeSeriesAggregationsIT extends ESIntegTestCase {
                 assertTrue(bucket.getTimeBucketValues().containsKey(timestamp));
                 InternalAggregation aggregation = bucket.getTimeBucketValues().get(timestamp);
                 assertTrue(aggregation instanceof InternalNumericMetricsAggregation.SingleValue);
-                assertThat(((InternalNumericMetricsAggregation.SingleValue)aggregation).value(), closeTo(value, 0.0001d));
+                assertThat(((InternalNumericMetricsAggregation.SingleValue) aggregation).value(), closeTo(value, 0.0001d));
             });
         }
     }
@@ -637,7 +634,7 @@ public class TimeSeriesAggregationsIT extends ESIntegTestCase {
                 assertTrue(bucket.getTimeBucketValues().containsKey(timestamp));
                 InternalAggregation aggregation = bucket.getTimeBucketValues().get(timestamp);
                 assertTrue(aggregation instanceof InternalNumericMetricsAggregation.SingleValue);
-                assertThat(((InternalNumericMetricsAggregation.SingleValue)aggregation).value(), closeTo(metric, 0.0001d));
+                assertThat(((InternalNumericMetricsAggregation.SingleValue) aggregation).value(), closeTo(metric, 0.0001d));
             });
         }
     }

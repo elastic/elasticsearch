@@ -59,6 +59,7 @@ import java.util.Set;
 import static org.elasticsearch.search.DocValueFormat.TIME_SERIES_ID;
 import static org.elasticsearch.search.aggregations.InternalOrder.isKeyOrder;
 
+@SuppressWarnings({ "unchecked", "rawtypes" })
 public class TimeSeriesAggregationAggregator extends BucketsAggregator {
     private static final Logger logger = LogManager.getLogger(TimeSeriesAggregationAggregator.class);
 

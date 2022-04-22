@@ -26,33 +26,4 @@ public interface TimeSeriesAggregation extends MultiBucketsAggregation {
     List<? extends Bucket> getBuckets();
 
     Bucket getBucketByKey(String key);
-
-    class Downsample {
-        long range;
-        Function function;
-    }
-
-    enum Function {
-        count,
-        sum,
-        min,
-        max,
-        avg,
-        last;
-
-        public static Function resolve(String name) {
-            return Function.valueOf(name);
-        }
-    }
-
-    enum Aggregator {
-        sum,
-        min,
-        max,
-        avg;
-
-        public static Aggregator resolve(String name) {
-            return Aggregator.valueOf(name);
-        }
-    }
 }

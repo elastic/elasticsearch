@@ -94,7 +94,7 @@ public class Last extends InternalNumericMetricsAggregation.SingleValue {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        if (!super.equals(o)) {
+        if (false == super.equals(o)) {
             return false;
         }
         Last last1 = (Last) o;

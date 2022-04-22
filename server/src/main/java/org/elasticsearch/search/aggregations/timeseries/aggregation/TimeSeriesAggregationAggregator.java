@@ -39,7 +39,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.timeseries.aggregation.TimeSeriesAggregation.Function;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunction.AggregatorBucketFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunction.TSIDBucketFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.AggregatorFunction;
@@ -73,9 +72,9 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
     private Set<String> without;
     private long interval;
     private long offset;
-    private TimeSeriesAggregation.Aggregator aggregator;
+    private Function aggregator;
     private long downsampleRange;
-    protected TimeSeriesAggregation.Function downsampleFunction;
+    protected Function downsampleFunction;
     private BucketOrder order;
     private TermsAggregator.BucketCountThresholds bucketCountThresholds;
     protected Comparator<InternalTimeSeriesAggregation.InternalBucket> partiallyBuiltBucketComparator;
@@ -100,9 +99,8 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
         List<String> without,
         DateHistogramInterval interval,
         DateHistogramInterval offset,
-        String aggregator,
-        DateHistogramInterval downsampleRange,
-        String downsampleFunction,
+        Function aggregator,
+        Downsample downsample,
         TermsAggregator.BucketCountThresholds bucketCountThresholds,
         BucketOrder order,
         ValuesSourceConfig valuesSourceConfig,
@@ -123,9 +121,9 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
         }
         this.rounding = Rounding.builder(new TimeValue(this.interval)).build().prepareForUnknown();
         this.offset = offset != null ? offset.estimateMillis() : -1;
-        this.aggregator = aggregator != null ? TimeSeriesAggregation.Aggregator.resolve(aggregator) : null;
-        this.downsampleRange = downsampleRange != null ? downsampleRange.estimateMillis() : -1;
-        this.downsampleFunction = downsampleFunction != null ? TimeSeriesAggregation.Function.resolve(downsampleFunction) : Function.last;
+        this.aggregator = aggregator;
+        this.downsampleRange = downsample != null ? downsample.getRange().estimateMillis() : -1;
+        this.downsampleFunction = downsample != null ? downsample.getFunction() : Function.last;
         if (this.downsampleRange <= 0) {
             this.downsampleRange = this.interval;
         }
@@ -308,7 +306,7 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
     protected AggregatorFunction getAggregatorFunction() throws IOException {
         AggregatorFunction function = timeBucketMetrics.get(preRounding);
         if (function == null) {
-            function = TimeSeriesAggregations.getAggregatorFunction(downsampleFunction);
+            function = downsampleFunction.getAggregatorFunction();
             timeBucketMetrics.put(preRounding, function);
         }
         return function;
@@ -378,11 +376,11 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
         Map<String, Object> groupMap = new LinkedHashMap<>();
         tsidMap.forEach((key, value) -> {
             if (group.size() > 0) {
-                if (group.contains(key) && !without.contains(key)) {
+                if (group.contains(key) && false == without.contains(key)) {
                     groupMap.put(key, value);
                 }
             } else {
-                if (!without.contains(key)) {
+                if (false == without.contains(key)) {
                     groupMap.put(key, value);
                 }
             }
@@ -397,7 +395,7 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
         if (needGroupBy) {
             AggregatorBucketFunction aggregatorBucketFunction = aggregatorCollectors.get(bucketOrd);
             if (aggregatorBucketFunction == null) {
-                AggregatorBucketFunction internal = TimeSeriesAggregations.getAggregatorBucketFunction(aggregator, bigArrays());
+                AggregatorBucketFunction internal = aggregator.getAggregatorBucketFunction(bigArrays());
                 aggregatorBucketFunction = new TSIDBucketFunction(internal);
                 aggregatorCollectors.put(bucketOrd, aggregatorBucketFunction);
             }

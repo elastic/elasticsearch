@@ -19,7 +19,8 @@ import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInter
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.timeseries.aggregation.TimeSeriesAggregation.Function;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.Downsample;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.Function;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.TimeSeriesAggregationAggregator;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.AggregatorFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.AvgFunction;
@@ -43,9 +44,8 @@ public class AggregateMetricTimeSeriesAggregationAggregator extends TimeSeriesAg
         List<String> without,
         DateHistogramInterval interval,
         DateHistogramInterval offset,
-        String aggregator,
-        DateHistogramInterval downsampleRange,
-        String downsampleFunction,
+        Function aggregator,
+        Downsample downsample,
         BucketCountThresholds bucketCountThresholds,
         BucketOrder order,
         ValuesSourceConfig valuesSourceConfig,
@@ -63,8 +63,7 @@ public class AggregateMetricTimeSeriesAggregationAggregator extends TimeSeriesAg
             interval,
             offset,
             aggregator,
-            downsampleRange,
-            downsampleFunction,
+            downsample,
             bucketCountThresholds,
             order,
             null,

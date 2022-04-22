@@ -94,7 +94,7 @@ public class InternalTimeSeriesAggregation extends AbstractInternalTerms<Interna
             this.showDocCountError = showDocCountError;
             docCountError = -1;
             if (showDocCountError) {
-                docCountError = in.readLong();
+                // docCountError = in.readLong();
             }
             aggregations = InternalAggregations.readFrom(in);
         }
@@ -105,7 +105,8 @@ public class InternalTimeSeriesAggregation extends AbstractInternalTerms<Interna
             out.writeVLong(docCount);
             out.writeMap(timeBucketValues, StreamOutput::writeLong, StreamOutput::writeNamedWriteable);
             if (showDocCountError) {
-                out.writeLong(docCountError);
+                // TODO recover -Dtests.seed=142C4BE4C242FF8B
+                // out.writeLong(docCountError);
             }
             aggregations.writeTo(out);
         }

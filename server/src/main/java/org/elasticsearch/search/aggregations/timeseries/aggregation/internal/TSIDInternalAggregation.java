@@ -16,8 +16,7 @@ import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation.SingleValue;
-import org.elasticsearch.search.aggregations.timeseries.aggregation.TimeSeriesAggregation;
-import org.elasticsearch.search.aggregations.timeseries.aggregation.TimeSeriesAggregations;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.Function;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunction.TSIDBucketFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.AggregatorFunction;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -76,8 +75,8 @@ public class TSIDInternalAggregation extends InternalAggregation {
         if (aggregations.size() == 1) {
             TSIDInternalAggregation tsidAgg = (TSIDInternalAggregation) aggregations.get(0);
             if (reduceContext.isFinalReduce()) {
-                TimeSeriesAggregation.Function function = TimeSeriesAggregation.Function.valueOf(aggreagator);
-                final AggregatorFunction aggregatorFunction = TimeSeriesAggregations.getAggregatorFunction(function);
+                Function function = Function.valueOf(aggreagator);
+                final AggregatorFunction aggregatorFunction = function.getAggregatorFunction();
                 tsidAgg.values.forEach(
                     (tsid, agg) -> { aggregatorFunction.collect(((InternalNumericMetricsAggregation.SingleValue) agg).value()); }
                 );
@@ -100,8 +99,8 @@ public class TSIDInternalAggregation extends InternalAggregation {
         }
 
         if (reduceContext.isFinalReduce()) {
-            TimeSeriesAggregation.Function function = TimeSeriesAggregation.Function.valueOf(aggreagator);
-            final AggregatorFunction aggregatorFunction = TimeSeriesAggregations.getAggregatorFunction(function);
+            Function function = Function.valueOf(aggreagator);
+            final AggregatorFunction aggregatorFunction = function.getAggregatorFunction();
             reduced.forEach((tsid, aggs) -> {
                 if (aggs.size() > 0) {
                     InternalAggregation first = aggs.get(0);

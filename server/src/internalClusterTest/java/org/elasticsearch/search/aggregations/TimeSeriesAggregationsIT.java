@@ -32,6 +32,7 @@ import org.elasticsearch.search.aggregations.metrics.Stats;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.pipeline.SimpleValue;
 import org.elasticsearch.search.aggregations.timeseries.TimeSeries;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.Function;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.InternalTimeSeriesAggregation;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -533,7 +534,10 @@ public class TimeSeriesAggregationsIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("index")
             .setSize(0)
             .addAggregation(
-                timeSeriesAggregation("by_ts").field("metric_0").interval(fixedInterval).downsampleFunction("sum").size(data.size())
+                timeSeriesAggregation("by_ts").field("metric_0")
+                    .interval(fixedInterval)
+                    .downsample(fixedInterval, Function.sum)
+                    .size(data.size())
             )
             .get();
         Aggregations aggregations = response.getAggregations();
@@ -575,7 +579,7 @@ public class TimeSeriesAggregationsIT extends ESIntegTestCase {
                 timeSeriesAggregation("by_ts").field("metric_0")
                     .group(List.of("dim_0"))
                     .interval(fixedInterval)
-                    .downsampleFunction("max")
+                    .downsample(fixedInterval, Function.max)
                     .aggregator("sum")
                     .size(data.size())
             )

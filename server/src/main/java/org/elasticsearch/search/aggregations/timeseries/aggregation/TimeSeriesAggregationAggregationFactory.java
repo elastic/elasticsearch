@@ -34,9 +34,8 @@ public class TimeSeriesAggregationAggregationFactory extends ValuesSourceAggrega
     private final List<String> without;
     private final DateHistogramInterval interval;
     private final DateHistogramInterval offset;
-    private final String aggregator;
-    private final DateHistogramInterval downsampleRange;
-    private final String downsampleFunction;
+    private final Function aggregator;
+    private final Downsample downsample;
     private final TermsAggregator.BucketCountThresholds bucketCountThresholds;
     private final BucketOrder order;
     private final ValuesSourceConfig config;
@@ -49,9 +48,8 @@ public class TimeSeriesAggregationAggregationFactory extends ValuesSourceAggrega
         List<String> without,
         DateHistogramInterval interval,
         DateHistogramInterval offset,
-        String aggregator,
-        DateHistogramInterval downsampleRange,
-        String downsampleFunction,
+        Function aggregator,
+        Downsample downsample,
         TermsAggregator.BucketCountThresholds bucketCountThresholds,
         BucketOrder order,
         ValuesSourceConfig config,
@@ -68,8 +66,7 @@ public class TimeSeriesAggregationAggregationFactory extends ValuesSourceAggrega
         this.interval = interval;
         this.offset = offset;
         this.aggregator = aggregator;
-        this.downsampleRange = downsampleRange;
-        this.downsampleFunction = downsampleFunction;
+        this.downsample = downsample;
         this.bucketCountThresholds = bucketCountThresholds;
         this.order = order;
         this.config = config;
@@ -105,8 +102,7 @@ public class TimeSeriesAggregationAggregationFactory extends ValuesSourceAggrega
             interval,
             offset,
             aggregator,
-            downsampleRange,
-            downsampleFunction,
+            downsample,
             thresholds,
             order,
             config,
@@ -138,8 +134,7 @@ public class TimeSeriesAggregationAggregationFactory extends ValuesSourceAggrega
             interval,
             offset,
             aggregator,
-            downsampleRange,
-            downsampleFunction,
+            downsample,
             thresholds,
             order,
             config,

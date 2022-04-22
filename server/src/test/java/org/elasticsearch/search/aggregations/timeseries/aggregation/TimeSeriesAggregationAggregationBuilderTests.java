@@ -45,7 +45,7 @@ public class TimeSeriesAggregationAggregationBuilderTests extends AbstractSerial
 
     @Override
     protected TimeSeriesAggregationAggregationBuilder createTestInstance() {
-        return new TimeSeriesAggregationAggregationBuilder(randomAlphaOfLength(10));
+        return new TimeSeriesAggregationAggregationBuilder(randomAlphaOfLength(10)).field(randomAlphaOfLength(5));
     }
 
     @Override

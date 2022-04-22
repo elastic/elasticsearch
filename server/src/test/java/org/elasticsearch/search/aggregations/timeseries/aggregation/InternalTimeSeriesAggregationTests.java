@@ -30,7 +30,11 @@ public class InternalTimeSeriesAggregationTests extends InternalMultiBucketAggre
     }
 
     @Override
-    protected InternalTimeSeriesAggregation createTestInstance(String name, Map metadata, InternalAggregations aggregations) {
+    protected InternalTimeSeriesAggregation createTestInstance(
+        String name,
+        Map<String, Object> metadata,
+        InternalAggregations aggregations
+    ) {
         BucketOrder order = BucketOrder.count(false);
         long minDocCount = 1;
         int requiredSize = 3;

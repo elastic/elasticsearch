@@ -44,8 +44,6 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
     public static final ParseField OFFSET_FIELD = new ParseField("offset");
     public static final ParseField AGGREGATOR_FIELD = new ParseField("aggregator");
     public static final ParseField DOWNSAMPLE_FIELD = new ParseField("downsample");
-    public static final ParseField DOWNSAMPLE_RANGE_FIELD = new ParseField("range");
-    public static final ParseField DOWNSAMPLE_FUNCTION_FIELD = new ParseField("function");
     public static final ParseField ORDER_FIELD = new ParseField("order");
     public static final ParseField SIZE_FIELD = new ParseField("size");
     public static final ParseField SHARD_SIZE_FIELD = new ParseField("shard_size");
@@ -75,12 +73,11 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
     private DateHistogramInterval interval;
     private DateHistogramInterval offset;
     private String aggregator;
-    private DateHistogramInterval downsampleRange;
-    private String downsampleFunction;
+    private Downsample downsample;
     private TermsAggregator.BucketCountThresholds bucketCountThresholds = new TermsAggregator.BucketCountThresholds(
         DEFAULT_BUCKET_COUNT_THRESHOLDS
     );
-    private BucketOrder order = BucketOrder.compound(BucketOrder.key(true));
+    private BucketOrder order = BucketOrder.key(true);
 
     static {
         ValuesSourceAggregationBuilder.declareFields(PARSER, false, true, false);
@@ -103,13 +100,7 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
         PARSER.declareStringArray(TimeSeriesAggregationAggregationBuilder::group, GROUP_FIELD);
         PARSER.declareStringArray(TimeSeriesAggregationAggregationBuilder::without, WITHOUT_FIELD);
         PARSER.declareString(TimeSeriesAggregationAggregationBuilder::aggregator, AGGREGATOR_FIELD);
-        PARSER.declareField(
-            TimeSeriesAggregationAggregationBuilder::downsampleRange,
-            p -> new DateHistogramInterval(p.text()),
-            DOWNSAMPLE_RANGE_FIELD,
-            ObjectParser.ValueType.STRING
-        );
-        PARSER.declareString(TimeSeriesAggregationAggregationBuilder::downsampleFunction, DOWNSAMPLE_FUNCTION_FIELD);
+        PARSER.declareObject(TimeSeriesAggregationAggregationBuilder::downsample, (p, c) -> Downsample.fromXContent(p), DOWNSAMPLE_FIELD);
         PARSER.declareObjectArray(
             TimeSeriesAggregationAggregationBuilder::order,
             (p, c) -> InternalOrder.Parser.parseOrderParam(p),
@@ -137,8 +128,8 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
         this.interval = clone.interval;
         this.offset = clone.offset;
         this.aggregator = clone.aggregator;
-        this.downsampleRange = clone.downsampleRange;
-        this.downsampleFunction = clone.downsampleFunction;
+        this.downsample = clone.downsample;
+        this.order = clone.order;
         this.bucketCountThresholds = clone.bucketCountThresholds;
     }
 
@@ -150,8 +141,7 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
         interval = in.readOptionalWriteable(DateHistogramInterval::new);
         offset = in.readOptionalWriteable(DateHistogramInterval::new);
         aggregator = in.readOptionalString();
-        downsampleRange = in.readOptionalWriteable(DateHistogramInterval::new);
-        downsampleFunction = in.readOptionalString();
+        downsample = in.readOptionalWriteable(Downsample::new);
         order = InternalOrder.Streams.readOrder(in);
         bucketCountThresholds = new TermsAggregator.BucketCountThresholds(in);
     }
@@ -164,8 +154,7 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
         out.writeOptionalWriteable(interval);
         out.writeOptionalWriteable(offset);
         out.writeOptionalString(aggregator);
-        out.writeOptionalWriteable(downsampleRange);
-        out.writeOptionalString(downsampleFunction);
+        out.writeOptionalWriteable(downsample);
         order.writeTo(out);
         bucketCountThresholds.writeTo(out);
     }
@@ -199,9 +188,8 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
             without,
             interval,
             offset,
-            aggregator,
-            downsampleRange,
-            downsampleFunction,
+            aggregator != null ? Function.resolve(aggregator) : null,
+            downsample,
             bucketCountThresholds,
             order,
             config,
@@ -231,24 +219,9 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
         if (aggregator != null) {
             builder.field(AGGREGATOR_FIELD.getPreferredName(), aggregator);
         }
-        if (downsampleRange != null) {
-            builder.field(DOWNSAMPLE_RANGE_FIELD.getPreferredName(), downsampleRange.toString());
+        if (downsample != null) {
+            builder.field(DOWNSAMPLE_FIELD.getPreferredName(), downsample);
         }
-        if (downsampleFunction != null) {
-            builder.field(DOWNSAMPLE_FUNCTION_FIELD.getPreferredName(), downsampleFunction);
-        }
-
-        // if (downsampleRange != null || downsampleFunction != null) {
-        // Map<String, String> downsample = new HashMap<>();
-        // if (downsampleRange != null) {
-        // downsample.put(DOWNSAMPLE_RANGE_FIELD.getPreferredName(), downsampleRange.toString());
-        // }
-        // if (downsampleFunction != null) {
-        // downsample.put(DOWNSAMPLE_FUNCTION_FIELD.getPreferredName(), downsampleFunction);
-        // }
-        // builder.field(DOWNSAMPLE_FIELD.getPreferredName(), downsample);
-        // }
-
         bucketCountThresholds.toXContent(builder, params);
         builder.field(ORDER_FIELD.getPreferredName());
         order.toXContent(builder, params);
@@ -361,36 +334,6 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
      */
     public TimeSeriesAggregationAggregationBuilder aggregator(String aggregator) {
         this.aggregator = aggregator;
-        return this;
-    }
-
-    /**
-     * Returns the downsample range value
-     */
-    public DateHistogramInterval getDownsampleRange() {
-        return downsampleRange;
-    }
-
-    /**
-     * Set the downsample range interval, if downsample range not set, the downsample range value is replace by interval
-     */
-    public TimeSeriesAggregationAggregationBuilder downsampleRange(DateHistogramInterval downsampleRange) {
-        this.downsampleRange = downsampleRange;
-        return this;
-    }
-
-    /**
-     * Returns the downsample function
-     */
-    public String getDownsampleFunction() {
-        return downsampleFunction;
-    }
-
-    /**
-     * Sets the downsample function
-     */
-    public TimeSeriesAggregationAggregationBuilder downsampleFunction(String downsampleFunction) {
-        this.downsampleFunction = downsampleFunction;
         return this;
     }
 
@@ -512,6 +455,29 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
         return order;
     }
 
+    /**
+     * Returns the downsample value
+     */
+    public Downsample getDownsample() {
+        return downsample;
+    }
+
+    /**
+     * Sets the downsample value
+     */
+    public TimeSeriesAggregationAggregationBuilder downsample(Downsample downsample) {
+        this.downsample = downsample;
+        return this;
+    }
+
+    /**
+     * Sets the downsample value
+     */
+    public TimeSeriesAggregationAggregationBuilder downsample(DateHistogramInterval range, Function function) {
+        this.downsample = new Downsample(range, function);
+        return this;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {
@@ -520,7 +486,7 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        if (!super.equals(o)) {
+        if (false == super.equals(o)) {
             return false;
         }
         TimeSeriesAggregationAggregationBuilder that = (TimeSeriesAggregationAggregationBuilder) o;
@@ -530,8 +496,7 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
             && Objects.equals(interval, that.interval)
             && Objects.equals(offset, that.offset)
             && Objects.equals(aggregator, that.aggregator)
-            && Objects.equals(downsampleRange, that.downsampleRange)
-            && Objects.equals(downsampleFunction, that.downsampleFunction)
+            && Objects.equals(downsample, that.downsample)
             && Objects.equals(bucketCountThresholds, that.bucketCountThresholds)
             && Objects.equals(order, that.order);
     }
@@ -546,8 +511,7 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
             interval,
             offset,
             aggregator,
-            downsampleRange,
-            downsampleFunction,
+            downsample,
             bucketCountThresholds,
             order
         );

@@ -332,7 +332,7 @@ public class ProfileService {
         ActionListener<Tuple<Map<String, VersionedDocument>, ElasticsearchException>> listener
     ) {
         tryFreezeAndCheckIndex(listener).ifPresent(frozenProfileIndex -> {
-            new OriginSettingClient(client, SECURITY_ORIGIN).prepareMultiGet()
+            new OriginSettingClient(client, SECURITY_PROFILE_ORIGIN).prepareMultiGet()
                 .addIds(SECURITY_PROFILE_ALIAS, uids.stream().map(ProfileService::uidToDocId).collect(Collectors.toList()))
                 .execute(ActionListener.wrap(multiGetResponse -> {
                     Map<String, VersionedDocument> retrievedDocs = new HashMap<>(uids.size());

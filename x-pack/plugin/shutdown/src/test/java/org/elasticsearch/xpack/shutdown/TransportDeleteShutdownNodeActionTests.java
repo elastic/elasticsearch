@@ -10,7 +10,8 @@ package org.elasticsearch.xpack.shutdown;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterStateTaskConfig;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor.TaskContext;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
@@ -19,9 +20,14 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.shutdown.TransportDeleteShutdownNodeAction.DeleteShutdownNodeExecutor;
+import org.elasticsearch.xpack.shutdown.TransportDeleteShutdownNodeAction.DeleteShutdownNodeTask;
 import org.junit.Before;
 import org.mockito.ArgumentCaptor;
+import org.mockito.Mock;
+import org.mockito.MockitoAnnotations;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.NodesShutdownMetadata.TYPE;
@@ -29,13 +35,19 @@ import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class TransportDeleteShutdownNodeActionTests extends ESTestCase {
     private ClusterService clusterService;
     private TransportDeleteShutdownNodeAction action;
 
+    // must use member mock for generic
+    @Mock
+    private TaskContext<DeleteShutdownNodeTask> taskContext;
+
     @Before
     public void init() {
+        MockitoAnnotations.openMocks(this);
         // TODO: it takes almost 2 seconds to create these mocks....WHY?!?
         var threadPool = mock(ThreadPool.class);
         var transportService = mock(TransportService.class);
@@ -59,9 +71,12 @@ public class TransportDeleteShutdownNodeActionTests extends ESTestCase {
 
         var request = new DeleteShutdownNodeAction.Request("node1");
         action.masterOperation(null, request, clusterStateWithShutdown, ActionListener.noop());
-        var updateTaskCapture = ArgumentCaptor.forClass(ClusterStateUpdateTask.class);
-        verify(clusterService).submitStateUpdateTask(any(), updateTaskCapture.capture(), any());
-        ClusterState gotState = updateTaskCapture.getValue().execute(ClusterState.EMPTY_STATE);
+        var updateTask = ArgumentCaptor.forClass(DeleteShutdownNodeTask.class);
+        var taskConfig = ArgumentCaptor.forClass(ClusterStateTaskConfig.class);
+        var taskExecutor = ArgumentCaptor.forClass(DeleteShutdownNodeExecutor.class);
+        verify(clusterService).submitStateUpdateTask(any(), updateTask.capture(), taskConfig.capture(), taskExecutor.capture());
+        when(taskContext.getTask()).thenReturn(updateTask.getValue());
+        ClusterState gotState = taskExecutor.getValue().execute(ClusterState.EMPTY_STATE, List.of(taskContext));
         assertThat(gotState, sameInstance(ClusterState.EMPTY_STATE));
     }
 }

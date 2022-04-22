@@ -125,6 +125,7 @@ import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesReques
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.DefaultAuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
@@ -1697,10 +1698,15 @@ public class AuthorizationServiceTests extends ESTestCase {
         final String requestId = AuditUtil.getOrGenerateRequestId(threadContext);
         AuthenticateRequest request = new AuthenticateRequest("run as me");
         roleMap.put("superuser", ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR);
-        User user = new User("run as me", Strings.EMPTY_ARRAY, new User("test user", new String[] { "superuser" }));
-        Authentication authentication = new Authentication(user, new RealmRef("foo", "bar", "baz"), null);
+        final User authUser = new User("test user", "superuser");
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .realm()
+            .user(authUser)
+            .realmRef(new RealmRef("foo", "bar", "baz"))
+            .build(false)
+            .runAs(new User("run as me", Strings.EMPTY_ARRAY), null);
         authentication.writeToContext(threadContext);
-        assertNotEquals(user.authenticatedUser(), user);
+        assertNotEquals(authUser, authentication.getUser());
         assertThrowsAuthorizationExceptionRunAsDenied(
             () -> authorize(authentication, AuthenticateAction.NAME, request),
             AuthenticateAction.NAME,
@@ -2505,8 +2511,26 @@ public class AuthorizationServiceTests extends ESTestCase {
     private static class MockCompositeIndicesRequest extends TransportRequest implements CompositeIndicesRequest {}
 
     private Authentication createAuthentication(User user) {
-        RealmRef lookedUpBy = user.authenticatedUser() == user ? null : new RealmRef("looked", "up", "by");
-        Authentication authentication = new Authentication(user, new RealmRef("test", "test", "foo"), lookedUpBy);
+        final Authentication authentication;
+        if (User.isInternal(user)) {
+            authentication = AuthenticationTestHelper.builder().internal(user).build();
+        } else if (user instanceof AnonymousUser) {
+            authentication = AuthenticationTestHelper.builder().anonymous(user).build(false);
+        } else {
+            RealmRef lookedUpBy = user.authenticatedUser() == user ? null : new RealmRef("looked", "up", "by");
+
+            if (lookedUpBy == null) {
+                authentication = AuthenticationTestHelper.builder().user(user).realmRef(new RealmRef("test", "test", "foo")).build(false);
+            } else {
+                authentication = AuthenticationTestHelper.builder()
+                    .user(user.authenticatedUser())
+                    .realmRef(new RealmRef("test", "test", "foo"))
+                    .runAs()
+                    .user(new User(user.principal(), user.roles(), user.fullName(), user.email(), user.metadata(), user.enabled()))
+                    .realmRef(lookedUpBy)
+                    .build();
+            }
+        }
         try {
             authentication.writeToContext(threadContext);
         } catch (IOException e) {

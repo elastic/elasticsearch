@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.core.security.authz.store.RolesRetrievalResult;
 import org.elasticsearch.xpack.core.security.support.CacheIteratorHelper;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
+import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
@@ -104,6 +105,7 @@ public class CompositeRolesStore {
     private final RoleDescriptorStore roleReferenceResolver;
     private final Role superuserRole;
     private final Role xpackSecurityRole;
+    private final Role securityProfileRole;
     private final Role xpackUserRole;
     private final Role asyncSearchUserRole;
     private final RestrictedIndices restrictedIndices;
@@ -154,6 +156,7 @@ public class CompositeRolesStore {
         this.superuserRole = Role.builder(ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR, fieldPermissionsCache, this.restrictedIndices)
             .build();
         xpackSecurityRole = Role.builder(XPackSecurityUser.ROLE_DESCRIPTOR, fieldPermissionsCache, this.restrictedIndices).build();
+        securityProfileRole = Role.builder(SecurityProfileUser.ROLE_DESCRIPTOR, fieldPermissionsCache, this.restrictedIndices).build();
         xpackUserRole = Role.builder(XPackUser.ROLE_DESCRIPTOR, fieldPermissionsCache, this.restrictedIndices).build();
         asyncSearchUserRole = Role.builder(AsyncSearchUser.ROLE_DESCRIPTOR, fieldPermissionsCache, this.restrictedIndices).build();
 
@@ -219,6 +222,9 @@ public class CompositeRolesStore {
         }
         if (XPackSecurityUser.is(user)) {
             return xpackSecurityRole;
+        }
+        if (SecurityProfileUser.is(user)) {
+            return securityProfileRole;
         }
         if (AsyncSearchUser.is(user)) {
             return asyncSearchUserRole;
@@ -364,7 +370,8 @@ public class CompositeRolesStore {
         );
     }
 
-    private static Optional<RoleDescriptor> tryGetRoleDescriptorForInternalUser(Subject subject) {
+    // Package private for testing
+    static Optional<RoleDescriptor> tryGetRoleDescriptorForInternalUser(Subject subject) {
         final User user = subject.getUser();
         if (SystemUser.is(user)) {
             throw new IllegalArgumentException(
@@ -376,6 +383,9 @@ public class CompositeRolesStore {
         }
         if (XPackSecurityUser.is(user)) {
             return Optional.of(XPackSecurityUser.ROLE_DESCRIPTOR);
+        }
+        if (SecurityProfileUser.is(user)) {
+            return Optional.of(SecurityProfileUser.ROLE_DESCRIPTOR);
         }
         if (AsyncSearchUser.is(user)) {
             return Optional.of(AsyncSearchUser.ROLE_DESCRIPTOR);

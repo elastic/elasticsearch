@@ -25,12 +25,8 @@ import java.io.IOException;
 import java.lang.invoke.MethodHandle;
 import java.lang.invoke.MethodHandles;
 import java.lang.invoke.VarHandle;
-import java.lang.module.ModuleReference;
-import java.lang.module.ResolvedModule;
 import java.lang.reflect.Field;
-import java.net.MalformedURLException;
 import java.net.SocketPermission;
-import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.AccessMode;
@@ -46,11 +42,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.lang.invoke.MethodType.methodType;
 import static org.elasticsearch.bootstrap.FilePermissionUtils.addDirectoryPath;
@@ -111,26 +104,6 @@ final class Security {
         System.setSecurityManager(sm);
     }
 
-    private static URL toURL(URI uri) {
-        try {
-            return uri.toURL();
-        } catch (MalformedURLException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private static Stream<URL> parseModulePath() {
-        return ModuleLayer.boot()
-            .configuration()
-            .modules()
-            .stream()
-            .map(ResolvedModule::reference)
-            .map(ModuleReference::location)
-            .flatMap(Optional::stream)
-            .map(Security::toURL)
-            .filter(url -> url.getProtocol().equals("file"));
-    }
-
     /**
      * Initializes SecurityManager for the environment
      * Can only happen once!
@@ -140,10 +113,8 @@ final class Security {
     static void configure(Environment environment, boolean filterBadDefaults) throws IOException, NoSuchAlgorithmException {
 
         // enable security policy: union of template and environment-based paths, and possibly plugin permissions
-        Set<URL> cp = JarHell.parseClassPath();
-        Stream<URL> mp = parseModulePath();
-        Set<URL> all = Stream.concat(cp.stream(), mp).collect(Collectors.toSet());
-        Map<String, URL> codebases = PolicyUtil.getCodebaseJarMap(all);
+        Set<URL> systemLoaderURLs = JarHell.parseModulesAndClassPath();
+        Map<String, URL> codebases = PolicyUtil.getCodebaseJarMap(systemLoaderURLs);
         Policy.setPolicy(
             new ESPolicy(
                 codebases,

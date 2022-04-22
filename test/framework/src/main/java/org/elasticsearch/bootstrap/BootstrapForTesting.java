@@ -204,6 +204,8 @@ public class BootstrapForTesting {
         addClassCodebase(codebases, "elasticsearch-core", "org.elasticsearch.core.Booleans");
         addClassCodebase(codebases, "elasticsearch-x-content", "org.elasticsearch.xcontent.XContent");
         addClassCodebase(codebases, "elasticsearch-cli", "org.elasticsearch.cli.Command");
+        // test codebases
+        addClassCodebase(codebases, "elasticsearch-core-test", "org.elasticsearch.jdk.JarHellTests");
         return codebases;
     }
 

@@ -490,9 +490,10 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         Map<String, Tuple<Plugin, LayerAndLoader>> loaded = new HashMap<>();
         Map<String, Set<URL>> transitiveUrls = new HashMap<>();
         List<Bundle> sortedBundles = sortBundles(bundles);
+        Set<URL> systemLoaderURLs = JarHell.parseModulesAndClassPath();
         for (Bundle bundle : sortedBundles) {
             if (bundle.plugin.getType() != PluginType.BOOTSTRAP) {
-                checkBundleJarHell(JarHell.parseClassPath(), bundle, transitiveUrls);
+                checkBundleJarHell(systemLoaderURLs, bundle, transitiveUrls);
 
                 final Plugin plugin = loadBundle(bundle, loaded);
                 plugins.add(new Tuple<>(bundle.plugin, plugin));
@@ -597,7 +598,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     // jar-hell check the bundle against the parent classloader and extended plugins
     // the plugin cli does it, but we do it again, in case users mess with jar files manually
-    public static void checkBundleJarHell(Set<URL> classpath, Bundle bundle, Map<String, Set<URL>> transitiveUrls) {
+    public static void checkBundleJarHell(Set<URL> systemLoaderURLs, Bundle bundle, Map<String, Set<URL>> transitiveUrls) {
         // invariant: any plugins this plugin bundle extends have already been added to transitiveUrls
         List<String> exts = bundle.plugin.getExtendedPlugins();
 
@@ -642,13 +643,13 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             transitiveUrls.put(bundle.plugin.getName(), extendedPluginUrls);
 
             // check we don't have conflicting codebases with core
-            Set<URL> intersection = new HashSet<>(classpath);
+            Set<URL> intersection = new HashSet<>(systemLoaderURLs);
             intersection.retainAll(bundle.allUrls);
             if (intersection.isEmpty() == false) {
                 throw new IllegalStateException("jar hell! duplicate codebases between plugin and core: " + intersection);
             }
             // check we don't have conflicting classes
-            Set<URL> union = new HashSet<>(classpath);
+            Set<URL> union = new HashSet<>(systemLoaderURLs);
             union.addAll(bundle.allUrls);
             JarHell.checkJarHell(union, logger::debug);
         } catch (final IllegalStateException ise) {

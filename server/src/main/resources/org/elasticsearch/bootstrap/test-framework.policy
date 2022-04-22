@@ -115,3 +115,8 @@ grant codeBase "${codebase.netty-transport}" {
 grant {
   permission java.net.SocketPermission "127.0.0.1", "connect, resolve";
 };
+
+grant codeBase "${codebase.elasticsearch-core-test}" {
+  permission java.lang.RuntimePermission "createClassLoader";
+  permission java.lang.RuntimePermission "getClassLoader";
+};

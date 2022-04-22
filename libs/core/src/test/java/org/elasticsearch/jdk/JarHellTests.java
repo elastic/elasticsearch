@@ -14,10 +14,13 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.lang.Runtime.Version;
+import java.lang.module.ModuleFinder;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -25,11 +28,14 @@ import java.util.Set;
 import java.util.jar.Attributes;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
+import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItems;
 
 public class JarHellTests extends ESTestCase {
 
@@ -112,6 +118,27 @@ public class JarHellTests extends ESTestCase {
             assertTrue(e.getMessage().contains("foo.jar"));
             assertTrue(e.getMessage().contains(dir2.toString()));
         }
+    }
+
+    public void testNonJDKModuleURLs() throws Throwable {
+        Path dir = createTempDir();
+        Path jar = PathUtils.get(makeJar(dir, "foo.jar", null, "p/Foo.class").toURI());
+        var bootLayer = ModuleLayer.boot();
+        var configuration = bootLayer.configuration().resolve(ModuleFinder.of(), ModuleFinder.of(jar), List.of("foo"));
+        PrivilegedAction<ModuleLayer> pa = () -> bootLayer.defineModulesWithOneLoader(configuration, JarHellTests.class.getClassLoader());
+        var fooLayer = AccessController.doPrivileged(pa);
+        Set<URL> urls = JarHell.nonJDKModuleURLs(fooLayer).collect(Collectors.toSet());
+        assertThat(urls.size(), equalTo(1));
+        assertThat(urls.stream().findFirst().get().toString(), endsWith("foo.jar"));
+
+        Path barDir = createTempDir();
+        Path barJar = PathUtils.get(makeJar(barDir, "bar.jar", null, "q/Bar.class").toURI());
+        var barConfiguration = fooLayer.configuration().resolve(ModuleFinder.of(), ModuleFinder.of(barJar), List.of("bar"));
+        pa = () -> fooLayer.defineModulesWithOneLoader(barConfiguration, fooLayer.findModule("foo").get().getClassLoader());
+        var barLayer = AccessController.doPrivileged(pa);
+        urls = JarHell.nonJDKModuleURLs(barLayer).collect(Collectors.toSet());
+        assertThat(urls.size(), equalTo(2));
+        assertThat(urls.stream().map(URL::toString).toList(), hasItems(endsWith("foo.jar"), endsWith("bar.jar")));
     }
 
     public void testWithinSingleJar() throws Exception {

@@ -1,7 +1,7 @@
 pr: 86103
 summary: Forward port MDP deprecation info api
 area: Infra/Core
-type: deprecation
+type: bug
 issues: []
 deprecation:
   title: Forward port MDP deprecation info api

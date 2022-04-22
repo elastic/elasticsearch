@@ -23,6 +23,8 @@ import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.TaskAction;
+import org.objectweb.asm.ClassReader;
+import org.objectweb.asm.tree.ClassNode;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -33,7 +35,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
-
 import javax.inject.Inject;
 
 public abstract class GeneratePluginPropertiesTask extends DefaultTask {
@@ -130,25 +131,12 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
             return "";
         }
         Path moduleInfoSource = getModuleInfoFile().getSingleFile().toPath();
-        String moduleName = null;
-        try (var reader = Files.newBufferedReader(moduleInfoSource, StandardCharsets.UTF_8)) {
-            String line;
-            while ((line = reader.readLine()) != null) {
-                if (line.startsWith("module")) {
-                    // This is a simple and hacky way to extract the module name from the module declaration.
-                    // We could properly parse the entire file, but the module keyword is unique in the file, and
-                    // the module name is guaranteed to not have spaces, so this is much simpler and quicker.
-                    moduleName = line.split(" ")[1];
-                    break;
-                }
-            }
+        ClassNode visitor = new ClassNode();
+        try (var inputStream = Files.newInputStream(moduleInfoSource)) {
+            new ClassReader(inputStream).accept(visitor, 0);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-        if (moduleName == null) {
-            throw new RuntimeException("Module name missing in " + moduleInfoSource);
-        }
-
-        return moduleName;
+        return visitor.module.name;
     }
 }

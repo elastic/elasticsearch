@@ -135,7 +135,7 @@ public class PluginBuildPlugin implements Plugin<Project> {
             task.getIsLicensed().set(providerFactory.provider(extension::isLicensed));
 
             var mainSourceSet = project.getExtensions().getByType(SourceSetContainer.class).getByName(SourceSet.MAIN_SOURCE_SET_NAME);
-            FileCollection moduleInfoFile = mainSourceSet.getJava().matching(pattern -> pattern.include("module-info.java"));
+            FileCollection moduleInfoFile = mainSourceSet.getOutput().getAsFileTree().matching(p -> p.include("module-info.class"));
             task.getModuleInfoFile().setFrom(moduleInfoFile);
         });
         // add the plugin properties and metadata to test resources, so unit tests can

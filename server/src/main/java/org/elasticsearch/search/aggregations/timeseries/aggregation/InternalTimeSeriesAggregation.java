@@ -8,6 +8,8 @@
 
 package org.elasticsearch.search.aggregations.timeseries.aggregation;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
@@ -37,6 +39,8 @@ import static org.elasticsearch.search.aggregations.bucket.terms.InternalTerms.S
 public class InternalTimeSeriesAggregation extends AbstractInternalTerms<InternalTimeSeriesAggregation, InternalBucket>
     implements
         TimeSeriesAggregation {
+
+    private static final Logger logger = LogManager.getLogger(InternalTimeSeriesAggregation.class);
 
     private static final ObjectParser<ParsedTimeSeriesAggregation, Void> PARSER = new ObjectParser<>(
         ParsedTimeSeriesAggregation.class.getSimpleName(),
@@ -417,6 +421,20 @@ public class InternalTimeSeriesAggregation extends AbstractInternalTerms<Interna
     @Override
     protected int getRequiredSize() {
         return requiredSize;
+    }
+
+    @Override
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
+        long startTime = System.currentTimeMillis();
+        InternalAggregation reduce = super.reduce(aggregations, reduceContext);
+        if (logger.isTraceEnabled()) {
+            logger.trace(
+                "time series reduce the current aggregations, isFinal [{}], cost [{}]",
+                reduceContext.isFinalReduce(),
+                (System.currentTimeMillis() - startTime)
+            );
+        }
+        return reduce;
     }
 
     @Override

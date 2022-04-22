@@ -65,8 +65,6 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
     protected BytesKeyedBucketOrds bucketOrds;
     private LongKeyedBucketOrds timestampOrds;
     private ValuesSource.Numeric valuesSource;
-    private Map<Long, Map<Long, InternalAggregation>> groupBucketValues; // TODO replace map
-    private Map<Long, AggregatorBucketFunction> aggregatorCollectors; // TODO replace map
 
     private boolean keyed;
 
@@ -89,6 +87,8 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
     private Rounding.Prepared rounding;
     private boolean needGroupBy;
     private Map<Long, AggregatorFunction> timeBucketMetrics; // TODO replace map
+    private Map<Long, Map<Long, InternalAggregation>> groupBucketValues; // TODO replace map
+    private Map<Long, AggregatorBucketFunction> aggregatorCollectors; // TODO replace map
 
     @SuppressWarnings("unchecked")
     public TimeSeriesAggregationAggregator(
@@ -245,19 +245,19 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
         final SortedNumericDoubleValues values;
         final AggregationExecutionContext aggCtx;
         final LeafBucketCollector sub;
-        final CheckedConsumer<Integer, IOException> consumer;
+        final CheckedConsumer<Integer, IOException> docConsumer;
 
         public Collector(
             LeafBucketCollector sub,
             SortedNumericDoubleValues values,
             AggregationExecutionContext aggCtx,
-            CheckedConsumer<Integer, IOException> consumer
+            CheckedConsumer<Integer, IOException> docConsumer
         ) {
             super(sub, values);
             this.sub = sub;
             this.values = values;
             this.aggCtx = aggCtx;
-            this.consumer = consumer;
+            this.docConsumer = docConsumer;
         }
 
         @Override
@@ -274,7 +274,9 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
             if (preRounding < 0 || aggCtx.getTimestamp() <= preRounding - interval) {
                 preRounding = rounding.nextRoundingValue(aggCtx.getTimestamp());
             }
-            consumer.accept(doc);
+
+            // calculate the value of the current doc
+            docConsumer.accept(doc);
             collectBucket(sub, doc, preBucketOrdinal);
         }
 
@@ -299,6 +301,9 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
         throw new UnsupportedOperationException("Shouldn't be here");
     }
 
+    /**
+     * get the downsample function of the current rouding
+     */
     protected AggregatorFunction getAggregatorFunction() throws IOException {
         AggregatorFunction function = timeBucketMetrics.get(preRounding);
         if (function == null) {
@@ -332,6 +337,9 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
 
     @Override
     protected void doPostCollection() throws IOException {
+        /**
+         * collect the last tsid
+         */
         if (timeBucketMetrics != null && timeBucketMetrics.size() > 0) {
             collectTimeSeriesValues(preBucketOrdinal);
         }
@@ -361,6 +369,9 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
         );
     }
 
+    /**
+     * decode the tsid and pack the bucket key from the group and without config
+     */
     private BytesRef packKey(BytesRef tsid) {
         Map<String, Object> tsidMap = TimeSeriesIdFieldMapper.decodeTsid(tsid);
         Map<String, Object> groupMap = new LinkedHashMap<>();
@@ -378,6 +389,9 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
         return TIME_SERIES_ID.parseBytesRef(groupMap);
     }
 
+    /**
+     * collect the value of one time series line
+     */
     public void collectTimeSeriesValues(long bucketOrd) throws IOException {
         if (needGroupBy) {
             AggregatorBucketFunction aggregatorBucketFunction = aggregatorCollectors.get(bucketOrd);
@@ -390,13 +404,15 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
             for (Entry<Long, AggregatorFunction> entry : timeBucketMetrics.entrySet()) {
                 Long timestamp = entry.getKey();
                 AggregatorFunction value = entry.getValue();
-                logger.info(
-                    "collect time_series, time={}, value={}, tsid={}, hashcode={}",
-                    timestamp,
-                    value.get(),
-                    TimeSeriesIdFieldMapper.decodeTsid(preTsid),
-                    this.hashCode()
-                );
+                if (logger.isTraceEnabled()) {
+                    logger.trace(
+                        "collect time_series, time={}, value={}, tsid={}, hashcode={}",
+                        timestamp,
+                        value.get(),
+                        TimeSeriesIdFieldMapper.decodeTsid(preTsid),
+                        this.hashCode()
+                    );
+                }
 
                 long ord = timestampOrds.add(bucketOrd, timestamp);
                 if (ord < 0) { // already seen

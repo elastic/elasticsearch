@@ -275,72 +275,120 @@ public class TimeSeriesAggregationAggregationBuilder extends ValuesSourceAggrega
         return true;
     }
 
+    /**
+     * Returns the keyed value
+     */
     public boolean isKeyed() {
         return keyed;
     }
 
+    /**
+     * Sets if keyed for the results.
+     */
     public void setKeyed(boolean keyed) {
         this.keyed = keyed;
     }
 
+    /**
+     * Returns the group values
+     */
     public List<String> getGroup() {
         return group;
     }
 
+    /**
+     * Sets the group values, it used to include dimension fields
+     */
     public TimeSeriesAggregationAggregationBuilder group(List<String> group) {
         this.group = group;
         return this;
     }
 
+    /**
+     * Returns the without values
+     */
     public List<String> getWithout() {
         return without;
     }
 
+    /**
+     * Sets the without values, it used to exclude dimension fields
+     */
     public TimeSeriesAggregationAggregationBuilder without(List<String> without) {
         this.without = without;
         return this;
     }
 
+    /**
+     * Return the interval value
+     */
     public DateHistogramInterval getInterval() {
         return interval;
     }
 
+    /**
+     * Sets the interval value
+     */
     public TimeSeriesAggregationAggregationBuilder interval(DateHistogramInterval interval) {
         this.interval = interval;
         return this;
     }
 
+    /**
+     * Return the offset value
+     */
     public DateHistogramInterval getOffset() {
         return offset;
     }
 
+    /**
+     * Sets the offset value
+     */
     public TimeSeriesAggregationAggregationBuilder offset(DateHistogramInterval offset) {
         this.offset = offset;
         return this;
     }
 
+    /**
+     * Returns the aggregator function
+     */
     public String getAggregator() {
         return aggregator;
     }
 
+    /**
+     * Sets the aggregator function, it used to aggregator time series lines to one time serie line
+     */
     public TimeSeriesAggregationAggregationBuilder aggregator(String aggregator) {
         this.aggregator = aggregator;
         return this;
     }
 
+    /**
+     * Returns the downsample range value
+     */
     public DateHistogramInterval getDownsampleRange() {
         return downsampleRange;
     }
 
+    /**
+     * Set the downsample range interval, if downsample range not set, the downsample range value is replace by interval
+     */
     public TimeSeriesAggregationAggregationBuilder downsampleRange(DateHistogramInterval downsampleRange) {
         this.downsampleRange = downsampleRange;
         return this;
     }
 
+    /**
+     * Returns the downsample function
+     */
     public String getDownsampleFunction() {
         return downsampleFunction;
     }
 
+    /**
+     * Sets the downsample function
+     */
     public TimeSeriesAggregationAggregationBuilder downsampleFunction(String downsampleFunction) {
         this.downsampleFunction = downsampleFunction;
         return this;

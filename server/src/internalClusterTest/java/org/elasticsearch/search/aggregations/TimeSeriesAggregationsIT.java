@@ -77,7 +77,7 @@ public class TimeSeriesAggregationsIT extends ESIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        int numberOfIndices = 1; //randomIntBetween(1, 3);
+        int numberOfIndices = randomIntBetween(1, 3);
         numberOfDimensions = randomIntBetween(1, 5);
         numberOfMetrics = randomIntBetween(1, 10);
         String[] routingKeys = randomSubsetOf(
@@ -599,7 +599,6 @@ public class TimeSeriesAggregationsIT extends ESIntegTestCase {
             )
         );
 
-
         Map<Map<String, String>, Map<Long, Double>> aggResults = new HashMap<>();
         data.forEach((key, value) -> {
             String dim = key.get("dim_0");
@@ -630,8 +629,6 @@ public class TimeSeriesAggregationsIT extends ESIntegTestCase {
                 }
             }
         });
-        System.out.println(data);
-        System.out.println(aggResults);
 
         for (InternalTimeSeriesAggregation.InternalBucket bucket : timeSeries.getBuckets()) {
             Map<String, Object> key = bucket.getKey();

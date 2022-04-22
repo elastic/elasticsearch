@@ -17,6 +17,20 @@ import org.elasticsearch.search.aggregations.timeseries.aggregation.internal.TSI
 import java.util.HashMap;
 import java.util.Map;
 
+/**
+ * The function is used to aggregator time series lines in the coordinate reduce phase.
+ * The _tsid may be exist in many indices, when the bucket ranges will flowout the range of the index,
+ * it may be exist
+ * e.g a index settings and query config is:<ul>
+ * <li>time_series.start_time = 10
+ * <li>time_series.end_time = 20
+ * <li>interval = 2
+ * </ul>
+ * When the bucket range is 11-13, the bucket must only in the index.
+ * But if the bucket range is 9-11, the bucket may be include other index, so the aggregator function
+ * can't compute in the datanode. the tsid bucket function gather all _tsid and the value, and aggregator
+ * the result in the coordinate reduce phase.
+ */
 public class TSIDBucketFunction implements AggregatorBucketFunction<TSIDValue> {
     private Map<Long, Map<BytesRef, InternalAggregation>> values = new HashMap<>();
     private final AggregatorBucketFunction aggregatorBucketFunction;

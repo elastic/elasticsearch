@@ -5,8 +5,8 @@ setlocal enabledelayedexpansion
 call "%~dp0elasticsearch-env.bat" || exit /b 1
 
 rem use a small heap size for the CLI tools, and thus the serial collector to
-rem avoid stealing many CPU cycles; a user can override by setting ES_JAVA_OPTS
-set ES_JAVA_OPTS=-Xms4m -Xmx64m -XX:+UseSerialGC %ES_JAVA_OPTS%
+rem avoid stealing many CPU cycles; a user can override by setting CLI_JAVA_OPTS
+set CLI_JAVA_OPTS=-Xms4m -Xmx64m -XX:+UseSerialGC %CLI_JAVA_OPTS%
 
 set LAUNCHER_CLASSPATH=%ES_HOME%/lib/*;%ES_HOME%/lib/cli-launcher/*
 

@@ -318,7 +318,11 @@ public class DataStreamGetWriteIndexTests extends ESTestCase {
         assertThat(ia, notNullValue());
         IndexRequest indexRequest = new IndexRequest(name);
         indexRequest.opType(DocWriteRequest.OpType.CREATE);
-        indexRequest.source(Map.of("@timestamp", timestamp));
+        if (randomBoolean()) {
+            indexRequest.source(Map.of("@timestamp", timestamp));
+        } else {
+            indexRequest.setRawTimestamp(timestamp);
+        }
         return ia.getWriteIndex(indexRequest, state.getMetadata());
     }
 

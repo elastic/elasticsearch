@@ -89,6 +89,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
@@ -1830,7 +1831,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
         final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
         final User systemUser = randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE, XPackSecurityUser.INSTANCE, AsyncSearchUser.INSTANCE);
-        final Authentication authentication = new Authentication(systemUser, new RealmRef("_reserved", "test", "foo"), null);
+        final Authentication authentication = AuthenticationTestHelper.builder().internal(systemUser).build();
         final String requestId = randomRequestId();
 
         auditTrail.accessGranted(requestId, authentication, "_action", request, authorizationInfo);
@@ -1909,7 +1910,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
         final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
         final User systemUser = randomFrom(SystemUser.INSTANCE, XPackUser.INSTANCE, XPackSecurityUser.INSTANCE, AsyncSearchUser.INSTANCE);
-        final Authentication authentication = new Authentication(systemUser, new RealmRef("_reserved", "test", "foo"), null);
+        final Authentication authentication = AuthenticationTestHelper.builder().internal(systemUser).build();
         final String requestId = randomRequestId();
         auditTrail.accessGranted(requestId, authentication, "internal:_action", request, authorizationInfo);
         assertEmptyLog(logger);
@@ -1923,9 +1924,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final MapBuilder<String, String[]> checkedArrayFields = new MapBuilder<>();
         checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, LoggingAuditTrail.TRANSPORT_ORIGIN_FIELD_VALUE)
             .put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "access_granted")
-            .put(LoggingAuditTrail.AUTHENTICATION_TYPE_FIELD_NAME, AuthenticationType.REALM.toString())
+            .put(LoggingAuditTrail.AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString())
             .put(LoggingAuditTrail.PRINCIPAL_FIELD_NAME, systemUser.principal())
-            .put(LoggingAuditTrail.PRINCIPAL_REALM_FIELD_NAME, "_reserved")
+            .put(LoggingAuditTrail.PRINCIPAL_REALM_FIELD_NAME, authentication.getSourceRealm().getName())
             .put(LoggingAuditTrail.ACTION_FIELD_NAME, "internal:_action")
             .put(LoggingAuditTrail.REQUEST_NAME_FIELD_NAME, request.getClass().getSimpleName())
             .put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
@@ -2236,11 +2237,13 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final TransportRequest request = randomBoolean() ? new MockRequest(threadContext) : new MockIndicesRequest(threadContext);
         final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
         final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
-        final Authentication authentication = new Authentication(
-            new User("running as", new String[] { "r2" }, new User("_username", new String[] { "r1" })),
-            new RealmRef("authRealm", "test", "foo"),
-            new RealmRef("lookRealm", "up", "by")
-        );
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("_username", "r1"))
+            .realmRef(new RealmRef("authRealm", "test", "foo"))
+            .runAs()
+            .user(new User("running as", "r2"))
+            .realmRef(new RealmRef("lookRealm", "up", "by"))
+            .build();
         final String requestId = randomRequestId();
 
         auditTrail.runAsGranted(requestId, authentication, "_action", request, authorizationInfo);
@@ -2274,11 +2277,13 @@ public class LoggingAuditTrailTests extends ESTestCase {
         final TransportRequest request = randomBoolean() ? new MockRequest(threadContext) : new MockIndicesRequest(threadContext);
         final String[] expectedRoles = randomArray(0, 4, String[]::new, () -> randomBoolean() ? null : randomAlphaOfLengthBetween(1, 4));
         final AuthorizationInfo authorizationInfo = () -> Collections.singletonMap(PRINCIPAL_ROLES_FIELD_NAME, expectedRoles);
-        final Authentication authentication = new Authentication(
-            new User("running as", new String[] { "r2" }, new User("_username", new String[] { "r1" })),
-            new RealmRef("authRealm", "test", "foo"),
-            new RealmRef("lookRealm", "up", "by")
-        );
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("_username", "r1"))
+            .realmRef(new RealmRef("authRealm", "test", "foo"))
+            .runAs()
+            .user(new User("running as", "r2"))
+            .realmRef(new RealmRef("lookRealm", "up", "by"))
+            .build();
         final String requestId = randomRequestId();
 
         auditTrail.runAsDenied(requestId, authentication, "_action", request, authorizationInfo);

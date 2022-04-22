@@ -15,7 +15,6 @@ import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.Objects;
 import java.util.ServiceLoader;
-import java.util.Set;
 import java.util.function.Supplier;
 
 /**
@@ -33,22 +32,12 @@ public final class ProviderLocator<T> implements Supplier<T> {
 
     private final String providerName;
     private final Class<T> providerType;
-    private final String providerModuleName;
-    private final Set<String> missingModules;
 
-    public ProviderLocator(String providerName, Class<T> providerType, String providerModuleName) {
-        this(providerName, providerType, providerModuleName, Set.of());
-    }
-
-    public ProviderLocator(String providerName, Class<T> providerType, String providerModuleName, Set<String> missingModules) {
+    public ProviderLocator(String providerName, Class<T> providerType) {
         Objects.requireNonNull(providerName);
         Objects.requireNonNull(providerType);
-        Objects.requireNonNull(providerModuleName);
-        Objects.requireNonNull(missingModules);
         this.providerName = providerName;
         this.providerType = providerType;
-        this.providerModuleName = providerModuleName;
-        this.missingModules = missingModules;
     }
 
     @Override

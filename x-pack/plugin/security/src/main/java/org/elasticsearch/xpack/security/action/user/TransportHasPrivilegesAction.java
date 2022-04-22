@@ -62,7 +62,6 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
     protected void doExecute(Task task, HasPrivilegesRequest request, ActionListener<HasPrivilegesResponse> listener) {
         final String username = request.username();
         final Subject subject = AuthenticationContext.fromAuthentication(securityContext.getAuthentication()).getEffectiveSubject();
-        final AuthorizationEngine.AuthorizationInfo authorizationInfo = securityContext.getAuthorizationInfoFromContext();
         if (subject.getUser().principal().equals(username) == false) {
             listener.onFailure(new IllegalArgumentException("users may only check the privileges of their own account"));
             return;
@@ -86,7 +85,6 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
             ActionListener.wrap(
                 applicationPrivilegeDescriptors -> authorizationService.checkPrivileges(
                     subject,
-                    authorizationInfo,
                     new AuthorizationEngine.PrivilegesToCheck(
                         Arrays.asList(request.clusterPrivileges()),
                         Arrays.asList(request.indexPrivileges()),

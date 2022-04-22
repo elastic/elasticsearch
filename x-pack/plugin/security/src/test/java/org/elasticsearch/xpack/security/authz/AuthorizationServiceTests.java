@@ -2680,6 +2680,11 @@ public class AuthorizationServiceTests extends ESTestCase {
             }
 
             @Override
+            public void resolveAuthorizationInfo(Subject subject, ActionListener<AuthorizationInfo> listener) {
+                throw new UnsupportedOperationException("not implemented");
+            }
+
+            @Override
             public void authorizeRunAs(
                 RequestInfo requestInfo,
                 AuthorizationInfo authorizationInfo,

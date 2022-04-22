@@ -14,6 +14,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
@@ -81,15 +82,30 @@ import java.util.Set;
 public interface AuthorizationEngine {
 
     /**
-     * Asynchronously resolves any necessary information to authorize the given user(s). This could
-     * include retrieval of permissions from an index or external system.
+     * Asynchronously resolves the information necessary to authorize the given request, which has
+     * already been authenticated. This could include retrieval of permissions from an index or external system.
+     * See also {@link #resolveAuthorizationInfo(Subject, ActionListener)}, for which this method is the more
+     * specific sibling. This returns the specific {@code AuthorizationInfo} used to authorize only the specified request.
      *
-     * @param requestInfo object contain the request and associated information such as the action
+     * @param requestInfo object containing the request and associated information such as the action name
      *                    and associated user(s)
      * @param listener the listener to be notified of success using {@link ActionListener#onResponse(Object)}
      *                 or failure using {@link ActionListener#onFailure(Exception)}
      */
     void resolveAuthorizationInfo(RequestInfo requestInfo, ActionListener<AuthorizationInfo> listener);
+
+    /**
+     * Asynchronously resolves the information necessary to authorize requests in the context of the given {@code Subject}.
+     * This could include retrieval of permissions from an index or external system.
+     * See also {@link #resolveAuthorizationInfo(RequestInfo, ActionListener)}, for which this method is the more general
+     * sibling. This returns the {@code AuthorizationInfo} that is used for access checks outside the context of
+     * authorizing a specific request, i.e. {@link #checkPrivileges(AuthorizationInfo, PrivilegesToCheck, Collection, ActionListener)}
+     *
+     * @param subject object representing the effective user
+     * @param listener the listener to be notified of success using {@link ActionListener#onResponse(Object)}
+     *                 or failure using {@link ActionListener#onFailure(Exception)}
+     */
+    void resolveAuthorizationInfo(Subject subject, ActionListener<AuthorizationInfo> listener);
 
     /**
      * Asynchronously authorizes an attempt for a user to run as another user.

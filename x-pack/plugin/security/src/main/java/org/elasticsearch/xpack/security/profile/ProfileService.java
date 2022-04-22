@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.security.profile;
 
+import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -21,6 +22,8 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.MultiGetItemResponse;
+import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequest;
@@ -31,12 +34,12 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -66,7 +69,10 @@ import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -101,10 +107,25 @@ public class ProfileService {
         this.threadPool = threadPool;
     }
 
-    public void getProfile(String uid, @Nullable Set<String> dataKeys, ActionListener<Profile> listener) {
+    public void getProfile(String uid, Set<String> dataKeys, ActionListener<Profile> listener) {
         getVersionedDocument(
             uid,
             listener.map(versionedDocument -> versionedDocument != null ? versionedDocument.toProfile(dataKeys) : null)
+        );
+    }
+
+    public void getProfileSubjects(Collection<String> uids, ActionListener<Tuple<Map<String, Subject>, ElasticsearchException>> listener) {
+        getVersionedDocuments(
+            uids,
+            listener.map(
+                docsAndException -> new Tuple<>(
+                    docsAndException.v1()
+                        .entrySet()
+                        .stream()
+                        .collect(Collectors.toMap(Map.Entry::getKey, profileIdAndDoc -> profileIdAndDoc.getValue().doc.user().toSubject())),
+                    docsAndException.v2()
+                )
+            )
         );
     }
 
@@ -300,6 +321,57 @@ public class ProfileService {
         });
     }
 
+    private void getVersionedDocuments(
+        Collection<String> uids,
+        ActionListener<Tuple<Map<String, VersionedDocument>, ElasticsearchException>> listener
+    ) {
+        tryFreezeAndCheckIndex(listener).ifPresent(frozenProfileIndex -> {
+            new OriginSettingClient(client, SECURITY_ORIGIN).prepareMultiGet()
+                .addIds(SECURITY_PROFILE_ALIAS, uids.stream().map(ProfileService::uidToDocId).collect(Collectors.toList()))
+                .execute(ActionListener.wrap(multiGetResponse -> {
+                    Map<String, VersionedDocument> retrievedDocs = new HashMap<>(uids.size());
+                    List<MultiGetResponse.Failure> failures = new ArrayList<>(0);
+                    for (MultiGetItemResponse itemResponse : multiGetResponse.getResponses()) {
+                        if (itemResponse.isFailed()) {
+                            if (itemResponse.getFailure() != null) {
+                                failures.add(itemResponse.getFailure());
+                            }
+                        } else {
+                            if (itemResponse.getResponse() != null && itemResponse.getResponse().isExists()) {
+                                retrievedDocs.put(
+                                    docIdToUid(itemResponse.getResponse().getId()),
+                                    new VersionedDocument(
+                                        buildProfileDocument(itemResponse.getResponse().getSourceAsBytesRef()),
+                                        itemResponse.getResponse().getPrimaryTerm(),
+                                        itemResponse.getResponse().getSeqNo()
+                                    )
+                                );
+                            }
+                        }
+                    }
+                    if (false == failures.isEmpty()) {
+                        String profileIdsWithFailures = failures.stream()
+                            .filter(failure -> failure.getFailure() != null)
+                            .map(MultiGetResponse.Failure::getId)
+                            .map(ProfileService::docIdToUid)
+                            .collect(Collectors.toList())
+                            .toString();
+                        ElasticsearchException exception = new ElasticsearchException(
+                            "Failed to retrieve profiles " + profileIdsWithFailures
+                        );
+                        failures.stream()
+                            .filter(failure -> failure.getFailure() != null)
+                            .map(MultiGetResponse.Failure::getFailure)
+                            .forEach(failure -> exception.addSuppressed(failure));
+                        logger.throwing(Level.INFO, exception);
+                        listener.onResponse(new Tuple<>(retrievedDocs, exception));
+                    } else {
+                        listener.onResponse(new Tuple<>(retrievedDocs, null));
+                    }
+                }, listener::onFailure));
+        });
+    }
+
     // Package private for testing
     void searchVersionedDocumentForSubject(Subject subject, ActionListener<VersionedDocument> listener) {
         tryFreezeAndCheckIndex(listener).ifPresent(frozenProfileIndex -> {
@@ -351,7 +423,7 @@ public class ProfileService {
                         } else if (hits.length == 1) {
                             final SearchHit hit = hits[0];
                             final ProfileDocument profileDocument = buildProfileDocument(hit.getSourceRef());
-                            if (subject.canAccessResourcesOf(profileDocument.subject())) {
+                            if (subject.canAccessResourcesOf(profileDocument.user().toSubject())) {
                                 listener.onResponse(new VersionedDocument(profileDocument, hit.getPrimaryTerm(), hit.getSeqNo()));
                             } else {
                                 final ParameterizedMessage errorMessage = new ParameterizedMessage(
@@ -460,7 +532,7 @@ public class ProfileService {
                 return;
             }
             // Ownership check between the subject and the profile document
-            if (subject.canAccessResourcesOf(versionedDocument.doc.subject())) {
+            if (subject.canAccessResourcesOf(versionedDocument.doc.user().toSubject())) {
                 // The profile document can be accessed by the subject. It must have just got created by another thread, i.e. racing.
                 // Still need to update it with current auth info before return.
                 logger.debug(

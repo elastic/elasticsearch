@@ -418,7 +418,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
         profileService.searchVersionedDocumentForSubject(subject, future2);
         final ProfileDocument profileDocument = future2.actionGet().doc();
         assertThat(profileDocument.uid(), equalTo(uid));
-        assertThat(subject.canAccessResourcesOf(profileDocument.subject()), is(true));
+        assertThat(subject.canAccessResourcesOf(profileDocument.user().toSubject()), is(true));
     }
 
     private String indexDocument() {

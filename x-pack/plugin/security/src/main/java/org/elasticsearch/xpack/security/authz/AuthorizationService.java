@@ -171,16 +171,24 @@ public class AuthorizationService {
 
     public void checkPrivileges(
         Subject subject,
-        AuthorizationInfo authorizationInfo,
         AuthorizationEngine.PrivilegesToCheck privilegesToCheck,
         Collection<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors,
         ActionListener<AuthorizationEngine.PrivilegesCheckResult> listener
     ) {
-        getAuthorizationEngineForSubject(subject).checkPrivileges(
-            authorizationInfo,
-            privilegesToCheck,
-            applicationPrivilegeDescriptors,
-            wrapPreservingContext(listener, threadContext)
+        final AuthorizationEngine authorizationEngine = getAuthorizationEngineForSubject(subject);
+        authorizationEngine.resolveAuthorizationInfo(
+            subject,
+            wrapPreservingContext(
+                listener.delegateFailure(
+                    (delegateListener, authorizationInfo) -> authorizationEngine.checkPrivileges(
+                        authorizationInfo,
+                        privilegesToCheck,
+                        applicationPrivilegeDescriptors,
+                        wrapPreservingContext(delegateListener, threadContext)
+                    )
+                ),
+                threadContext
+            )
         );
     }
 
@@ -190,7 +198,11 @@ public class AuthorizationService {
         GetUserPrivilegesRequest request,
         ActionListener<GetUserPrivilegesResponse> listener
     ) {
-        getAuthorizationEngineForSubject(subject).getUserPrivileges(authorizationInfo, request, listener);
+        getAuthorizationEngineForSubject(subject).getUserPrivileges(
+            authorizationInfo,
+            request,
+            wrapPreservingContext(listener, threadContext)
+        );
     }
 
     /**

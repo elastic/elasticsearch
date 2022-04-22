@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.core.security.action.user.UserRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.ResolvedIndices;
@@ -137,6 +138,11 @@ public class RBACEngine implements AuthorizationEngine {
                 listener::onFailure
             )
         );
+    }
+
+    @Override
+    public void resolveAuthorizationInfo(Subject subject, ActionListener<AuthorizationInfo> listener) {
+        rolesStore.getRole(subject, listener.map(role -> new RBACAuthorizationInfo(role, role)));
     }
 
     @Override

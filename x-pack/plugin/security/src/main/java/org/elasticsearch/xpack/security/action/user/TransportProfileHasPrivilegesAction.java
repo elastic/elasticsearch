@@ -7,11 +7,15 @@
 
 package org.elasticsearch.xpack.security.action.user;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
@@ -28,17 +32,22 @@ import org.elasticsearch.xpack.security.profile.ProfileService;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 public class TransportProfileHasPrivilegesAction extends HandledTransportAction<ProfileHasPrivilegesRequest, ProfileHasPrivilegesResponse> {
+
+    private static final Logger logger = LogManager.getLogger(AuthorizationService.class);
 
     private final AuthorizationService authorizationService;
     private final NativePrivilegeStore privilegeStore;
     private final ProfileService profileService;
     private final SecurityContext securityContext;
+    private final ThreadPool threadPool;
 
     @Inject
     public TransportProfileHasPrivilegesAction(
@@ -47,13 +56,15 @@ public class TransportProfileHasPrivilegesAction extends HandledTransportAction<
         AuthorizationService authorizationService,
         NativePrivilegeStore privilegeStore,
         ProfileService profileService,
-        SecurityContext securityContext
+        SecurityContext securityContext,
+        ThreadPool threadPool
     ) {
         super(ProfileHasPrivilegesAction.NAME, transportService, actionFilters, ProfileHasPrivilegesRequest::new);
         this.authorizationService = authorizationService;
         this.privilegeStore = privilegeStore;
         this.profileService = profileService;
         this.securityContext = securityContext;
+        this.threadPool = threadPool;
     }
 
     @Override
@@ -65,25 +76,40 @@ public class TransportProfileHasPrivilegesAction extends HandledTransportAction<
         );
         resolveApplicationPrivileges(request, ActionListener.wrap(applicationPrivilegeDescriptors -> {
             profileService.getProfileSubjects(Arrays.asList(request.profileUids()), ActionListener.wrap(profileSubjectsAndFailures -> {
-                List<String> hasPrivilegeProfiles = new ArrayList<>();
-                for (Map.Entry<String, Subject> profileIdToSubject : profileSubjectsAndFailures.v1().entrySet()) {
+                final List<String> hasPrivilegeProfiles = Collections.synchronizedList(new ArrayList<>());
+                final List<String> errorProfiles = Collections.synchronizedList(new ArrayList<>(profileSubjectsAndFailures.v2()));
+                final Runnable allDone = () -> {
+                    listener.onResponse(new ProfileHasPrivilegesResponse(
+                        hasPrivilegeProfiles.toArray(new String[0]),
+                        errorProfiles.toArray(new String[0])
+                    ));
+                };
+                final Collection<Map.Entry<String, Subject>> profileUidAndSubjects = profileSubjectsAndFailures.v1().entrySet();
+                final AtomicInteger counter = new AtomicInteger(profileUidAndSubjects.size());
+                for (Map.Entry<String, Subject> profileUidToSubject : profileUidAndSubjects) {
+                    final String profileUid = profileUidToSubject.getKey();
+                    final Subject subject = profileUidToSubject.getValue();
                     authorizationService.checkPrivileges(
-                        profileIdToSubject.getValue(),
+                        subject,
                         privilegesToCheck,
                         applicationPrivilegeDescriptors,
-                        ActionListener.wrap(hasPrivilegesResult -> {
-                            if (hasPrivilegesResult.allMatch()) {
-                                hasPrivilegeProfiles.add(profileIdToSubject.getKey());
+                        ActionListener.wrap(privilegesCheckResult -> {
+                            if (privilegesCheckResult.allMatch()) {
+                                hasPrivilegeProfiles.add(profileUid);
                             }
-                        }, listener::onFailure)
+                            if (counter.decrementAndGet() == 0) {
+                                allDone.run();
+                            }
+                        }, checkPrivilegesException -> {
+                            logger.debug(new ParameterizedMessage("Failed to check privileges for profile [{}]", profileUid),
+                                checkPrivilegesException);
+                            errorProfiles.add(profileUid);
+                            if (counter.decrementAndGet() == 0) {
+                                allDone.run();
+                            }
+                        })
                     );
                 }
-                listener.onResponse(
-                    new ProfileHasPrivilegesResponse(
-                        hasPrivilegeProfiles.toArray(new String[0]),
-                        profileSubjectsAndFailures.v2().toArray(new String[0])
-                    )
-                );
             }, listener::onFailure));
         }, listener::onFailure));
     }

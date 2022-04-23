@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.security.profile;
 
-import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -366,7 +365,7 @@ public class ProfileService {
                         }
                     }
                     if (loggedException != null) {
-                        logger.throwing(Level.DEBUG, loggedException);
+                        logger.debug(new ParameterizedMessage("Failed to retrieve profiles {}", failures), loggedException);
                     }
                     listener.onResponse(new Tuple<>(retrievedDocs, failures));
                 }, listener::onFailure));

@@ -148,7 +148,6 @@ public class GeoTileTilerTests extends GeoGridTilerTestCase {
                 return tileIntersectsBounds(minXTile, minYTile, precision, bbox) ? 1 : 0;
             }
 
-
             for (int x = minXTile; x <= maxXTile; x++) {
                 for (int y = minYTile; y <= maxYTile; y++) {
                     Rectangle r = GeoTileUtils.toBoundingBox(x, y, precision);

@@ -17,10 +17,9 @@ public class GeoTileBoundedPredicateTests extends ESTestCase {
     public void testValidTile() {
         int precision = randomIntBetween(0, GeoTileUtils.MAX_ZOOM);
         int tiles = 1 << precision;
-        int x =  randomIntBetween(0, tiles - 1);
+        int x = randomIntBetween(0, tiles - 1);
         int y = randomIntBetween(0, tiles - 1);
-        Rectangle rectangle =
-            GeoTileUtils.toBoundingBox(x, y, precision);
+        Rectangle rectangle = GeoTileUtils.toBoundingBox(x, y, precision);
         GeoBoundingBox bbox = new GeoBoundingBox(
             new GeoPoint(rectangle.getMaxLat(), rectangle.getMinLon()),
             new GeoPoint(rectangle.getMinLat(), rectangle.getMaxLon())
@@ -45,10 +44,9 @@ public class GeoTileBoundedPredicateTests extends ESTestCase {
 
     public void testMaxTiles() {
         int precision = randomIntBetween(0, GeoTileUtils.MAX_ZOOM);
-        int x =  randomIntBetween(0, (1 << precision) - 1);
+        int x = randomIntBetween(0, (1 << precision) - 1);
         int y = randomIntBetween(0, (1 << precision) - 1);
-        Rectangle rectangle =
-            GeoTileUtils.toBoundingBox(x, y, precision);
+        Rectangle rectangle = GeoTileUtils.toBoundingBox(x, y, precision);
         GeoBoundingBox bbox = new GeoBoundingBox(
             new GeoPoint(rectangle.getMaxLat(), rectangle.getMinLon()),
             new GeoPoint(rectangle.getMinLat(), rectangle.getMaxLon())
@@ -64,4 +62,4 @@ public class GeoTileBoundedPredicateTests extends ESTestCase {
         assertEquals(GeoTileUtils.longEncodeTiles(p, x, y) == encoded, predicate.validTile(x, y));
         assertEquals(predicate.validTile(x, y, p), predicate.validTile(x, y));
     }
- }
+}

@@ -48,7 +48,7 @@ public class GeoHashBoundedPredicateTests extends ESTestCase {
         for (int i = precision; i < Geohash.PRECISION; i++) {
             GeoHashBoundedPredicate predicate = new GeoHashBoundedPredicate(i, bbox);
             // not exact due to numerical errors
-            assertThat(predicate.getMaxHashes(), Matchers.greaterThanOrEqualTo((long) Math.pow(32 , (i - precision))));
+            assertThat(predicate.getMaxHashes(), Matchers.greaterThanOrEqualTo((long) Math.pow(32, (i - precision))));
         }
     }
 
@@ -56,4 +56,4 @@ public class GeoHashBoundedPredicateTests extends ESTestCase {
         String newhash = Geohash.stringEncode(lon, lat, hash.length());
         assertEquals(newhash.equals(hash), predicate.validHash(newhash));
     }
- }
+}

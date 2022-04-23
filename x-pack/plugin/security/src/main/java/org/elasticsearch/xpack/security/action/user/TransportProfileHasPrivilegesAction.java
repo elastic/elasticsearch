@@ -41,7 +41,7 @@ import java.util.stream.Collectors;
 
 public class TransportProfileHasPrivilegesAction extends HandledTransportAction<ProfileHasPrivilegesRequest, ProfileHasPrivilegesResponse> {
 
-    private static final Logger logger = LogManager.getLogger(AuthorizationService.class);
+    private static final Logger logger = LogManager.getLogger(TransportProfileHasPrivilegesAction.class);
 
     private final AuthorizationService authorizationService;
     private final NativePrivilegeStore privilegeStore;

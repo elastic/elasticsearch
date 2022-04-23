@@ -118,12 +118,12 @@ public class TemplateBundleManager implements ClusterStateListener {
 
     List<Map.Entry<String, ComponentTemplate>> getComponentTemplates(ClusterState state) {
         List<Map.Entry<String, ComponentTemplate>> templatesToInstall = new ArrayList<>();
-        for (var plugin : templateBundles.templateBundles()) {
-            for (var builtinTemplate : plugin.getComponentTemplates().entrySet()) {
+        for (var bundle : templateBundles.templateBundles()) {
+            for (var builtinTemplate : bundle.getComponentTemplates().entrySet()) {
                 final var templateName = builtinTemplate.getKey();
                 var currentTemplate = state.metadata().componentTemplates().get(templateName);
                 if (currentTemplate == null) {
-                    LOGGER.debug("adding component template [{}] for [{}], because it doesn't exist", templateName, plugin.getName());
+                    LOGGER.debug("adding component template [{}] for [{}], because it doesn't exist", templateName, bundle.getName());
                     templatesToInstall.add(builtinTemplate);
                 } else if (Objects.isNull(currentTemplate.version()) || builtinTemplate.getValue().version() > currentTemplate.version()) {
                     // IndexTemplateConfig now enforces templates contain a `version` property, so if the template doesn't have one we can
@@ -131,7 +131,7 @@ public class TemplateBundleManager implements ClusterStateListener {
                     LOGGER.info(
                         "upgrading component template [{}] for [{}] from version [{}] to version [{}]",
                         templateName,
-                        plugin.getName(),
+                        bundle.getName(),
                         currentTemplate.version(),
                         builtinTemplate.getValue().version()
                     );
@@ -140,7 +140,7 @@ public class TemplateBundleManager implements ClusterStateListener {
                     LOGGER.trace(
                         "not adding component template [{}] for [{}], because it already exists at version [{}]",
                         templateName,
-                        plugin.getName(),
+                        bundle.getName(),
                         currentTemplate.version()
                     );
                 }
@@ -151,8 +151,8 @@ public class TemplateBundleManager implements ClusterStateListener {
 
     List<Map.Entry<String, ComposableIndexTemplate>> getComposableTemplates(ClusterState state) {
         List<Map.Entry<String, ComposableIndexTemplate>> templatesToInstall = new ArrayList<>();
-        for (var plugin : templateBundles.templateBundles()) {
-            for (var builtinTemplate : plugin.getComposableIndexTemplates().entrySet()) {
+        for (var bundle : templateBundles.templateBundles()) {
+            for (var builtinTemplate : bundle.getComposableIndexTemplates().entrySet()) {
                 final String templateName = builtinTemplate.getKey();
                 ComposableIndexTemplate currentTemplate = state.metadata().templatesV2().get(templateName);
                 boolean componentTemplatesAvailable = componentTemplatesExist(state, builtinTemplate.getValue());
@@ -160,10 +160,10 @@ public class TemplateBundleManager implements ClusterStateListener {
                     LOGGER.trace(
                         "not adding composable template [{}] for [{}] because its required component templates do not exist",
                         templateName,
-                        plugin.getName()
+                        bundle.getName()
                     );
                 } else if (Objects.isNull(currentTemplate)) {
-                    LOGGER.debug("adding composable template [{}] for [{}], because it doesn't exist", templateName, plugin.getName());
+                    LOGGER.debug("adding composable template [{}] for [{}], because it doesn't exist", templateName, bundle.getName());
                     templatesToInstall.add(builtinTemplate);
                 } else if (Objects.isNull(currentTemplate.version()) || builtinTemplate.getValue().version() > currentTemplate.version()) {
                     // IndexTemplateConfig now enforces templates contain a `version` property, so if the template doesn't have one we can
@@ -171,7 +171,7 @@ public class TemplateBundleManager implements ClusterStateListener {
                     LOGGER.info(
                         "upgrading composable template [{}] for [{}] from version [{}] to version [{}]",
                         templateName,
-                        plugin.getName(),
+                        bundle.getName(),
                         currentTemplate.version(),
                         builtinTemplate.getValue().version()
                     );
@@ -180,7 +180,7 @@ public class TemplateBundleManager implements ClusterStateListener {
                     LOGGER.trace(
                         "not adding composable template [{}] for [{}], because it already exists at version [{}]",
                         templateName,
-                        plugin.getName(),
+                        bundle.getName(),
                         currentTemplate.version()
                     );
                 }

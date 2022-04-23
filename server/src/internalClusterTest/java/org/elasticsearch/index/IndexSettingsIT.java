@@ -41,11 +41,15 @@ public class IndexSettingsIT extends ESIntegTestCase {
     public void testCanRemoveArchivedSettings() throws Exception {
         createIndex("test", Settings.builder().put(TEST_SETTING.getKey(), "true").build());
         registerSetting = false;
-        internalCluster().fullRestart();
+        try {
+            internalCluster().fullRestart();
 
-        final var indicesClient = client().admin().indices();
-        assertThat(indicesClient.prepareGetSettings("test").get().getSetting("test", "archived.index.test_setting"), equalTo("true"));
-        assertAcked(indicesClient.prepareUpdateSettings("test").setSettings(Settings.builder().putNull("archived.*")));
-        assertNull(indicesClient.prepareGetSettings("test").get().getSetting("test", "archived.index.test_setting"));
+            final var indicesClient = client().admin().indices();
+            assertThat(indicesClient.prepareGetSettings("test").get().getSetting("test", "archived.index.test_setting"), equalTo("true"));
+            assertAcked(indicesClient.prepareUpdateSettings("test").setSettings(Settings.builder().putNull("archived.*")));
+            assertNull(indicesClient.prepareGetSettings("test").get().getSetting("test", "archived.index.test_setting"));
+        } finally {
+            registerSetting = true;
+        }
     }
 }

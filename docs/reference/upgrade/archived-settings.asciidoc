@@ -76,3 +76,4 @@ PUT /my-index/_settings
   "archived.*": null
 }
 ----
+// TEST[s/^/PUT my-index\n/]

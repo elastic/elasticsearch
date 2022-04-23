@@ -76,40 +76,46 @@ public class TransportProfileHasPrivilegesAction extends HandledTransportAction<
         );
         resolveApplicationPrivileges(request, ActionListener.wrap(applicationPrivilegeDescriptors -> {
             profileService.getProfileSubjects(Arrays.asList(request.profileUids()), ActionListener.wrap(profileSubjectsAndFailures -> {
-                final List<String> hasPrivilegeProfiles = Collections.synchronizedList(new ArrayList<>());
-                final List<String> errorProfiles = Collections.synchronizedList(new ArrayList<>(profileSubjectsAndFailures.v2()));
-                final Runnable allDone = () -> {
-                    listener.onResponse(new ProfileHasPrivilegesResponse(
-                        hasPrivilegeProfiles.toArray(new String[0]),
-                        errorProfiles.toArray(new String[0])
-                    ));
-                };
-                final Collection<Map.Entry<String, Subject>> profileUidAndSubjects = profileSubjectsAndFailures.v1().entrySet();
-                final AtomicInteger counter = new AtomicInteger(profileUidAndSubjects.size());
-                for (Map.Entry<String, Subject> profileUidToSubject : profileUidAndSubjects) {
-                    final String profileUid = profileUidToSubject.getKey();
-                    final Subject subject = profileUidToSubject.getValue();
-                    authorizationService.checkPrivileges(
-                        subject,
-                        privilegesToCheck,
-                        applicationPrivilegeDescriptors,
-                        ActionListener.wrap(privilegesCheckResult -> {
-                            if (privilegesCheckResult.allMatch()) {
-                                hasPrivilegeProfiles.add(profileUid);
-                            }
-                            if (counter.decrementAndGet() == 0) {
-                                allDone.run();
-                            }
-                        }, checkPrivilegesException -> {
-                            logger.debug(new ParameterizedMessage("Failed to check privileges for profile [{}]", profileUid),
-                                checkPrivilegesException);
-                            errorProfiles.add(profileUid);
-                            if (counter.decrementAndGet() == 0) {
-                                allDone.run();
-                            }
-                        })
-                    );
-                }
+                threadPool.generic().execute(() -> {
+                    final List<String> hasPrivilegeProfiles = Collections.synchronizedList(new ArrayList<>());
+                    final List<String> errorProfiles = Collections.synchronizedList(new ArrayList<>(profileSubjectsAndFailures.v2()));
+                    final Runnable allDone = () -> {
+                        listener.onResponse(
+                            new ProfileHasPrivilegesResponse(
+                                hasPrivilegeProfiles.toArray(new String[0]),
+                                errorProfiles.toArray(new String[0])
+                            )
+                        );
+                    };
+                    final Collection<Map.Entry<String, Subject>> profileUidAndSubjects = profileSubjectsAndFailures.v1().entrySet();
+                    final AtomicInteger counter = new AtomicInteger(profileUidAndSubjects.size());
+                    for (Map.Entry<String, Subject> profileUidToSubject : profileUidAndSubjects) {
+                        final String profileUid = profileUidToSubject.getKey();
+                        final Subject subject = profileUidToSubject.getValue();
+                        authorizationService.checkPrivileges(
+                            subject,
+                            privilegesToCheck,
+                            applicationPrivilegeDescriptors,
+                            ActionListener.wrap(privilegesCheckResult -> {
+                                if (privilegesCheckResult.allMatch()) {
+                                    hasPrivilegeProfiles.add(profileUid);
+                                }
+                                if (counter.decrementAndGet() == 0) {
+                                    allDone.run();
+                                }
+                            }, checkPrivilegesException -> {
+                                logger.debug(
+                                    new ParameterizedMessage("Failed to check privileges for profile [{}]", profileUid),
+                                    checkPrivilegesException
+                                );
+                                errorProfiles.add(profileUid);
+                                if (counter.decrementAndGet() == 0) {
+                                    allDone.run();
+                                }
+                            })
+                        );
+                    }
+                });
             }, listener::onFailure));
         }, listener::onFailure));
     }

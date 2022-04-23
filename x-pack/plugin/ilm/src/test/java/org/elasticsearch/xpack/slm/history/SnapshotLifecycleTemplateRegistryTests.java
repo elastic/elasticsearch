@@ -305,23 +305,6 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
         registry.clusterChanged(event);
     }
 
-    public void testValidate() {
-        assertFalse(registry.validate(createClusterState(Settings.EMPTY, Collections.emptyMap(), Collections.emptyMap(), null)));
-        assertFalse(
-            registry.validate(
-                createClusterState(Settings.EMPTY, Collections.singletonMap(SLM_TEMPLATE_NAME, null), Collections.emptyMap(), null)
-            )
-        );
-
-        Map<String, LifecyclePolicy> policyMap = new HashMap<>();
-        policyMap.put(SLM_POLICY_NAME, new LifecyclePolicy(SLM_POLICY_NAME, new HashMap<>()));
-        assertFalse(registry.validate(createClusterState(Settings.EMPTY, Collections.emptyMap(), policyMap, null)));
-
-        assertTrue(
-            registry.validate(createClusterState(Settings.EMPTY, Collections.singletonMap(SLM_TEMPLATE_NAME, null), policyMap, null))
-        );
-    }
-
     // -------------
 
     /**

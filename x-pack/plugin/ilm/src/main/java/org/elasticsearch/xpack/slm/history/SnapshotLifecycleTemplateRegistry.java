@@ -8,12 +8,10 @@
 package org.elasticsearch.xpack.slm.history;
 
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
 import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
@@ -21,10 +19,6 @@ import org.elasticsearch.xpack.ilm.IndexLifecycle;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING;
@@ -62,7 +56,7 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
         slmHistoryEnabled = SLM_HISTORY_INDEX_ENABLED_SETTING.get(nodeSettings);
     }
 
-    private static final List<LifecyclePolicy> LIFECYCLE_POLICIES = List.of(
+    static final List<LifecyclePolicy> LIFECYCLE_POLICIES = List.of(
         new LifecyclePolicyConfig(SLM_POLICY_NAME, "/slm-history-ilm-policy.json").load(
             new NamedXContentRegistry(IndexLifecycle.NAMED_X_CONTENT_ENTRIES)
         )
@@ -79,19 +73,5 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
     @Override
     protected String getOrigin() {
         return INDEX_LIFECYCLE_ORIGIN; // TODO use separate SLM origin?
-    }
-
-    public boolean validate(ClusterState state) {
-        boolean allTemplatesPresent = getComposableTemplateConfigs().keySet()
-            .stream()
-            .allMatch(name -> state.metadata().templatesV2().containsKey(name));
-
-        Optional<Map<String, LifecyclePolicy>> maybePolicies = Optional.<IndexLifecycleMetadata>ofNullable(
-            state.metadata().custom(IndexLifecycleMetadata.TYPE)
-        ).map(IndexLifecycleMetadata::getPolicies);
-        Set<String> policyNames = getPolicyConfigs().stream().map(LifecyclePolicy::getName).collect(Collectors.toSet());
-
-        boolean allPoliciesPresent = maybePolicies.map(policies -> policies.keySet().containsAll(policyNames)).orElse(false);
-        return allTemplatesPresent && allPoliciesPresent;
     }
 }

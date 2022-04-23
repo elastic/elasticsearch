@@ -11,15 +11,12 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
-import org.elasticsearch.action.admin.indices.template.put.PutComposableIndexTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -96,26 +93,6 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
     }
 
     /**
-     * Retrieves return a list of {@link IndexTemplateConfig} that represents
-     * the component templates that should be installed and managed. Component
-     * templates are always installed prior composable templates, so they may
-     * be referenced by a composable template.
-     * @return The configurations for the templates that should be installed.
-     */
-    protected Map<String, ComponentTemplate> getComponentTemplateConfigs() {
-        return Map.of();
-    }
-
-    /**
-     * Retrieves return a list of {@link IndexTemplateConfig} that represents
-     * the composable templates that should be installed and managed.
-     * @return The configurations for the templates that should be installed.
-     */
-    protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
-        return Map.of();
-    }
-
-    /**
      * Retrieves a list of {@link LifecyclePolicy} that represents the ILM
      * policies that should be installed and managed. Only called if ILM is enabled.
      * @return The configurations for the lifecycle policies that should be installed.
@@ -175,7 +152,7 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         boolean localNodeVersionAfterMaster = localNode.getVersion().after(masterNode.getVersion());
 
         if (event.localNodeMaster() || localNodeVersionAfterMaster) {
-            addTemplatesIfMissing(state);
+            addLegacyTemplatesIfMissing(state);
             addIndexLifecyclePoliciesIfMissing(state);
         }
     }
@@ -187,12 +164,6 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
      */
     protected boolean requiresMasterNode() {
         return false;
-    }
-
-    private void addTemplatesIfMissing(ClusterState state) {
-        addLegacyTemplatesIfMissing(state);
-        addComponentTemplatesIfMissing(state);
-        addComposableTemplatesIfMissing(state);
     }
 
     private void addLegacyTemplatesIfMissing(ClusterState state) {
@@ -235,101 +206,6 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
         }
     }
 
-    private void addComponentTemplatesIfMissing(ClusterState state) {
-        final Map<String, ComponentTemplate> indexTemplates = getComponentTemplateConfigs();
-        for (Map.Entry<String, ComponentTemplate> newTemplate : indexTemplates.entrySet()) {
-            final String templateName = newTemplate.getKey();
-            final AtomicBoolean creationCheck = templateCreationsInProgress.computeIfAbsent(templateName, key -> new AtomicBoolean(false));
-            if (creationCheck.compareAndSet(false, true)) {
-                ComponentTemplate currentTemplate = state.metadata().componentTemplates().get(templateName);
-                if (Objects.isNull(currentTemplate)) {
-                    logger.debug("adding component template [{}] for [{}], because it doesn't exist", templateName, getOrigin());
-                    putComponentTemplate(templateName, newTemplate.getValue(), creationCheck);
-                } else if (Objects.isNull(currentTemplate.version()) || newTemplate.getValue().version() > currentTemplate.version()) {
-                    // IndexTemplateConfig now enforces templates contain a `version` property, so if the template doesn't have one we can
-                    // safely assume it's an old version of the template.
-                    logger.info(
-                        "upgrading component template [{}] for [{}] from version [{}] to version [{}]",
-                        templateName,
-                        getOrigin(),
-                        currentTemplate.version(),
-                        newTemplate.getValue().version()
-                    );
-                    putComponentTemplate(templateName, newTemplate.getValue(), creationCheck);
-                } else {
-                    creationCheck.set(false);
-                    logger.trace(
-                        "not adding component template [{}] for [{}], because it already exists at version [{}]",
-                        templateName,
-                        getOrigin(),
-                        currentTemplate.version()
-                    );
-                }
-            } else {
-                logger.trace(
-                    "skipping the creation of component template [{}] for [{}], because its creation is in progress",
-                    templateName,
-                    getOrigin()
-                );
-            }
-        }
-    }
-
-    private void addComposableTemplatesIfMissing(ClusterState state) {
-        final Map<String, ComposableIndexTemplate> indexTemplates = getComposableTemplateConfigs();
-        for (Map.Entry<String, ComposableIndexTemplate> newTemplate : indexTemplates.entrySet()) {
-            final String templateName = newTemplate.getKey();
-            final AtomicBoolean creationCheck = templateCreationsInProgress.computeIfAbsent(templateName, key -> new AtomicBoolean(false));
-            if (creationCheck.compareAndSet(false, true)) {
-                ComposableIndexTemplate currentTemplate = state.metadata().templatesV2().get(templateName);
-                boolean componentTemplatesAvailable = componentTemplatesExist(state, newTemplate.getValue());
-                if (componentTemplatesAvailable == false) {
-                    creationCheck.set(false);
-                    logger.trace(
-                        "not adding composable template [{}] for [{}] because its required component templates do not exist",
-                        templateName,
-                        getOrigin()
-                    );
-                } else if (Objects.isNull(currentTemplate)) {
-                    logger.debug("adding composable template [{}] for [{}], because it doesn't exist", templateName, getOrigin());
-                    putComposableTemplate(templateName, newTemplate.getValue(), creationCheck);
-                } else if (Objects.isNull(currentTemplate.version()) || newTemplate.getValue().version() > currentTemplate.version()) {
-                    // IndexTemplateConfig now enforces templates contain a `version` property, so if the template doesn't have one we can
-                    // safely assume it's an old version of the template.
-                    logger.info(
-                        "upgrading composable template [{}] for [{}] from version [{}] to version [{}]",
-                        templateName,
-                        getOrigin(),
-                        currentTemplate.version(),
-                        newTemplate.getValue().version()
-                    );
-                    putComposableTemplate(templateName, newTemplate.getValue(), creationCheck);
-                } else {
-                    creationCheck.set(false);
-                    logger.trace(
-                        "not adding composable template [{}] for [{}], because it already exists at version [{}]",
-                        templateName,
-                        getOrigin(),
-                        currentTemplate.version()
-                    );
-                }
-            } else {
-                logger.trace(
-                    "skipping the creation of composable template [{}] for [{}], because its creation is in progress",
-                    templateName,
-                    getOrigin()
-                );
-            }
-        }
-    }
-
-    /**
-     * Returns true if the cluster state contains all of the component templates needed by the composable template
-     */
-    private static boolean componentTemplatesExist(ClusterState state, ComposableIndexTemplate indexTemplate) {
-        return state.metadata().componentTemplates().keySet().containsAll(indexTemplate.composedOf());
-    }
-
     private void putLegacyTemplate(final IndexTemplateConfig config, final AtomicBoolean creationCheck) {
         final Executor executor = threadPool.generic();
         executor.execute(() -> {
@@ -361,78 +237,6 @@ public abstract class IndexTemplateRegistry implements ClusterStateListener {
                     }
                 },
                 client.admin().indices()::putTemplate
-            );
-        });
-    }
-
-    private void putComponentTemplate(final String templateName, final ComponentTemplate template, final AtomicBoolean creationCheck) {
-        final Executor executor = threadPool.generic();
-        executor.execute(() -> {
-            PutComponentTemplateAction.Request request = new PutComponentTemplateAction.Request(templateName).componentTemplate(template);
-            request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
-            executeAsyncWithOrigin(
-                client.threadPool().getThreadContext(),
-                getOrigin(),
-                request,
-                new ActionListener<AcknowledgedResponse>() {
-                    @Override
-                    public void onResponse(AcknowledgedResponse response) {
-                        creationCheck.set(false);
-                        if (response.isAcknowledged() == false) {
-                            logger.error(
-                                "error adding component template [{}] for [{}], request was not acknowledged",
-                                templateName,
-                                getOrigin()
-                            );
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        creationCheck.set(false);
-                        onPutTemplateFailure(templateName, e);
-                    }
-                },
-                (req, listener) -> client.execute(PutComponentTemplateAction.INSTANCE, req, listener)
-            );
-        });
-    }
-
-    private void putComposableTemplate(
-        final String templateName,
-        final ComposableIndexTemplate indexTemplate,
-        final AtomicBoolean creationCheck
-    ) {
-        final Executor executor = threadPool.generic();
-        executor.execute(() -> {
-            PutComposableIndexTemplateAction.Request request = new PutComposableIndexTemplateAction.Request(templateName).indexTemplate(
-                indexTemplate
-            );
-            request.masterNodeTimeout(TimeValue.timeValueMinutes(1));
-            executeAsyncWithOrigin(
-                client.threadPool().getThreadContext(),
-                getOrigin(),
-                request,
-                new ActionListener<AcknowledgedResponse>() {
-                    @Override
-                    public void onResponse(AcknowledgedResponse response) {
-                        creationCheck.set(false);
-                        if (response.isAcknowledged() == false) {
-                            logger.error(
-                                "error adding composable template [{}] for [{}], request was not acknowledged",
-                                templateName,
-                                getOrigin()
-                            );
-                        }
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        creationCheck.set(false);
-                        onPutTemplateFailure(templateName, e);
-                    }
-                },
-                (req, listener) -> client.execute(PutComposableIndexTemplateAction.INSTANCE, req, listener)
             );
         });
     }

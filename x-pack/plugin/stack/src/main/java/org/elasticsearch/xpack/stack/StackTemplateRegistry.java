@@ -77,11 +77,12 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         if (newValue) {
             this.stackTemplateEnabled = true;
         } else {
-            logger.info(
-                "stack composable templates [{}] and component templates [{}] will not be installed or reinstalled",
-                String.join(",", getComposableTemplateConfigs().keySet()),
-                String.join(",", getComponentTemplateConfigs().keySet())
-            );
+            // TODO:
+            // logger.info(
+            // "stack composable templates [{}] and component templates [{}] will not be installed or reinstalled",
+            // String.join(",", getComposableTemplateConfigs().keySet()),
+            // String.join(",", getComponentTemplateConfigs().keySet())
+            // );
             this.stackTemplateEnabled = false;
         }
     }

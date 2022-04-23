@@ -10,7 +10,6 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
-import org.elasticsearch.cluster.metadata.BuiltinTemplates;
 import org.elasticsearch.cluster.metadata.ComponentTemplateMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamMetadata;
@@ -25,6 +24,7 @@ import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetadataMappingService;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
+import org.elasticsearch.cluster.metadata.TemplateBundles;
 import org.elasticsearch.cluster.routing.DelayedAllocationService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
@@ -107,7 +107,7 @@ public class ClusterModule extends AbstractModule {
     final Collection<AllocationDecider> deciderList;
     final ShardsAllocator shardsAllocator;
 
-    final BuiltinTemplates builtinTemplates;
+    final TemplateBundles templateBundles;
 
     public ClusterModule(
         Settings settings,
@@ -117,7 +117,7 @@ public class ClusterModule extends AbstractModule {
         SnapshotsInfoService snapshotsInfoService,
         ThreadContext threadContext,
         SystemIndices systemIndices,
-        BuiltinTemplates builtinTemplates
+        TemplateBundles templateBundles
     ) {
         this.clusterPlugins = clusterPlugins;
         this.deciderList = createAllocationDeciders(settings, clusterService.getClusterSettings(), clusterPlugins);
@@ -127,7 +127,7 @@ public class ClusterModule extends AbstractModule {
         this.indexNameExpressionResolver = new IndexNameExpressionResolver(threadContext, systemIndices);
         this.allocationService = new AllocationService(allocationDeciders, shardsAllocator, clusterInfoService, snapshotsInfoService);
         this.metadataDeleteIndexService = new MetadataDeleteIndexService(settings, clusterService, allocationService);
-        this.builtinTemplates = builtinTemplates;
+        this.templateBundles = templateBundles;
     }
 
     public static List<Entry> getNamedWriteables() {
@@ -352,7 +352,7 @@ public class ClusterModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        bind(BuiltinTemplates.class).toInstance(builtinTemplates);
+        bind(TemplateBundles.class).toInstance(templateBundles);
         bind(GatewayAllocator.class).asEagerSingleton();
         bind(AllocationService.class).toInstance(allocationService);
         bind(ClusterService.class).toInstance(clusterService);

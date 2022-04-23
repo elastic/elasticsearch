@@ -43,7 +43,6 @@ import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.InstanceHasMasterHealthIndicatorService;
 import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
-import org.elasticsearch.cluster.metadata.BuiltinTemplates;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -52,6 +51,8 @@ import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService;
+import org.elasticsearch.cluster.metadata.TemplateBundle;
+import org.elasticsearch.cluster.metadata.TemplateBundles;
 import org.elasticsearch.cluster.metadata.TemplateUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -136,7 +137,6 @@ import org.elasticsearch.persistent.PersistentTasksExecutorRegistry;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.AnalysisPlugin;
-import org.elasticsearch.plugins.BuiltinTemplatePlugin;
 import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
@@ -527,8 +527,8 @@ public class Node implements Closeable {
                 repositoriesServiceReference::get,
                 rerouteServiceReference::get
             );
-            var templatePlugins = pluginsService.filterPlugins(BuiltinTemplatePlugin.class).stream().toList();
-            var builtinTemplates = new BuiltinTemplates(templatePlugins);
+            var templateBundles = pluginsService.loadExtension(TemplateBundle.class);
+            var builtinTemplates = new TemplateBundles(templateBundles);
             final ClusterModule clusterModule = new ClusterModule(
                 settings,
                 clusterService,

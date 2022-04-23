@@ -47,6 +47,7 @@ import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
+import org.elasticsearch.xpack.ilm.IndexLifecycleTemplateBundle;
 import org.junit.After;
 import org.junit.Before;
 
@@ -61,7 +62,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING;
-import static org.elasticsearch.xpack.ilm.IndexLifecycle.SLM_TEMPLATE_NAME;
+import static org.elasticsearch.xpack.ilm.IndexLifecycleTemplateBundle.SLM_TEMPLATE_NAME;
 import static org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegistry.INDEX_TEMPLATE_VERSION;
 import static org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegistry.SLM_POLICY_NAME;
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -79,14 +80,14 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
     private ClusterService clusterService;
     private ThreadPool threadPool;
     private VerifyingClient client;
-    private IndexLifecycle plugin;
+    private IndexLifecycleTemplateBundle bundle;
 
     @Before
     public void createRegistryAndClient() {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new VerifyingClient(threadPool);
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        plugin = new IndexLifecycle(Settings.EMPTY);
+        bundle = new IndexLifecycleTemplateBundle(new IndexLifecycle(Settings.EMPTY));
         List<NamedXContentRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedXWriteables());
         entries.addAll(
             Arrays.asList(
@@ -119,8 +120,8 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
             client,
             xContentRegistry
         );
-        IndexLifecycle plugin = new IndexLifecycle(settings);
-        assertThat(plugin.getComposableIndexTemplates(), anEmptyMap());
+        IndexLifecycleTemplateBundle bundle = new IndexLifecycleTemplateBundle(new IndexLifecycle(settings));
+        assertThat(bundle.getComposableIndexTemplates(), anEmptyMap());
         assertThat(disabledRegistry.getPolicyConfigs(), hasSize(0));
     }
 
@@ -133,7 +134,7 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> verifyTemplateInstalled(calledTimes, action, request, listener));
         registry.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(plugin.getComposableIndexTemplates().size())));
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(bundle.getComposableIndexTemplates().size())));
 
         calledTimes.set(0);
 
@@ -247,7 +248,7 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> verifyTemplateInstalled(calledTimes, action, request, listener));
         registry.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(plugin.getComposableIndexTemplates().size())));
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(bundle.getComposableIndexTemplates().size())));
     }
 
     public void testThatUnversionedOldTemplatesAreUpgraded() throws Exception {
@@ -258,7 +259,7 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> verifyTemplateInstalled(calledTimes, action, request, listener));
         registry.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(plugin.getComposableIndexTemplates().size())));
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(bundle.getComposableIndexTemplates().size())));
     }
 
     public void testSameOrHigherVersionTemplateNotUpgraded() throws Exception {

@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.core.common.notifications.AbstractAuditMessageFac
 import org.elasticsearch.xpack.core.common.notifications.AbstractAuditor;
 import org.elasticsearch.xpack.core.ml.MlMetadata;
 import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
-import org.elasticsearch.xpack.ml.MachineLearning;
+import org.elasticsearch.xpack.ml.MachineLearningTemplateBundle;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 
@@ -31,7 +31,7 @@ abstract class AbstractMlAuditor<T extends AbstractAuditMessage> extends Abstrac
         super(
             new OriginSettingClient(client, ML_ORIGIN),
             NotificationsIndex.NOTIFICATIONS_INDEX,
-            MachineLearning.NOTIFICATIONS_TEMPLATE,
+            MachineLearningTemplateBundle.NOTIFICATIONS_TEMPLATE,
             clusterService.getNodeName(),
             messageFactory,
             clusterService

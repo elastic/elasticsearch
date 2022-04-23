@@ -10,7 +10,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -23,7 +22,6 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -63,7 +61,6 @@ import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.plugins.AnalysisPlugin;
-import org.elasticsearch.plugins.BuiltinTemplatePlugin;
 import org.elasticsearch.plugins.CircuitBreakerPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
@@ -82,7 +79,6 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
-import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.SetResetModeActionRequest;
@@ -187,12 +183,9 @@ import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvide
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.job.config.JobTaskState;
 import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
-import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskParams;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskState;
-import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.ml.action.TransportCancelJobModelSnapshotUpgradeAction;
 import org.elasticsearch.xpack.ml.action.TransportCloseJobAction;
@@ -438,7 +431,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -450,7 +442,6 @@ import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX;
 import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX;
-import static org.elasticsearch.xpack.core.template.IndexTemplateRegistry.parseComposableTemplates;
 import static org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor.Factory.countNumberInferenceProcessors;
 
 public class MachineLearning extends Plugin
@@ -461,8 +452,7 @@ public class MachineLearning extends Plugin
         IngestPlugin,
         PersistentTaskPlugin,
         SearchPlugin,
-        ShutdownAwarePlugin,
-        BuiltinTemplatePlugin {
+        ShutdownAwarePlugin {
     public static final String NAME = "ml";
     public static final String BASE_PATH = "/_ml/";
     // Endpoints that were deprecated in 7.x can still be called in 8.x using the REST compatibility layer
@@ -1949,90 +1939,4 @@ public class MachineLearning extends Plugin
         }
     }
 
-    private static final String ROOT_RESOURCE_PATH = "/org/elasticsearch/xpack/core/ml/";
-    private static final String ANOMALY_DETECTION_PATH = ROOT_RESOURCE_PATH + "anomalydetection/";
-    private static final String VERSION_PATTERN = "xpack.ml.version";
-    private static final String VERSION_ID_PATTERN = "xpack.ml.version.id";
-    private static final String INDEX_LIFECYCLE_NAME = "xpack.ml.index.lifecycle.name";
-    private static final String INDEX_LIFECYCLE_ROLLOVER_ALIAS = "xpack.ml.index.lifecycle.rollover_alias";
-
-    public static final IndexTemplateConfig NOTIFICATIONS_TEMPLATE = notificationsTemplate();
-
-    private static final String ML_SIZE_BASED_ILM_POLICY_NAME = "ml-size-based-ilm-policy";
-
-    private static IndexTemplateConfig stateTemplate() {
-        Map<String, String> variables = new HashMap<>();
-        variables.put(VERSION_ID_PATTERN, String.valueOf(Version.CURRENT.id));
-        variables.put(INDEX_LIFECYCLE_NAME, ML_SIZE_BASED_ILM_POLICY_NAME);
-        variables.put(INDEX_LIFECYCLE_ROLLOVER_ALIAS, AnomalyDetectorsIndex.jobStateIndexWriteAlias());
-
-        return new IndexTemplateConfig(
-            AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
-            ANOMALY_DETECTION_PATH + "state_index_template.json",
-            Version.CURRENT.id,
-            VERSION_PATTERN,
-            variables
-        );
-    }
-
-    private static IndexTemplateConfig anomalyDetectionResultsTemplate() {
-        Map<String, String> variables = new HashMap<>();
-        variables.put(VERSION_ID_PATTERN, String.valueOf(Version.CURRENT.id));
-        variables.put("xpack.ml.anomalydetection.results.mappings", AnomalyDetectorsIndex.resultsMapping());
-
-        return new IndexTemplateConfig(
-            AnomalyDetectorsIndex.jobResultsIndexPrefix(),
-            ANOMALY_DETECTION_PATH + "results_index_template.json",
-            Version.CURRENT.id,
-            VERSION_PATTERN,
-            variables
-        );
-    }
-
-    private static IndexTemplateConfig notificationsTemplate() {
-        Map<String, String> variables = new HashMap<>();
-        variables.put(VERSION_ID_PATTERN, String.valueOf(Version.CURRENT.id));
-        variables.put("xpack.ml.notifications.mappings", NotificationsIndex.mapping());
-
-        return new IndexTemplateConfig(
-            NotificationsIndex.NOTIFICATIONS_INDEX,
-            ROOT_RESOURCE_PATH + "notifications_index_template.json",
-            Version.CURRENT.id,
-            VERSION_PATTERN,
-            variables
-        );
-    }
-
-    private static IndexTemplateConfig statsTemplate() {
-        Map<String, String> variables = new HashMap<>();
-        variables.put(VERSION_ID_PATTERN, String.valueOf(Version.CURRENT.id));
-        variables.put("xpack.ml.stats.mappings", MlStatsIndex.mapping());
-        variables.put(INDEX_LIFECYCLE_NAME, ML_SIZE_BASED_ILM_POLICY_NAME);
-        variables.put(INDEX_LIFECYCLE_ROLLOVER_ALIAS, MlStatsIndex.writeAlias());
-
-        return new IndexTemplateConfig(
-            MlStatsIndex.TEMPLATE_NAME,
-            ROOT_RESOURCE_PATH + "stats_index_template.json",
-            Version.CURRENT.id,
-            VERSION_PATTERN,
-            variables
-        );
-    }
-
-    private static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATE_CONFIGS = parseComposableTemplates(
-        anomalyDetectionResultsTemplate(),
-        stateTemplate(),
-        NOTIFICATIONS_TEMPLATE,
-        statsTemplate()
-    );
-
-    @Override
-    public Map<String, ComposableIndexTemplate> getComposableIndexTemplates() {
-        return COMPOSABLE_INDEX_TEMPLATE_CONFIGS;
-    }
-
-    @Override
-    public String getOrigin() {
-        return ClientHelper.ML_ORIGIN;
-    }
 }

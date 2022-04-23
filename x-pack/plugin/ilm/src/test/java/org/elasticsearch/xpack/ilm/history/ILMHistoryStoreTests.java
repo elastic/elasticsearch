@@ -35,6 +35,7 @@ import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
+import org.elasticsearch.xpack.ilm.IndexLifecycleTemplateBundle;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
@@ -55,7 +56,7 @@ public class ILMHistoryStoreTests extends ESTestCase {
     private VerifyingClient client;
     private ClusterService clusterService;
     private ILMHistoryStore historyStore;
-    private IndexLifecycle plugin;
+    private IndexLifecycleTemplateBundle bundle;
 
     @Before
     public void setup() {
@@ -69,12 +70,12 @@ public class ILMHistoryStoreTests extends ESTestCase {
             client,
             NamedXContentRegistry.EMPTY
         );
-        plugin = new IndexLifecycle(Settings.EMPTY);
+        bundle = new IndexLifecycleTemplateBundle(new IndexLifecycle(Settings.EMPTY));
         ClusterState state = clusterService.state();
         ClusterServiceUtils.setState(
             clusterService,
             ClusterState.builder(state)
-                .metadata(Metadata.builder(state.metadata()).indexTemplates(plugin.getComposableIndexTemplates()))
+                .metadata(Metadata.builder(state.metadata()).indexTemplates(bundle.getComposableIndexTemplates()))
                 .build()
         );
         historyStore = new ILMHistoryStore(Settings.EMPTY, client, clusterService, threadPool);

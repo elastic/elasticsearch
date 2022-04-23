@@ -11,7 +11,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -24,15 +23,10 @@ import java.util.Collections;
 import java.util.List;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.xpack.stack.StackTemplateBundle.STACK_TEMPLATES_ENABLED;
+
 public class StackTemplateRegistry extends IndexTemplateRegistry {
     private static final Logger logger = LogManager.getLogger(StackTemplateRegistry.class);
-
-    public static final Setting<Boolean> STACK_TEMPLATES_ENABLED = Setting.boolSetting(
-        "stack.templates.enabled",
-        true,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
-    );
 
     private final ClusterService clusterService;
     private volatile boolean stackTemplateEnabled;

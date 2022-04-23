@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
@@ -32,6 +31,7 @@ import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.monitoring.MonitoringField.HISTORY_DURATION;
+import static org.elasticsearch.xpack.monitoring.MonitoringTemplateBundle.MONITORING_TEMPLATES_ENABLED;
 
 /**
  * Template registry for monitoring templates. Templates are loaded and installed shortly after cluster startup.
@@ -86,13 +86,6 @@ public class MonitoringTemplateRegistry extends IndexTemplateRegistry {
         STACK_TEMPLATE_VERSION,
         MONITORING_POLICY_NAME_VARIABLE,
         MONITORING_POLICY_NAME
-    );
-
-    public static final Setting<Boolean> MONITORING_TEMPLATES_ENABLED = Setting.boolSetting(
-        "xpack.monitoring.templates.enabled",
-        true,
-        Setting.Property.NodeScope,
-        Setting.Property.Dynamic
     );
 
     private final ClusterService clusterService;

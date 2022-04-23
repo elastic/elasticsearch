@@ -24,7 +24,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import java.io.IOException;
 
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING;
-import static org.elasticsearch.xpack.ilm.IndexLifecycle.SLM_TEMPLATE_NAME;
+import static org.elasticsearch.xpack.ilm.IndexLifecycleTemplateBundle.SLM_TEMPLATE_NAME;
 import static org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegistry.INDEX_TEMPLATE_VERSION;
 
 /**

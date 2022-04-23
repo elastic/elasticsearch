@@ -55,6 +55,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.stack.StackTemplateBundle.REGISTRY_VERSION;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -67,7 +68,7 @@ import static org.mockito.Mockito.when;
 
 public class StackTemplateRegistryTests extends ESTestCase {
     private StackTemplateRegistry registry;
-    private StackPlugin stackPlugin;
+    private StackTemplateBundle stackTemplateBundle;
     private ClusterService clusterService;
     private ThreadPool threadPool;
     private VerifyingClient client;
@@ -78,7 +79,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
         client = new VerifyingClient(threadPool);
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
         registry = new StackTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, NamedXContentRegistry.EMPTY);
-        stackPlugin = new StackPlugin(Settings.EMPTY);
+        stackTemplateBundle = new StackTemplateBundle(new StackPlugin(Settings.EMPTY));
     }
 
     @After
@@ -89,7 +90,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
     }
 
     public void testDisabledDoesNotAddTemplates() {
-        Settings settings = Settings.builder().put(StackTemplateRegistry.STACK_TEMPLATES_ENABLED.getKey(), false).build();
+        Settings settings = Settings.builder().put(StackTemplateBundle.STACK_TEMPLATES_ENABLED.getKey(), false).build();
         StackTemplateRegistry disabledRegistry = new StackTemplateRegistry(
             settings,
             clusterService,
@@ -97,9 +98,9 @@ public class StackTemplateRegistryTests extends ESTestCase {
             client,
             NamedXContentRegistry.EMPTY
         );
-        StackPlugin disabledPlugin = new StackPlugin(settings);
-        assertThat(disabledPlugin.getComponentTemplates(), anEmptyMap());
-        assertThat(disabledPlugin.getComposableIndexTemplates(), anEmptyMap());
+        StackTemplateBundle disabledBundle = new StackTemplateBundle(new StackPlugin(settings));
+        assertThat(disabledBundle.getComponentTemplates(), anEmptyMap());
+        assertThat(disabledBundle.getComposableIndexTemplates(), anEmptyMap());
         assertThat(disabledRegistry.getPolicyConfigs(), hasSize(0));
     }
 
@@ -112,7 +113,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> verifyComponentTemplateInstalled(calledTimes, action, request, listener));
         registry.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(stackPlugin.getComponentTemplates().size())));
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(stackTemplateBundle.getComponentTemplates().size())));
 
         calledTimes.set(0);
 
@@ -247,13 +248,13 @@ public class StackTemplateRegistryTests extends ESTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         ClusterChangedEvent event = createClusterChangedEvent(
-            Collections.singletonMap(StackPlugin.LOGS_SETTINGS_COMPONENT_TEMPLATE_NAME, StackPlugin.REGISTRY_VERSION - 1),
+            Collections.singletonMap(StackTemplateBundle.LOGS_SETTINGS_COMPONENT_TEMPLATE_NAME, REGISTRY_VERSION - 1),
             nodes
         );
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> verifyComponentTemplateInstalled(calledTimes, action, request, listener));
         registry.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(stackPlugin.getComponentTemplates().size())));
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(stackTemplateBundle.getComponentTemplates().size())));
     }
 
     public void testThatUnversionedOldTemplatesAreUpgraded() throws Exception {
@@ -261,13 +262,13 @@ public class StackTemplateRegistryTests extends ESTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         ClusterChangedEvent event = createClusterChangedEvent(
-            Collections.singletonMap(StackPlugin.LOGS_SETTINGS_COMPONENT_TEMPLATE_NAME, null),
+            Collections.singletonMap(StackTemplateBundle.LOGS_SETTINGS_COMPONENT_TEMPLATE_NAME, null),
             nodes
         );
         AtomicInteger calledTimes = new AtomicInteger(0);
         client.setVerifier((action, request, listener) -> verifyComponentTemplateInstalled(calledTimes, action, request, listener));
         registry.clusterChanged(event);
-        assertBusy(() -> assertThat(calledTimes.get(), equalTo(stackPlugin.getComponentTemplates().size())));
+        assertBusy(() -> assertThat(calledTimes.get(), equalTo(stackTemplateBundle.getComponentTemplates().size())));
     }
 
     @TestLogging(value = "org.elasticsearch.xpack.core.template:DEBUG", reason = "test")
@@ -276,13 +277,13 @@ public class StackTemplateRegistryTests extends ESTestCase {
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
         Map<String, Integer> versions = new HashMap<>();
-        versions.put(StackPlugin.DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackPlugin.REGISTRY_VERSION);
-        versions.put(StackPlugin.LOGS_SETTINGS_COMPONENT_TEMPLATE_NAME, StackPlugin.REGISTRY_VERSION);
-        versions.put(StackPlugin.LOGS_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackPlugin.REGISTRY_VERSION);
-        versions.put(StackPlugin.METRICS_SETTINGS_COMPONENT_TEMPLATE_NAME, StackPlugin.REGISTRY_VERSION);
-        versions.put(StackPlugin.METRICS_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackPlugin.REGISTRY_VERSION);
-        versions.put(StackPlugin.SYNTHETICS_SETTINGS_COMPONENT_TEMPLATE_NAME, StackPlugin.REGISTRY_VERSION);
-        versions.put(StackPlugin.SYNTHETICS_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackPlugin.REGISTRY_VERSION);
+        versions.put(StackTemplateBundle.DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE_NAME, REGISTRY_VERSION);
+        versions.put(StackTemplateBundle.LOGS_SETTINGS_COMPONENT_TEMPLATE_NAME, REGISTRY_VERSION);
+        versions.put(StackTemplateBundle.LOGS_MAPPINGS_COMPONENT_TEMPLATE_NAME, REGISTRY_VERSION);
+        versions.put(StackTemplateBundle.METRICS_SETTINGS_COMPONENT_TEMPLATE_NAME, REGISTRY_VERSION);
+        versions.put(StackTemplateBundle.METRICS_MAPPINGS_COMPONENT_TEMPLATE_NAME, REGISTRY_VERSION);
+        versions.put(StackTemplateBundle.SYNTHETICS_SETTINGS_COMPONENT_TEMPLATE_NAME, REGISTRY_VERSION);
+        versions.put(StackTemplateBundle.SYNTHETICS_MAPPINGS_COMPONENT_TEMPLATE_NAME, REGISTRY_VERSION);
         ClusterChangedEvent sameVersionEvent = createClusterChangedEvent(versions, nodes);
         client.setVerifier((action, request, listener) -> {
             if (action instanceof PutComponentTemplateAction) {
@@ -302,13 +303,13 @@ public class StackTemplateRegistryTests extends ESTestCase {
         registry.clusterChanged(sameVersionEvent);
 
         versions.clear();
-        versions.put(StackPlugin.DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackPlugin.REGISTRY_VERSION + randomIntBetween(1, 1000));
-        versions.put(StackPlugin.LOGS_SETTINGS_COMPONENT_TEMPLATE_NAME, StackPlugin.REGISTRY_VERSION + randomIntBetween(1, 1000));
-        versions.put(StackPlugin.LOGS_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackPlugin.REGISTRY_VERSION + randomIntBetween(1, 1000));
-        versions.put(StackPlugin.METRICS_SETTINGS_COMPONENT_TEMPLATE_NAME, StackPlugin.REGISTRY_VERSION + randomIntBetween(1, 1000));
-        versions.put(StackPlugin.METRICS_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackPlugin.REGISTRY_VERSION + randomIntBetween(1, 1000));
-        versions.put(StackPlugin.SYNTHETICS_SETTINGS_COMPONENT_TEMPLATE_NAME, StackPlugin.REGISTRY_VERSION + randomIntBetween(1, 1000));
-        versions.put(StackPlugin.SYNTHETICS_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackPlugin.REGISTRY_VERSION + randomIntBetween(1, 1000));
+        versions.put(StackTemplateBundle.DATA_STREAMS_MAPPINGS_COMPONENT_TEMPLATE_NAME, REGISTRY_VERSION + randomIntBetween(1, 1000));
+        versions.put(StackTemplateBundle.LOGS_SETTINGS_COMPONENT_TEMPLATE_NAME, REGISTRY_VERSION + randomIntBetween(1, 1000));
+        versions.put(StackTemplateBundle.LOGS_MAPPINGS_COMPONENT_TEMPLATE_NAME, REGISTRY_VERSION + randomIntBetween(1, 1000));
+        versions.put(StackTemplateBundle.METRICS_SETTINGS_COMPONENT_TEMPLATE_NAME, REGISTRY_VERSION + randomIntBetween(1, 1000));
+        versions.put(StackTemplateBundle.METRICS_MAPPINGS_COMPONENT_TEMPLATE_NAME, REGISTRY_VERSION + randomIntBetween(1, 1000));
+        versions.put(StackTemplateBundle.SYNTHETICS_SETTINGS_COMPONENT_TEMPLATE_NAME, REGISTRY_VERSION + randomIntBetween(1, 1000));
+        versions.put(StackTemplateBundle.SYNTHETICS_MAPPINGS_COMPONENT_TEMPLATE_NAME, REGISTRY_VERSION + randomIntBetween(1, 1000));
         ClusterChangedEvent higherVersionEvent = createClusterChangedEvent(versions, nodes);
         registry.clusterChanged(higherVersionEvent);
     }
@@ -322,7 +323,10 @@ public class StackTemplateRegistryTests extends ESTestCase {
             return null;
         });
 
-        ClusterChangedEvent event = createClusterChangedEvent(Collections.singletonMap(StackPlugin.LOGS_INDEX_TEMPLATE_NAME, null), nodes);
+        ClusterChangedEvent event = createClusterChangedEvent(
+            Collections.singletonMap(StackTemplateBundle.LOGS_INDEX_TEMPLATE_NAME, null),
+            nodes
+        );
         registry.clusterChanged(event);
     }
 
@@ -373,7 +377,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
             assertThat(action, instanceOf(PutComponentTemplateAction.class));
             assertThat(request, instanceOf(PutComponentTemplateAction.Request.class));
             final PutComponentTemplateAction.Request putRequest = (PutComponentTemplateAction.Request) request;
-            assertThat(putRequest.componentTemplate().version(), equalTo((long) StackPlugin.REGISTRY_VERSION));
+            assertThat(putRequest.componentTemplate().version(), equalTo((long) REGISTRY_VERSION));
             assertNotNull(listener);
             return new TestPutIndexTemplateResponse(true);
         } else if (action instanceof PutLifecycleAction) {

@@ -27,22 +27,22 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public class BuiltinTemplateManager implements ClusterStateListener {
+public class TemplateBundleManager implements ClusterStateListener {
 
-    private static final Logger LOGGER = LogManager.getLogger(BuiltinTemplateManager.class);
+    private static final Logger LOGGER = LogManager.getLogger(TemplateBundleManager.class);
 
     private final ClusterService clusterService;
-    private final BuiltinTemplates builtinTemplates;
+    private final TemplateBundles templateBundles;
     private final MetadataIndexTemplateService metadataIndexTemplateService;
     private final AtomicBoolean installing = new AtomicBoolean(false);
 
-    public BuiltinTemplateManager(
+    public TemplateBundleManager(
         ClusterService clusterService,
-        BuiltinTemplates builtinTemplates,
+        TemplateBundles templateBundles,
         MetadataIndexTemplateService metadataIndexTemplateService
     ) {
         this.clusterService = clusterService;
-        this.builtinTemplates = builtinTemplates;
+        this.templateBundles = templateBundles;
         this.metadataIndexTemplateService = metadataIndexTemplateService;
     }
 
@@ -118,12 +118,12 @@ public class BuiltinTemplateManager implements ClusterStateListener {
 
     List<Map.Entry<String, ComponentTemplate>> getComponentTemplates(ClusterState state) {
         List<Map.Entry<String, ComponentTemplate>> templatesToInstall = new ArrayList<>();
-        for (var plugin : builtinTemplates.getTemplatePlugins()) {
+        for (var plugin : templateBundles.templateBundles()) {
             for (var builtinTemplate : plugin.getComponentTemplates().entrySet()) {
                 final var templateName = builtinTemplate.getKey();
                 var currentTemplate = state.metadata().componentTemplates().get(templateName);
                 if (currentTemplate == null) {
-                    LOGGER.debug("adding component template [{}] for [{}], because it doesn't exist", templateName, plugin.getOrigin());
+                    LOGGER.debug("adding component template [{}] for [{}], because it doesn't exist", templateName, plugin.getName());
                     templatesToInstall.add(builtinTemplate);
                 } else if (Objects.isNull(currentTemplate.version()) || builtinTemplate.getValue().version() > currentTemplate.version()) {
                     // IndexTemplateConfig now enforces templates contain a `version` property, so if the template doesn't have one we can
@@ -131,7 +131,7 @@ public class BuiltinTemplateManager implements ClusterStateListener {
                     LOGGER.info(
                         "upgrading component template [{}] for [{}] from version [{}] to version [{}]",
                         templateName,
-                        plugin.getOrigin(),
+                        plugin.getName(),
                         currentTemplate.version(),
                         builtinTemplate.getValue().version()
                     );
@@ -140,7 +140,7 @@ public class BuiltinTemplateManager implements ClusterStateListener {
                     LOGGER.trace(
                         "not adding component template [{}] for [{}], because it already exists at version [{}]",
                         templateName,
-                        plugin.getOrigin(),
+                        plugin.getName(),
                         currentTemplate.version()
                     );
                 }
@@ -151,7 +151,7 @@ public class BuiltinTemplateManager implements ClusterStateListener {
 
     List<Map.Entry<String, ComposableIndexTemplate>> getComposableTemplates(ClusterState state) {
         List<Map.Entry<String, ComposableIndexTemplate>> templatesToInstall = new ArrayList<>();
-        for (var plugin : builtinTemplates.getTemplatePlugins()) {
+        for (var plugin : templateBundles.templateBundles()) {
             for (var builtinTemplate : plugin.getComposableIndexTemplates().entrySet()) {
                 final String templateName = builtinTemplate.getKey();
                 ComposableIndexTemplate currentTemplate = state.metadata().templatesV2().get(templateName);
@@ -160,10 +160,10 @@ public class BuiltinTemplateManager implements ClusterStateListener {
                     LOGGER.trace(
                         "not adding composable template [{}] for [{}] because its required component templates do not exist",
                         templateName,
-                        plugin.getOrigin()
+                        plugin.getName()
                     );
                 } else if (Objects.isNull(currentTemplate)) {
-                    LOGGER.debug("adding composable template [{}] for [{}], because it doesn't exist", templateName, plugin.getOrigin());
+                    LOGGER.debug("adding composable template [{}] for [{}], because it doesn't exist", templateName, plugin.getName());
                     templatesToInstall.add(builtinTemplate);
                 } else if (Objects.isNull(currentTemplate.version()) || builtinTemplate.getValue().version() > currentTemplate.version()) {
                     // IndexTemplateConfig now enforces templates contain a `version` property, so if the template doesn't have one we can
@@ -171,7 +171,7 @@ public class BuiltinTemplateManager implements ClusterStateListener {
                     LOGGER.info(
                         "upgrading composable template [{}] for [{}] from version [{}] to version [{}]",
                         templateName,
-                        plugin.getOrigin(),
+                        plugin.getName(),
                         currentTemplate.version(),
                         builtinTemplate.getValue().version()
                     );
@@ -180,7 +180,7 @@ public class BuiltinTemplateManager implements ClusterStateListener {
                     LOGGER.trace(
                         "not adding composable template [{}] for [{}], because it already exists at version [{}]",
                         templateName,
-                        plugin.getOrigin(),
+                        plugin.getName(),
                         currentTemplate.version()
                     );
                 }

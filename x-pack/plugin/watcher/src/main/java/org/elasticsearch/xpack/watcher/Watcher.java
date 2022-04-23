@@ -19,7 +19,6 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
@@ -43,7 +42,6 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.plugins.BuiltinTemplatePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.ScriptPlugin;
@@ -65,7 +63,6 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.core.ssl.SSLService;
-import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.watcher.WatcherField;
 import org.elasticsearch.xpack.core.watcher.WatcherMetadata;
 import org.elasticsearch.xpack.core.watcher.actions.ActionFactory;
@@ -75,7 +72,6 @@ import org.elasticsearch.xpack.core.watcher.crypto.CryptoService;
 import org.elasticsearch.xpack.core.watcher.execution.TriggeredWatchStoreField;
 import org.elasticsearch.xpack.core.watcher.history.HistoryStoreField;
 import org.elasticsearch.xpack.core.watcher.input.none.NoneInput;
-import org.elasticsearch.xpack.core.watcher.support.WatcherIndexTemplateRegistryField;
 import org.elasticsearch.xpack.core.watcher.transform.TransformRegistry;
 import org.elasticsearch.xpack.core.watcher.transport.actions.QueryWatchesAction;
 import org.elasticsearch.xpack.core.watcher.transport.actions.ack.AckWatchAction;
@@ -211,9 +207,8 @@ import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
 import static org.elasticsearch.index.mapper.MapperService.SINGLE_MAPPING_NAME;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.ClientHelper.WATCHER_ORIGIN;
-import static org.elasticsearch.xpack.core.template.IndexTemplateRegistry.parseComposableTemplates;
 
-public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, ReloadablePlugin, BuiltinTemplatePlugin {
+public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, ReloadablePlugin {
 
     // This setting is only here for backward compatibility reasons as 6.x indices made use of it. It can be removed in 8.x.
     @Deprecated
@@ -275,14 +270,11 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
 
     protected final Settings settings;
     protected final boolean enabled;
-    private final boolean ilmManagementEnabled;
     protected List<NotificationService<?>> reloadableServices = new ArrayList<>();
 
     public Watcher(final Settings settings) {
         this.settings = settings;
         this.enabled = XPackSettings.WATCHER_ENABLED.get(settings);
-        this.ilmManagementEnabled = Watcher.USE_ILM_INDEX_MANAGEMENT.get(settings);
-        ;
     }
 
     // overridable by tests
@@ -1014,33 +1006,4 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         }
     }
 
-    public static final String WATCHER_TEMPLATE_VERSION_VARIABLE = "xpack.watcher.template.version";
-
-    private static final Map<String, ComposableIndexTemplate> TEMPLATES_WATCH_HISTORY = parseComposableTemplates(
-        new IndexTemplateConfig(
-            WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME,
-            "/watch-history.json",
-            WatcherIndexTemplateRegistryField.INDEX_TEMPLATE_VERSION,
-            WATCHER_TEMPLATE_VERSION_VARIABLE
-        )
-    );
-
-    private static final Map<String, ComposableIndexTemplate> TEMPLATES_WATCH_HISTORY_NO_ILM = parseComposableTemplates(
-        new IndexTemplateConfig(
-            WatcherIndexTemplateRegistryField.HISTORY_TEMPLATE_NAME_NO_ILM,
-            "/watch-history-no-ilm.json",
-            WatcherIndexTemplateRegistryField.INDEX_TEMPLATE_VERSION,
-            WATCHER_TEMPLATE_VERSION_VARIABLE
-        )
-    );
-
-    @Override
-    public Map<String, ComposableIndexTemplate> getComposableIndexTemplates() {
-        return ilmManagementEnabled ? TEMPLATES_WATCH_HISTORY : TEMPLATES_WATCH_HISTORY_NO_ILM;
-    }
-
-    @Override
-    public String getOrigin() {
-        return WATCHER_ORIGIN;
-    }
 }

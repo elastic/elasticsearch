@@ -8,19 +8,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.plugins.BuiltinTemplatePlugin;
-
 import java.util.List;
 
-public class BuiltinTemplates {
+public record TemplateBundles(List<TemplateBundle> templateBundles) {
 
-    private final List<BuiltinTemplatePlugin> templatePlugins;
-
-    public BuiltinTemplates(List<BuiltinTemplatePlugin> templatePlugins) {
-        this.templatePlugins = templatePlugins;
-    }
-
-    public List<BuiltinTemplatePlugin> getTemplatePlugins() {
-        return templatePlugins;
-    }
 }

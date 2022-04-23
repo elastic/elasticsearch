@@ -2094,7 +2094,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             xContentRegistry,
             EmptySystemIndices.INSTANCE,
             new IndexSettingProviders(Set.of()),
-            new BuiltinTemplates(List.of())
+            new TemplateBundles(List.of())
         );
 
         final List<Throwable> throwables = new ArrayList<>();

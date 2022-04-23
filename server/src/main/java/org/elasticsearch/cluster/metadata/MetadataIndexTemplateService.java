@@ -122,7 +122,7 @@ public class MetadataIndexTemplateService {
     private final NamedXContentRegistry xContentRegistry;
     private final SystemIndices systemIndices;
     private final Set<IndexSettingProvider> indexSettingProviders;
-    private final BuiltinTemplateManager builtinTemplateManager;
+    private final TemplateBundleManager templateBundleManager;
 
     @Inject
     public MetadataIndexTemplateService(
@@ -134,7 +134,7 @@ public class MetadataIndexTemplateService {
         NamedXContentRegistry xContentRegistry,
         SystemIndices systemIndices,
         IndexSettingProviders indexSettingProviders,
-        BuiltinTemplates builtinTemplates
+        TemplateBundles templateBundles
     ) {
         this.clusterService = clusterService;
         this.indicesService = indicesService;
@@ -145,10 +145,10 @@ public class MetadataIndexTemplateService {
         this.indexSettingProviders = indexSettingProviders.getIndexSettingProviders();
 
         if (DiscoveryNode.isMasterNode(settings)) {
-            this.builtinTemplateManager = new BuiltinTemplateManager(clusterService, builtinTemplates, this);
-            clusterService.addListener(builtinTemplateManager);
+            this.templateBundleManager = new TemplateBundleManager(clusterService, templateBundles, this);
+            clusterService.addListener(templateBundleManager);
         } else {
-            this.builtinTemplateManager = null;
+            this.templateBundleManager = null;
         }
     }
 

@@ -6,14 +6,11 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.plugins;
-
-import org.elasticsearch.cluster.metadata.ComponentTemplate;
-import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+package org.elasticsearch.cluster.metadata;
 
 import java.util.Map;
 
-public interface BuiltinTemplatePlugin {
+public interface TemplateBundle {
 
     default Map<String, ComponentTemplate> getComponentTemplates() {
         return Map.of();
@@ -23,8 +20,6 @@ public interface BuiltinTemplatePlugin {
         return Map.of();
     }
 
-    default String getOrigin() {
-        return "";
-    }
+    String getName();
 
 }

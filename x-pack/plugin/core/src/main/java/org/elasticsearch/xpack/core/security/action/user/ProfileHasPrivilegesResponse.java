@@ -19,18 +19,18 @@ import java.util.Arrays;
 public class ProfileHasPrivilegesResponse extends ActionResponse implements ToXContentObject {
 
     private String[] hasPrivilegeUids;
-    private String[] failureUids;
+    private String[] errorUids;
 
     public ProfileHasPrivilegesResponse(StreamInput in) throws IOException {
         super(in);
         this.hasPrivilegeUids = in.readStringArray();
-        this.failureUids = in.readStringArray();
+        this.errorUids = in.readStringArray();
     }
 
-    public ProfileHasPrivilegesResponse(String[] hasPrivilegeUids, String[] failureUids) {
+    public ProfileHasPrivilegesResponse(String[] hasPrivilegeUids, String[] errorUids) {
         super();
         this.hasPrivilegeUids = hasPrivilegeUids;
-        this.failureUids = failureUids;
+        this.errorUids = errorUids;
     }
 
     public ProfileHasPrivilegesResponse() {
@@ -41,8 +41,8 @@ public class ProfileHasPrivilegesResponse extends ActionResponse implements ToXC
         return hasPrivilegeUids;
     }
 
-    public String[] failureUids() {
-        return failureUids;
+    public String[] errorUids() {
+        return errorUids;
     }
 
     @Override
@@ -50,25 +50,25 @@ public class ProfileHasPrivilegesResponse extends ActionResponse implements ToXC
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         ProfileHasPrivilegesResponse that = (ProfileHasPrivilegesResponse) o;
-        return Arrays.equals(hasPrivilegeUids, that.hasPrivilegeUids) && Arrays.equals(failureUids, that.failureUids);
+        return Arrays.equals(hasPrivilegeUids, that.hasPrivilegeUids) && Arrays.equals(errorUids, that.errorUids);
     }
 
     @Override
     public int hashCode() {
         int result = Arrays.hashCode(hasPrivilegeUids);
-        result = 31 * result + Arrays.hashCode(failureUids);
+        result = 31 * result + Arrays.hashCode(errorUids);
         return result;
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject().array("has_privileges", hasPrivilegeUids).array("failures", failureUids).endObject();
+        return builder.startObject().array("has_privilege_uids", hasPrivilegeUids).array("error_uids", errorUids).endObject();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeStringArray(hasPrivilegeUids);
-        out.writeStringArray(failureUids);
+        out.writeStringArray(errorUids);
     }
 
     @Override
@@ -78,7 +78,7 @@ public class ProfileHasPrivilegesResponse extends ActionResponse implements ToXC
             + "has_privilege_uids="
             + Arrays.toString(hasPrivilegeUids)
             + ", failure_uids="
-            + Arrays.toString(failureUids)
+            + Arrays.toString(errorUids)
             + "}";
     }
 }

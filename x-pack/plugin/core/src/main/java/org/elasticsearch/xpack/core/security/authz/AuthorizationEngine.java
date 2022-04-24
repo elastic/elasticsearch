@@ -198,15 +198,16 @@ public interface AuthorizationEngine {
     );
 
     /**
-     * Checks the current user's privileges against those that being requested to check in the
-     * request. This provides a way for an application to ask if a user has permission to perform
-     * an action or if they have permissions to an application resource.
+     * Checks the privileges from the provided authorization information against those that are being
+     * requested to be checked. This provides a way for a client application to ask if a Subject has
+     * permission to perform an action, before actually trying to perform the action,
+     * or if the subject has privileges to an application resource.
      *
-     * @param authorizationInfo information needed from authorization that was previously retrieved
-     *                          from {@link #resolveAuthorizationInfo(RequestInfo, ActionListener)}
-     * @param privilegesToCheck the object that contains the privileges to check for the user
+     * @param authorizationInfo information used for authorization, for a specific Subject, that was previously retrieved
+     *                          using {@link #resolveAuthorizationInfo(Subject, ActionListener)}
+     * @param privilegesToCheck the object that contains the privileges to check for the Subject
      * @param applicationPrivilegeDescriptors a collection of application privilege descriptors
-     * @param listener the listener to be notified of the has privileges response
+     * @param listener the listener to be notified of the check privileges response
      */
     void checkPrivileges(
         AuthorizationInfo authorizationInfo,

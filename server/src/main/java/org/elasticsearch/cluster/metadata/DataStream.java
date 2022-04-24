@@ -184,6 +184,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         if (indexMode == IndexMode.TIME_SERIES) {
             // Get a sorted overview of each backing index with there start and end time range:
             var startAndEndTimes = indices.stream()
+                .filter(index -> imSupplier.apply(index.getName()) != null)
                 .map(index -> imSupplier.apply(index.getName()))
                 .filter(
                     // Migrated tsdb data streams have non tsdb backing indices:

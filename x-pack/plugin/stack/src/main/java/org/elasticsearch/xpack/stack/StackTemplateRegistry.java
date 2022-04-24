@@ -26,7 +26,6 @@ import java.util.stream.Stream;
 import static org.elasticsearch.xpack.stack.StackTemplateBundle.STACK_TEMPLATES_ENABLED;
 
 public class StackTemplateRegistry extends IndexTemplateRegistry {
-    private static final Logger logger = LogManager.getLogger(StackTemplateRegistry.class);
 
     private final ClusterService clusterService;
     private volatile boolean stackTemplateEnabled;
@@ -77,12 +76,6 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         if (newValue) {
             this.stackTemplateEnabled = true;
         } else {
-            // TODO:
-            // logger.info(
-            // "stack composable templates [{}] and component templates [{}] will not be installed or reinstalled",
-            // String.join(",", getComposableTemplateConfigs().keySet()),
-            // String.join(",", getComponentTemplateConfigs().keySet())
-            // );
             this.stackTemplateEnabled = false;
         }
     }

@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.stack;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.TemplateBundle;
@@ -20,10 +22,14 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.template.IndexTemplateRegistry.parseComposableTemplates;
 
 public class StackTemplateBundle implements TemplateBundle {
+
+    private static final Logger LOGGER = LogManager.getLogger(StackTemplateRegistry.class);
 
     public static final Setting<Boolean> STACK_TEMPLATES_ENABLED = Setting.boolSetting(
         "stack.templates.enabled",
@@ -127,8 +133,7 @@ public class StackTemplateBundle implements TemplateBundle {
         new IndexTemplateConfig(SYNTHETICS_INDEX_TEMPLATE_NAME, "/synthetics-template.json", REGISTRY_VERSION, TEMPLATE_VERSION_VARIABLE)
     );
 
-    // TODO: make dynamic
-    private final boolean stackTemplateEnabled;
+    private volatile boolean stackTemplateEnabled;
 
     public StackTemplateBundle(StackPlugin plugin) {
         this.stackTemplateEnabled = STACK_TEMPLATES_ENABLED.get(plugin.settings);
@@ -149,4 +154,21 @@ public class StackTemplateBundle implements TemplateBundle {
         return ClientHelper.STACK_ORIGIN;
     }
 
+    @Override
+    public void registerEnabledSettingHandler(BiConsumer<Setting<Boolean>, Consumer<Boolean>> consumer) {
+        consumer.accept(STACK_TEMPLATES_ENABLED, this::updateEnabledSetting);
+    }
+
+    private void updateEnabledSetting(boolean newValue) {
+        if (newValue) {
+            this.stackTemplateEnabled = true;
+        } else {
+            LOGGER.info(
+                "stack composable templates [{}] and component templates [{}] will not be installed or reinstalled",
+                String.join(",", getComposableIndexTemplates().keySet()),
+                String.join(",", getComponentTemplates().keySet())
+            );
+            this.stackTemplateEnabled = false;
+        }
+    }
 }

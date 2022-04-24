@@ -44,6 +44,9 @@ public class TemplateBundleManager implements ClusterStateListener {
         this.clusterService = clusterService;
         this.templateBundles = templateBundles;
         this.metadataIndexTemplateService = metadataIndexTemplateService;
+        templateBundles.templateBundles().forEach(templateBundle -> templateBundle.registerEnabledSettingHandler((setting, handler) -> {
+            clusterService.getClusterSettings().addSettingsUpdateConsumer(setting, handler);
+        }));
     }
 
     void checkAndInstallTemplates(ClusterState state) {

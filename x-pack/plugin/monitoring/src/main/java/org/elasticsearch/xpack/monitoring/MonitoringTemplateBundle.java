@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 
 import java.util.Map;
+import java.util.function.BiConsumer;
+import java.util.function.Consumer;
 
 import static org.elasticsearch.xpack.core.template.IndexTemplateRegistry.parseComposableTemplates;
 
@@ -105,8 +107,7 @@ public class MonitoringTemplateBundle implements TemplateBundle {
         ENTERPRISE_SEARCH_STACK_INDEX_TEMPLATE
     );
 
-    // TODO: make dynamic
-    private final boolean monitoringTemplatesEnabled;
+    private volatile boolean monitoringTemplatesEnabled;
 
     public MonitoringTemplateBundle(Monitoring monitoring) {
         monitoringTemplatesEnabled = MONITORING_TEMPLATES_ENABLED.get(monitoring.settings);
@@ -122,4 +123,20 @@ public class MonitoringTemplateBundle implements TemplateBundle {
         return ClientHelper.MONITORING_ORIGIN;
     }
 
+    @Override
+    public void registerEnabledSettingHandler(BiConsumer<Setting<Boolean>, Consumer<Boolean>> consumer) {
+        consumer.accept(MONITORING_TEMPLATES_ENABLED, this::updateEnabledSetting);
+    }
+
+    private void updateEnabledSetting(boolean newValue) {
+        if (newValue) {
+            monitoringTemplatesEnabled = true;
+        } else {
+//            logger.info(
+//                "monitoring templates [{}] will not be installed or reinstalled",
+//                getLegacyTemplateConfigs().stream().map(IndexTemplateConfig::getTemplateName).collect(Collectors.joining(","))
+//            );
+            monitoringTemplatesEnabled = false;
+        }
+    }
 }

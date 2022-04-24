@@ -121,7 +121,6 @@ import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesAc
 import org.elasticsearch.xpack.core.security.action.privilege.DeletePrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateRequest;
-import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -2768,11 +2767,7 @@ public class AuthorizationServiceTests extends ESTestCase {
             }
 
             @Override
-            public void getUserPrivileges(
-                AuthorizationInfo authorizationInfo,
-                GetUserPrivilegesRequest request,
-                ActionListener<GetUserPrivilegesResponse> listener
-            ) {
+            public void getUserPrivileges(AuthorizationInfo authorizationInfo, ActionListener<GetUserPrivilegesResponse> listener) {
                 throw new UnsupportedOperationException("not implemented");
             }
         };

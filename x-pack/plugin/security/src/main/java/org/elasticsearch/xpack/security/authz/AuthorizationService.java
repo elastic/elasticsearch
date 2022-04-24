@@ -44,7 +44,6 @@ import org.elasticsearch.transport.TransportActionProxy;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
-import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationContext;
@@ -192,16 +191,19 @@ public class AuthorizationService {
         );
     }
 
-    public void retrieveUserPrivileges(
-        Subject subject,
-        AuthorizationInfo authorizationInfo,
-        GetUserPrivilegesRequest request,
-        ActionListener<GetUserPrivilegesResponse> listener
-    ) {
-        getAuthorizationEngineForSubject(subject).getUserPrivileges(
-            authorizationInfo,
-            request,
-            wrapPreservingContext(listener, threadContext)
+    public void retrieveUserPrivileges(Subject subject, ActionListener<GetUserPrivilegesResponse> listener) {
+        final AuthorizationEngine authorizationEngine = getAuthorizationEngineForSubject(subject);
+        authorizationEngine.resolveAuthorizationInfo(
+            subject,
+            wrapPreservingContext(
+                listener.delegateFailure(
+                    (delegateListener, authorizationInfo) -> authorizationEngine.getUserPrivileges(
+                        authorizationInfo,
+                        wrapPreservingContext(listener, threadContext)
+                    )
+                ),
+                threadContext
+            )
         );
     }
 

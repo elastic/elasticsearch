@@ -11,7 +11,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
@@ -19,7 +18,6 @@ import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesReques
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationContext;
 import org.elasticsearch.xpack.core.security.authc.Subject;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 
 /**
@@ -27,36 +25,30 @@ import org.elasticsearch.xpack.security.authz.AuthorizationService;
  */
 public class TransportGetUserPrivilegesAction extends HandledTransportAction<GetUserPrivilegesRequest, GetUserPrivilegesResponse> {
 
-    private final ThreadPool threadPool;
     private final AuthorizationService authorizationService;
     private final SecurityContext securityContext;
 
     @Inject
     public TransportGetUserPrivilegesAction(
-        ThreadPool threadPool,
         TransportService transportService,
         ActionFilters actionFilters,
         AuthorizationService authorizationService,
         SecurityContext securityContext
     ) {
         super(GetUserPrivilegesAction.NAME, transportService, actionFilters, GetUserPrivilegesRequest::new);
-        this.threadPool = threadPool;
         this.authorizationService = authorizationService;
         this.securityContext = securityContext;
     }
 
     @Override
     protected void doExecute(Task task, GetUserPrivilegesRequest request, ActionListener<GetUserPrivilegesResponse> listener) {
-        final String username = request.username();
-
         securityContext.requireUser();
         final Subject subject = AuthenticationContext.fromAuthentication(securityContext.getAuthentication()).getEffectiveSubject();
-        final AuthorizationEngine.AuthorizationInfo authorizationInfo = securityContext.getAuthorizationInfoFromContext();
-        if (subject.getUser().principal().equals(username) == false) {
+        if (subject.getUser().principal().equals(request.username()) == false) {
             listener.onFailure(new IllegalArgumentException("users may only list the privileges of their own account"));
             return;
         }
 
-        authorizationService.retrieveUserPrivileges(subject, authorizationInfo, request, listener);
+        authorizationService.retrieveUserPrivileges(subject, listener);
     }
 }

@@ -46,7 +46,6 @@ import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.user.AuthenticateAction;
 import org.elasticsearch.xpack.core.security.action.user.ChangePasswordAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesAction;
-import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.UserRequest;
@@ -582,11 +581,7 @@ public class RBACEngine implements AuthorizationEngine {
     }
 
     @Override
-    public void getUserPrivileges(
-        AuthorizationInfo authorizationInfo,
-        GetUserPrivilegesRequest request,
-        ActionListener<GetUserPrivilegesResponse> listener
-    ) {
+    public void getUserPrivileges(AuthorizationInfo authorizationInfo, ActionListener<GetUserPrivilegesResponse> listener) {
         if (authorizationInfo instanceof RBACAuthorizationInfo == false) {
             listener.onFailure(
                 new IllegalArgumentException("unsupported authorization info:" + authorizationInfo.getClass().getSimpleName())

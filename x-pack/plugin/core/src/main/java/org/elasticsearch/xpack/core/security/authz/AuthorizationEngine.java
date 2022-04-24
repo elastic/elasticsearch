@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Subject;
@@ -217,19 +216,14 @@ public interface AuthorizationEngine {
     );
 
     /**
-     * Retrieve's the current user's privileges in a standard format that can be rendered via an
-     * API for an application to understand the privileges that the current user has.
+     * Retrieve the privileges, from the provided authorization information, in a standard format that can be rendered via an
+     * API for a client application to understand the privileges that the Subject has.
      *
-     * @param authorizationInfo information needed from authorization that was previously retrieved
-     *                          from {@link #resolveAuthorizationInfo(RequestInfo, ActionListener)}
-     * @param request the request for retrieving the user's privileges
-     * @param listener the listener to be notified of the has privileges response
+     * @param authorizationInfo information used from authorization, for a specific Subject, that was previously retrieved
+     *                          from {@link #resolveAuthorizationInfo(Subject, ActionListener)}
+     * @param listener the listener to be notified of the get privileges response
      */
-    void getUserPrivileges(
-        AuthorizationInfo authorizationInfo,
-        GetUserPrivilegesRequest request,
-        ActionListener<GetUserPrivilegesResponse> listener
-    );
+    void getUserPrivileges(AuthorizationInfo authorizationInfo, ActionListener<GetUserPrivilegesResponse> listener);
 
     /**
      * Interface for objects that contains the information needed to authorize a request

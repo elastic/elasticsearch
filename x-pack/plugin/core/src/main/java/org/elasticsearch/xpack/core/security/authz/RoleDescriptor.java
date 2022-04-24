@@ -381,6 +381,13 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
     }
 
     public static RoleDescriptor parsePrivilegesCheck(String description, XContentParser parser) throws IOException {
+        if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
+            throw new ElasticsearchParseException(
+                "failed to parse privileges check [{}]. expected an object but found [{}] instead",
+                description,
+                parser.currentToken()
+            );
+        }
         XContentParser.Token token;
         String currentFieldName = null;
         IndicesPrivileges[] indexPrivileges = null;

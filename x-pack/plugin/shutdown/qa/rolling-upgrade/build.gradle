@@ -79,6 +79,12 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
       user username: "non_operator", password: 'x-pack-test-password', role: "superuser"
     }
 
+    if (BuildParams.inFipsJvm && bwcVersion.before('8.0.0')) {
+      // workaround for issue https://github.com/elastic/elasticsearch/issues/85640
+      // when running in FIPS mode, we need to use a FIPS compliant hashing algorithm
+      // this happens in 8.x clusters automatically but not in older clusters
+      setting 'xpack.security.authc.password_hashing.algorithm', 'pbkdf2_stretch'
+    }
     user username: "test_user", password: "x-pack-test-password"
 
     extraConfigFile 'testnode.pem', file("$outputDir/testnode.pem")

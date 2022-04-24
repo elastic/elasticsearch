@@ -12,7 +12,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
-import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -23,7 +23,7 @@ public class ProfileHasPrivilegesRequest extends ActionRequest {
 
     private String[] uids;
     private String[] clusterPrivileges;
-    private RoleDescriptor.IndicesPrivileges[] indexPrivileges;
+    private IndicesPrivileges[] indexPrivileges;
     private RoleDescriptor.ApplicationResourcePrivileges[] applicationPrivileges;
 
     public ProfileHasPrivilegesRequest() {}
@@ -32,7 +32,7 @@ public class ProfileHasPrivilegesRequest extends ActionRequest {
         super(in);
         this.uids = in.readStringArray();
         this.clusterPrivileges = in.readStringArray();
-        this.indexPrivileges = in.readArray(RoleDescriptor.IndicesPrivileges::new, RoleDescriptor.IndicesPrivileges[]::new);
+        this.indexPrivileges = in.readArray(IndicesPrivileges::new, IndicesPrivileges[]::new);
         this.applicationPrivileges = in.readArray(
             RoleDescriptor.ApplicationResourcePrivileges::new,
             RoleDescriptor.ApplicationResourcePrivileges[]::new
@@ -47,7 +47,7 @@ public class ProfileHasPrivilegesRequest extends ActionRequest {
         this.clusterPrivileges = privileges;
     }
 
-    public void indexPrivileges(RoleDescriptor.IndicesPrivileges... privileges) {
+    public void indexPrivileges(IndicesPrivileges... privileges) {
         this.indexPrivileges = privileges;
     }
 
@@ -63,7 +63,7 @@ public class ProfileHasPrivilegesRequest extends ActionRequest {
         return clusterPrivileges;
     }
 
-    public RoleDescriptor.IndicesPrivileges[] indexPrivileges() {
+    public IndicesPrivileges[] indexPrivileges() {
         return indexPrivileges;
     }
 
@@ -79,32 +79,12 @@ public class ProfileHasPrivilegesRequest extends ActionRequest {
         } else if (uids.length == 0) {
             validationException = addValidationError("profile uids array must not be empty", validationException);
         }
-        if (clusterPrivileges == null) {
-            validationException = addValidationError("cluster privileges must not be null", validationException);
-        }
-        if (indexPrivileges == null) {
-            validationException = addValidationError("index privileges must not be null", validationException);
-        }
-        if (applicationPrivileges == null) {
-            validationException = addValidationError("application privileges must not be null", validationException);
-        } else {
-            for (RoleDescriptor.ApplicationResourcePrivileges applicationPrivilege : applicationPrivileges) {
-                try {
-                    ApplicationPrivilege.validateApplicationName(applicationPrivilege.getApplication());
-                } catch (IllegalArgumentException e) {
-                    validationException = addValidationError(e.getMessage(), validationException);
-                }
-            }
-        }
-        if (clusterPrivileges != null
-            && clusterPrivileges.length == 0
-            && indexPrivileges != null
-            && indexPrivileges.length == 0
-            && applicationPrivileges != null
-            && applicationPrivileges.length == 0) {
-            validationException = addValidationError("at least one privilege must be specified", validationException);
-        }
-        return validationException;
+        return HasPrivilegesRequest.validateActionRequestPrivileges(
+            validationException,
+            clusterPrivileges,
+            indexPrivileges,
+            applicationPrivileges
+        );
     }
 
     @Override
@@ -112,7 +92,7 @@ public class ProfileHasPrivilegesRequest extends ActionRequest {
         super.writeTo(out);
         out.writeStringArray(uids);
         out.writeStringArray(clusterPrivileges);
-        out.writeArray(RoleDescriptor.IndicesPrivileges::write, indexPrivileges);
+        out.writeArray(IndicesPrivileges::write, indexPrivileges);
         out.writeArray(RoleDescriptor.ApplicationResourcePrivileges::write, applicationPrivileges);
     }
 

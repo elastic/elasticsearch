@@ -47,8 +47,7 @@ public class TransportHasPrivilegesActionTests extends ESTestCase {
             mock(ActionFilters.class),
             mock(AuthorizationService.class),
             mock(NativePrivilegeStore.class),
-            context,
-            xContentRegistry()
+            context
         );
 
         final HasPrivilegesRequest request = new HasPrivilegesRequest();

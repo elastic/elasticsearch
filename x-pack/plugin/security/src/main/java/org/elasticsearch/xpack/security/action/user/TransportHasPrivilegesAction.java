@@ -13,7 +13,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
@@ -40,7 +39,6 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
     private final AuthorizationService authorizationService;
     private final NativePrivilegeStore privilegeStore;
     private final SecurityContext securityContext;
-    private final NamedXContentRegistry xContentRegistry;
 
     @Inject
     public TransportHasPrivilegesAction(
@@ -48,13 +46,11 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
         ActionFilters actionFilters,
         AuthorizationService authorizationService,
         NativePrivilegeStore privilegeStore,
-        SecurityContext context,
-        NamedXContentRegistry xContentRegistry
+        SecurityContext context
     ) {
         super(HasPrivilegesAction.NAME, transportService, actionFilters, HasPrivilegesRequest::new);
         this.authorizationService = authorizationService;
         this.privilegeStore = privilegeStore;
-        this.xContentRegistry = xContentRegistry;
         this.securityContext = context;
     }
 

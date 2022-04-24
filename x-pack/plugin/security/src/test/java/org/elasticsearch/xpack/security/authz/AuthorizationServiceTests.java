@@ -188,6 +188,7 @@ import java.util.function.Predicate;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
+import static org.elasticsearch.test.ActionListenerUtils.anyCollection;
 import static org.elasticsearch.test.SecurityTestsUtils.assertAuthenticationException;
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationException;
 import static org.elasticsearch.test.SecurityTestsUtils.assertThrowsAuthorizationExceptionRunAsDenied;
@@ -2693,6 +2694,149 @@ public class AuthorizationServiceTests extends ESTestCase {
             eq(clearScrollRequest),
             authzInfoRoles(new String[] { role.getName() })
         );
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testCheckPrivileges() throws Exception {
+        AuthorizationEngine engine = mock(AuthorizationEngine.class);
+        MockLicenseState licenseState = mock(MockLicenseState.class);
+        when(licenseState.isAllowed(Security.AUTHORIZATION_ENGINE_FEATURE)).thenReturn(true);
+        authorizationService = new AuthorizationService(
+            Settings.EMPTY,
+            rolesStore,
+            clusterService,
+            auditTrailService,
+            new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
+            threadPool,
+            new AnonymousUser(Settings.EMPTY),
+            engine,
+            Collections.emptySet(),
+            licenseState,
+            TestIndexNameExpressionResolver.newInstance(),
+            operatorPrivilegesService,
+            RESTRICTED_INDICES
+        );
+
+        Subject subject = new Subject(new User("test", "a role"), mock(RealmRef.class));
+        AuthorizationInfo authorizationInfo = mock(AuthorizationInfo.class);
+        doAnswer(i -> {
+            assertThat(i.getArguments().length, equalTo(2));
+            final Object arg1 = i.getArguments()[0];
+            assertThat(arg1, instanceOf(Subject.class));
+            Subject subjectArg = (Subject) arg1;
+            final Object arg2 = i.getArguments()[1];
+            assertThat(arg2, instanceOf(ActionListener.class));
+            ActionListener<AuthorizationInfo> listener = (ActionListener<AuthorizationInfo>) arg2;
+            if (subjectArg.equals(subject)) {
+                listener.onResponse(authorizationInfo);
+            } else {
+                listener.onResponse(null);
+            }
+            return null;
+        }).when(engine).resolveAuthorizationInfo(any(Subject.class), anyActionListener());
+        AuthorizationEngine.PrivilegesCheckResult privilegesCheckResult = new AuthorizationEngine.PrivilegesCheckResult(
+            randomBoolean(),
+            Map.of(),
+            Map.of(),
+            Map.of()
+        );
+        doAnswer(i -> {
+            assertThat(i.getArguments().length, equalTo(4));
+            final Object arg1 = i.getArguments()[0];
+            assertThat(arg1, instanceOf(AuthorizationInfo.class));
+            AuthorizationInfo authorizationInfoArg = (AuthorizationInfo) arg1;
+            final Object arg4 = i.getArguments()[3];
+            assertThat(arg4, instanceOf(ActionListener.class));
+            ActionListener<AuthorizationEngine.PrivilegesCheckResult> listener = (ActionListener<
+                AuthorizationEngine.PrivilegesCheckResult>) arg4;
+            if (authorizationInfoArg.equals(authorizationInfo)) {
+                listener.onResponse(privilegesCheckResult);
+            } else {
+                listener.onResponse(null);
+            }
+            return null;
+        }).when(engine)
+            .checkPrivileges(
+                any(AuthorizationInfo.class),
+                any(AuthorizationEngine.PrivilegesToCheck.class),
+                anyCollection(),
+                anyActionListener()
+            );
+
+        PlainActionFuture<AuthorizationEngine.PrivilegesCheckResult> future = new PlainActionFuture<>();
+        authorizationService.checkPrivileges(
+            subject,
+            new AuthorizationEngine.PrivilegesToCheck(List.of(), List.of(), List.of()),
+            List.of(),
+            future
+        );
+        assertThat(future.get(), is(privilegesCheckResult));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testRetrieveUserPrivileges() throws Exception {
+        AuthorizationEngine engine = mock(AuthorizationEngine.class);
+        MockLicenseState licenseState = mock(MockLicenseState.class);
+        when(licenseState.isAllowed(Security.AUTHORIZATION_ENGINE_FEATURE)).thenReturn(true);
+        authorizationService = new AuthorizationService(
+            Settings.EMPTY,
+            rolesStore,
+            clusterService,
+            auditTrailService,
+            new DefaultAuthenticationFailureHandler(Collections.emptyMap()),
+            threadPool,
+            new AnonymousUser(Settings.EMPTY),
+            engine,
+            Collections.emptySet(),
+            licenseState,
+            TestIndexNameExpressionResolver.newInstance(),
+            operatorPrivilegesService,
+            RESTRICTED_INDICES
+        );
+
+        Subject subject = new Subject(new User("test", "a role"), mock(RealmRef.class));
+        AuthorizationInfo authorizationInfo = mock(AuthorizationInfo.class);
+        doAnswer(i -> {
+            assertThat(i.getArguments().length, equalTo(2));
+            final Object arg1 = i.getArguments()[0];
+            assertThat(arg1, instanceOf(Subject.class));
+            Subject subjectArg = (Subject) arg1;
+            final Object arg2 = i.getArguments()[1];
+            assertThat(arg2, instanceOf(ActionListener.class));
+            ActionListener<AuthorizationInfo> listener = (ActionListener<AuthorizationInfo>) arg2;
+            if (subjectArg.equals(subject)) {
+                listener.onResponse(authorizationInfo);
+            } else {
+                listener.onResponse(null);
+            }
+            return null;
+        }).when(engine).resolveAuthorizationInfo(any(Subject.class), anyActionListener());
+        GetUserPrivilegesResponse getUserPrivilegesResponse = new GetUserPrivilegesResponse(
+            Set.of(),
+            Set.of(),
+            Set.of(),
+            Set.of(),
+            Set.of()
+        );
+        doAnswer(i -> {
+            assertThat(i.getArguments().length, equalTo(2));
+            final Object arg1 = i.getArguments()[0];
+            assertThat(arg1, instanceOf(AuthorizationInfo.class));
+            AuthorizationInfo authorizationInfoArg = (AuthorizationInfo) arg1;
+            final Object arg2 = i.getArguments()[1];
+            assertThat(arg2, instanceOf(ActionListener.class));
+            ActionListener<GetUserPrivilegesResponse> listener = (ActionListener<GetUserPrivilegesResponse>) arg2;
+            if (authorizationInfoArg.equals(authorizationInfo)) {
+                listener.onResponse(getUserPrivilegesResponse);
+            } else {
+                listener.onResponse(null);
+            }
+            return null;
+        }).when(engine).getUserPrivileges(any(AuthorizationInfo.class), anyActionListener());
+
+        PlainActionFuture<GetUserPrivilegesResponse> future = new PlainActionFuture<>();
+        authorizationService.retrieveUserPrivileges(subject, future);
+        assertThat(future.get(), is(getUserPrivilegesResponse));
     }
 
     public void testAuthorizationEngineSelection() {

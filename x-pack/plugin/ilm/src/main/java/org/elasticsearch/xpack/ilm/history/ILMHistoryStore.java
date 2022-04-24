@@ -39,8 +39,8 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING;
-import static org.elasticsearch.xpack.ilm.IndexLifecycleTemplateBundle.ILM_TEMPLATE_NAME;
-import static org.elasticsearch.xpack.ilm.IndexLifecycleTemplateBundle.INDEX_TEMPLATE_VERSION;
+import static org.elasticsearch.xpack.ilm.LifecycleTemplateBundle.ILM_TEMPLATE_NAME;
+import static org.elasticsearch.xpack.ilm.LifecycleTemplateBundle.INDEX_TEMPLATE_VERSION;
 
 /**
  * The {@link ILMHistoryStore} handles indexing {@link ILMHistoryItem} documents into the

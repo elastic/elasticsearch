@@ -85,7 +85,7 @@ import org.elasticsearch.xpack.core.ml.notifications.NotificationsIndex;
 import org.elasticsearch.xpack.core.security.SecurityField;
 import org.elasticsearch.xpack.core.security.authc.TokenMetadata;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
-import org.elasticsearch.xpack.ilm.IndexLifecycleTemplateBundle;
+import org.elasticsearch.xpack.ilm.LifecycleTemplateBundle;
 import org.elasticsearch.xpack.ml.LocalStateMachineLearning;
 import org.elasticsearch.xpack.ml.autoscaling.MlScalingReason;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
@@ -217,7 +217,7 @@ abstract class MlNativeIntegTestCase extends ESIntegTestCase {
                 AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX,
                 AnomalyDetectorsIndex.jobResultsIndexPrefix(),
                 InferenceIndexConstants.LATEST_INDEX_NAME,
-                IndexLifecycleTemplateBundle.SLM_TEMPLATE_NAME,
+                LifecycleTemplateBundle.SLM_TEMPLATE_NAME,
                 ".deprecation-indexing-template",
                 ".deprecation-indexing-settings",
                 ".deprecation-indexing-mappings"

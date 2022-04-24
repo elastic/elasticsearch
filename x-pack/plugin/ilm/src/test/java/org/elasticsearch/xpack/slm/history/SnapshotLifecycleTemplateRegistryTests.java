@@ -47,7 +47,7 @@ import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
-import org.elasticsearch.xpack.ilm.IndexLifecycleTemplateBundle;
+import org.elasticsearch.xpack.ilm.LifecycleTemplateBundle;
 import org.junit.After;
 import org.junit.Before;
 
@@ -61,8 +61,9 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING;
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING;
-import static org.elasticsearch.xpack.ilm.IndexLifecycleTemplateBundle.SLM_TEMPLATE_NAME;
+import static org.elasticsearch.xpack.ilm.LifecycleTemplateBundle.SLM_TEMPLATE_NAME;
 import static org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegistry.INDEX_TEMPLATE_VERSION;
 import static org.elasticsearch.xpack.slm.history.SnapshotLifecycleTemplateRegistry.SLM_POLICY_NAME;
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -80,14 +81,14 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
     private ClusterService clusterService;
     private ThreadPool threadPool;
     private VerifyingClient client;
-    private IndexLifecycleTemplateBundle bundle;
+    private LifecycleTemplateBundle bundle;
 
     @Before
     public void createRegistryAndClient() {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new VerifyingClient(threadPool);
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        bundle = new IndexLifecycleTemplateBundle(new IndexLifecycle(Settings.EMPTY));
+        bundle = new LifecycleTemplateBundle(new IndexLifecycle(Settings.EMPTY));
         List<NamedXContentRegistry.Entry> entries = new ArrayList<>(ClusterModule.getNamedXWriteables());
         entries.addAll(
             Arrays.asList(
@@ -112,7 +113,10 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
     }
 
     public void testDisabledDoesNotAddTemplates() {
-        Settings settings = Settings.builder().put(SLM_HISTORY_INDEX_ENABLED_SETTING.getKey(), false).build();
+        Settings settings = Settings.builder()
+            .put(SLM_HISTORY_INDEX_ENABLED_SETTING.getKey(), false)
+            .put(LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.getKey(), false)
+            .build();
         SnapshotLifecycleTemplateRegistry disabledRegistry = new SnapshotLifecycleTemplateRegistry(
             settings,
             clusterService,
@@ -120,7 +124,7 @@ public class SnapshotLifecycleTemplateRegistryTests extends ESTestCase {
             client,
             xContentRegistry
         );
-        IndexLifecycleTemplateBundle bundle = new IndexLifecycleTemplateBundle(new IndexLifecycle(settings));
+        LifecycleTemplateBundle bundle = new LifecycleTemplateBundle(new IndexLifecycle(settings));
         assertThat(bundle.getComposableIndexTemplates(), anEmptyMap());
         assertThat(disabledRegistry.getPolicyConfigs(), hasSize(0));
     }

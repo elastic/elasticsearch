@@ -13,11 +13,12 @@ import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.core.template.IndexTemplateRegistry.parseComposableTemplates;
 
-public class IndexLifecycleTemplateBundle implements TemplateBundle {
+public class LifecycleTemplateBundle implements TemplateBundle {
 
     // history (please add a comment why you increased the version here)
     // version 1: initial
@@ -33,20 +34,39 @@ public class IndexLifecycleTemplateBundle implements TemplateBundle {
     public static final String SLM_TEMPLATE_VERSION_VARIABLE = "xpack.slm.template.version";
     public static final String SLM_TEMPLATE_NAME = ".slm-history";
 
-    public static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATE_CONFIGS = parseComposableTemplates(
-        new IndexTemplateConfig(ILM_TEMPLATE_NAME, "/ilm-history.json", INDEX_TEMPLATE_VERSION, ILM_TEMPLATE_VERSION_VARIABLE),
+    public static final Map<String, ComposableIndexTemplate> COMPOSABLE_ILM_INDEX_TEMPLATE_CONFIGS = parseComposableTemplates(
+        new IndexTemplateConfig(ILM_TEMPLATE_NAME, "/ilm-history.json", INDEX_TEMPLATE_VERSION, ILM_TEMPLATE_VERSION_VARIABLE)
+    );
+    public static final Map<String, ComposableIndexTemplate> COMPOSABLE_SLM_INDEX_TEMPLATE_CONFIGS = parseComposableTemplates(
         new IndexTemplateConfig(SLM_TEMPLATE_NAME, "/slm-history.json", INDEX_TEMPLATE_VERSION, SLM_TEMPLATE_VERSION_VARIABLE)
     );
+    public static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATE_CONFIGS;
+
+    static {
+        var configs = new HashMap<>(COMPOSABLE_ILM_INDEX_TEMPLATE_CONFIGS);
+        configs.putAll(COMPOSABLE_SLM_INDEX_TEMPLATE_CONFIGS);
+        COMPOSABLE_INDEX_TEMPLATE_CONFIGS = Map.copyOf(configs);
+    }
 
     private final boolean ilmHistoryEnabled;
+    private final boolean slmHistoryEnabled;
 
-    public IndexLifecycleTemplateBundle(IndexLifecycle plugin) {
+    public LifecycleTemplateBundle(IndexLifecycle plugin) {
         ilmHistoryEnabled = LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.get(plugin.settings);
+        slmHistoryEnabled = LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING.get(plugin.settings);
     }
 
     @Override
     public Map<String, ComposableIndexTemplate> getComposableIndexTemplates() {
-        return ilmHistoryEnabled ? COMPOSABLE_INDEX_TEMPLATE_CONFIGS : Map.of();
+        if (slmHistoryEnabled && ilmHistoryEnabled) {
+            return COMPOSABLE_INDEX_TEMPLATE_CONFIGS;
+        } else if(ilmHistoryEnabled) {
+            return COMPOSABLE_ILM_INDEX_TEMPLATE_CONFIGS;
+        } else if (slmHistoryEnabled){
+            return COMPOSABLE_SLM_INDEX_TEMPLATE_CONFIGS;
+        } else {
+            return Map.of();
+        }
     }
 
     @Override

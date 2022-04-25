@@ -10,7 +10,6 @@ package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.document.FeatureField;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.DocumentParserContext;
@@ -72,11 +71,7 @@ public class RankFeaturesFieldMapper extends FieldMapper {
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n),
-        notInMultiFields(CONTENT_TYPE),
-        Version.CURRENT.minimumCompatibilityVersion()
-    );
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n), notInMultiFields(CONTENT_TYPE));
 
     public static final class RankFeaturesFieldType extends MappedFieldType {
 

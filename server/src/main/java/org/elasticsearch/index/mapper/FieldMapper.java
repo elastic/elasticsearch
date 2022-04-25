@@ -1414,6 +1414,13 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
 
         public TypeParser(
             BiFunction<String, MappingParserContext, Builder> builderFunction,
+            BiConsumer<String, MappingParserContext> contextValidator
+        ) {
+            this(builderFunction, contextValidator, Version.CURRENT.minimumIndexCompatibilityVersion());
+        }
+
+        public TypeParser(
+            BiFunction<String, MappingParserContext, Builder> builderFunction,
             BiConsumer<String, MappingParserContext> contextValidator,
             Version minimumCompatibilityVersion
         ) {

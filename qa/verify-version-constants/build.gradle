@@ -18,8 +18,9 @@ BuildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
   def baseCluster = testClusters.register(baseName) {
       version = bwcVersion.toString()
       setting 'xpack.security.enabled', 'true'
-      if (BuildParams.inFipsJvm && bwcVersion.before('8.0.0')) {
-        // in FIPS mode, we need to explicitly set a FIPS compliant algorithm for pre-v8 clusters
+      if (BuildParams.inFipsJvm && bwcVersion.onOrAfter('7.0.0') && bwcVersion.before('8.0.0')) {
+        // In FIPS mode, we need to explicitly set a FIPS compliant password hashing algorithm.
+        // This happens automatically for v8 clusters but not for v7 so we set it here.
         setting 'xpack.security.authc.password_hashing.algorithm', 'pbkdf2_stretch'
       }
       user username: 'admin', password: 'admin-password', role: 'superuser'

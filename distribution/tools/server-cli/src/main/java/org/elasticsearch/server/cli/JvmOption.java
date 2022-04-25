@@ -18,6 +18,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
@@ -95,9 +96,8 @@ class JvmOption {
         final List<String> command = Stream.of(
             Stream.of(java),
             userDefinedJvmOptions.stream(),
-            Stream.of("-XX:+PrintFlagsFinal"),
-            Stream.of("-version")
-        ).reduce(Stream::concat).get().toList();
+            Stream.of("-XX:+PrintFlagsFinal", "-version")
+        ).flatMap(Function.identity()).toList();
         final Process process = new ProcessBuilder().command(command).start();
         final List<String> output = readLinesFromInputStream(process.getInputStream());
         final List<String> error = readLinesFromInputStream(process.getErrorStream());

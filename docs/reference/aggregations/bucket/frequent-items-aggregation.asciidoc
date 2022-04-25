@@ -8,10 +8,17 @@ A bucket aggregation which finds frequent item sets. Finding frequent item sets
 is a form of association rules mining that identifies items that often occur 
 together. Items that are frequently purchased together or log events that tend 
 to co-occur are examples of frequent item sets. Finding frequent item sets helps 
-to discover relationships between different data points (items) in a data set 
-and to create 
-https://en.wikipedia.org/wiki/Association_rule_learning[association rules] based 
-on those relationships.
+to discover relationships between different data points (items).
+
+The aggregation reports closed item sets. A frequent item set is called closed 
+if no superset has the same support. For example, we have the two following 
+candidates for a frequent item set **with the same support value**:
+1. `apple, orange, banana`
+2. `apple, orange, banana, tomato`.
+Only the second item set (`apple, orange, banana, tomato`) is returned, and the 
+first set – wich is a subset of the second one – is skipped. Both item sets 
+might be returned if their support values are different. Refer to 
+<<frequent-items-minimum-support,this section>> to learn more about support.
 
 
 ==== Syntax
@@ -79,10 +86,10 @@ aggregation.
 ==== Example
 
 In the following example, we use the e-commerce {kib} sample data set. The goal 
-is to find out from what product categories the customers purchase products 
-frequently together based on transaction data. We are interested in sets with 
-two items, and want to see the first three frequent item sets with the highest 
-support.
+is to find out based on transaction data that (1.) from what product categories 
+the customers purchase products frequently together and (2.) from which cities 
+they purchase those. We are interested in sets with three or more items, and 
+want to see the first three frequent item sets with the highest support.
 
 [source,console]
 -------------------------------------------------
@@ -92,10 +99,11 @@ GET kibana_sample_data_ecommerce /_search
   "aggs": {
     "my_agg": {
       "frequent_items": {
-        "minimum_set_size": 2,
+        "minimum_set_size": 3,
         "fields": [
           {
-            "field": "category.keyword"
+            "field": "category.keyword",
+            "field": "geoip.city_name"
           }
         ],
         "size": 3
@@ -119,30 +127,39 @@ The API returns a response similar to the following one:
             "category.keyword" : [
               "Women's Clothing",
               "Women's Shoes"
+            ],
+            "geoip.city_name" : [
+              "New York"
             ]
           },
-          "doc_count" : 738,
-          "support" : 0.15786096256684493
-        },
-        {
-          "key" : {
-            "category.keyword" : [
-              "Men's Clothing",
-              "Men's Shoes"
-            ]
-          },
-          "doc_count" : 695,
-          "support" : 0.14866310160427806
+          "doc_count" : 217,
+          "support" : 0.04641711229946524
         },
         {
           "key" : {
             "category.keyword" : [
               "Women's Clothing",
               "Women's Accessories"
+            ],
+            "geoip.city_name" : [
+              "New York"
             ]
           },
-          "doc_count" : 449,
-          "support" : 0.0960427807486631
+          "doc_count" : 135,
+          "support" : 0.028877005347593583
+        },
+        {
+          "key" : {
+            "category.keyword" : [
+              "Men's Clothing",
+              "Men's Shoes"
+            ],
+            "geoip.city_name" : [
+              "Cairo"
+            ]
+          },
+          "doc_count" : 123,
+          "support" : 0.026310160427807486
         }
       ],
     (...) 
@@ -152,8 +169,11 @@ The API returns a response similar to the following one:
 // TEST[skip:setup kibana sample data]
 
 The response shows that the categories customers purchase from most frequently 
-together are `Women's Clothing` and `Women's Shoes`. It means that customers who 
-buy products labelled Women's Clothing more likely buy products also from the 
-Women's Shoes category. The item set with the second highest support is 
-`Men's Clothing` and `Men's Shoes`. Finally, the item set with the third highest 
-support is `Women's Clothing` and `Women's Accessories`.
+together are `Women's Clothing` and `Women's Shoes` and customers from New York 
+tend to buy items from these categories frequently togeher. In other words, 
+customers who buy products labelled Women's Clothing more likely buy products 
+also from the Women's Shoes category and customers from New York most likely buy 
+products from these categories together. The item set with the second highest 
+support is `Women's Clothing` and `Women's Accessories` with customers mostly 
+from New York. Finally, the item set with the third highest support is 
+`Men's Clothing` and `Men's Shoes` with customers mostly from Cairo.

@@ -134,6 +134,9 @@ class PluginBuildPluginFuncTest extends AbstractGradleFuncTest {
                 description = 'test plugin'
                 classname = 'com.acme.plugin.TestPlugin'
             }
+
+            // for testing purposes only
+            configurations.compileOnly.dependencies.clear()
             """
         file('src/main/java/module-info.java') << """
             module org.test.plugin {

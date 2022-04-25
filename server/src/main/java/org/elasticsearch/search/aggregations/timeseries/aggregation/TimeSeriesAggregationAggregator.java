@@ -54,6 +54,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+import java.util.TreeMap;
 
 import static org.elasticsearch.search.DocValueFormat.TIME_SERIES_ID;
 import static org.elasticsearch.search.aggregations.InternalOrder.isKeyOrder;
@@ -120,7 +121,7 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
             throw new IllegalArgumentException("time_series_aggregation invalid interval [" + interval + "]");
         }
         this.rounding = Rounding.builder(new TimeValue(this.interval)).build().prepareForUnknown();
-        this.offset = offset != null ? offset.estimateMillis() : -1;
+        this.offset = offset != null ? offset.estimateMillis() : 0;
         this.aggregator = aggregator;
         this.downsampleRange = downsample != null ? downsample.getRange().estimateMillis() : -1;
         this.downsampleFunction = downsample != null ? downsample.getFunction() : Function.last;
@@ -272,6 +273,9 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
 
             if (preRounding < 0 || aggCtx.getTimestamp() <= preRounding - interval) {
                 preRounding = rounding.nextRoundingValue(aggCtx.getTimestamp());
+                if (false == timeBucketMetrics.containsKey(preRounding)) {
+                    timeBucketMetrics.put(preRounding, downsampleFunction.getAggregatorFunction());
+                }
             }
 
             // calculate the value of the current doc
@@ -280,7 +284,7 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
         }
 
         private void reset(BytesRef tsid, long bucket) {
-            timeBucketMetrics = new LinkedHashMap<>();
+            timeBucketMetrics = new TreeMap<>();
             preTsid = BytesRef.deepCopyOf(tsid);
             preRounding = -1;
 
@@ -319,15 +323,26 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
         }
         final SortedNumericDoubleValues values = valuesSource.doubleValues(context);
         return new Collector(sub, values, aggCtx, (doc) -> {
+            if (aggCtx.getTimestamp() + downsampleRange < preRounding) {
+                return;
+            }
+
             if (values.advanceExact(doc)) {
                 final int valuesCount = values.docValueCount();
                 for (int i = 0; i < valuesCount; i++) {
                     double value = values.nextValue();
-                    AggregatorFunction function = getAggregatorFunction();
-                    if (function instanceof LastFunction last) {
-                        last.collectExact(value, aggCtx.getTimestamp());
-                    } else {
-                        function.collect(value);
+                    for (Entry<Long, AggregatorFunction> entry : timeBucketMetrics.entrySet()) {
+                        Long timestamp = entry.getKey();
+                        AggregatorFunction function = entry.getValue();
+                        if (aggCtx.getTimestamp() + downsampleRange > timestamp) {
+                            if (function instanceof LastFunction last) {
+                                last.collectExact(value, aggCtx.getTimestamp());
+                            } else {
+                                function.collect(value);
+                            }
+                        } else {
+                            break;
+                        }
                     }
                 }
             }

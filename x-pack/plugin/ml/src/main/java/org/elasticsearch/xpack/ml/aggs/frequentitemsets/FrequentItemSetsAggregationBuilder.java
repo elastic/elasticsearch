@@ -58,10 +58,10 @@ public class FrequentItemSetsAggregationBuilder extends AbstractAggregationBuild
 
     static {
         ContextParser<Void, MultiValuesSourceFieldConfig.Builder> metricParser = MultiValuesSourceFieldConfig.parserBuilder(
-            true,
-            false,
-            false,
-            false
+            false, // scriptable
+            true,  // timezone aware
+            false, // filtered
+            true   // format
         );
         PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, n) -> metricParser.parse(p, null).build(), FIELDS);
         PARSER.declareDouble(ConstructingObjectParser.optionalConstructorArg(), MINIMUM_SUPPORT);

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ml.aggs.mapreduce;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorBase;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -17,8 +16,6 @@ import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
@@ -28,6 +25,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
+
+import static org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceValueSourceRegistry.REGISTRY_KEY;
 
 public abstract class MapReduceAggregator extends AggregatorBase {
 
@@ -74,21 +73,11 @@ public abstract class MapReduceAggregator extends AggregatorBase {
     ) throws IOException {
         super(name, AggregatorFactories.EMPTY, context, parent, CardinalityUpperBound.NONE, metadata);
 
-        this.context = new MapReduceContext(configs.stream().map(c -> {
-            ValuesSource vs = c.getValuesSource();
+        List<ValuesExtractor> extractors = configs.stream()
+            .map(c -> context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, c).build(c))
+            .collect(Collectors.toList());
 
-            // TODO: make this nicer
-            if (CoreValuesSourceType.KEYWORD.equals(c.valueSourceType())) {
-                String fieldName = c.fieldContext() != null ? c.fieldContext().field() : null;
-
-                if (Strings.isNullOrEmpty(fieldName)) {
-                    throw new IllegalArgumentException("scripts are not supported at the moment");
-                }
-
-                return new ValuesExtractor.Keyword(fieldName, vs);
-            }
-            return (ValuesExtractor) null;
-        }).collect(Collectors.toList()), mapReducer);
+        this.context = new MapReduceContext(extractors, mapReducer);
     }
 
     @Override

@@ -106,7 +106,7 @@ import org.elasticsearch.xpack.ilm.action.TransportRemoveIndexLifecyclePolicyAct
 import org.elasticsearch.xpack.ilm.action.TransportRetryAction;
 import org.elasticsearch.xpack.ilm.action.TransportStartILMAction;
 import org.elasticsearch.xpack.ilm.action.TransportStopILMAction;
-import org.elasticsearch.xpack.ilm.action.operator.OperatorLifecycleAction;
+import org.elasticsearch.xpack.ilm.action.operator.OperatorPutLifecycleAction;
 import org.elasticsearch.xpack.ilm.history.ILMHistoryStore;
 import org.elasticsearch.xpack.ilm.history.ILMHistoryTemplateRegistry;
 import org.elasticsearch.xpack.slm.SLMInfoTransportAction;
@@ -160,6 +160,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
     private final SetOnce<SnapshotHistoryStore> snapshotHistoryStore = new SetOnce<>();
     private final SetOnce<IlmHealthIndicatorService> ilmHealthIndicatorService = new SetOnce<>();
     private final SetOnce<SlmHealthIndicatorService> slmHealthIndicatorService = new SetOnce<>();
+    private final SetOnce<OperatorPutLifecycleAction> ilmOperatorAction = new SetOnce<>();
     private final Settings settings;
 
     public IndexLifecycle(Settings settings) {
@@ -273,6 +274,7 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
         components.addAll(Arrays.asList(snapshotLifecycleService.get(), snapshotHistoryStore.get(), snapshotRetentionService.get()));
         ilmHealthIndicatorService.set(new IlmHealthIndicatorService(clusterService));
         slmHealthIndicatorService.set(new SlmHealthIndicatorService(clusterService));
+        ilmOperatorAction.set(new OperatorPutLifecycleAction(xContentRegistry, client, XPackPlugin.getSharedLicenseState()));
         return components;
     }
 
@@ -381,8 +383,8 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
     }
 
     @Override
-    public List<OperatorHandler> getOperatorHandlers() {
-        return List.of(new OperatorLifecycleAction());
+    public List<OperatorHandler<?>> getOperatorHandlers() {
+        return List.of(ilmOperatorAction.get());
     }
 
     @Override

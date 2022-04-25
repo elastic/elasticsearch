@@ -20,7 +20,6 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -146,118 +145,121 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
         final ClusterState state,
         final ActionListener<ClusterUpdateSettingsResponse> listener
     ) {
-        clusterService.submitStateUpdateTask(UPDATE_TASK_SOURCE, new ClusterUpdateSettingsTask(
-            clusterSettings,
-            Priority.IMMEDIATE,
-            request,
-            listener
-        ) {
-            @Override
-            protected ClusterUpdateSettingsResponse newResponse(boolean acknowledged) {
-                return new ClusterUpdateSettingsResponse(acknowledged, updater.getTransientUpdates(), updater.getPersistentUpdate());
-            }
-
-            @Override
-            public void onAllNodesAcked() {
-                if (changed) {
-                    reroute(true);
-                } else {
-                    super.onAllNodesAcked();
-                }
-            }
-
-            @Override
-            public void onAckFailure(Exception e) {
-                if (changed) {
-                    reroute(true);
-                } else {
-                    super.onAckFailure(e);
-                }
-            }
-
-            @Override
-            public void onAckTimeout() {
-                if (changed) {
-                    reroute(false);
-                } else {
-                    super.onAckTimeout();
-                }
-            }
-
-            private void reroute(final boolean updateSettingsAcked) {
-                // We're about to send a second update task, so we need to check if we're still the elected master
-                // For example the minimum_master_node could have been breached and we're no longer elected master,
-                // so we should *not* execute the reroute.
-                if (clusterService.state().nodes().isLocalNodeElectedMaster() == false) {
-                    logger.debug("Skipping reroute after cluster update settings, because node is no longer master");
-                    listener.onResponse(
-                        new ClusterUpdateSettingsResponse(updateSettingsAcked, updater.getTransientUpdates(), updater.getPersistentUpdate())
-                    );
-                    return;
+        clusterService.submitStateUpdateTask(
+            UPDATE_TASK_SOURCE,
+            new ClusterUpdateSettingsTask(clusterSettings, Priority.IMMEDIATE, request, listener) {
+                @Override
+                protected ClusterUpdateSettingsResponse newResponse(boolean acknowledged) {
+                    return new ClusterUpdateSettingsResponse(acknowledged, updater.getTransientUpdates(), updater.getPersistentUpdate());
                 }
 
-                // The reason the reroute needs to be send as separate update task, is that all the *cluster* settings are encapsulate
-                // in the components (e.g. FilterAllocationDecider), so the changes made by the first call aren't visible
-                // to the components until the ClusterStateListener instances have been invoked, but are visible after
-                // the first update task has been completed.
-                clusterService.submitStateUpdateTask(
-                    REROUTE_TASK_SOURCE,
-                    new AckedClusterStateUpdateTask(Priority.URGENT, request, listener) {
+                @Override
+                public void onAllNodesAcked() {
+                    if (changed) {
+                        reroute(true);
+                    } else {
+                        super.onAllNodesAcked();
+                    }
+                }
 
-                        @Override
-                        public boolean mustAck(DiscoveryNode discoveryNode) {
-                            // we wait for the reroute ack only if the update settings was acknowledged
-                            return updateSettingsAcked;
-                        }
+                @Override
+                public void onAckFailure(Exception e) {
+                    if (changed) {
+                        reroute(true);
+                    } else {
+                        super.onAckFailure(e);
+                    }
+                }
 
-                        @Override
-                        // we return when the cluster reroute is acked or it times out but the acknowledged flag depends on whether the
-                        // update settings was acknowledged
-                        protected ClusterUpdateSettingsResponse newResponse(boolean acknowledged) {
-                            return new ClusterUpdateSettingsResponse(
-                                updateSettingsAcked && acknowledged,
+                @Override
+                public void onAckTimeout() {
+                    if (changed) {
+                        reroute(false);
+                    } else {
+                        super.onAckTimeout();
+                    }
+                }
+
+                private void reroute(final boolean updateSettingsAcked) {
+                    // We're about to send a second update task, so we need to check if we're still the elected master
+                    // For example the minimum_master_node could have been breached and we're no longer elected master,
+                    // so we should *not* execute the reroute.
+                    if (clusterService.state().nodes().isLocalNodeElectedMaster() == false) {
+                        logger.debug("Skipping reroute after cluster update settings, because node is no longer master");
+                        listener.onResponse(
+                            new ClusterUpdateSettingsResponse(
+                                updateSettingsAcked,
                                 updater.getTransientUpdates(),
                                 updater.getPersistentUpdate()
-                            );
-                        }
+                            )
+                        );
+                        return;
+                    }
 
-                        @Override
-                        public void onNoLongerMaster() {
-                            logger.debug(
-                                "failed to preform reroute after cluster settings were updated - current node is no longer a master"
-                            );
-                            listener.onResponse(
-                                new ClusterUpdateSettingsResponse(
-                                    updateSettingsAcked,
+                    // The reason the reroute needs to be send as separate update task, is that all the *cluster* settings are encapsulate
+                    // in the components (e.g. FilterAllocationDecider), so the changes made by the first call aren't visible
+                    // to the components until the ClusterStateListener instances have been invoked, but are visible after
+                    // the first update task has been completed.
+                    clusterService.submitStateUpdateTask(
+                        REROUTE_TASK_SOURCE,
+                        new AckedClusterStateUpdateTask(Priority.URGENT, request, listener) {
+
+                            @Override
+                            public boolean mustAck(DiscoveryNode discoveryNode) {
+                                // we wait for the reroute ack only if the update settings was acknowledged
+                                return updateSettingsAcked;
+                            }
+
+                            @Override
+                            // we return when the cluster reroute is acked or it times out but the acknowledged flag depends on whether the
+                            // update settings was acknowledged
+                            protected ClusterUpdateSettingsResponse newResponse(boolean acknowledged) {
+                                return new ClusterUpdateSettingsResponse(
+                                    updateSettingsAcked && acknowledged,
                                     updater.getTransientUpdates(),
                                     updater.getPersistentUpdate()
-                                )
-                            );
-                        }
+                                );
+                            }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            // if the reroute fails we only log
-                            logger.debug(() -> new ParameterizedMessage("failed to perform [{}]", REROUTE_TASK_SOURCE), e);
-                            listener.onFailure(new ElasticsearchException("reroute after update settings failed", e));
-                        }
+                            @Override
+                            public void onNoLongerMaster() {
+                                logger.debug(
+                                    "failed to preform reroute after cluster settings were updated - current node is no longer a master"
+                                );
+                                listener.onResponse(
+                                    new ClusterUpdateSettingsResponse(
+                                        updateSettingsAcked,
+                                        updater.getTransientUpdates(),
+                                        updater.getPersistentUpdate()
+                                    )
+                                );
+                            }
 
-                        @Override
-                        public ClusterState execute(final ClusterState currentState) {
-                            // now, reroute in case things that require it changed (e.g. number of replicas)
-                            return allocationService.reroute(currentState, "reroute after cluster update settings");
-                        }
-                    },
-                    newExecutor()
-                );
-            }
+                            @Override
+                            public void onFailure(Exception e) {
+                                // if the reroute fails we only log
+                                logger.debug(() -> new ParameterizedMessage("failed to perform [{}]", REROUTE_TASK_SOURCE), e);
+                                listener.onFailure(new ElasticsearchException("reroute after update settings failed", e));
+                            }
 
-            @Override
-            public void onFailure(Exception e) {
-                logger.debug(() -> new ParameterizedMessage("failed to perform [{}]", UPDATE_TASK_SOURCE), e);
-                super.onFailure(e);
-            }
-        }, newExecutor());
+                            @Override
+                            public ClusterState execute(final ClusterState currentState) {
+                                // now, reroute in case things that require it changed (e.g. number of replicas)
+                                return allocationService.reroute(currentState, "reroute after cluster update settings");
+                            }
+                        },
+                        newExecutor()
+                    );
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    logger.debug(() -> new ParameterizedMessage("failed to perform [{}]", UPDATE_TASK_SOURCE), e);
+                    super.onFailure(e);
+                }
+            },
+            newExecutor()
+        );
     }
 
     public static class ClusterUpdateSettingsTask extends AckedClusterStateUpdateTask {
@@ -270,16 +272,15 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
             final ClusterSettings clusterSettings,
             Priority priority,
             ClusterUpdateSettingsRequest request,
-            ActionListener<? extends AcknowledgedResponse> listener) {
+            ActionListener<? extends AcknowledgedResponse> listener
+        ) {
             super(priority, request, listener);
             this.clusterSettings = clusterSettings;
             this.updater = new SettingsUpdater(clusterSettings);
             this.request = request;
         }
 
-        public ClusterUpdateSettingsTask(
-            final ClusterSettings clusterSettings,
-            ClusterUpdateSettingsRequest request) {
+        public ClusterUpdateSettingsTask(final ClusterSettings clusterSettings, ClusterUpdateSettingsRequest request) {
             this(clusterSettings, Priority.IMMEDIATE, request, null);
         }
 

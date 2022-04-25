@@ -13,7 +13,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.operator.action.OperatorClusterSettingsAction;
+import org.elasticsearch.operator.action.OperatorClusterUpdateSettingsAction;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -35,8 +35,8 @@ public class OperatorSettingsControllerTests extends ESTestCase {
         ClusterState state = ClusterState.builder(clusterName).build();
         when(clusterService.state()).thenReturn(state);
 
-        OperatorSettingsController controller = new OperatorSettingsController(clusterSettings, clusterService);
-        controller.initHandlers(List.of(new OperatorClusterSettingsAction()));
+        OperatorSettingsController controller = new OperatorSettingsController(clusterService);
+        controller.initHandlers(List.of(new OperatorClusterUpdateSettingsAction(clusterSettings)));
 
         String testJSON = """
             {

@@ -85,7 +85,7 @@ public interface ActionPlugin {
         return Collections.emptyList();
     }
 
-    default List<OperatorHandler> getOperatorHandlers() {
+    default List<OperatorHandler<?>> getOperatorHandlers() {
         return Collections.emptyList();
     }
 

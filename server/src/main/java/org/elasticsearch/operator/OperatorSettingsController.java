@@ -10,7 +10,6 @@ package org.elasticsearch.operator;
 
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -26,16 +25,14 @@ import java.util.stream.Collectors;
  * TODO: Write docs
  */
 public class OperatorSettingsController {
-    Map<String, OperatorHandler> handlers = null;
-    final ClusterSettings clusterSettings;
+    Map<String, OperatorHandler<?>> handlers = null;
     final ClusterService clusterService;
 
-    public OperatorSettingsController(ClusterSettings clusterSettings, ClusterService clusterService) {
-        this.clusterSettings = clusterSettings;
+    public OperatorSettingsController(ClusterService clusterService) {
         this.clusterService = clusterService;
     }
 
-    public void initHandlers(List<OperatorHandler> handlerList) {
+    public void initHandlers(List<OperatorHandler<?>> handlerList) {
         handlers = handlerList.stream().collect(Collectors.toMap(OperatorHandler::key, Function.identity()));
     }
 
@@ -47,8 +44,12 @@ public class OperatorSettingsController {
         AtomicReference<ClusterState> state = new AtomicReference<>(clusterService.state());
 
         orderedHandler.forEach(k -> {
-            OperatorHandler handler = handlers.get(k);
-            state.set(handler.transform(source.get(k), clusterSettings, state.get()));
+            OperatorHandler<?> handler = handlers.get(k);
+            try {
+                state.set(handler.transform(source.get(k), state.get()));
+            } catch (Exception e) {
+                throw new IllegalStateException("Error processing state change request for: " + handler.key(), e);
+            }
         });
 
         return null;

@@ -265,7 +265,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata;
 import org.elasticsearch.operator.OperatorHandler;
 import org.elasticsearch.operator.OperatorSettingsController;
-import org.elasticsearch.operator.action.OperatorClusterSettingsAction;
+import org.elasticsearch.operator.action.OperatorClusterUpdateSettingsAction;
 import org.elasticsearch.persistent.CompletionPersistentTaskAction;
 import org.elasticsearch.persistent.RemovePersistentTaskAction;
 import org.elasticsearch.persistent.StartPersistentTaskAction;
@@ -510,7 +510,7 @@ public class ActionModule extends AbstractModule {
         );
 
         restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService);
-        operatorController = new OperatorSettingsController(clusterSettings, clusterService);
+        operatorController = new OperatorSettingsController(clusterService);
     }
 
     public Map<String, ActionHandler<?, ?>> getActions() {
@@ -884,9 +884,9 @@ public class ActionModule extends AbstractModule {
     }
 
     public void initOperatorHandlers() {
-        List<OperatorHandler> handlers = new ArrayList<>();
+        List<OperatorHandler<?>> handlers = new ArrayList<>();
 
-        handlers.add(new OperatorClusterSettingsAction());
+        handlers.add(new OperatorClusterUpdateSettingsAction(clusterSettings));
         for (ActionPlugin plugin : actionPlugins) {
             handlers.addAll(plugin.getOperatorHandlers());
         }

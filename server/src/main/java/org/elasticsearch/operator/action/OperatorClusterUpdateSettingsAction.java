@@ -22,9 +22,15 @@ import static org.elasticsearch.rest.action.admin.cluster.RestClusterUpdateSetti
 /**
  * TODO: Add docs
  */
-public class OperatorClusterSettingsAction implements OperatorHandler<ClusterUpdateSettingsRequest> {
+public class OperatorClusterUpdateSettingsAction implements OperatorHandler<ClusterUpdateSettingsRequest> {
 
     public static final String KEY = "cluster";
+
+    private final ClusterSettings clusterSettings;
+
+    public OperatorClusterUpdateSettingsAction(ClusterSettings clusterSettings) {
+        this.clusterSettings = clusterSettings;
+    }
 
     @Override
     public String key() {
@@ -33,23 +39,19 @@ public class OperatorClusterSettingsAction implements OperatorHandler<ClusterUpd
 
     @SuppressWarnings("unchecked")
     private ClusterUpdateSettingsRequest prepare(Object input) {
-        if (input instanceof Map<?, ?> source) {
-            final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = Requests.clusterUpdateSettingsRequest();
+        final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = Requests.clusterUpdateSettingsRequest();
 
-            if (source.containsKey(PERSISTENT)) {
-                clusterUpdateSettingsRequest.persistentSettings((Map<String, ?>) source.get(PERSISTENT));
-            }
+        Map<String, ?> source = asMap(input);
 
-            return clusterUpdateSettingsRequest;
+        if (source.containsKey(PERSISTENT)) {
+            clusterUpdateSettingsRequest.persistentSettings((Map<String, ?>) source.get(PERSISTENT));
         }
-        throw new IllegalStateException("Unsupported " + KEY + " request format");
+
+        return clusterUpdateSettingsRequest;
     }
 
     @Override
-    public ClusterState transform(
-        Object input,
-        ClusterSettings clusterSettings,
-        ClusterState state) {
+    public ClusterState transform(Object input, ClusterState state) {
 
         ClusterUpdateSettingsRequest request = prepare(input);
         validate(request);

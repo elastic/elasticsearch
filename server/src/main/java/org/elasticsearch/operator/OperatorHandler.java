@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -24,20 +23,18 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 /**
  * TODO: Add docs
  */
-public interface OperatorHandler<T extends MasterNodeRequest> {
+public interface OperatorHandler<T extends MasterNodeRequest<?>> {
     String CONTENT = "content";
 
     String key();
 
-    ClusterState transform(
-        Object source,
-        ClusterSettings clusterSettings,
-        ClusterState state
-    );
+    ClusterState transform(Object source, ClusterState state) throws Exception;
 
     default Collection<String> dependencies() {
         return Collections.emptyList();
@@ -48,6 +45,13 @@ public interface OperatorHandler<T extends MasterNodeRequest> {
         if (exception != null) {
             throw new IllegalStateException("Validation error", exception);
         }
+    }
+
+    default Map<String, ?> asMap(Object input) {
+        if (input instanceof Map<?, ?> source) {
+            return source.entrySet().stream().collect(Collectors.toMap(Object::toString, Function.identity()));
+        }
+        throw new IllegalStateException("Unsupported " + key() + " request format");
     }
 
     default XContentParser mapToXContentParser(Map<String, ?> source) {

@@ -781,8 +781,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             JsonXContent.contentBuilder().startObject().field("field", syntheticSourceExample.result).endObject()
         );
         assertThat(syntheticSource(mapper, b -> b.field("field", syntheticSourceExample.inputValue)), equalTo(expected));
-
-        // TODO assert round trip
     }
 
     public final void testNoSyntheticSourceForScript() throws IOException {
@@ -795,8 +793,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             b.endObject();
         }));
         assertThat(syntheticSource(mapper, b -> {}), equalTo("{}"));
-
-        // TODO assert round trip
     }
 
     public final void testSyntheticSourceInObject() throws IOException {
@@ -818,8 +814,6 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
             syntheticSource(mapper, b -> b.startObject("obj").field("field", syntheticSourceExample.inputValue).endObject()),
             equalTo(expected)
         );
-
-        // TODO assert round trip
     }
 
     public static record SyntheticSourceExample(Object inputValue, Object result, CheckedConsumer<XContentBuilder, IOException> mapping) {}

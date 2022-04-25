@@ -82,6 +82,7 @@ import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
 import static java.util.stream.Collectors.toList;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -653,7 +654,18 @@ public abstract class MapperServiceTestCase extends ESTestCase {
             iw.close();
             try (DirectoryReader reader = DirectoryReader.open(directory)) {
                 SourceLoader loader = mapper.sourceMapper().newSourceLoader(mapper.mapping().getRoot());
-                return loader.leaf(getOnlyLeafReader(reader)).source(null, 0).utf8ToString();
+                String syntheticSource = loader.leaf(getOnlyLeafReader(reader)).source(null, 0).utf8ToString();
+                try (Directory roundTripDirectory = newDirectory()) {
+                    RandomIndexWriter roundTripIw = new RandomIndexWriter(random(), roundTripDirectory);
+                    roundTripIw.addDocument(mapper.parse(source(build)).rootDoc());
+                    roundTripIw.close();
+                    try (DirectoryReader roundTripReader = DirectoryReader.open(directory)) {
+                        String roundTripSyntheticSource = loader.leaf(getOnlyLeafReader(reader)).source(null, 0).utf8ToString();
+                        assertThat(roundTripSyntheticSource, equalTo(syntheticSource));
+                        assertReaderEquals("round trip " + syntheticSource, reader, roundTripReader);
+                    }
+                }
+                return syntheticSource;
             }
         }
     }

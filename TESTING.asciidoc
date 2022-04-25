@@ -32,7 +32,7 @@ You can build a Docker image with:
 -----------------------------
 
 Note: you almost certainly don't want to run `./gradlew assemble` as this
-will attempt build every single Elasticsearch distribtion.
+will attempt build every single Elasticsearch distribution.
 
 === Running Elasticsearch from a checkout
 
@@ -105,7 +105,7 @@ password: `elastic-password`.
 - In order to remotely attach a debugger to the process: `--debug-jvm`
 - In order to set a different keystore password: `--keystore-password`
 - In order to set an Elasticsearch setting, provide a setting with the following prefix: `-Dtests.es.`
-- In order to pass a JVM seting, e.g. to disable assertions: `-Dtests.jvm.argline="-da"`
+- In order to pass a JVM setting, e.g. to disable assertions: `-Dtests.jvm.argline="-da"`
 
 === Test case filtering.
 
@@ -200,7 +200,7 @@ Or in `~/.gradle/gradle.properties`:
 systemProp.tests.jvms=8
 ----------------------------
 
-Its difficult to pick the "right" number here. Hypercores don't count for CPU
+It's difficult to pick the "right" number here. Hypercores don't count for CPU
 intensive tests and you should leave some slack for JVM-internal threads like
 the garbage collector. And you have to have enough RAM to handle each JVM.
 
@@ -504,7 +504,7 @@ vagrant destroy -f ubuntu-1604 && vagrant up ubuntu-1604 --provider virtualbox
 The whole process takes a minute and a half on a modern laptop, two and a half
 without vagrant-cachier.
 
-Its possible that some downloads will fail and it'll be impossible to restart
+It's possible that some downloads will fail and it'll be impossible to restart
 them. This is a bug in vagrant. See the instructions here for how to work
 around it:
 https://github.com/mitchellh/vagrant/issues/4479
@@ -575,7 +575,7 @@ When running `./gradlew check`, minimal bwc checks are also run against compatib
 
 Sometimes a backward compatibility change spans two versions. A common case is a new functionality
 that needs a BWC bridge in an unreleased versioned of a release branch (for example, 5.x).
-To test the changes, you can instruct Gradle to build the BWC version from a another remote/branch combination instead of
+To test the changes, you can instruct Gradle to build the BWC version from another remote/branch combination instead of
 pulling the release branch from GitHub. You do so using the `bwc.remote` and `bwc.refspec.BRANCH` system properties:
 
 -------------------------------------------------

@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
@@ -45,11 +46,10 @@ public class ApiKeyGeneratorTests extends ESTestCase {
         final CompositeRolesStore rolesStore = mock(CompositeRolesStore.class);
         final ApiKeyGenerator generator = new ApiKeyGenerator(apiKeyService, rolesStore, NamedXContentRegistry.EMPTY);
         final Set<String> userRoleNames = Sets.newHashSet(randomArray(1, 4, String[]::new, () -> randomAlphaOfLengthBetween(3, 12)));
-        final Authentication authentication = new Authentication(
-            new User("test", userRoleNames.toArray(String[]::new)),
-            new Authentication.RealmRef("realm-name", "realm-type", "node-name"),
-            null
-        );
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("test", userRoleNames.toArray(String[]::new)))
+            .realmRef(new Authentication.RealmRef("realm-name", "realm-type", "node-name"))
+            .build(false);
         final CreateApiKeyRequest request = new CreateApiKeyRequest("name", null, null);
 
         final Set<RoleDescriptor> roleDescriptors = randomSubsetOf(userRoleNames).stream()

@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 
+import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -99,6 +100,13 @@ public abstract class CartesianFieldMapperTests extends MapperTestCase {
 
         assertThat(
             mapper.parse(source(b -> b.startObject(FIELD_NAME).field("x", 1.3).field("y", "-").endObject())).rootDoc().getField(FIELD_NAME),
+            nullValue()
+        );
+
+        assertThat(
+            mapper.parse(source(b -> b.startObject(FIELD_NAME).field("geohash", stringEncode(0, 0)).endObject()))
+                .rootDoc()
+                .getField(FIELD_NAME),
             nullValue()
         );
 

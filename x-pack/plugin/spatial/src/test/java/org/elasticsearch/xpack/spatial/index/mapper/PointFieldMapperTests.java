@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.spatial.common.CartesianPoint;
 
 import java.io.IOException;
 
+import static org.elasticsearch.geometry.utils.Geohash.stringEncode;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -213,6 +214,104 @@ public class PointFieldMapperTests extends CartesianFieldMapperTests {
         doc = mapper.parse(source(b -> b.field(FIELD_NAME, "3, 4")));
         // Shouldn't matter if we specify the value explicitly or use null value
         assertThat(defaultValue, not(equalTo(doc.rootDoc().getBinaryValue(FIELD_NAME))));
+    }
+
+    public void testInvalidPointValues() throws IOException {
+        DocumentMapper mapper = createDocumentMapper(fieldMapping(this::minimalMapping));
+
+        Exception e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field(FIELD_NAME, "1234.333"))));
+        assertThat(e.getMessage(), containsString("failed to parse"));
+        assertThat(e.getCause().getMessage(), containsString("expected 2 or 3 coordinates"));
+
+        e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.startObject(FIELD_NAME).field("geohash", stringEncode(0, 0)).endObject()))
+        );
+        assertThat(e.getMessage(), containsString("failed to parse"));
+        assertThat(e.getCause().getMessage(), containsString("field [geohash] not supported - must be one of: x, y, z, type, coordinates"));
+
+        e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.startObject(FIELD_NAME).field("x", 1.3).field("y", "-").endObject()))
+        );
+        assertThat(e.getMessage(), containsString("failed to parse"));
+        assertThat(e.getCause().getMessage(), containsString("[y] must be a valid double value"));
+
+        e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.startObject(FIELD_NAME).field("x", "-").field("y", 1.3).endObject()))
+        );
+        assertThat(e.getMessage(), containsString("failed to parse"));
+        assertThat(e.getCause().getMessage(), containsString("[x] must be a valid double value"));
+
+        e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field(FIELD_NAME, "-,1.3"))));
+        assertThat(e.getMessage(), containsString("failed to parse"));
+        assertThat(e.getCause().getMessage(), containsString("[x] must be a number"));
+
+        e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field(FIELD_NAME, "1.3,-"))));
+        assertThat(e.getMessage(), containsString("failed to parse"));
+        assertThat(e.getCause().getMessage(), containsString("[y] must be a number"));
+
+        e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.startObject(FIELD_NAME).field("lon", 1.3).field("y", 1.3).endObject()))
+        );
+        assertThat(e.getMessage(), containsString("failed to parse"));
+        assertThat(e.getCause().getMessage(), containsString("field [lon] not supported - must be one of: x, y, z, type, coordinates"));
+
+        e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.startObject(FIELD_NAME).field("x", 1.3).field("lat", 1.3).endObject()))
+        );
+        assertThat(e.getMessage(), containsString("failed to parse"));
+        assertThat(e.getCause().getMessage(), containsString("field [lat] not supported - must be one of: x, y, z, type, coordinates"));
+
+        e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.startObject(FIELD_NAME).field("x", "NaN").field("y", "NaN").endObject()))
+        );
+        assertThat(e.getMessage(), containsString("failed to parse"));
+        assertThat(e.getCause().getMessage(), containsString("field must be either lat/lon or type/coordinates"));
+
+        e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.startObject(FIELD_NAME).field("x", "NaN").field("y", 1.3).endObject()))
+        );
+        assertThat(e.getMessage(), containsString("failed to parse"));
+        assertThat(e.getCause().getMessage(), containsString("Required [x]"));
+
+        e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.startObject(FIELD_NAME).field("x", 1.3).field("y", "NaN").endObject()))
+        );
+        assertThat(e.getMessage(), containsString("failed to parse"));
+        assertThat(e.getCause().getMessage(), containsString("Required [y]"));
+
+        e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field(FIELD_NAME, "NaN,NaN"))));
+        assertThat(e.getMessage(), containsString("failed to parse"));
+        assertThat(e.getCause().getMessage(), containsString("invalid [x] value [NaN]"));
+
+        e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field(FIELD_NAME, "10,NaN"))));
+        assertThat(e.getMessage(), containsString("failed to parse"));
+        assertThat(e.getCause().getMessage(), containsString("invalid [y] value [NaN]"));
+
+        e = expectThrows(MapperParsingException.class, () -> mapper.parse(source(b -> b.field(FIELD_NAME, "NaN,12"))));
+        assertThat(e.getMessage(), containsString("failed to parse"));
+        assertThat(e.getCause().getMessage(), containsString("invalid [x] value [NaN]"));
+
+        e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.startObject(FIELD_NAME).field("x", 1.3).nullField("y").endObject()))
+        );
+        assertThat(e.getMessage(), containsString("failed to parse"));
+        assertThat(e.getCause().getMessage(), containsString("y must be a number"));
+
+        e = expectThrows(
+            MapperParsingException.class,
+            () -> mapper.parse(source(b -> b.startObject(FIELD_NAME).nullField("x").field("y", 1.3).endObject()))
+        );
+        assertThat(e.getMessage(), containsString("failed to parse"));
+        assertThat(e.getCause().getMessage(), containsString("x must be a number"));
     }
 
     /**

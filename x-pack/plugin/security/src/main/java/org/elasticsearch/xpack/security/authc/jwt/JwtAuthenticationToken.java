@@ -16,12 +16,17 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 
 import java.text.ParseException;
 import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.stream.Collectors;
 
 /**
  * An {@link AuthenticationToken} to hold JWT authentication related content.
  */
 public class JwtAuthenticationToken implements AuthenticationToken {
+    // If the `sub` claim is absent, order and use all of these other claims in its place, except these claims
+    private static final List<String> CLAIMS_TO_FILTER = List.of("iss", "aud", "exp", "iat", "nbf", "auth_time", "nonce", "jti");
 
     // Stored members
     protected SecureString endUserSignedJwt; // required
@@ -51,16 +56,29 @@ public class JwtAuthenticationToken implements AuthenticationToken {
         }
         final String issuer = jwtClaimsSet.getIssuer();
         final List<String> audiences = jwtClaimsSet.getAudience();
-        final String subject = jwtClaimsSet.getSubject();
 
         if (Strings.hasText(issuer) == false) {
             throw new IllegalArgumentException("Issuer claim 'iss' is missing.");
         } else if ((audiences == null) || (audiences.isEmpty())) {
             throw new IllegalArgumentException("Audiences claim 'aud' is missing.");
-        } else if (Strings.hasText(subject) == false) {
-            throw new IllegalArgumentException("Subject claim 'sub' is missing.");
         }
-        this.principal = issuer + "/" + String.join(",", new TreeSet<>(audiences)) + "/" + subject;
+        final String orderedAudiences = String.join(",", new TreeSet<>(jwtClaimsSet.getAudience()));
+        // OPTIONAL (REQUIRED for ID Tokens, but JWT Realm can override)
+        final String computedSubject;
+        if (Strings.hasText(jwtClaimsSet.getSubject())) {
+            computedSubject = jwtClaimsSet.getSubject(); // principal = "iss/aud/sub"
+        } else {
+            final Map<String, Object> remainingClaims = jwtClaimsSet.getClaims()
+                .entrySet()
+                .stream()
+                .filter(e -> CLAIMS_TO_FILTER.contains(e.getKey()) == false)
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            if (remainingClaims.isEmpty()) {
+                throw new IllegalArgumentException("No claims left after filtering [" + String.join(",", CLAIMS_TO_FILTER) + "].");
+            }
+            computedSubject = new TreeMap<>(jwtClaimsSet.getClaims()).toString(); // principal = "iss/aud/orderedClaimsSubset"
+        }
+        this.principal = jwtClaimsSet.getIssuer() + "/" + orderedAudiences + "/" + computedSubject;
     }
 
     @Override

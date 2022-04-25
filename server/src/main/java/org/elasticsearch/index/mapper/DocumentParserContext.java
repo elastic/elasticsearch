@@ -146,6 +146,30 @@ public abstract class DocumentParserContext {
         return mappingLookup;
     }
 
+    public final boolean isWithinCollapsedPath() {
+        String parentPath = path().pathAsText("");
+        String[] parentPaths = new String[path().length()];
+        StringBuilder pathBuilder = new StringBuilder();
+        int i = 0;
+        for (int j = 0; j < parentPath.length(); j++) {
+            char c = parentPath.charAt(j);
+            if (c == '.') {
+                parentPaths[i++] = pathBuilder.toString();
+            }
+            pathBuilder.append(c);
+        }
+        for (int j = parentPaths.length - 1; j >= 0; j--) {
+            String path = parentPaths[j];
+            ObjectMapper objectMapper = mappingLookup().objectMappers().get(path);
+            if (objectMapper != null) {
+                //going back from the longest parent path to the root, once we find an object mapper, either it is collapsed or its parent
+                //cannot be collapsed either as they would not be able to hold another object otherwise
+                return objectMapper.isCollapsed();
+            }
+        }
+        return false;
+    }
+
     public final MetadataFieldMapper getMetadataMapper(String mapperName) {
         return mappingLookup.getMapping().getMetadataMapperByName(mapperName);
     }
@@ -314,7 +338,8 @@ public abstract class DocumentParserContext {
      */
     public final DocumentParserContext createCopyToContext(String copyToField, LuceneDocument doc) throws IOException {
         ContentPath path = new ContentPath(0);
-        XContentParser parser = DotExpandingXContentParser.expandDots(new CopyToParser(copyToField, parser()));
+        //TODO what to do here?
+        XContentParser parser = DotExpandingXContentParser.expandDots(new CopyToParser(copyToField, parser()), this);
         return new Wrapper(this) {
             @Override
             public ContentPath path() {

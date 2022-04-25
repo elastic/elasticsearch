@@ -105,6 +105,7 @@ public class RootObjectMapper extends ObjectMapper {
             return new RootObjectMapper(
                 name,
                 enabled,
+                collapsed,
                 dynamic,
                 buildMappers(true, context),
                 runtimeFields,
@@ -251,6 +252,7 @@ public class RootObjectMapper extends ObjectMapper {
     RootObjectMapper(
         String name,
         Explicit<Boolean> enabled,
+        Explicit<Boolean> collapsed,
         Dynamic dynamic,
         Map<String, Mapper> mappers,
         Map<String, RuntimeField> runtimeFields,
@@ -259,7 +261,7 @@ public class RootObjectMapper extends ObjectMapper {
         Explicit<Boolean> dateDetection,
         Explicit<Boolean> numericDetection
     ) {
-        super(name, name, enabled, dynamic, mappers);
+        super(name, name, enabled, collapsed, dynamic, mappers);
         this.runtimeFields = runtimeFields;
         this.dynamicTemplates = dynamicTemplates;
         this.dynamicDateTimeFormatters = dynamicDateTimeFormatters;
@@ -278,6 +280,7 @@ public class RootObjectMapper extends ObjectMapper {
     public RootObjectMapper.Builder newBuilder(Version indexVersionCreated) {
         RootObjectMapper.Builder builder = new RootObjectMapper.Builder(name());
         builder.enabled = enabled;
+        builder.collapsed = collapsed;
         builder.dynamic = dynamic;
         return builder;
     }

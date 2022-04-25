@@ -92,7 +92,7 @@ public class NestedObjectMapper extends ObjectMapper {
     private final Query nestedTypeFilter;
 
     NestedObjectMapper(String name, String fullPath, Map<String, Mapper> mappers, Builder builder) {
-        super(name, fullPath, builder.enabled, builder.dynamic, mappers);
+        super(name, fullPath, builder.enabled, Explicit.IMPLICIT_FALSE, builder.dynamic, mappers);
         if (builder.indexCreatedVersion.before(Version.V_8_0_0)) {
             this.nestedTypePath = "__" + fullPath;
         } else {

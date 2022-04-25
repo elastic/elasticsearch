@@ -789,7 +789,7 @@ public final class DocumentParser {
 
     private static class NoOpObjectMapper extends ObjectMapper {
         NoOpObjectMapper(String name, String fullPath) {
-            super(name, fullPath, Explicit.IMPLICIT_TRUE, Dynamic.RUNTIME, Collections.emptyMap());
+            super(name, fullPath, Explicit.IMPLICIT_TRUE, Explicit.IMPLICIT_FALSE, Dynamic.RUNTIME, Collections.emptyMap());
         }
     }
 
@@ -815,7 +815,11 @@ public final class DocumentParser {
             XContentParser parser
         ) throws IOException {
             super(mappingLookup, indexSettings, indexAnalyzers, parserContext, source);
-            this.parser = DotExpandingXContentParser.expandDots(parser);
+            if (mappingLookup.getMapping().getRoot().isCollapsed()) {
+                this.parser = parser;
+            } else {
+                this.parser = DotExpandingXContentParser.expandDots(parser, this);
+            }
             this.document = new LuceneDocument();
             this.documents.add(document);
             this.maxAllowedNumNestedDocs = indexSettings().getMappingNestedDocsLimit();

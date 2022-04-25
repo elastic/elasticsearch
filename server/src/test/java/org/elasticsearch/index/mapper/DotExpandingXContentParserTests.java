@@ -15,12 +15,21 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
+import java.util.function.Function;
 
 public class DotExpandingXContentParserTests extends ESTestCase {
 
+    private static String[] splitFieldPath(String fieldName) {
+        return fieldName.split("\\.");
+    }
+
     private void assertXContentMatches(String dotsExpanded, String withDots) throws IOException {
+        assertXContentMatches(dotsExpanded, withDots, DotExpandingXContentParserTests::splitFieldPath);
+    }
+
+    private void assertXContentMatches(String dotsExpanded, String withDots, Function<String, String[]> splitFieldPath) throws IOException {
         XContentParser inputParser = createParser(JsonXContent.jsonXContent, withDots);
-        XContentParser expandedParser = DotExpandingXContentParser.expandDots(inputParser);
+        XContentParser expandedParser = DotExpandingXContentParser.expandDots(inputParser, splitFieldPath);
         expandedParser.allowDuplicateKeys(true);
 
         XContentBuilder actualOutput = XContentBuilder.builder(JsonXContent.jsonXContent).copyCurrentStructure(expandedParser);
@@ -28,13 +37,13 @@ public class DotExpandingXContentParserTests extends ESTestCase {
 
         XContentParser expectedParser = createParser(JsonXContent.jsonXContent, dotsExpanded);
         expectedParser.allowDuplicateKeys(true);
-        XContentParser actualParser = DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, withDots));
+        XContentParser actualParser = DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, withDots),
+            splitFieldPath);
         XContentParser.Token currentToken;
         while ((currentToken = actualParser.nextToken()) != null) {
             assertEquals(currentToken, expectedParser.nextToken());
             assertEquals(expectedParser.currentToken(), actualParser.currentToken());
             assertEquals(actualParser.currentToken().name(), expectedParser.currentName(), actualParser.currentName());
-
         }
         assertNull(expectedParser.nextToken());
     }
@@ -112,9 +121,20 @@ public class DotExpandingXContentParserTests extends ESTestCase {
               "test.with.dots2" : "value2"}""");
     }
 
+    public void testDotsCollapsing() throws IOException {
+        assertXContentMatches("""
+            {"metrics":{"service":{"time":10}},"metrics":{"service":{"time.max":500}}}""", """
+            {"metrics.service.time": 10, "metrics.service.time.max": 500}
+            """, field -> switch (field) {
+                case "metrics.service.time" -> new String[]{"metrics", "service", "time"};
+                case "metrics.service.time.max" -> new String[]{"metrics", "service", "time.max"};
+                default -> new String[]{field};
+            });
+    }
+
     public void testSkipChildren() throws IOException {
         XContentParser parser = DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, """
-            { "test.with.dots" : "value", "nodots" : "value2" }"""));
+            { "test.with.dots" : "value", "nodots" : "value2" }"""), DotExpandingXContentParserTests::splitFieldPath);
 
         parser.nextToken();     // start object
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
@@ -138,7 +158,7 @@ public class DotExpandingXContentParserTests extends ESTestCase {
 
     public void testSkipChildrenWithinInnerObject() throws IOException {
         XContentParser parser = DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, """
-            { "test.with.dots" : {"obj" : {"field":"value"}}, "nodots" : "value2" }"""));
+            { "test.with.dots" : {"obj" : {"field":"value"}}, "nodots" : "value2" }"""), DotExpandingXContentParserTests::splitFieldPath);
 
         parser.nextToken();     // start object
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
@@ -184,7 +204,8 @@ public class DotExpandingXContentParserTests extends ESTestCase {
             "value":null}}\
             """;
         XContentParser expectedParser = createParser(JsonXContent.jsonXContent, jsonInput);
-        XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, jsonInput));
+        XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, jsonInput),
+            DotExpandingXContentParserTests::splitFieldPath);
 
         assertEquals(expectedParser.getTokenLocation(), dotExpandedParser.getTokenLocation());
         assertEquals(XContentParser.Token.START_OBJECT, dotExpandedParser.nextToken());

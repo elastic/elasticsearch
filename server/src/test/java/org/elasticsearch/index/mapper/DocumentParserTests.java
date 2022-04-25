@@ -1842,6 +1842,151 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertThat(err.getCause().getMessage(), containsString("field name cannot contain only dots"));
     }
 
+    public void testCollapsedObjectWithInnerObject() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("metrics.service").field("type", "object").field("collapsed", true).endObject();
+        }));
+        IllegalArgumentException err = expectThrows(
+            IllegalArgumentException.class,
+            () -> mapper.parse(source("""
+            {
+              "metrics": {
+                "service": {
+                  "time" : {
+                    "max" : 10
+                  }
+                }
+              }
+            }
+            """)));
+        assertEquals("Object [metrics.service] is collapsed and does not support inner object [time]", err.getMessage());
+    }
+
+    public void testCollapsedObjectWithInnerDottedObject() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("metrics.service").field("type", "object").field("collapsed", true).endObject();
+        }));
+        IllegalArgumentException err = expectThrows(
+            IllegalArgumentException.class,
+            () -> mapper.parse(source("""
+            {
+              "metrics": {
+                "service": {
+                  "test.with.dots" : {
+                    "max" : 10
+                  }
+                }
+              }
+            }
+            """)));
+        assertEquals("Object [metrics.service] is collapsed and does not support inner object [test.with.dots]", err.getMessage());
+    }
+
+    public void testCollapsedRootWithInnerObject() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("collapsed", true)));
+        IllegalArgumentException err = expectThrows(
+            IllegalArgumentException.class,
+            () -> mapper.parse(source("""
+            {
+              "metrics": {
+                "service": {
+                  "time.max" : 10
+                }
+              }
+            }
+            """)));
+        assertEquals("Object [_doc] is collapsed and does not support inner object [metrics]", err.getMessage());
+    }
+
+    public void testCollapsedRoot() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("collapsed", true)));
+        ParsedDocument doc = mapper.parse(source("""
+            {
+              "metrics.service.time" : 10,
+              "metrics.service.time.max" : 500,
+              "metrics.service.test.with.dots" : "value"
+            }
+            """));
+
+        Mapping mappingsUpdate = doc.dynamicMappingsUpdate();
+        assertNotNull(mappingsUpdate);
+        assertNotNull(mappingsUpdate.getRoot().getMapper("metrics.service.time"));
+        assertNotNull(mappingsUpdate.getRoot().getMapper("metrics.service.time.max"));
+        assertNotNull(mappingsUpdate.getRoot().getMapper("metrics.service.test.with.dots"));
+
+        assertNotNull(doc.rootDoc().getFields("metrics.service.time"));
+        assertNotNull(doc.rootDoc().getFields("metrics.service.time.max"));
+        assertNotNull(doc.rootDoc().getFields("metrics.service.test.with.dots"));
+    }
+
+    public void testDotsCollapsedStructuredPath() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("metrics.service").field("type", "object").field("collapsed", true).endObject();
+        }));
+        ParsedDocument doc = mapper.parse(source("""
+            {
+              "metrics": {
+                "service": {
+                  "time" : 10,
+                  "time.max" : 500,
+                  "test.with.dots" : "value"
+                }
+              }
+            }
+            """));
+        assertDotsCollapsed(doc);
+    }
+
+    public void testDotsCollapsedFlatPaths() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("metrics.service").field("type", "object").field("collapsed", true).endObject();
+        }));
+        ParsedDocument doc = mapper.parse(source("""
+            {
+              "metrics.service.time" : 10,
+              "metrics.service.time.max" : 500,
+              "metrics.service.test.with.dots" : "value"
+            }
+            """));
+        assertDotsCollapsed(doc);
+    }
+
+    public void testDotsCollapsedMixedPaths() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
+            b.startObject("metrics.service").field("type", "object").field("collapsed", true).endObject();
+        }));
+        ParsedDocument doc = mapper.parse(source("""
+            {
+              "metrics": {
+                "service.time": 10,
+                "service": {
+                  "time.max" : 500
+                }
+              },
+              "metrics.service.test.with.dots" : "value"
+            }
+            """));
+        assertDotsCollapsed(doc);
+    }
+
+    private static void assertDotsCollapsed(ParsedDocument doc) {
+        Mapping mappingsUpdate = doc.dynamicMappingsUpdate();
+        assertNotNull(mappingsUpdate);
+        Mapper metrics = mappingsUpdate.getRoot().mappers.get("metrics");
+        assertThat(metrics, instanceOf(ObjectMapper.class));
+        ObjectMapper metricsObject = (ObjectMapper) metrics;
+        Mapper service = metricsObject.getMapper("service");
+        assertThat(service, instanceOf(ObjectMapper.class));
+        ObjectMapper serviceObject = (ObjectMapper) service;
+        assertNotNull(serviceObject.getMapper("time"));
+        assertNotNull(serviceObject.getMapper("time.max"));
+        assertNotNull(serviceObject.getMapper("test.with.dots"));
+
+        assertNotNull(doc.rootDoc().getFields("metrics.service.time"));
+        assertNotNull(doc.rootDoc().getFields("metrics.service.time.max"));
+        assertNotNull(doc.rootDoc().getFields("metrics.service.test.with.dots"));
+    }
+
     public void testWriteToFieldAlias() throws Exception {
         DocumentMapper mapper = createDocumentMapper(mapping(b -> {
             b.startObject("alias-field");

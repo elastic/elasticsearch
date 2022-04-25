@@ -17,9 +17,11 @@ import org.elasticsearch.xcontent.XContentSubParser;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
+import java.util.Arrays;
 import java.util.Deque;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Function;
 import java.util.function.Supplier;
 
 /**
@@ -35,9 +37,11 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
 
     private static final class WrappingParser extends FilterXContentParser {
 
+        private final Function<String, String[]> pathSplitter;
         final Deque<XContentParser> parsers = new ArrayDeque<>();
 
-        WrappingParser(XContentParser in) throws IOException {
+        WrappingParser(XContentParser in, Function<String, String[]> pathSplitter) throws IOException {
+            this.pathSplitter = pathSplitter;
             parsers.push(in);
             if (in.currentToken() == Token.FIELD_NAME) {
                 expandDots();
@@ -62,7 +66,7 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
 
         private void expandDots() throws IOException {
             String field = delegate().currentName();
-            String[] subpaths = splitAndValidatePath(field);
+            String[] subpaths = pathSplitter.apply(field);
             if (subpaths.length == 0) {
                 throw new IllegalArgumentException("field name cannot contain only dots: [" + field + "]");
             }
@@ -121,27 +125,66 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
         }
     }
 
-    private static String[] splitAndValidatePath(String fullFieldPath) {
-        if (fullFieldPath.isEmpty()) {
+    //TODO we may want to move this back to DocumentParser given that it now depends on DocumentParserContext
+    static String[] splitAndValidatePath(String fieldName, DocumentParserContext context) {
+        if (fieldName.isEmpty()) {
             throw new IllegalArgumentException("field name cannot be an empty string");
         }
-        if (fullFieldPath.contains(".") == false) {
-            return new String[] { fullFieldPath };
+        if (fieldName.contains(".") == false) {
+            return new String[] { fieldName };
         }
-        String[] parts = fullFieldPath.split("\\.");
+        String[] parts = fieldName.split("\\.");
         if (parts.length == 0) {
             throw new IllegalArgumentException("field name cannot contain only dots");
         }
-        for (String part : parts) {
+
+        //TODO do we want to optimize for the case where there are no collapsed paths in the mapping?
+
+        //check if any of the parent objects has collapsed set to true
+        if (context.isWithinCollapsedPath()) {
+            return new String[] { fieldName };
+        }
+
+        ContentPath currentPath = new ContentPath();
+        int indexCollapsed = -1;
+        for (int i = 0; i < parts.length; i++) {
+            String part = parts[i];
             // check if the field name contains only whitespace
             if (part.isEmpty()) {
-                throw new IllegalArgumentException("field name cannot contain only whitespace: ['" + fullFieldPath + "']");
+                throw new IllegalArgumentException("field name cannot contain only whitespace: ['" + fieldName + "']");
             }
             if (part.isBlank()) {
                 throw new IllegalArgumentException(
-                    "field name starting or ending with a [.] makes object resolution ambiguous: [" + fullFieldPath + "]"
+                    "field name starting or ending with a [.] makes object resolution ambiguous: [" + fieldName + "]"
                 );
             }
+
+            //e.g. metrics.service.time.max: if 'time' is collapsed, we still need to expand dots fully. 'service' is the last
+            //path part that affects dots expansion for this path if it is collapsed.
+            if (indexCollapsed < 0 && i < parts.length - 2) {
+                //concatenate the full path of the current element that we are parsing with the previously examined parts of the
+                //dotted name that we are splitting, to check if there's a collapsed object in between
+                String fullPath = context.path().pathAsText(currentPath.pathAsText(part));
+                ObjectMapper objectMapper = context.mappingLookup().objectMappers().get(fullPath);
+                if (objectMapper != null && objectMapper.isCollapsed()) {
+                    indexCollapsed = i;
+                }
+                currentPath.add(part);
+            }
+        }
+        if (indexCollapsed >= 0) {
+            ContentPath collapsedPath = new ContentPath();
+            String[] finalParts = new String[indexCollapsed + 2];
+            for (int i = 0; i < parts.length - 1; i++) {
+                String part = parts[i];
+                if (i <= indexCollapsed) {
+                    finalParts[i] = part;
+                } else {
+                    collapsedPath.add(part);
+                }
+            }
+            finalParts[indexCollapsed + 1] = collapsedPath.pathAsText(parts[parts.length - 1]);
+            return finalParts;
         }
         return parts;
     }
@@ -151,8 +194,12 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
      * @param in    the parser to wrap
      * @return  the wrapped XContentParser
      */
-    static XContentParser expandDots(XContentParser in) throws IOException {
-        return new WrappingParser(in);
+    static XContentParser expandDots(XContentParser in, DocumentParserContext context) throws IOException {
+        return expandDots(in, field -> splitAndValidatePath(field, context));
+    }
+
+    static XContentParser expandDots(XContentParser in, Function<String, String[]> pathSplitter) throws IOException {
+        return new WrappingParser(in, pathSplitter);
     }
 
     private enum State {

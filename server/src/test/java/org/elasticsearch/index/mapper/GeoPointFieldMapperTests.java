@@ -478,7 +478,7 @@ public class GeoPointFieldMapperTests extends MapperTestCase {
         private final GeoPoint nullValue = usually() ? null : randomGeoPoint();
 
         public SyntheticSourceExample example() {
-            if (nullValue != null || randomBoolean()) { // TODO remove nullValue check when #85959 is in
+            if (randomBoolean()) {
                 Tuple<Object, GeoPoint> v = generateValue();
                 return new SyntheticSourceExample(v.v1(), decode(encode(v.v2())), this::mapping);
             }

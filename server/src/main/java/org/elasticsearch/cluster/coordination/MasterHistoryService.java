@@ -38,7 +38,7 @@ public class MasterHistoryService implements ClusterStateListener {
      * This is a map of a node to the view of master history it has. This is populated asynchronously and is not guaranteed to have an
      * entry for every node.
      */
-    private final Map<DiscoveryNode, List<DiscoveryNode>> nodeToHistoryMap = new HashMap<>();;
+    private final Map<DiscoveryNode, List<DiscoveryNode>> nodeToHistoryMap = new HashMap<>();
     private static final Logger logger = LogManager.getLogger(MasterHistoryService.class);
 
     public MasterHistoryService(

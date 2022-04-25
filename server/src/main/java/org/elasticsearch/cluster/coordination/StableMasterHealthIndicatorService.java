@@ -179,7 +179,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     private static final class DiscoveryNodeXContentObject implements ToXContentObject {
         private final DiscoveryNode master;
 
-        public DiscoveryNodeXContentObject(DiscoveryNode master) {
+        DiscoveryNodeXContentObject(DiscoveryNode master) {
             this.master = master;
         }
 

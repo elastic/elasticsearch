@@ -1860,8 +1860,9 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
                 @Override
                 public void close() {
-                    innerRef.close();
-                    trackedRefs.remove(this);
+                    if (trackedRefs.remove(this)) {
+                        innerRef.close();
+                    }
                 }
             };
             trackedRefs.add(trackedRef);

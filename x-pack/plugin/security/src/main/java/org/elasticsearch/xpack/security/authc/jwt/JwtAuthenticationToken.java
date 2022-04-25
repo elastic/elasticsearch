@@ -76,7 +76,7 @@ public class JwtAuthenticationToken implements AuthenticationToken {
             if (remainingClaims.isEmpty()) {
                 throw new IllegalArgumentException("No claims left after filtering [" + String.join(",", CLAIMS_TO_FILTER) + "].");
             }
-            computedSubject = new TreeMap<>(jwtClaimsSet.getClaims()).toString(); // principal = "iss/aud/orderedClaimsSubset"
+            computedSubject = new TreeMap<>(remainingClaims).toString(); // principal = "iss/aud/orderedClaimsSubset"
         }
         this.principal = jwtClaimsSet.getIssuer() + "/" + orderedAudiences + "/" + computedSubject;
     }

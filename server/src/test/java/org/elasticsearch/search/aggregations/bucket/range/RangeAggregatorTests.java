@@ -263,7 +263,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             new MatchAllDocsQuery(),
             iw -> {
                 LuceneDocument doc = new LuceneDocument();
-                NumberType.FLOAT.createFields(doc, fieldName, 0.04F, false, true, false);
+                NumberType.FLOAT.addFields(doc, fieldName, 0.04F, false, true, false);
                 iw.addDocument(doc);
             },
             result -> {
@@ -288,7 +288,7 @@ public class RangeAggregatorTests extends AggregatorTestCase {
             new MatchAllDocsQuery(),
             iw -> {
                 LuceneDocument doc = new LuceneDocument();
-                NumberType.HALF_FLOAT.createFields(doc, fieldName, 0.0152F, false, true, false);
+                NumberType.HALF_FLOAT.addFields(doc, fieldName, 0.0152F, false, true, false);
                 iw.addDocument(doc);
             },
             result -> {

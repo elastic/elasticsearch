@@ -347,14 +347,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public void createFields(
-                LuceneDocument document,
-                String name,
-                Number value,
-                boolean indexed,
-                boolean docValued,
-                boolean stored
-            ) {
+            public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
                 final float f = value.floatValue();
                 if (indexed) {
                     document.add(new HalfFloatPoint(name, f));
@@ -483,14 +476,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public void createFields(
-                LuceneDocument document,
-                String name,
-                Number value,
-                boolean indexed,
-                boolean docValued,
-                boolean stored
-            ) {
+            public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
                 final float f = value.floatValue();
                 if (indexed) {
                     document.add(new FloatPoint(name, f));
@@ -597,14 +583,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public void createFields(
-                LuceneDocument document,
-                String name,
-                Number value,
-                boolean indexed,
-                boolean docValued,
-                boolean stored
-            ) {
+            public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
                 final double d = value.doubleValue();
                 if (indexed) {
                     document.add(new DoublePoint(name, d));
@@ -690,15 +669,8 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public void createFields(
-                LuceneDocument document,
-                String name,
-                Number value,
-                boolean indexed,
-                boolean docValued,
-                boolean stored
-            ) {
-                INTEGER.createFields(document, name, value, indexed, docValued, stored);
+            public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
+                INTEGER.addFields(document, name, value, indexed, docValued, stored);
             }
 
             @Override
@@ -765,15 +737,8 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public void createFields(
-                LuceneDocument document,
-                String name,
-                Number value,
-                boolean indexed,
-                boolean docValued,
-                boolean stored
-            ) {
-                INTEGER.createFields(document, name, value, indexed, docValued, stored);
+            public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
+                INTEGER.addFields(document, name, value, indexed, docValued, stored);
             }
 
             @Override
@@ -903,14 +868,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public void createFields(
-                LuceneDocument document,
-                String name,
-                Number value,
-                boolean indexed,
-                boolean docValued,
-                boolean stored
-            ) {
+            public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
                 final int i = value.intValue();
                 if (indexed) {
                     document.add(new IntPoint(name, i));
@@ -1015,14 +973,7 @@ public class NumberFieldMapper extends FieldMapper {
             }
 
             @Override
-            public void createFields(
-                LuceneDocument document,
-                String name,
-                Number value,
-                boolean indexed,
-                boolean docValued,
-                boolean stored
-            ) {
+            public void addFields(LuceneDocument document, String name, Number value, boolean indexed, boolean docValued, boolean stored) {
                 final long l = value.longValue();
                 if (indexed) {
                     document.add(new LongPoint(name, l));
@@ -1086,7 +1037,18 @@ public class NumberFieldMapper extends FieldMapper {
 
         public abstract Number parsePoint(byte[] value);
 
-        public abstract void createFields(
+        /**
+         * Maps the given {@code value} to one or more Lucene field values ands them to the given {@code document} under the given
+         * {@code name}.
+         *
+         * @param document document to add fields to
+         * @param name field name
+         * @param value value to map
+         * @param indexed whether or not the field is indexed
+         * @param docValued whether or not doc values should be added
+         * @param stored whether or not the field is stored
+         */
+        public abstract void addFields(
             LuceneDocument document,
             String name,
             Number value,
@@ -1550,7 +1512,7 @@ public class NumberFieldMapper extends FieldMapper {
         if (dimension && numericValue != null) {
             context.getDimensions().addLong(fieldType().name(), numericValue.longValue());
         }
-        fieldType().type.createFields(context.doc(), fieldType().name(), numericValue, indexed, hasDocValues, stored);
+        fieldType().type.addFields(context.doc(), fieldType().name(), numericValue, indexed, hasDocValues, stored);
 
         if (hasDocValues == false && (stored || indexed)) {
             context.addToFieldNames(fieldType().name());

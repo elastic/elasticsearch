@@ -254,13 +254,13 @@ public class SignificantTermsAggregatorTests extends AggregatorTestCase {
             for (int i = 0; i < 10; i++) {
                 LuceneDocument doc = new LuceneDocument();
                 if (i % 2 == 0) {
-                    NumberType.LONG.createFields(doc, "long_field", ODD_VALUE, true, true, false);
+                    NumberType.LONG.addFields(doc, "long_field", ODD_VALUE, true, true, false);
                     doc.add(new Field("text", "odd", TextFieldMapper.Defaults.FIELD_TYPE));
                 } else {
-                    NumberType.LONG.createFields(doc, "long_field", EVEN_VALUE, true, true, false);
+                    NumberType.LONG.addFields(doc, "long_field", EVEN_VALUE, true, true, false);
                     doc.add(new Field("text", "even", TextFieldMapper.Defaults.FIELD_TYPE));
                 }
-                NumberType.LONG.createFields(doc, "long_field", COMMON_VALUE, true, true, false);
+                NumberType.LONG.addFields(doc, "long_field", COMMON_VALUE, true, true, false);
                 w.addDocument(doc);
             }
 

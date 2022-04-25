@@ -1295,7 +1295,7 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         );
         docValuesFieldExistsTestCase(new ExistsQueryBuilder("f"), ft, true, i -> {
             final LuceneDocument document = new LuceneDocument();
-            numberType.createFields(document, "f", i, true, true, false);
+            numberType.addFields(document, "f", i, true, true, false);
             return document;
         });
     }

@@ -233,11 +233,6 @@ public class DiscoveryNodeRole implements Comparable<DiscoveryNodeRole> {
     };
 
     /**
-     * Represents the role for a health-eligible node.
-     */
-    public static final DiscoveryNodeRole HEALTH_ROLE = new DiscoveryNodeRole("health", "y");
-
-    /**
      * Represents the role for a node that can be a remote cluster client.
      */
     public static final DiscoveryNodeRole REMOTE_CLUSTER_CLIENT_ROLE = new DiscoveryNodeRole("remote_cluster_client", "r");

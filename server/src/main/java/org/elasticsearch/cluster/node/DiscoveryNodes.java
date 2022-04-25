@@ -48,7 +48,6 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
     private final ImmutableOpenMap<String, DiscoveryNode> dataNodes;
     private final ImmutableOpenMap<String, DiscoveryNode> masterNodes;
     private final ImmutableOpenMap<String, DiscoveryNode> ingestNodes;
-    private final ImmutableOpenMap<String, DiscoveryNode> healthNodes;
 
     @Nullable
     private final String masterNodeId;
@@ -67,7 +66,6 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
         ImmutableOpenMap<String, DiscoveryNode> dataNodes,
         ImmutableOpenMap<String, DiscoveryNode> masterNodes,
         ImmutableOpenMap<String, DiscoveryNode> ingestNodes,
-        ImmutableOpenMap<String, DiscoveryNode> healthNodes,
         @Nullable String masterNodeId,
         @Nullable String localNodeId,
         Version minNonClientNodeVersion,
@@ -78,7 +76,6 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
         this.dataNodes = dataNodes;
         this.masterNodes = masterNodes;
         this.ingestNodes = ingestNodes;
-        this.healthNodes = healthNodes;
         this.masterNodeId = masterNodeId;
         this.masterNode = masterNodeId == null ? null : nodes.get(masterNodeId);
         assert (masterNodeId == null) == (masterNode == null);
@@ -152,13 +149,6 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
      */
     public ImmutableOpenMap<String, DiscoveryNode> getIngestNodes() {
         return ingestNodes;
-    }
-
-    /**
-     * @return All the health nodes arranged by their ids
-     */
-    public ImmutableOpenMap<String, DiscoveryNode> getHealthNodes() {
-        return healthNodes;
     }
 
     /**
@@ -441,7 +431,7 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
     }
 
     /**
-     * Returns the changes comparing these nodes to the provided nodes.
+     * Returns the changes comparing this nodes to the provided nodes.
      */
     public Delta delta(DiscoveryNodes other) {
         final List<DiscoveryNode> removed = new ArrayList<>();
@@ -719,7 +709,6 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
             ImmutableOpenMap.Builder<String, DiscoveryNode> dataNodesBuilder = ImmutableOpenMap.builder();
             ImmutableOpenMap.Builder<String, DiscoveryNode> masterNodesBuilder = ImmutableOpenMap.builder();
             ImmutableOpenMap.Builder<String, DiscoveryNode> ingestNodesBuilder = ImmutableOpenMap.builder();
-            ImmutableOpenMap.Builder<String, DiscoveryNode> healthNodesBuilder = ImmutableOpenMap.builder();
             Version minNodeVersion = null;
             Version maxNodeVersion = null;
             Version minNonClientNodeVersion = null;
@@ -732,9 +721,6 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
                 }
                 if (discoNode.isMasterNode()) {
                     masterNodesBuilder.put(nodeId, discoNode);
-                }
-                if (discoNode.isHealthNode()) {
-                    healthNodesBuilder.put(nodeId, discoNode);
                 }
                 final Version version = discoNode.getVersion();
                 if (discoNode.canContainData() || discoNode.isMasterNode()) {
@@ -758,7 +744,6 @@ public class DiscoveryNodes extends AbstractCollection<DiscoveryNode> implements
                 dataNodesBuilder.build(),
                 masterNodesBuilder.build(),
                 ingestNodesBuilder.build(),
-                healthNodesBuilder.build(),
                 masterNodeId,
                 localNodeId,
                 minNonClientNodeVersion == null ? Version.CURRENT : minNonClientNodeVersion,

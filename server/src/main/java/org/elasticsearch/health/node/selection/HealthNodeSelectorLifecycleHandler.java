@@ -20,7 +20,7 @@ import java.io.IOException;
 public class HealthNodeSelectorLifecycleHandler extends AbstractLifecycleComponent {
 
     public static final boolean DISK_USAGE_INDICATOR_FEATURE_FLAG_ENABLED = "true".equals(
-        System.getProperty("es.health_api.disk_usage_inidcator_feature_flag_enabled")
+        System.getProperty("es.health_api.disk_usage_indicator_feature_flag_enabled")
     );
 
     public static boolean isEnabled() {

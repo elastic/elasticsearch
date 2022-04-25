@@ -8,14 +8,10 @@
 
 package org.elasticsearch.health;
 
-import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.List;
-import java.util.Set;
 
-import static org.elasticsearch.test.NodeRoles.onlyRoles;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -27,10 +23,7 @@ public class HealthNodeSelectorIT extends ESIntegTestCase {
         // Set up a cluster with 2 health nodes that are not the elected master node
         internalCluster().setBootstrapMasterNodeIndex(0);
         internalCluster().startMasterOnlyNodes(1);
-        List<String> healthNodes = internalCluster().startNodes(
-            2,
-            Settings.builder().put(onlyRoles(Set.of(DiscoveryNodeRole.HEALTH_ROLE))).build()
-        );
+        List<String> healthNodes = internalCluster().startDataOnlyNodes(2);
         ensureStableCluster(3);
 
         // Wait until the health node selector task is assigned

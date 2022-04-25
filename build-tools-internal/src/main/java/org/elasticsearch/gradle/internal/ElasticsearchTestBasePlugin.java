@@ -162,7 +162,7 @@ public class ElasticsearchTestBasePlugin implements Plugin<Project> {
             test.systemProperty("es.transport.cname_in_publish_address", "true");
 
             // TODO: remove this once the disk usage indicator feature is finished #84811
-            test.systemProperty("es.health_api.disk_usage_inidcator_feature_flag_enabled", true)
+            test.systemProperty("es.health_api.disk_usage_indicator_feature_flag_enabled", true);
 
             // Set netty system properties to the properties we configure in jvm.options
             test.systemProperty("io.netty.noUnsafe", "true");

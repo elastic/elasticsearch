@@ -2011,7 +2011,7 @@ public final class InternalTestCluster extends TestCluster {
             PersistentTasksCustomMetadata taskMetadata = state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
             PersistentTasksCustomMetadata.PersistentTask<?> task = taskMetadata.getTask("health-node-selector");
             return task != null && task.isAssigned()
-                ? state.nodes().getHealthNodes().get(task.getAssignment().getExecutorNode()).getName()
+                ? state.nodes().getDataNodes().get(task.getAssignment().getExecutorNode()).getName()
                 : null;
         } catch (Exception e) {
             logger.warn("Can't fetch cluster state", e);

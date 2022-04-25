@@ -82,7 +82,7 @@ public final class HealthNodeSelectorTaskExecutor extends PersistentTasksExecuto
         Collection<DiscoveryNode> candidateNodes,
         ClusterState clusterState
     ) {
-        DiscoveryNode discoveryNode = selectLeastLoadedNode(clusterState, candidateNodes, DiscoveryNode::isHealthNode);
+        DiscoveryNode discoveryNode = selectLeastLoadedNode(clusterState, candidateNodes, node -> node.isMasterNode() == false);
         if (discoveryNode == null) {
             return NO_NODE_FOUND;
         } else {

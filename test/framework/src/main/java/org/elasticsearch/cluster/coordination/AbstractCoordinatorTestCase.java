@@ -1867,8 +1867,9 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
 
             @Override
             public void close() {
-                delegate.close();
-                trackedArrays.remove(this);
+                if (trackedArrays.remove(this)) {
+                    delegate.close();
+                }
             }
 
             @Override

@@ -9,7 +9,9 @@ is a form of association rules mining that identifies items that often occur
 together. Items that are frequently purchased together or log events that tend 
 to co-occur are examples of frequent item sets. Finding frequent item sets helps 
 to discover relationships between different data points (items) in a data set 
-and to create association rules based on those relationships.
+and to create 
+https://en.wikipedia.org/wiki/Association_rule_learning[association rules] based 
+on those relationships.
 
 
 ==== Syntax
@@ -37,6 +39,14 @@ A `frequent_items` aggregation looks like this in isolation:
 |`size` | (integer) The number of top item sets to return. | Optional |
 |===
 
+[discrete]
+[[frequent-items-minimum-set-size]]
+==== Minimum set size
+
+The minimum set size is the minimum number of items the set needs to contain. A 
+value of 1 returns the frequency of single items. The higher the minimum set 
+size the less items are returned. For example, the item set `orange, banana, 
+apple` is only returned if the minimum set size is 3 or lower.
 
 [discrete]
 [[frequent-items-minimum-support]]
@@ -48,20 +58,10 @@ set by the total number of documents.
 
 For example, if a given item set is contained by five documents and the total 
 number of documents is 20, then the support of the item set is 5/20 = 0.25. 
-Therefore, this set is returned only if the minimum support is 0.25 or lower. As 
-a lower minimum support prunes more items, the calculation is less resource 
+Therefore, this set is returned only if the minimum support is 0.25 or lower. 
+As a higher minimum support prunes more items, the calculation is less resource 
 intensive. The `minimum_support` parameter has an effect on the required memory 
 and the runtime of the aggregation.
-
-
-[discrete]
-[[frequent-items-minimum-set-size]]
-==== Minimum set size
-
-The minimum set size is the minimum number of items the set needs to contain. A 
-value of 1 returns the frequency of single items. The higher the minimum set 
-size the less items are returned. For example, the item set `cat, dog, 
-crocodile` is only returned if the minimum set size is 3 or lower.
 
 
 [discrete]

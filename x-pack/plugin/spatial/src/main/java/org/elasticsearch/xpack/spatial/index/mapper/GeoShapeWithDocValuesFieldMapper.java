@@ -402,6 +402,13 @@ public class GeoShapeWithDocValuesFieldMapper extends AbstractShapeGeometryField
         }
 
         @Override
+        public GeoPoint getInternalLabelPosition() {
+            // TODO: Support more appropriate label positions for different geometry types
+            // For example, center point of LineString
+            return centroid;
+        }
+
+        @Override
         public String getName() {
             return name;
         }

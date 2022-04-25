@@ -122,6 +122,11 @@ public class GeoPointDocValuesField extends AbstractScriptFieldFactory<GeoPoint>
     }
 
     @Override
+    public GeoPoint getInternalLabelPosition() {
+        return centroid;
+    }
+
+    @Override
     public String getName() {
         return name;
     }

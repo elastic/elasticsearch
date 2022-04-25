@@ -96,10 +96,12 @@ public class GeoPointScriptDocValuesIT extends ESSingleNodeTestCase {
             if (geometry.size() == 0) {
                 assertThat(geometry.getBoundingBox(), Matchers.nullValue());
                 assertThat(geometry.getCentroid(), Matchers.nullValue());
+                assertThat(geometry.getLabelPosition(), Matchers.nullValue());
                 assertThat(geometry.getDimensionalType(), equalTo(-1));
             } else {
                 assertThat(geometry.getBoundingBox(), Matchers.notNullValue());
                 assertThat(geometry.getCentroid(), Matchers.notNullValue());
+                assertThat(geometry.getLabelPosition(), Matchers.notNullValue());
                 assertThat(geometry.getDimensionalType(), equalTo(0));
             }
             return geometry;

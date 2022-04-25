@@ -63,6 +63,8 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
             scripts.put("lon", this::scriptLon);
             scripts.put("height", this::scriptHeight);
             scripts.put("width", this::scriptWidth);
+            scripts.put("label_lat", this::scriptLabelLat);
+            scripts.put("label_lon", this::scriptLabelLon);
             return scripts;
         }
 
@@ -100,15 +102,29 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
             return geometry.size() == 0 ? Double.NaN : geometry.getCentroid().lon();
         }
 
+        private double scriptLabelLat(Map<String, Object> vars) {
+            Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
+            ScriptDocValues.Geometry<?> geometry = assertGeometry(doc);
+            return geometry.size() == 0 ? Double.NaN : geometry.getLabelPosition().lat();
+        }
+
+        private double scriptLabelLon(Map<String, Object> vars) {
+            Map<?, ?> doc = (Map<?, ?>) vars.get("doc");
+            ScriptDocValues.Geometry<?> geometry = assertGeometry(doc);
+            return geometry.size() == 0 ? Double.NaN : geometry.getLabelPosition().lon();
+        }
+
         private ScriptDocValues.Geometry<?> assertGeometry(Map<?, ?> doc) {
             ScriptDocValues.Geometry<?> geometry = (ScriptDocValues.Geometry<?>) doc.get("location");
             if (geometry.size() == 0) {
                 assertThat(geometry.getBoundingBox(), Matchers.nullValue());
                 assertThat(geometry.getCentroid(), Matchers.nullValue());
+                assertThat(geometry.getLabelPosition(), Matchers.nullValue());
                 assertThat(geometry.getDimensionalType(), equalTo(-1));
             } else {
                 assertThat(geometry.getBoundingBox(), Matchers.notNullValue());
                 assertThat(geometry.getCentroid(), Matchers.notNullValue());
+                assertThat(geometry.getLabelPosition(), Matchers.notNullValue());
                 assertThat(geometry.getDimensionalType(), greaterThanOrEqualTo(0));
                 assertThat(geometry.getDimensionalType(), lessThanOrEqualTo(2));
             }
@@ -170,6 +186,8 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
             .addScriptField("lon", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "lon", Collections.emptyMap()))
             .addScriptField("height", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "height", Collections.emptyMap()))
             .addScriptField("width", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "width", Collections.emptyMap()))
+            .addScriptField("label_lat", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "label_lat", Collections.emptyMap()))
+            .addScriptField("label_lon", new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "label_lon", Collections.emptyMap()))
             .get();
         assertSearchResponse(searchResponse);
         Map<String, DocumentField> fields = searchResponse.getHits().getHits()[0].getFields();
@@ -177,6 +195,9 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
         assertThat(fields.get("lon").getValue(), equalTo(value.lon()));
         assertThat(fields.get("height").getValue(), equalTo(value.boundingBox().maxY() - value.boundingBox().minY()));
         assertThat(fields.get("width").getValue(), equalTo(value.boundingBox().maxX() - value.boundingBox().minX()));
+        // TODO: get geometry label values for test, currently passing only because label is at centroid, which will change
+        assertThat(fields.get("label_lat").getValue(), equalTo(value.lat()));
+        assertThat(fields.get("label_lon").getValue(), equalTo(value.lon()));
     }
 
     public void testNullShape() throws Exception {

@@ -259,8 +259,12 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
     /**
      * Return a delayed decision, filling in the right amount of remaining time if decisions are debugged/explained.
      */
-    public static AllocateUnassignedDecision delayedDecision(ShardRouting unassignedShard, RoutingAllocation allocation, Logger logger,
-                                                        List<NodeAllocationResult> nodeDecisions) {
+    public static AllocateUnassignedDecision delayedDecision(
+        ShardRouting unassignedShard,
+        RoutingAllocation allocation,
+        Logger logger,
+        List<NodeAllocationResult> nodeDecisions
+    ) {
         boolean explain = allocation.debugDecision();
         logger.debug("{}: allocation of [{}] is delayed", unassignedShard.shardId(), unassignedShard);
         long remainingDelayMillis = 0L;

@@ -8,8 +8,6 @@
 
 package org.elasticsearch.gradle.plugin;
 
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.IOUtils;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin;
@@ -19,9 +17,6 @@ import org.elasticsearch.gradle.testclusters.ElasticsearchCluster;
 import org.elasticsearch.gradle.testclusters.RunTask;
 import org.elasticsearch.gradle.testclusters.TestClustersPlugin;
 import org.elasticsearch.gradle.util.GradleUtils;
-import org.gradle.api.Action;
-import org.gradle.api.GradleException;
-import org.gradle.api.InvalidUserDataException;
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
@@ -29,25 +24,24 @@ import org.gradle.api.Task;
 import org.gradle.api.Transformer;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
 import org.gradle.api.file.CopySpec;
+import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.RegularFile;
 import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
-import org.gradle.api.tasks.Copy;
+import org.gradle.api.provider.ProviderFactory;
+import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.Sync;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.bundling.Zip;
 
 import java.io.File;
-import java.io.IOException;
-import java.io.InputStream;
-import java.nio.charset.StandardCharsets;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.Callable;
-import java.util.stream.Collectors;
+
+import javax.inject.Inject;
 
 /**
  * Encapsulates build configuration for an Elasticsearch plugin.
@@ -58,6 +52,13 @@ public class PluginBuildPlugin implements Plugin<Project> {
     public static final String BUNDLE_PLUGIN_TASK_NAME = "bundlePlugin";
     public static final String EXPLODED_BUNDLE_PLUGIN_TASK_NAME = "explodedBundlePlugin";
     public static final String EXPLODED_BUNDLE_CONFIG = "explodedBundleZip";
+
+    private final ProviderFactory providerFactory;
+
+    @Inject
+    public PluginBuildPlugin(ProviderFactory providerFactory) {
+        this.providerFactory = providerFactory;
+    }
 
     @Override
     public void apply(final Project project) {
@@ -105,64 +106,27 @@ public class PluginBuildPlugin implements Plugin<Project> {
      * Adds bundle tasks which builds the dir and zip containing the plugin jars,
      * metadata, properties, and packaging files
      */
-    private static TaskProvider<Zip> createBundleTasks(final Project project, PluginPropertiesExtension extension) {
+    private TaskProvider<Zip> createBundleTasks(final Project project, PluginPropertiesExtension extension) {
         final var pluginMetadata = project.file("src/main/plugin-metadata");
-        final var templateFile = new File(project.getBuildDir(), "templates/plugin-descriptor.properties");
 
-        // create tasks to build the properties file for this plugin
-        final var copyPluginPropertiesTemplate = project.getTasks().register("copyPluginPropertiesTemplate", new Action<Task>() {
-            @Override
-            public void execute(Task task) {
-                task.getOutputs().file(templateFile);
-                // intentionally an Action and not a lambda to avoid issues with up-to-date check
-                task.doLast(new Action<Task>() {
-                    @Override
-                    public void execute(Task task) {
-                        InputStream resourceTemplate = PluginBuildPlugin.class.getResourceAsStream("/" + templateFile.getName());
-                        try {
-                            String templateText = IOUtils.toString(resourceTemplate, StandardCharsets.UTF_8.name());
-                            FileUtils.write(templateFile, templateText, "UTF-8");
-                        } catch (IOException e) {
-                            throw new GradleException("Unable to copy plugin properties", e);
-                        }
-                    }
-                });
-            }
-        });
+        final var buildProperties = project.getTasks().register("pluginProperties", GeneratePluginPropertiesTask.class, task -> {
+            task.getPluginName().set(providerFactory.provider(extension::getName));
+            task.getPluginDescription().set(providerFactory.provider(extension::getDescription));
+            task.getPluginVersion().set(providerFactory.provider(extension::getVersion));
+            task.getElasticsearchVersion().set(Version.fromString(VersionProperties.getElasticsearch()).toString());
+            var javaExtension = project.getExtensions().getByType(JavaPluginExtension.class);
+            task.getJavaVersion().set(providerFactory.provider(() -> javaExtension.getTargetCompatibility().toString()));
+            task.getClassname().set(providerFactory.provider(extension::getClassname));
+            task.getExtendedPlugins().set(providerFactory.provider(extension::getExtendedPlugins));
+            task.getHasNativeController().set(providerFactory.provider(extension::isHasNativeController));
+            task.getRequiresKeystore().set(providerFactory.provider(extension::isRequiresKeystore));
+            task.getPluginType().set(providerFactory.provider(extension::getType));
+            task.getJavaOpts().set(providerFactory.provider(extension::getJavaOpts));
+            task.getIsLicensed().set(providerFactory.provider(extension::isLicensed));
 
-        final var buildProperties = project.getTasks().register("pluginProperties", Copy.class, copy -> {
-            copy.dependsOn(copyPluginPropertiesTemplate);
-            copy.from(templateFile);
-            copy.into(new File(project.getBuildDir(), "generated-resources"));
-
-            if (extension.getName() == null) {
-                throw new InvalidUserDataException("name is a required setting for esplugin");
-            }
-
-            if (extension.getDescription() == null) {
-                throw new InvalidUserDataException("description is a required setting for esplugin");
-            }
-
-            if (extension.getType().equals(PluginType.BOOTSTRAP) == false && extension.getClassname() == null) {
-                throw new InvalidUserDataException("classname is a required setting for esplugin");
-            }
-
-            Map<String, Object> map = new LinkedHashMap<>(12);
-            map.put("name", extension.getName());
-            map.put("description", extension.getDescription());
-            map.put("version", extension.getVersion());
-            map.put("elasticsearchVersion", Version.fromString(VersionProperties.getElasticsearch()).toString());
-            map.put("javaVersion", project.getExtensions().getByType(JavaPluginExtension.class).getTargetCompatibility().toString());
-            map.put("classname", extension.getType().equals(PluginType.BOOTSTRAP) ? "" : extension.getClassname());
-            map.put("extendedPlugins", extension.getExtendedPlugins().stream().collect(Collectors.joining(",")));
-            map.put("hasNativeController", extension.isHasNativeController());
-            map.put("requiresKeystore", extension.isRequiresKeystore());
-            map.put("type", extension.getType().toString());
-            map.put("javaOpts", extension.getJavaOpts());
-            map.put("licensed", extension.isLicensed());
-
-            copy.expand(map);
-            copy.getInputs().properties(map);
+            var mainSourceSet = project.getExtensions().getByType(SourceSetContainer.class).getByName(SourceSet.MAIN_SOURCE_SET_NAME);
+            FileCollection moduleInfoFile = mainSourceSet.getOutput().getAsFileTree().matching(p -> p.include("module-info.class"));
+            task.getModuleInfoFile().setFrom(moduleInfoFile);
         });
         // add the plugin properties and metadata to test resources, so unit tests can
         // know about the plugin (used by test security code to statically initialize the plugin in unit tests)
@@ -196,7 +160,11 @@ public class PluginBuildPlugin implements Plugin<Project> {
         return bundle;
     }
 
-    private static CopySpec createBundleSpec(Project project, File pluginMetadata, TaskProvider<Copy> buildProperties) {
+    private static CopySpec createBundleSpec(
+        Project project,
+        File pluginMetadata,
+        TaskProvider<GeneratePluginPropertiesTask> buildProperties
+    ) {
         var bundleSpec = project.copySpec();
         bundleSpec.from(buildProperties);
         bundleSpec.from(pluginMetadata, copySpec -> {

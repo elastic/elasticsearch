@@ -103,9 +103,8 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             backingIndexName = indexResponse.getIndex();
         }
 
-        // fetch start and end time
+        // fetch end time
         var getIndexResponse = client().admin().indices().getIndex(new GetIndexRequest().indices(backingIndexName)).actionGet();
-        Instant startTime = IndexSettings.TIME_SERIES_START_TIME.get(getIndexResponse.getSettings().get(backingIndexName));
         Instant endTime = IndexSettings.TIME_SERIES_END_TIME.get(getIndexResponse.getSettings().get(backingIndexName));
 
         // index another doc and verify index

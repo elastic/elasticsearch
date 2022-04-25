@@ -20,7 +20,10 @@ import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -93,7 +96,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                         )
                     );
                     if (includeDetails) {
-                        details.put("current_master", localMasterHistory.getCurrentMaster());
+                        details.put("current_master", new DiscoveryNodeXContentObject(localMasterHistory.getCurrentMaster()));
                     }
                 } else {
                     logger.trace(
@@ -124,8 +127,8 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                     )
                 );
                 if (includeDetails) {
-                    details.put("current_master", localMasterHistory.getCurrentMaster());
-                    details.put("recent_masters", mastersInLast30Minutes);
+                    details.put("current_master", new DiscoveryNodeXContentObject(localMasterHistory.getCurrentMaster()));
+                    details.put("recent_masters", mastersInLast30Minutes.stream().map(DiscoveryNodeXContentObject::new).toList());
                 }
             } else {
                 logger.trace("The cluster has a stable master node");
@@ -156,5 +159,28 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
             return true;
         }
         return masterHistoryService.getLocalMasterHistory().hasSeenMasterInLastNSeconds(30);
+    }
+
+    /**
+     * XContentBuilder doesn't deal well with ToXContentFragments (which is what DiscoveryNodes are). Also XContentBuilder doesn't do well
+     * with null values in lists. This object wraps the DiscoveryNode's XContent in a start and end object, and writes out nulls as empty
+     * objects.
+     */
+    private static final class DiscoveryNodeXContentObject implements ToXContentObject {
+        private final DiscoveryNode master;
+
+        public DiscoveryNodeXContentObject(DiscoveryNode master) {
+            this.master = master;
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            if (master != null) {
+                master.toXContent(builder, params);
+            }
+            builder.endObject();
+            return builder;
+        }
     }
 }

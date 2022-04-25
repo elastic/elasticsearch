@@ -8,9 +8,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import com.carrotsearch.hppc.LongObjectHashMap;
-import com.carrotsearch.hppc.cursors.ObjectCursor;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
@@ -45,6 +42,7 @@ import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -99,7 +97,7 @@ class TopHitsAggregator extends MetricsAggregator {
         // when post collecting then we have already replaced the leaf readers on the aggregator level have already been
         // replaced with the next leaf readers and then post collection pushes docids of the previous segment, which
         // then causes assertions to trip or incorrect top docs to be computed.
-        final LongObjectHashMap<LeafCollector> leafCollectors = new LongObjectHashMap<>(1);
+        final Map<Long, LeafCollector> leafCollectors = new HashMap<>(1);
         return new LeafBucketCollectorBase(sub, null) {
 
             Scorable scorer;
@@ -108,8 +106,8 @@ class TopHitsAggregator extends MetricsAggregator {
             public void setScorer(Scorable scorer) throws IOException {
                 this.scorer = scorer;
                 super.setScorer(scorer);
-                for (ObjectCursor<LeafCollector> cursor : leafCollectors.values()) {
-                    cursor.value.setScorer(scorer);
+                for (var leaf : leafCollectors.values()) {
+                    leaf.setScorer(scorer);
                 }
             }
 
@@ -140,17 +138,18 @@ class TopHitsAggregator extends MetricsAggregator {
                     topDocsCollectors.put(bucket, collectors);
                 }
 
-                final LeafCollector leafCollector;
-                final int key = leafCollectors.indexOf(bucket);
-                if (key < 0) {
-                    leafCollector = collectors.collector.getLeafCollector(ctx);
-                    if (scorer != null) {
-                        leafCollector.setScorer(scorer);
+                final Collector multiCollector = collectors.collector;
+                final LeafCollector leafCollector = leafCollectors.computeIfAbsent(bucket, k -> {
+                    try {
+                        var leaf = multiCollector.getLeafCollector(ctx);
+                        if (scorer != null) {
+                            leaf.setScorer(scorer);
+                        }
+                        return leaf;
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
                     }
-                    leafCollectors.indexInsert(key, bucket, leafCollector);
-                } else {
-                    leafCollector = leafCollectors.indexGet(key);
-                }
+                });
                 leafCollector.collect(docId);
             }
         };

@@ -16,6 +16,7 @@ import java.security.AccessController;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 import java.util.Objects;
+import java.util.ServiceConfigurationError;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.function.Supplier;
@@ -38,18 +39,24 @@ public final class ProviderLocator<T> implements Supplier<T> {
     private final String providerModuleName;
     private final Set<String> missingModules;
 
-    public ProviderLocator(String providerName, Class<T> providerType, String providerModuleName) {
-        this(providerName, providerType, providerModuleName, Set.of());
-    }
-
-    public ProviderLocator(String providerName, Class<T> providerType, String providerModuleName, Set<String> missingModules) {
+    public ProviderLocator(
+        Module caller,
+        String providerName,
+        Class<T> providerType,
+        String providerModuleName,
+        Set<String> missingModules
+    ) {
         Objects.requireNonNull(providerName);
         Objects.requireNonNull(providerType);
         Objects.requireNonNull(providerModuleName);
         Objects.requireNonNull(missingModules);
+        if (caller.isNamed() && caller.getDescriptor().uses().stream().anyMatch(providerType.getName()::equals) == false) {
+            throw new ServiceConfigurationError("%s: module does not declare uses %s".formatted(caller, providerType));
+        }
+
         this.providerName = providerName;
         this.providerType = providerType;
-        this.providerModuleName = providerModuleName;
+        this.providerModuleName = caller.getName();
         this.missingModules = missingModules;
     }
 

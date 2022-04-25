@@ -19,8 +19,6 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -121,22 +119,19 @@ public class JarHellTests extends ESTestCase {
     }
 
     public void testNonJDKModuleURLs() throws Throwable {
-        Path dir = createTempDir();
-        Path jar = PathUtils.get(makeJar(dir, "foo.jar", null, "p/Foo.class").toURI());
         var bootLayer = ModuleLayer.boot();
-        var configuration = bootLayer.configuration().resolve(ModuleFinder.of(), ModuleFinder.of(jar), List.of("foo"));
-        PrivilegedAction<ModuleLayer> pa = () -> bootLayer.defineModulesWithOneLoader(configuration, JarHellTests.class.getClassLoader());
-        var fooLayer = AccessController.doPrivileged(pa);
-        Set<URL> urls = JarHell.nonJDKModuleURLs(fooLayer).collect(Collectors.toSet());
+
+        Path fooDir = createTempDir();
+        Path fooJar = PathUtils.get(makeJar(fooDir, "foo.jar", null, "p/Foo.class").toURI());
+        var fooConfiguration = bootLayer.configuration().resolve(ModuleFinder.of(), ModuleFinder.of(fooJar), List.of("foo"));
+        Set<URL> urls = JarHell.nonJDKModuleURLs(fooConfiguration).collect(Collectors.toSet());
         assertThat(urls.size(), equalTo(1));
         assertThat(urls.stream().findFirst().get().toString(), endsWith("foo.jar"));
 
         Path barDir = createTempDir();
         Path barJar = PathUtils.get(makeJar(barDir, "bar.jar", null, "q/Bar.class").toURI());
-        var barConfiguration = fooLayer.configuration().resolve(ModuleFinder.of(), ModuleFinder.of(barJar), List.of("bar"));
-        pa = () -> fooLayer.defineModulesWithOneLoader(barConfiguration, fooLayer.findModule("foo").get().getClassLoader());
-        var barLayer = AccessController.doPrivileged(pa);
-        urls = JarHell.nonJDKModuleURLs(barLayer).collect(Collectors.toSet());
+        var barConfiguration = fooConfiguration.resolve(ModuleFinder.of(), ModuleFinder.of(barJar), List.of("bar"));
+        urls = JarHell.nonJDKModuleURLs(barConfiguration).collect(Collectors.toSet());
         assertThat(urls.size(), equalTo(2));
         assertThat(urls.stream().map(URL::toString).toList(), hasItems(endsWith("foo.jar"), endsWith("bar.jar")));
     }

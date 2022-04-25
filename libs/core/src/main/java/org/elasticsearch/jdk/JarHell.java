@@ -176,11 +176,11 @@ public class JarHell {
      * The stream may be empty, if, say, running with ES on the class path.
      */
     static Stream<URL> nonJDKBootModuleURLs() {
-        return nonJDKModuleURLs(ModuleLayer.boot());
+        return nonJDKModuleURLs(ModuleLayer.boot().configuration());
     }
 
-    static Stream<URL> nonJDKModuleURLs(ModuleLayer layer) {
-        return Stream.concat(Stream.of(layer.configuration()), layer.parents().stream().map(ModuleLayer::configuration))
+    static Stream<URL> nonJDKModuleURLs(Configuration configuration) {
+        return Stream.concat(Stream.of(configuration), configuration.parents().stream())
             .map(Configuration::modules)
             .flatMap(Set::stream)
             .map(ResolvedModule::reference)

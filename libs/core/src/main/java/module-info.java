@@ -11,7 +11,5 @@ module org.elasticsearch.base {
 
     exports org.elasticsearch.core;
     exports org.elasticsearch.jdk;
-    exports org.elasticsearch.core.internal.io;
-    exports org.elasticsearch.core.internal.net;
     exports org.elasticsearch.core.internal.provider to org.elasticsearch.xcontent;
 }

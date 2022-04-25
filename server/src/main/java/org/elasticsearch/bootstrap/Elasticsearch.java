@@ -8,6 +8,8 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
@@ -28,7 +30,7 @@ class Elasticsearch {
     /**
      * Main entry point for starting elasticsearch
      */
-    public static void main(final String[] args) throws Exception {
+    public static void main(final String[] args) {
         overrideDnsCachePolicyProperties();
         org.elasticsearch.bootstrap.Security.prepopulateSecurityCaller();
 
@@ -46,16 +48,15 @@ class Elasticsearch {
 
         });
         LogConfigurator.registerErrorListener();
-        final ServerArgs serverArgs;
-        var in = new InputStreamStreamInput(System.in);
-        serverArgs = new ServerArgs(in);
 
         final Elasticsearch elasticsearch = new Elasticsearch();
-        System.out.println("RUNNING ELASTICSEARCH");
-        System.out.println(serverArgs);
         PrintStream err = System.err;
         int exitCode = 0;
         try {
+            final var in = new InputStreamStreamInput(System.in);
+            final ServerArgs serverArgs = new ServerArgs(in);
+            System.out.println("RUNNING ELASTICSEARCH");
+            System.out.println(serverArgs);
             elasticsearch.init(
                 serverArgs.daemonize(),
                 serverArgs.pidFile(),
@@ -70,9 +71,19 @@ class Elasticsearch {
             exitCode = e.exitCode;
             err.print('\24');
             err.println(e.getMessage());
+        } catch (Exception e) {
+            exitCode = 1; // mimic JDK exit code on exception
+            if (System.getProperty("es.logs.base_path") != null) {
+                // this is a horrible hack to see if logging has been initialized
+                // we need to find a better way!
+                Logger logger = LogManager.getLogger(Elasticsearch.class);
+                logger.error("fatal exception while booting Elasticsearch", e);
+            }
+            e.printStackTrace(err);
         }
         if (exitCode != ExitCodes.OK) {
             printLogsSuggestion(err);
+            err.flush();
             System.exit(exitCode);
         }
     }

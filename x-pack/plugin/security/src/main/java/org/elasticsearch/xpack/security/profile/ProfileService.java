@@ -34,9 +34,11 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
@@ -66,6 +68,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -73,7 +76,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
-import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.isFileOrNativeRealm;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ALIAS;
@@ -183,33 +186,13 @@ public class ProfileService {
                 new TotalHits(0, TotalHits.Relation.EQUAL_TO)
             );
         })).ifPresent(frozenProfileIndex -> {
-            final BoolQueryBuilder query = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("user_profile.enabled", true));
-            if (Strings.hasText(request.getName())) {
-                query.must(
-                    QueryBuilders.multiMatchQuery(
-                        request.getName(),
-                        "user_profile.user.username",
-                        "user_profile.user.username._2gram",
-                        "user_profile.user.username._3gram",
-                        "user_profile.user.full_name",
-                        "user_profile.user.full_name._2gram",
-                        "user_profile.user.full_name._3gram",
-                        "user_profile.user.email"
-                    ).type(MultiMatchQueryBuilder.Type.BOOL_PREFIX)
-                );
-            }
-            final SearchRequest searchRequest = client.prepareSearch(SECURITY_PROFILE_ALIAS)
-                .setQuery(query)
-                .setSize(request.getSize())
-                .addSort("_score", SortOrder.DESC)
-                .addSort("user_profile.last_synchronized", SortOrder.DESC)
-                .request();
+            final SearchRequest searchRequest = buildSearchRequest(request);
 
             frozenProfileIndex.checkIndexVersionThenExecute(
                 listener::onFailure,
                 () -> executeAsyncWithOrigin(
                     client,
-                    SECURITY_ORIGIN,
+                    SECURITY_PROFILE_ORIGIN,
                     SearchAction.INSTANCE,
                     searchRequest,
                     ActionListener.wrap(searchResponse -> {
@@ -254,25 +237,71 @@ public class ProfileService {
         doUpdate(buildUpdateRequest(uid, builder, refreshPolicy, -1, -1), listener.map(updateResponse -> AcknowledgedResponse.TRUE));
     }
 
+    // package private for testing
+    SearchRequest buildSearchRequest(SuggestProfilesRequest request) {
+        final BoolQueryBuilder query = QueryBuilders.boolQuery().filter(QueryBuilders.termQuery("user_profile.enabled", true));
+        if (Strings.hasText(request.getName())) {
+            query.must(
+                QueryBuilders.multiMatchQuery(
+                    request.getName(),
+                    "user_profile.user.username",
+                    "user_profile.user.username._2gram",
+                    "user_profile.user.username._3gram",
+                    "user_profile.user.full_name",
+                    "user_profile.user.full_name._2gram",
+                    "user_profile.user.full_name._3gram",
+                    "user_profile.user.email"
+                ).type(MultiMatchQueryBuilder.Type.BOOL_PREFIX).fuzziness(Fuzziness.AUTO)
+            );
+        }
+        final SuggestProfilesRequest.Hint hint = request.getHint();
+        if (hint != null) {
+            final List<String> hintedUids = hint.getUids();
+            if (hintedUids != null) {
+                assert false == hintedUids.isEmpty() : "uids hint cannot be empty";
+                query.should(QueryBuilders.termsQuery("user_profile.uid", hintedUids));
+            }
+            final Tuple<String, List<String>> label = hint.getSingleLabel();
+            if (label != null) {
+                final List<String> labelValues = label.v2();
+                query.should(QueryBuilders.termsQuery("user_profile.labels." + label.v1(), labelValues));
+            }
+            query.minimumShouldMatch(0);
+        }
+
+        return client.prepareSearch(SECURITY_PROFILE_ALIAS)
+            .setQuery(query)
+            .setSize(request.getSize())
+            .addSort("_score", SortOrder.DESC)
+            .addSort("user_profile.last_synchronized", SortOrder.DESC)
+            .request();
+    }
+
     private void getVersionedDocument(String uid, ActionListener<VersionedDocument> listener) {
         tryFreezeAndCheckIndex(listener).ifPresent(frozenProfileIndex -> {
             final GetRequest getRequest = new GetRequest(SECURITY_PROFILE_ALIAS, uidToDocId(uid));
             frozenProfileIndex.checkIndexVersionThenExecute(
                 listener::onFailure,
-                () -> executeAsyncWithOrigin(client, SECURITY_ORIGIN, GetAction.INSTANCE, getRequest, ActionListener.wrap(response -> {
-                    if (false == response.isExists()) {
-                        logger.debug("profile with uid [{}] does not exist", uid);
-                        listener.onResponse(null);
-                        return;
-                    }
-                    listener.onResponse(
-                        new VersionedDocument(
-                            buildProfileDocument(response.getSourceAsBytesRef()),
-                            response.getPrimaryTerm(),
-                            response.getSeqNo()
-                        )
-                    );
-                }, listener::onFailure))
+                () -> executeAsyncWithOrigin(
+                    client,
+                    SECURITY_PROFILE_ORIGIN,
+                    GetAction.INSTANCE,
+                    getRequest,
+                    ActionListener.wrap(response -> {
+                        if (false == response.isExists()) {
+                            logger.debug("profile with uid [{}] does not exist", uid);
+                            listener.onResponse(null);
+                            return;
+                        }
+                        listener.onResponse(
+                            new VersionedDocument(
+                                buildProfileDocument(response.getSourceAsBytesRef()),
+                                response.getPrimaryTerm(),
+                                response.getSeqNo()
+                            )
+                        );
+                    }, listener::onFailure)
+                )
             );
         });
     }
@@ -312,7 +341,7 @@ public class ProfileService {
                 listener::onFailure,
                 () -> executeAsyncWithOrigin(
                     client,
-                    SECURITY_ORIGIN,
+                    SECURITY_PROFILE_ORIGIN,
                     SearchAction.INSTANCE,
                     searchRequest,
                     ActionListener.wrap(searchResponse -> {
@@ -384,7 +413,7 @@ public class ProfileService {
             listener::onFailure,
             () -> executeAsyncWithOrigin(
                 client,
-                SECURITY_ORIGIN,
+                SECURITY_PROFILE_ORIGIN,
                 BulkAction.INSTANCE,
                 bulkRequest,
                 TransportSingleItemBulkWriteAction.<IndexResponse>wrapBulkResponse(ActionListener.wrap(indexResponse -> {
@@ -530,12 +559,13 @@ public class ProfileService {
         return updateRequestBuilder.request();
     }
 
-    private void doUpdate(UpdateRequest updateRequest, ActionListener<UpdateResponse> listener) {
+    // Package private for testing
+    void doUpdate(UpdateRequest updateRequest, ActionListener<UpdateResponse> listener) {
         profileIndex.prepareIndexIfNeededThenExecute(
             listener::onFailure,
             () -> executeAsyncWithOrigin(
                 client,
-                SECURITY_ORIGIN,
+                SECURITY_PROFILE_ORIGIN,
                 UpdateAction.INSTANCE,
                 updateRequest,
                 ActionListener.wrap(updateResponse -> {

@@ -463,6 +463,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
         // User profile
         assertThat(kibanaRole.cluster().check(GetProfileAction.NAME, request, authentication), is(true));
         assertThat(kibanaRole.cluster().check(ActivateProfileAction.NAME, request, authentication), is(true));
+        assertThat(kibanaRole.cluster().check(SuggestProfilesAction.NAME, request, authentication), is(true));
         assertThat(kibanaRole.cluster().check(ProfileHasPrivilegesAction.NAME, request, authentication), is(true));
         UpdateProfileDataRequest updateProfileDataRequest = randomBoolean()
             ? new UpdateProfileDataRequest(

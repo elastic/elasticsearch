@@ -197,11 +197,11 @@ public class XPackSettings {
 
     public static final Setting<String> SERVICE_TOKEN_HASHING_ALGORITHM = defaultHashingAlgorithmSetting(
         "xpack.security.authc.service_token_hashing.algorithm",
-        (s) -> "PBKDF2_STRETCH"
+        (s) -> Hasher.PBKDF2_STRETCH.name()
     );
 
-    private static Setting<String> defaultHashingAlgorithmSetting(String keyName, Function<Settings, String> defaultHashingAlgorithm) {
-        return new Setting<>(new Setting.SimpleKey(keyName), defaultHashingAlgorithm, Function.identity(), v -> {
+    private static Setting<String> defaultHashingAlgorithmSetting(String key, Function<Settings, String> defaultHashingAlgorithm) {
+        return new Setting<>(new Setting.SimpleKey(key), defaultHashingAlgorithm, Function.identity(), v -> {
             if (Hasher.getAvailableAlgoStoredHash().contains(v.toLowerCase(Locale.ROOT)) == false) {
                 throw new IllegalArgumentException(
                     "Invalid algorithm: " + v + ". Valid values for password hashing are " + Hasher.getAvailableAlgoStoredHash().toString()
@@ -211,8 +211,9 @@ public class XPackSettings {
                     SecretKeyFactory.getInstance("PBKDF2withHMACSHA512");
                 } catch (NoSuchAlgorithmException e) {
                     throw new IllegalArgumentException(
-                        "Support for PBKDF2WithHMACSHA512 must be available in order to use any of the "
-                            + "PBKDF2 algorithms for the [xpack.security.authc.password_hashing.algorithm] setting.",
+                        "Support for PBKDF2WithHMACSHA512 must be available in order to use any of the PBKDF2 algorithms for the ["
+                            + key
+                            + "] setting.",
                         e
                     );
                 }

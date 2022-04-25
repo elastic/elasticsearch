@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.xcontent.internal;
+package org.elasticsearch.core.internal.provider;
 
 import java.io.BufferedReader;
 import java.io.IOException;

@@ -88,6 +88,7 @@ the Authentication Request, as HTTP GET parameters:
   "realm" : "oidc1"
 }
 --------------------------------------------------
+// TESTRESPONSE[s/http:.*elasticsearch-rp/\$\{body.redirect\}/]
 // TESTRESPONSE[s/4dbrihtIAt3wBTwo6DxK-vdk-sSyDBV8Yf0AjdkdT5I/\$\{body.state\}/]
 // TESTRESPONSE[s/WaBPH0KqPVdG5HHdSxPRjfoZbXMCicm5v1OiAj0DUFM/\$\{body.nonce\}/]
 
@@ -117,6 +118,7 @@ the Authentication Request, as HTTP GET parameters:
   "realm" : "oidc1"
 }
 --------------------------------------------------
+// TESTRESPONSE[s/http:.*elasticsearch-rp/\$\{body.redirect\}/]
 
 The following example generates an authentication request for a 3rd party
 initiated single sign on, specifying the issuer that should be used for matching

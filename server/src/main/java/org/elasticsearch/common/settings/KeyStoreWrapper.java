@@ -75,9 +75,6 @@ import javax.crypto.spec.SecretKeySpec;
  */
 public class KeyStoreWrapper implements SecureSettings {
 
-    /** Arbitrarily chosen maximum passphrase length */
-    public static final int MAX_PASSPHRASE_LENGTH = 128;
-
     /** An identifier for the type of data that may be stored in a keystore entry. */
     private enum EntryType {
         STRING,

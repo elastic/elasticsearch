@@ -41,8 +41,12 @@ BuildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
         }
         numberOfNodes = 2
         setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
+        if (BuildParams.inFipsJvm && bwcVersion.onOrAfter('7.0.0') && bwcVersion.before('8.0.0')) {
+          // In FIPS mode, we need to explicitly set a FIPS compliant password hashing algorithm.
+          // This happens automatically for v8 clusters but not for v7 so we set it here.
+          setting 'xpack.security.authc.password_hashing.algorithm', 'pbkdf2_stretch'
+        }
         user username: "test_user", password: "x-pack-test-password"
-
         setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
         // some tests rely on the translog not being flushed
         setting 'indices.memory.shard_inactive_time', '60m'

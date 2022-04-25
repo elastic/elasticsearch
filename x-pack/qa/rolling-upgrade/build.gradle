@@ -79,6 +79,11 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
       user username: "non_operator", password: 'x-pack-test-password', role: "superuser"
     }
 
+    if (BuildParams.inFipsJvm && bwcVersion.onOrAfter('7.0.0') && bwcVersion.before('8.0.0')) {
+      // In FIPS mode, we need to explicitly set a FIPS compliant password hashing algorithm.
+      // This happens automatically for v8 clusters but not for v7 so we set it here.
+      setting 'xpack.security.authc.password_hashing.algorithm', 'pbkdf2_stretch'
+    }
     user username: "test_user", password: "x-pack-test-password"
 
     extraConfigFile 'testnode.pem', file("$outputDir/testnode.pem")

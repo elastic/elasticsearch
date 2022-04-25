@@ -10,6 +10,8 @@ package org.elasticsearch.cluster.coordination;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -33,7 +35,7 @@ import java.util.Map;
 
 import static org.elasticsearch.health.ServerHealthComponents.CLUSTER_COORDINATION;
 
-public class StableMasterHealthIndicatorService implements HealthIndicatorService {
+public class StableMasterHealthIndicatorService implements HealthIndicatorService, ClusterStateListener {
 
     public static final String NAME = "stable_master";
 
@@ -50,6 +52,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         this.clusterService = clusterService;
         this.discoveryModule = discoveryModule;
         this.masterHistoryService = masterHistoryService;
+        clusterService.addListener(this);
     }
 
     @Override
@@ -169,6 +172,24 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
             return true;
         }
         return masterHistoryService.getLocalMasterHistory().hasSeenMasterInLastNSeconds(30);
+    }
+
+    /*
+     * If we detect that the same master has gone null 3 or more times, we ask the MasterHistoryService to fetch the master history
+     * as seen from that node so that it is ready in case a health API request comes in.
+     */
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        DiscoveryNode currentMaster = event.state().nodes().getMasterNode();
+        DiscoveryNode previousMaster = event.previousState().nodes().getMasterNode();
+        if (currentMaster == null && previousMaster != null) {
+            if (masterHistoryService.getLocalMasterHistory().hasSameMasterGoneNullNTimes(3)) {
+                DiscoveryNode master = masterHistoryService.getLocalMasterHistory().getMostRecentNonNullMaster();
+                if (master != null) {
+                    masterHistoryService.requestRemoteMasterHistory(master);
+                }
+            }
+        }
     }
 
     /**

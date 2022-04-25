@@ -5,7 +5,7 @@
 ++++
 
 A bucket aggregation which finds frequent item sets. Finding frequent item sets 
-is a form of association rules mining that identifies items that are often occur 
+is a form of association rules mining that identifies items that often occur 
 together. Items that are frequently purchased together or log events that tend 
 to co-occur are examples of frequent item sets. Finding frequent item sets helps 
 to discover relationships between different data points (items) in a data set 
@@ -32,8 +32,8 @@ A `frequent_items` aggregation looks like this in isolation:
 |===
 |Parameter Name |Description |Required |Default Value
 |`field` |(array) Fields to analyze. | Required |
-|`minimum_set_size` | (integer) The minimum size of one item set. | Optional | `1`
-|`minimum_support` | (integer) The minimum support of one item set. | Optional | `0.1`
+|`minimum_set_size` | (integer) The <<frequent-items-minimum-set-size,minimum size>> of one item set. | Optional | `1`
+|`minimum_support` | (integer) The <<frequent-items-minimum-support,minimum support>> of one item set. | Optional | `0.1`
 |`size` | (integer) The number of top item sets to return. | Optional |
 |===
 
@@ -58,7 +58,7 @@ and the runtime of the aggregation.
 [[frequent-items-minimum-set-size]]
 ==== Minimum set size
 
-The minimum set size is the minimum number of item the set needs to contain. A 
+The minimum set size is the minimum number of items the set needs to contain. A 
 value of 1 returns the frequency of single items. The higher the minimum set 
 size the less items are returned. For example, the item set `cat, dog, 
 crocodile` is only returned if the minimum set size is 3 or lower.
@@ -81,7 +81,7 @@ aggregation.
 In the following example, we use the e-commerce {kib} sample data set. The goal 
 is to find out from what product categories the customers purchase products 
 frequently together based on transaction data. We are interested in sets with 
-two items, and want to see the first three frequent item setes with the highest 
+two items, and want to see the first three frequent item sets with the highest 
 support.
 
 [source,console]

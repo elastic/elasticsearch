@@ -32,9 +32,6 @@ tasks.named("dependencyLicenses").configure { enabled = false }
 tasks.named("dependenciesInfo").configure { enabled = false }
 tasks.named("dependenciesGraph").configure { enabled = false }
 
-// no tests of the tests, yet
-tasks.named("testingConventions").configure { enabled = false }
-
 tasks.named("thirdPartyAudit").configure {
   ignoreMissingClasses(
           // classes are missing

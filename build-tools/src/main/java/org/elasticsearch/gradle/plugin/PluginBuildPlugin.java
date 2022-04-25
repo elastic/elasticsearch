@@ -34,9 +34,6 @@ import org.gradle.api.plugins.BasePlugin;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.provider.Provider;
-import org.gradle.api.publish.PublishingExtension;
-import org.gradle.api.publish.maven.MavenPublication;
-import org.gradle.api.publish.maven.plugins.MavenPublishPlugin;
 import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.Sync;
@@ -74,42 +71,6 @@ public class PluginBuildPlugin implements Plugin<Project> {
         configureDependencies(project);
 
         final var bundleTask = createBundleTasks(project, extension);
-        project.afterEvaluate(project1 -> {
-            configurePublishing(project1, extension);
-            String name = extension.getName();
-            project1.setProperty("archivesBaseName", name);
-            project1.setDescription(extension.getDescription());
-
-            if (extension.getName() == null) {
-                throw new InvalidUserDataException("name is a required setting for esplugin");
-            }
-
-            if (extension.getDescription() == null) {
-                throw new InvalidUserDataException("description is a required setting for esplugin");
-            }
-
-            if (extension.getType().equals(PluginType.BOOTSTRAP) == false && extension.getClassname() == null) {
-                throw new InvalidUserDataException("classname is a required setting for esplugin");
-            }
-
-            Map<String, Object> map = new LinkedHashMap<>(12);
-            map.put("name", extension.getName());
-            map.put("description", extension.getDescription());
-            map.put("version", extension.getVersion());
-            map.put("elasticsearchVersion", Version.fromString(VersionProperties.getElasticsearch()).toString());
-            map.put("javaVersion", project1.getExtensions().getByType(JavaPluginExtension.class).getTargetCompatibility().toString());
-            map.put("classname", extension.getType().equals(PluginType.BOOTSTRAP) ? "" : extension.getClassname());
-            map.put("extendedPlugins", extension.getExtendedPlugins().stream().collect(Collectors.joining(",")));
-            map.put("hasNativeController", extension.isHasNativeController());
-            map.put("requiresKeystore", extension.isRequiresKeystore());
-            map.put("type", extension.getType().toString());
-            map.put("javaOpts", extension.getJavaOpts());
-            map.put("licensed", extension.isLicensed());
-            project1.getTasks().withType(Copy.class).named("pluginProperties").configure(copy -> {
-                copy.expand(map);
-                copy.getInputs().properties(map);
-            });
-        });
         project.getConfigurations().getByName("default").extendsFrom(project.getConfigurations().getByName("runtimeClasspath"));
 
         // allow running ES with this plugin in the foreground of a build
@@ -134,27 +95,10 @@ public class PluginBuildPlugin implements Plugin<Project> {
         return (NamedDomainObjectContainer<ElasticsearchCluster>) project.getExtensions().getByName(extensionName);
     }
 
-    private static void configurePublishing(Project project, PluginPropertiesExtension extension) {
-        if (project.getPlugins().hasPlugin(MavenPublishPlugin.class)) {
-            PublishingExtension publishingExtension = project.getExtensions().getByType(PublishingExtension.class);
-            MavenPublication elastic = publishingExtension.getPublications().maybeCreate("elastic", MavenPublication.class);
-            elastic.setArtifactId(extension.getName());
-        }
-    }
-
     private static void configureDependencies(final Project project) {
         var dependencies = project.getDependencies();
         dependencies.add("compileOnly", "org.elasticsearch:elasticsearch:" + VersionProperties.getElasticsearch());
         dependencies.add("testImplementation", "org.elasticsearch.test:framework:" + VersionProperties.getElasticsearch());
-        dependencies.add("testImplementation", "org.apache.logging.log4j:log4j-core:" + VersionProperties.getVersions().get("log4j"));
-
-        // we "upgrade" these optional deps to provided for plugins, since they will run
-        // with a full elasticsearch server that includes optional deps
-        dependencies.add("compileOnly", "org.locationtech.spatial4j:spatial4j:" + VersionProperties.getVersions().get("spatial4j"));
-        dependencies.add("compileOnly", "org.locationtech.jts:jts-core:" + VersionProperties.getVersions().get("jts"));
-        dependencies.add("compileOnly", "org.apache.logging.log4j:log4j-api:" + VersionProperties.getVersions().get("log4j"));
-        dependencies.add("compileOnly", "org.apache.logging.log4j:log4j-core:" + VersionProperties.getVersions().get("log4j"));
-        dependencies.add("compileOnly", "net.java.dev.jna:jna:" + VersionProperties.getVersions().get("jna"));
     }
 
     /**
@@ -185,10 +129,40 @@ public class PluginBuildPlugin implements Plugin<Project> {
                 });
             }
         });
+
         final var buildProperties = project.getTasks().register("pluginProperties", Copy.class, copy -> {
             copy.dependsOn(copyPluginPropertiesTemplate);
             copy.from(templateFile);
             copy.into(new File(project.getBuildDir(), "generated-resources"));
+
+            if (extension.getName() == null) {
+                throw new InvalidUserDataException("name is a required setting for esplugin");
+            }
+
+            if (extension.getDescription() == null) {
+                throw new InvalidUserDataException("description is a required setting for esplugin");
+            }
+
+            if (extension.getType().equals(PluginType.BOOTSTRAP) == false && extension.getClassname() == null) {
+                throw new InvalidUserDataException("classname is a required setting for esplugin");
+            }
+
+            Map<String, Object> map = new LinkedHashMap<>(12);
+            map.put("name", extension.getName());
+            map.put("description", extension.getDescription());
+            map.put("version", extension.getVersion());
+            map.put("elasticsearchVersion", Version.fromString(VersionProperties.getElasticsearch()).toString());
+            map.put("javaVersion", project.getExtensions().getByType(JavaPluginExtension.class).getTargetCompatibility().toString());
+            map.put("classname", extension.getType().equals(PluginType.BOOTSTRAP) ? "" : extension.getClassname());
+            map.put("extendedPlugins", extension.getExtendedPlugins().stream().collect(Collectors.joining(",")));
+            map.put("hasNativeController", extension.isHasNativeController());
+            map.put("requiresKeystore", extension.isRequiresKeystore());
+            map.put("type", extension.getType().toString());
+            map.put("javaOpts", extension.getJavaOpts());
+            map.put("licensed", extension.isLicensed());
+
+            copy.expand(map);
+            copy.getInputs().properties(map);
         });
         // add the plugin properties and metadata to test resources, so unit tests can
         // know about the plugin (used by test security code to statically initialize the plugin in unit tests)

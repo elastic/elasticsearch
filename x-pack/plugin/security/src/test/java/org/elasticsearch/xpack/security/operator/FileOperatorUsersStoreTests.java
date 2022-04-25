@@ -24,6 +24,7 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xpack.core.security.audit.logfile.CapturingLogger;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.junit.After;
 import org.junit.Before;
@@ -71,7 +72,11 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
         // user operator_1 from file realm is an operator
         final Authentication.RealmRef fileRealm = new Authentication.RealmRef("file", "file", randomAlphaOfLength(8));
         final User operator_1 = new User("operator_1", randomRoles());
-        assertTrue(fileOperatorUsersStore.isOperatorUser(new Authentication(operator_1, fileRealm, fileRealm)));
+        assertTrue(
+            fileOperatorUsersStore.isOperatorUser(
+                AuthenticationTestHelper.builder().realm().user(operator_1).realmRef(fileRealm).build(false)
+            )
+        );
 
         // user operator_3 is an operator and its file realm can have any name
         final Authentication.RealmRef anotherFileRealm = new Authentication.RealmRef(
@@ -81,7 +86,11 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
         );
         assertTrue(
             fileOperatorUsersStore.isOperatorUser(
-                new Authentication(new User("operator_3", randomRoles()), anotherFileRealm, anotherFileRealm)
+                AuthenticationTestHelper.builder()
+                    .realm()
+                    .user(new User("operator_3", randomRoles()))
+                    .realmRef(anotherFileRealm)
+                    .build(false)
             )
         );
 
@@ -91,7 +100,11 @@ public class FileOperatorUsersStoreTests extends ESTestCase {
             new Authentication.RealmRef(randomAlphaOfLengthBetween(5, 8), "file", randomAlphaOfLength(8)),
             new Authentication.RealmRef(randomAlphaOfLengthBetween(5, 8), randomAlphaOfLengthBetween(5, 8), randomAlphaOfLength(8))
         );
-        assertFalse(fileOperatorUsersStore.isOperatorUser(new Authentication(operator_1, differentRealm, differentRealm)));
+        assertFalse(
+            fileOperatorUsersStore.isOperatorUser(
+                AuthenticationTestHelper.builder().realm().user(operator_1).realmRef(differentRealm).build(false)
+            )
+        );
 
         // user operator_1 with non realm auth type is not an operator
         assertFalse(

@@ -26,8 +26,7 @@
           "type": "date"
         },
         "minimum_execution_duration": {
-          "type": "keyword",
-          "enabled": false
+          "type": "keyword"
         },
         "input_type": {
           "type": "keyword"

@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.routing;
 
-import com.carrotsearch.hppc.cursors.IntCursor;
-
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -489,8 +487,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
         }
 
         public Builder addReplica() {
-            for (IntCursor cursor : shards.keys()) {
-                int shardNumber = cursor.value;
+            for (var shardNumber : shards.keys()) {
                 ShardId shardId = new ShardId(index, shardNumber);
                 // version 0, will get updated when reroute will happen
                 ShardRouting shard = ShardRouting.newUnassigned(
@@ -505,8 +502,7 @@ public class IndexRoutingTable implements SimpleDiffable<IndexRoutingTable> {
         }
 
         public Builder removeReplica() {
-            for (IntCursor cursor : shards.keys()) {
-                int shardId = cursor.value;
+            for (var shardId : shards.keys()) {
                 IndexShardRoutingTable indexShard = shards.get(shardId);
                 if (indexShard.replicaShards().isEmpty()) {
                     // nothing to do here!

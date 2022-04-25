@@ -33,10 +33,10 @@ A `frequent_items` aggregation looks like this in isolation:
 .`frequent_items` Parameters
 |===
 |Parameter Name |Description |Required |Default Value
-|`field` |(array) Fields to analyze. | Required |
+|`fields` |(array) Fields to analyze. | Required |
 |`minimum_set_size` | (integer) The <<frequent-items-minimum-set-size,minimum size>> of one item set. | Optional | `1`
 |`minimum_support` | (integer) The <<frequent-items-minimum-support,minimum support>> of one item set. | Optional | `0.1`
-|`size` | (integer) The number of top item sets to return. | Optional |
+|`size` | (integer) The number of top item sets to return. | Optional | `10`
 |===
 
 [discrete]
@@ -151,7 +151,7 @@ The API returns a response similar to the following one:
 -------------------------------------------------
 // TEST[skip:setup kibana sample data]
 
-The response shows that the categories customers purcashe from most frequently 
+The response shows that the categories customers purchase from most frequently 
 together are `Women's Clothing` and `Women's Shoes`. It means that customers who 
 buy products labelled Women's Clothing more likely buy products also from the 
 Women's Shoes category. The item set with the second highest support is 

@@ -406,7 +406,6 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
         }
     }
 
-    @AwaitsFix(bugUrl = "TODO")
     public void testAllocationFilteringOnIndexCreation() throws Exception {
         logger.info("--> starting 2 nodes");
         internalCluster().startNodes(2);
@@ -419,6 +418,8 @@ public final class ClusterAllocationExplainIT extends ESIntegTestCase {
             Settings.builder().put("index.routing.allocation.include._name", "non_existent_node").build(),
             ActiveShardCount.NONE
         );
+
+        awaitDesiredBalanceShardsAllocator();
 
         boolean includeYesDecisions = randomBoolean();
         boolean includeDiskInfo = randomBoolean();

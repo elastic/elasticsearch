@@ -16,9 +16,10 @@ import java.util.Set;
 /**
  * The desired balance of the cluster, indicating which nodes should hold a copy of each shard.
  *
- * @param desiredAssignments a list of the (persistent) node IDs to which each each {@link ShardId} should be allocated
+ * @param desiredAssignments a set of the (persistent) node IDs to which each {@link ShardId} should be allocated
+ * @param unassigned a map of {@link  ShardId} that could not be assigned at the moment
  */
-public record DesiredBalance(Map<ShardId, Set<String>> desiredAssignments) {
+public record DesiredBalance(Map<ShardId, Set<String>> desiredAssignments, Map<ShardId, Integer> unassigned) {
     public Set<String> getDesiredNodeIds(ShardId shardId) {
         return desiredAssignments.getOrDefault(shardId, Set.of());
     }

@@ -115,8 +115,7 @@ public class UpdateShardAllocationSettingsIT extends ESIntegTestCase {
     /**
      * Tests that updating the {@link SameShardAllocationDecider#CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING} setting works as expected.
      */
-    @AwaitsFix(bugUrl = "TODO")
-    public void testUpdateSameHostSetting() {
+    public void testUpdateSameHostSetting() throws Exception {
         internalCluster().startNodes(2);
         // same same_host to true, since 2 nodes are started on the same host,
         // only primaries should be assigned
@@ -143,6 +142,9 @@ public class UpdateShardAllocationSettingsIT extends ESIntegTestCase {
             .prepareUpdateSettings()
             .setPersistentSettings(Settings.builder().put(CLUSTER_ROUTING_ALLOCATION_SAME_HOST_SETTING.getKey(), false))
             .get();
+
+        awaitDesiredBalanceShardsAllocator();
+
         clusterState = client().admin().cluster().prepareState().get().getState();
         assertTrue(
             "all shards should be assigned",

@@ -101,10 +101,8 @@ GET kibana_sample_data_ecommerce /_search
       "frequent_items": {
         "minimum_set_size": 3,
         "fields": [
-          {
-            "field": "category.keyword",
-            "field": "geoip.city_name"
-          }
+          { "field": "category.keyword" },
+          { "field": "geoip.city_name" }
         ],
         "size": 3
       }

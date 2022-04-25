@@ -17,6 +17,7 @@ module org.elasticsearch.transport.netty4 {
     requires io.netty.common;
     requires io.netty.handler;
     requires io.netty.transport;
+    requires io.netty.codec.http;
 
     exports org.elasticsearch.http.netty4;
     exports org.elasticsearch.transport.netty4;

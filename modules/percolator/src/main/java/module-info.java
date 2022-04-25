@@ -15,6 +15,4 @@ module org.elasticsearch.module.percolator {
     requires org.apache.lucene.memory;
     requires org.apache.lucene.queries;
     requires org.apache.lucene.sandbox;
-
-    exports org.elasticsearch.percolator;  // there is no need to export, if just for the entry point
 }

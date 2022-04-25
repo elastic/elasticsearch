@@ -262,7 +262,7 @@ public class DesiredBalanceService {
                     final var newNodes = desiredAssignment.getValue();
                     final var oldNodes = desiredBalance.desiredAssignments().get(shardId);
                     if (newNodes.equals(oldNodes)) {
-                        logger.trace("{} desired balance unchanged, allocating to {}", shardId, newNodes);
+                        logger.trace("{} desired balance unchanged,   allocating to {}", shardId, newNodes);
                     } else {
                         logger.trace("{} desired balance changed, now allocating to {} vs previous {}", shardId, newNodes, oldNodes);
                     }

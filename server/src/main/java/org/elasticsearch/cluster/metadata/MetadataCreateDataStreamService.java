@@ -249,7 +249,7 @@ public class MetadataCreateDataStreamService {
         assert writeIndex != null;
         assert writeIndex.mapping() != null : "no mapping found for backing index [" + writeIndex.getIndex().getName() + "]";
 
-        String fieldName = template.getDataStreamTemplate().getTimestampField();
+        String fieldName = ComposableIndexTemplate.DataStreamTemplate.getTimestampField();
         DataStream.TimestampField timestampField = new DataStream.TimestampField(fieldName);
         List<Index> dsBackingIndices = backingIndices.stream()
             .map(IndexMetadata::getIndex)

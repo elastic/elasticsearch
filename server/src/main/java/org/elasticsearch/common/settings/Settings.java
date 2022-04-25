@@ -26,9 +26,9 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -147,7 +147,7 @@ public final class Settings implements ToXContentFragment {
         return map;
     }
 
-    private void processSetting(Map<String, Object> map, String prefix, String setting, Object value) {
+    private static void processSetting(Map<String, Object> map, String prefix, String setting, Object value) {
         int prefixLength = setting.indexOf('.');
         if (prefixLength == -1) {
             @SuppressWarnings("unchecked")
@@ -182,7 +182,7 @@ public final class Settings implements ToXContentFragment {
         }
     }
 
-    private Object convertMapsToArrays(Map<String, Object> map) {
+    private static Object convertMapsToArrays(Map<String, Object> map) {
         if (map.isEmpty()) {
             return map;
         }
@@ -652,7 +652,7 @@ public final class Settings implements ToXContentFragment {
     }
 
     @SuppressWarnings("unchecked")
-    private void toXContentFlat(XContentBuilder builder, Settings settings) throws IOException {
+    private static void toXContentFlat(XContentBuilder builder, Settings settings) throws IOException {
         for (Map.Entry<String, Object> entry : settings.getAsStructuredMap().entrySet()) {
             final Object value = entry.getValue();
             final String key = entry.getKey();
@@ -753,7 +753,7 @@ public final class Settings implements ToXContentFragment {
                     validateValue(key, parser.text(), parser, allowNullValues);
                     builder.put(key, parser.booleanValue());
                 } else {
-                    XContentParserUtils.throwUnknownToken(parser.currentToken(), parser.getTokenLocation());
+                    XContentParserUtils.throwUnknownToken(parser.currentToken(), parser);
                 }
         }
     }

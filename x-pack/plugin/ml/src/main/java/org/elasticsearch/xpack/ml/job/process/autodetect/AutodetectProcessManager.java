@@ -27,9 +27,9 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.rest.RestStatus;
@@ -480,6 +480,17 @@ public class AutodetectProcessManager implements ClusterStateListener {
                     );
                     return;
                 }
+                if (resetInProgress) {
+                    logger.trace(
+                        () -> new ParameterizedMessage(
+                            "Aborted upgrading snapshot [{}] for job [{}] as ML feature is being reset",
+                            snapshotId,
+                            jobId
+                        )
+                    );
+                    closeHandler.accept(null);
+                    return;
+                }
                 // We need to fork, otherwise we restore model state from a network thread (several GET api calls):
                 threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(new AbstractRunnable() {
                     @Override
@@ -493,6 +504,17 @@ public class AutodetectProcessManager implements ClusterStateListener {
                             logger.info(
                                 () -> new ParameterizedMessage(
                                     "Aborted upgrading snapshot [{}] for job [{}] as node is dying",
+                                    snapshotId,
+                                    jobId
+                                )
+                            );
+                            closeHandler.accept(null);
+                            return;
+                        }
+                        if (resetInProgress) {
+                            logger.trace(
+                                () -> new ParameterizedMessage(
+                                    "Aborted upgrading snapshot [{}] for job [{}] as ML feature is being reset",
                                     snapshotId,
                                     jobId
                                 )

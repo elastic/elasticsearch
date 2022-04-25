@@ -359,7 +359,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             }
         }
 
-        public String getTimestampField() {
+        public static String getTimestampField() {
             return FIXED_TIMESTAMP_FIELD;
         }
 

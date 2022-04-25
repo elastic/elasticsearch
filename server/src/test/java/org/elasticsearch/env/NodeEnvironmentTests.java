@@ -597,6 +597,18 @@ public class NodeEnvironmentTests extends ESTestCase {
         }
     }
 
+    public void testSymlinkDataDirectory() throws Exception {
+        Path tempDir = createTempDir().toAbsolutePath();
+        Path dataPath = tempDir.resolve("data");
+        Files.createDirectories(dataPath);
+        Path symLinkPath = tempDir.resolve("data_symlink");
+        Files.createSymbolicLink(symLinkPath, dataPath);
+        NodeEnvironment env = newNodeEnvironment(new String[] { symLinkPath.toString() }, "/tmp", Settings.EMPTY);
+
+        assertTrue(Files.exists(symLinkPath));
+        env.close();
+    }
+
     private void verifyFailsOnShardData(Settings settings, Path indexPath, String shardDataDirName) {
         IllegalStateException ex = expectThrows(
             IllegalStateException.class,

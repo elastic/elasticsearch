@@ -63,6 +63,8 @@ testClusters.matching { it.name == "integTest"}.configureEach {
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'indices.lifecycle.history_index_enabled', 'false'
     keystorePassword 'keystore-password'
+    // TODO: remove this once the disk usage indicator feature is finished #84811
+    systemProperty 'es.health_api.disk_usage_inidcator_feature_flag_enabled', 'true'
   }
 
   // enable regexes in painless so our tests don't complain about example snippets that use them

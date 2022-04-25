@@ -8,8 +8,8 @@
 
 package org.elasticsearch.cloud.gce;
 
+import com.google.api.client.googleapis.GoogleUtils;
 import com.google.api.client.googleapis.compute.ComputeCredential;
-import com.google.api.client.googleapis.javanet.GoogleNetHttpTransport;
 import com.google.api.client.http.GenericUrl;
 import com.google.api.client.http.HttpHeaders;
 import com.google.api.client.http.HttpRequest;
@@ -19,6 +19,7 @@ import com.google.api.client.http.HttpTransport;
 import com.google.api.client.http.javanet.NetHttpTransport;
 import com.google.api.client.json.JsonFactory;
 import com.google.api.client.json.jackson2.JacksonFactory;
+import com.google.api.client.util.SecurityUtils;
 import com.google.api.services.compute.Compute;
 import com.google.api.services.compute.model.Instance;
 import com.google.api.services.compute.model.InstanceList;
@@ -36,6 +37,7 @@ import org.elasticsearch.discovery.gce.RetryHttpInitializerWrapper;
 
 import java.io.IOException;
 import java.security.GeneralSecurityException;
+import java.security.KeyStore;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -173,7 +175,12 @@ public class GceInstancesServiceImpl implements GceInstancesService {
     protected synchronized HttpTransport getGceHttpTransport() throws GeneralSecurityException, IOException {
         if (gceHttpTransport == null) {
             if (validateCerts) {
-                gceHttpTransport = GoogleNetHttpTransport.newTrustedTransport();
+                // Manually load the certificates in the jks format instead of the default p12 which is not compatible with FIPS.
+                KeyStore certTrustStore = SecurityUtils.getJavaKeyStore();
+                try (var is = GoogleUtils.class.getResourceAsStream("google.jks")) {
+                    SecurityUtils.loadKeyStore(certTrustStore, is, "notasecret");
+                }
+                gceHttpTransport = new NetHttpTransport.Builder().trustCertificates(certTrustStore).build();
             } else {
                 // this is only used for testing - alternative we could use the defaul keystore but this requires special configs too..
                 gceHttpTransport = new NetHttpTransport.Builder().doNotValidateCertificate().build();

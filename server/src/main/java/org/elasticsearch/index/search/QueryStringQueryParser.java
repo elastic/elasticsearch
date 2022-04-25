@@ -36,7 +36,7 @@ import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.FieldNamesFieldMapper;

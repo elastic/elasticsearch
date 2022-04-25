@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.HasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
@@ -34,6 +35,9 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.List;
+
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.emptyArray;
@@ -42,11 +46,31 @@ import static org.hamcrest.Matchers.is;
 
 public class TransformPrivilegeCheckerTests extends ESTestCase {
 
-    private static final String OPERATION_NAME = "some-operation";
+    private static final String OPERATION_NAME = "create";
     private static final String USER_NAME = "bob";
     private static final String TRANSFORM_ID = "some-id";
     private static final String SOURCE_INDEX_NAME = "some-source-index";
+    private static final ResourcePrivileges SOURCE_INDEX_NAME_PRIVILEGES = ResourcePrivileges.builder(SOURCE_INDEX_NAME)
+        .addPrivilege("view_index_metadata", true)
+        .addPrivilege("read", true)
+        .build();
+    private static final String SOURCE_INDEX_NAME_2 = "some-other-source-index";
+    private static final ResourcePrivileges SOURCE_INDEX_NAME_2_PRIVILEGES = ResourcePrivileges.builder(SOURCE_INDEX_NAME_2)
+        .addPrivilege("view_index_metadata", true)
+        .addPrivilege("read", false)
+        .build();
     private static final String DEST_INDEX_NAME = "some-dest-index";
+    private static final ResourcePrivileges DEST_INDEX_NAME_PRIVILEGES = ResourcePrivileges.builder(DEST_INDEX_NAME)
+        .addPrivilege("index", true)
+        .addPrivilege("read", true)
+        .addPrivilege("delete", true)
+        .build();
+    private static final String DEST_INDEX_NAME_2 = "some-other_dest-index";
+    private static final ResourcePrivileges DEST_INDEX_NAME_2_PRIVILEGES = ResourcePrivileges.builder(DEST_INDEX_NAME_2)
+        .addPrivilege("index", true)
+        .addPrivilege("read", false)
+        .addPrivilege("delete", false)
+        .build();
     private static final TransformConfig TRANSFORM_CONFIG = new TransformConfig.Builder().setId(TRANSFORM_ID)
         .setSource(new SourceConfig(SOURCE_INDEX_NAME))
         .setDest(new DestConfig(DEST_INDEX_NAME, null))
@@ -185,9 +209,56 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
         );
     }
 
+    public void testCheckPrivileges_MissingPrivileges() {
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .metadata(
+                Metadata.builder()
+                    .put(IndexMetadata.builder(DEST_INDEX_NAME_2).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
+            )
+            .build();
+        TransformConfig config = new TransformConfig.Builder(TRANSFORM_CONFIG).setSource(new SourceConfig(SOURCE_INDEX_NAME_2))
+            .setDest(new DestConfig(DEST_INDEX_NAME_2, null))
+            .build();
+        client.nextHasPrivilegesResponse = new HasPrivilegesResponse(
+            USER_NAME,
+            false,
+            emptyMap(),
+            List.of(SOURCE_INDEX_NAME_2_PRIVILEGES, DEST_INDEX_NAME_2_PRIVILEGES),
+            emptyMap()
+        );
+        TransformPrivilegeChecker.checkPrivileges(
+            OPERATION_NAME,
+            securityContext,
+            indexNameExpressionResolver,
+            clusterState,
+            client,
+            config,
+            true,
+            ActionListener.wrap(
+                aVoid -> fail(),
+                e -> assertThat(
+                    e.getMessage(),
+                    is(
+                        equalTo(
+                            "Cannot create transform [some-id] because user bob lacks the required permissions "
+                                + "[some-other-source-index:[read], some-other_dest-index:[read, delete]]"
+                        )
+                    )
+                )
+            )
+        );
+    }
+
     private static class MyMockClient extends NoOpClient {
 
         private HasPrivilegesRequest lastHasPrivilegesRequest;
+        private HasPrivilegesResponse nextHasPrivilegesResponse = new HasPrivilegesResponse(
+            USER_NAME,
+            true,
+            emptyMap(),
+            List.of(SOURCE_INDEX_NAME_PRIVILEGES, DEST_INDEX_NAME_PRIVILEGES),
+            emptyMap()
+        );
 
         MyMockClient(String testName) {
             super(testName);
@@ -205,7 +276,7 @@ public class TransformPrivilegeCheckerTests extends ESTestCase {
             }
             // Save the generated request for later.
             lastHasPrivilegesRequest = (HasPrivilegesRequest) request;
-            listener.onResponse((Response) new HasPrivilegesResponse());
+            listener.onResponse((Response) nextHasPrivilegesResponse);
         }
     }
 }

@@ -108,8 +108,8 @@ public final class HealthNodeSelectorTaskExecutor extends PersistentTasksExecuto
         HealthNodeSelector task = currentTask.get();
         if (task != null && task.isCancelled() == false) {
             String nodeId = clusterService.localNode().getId();
-            task.markAsLocallyAborted("Node [" + nodeId + "] is shutting down.");
             logger.info("Node [" + nodeId + "] is releasing health node selector task due to shutdown");
+            task.markAsLocallyAborted("Node [" + nodeId + "] is shutting down.");
         }
     }
 

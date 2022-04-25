@@ -25,6 +25,9 @@ import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.Before;
 
 import java.net.UnknownHostException;
@@ -47,7 +50,6 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
     private ClusterState node1MasterClusterState;
     private ClusterState node2MasterClusterState;
     private ClusterState node3MasterClusterState;
-    private ClusterState node4MasterClusterState;
     private static final String TEST_SOURCE = "test";
 
     @Before
@@ -55,35 +57,62 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
         String node1 = randomNodeId();
         String node2 = randomNodeId();
         String node3 = randomNodeId();
-        String node4 = randomNodeId();
         nullMasterClusterState = createClusterState(null);
         node1MasterClusterState = createClusterState(node1);
         node2MasterClusterState = createClusterState(node2);
         node3MasterClusterState = createClusterState(node3);
-        node4MasterClusterState = createClusterState(node4);
     }
 
     @SuppressWarnings("unchecked")
-    public void testThreeMasters() throws Exception {
+    public void testMoreThanThreeMasterChanges() throws Exception {
         MasterHistoryService masterHistoryService = createMasterHistoryService();
         MasterHistory localMasterHistory = masterHistoryService.getLocalMasterHistory();
         StableMasterHealthIndicatorService service = createAllocationHealthIndicatorService(nullMasterClusterState, masterHistoryService);
+        // First master:
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
         HealthIndicatorResult result = service.calculate(true);
         assertThat(result.status(), equalTo(HealthStatus.GREEN));
 
-        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node2MasterClusterState, node1MasterClusterState));
+        // Null, so not counted:
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
         result = service.calculate(true);
         assertThat(result.status(), equalTo(HealthStatus.GREEN));
 
-        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, node2MasterClusterState));
+        // Change 1:
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node2MasterClusterState, nullMasterClusterState));
         result = service.calculate(true);
         assertThat(result.status(), equalTo(HealthStatus.GREEN));
 
-        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node3MasterClusterState, node1MasterClusterState));
+        // Null, so not counted:
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node2MasterClusterState));
+        result = service.calculate(true);
+        assertThat(result.status(), equalTo(HealthStatus.GREEN));
+
+        // Change 2:
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
+        result = service.calculate(true);
+        assertThat(result.status(), equalTo(HealthStatus.GREEN));
+
+        // Null, so not counted:
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
+        result = service.calculate(true);
+        assertThat(result.status(), equalTo(HealthStatus.GREEN));
+
+        // Change 3:
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node3MasterClusterState, nullMasterClusterState));
+        result = service.calculate(true);
+        assertThat(result.status(), equalTo(HealthStatus.GREEN));
+
+        // Null, so not counted:
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node3MasterClusterState));
+        result = service.calculate(true);
+        assertThat(result.status(), equalTo(HealthStatus.GREEN));
+
+        // Change 4:
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node3MasterClusterState, nullMasterClusterState));
         result = service.calculate(true);
         assertThat(result.status(), equalTo(HealthStatus.YELLOW));
-        assertThat(result.summary(), equalTo("The master has changed 3 times in the last 30 minutes"));
+        assertThat(result.summary(), equalTo("The master has changed 4 times in the last 30 minutes"));
         assertThat(1, equalTo(result.impacts().size()));
         HealthIndicatorImpact impact = result.impacts().get(0);
         assertThat(3, equalTo(impact.severity()));
@@ -96,8 +125,7 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
         assertThat(ImpactArea.INGEST, equalTo(impact.impactAreas().get(0)));
         SimpleHealthIndicatorDetails details = (SimpleHealthIndicatorDetails) result.details();
         assertThat(2, equalTo(details.details().size()));
-        assertThat(node3MasterClusterState.nodes().getMasterNode(), equalTo(details.details().get("current_master")));
-        assertThat(4, equalTo(((Collection<DiscoveryNode>) details.details().get("recent_masters")).size()));
+        assertThat(9, equalTo(((Collection<DiscoveryNode>) details.details().get("recent_masters")).size()));
     }
 
     public void testMasterGoesNull() throws Exception {
@@ -131,15 +159,18 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
         assertThat(result.status(), equalTo(HealthStatus.YELLOW));
         assertThat(result.summary(), startsWith("The cluster's master has alternated between "));
         assertThat(result.summary(), endsWith("and no master multiple times in the last 30 minutes"));
-        assertThat(1, equalTo(result.impacts().size()));
+        assertThat(result.impacts().size(), equalTo(1));
         HealthIndicatorImpact impact = result.impacts().get(0);
-        assertThat(3, equalTo(impact.severity()));
-        assertThat("The cluster is at risk of not being able to create, delete, or rebalance indices", equalTo(impact.impactDescription()));
-        assertThat(1, equalTo(impact.impactAreas().size()));
-        assertThat(ImpactArea.INGEST, equalTo(impact.impactAreas().get(0)));
+        assertThat(impact.severity(), equalTo(3));
+        assertThat(impact.impactDescription(), equalTo("The cluster is at risk of not being able to create, delete, or rebalance indices"));
+        assertThat(impact.impactAreas().size(), equalTo(1));
+        assertThat(impact.impactAreas().get(0), equalTo(ImpactArea.INGEST));
         SimpleHealthIndicatorDetails details = (SimpleHealthIndicatorDetails) result.details();
-        assertThat(1, equalTo(details.details().size()));
-        assertThat(null, equalTo(details.details().get("current_master")));
+        assertThat(details.details().size(), equalTo(1));
+        XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
+        builder = ((ToXContent) details.details().get("current_master")).toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.flush();
+        assertThat(builder.getOutputStream().toString(), equalTo("{ }"));
     }
 
     private static ClusterState createClusterState(String masterNodeId) throws UnknownHostException {

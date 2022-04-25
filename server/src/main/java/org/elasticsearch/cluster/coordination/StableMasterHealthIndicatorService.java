@@ -30,7 +30,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.health.ServerHealthComponents.CLUSTER_COORDINATION;
 
@@ -71,6 +70,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         Collection<HealthIndicatorImpact> impacts = new ArrayList<>();
         MasterHistory localMasterHistory = masterHistoryService.getLocalMasterHistory();
         if (hasSeenMasterInLast30Seconds()) {
+            int masterChanges = getNumberOfMasterChanges(localMasterHistory);
             logger.trace("Have seen a master in the last 30 seconds");
             if (localMasterHistory.hasSameMasterGoneNullNTimes(3)) {
                 DiscoveryNode master = localMasterHistory.getMostRecentNonNullMaster();
@@ -109,15 +109,10 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                     stableMasterStatus = HealthStatus.GREEN;
                     summary = "The cluster has a stable master node";
                 }
-            } else if (localMasterHistory.getDistinctMastersSeen().size() > 1 && localMasterHistory.getImmutableView().size() > 3) {
-                List<DiscoveryNode> mastersInLast30Minutes = localMasterHistory.getImmutableView();
-                logger.trace("Have seen " + (mastersInLast30Minutes.size() - 1) + " master changes in the last 30 seconds");
+            } else if (masterChanges > 3) {
+                logger.trace("Have seen {} master changes in the last 30 minutes", masterChanges);
                 stableMasterStatus = HealthStatus.YELLOW;
-                summary = String.format(
-                    Locale.ROOT,
-                    "The master has changed %d times in the last 30 minutes",
-                    mastersInLast30Minutes.size() - 1
-                );
+                summary = String.format(Locale.ROOT, "The master has changed %d times in the last 30 minutes", masterChanges);
                 impacts.add(
                     new HealthIndicatorImpact(
                         3,
@@ -127,6 +122,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                     )
                 );
                 if (includeDetails) {
+                    List<DiscoveryNode> mastersInLast30Minutes = localMasterHistory.getImmutableView();
                     details.put("current_master", new DiscoveryNodeXContentObject(localMasterHistory.getCurrentMaster()));
                     details.put("recent_masters", mastersInLast30Minutes.stream().map(DiscoveryNodeXContentObject::new).toList());
                 }
@@ -148,10 +144,24 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         );
     }
 
-    private boolean masterThinksItIsUnstable(DiscoveryNode master) throws ExecutionException, InterruptedException {
-        logger.trace(String.format(Locale.ROOT, "Reaching out to %s to see if it thinks it has been unstable", master));
-        List<DiscoveryNode> remoteHistory = masterHistoryService.getRemoteMasterHistory(master);
-        return MasterHistory.hasSameMasterGoneNullNTimes(remoteHistory, 3);
+    private int getNumberOfMasterChanges(MasterHistory localMasterHistory) {
+        /*
+         * We want to count all of the transitions to non-null master nodes after the first non-null master node. That way we don't count a
+         * transition from null to the first non-null node when the cluster is coming up.
+         */
+        List<DiscoveryNode> masterNodes = localMasterHistory.getImmutableView();
+        boolean foundNonNullNode = false;
+        int changes = 0;
+        for (DiscoveryNode masterNode : masterNodes) {
+            if (masterNode != null) {
+                if (foundNonNullNode) {
+                    changes++;
+                } else {
+                    foundNonNullNode = true;
+                }
+            }
+        }
+        return changes;
     }
 
     private boolean hasSeenMasterInLast30Seconds() {

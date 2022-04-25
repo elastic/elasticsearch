@@ -358,7 +358,7 @@ public final class DateFieldMapper extends FieldMapper {
         }
     }
 
-    private static final Version minimumCompatibilityVersion = Version.fromString("5.0.0");
+    private static final Version MINIMUM_COMPATIBILITY_VERSION = Version.fromString("5.0.0");
 
     public static final TypeParser MILLIS_PARSER = new TypeParser((n, c) -> {
         boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(c.getSettings());
@@ -370,7 +370,7 @@ public final class DateFieldMapper extends FieldMapper {
             ignoreMalformedByDefault,
             c.indexVersionCreated()
         );
-    }, minimumCompatibilityVersion);
+    }, MINIMUM_COMPATIBILITY_VERSION);
 
     public static final TypeParser NANOS_PARSER = new TypeParser((n, c) -> {
         boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(c.getSettings());
@@ -382,7 +382,7 @@ public final class DateFieldMapper extends FieldMapper {
             ignoreMalformedByDefault,
             c.indexVersionCreated()
         );
-    }, minimumCompatibilityVersion);
+    }, MINIMUM_COMPATIBILITY_VERSION);
 
     public static final class DateFieldType extends MappedFieldType {
         protected final DateFormatter dateTimeFormatter;

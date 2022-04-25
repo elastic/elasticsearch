@@ -77,7 +77,7 @@ public class NumberFieldMapper extends FieldMapper {
         return (NumberFieldMapper) in;
     }
 
-    private static final Version minimumCompatibilityVersion = Version.fromString("5.0.0");
+    private static final Version MINIMUM_COMPATIBILITY_VERSION = Version.fromString("5.0.0");
 
     public static class Builder extends FieldMapper.Builder {
 
@@ -998,7 +998,7 @@ public class NumberFieldMapper extends FieldMapper {
             this.numericType = numericType;
             this.parser = new TypeParser(
                 (n, c) -> new Builder(n, this, c.scriptCompiler(), c.getSettings(), c.indexVersionCreated()),
-                minimumCompatibilityVersion
+                MINIMUM_COMPATIBILITY_VERSION
             );
         }
 

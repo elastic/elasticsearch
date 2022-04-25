@@ -9,18 +9,15 @@
 package org.elasticsearch.operator.action;
 
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
-import org.elasticsearch.action.support.master.MasterNodeRequest;
+import org.elasticsearch.action.admin.cluster.settings.TransportClusterUpdateSettingsAction;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.operator.OperatorHandler;
 
-import java.util.Collection;
-import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 import static org.elasticsearch.rest.action.admin.cluster.RestClusterUpdateSettingsAction.PERSISTENT;
-import static org.elasticsearch.rest.action.admin.cluster.RestClusterUpdateSettingsAction.TRANSIENT;
 
 /**
  * TODO: Add docs
@@ -34,9 +31,8 @@ public class OperatorClusterSettingsAction implements OperatorHandler<ClusterUpd
         return KEY;
     }
 
-    @Override
     @SuppressWarnings("unchecked")
-    public Collection<ClusterUpdateSettingsRequest> prepare(Object input) {
+    private ClusterUpdateSettingsRequest prepare(Object input) {
         if (input instanceof Map<?, ?> source) {
             final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = Requests.clusterUpdateSettingsRequest();
 
@@ -44,16 +40,22 @@ public class OperatorClusterSettingsAction implements OperatorHandler<ClusterUpd
                 clusterUpdateSettingsRequest.persistentSettings((Map<String, ?>) source.get(PERSISTENT));
             }
 
-            return List.of(clusterUpdateSettingsRequest);
+            return clusterUpdateSettingsRequest;
         }
         throw new IllegalStateException("Unsupported " + KEY + " request format");
     }
 
     @Override
-    public Optional<ClusterState> transformClusterState(
-        Collection<ClusterUpdateSettingsRequest> requests,
-        ClusterState.Builder clusterStateBuilder,
-        ClusterState previous) {
-        return Optional.empty();
+    public ClusterState transform(
+        Object input,
+        ClusterSettings clusterSettings,
+        ClusterState state) {
+
+        ClusterUpdateSettingsRequest request = prepare(input);
+        validate(request);
+
+        TransportClusterUpdateSettingsAction.ClusterUpdateSettingsTask updateSettingsTask =
+            new TransportClusterUpdateSettingsAction.ClusterUpdateSettingsTask(clusterSettings, request);
+        return updateSettingsTask.execute(state);
     }
 }

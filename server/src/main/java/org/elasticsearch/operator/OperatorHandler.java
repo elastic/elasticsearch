@@ -9,9 +9,11 @@
 package org.elasticsearch.operator;
 
 import org.elasticsearch.ElasticsearchGenerationException;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -20,24 +22,33 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * TODO: Add docs
  */
-public interface OperatorHandler<T> {
+public interface OperatorHandler<T extends MasterNodeRequest> {
     String CONTENT = "content";
 
     String key();
 
-    Collection<T> prepare(Object source) throws IOException;
-
-    Optional<ClusterState> transformClusterState(
-        Collection<T> requests,
-        ClusterState.Builder clusterStateBuilder,
-        ClusterState previous
+    ClusterState transform(
+        Object source,
+        ClusterSettings clusterSettings,
+        ClusterState state
     );
+
+    default Collection<String> dependencies() {
+        return Collections.emptyList();
+    }
+
+    default void validate(T request) {
+        ActionRequestValidationException exception = request.validate();
+        if (exception != null) {
+            throw new IllegalStateException("Validation error", exception);
+        }
+    }
 
     default XContentParser mapToXContentParser(Map<String, ?> source) {
         try (XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON)) {

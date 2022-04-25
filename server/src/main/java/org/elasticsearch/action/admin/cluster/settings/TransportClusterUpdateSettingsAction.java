@@ -260,10 +260,11 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
         }, newExecutor());
     }
 
-    public class ClusterUpdateSettingsTask extends AckedClusterStateUpdateTask {
+    public static class ClusterUpdateSettingsTask extends AckedClusterStateUpdateTask {
         protected volatile boolean changed = false;
         protected final SettingsUpdater updater;
         protected final ClusterUpdateSettingsRequest request;
+        private final ClusterSettings clusterSettings;
 
         public ClusterUpdateSettingsTask(
             final ClusterSettings clusterSettings,
@@ -271,8 +272,15 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
             ClusterUpdateSettingsRequest request,
             ActionListener<? extends AcknowledgedResponse> listener) {
             super(priority, request, listener);
+            this.clusterSettings = clusterSettings;
             this.updater = new SettingsUpdater(clusterSettings);
             this.request = request;
+        }
+
+        public ClusterUpdateSettingsTask(
+            final ClusterSettings clusterSettings,
+            ClusterUpdateSettingsRequest request) {
+            this(clusterSettings, Priority.IMMEDIATE, request, null);
         }
 
         @Override

@@ -246,6 +246,7 @@ import org.elasticsearch.action.update.UpdateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.NamedRegistry;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.TypeLiteral;
@@ -445,6 +446,7 @@ public class ActionModule extends AbstractModule {
     private final RequestValidators<IndicesAliasesRequest> indicesAliasesRequestRequestValidators;
     private final ThreadPool threadPool;
     private final OperatorSettingsController operatorController;
+    private final ClusterService clusterService;
 
     public ActionModule(
         Settings settings,
@@ -457,7 +459,8 @@ public class ActionModule extends AbstractModule {
         NodeClient nodeClient,
         CircuitBreakerService circuitBreakerService,
         UsageService usageService,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        ClusterService clusterService
     ) {
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -466,6 +469,7 @@ public class ActionModule extends AbstractModule {
         this.settingsFilter = settingsFilter;
         this.actionPlugins = actionPlugins;
         this.threadPool = threadPool;
+        this.clusterService = clusterService;
         actions = setupActions(actionPlugins);
         actionFilters = setupActionFilters(actionPlugins);
         autoCreateIndex = new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, systemIndices);
@@ -506,7 +510,7 @@ public class ActionModule extends AbstractModule {
         );
 
         restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService);
-        operatorController = new OperatorSettingsController();
+        operatorController = new OperatorSettingsController(clusterSettings, clusterService);
     }
 
     public Map<String, ActionHandler<?, ?>> getActions() {

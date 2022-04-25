@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.ilm.action.operator;
 
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.operator.OperatorHandler;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
@@ -62,7 +63,7 @@ public class OperatorLifecycleAction implements OperatorHandler<PutLifecycleActi
     @Override
     public Optional<ClusterState> transformClusterState(
         Collection<PutLifecycleAction.Request> requests,
-        ClusterState.Builder clusterStateBuilder,
+        ClusterSettings clusterSettings,
         ClusterState previous) {
         return Optional.empty();
     }

@@ -1,0 +1,82 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+package org.elasticsearch.operator;
+
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.operator.action.OperatorClusterSettingsAction;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
+
+import java.io.IOException;
+import java.util.List;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
+
+public class OperatorSettingsControllerTests extends ESTestCase {
+
+    public void testOperatorController() throws IOException {
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        ClusterService clusterService = mock(ClusterService.class);
+        final ClusterName clusterName = new ClusterName("elasticsearch");
+
+        ClusterState state = ClusterState.builder(clusterName).build();
+        when(clusterService.state()).thenReturn(state);
+
+        OperatorSettingsController controller = new OperatorSettingsController(clusterSettings, clusterService);
+        controller.initHandlers(List.of(new OperatorClusterSettingsAction()));
+
+        String testJSON = """
+            {
+                "cluster": {
+                    "persistent": {
+                        "indices.recovery.max_bytes_per_sec": "50mb"
+                    },
+                    "transient": {
+                        "cluster.routing.allocation.enable": "none"
+                    }
+                },
+                "ilm": {
+                    "my_timeseries_lifecycle": {
+                        "policy": {
+                            "phases": {
+                                "warm": {
+                                    "min_age": "10s",
+                                    "actions": {
+                                        "forcemerge": {
+                                            "max_num_segments": 10000
+                                        }
+                                    }
+                                },
+                                "delete": {
+                                    "min_age": "30s",
+                                    "actions": {
+                                        "delete": {
+
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            """;
+
+        try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
+            controller.process(parser);
+        }
+    }
+}

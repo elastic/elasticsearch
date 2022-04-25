@@ -83,12 +83,12 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node3MasterClusterState, node1MasterClusterState));
         result = service.calculate(true);
         assertThat(result.status(), equalTo(HealthStatus.YELLOW));
-        assertThat(result.summary(), equalTo("4 nodes have acted as master in the last 30 minutes"));
+        assertThat(result.summary(), equalTo("The master has changed 3 times in the last 30 minutes"));
         assertThat(1, equalTo(result.impacts().size()));
         HealthIndicatorImpact impact = result.impacts().get(0);
         assertThat(3, equalTo(impact.severity()));
         assertThat(
-            "The cluster currently has a master node, but having multiple master nodes in a short time is an indicator that the "
+            "The cluster currently has a master node, but having multiple master node changes in a short time is an indicator that the "
                 + "cluster is at risk of of not being able to create, delete, or rebalance indices",
             equalTo(impact.impactDescription())
         );
@@ -140,25 +140,6 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
         SimpleHealthIndicatorDetails details = (SimpleHealthIndicatorDetails) result.details();
         assertThat(1, equalTo(details.details().size()));
         assertThat(null, equalTo(details.details().get("current_master")));
-
-        // Now have the remote master throw an exception:
-        ExecutionException expectedException = new ExecutionException(new RuntimeException("Expected failure"));
-        when(masterHistoryService.getRemoteMasterHistory(any())).thenThrow(expectedException);
-        result = service.calculate(true);
-        assertThat(result.status(), equalTo(HealthStatus.YELLOW));
-        assertThat(
-            result.summary(),
-            equalTo(
-                "The cluster has had a master node recently, but something went wrong while attempting to find out if the master had been "
-                    + "stable."
-            )
-        );
-        assertThat(1, equalTo(result.impacts().size()));
-        impact = result.impacts().get(0);
-        assertThat(3, equalTo(impact.severity()));
-        assertThat("The cluster is at risk of not being able to create, delete, or rebalance indices", equalTo(impact.impactDescription()));
-        assertThat(1, equalTo(impact.impactAreas().size()));
-        assertThat(ImpactArea.INGEST, equalTo(impact.impactAreas().get(0)));
     }
 
     private static ClusterState createClusterState(String masterNodeId) throws UnknownHostException {

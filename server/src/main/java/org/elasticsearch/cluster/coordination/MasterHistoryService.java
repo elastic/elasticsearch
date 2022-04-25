@@ -8,26 +8,38 @@
 
 package org.elasticsearch.cluster.coordination;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.admin.cluster.coordination.MasterHistoryAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.LifecycleListener;
-import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ConnectionProfile;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.HashMap;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
+import java.util.Map;
 
 /**
  * This service provides access to this node's view of the master history, as well as access to other nodes' view of master stability.
  */
-public class MasterHistoryService {
+public class MasterHistoryService implements ClusterStateListener {
     private final TransportService transportService;
     private final MasterHistory localMasterHistory;
+    /*
+     * This is a map of a node to the view of master history it has. This is populated asynchronously and is not guaranteed to have an
+     * entry for every node.
+     */
+    private final Map<DiscoveryNode, List<DiscoveryNode>> nodeToHistoryMap = new HashMap<>();;
+    private static final Logger logger = LogManager.getLogger(MasterHistoryService.class);
 
     public MasterHistoryService(
         TransportService transportService,
@@ -46,6 +58,7 @@ public class MasterHistoryService {
                 );
             }
         });
+        clusterService.addListener(this);
     }
 
     /**
@@ -59,64 +72,67 @@ public class MasterHistoryService {
 
     /**
      * This method returns a static view of the MasterHistory on the node given. This MasterHistory is static in that it will not be
-     * updated even if the ClusterState is updated on this node or the remote node.
+     * updated even if the ClusterState is updated on this node or the remote node. The history is retrieved asynchronously. If anything
+     * has gone wrong fetching it, or if it has not been fetched in time for the current request, it will be null.
      * @param node The node whose MasterHistory we want
      * @return The MasterHistory from the remote node's point of view. This MasterHistory object will not be updated with future changes
-     * @throws ExecutionException If an exception occurs while trying to fetch the remote node's MasterHistory
-     * @throws InterruptedException If the thread is interrupted
      */
-    public List<DiscoveryNode> getRemoteMasterHistory(DiscoveryNode node) throws ExecutionException, InterruptedException {
-        MasterHistoryAction.Request getMasterHistoryRequest = new MasterHistoryAction.Request();
-        final MasterHistoryAction.Response[] responseArray = new MasterHistoryAction.Response[1];
-        final Exception[] exceptionArray = new Exception[1];
-        final Object lock = new Object();
-        transportService.connectToNode(node, new ActionListener<>() {
-            @Override
-            public void onResponse(Releasable releasable) {
-                transportService.sendRequest(
-                    node,
-                    MasterHistoryAction.NAME,
-                    getMasterHistoryRequest,
-                    new ActionListenerResponseHandler<>(new ActionListener<>() {
+    @Nullable
+    public List<DiscoveryNode> getRemoteMasterHistory(DiscoveryNode node) {
+        synchronized (nodeToHistoryMap) {
+            return nodeToHistoryMap.get(node);
+        }
+    }
 
-                        @Override
-                        public void onResponse(MasterHistoryAction.Response response) {
-                            responseArray[0] = response;
-                            synchronized (lock) {
-                                lock.notifyAll();
+    /*
+     * If we detect that the same master has gone null 3 or more times, we attempt to fetch the master history as seen from that node so
+     * that it is ready for future yse,
+     */
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        DiscoveryNode currentMaster = event.state().nodes().getMasterNode();
+        DiscoveryNode previousMaster = event.previousState().nodes().getMasterNode();
+        if (currentMaster == null && previousMaster != null) {
+            if (localMasterHistory.hasSameMasterGoneNullNTimes(3)) {
+                DiscoveryNode master = localMasterHistory.getMostRecentNonNullMaster();
+                if (master != null) {
+                    transportService.openConnection(
+                        master,
+                        ConnectionProfile.buildDefaultConnectionProfile(event.state().getMetadata().settings()),
+                        new ActionListener<>() {
+                            @Override
+                            public void onResponse(Transport.Connection connection) {
+                                logger.trace("Opened connection to {}, making master history request", master);
+                                transportService.sendRequest(
+                                    master,
+                                    MasterHistoryAction.NAME,
+                                    new MasterHistoryAction.Request(),
+                                    new ActionListenerResponseHandler<>(new ActionListener<>() {
+
+                                        @Override
+                                        public void onResponse(MasterHistoryAction.Response response) {
+                                            logger.trace("Received history from {}", master);
+                                            synchronized (nodeToHistoryMap) {
+                                                nodeToHistoryMap.put(master, response.getMasterHistory());
+                                            }
+                                        }
+
+                                        @Override
+                                        public void onFailure(Exception e) {
+                                            logger.error("Exception in master history request to master node", e);
+                                        }
+                                    }, MasterHistoryAction.Response::new)
+                                );
+                            }
+
+                            @Override
+                            public void onFailure(Exception e) {
+                                logger.error("Exception connecting to master node", e);
                             }
                         }
-
-                        @Override
-                        public void onFailure(Exception e) {
-                            exceptionArray[0] = e;
-                            synchronized (lock) {
-                                lock.notifyAll();
-                            }
-                        }
-                    }, MasterHistoryAction.Response::new)
-                );
-            }
-
-            @Override
-            public void onFailure(Exception e) {
-                exceptionArray[0] = e;
-                synchronized (lock) {
-                    lock.notifyAll();
-                }
-            }
-        });
-
-        while (responseArray[0] == null && exceptionArray[0] == null) {
-            synchronized (lock) {
-                if (responseArray[0] == null && exceptionArray[0] == null) {
-                    lock.wait(1000);
+                    );
                 }
             }
         }
-        if (exceptionArray[0] != null) {
-            throw new ExecutionException(exceptionArray[0]);
-        }
-        return responseArray[0].getMasterHistory();
     }
 }

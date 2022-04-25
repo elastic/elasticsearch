@@ -72,42 +72,19 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
             if (localMasterHistory.hasSameMasterGoneNullNTimes(3)) {
                 DiscoveryNode master = localMasterHistory.getMostRecentNonNullMaster();
                 logger.trace("One master has gone null 3 or more times recently: " + master);
-                try {
-                    if (masterThinksItIsUnstable(master)) {
-                        logger.trace(String.format(Locale.ROOT, "The master node %s thinks it is unstable", master));
-                        stableMasterStatus = HealthStatus.YELLOW;
-                        summary = String.format(
-                            Locale.ROOT,
-                            "The cluster's master has alternated between %s and no master multiple times in the last 30 minutes",
-                            master
-                        );
-                        impacts.add(
-                            new HealthIndicatorImpact(
-                                3,
-                                "The cluster is at risk of not being able to create, delete, or rebalance indices",
-                                List.of(ImpactArea.INGEST)
-                            )
-                        );
-                        if (includeDetails) {
-                            details.put("current_master", localMasterHistory.getCurrentMaster());
-                        }
-
+                List<DiscoveryNode> remoteHistory = masterHistoryService.getRemoteMasterHistory(master);
+                if (remoteHistory == null || MasterHistory.hasSameMasterGoneNullNTimes(remoteHistory, 3)) {
+                    if (remoteHistory == null) {
+                        logger.trace(String.format(Locale.ROOT, "Unable to get master history from %s", master));
                     } else {
-                        logger.trace(
-                            String.format(
-                                Locale.ROOT,
-                                "This node thinks the master is unstable, but the master node %s thinks it is stable",
-                                master
-                            )
-                        );
-                        stableMasterStatus = HealthStatus.GREEN;
-                        summary = "The cluster has a stable master node";
+                        logger.trace(String.format(Locale.ROOT, "The master node %s thinks it is unstable", master));
                     }
-                } catch (ExecutionException e) {
-                    logger.error("Exception trying to reach the master", e);
                     stableMasterStatus = HealthStatus.YELLOW;
-                    summary = "The cluster has had a master node recently, but something went wrong while attempting to find out if the "
-                        + "master had been stable.";
+                    summary = String.format(
+                        Locale.ROOT,
+                        "The cluster's master has alternated between %s and no master multiple times in the last 30 minutes",
+                        master
+                    );
                     impacts.add(
                         new HealthIndicatorImpact(
                             3,
@@ -115,12 +92,21 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                             List.of(ImpactArea.INGEST)
                         )
                     );
-                } catch (InterruptedException e) {
-                    logger.info("Interrupted while trying to reach the master", e);
-                    Thread.currentThread().interrupt();
-                    throw new RuntimeException(e);
+                    if (includeDetails) {
+                        details.put("current_master", localMasterHistory.getCurrentMaster());
+                    }
+                } else {
+                    logger.trace(
+                        String.format(
+                            Locale.ROOT,
+                            "This node thinks the master is unstable, but the master node %s thinks it is stable",
+                            master
+                        )
+                    );
+                    stableMasterStatus = HealthStatus.GREEN;
+                    summary = "The cluster has a stable master node";
                 }
-            } else if (localMasterHistory.getDistinctMastersSeen().size() > 1 && localMasterHistory.getImmutableView().size() > 4) {
+            } else if (localMasterHistory.getDistinctMastersSeen().size() > 1 && localMasterHistory.getImmutableView().size() > 3) {
                 List<DiscoveryNode> mastersInLast30Minutes = localMasterHistory.getImmutableView();
                 logger.trace("Have seen " + (mastersInLast30Minutes.size() - 1) + " master changes in the last 30 seconds");
                 stableMasterStatus = HealthStatus.YELLOW;

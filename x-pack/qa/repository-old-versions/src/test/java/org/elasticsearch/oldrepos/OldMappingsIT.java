@@ -33,7 +33,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class OldMappingsIT extends ESRestTestCase {
@@ -138,7 +140,10 @@ public class OldMappingsIT extends ESRestTestCase {
         final Request createRestoreRequest = new Request("POST", "/_snapshot/" + repoName + "/" + snapshotName + "/_restore");
         createRestoreRequest.addParameter("wait_for_completion", "true");
         createRestoreRequest.setJsonEntity("{\"indices\":\"" + indices.stream().collect(Collectors.joining(",")) + "\"}");
-        assertOK(client().performRequest(createRestoreRequest));
+        assertThat(
+            client().performRequest(createRestoreRequest).getStatusLine().getStatusCode(),
+            anyOf(equalTo(200), equalTo(201), equalTo(299))
+        ); // deprecation warning can be expected
     }
 
     private Request createIndex(String indexName, String file) throws IOException {

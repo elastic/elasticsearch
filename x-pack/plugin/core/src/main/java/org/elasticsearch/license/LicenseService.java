@@ -308,42 +308,38 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
                 }
             }
 
-            clusterService.submitStateUpdateTask(
-                "register license [" + newLicense.uid() + "]",
-                new AckedClusterStateUpdateTask(request, listener) {
-                    @Override
-                    protected PutLicenseResponse newResponse(boolean acknowledged) {
-                        return new PutLicenseResponse(acknowledged, LicensesStatus.VALID);
-                    }
+            submitUnbatchedTask("register license [" + newLicense.uid() + "]", new AckedClusterStateUpdateTask(request, listener) {
+                @Override
+                protected PutLicenseResponse newResponse(boolean acknowledged) {
+                    return new PutLicenseResponse(acknowledged, LicensesStatus.VALID);
+                }
 
-                    @Override
-                    public ClusterState execute(ClusterState currentState) throws Exception {
-                        XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
-                        final Version oldestNodeVersion = currentState.nodes().getSmallestNonClientNodeVersion();
-                        if (licenseIsCompatible(newLicense, oldestNodeVersion) == false) {
-                            throw new IllegalStateException(
-                                "The provided license is not compatible with node version [" + oldestNodeVersion + "]"
-                            );
-                        }
-                        Metadata currentMetadata = currentState.metadata();
-                        LicensesMetadata licensesMetadata = currentMetadata.custom(LicensesMetadata.TYPE);
-                        Version trialVersion = null;
-                        if (licensesMetadata != null) {
-                            trialVersion = licensesMetadata.getMostRecentTrialVersion();
-                        }
-                        Metadata.Builder mdBuilder = Metadata.builder(currentMetadata);
-                        mdBuilder.putCustom(LicensesMetadata.TYPE, new LicensesMetadata(newLicense, trialVersion));
-                        return ClusterState.builder(currentState).metadata(mdBuilder).build();
+                @Override
+                public ClusterState execute(ClusterState currentState) throws Exception {
+                    XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
+                    final Version oldestNodeVersion = currentState.nodes().getSmallestNonClientNodeVersion();
+                    if (licenseIsCompatible(newLicense, oldestNodeVersion) == false) {
+                        throw new IllegalStateException(
+                            "The provided license is not compatible with node version [" + oldestNodeVersion + "]"
+                        );
                     }
-                },
-                newExecutor()
-            );
+                    Metadata currentMetadata = currentState.metadata();
+                    LicensesMetadata licensesMetadata = currentMetadata.custom(LicensesMetadata.TYPE);
+                    Version trialVersion = null;
+                    if (licensesMetadata != null) {
+                        trialVersion = licensesMetadata.getMostRecentTrialVersion();
+                    }
+                    Metadata.Builder mdBuilder = Metadata.builder(currentMetadata);
+                    mdBuilder.putCustom(LicensesMetadata.TYPE, new LicensesMetadata(newLicense, trialVersion));
+                    return ClusterState.builder(currentState).metadata(mdBuilder).build();
+                }
+            });
         }
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     private static boolean licenseIsCompatible(License license, Version version) {
@@ -468,10 +464,9 @@ public class LicenseService extends AbstractLifecycleComponent implements Cluste
      * a new basic license with no expiration date is generated.
      */
     private void registerOrUpdateSelfGeneratedLicense() {
-        clusterService.submitStateUpdateTask(
+        submitUnbatchedTask(
             StartupSelfGeneratedLicenseTask.TASK_SOURCE,
-            new StartupSelfGeneratedLicenseTask(settings, clock, clusterService),
-            newExecutor()
+            new StartupSelfGeneratedLicenseTask(settings, clock, clusterService)
         );
     }
 

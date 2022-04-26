@@ -8,7 +8,9 @@
 
 package org.elasticsearch.common.util;
 
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.hppc.BitMixer;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -20,10 +22,14 @@ import org.elasticsearch.core.Releasables;
  *  re-hashing and capacity is always a multiple of 2 for faster identification of buckets.
  *  This class is not thread-safe.
  */
-public final class BytesRefHash extends AbstractHash {
+public final class BytesRefHash extends AbstractHash implements Accountable {
 
-    private LongArray startOffsets;
-    private ByteArray bytes;
+    // base size of the bytes ref hash
+    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefHash.class)
+        // spare BytesRef
+        + RamUsageEstimator.shallowSizeOfInstance(BytesRef.class);
+
+    private final BytesRefArray bytesRefs;
     private IntArray hashes; // we cache hashes for faster re-hashing
     private final BytesRef spare;
 
@@ -34,14 +40,60 @@ public final class BytesRefHash extends AbstractHash {
 
     // Constructor with configurable capacity and load factor.
     public BytesRefHash(long capacity, float maxLoadFactor, BigArrays bigArrays) {
+        this(null, capacity, maxLoadFactor, bigArrays);
+    }
+
+    /**
+     * Construct a BytesRefHash given a BytesRefArray with default maximum load factor.
+     *
+     * Note the comments below regarding leakage protection of the given BytesRefArray.
+     */
+    public BytesRefHash(BytesRefArray bytesRefArray, BigArrays bigArrays) {
+        this(bytesRefArray, DEFAULT_MAX_LOAD_FACTOR, bigArrays);
+    }
+
+    /**
+     * Construct a BytesRefHash given a BytesRefArray.
+     *
+     * Note: The ownership over BytesRefArray is taken over by the created BytesRefHash.
+     *
+     * Because BytesRefHash construction potentially throws a circuit breaker exception, the BytesRefArray must be
+     * protected against leakage, e.g.
+     *
+     * boolean success = false;
+     * BytesRefArray array = null;
+     * try {
+     *     array = new BytesRefArray(...);
+     *     hash = new BytesRefHash(array, bigArrays);
+     *     success = true;
+     * } finally {
+     *     if (false == success) {
+     *         try (Releasable releasable = Releasables.wrap(array)) {
+                    close(); // assuming hash is a member and close() closes it
+               }
+     *     }
+     * }
+     *
+     * Iff the BytesRefHash instance got created successfully, it is managed by BytesRefHash and does not need to be closed.
+     */
+    public BytesRefHash(BytesRefArray bytesRefs, float maxLoadFactor, BigArrays bigArrays) {
+        this(bytesRefs, bytesRefs.size() + 1, maxLoadFactor, bigArrays);
+
+        // recreate hashes
+        for (int i = 0; i < bytesRefs.size(); ++i) {
+            bytesRefs.get(i, spare);
+            reset(rehash(spare.hashCode()), i);
+        }
+    }
+
+    private BytesRefHash(BytesRefArray byteRefs, long capacity, float maxLoadFactor, BigArrays bigArrays) {
         super(capacity, maxLoadFactor, bigArrays);
+
         boolean success = false;
         try {
             // `super` allocates a big array so we have to `close` if we fail here or we'll leak it.
-            startOffsets = bigArrays.newLongArray(capacity + 1, false);
-            startOffsets.set(0, 0);
-            bytes = bigArrays.newByteArray(capacity * 3, false);
             hashes = bigArrays.newIntArray(capacity, false);
+            this.bytesRefs = byteRefs != null ? byteRefs : new BytesRefArray(capacity, bigArrays);
             success = true;
         } finally {
             if (false == success) {
@@ -62,10 +114,7 @@ public final class BytesRefHash extends AbstractHash {
      * <p>Beware that the content of the {@link BytesRef} may become invalid as soon as {@link #close()} is called</p>
      */
     public BytesRef get(long id, BytesRef dest) {
-        final long startOffset = startOffsets.get(id);
-        final int length = (int) (startOffsets.get(id + 1) - startOffset);
-        bytes.get(startOffset, length, dest);
-        return dest;
+        return bytesRefs.get(id, dest);
     }
 
     /**
@@ -105,11 +154,7 @@ public final class BytesRefHash extends AbstractHash {
 
     private void append(long id, BytesRef key, int code) {
         assert size == id;
-        final long startOffset = startOffsets.get(size);
-        bytes = bigArrays.grow(bytes, startOffset + key.length);
-        bytes.set(startOffset, key.bytes, key.offset, key.length);
-        startOffsets = bigArrays.grow(startOffsets, size + 2);
-        startOffsets.set(size + 1, startOffset + key.length);
+        bytesRefs.append(key);
         hashes = bigArrays.grow(hashes, id + 1);
         hashes.set(id, code);
     }
@@ -159,9 +204,18 @@ public final class BytesRefHash extends AbstractHash {
 
     @Override
     public void close() {
-        try (Releasable releasable = Releasables.wrap(bytes, hashes, startOffsets)) {
+        try (Releasable releasable = Releasables.wrap(bytesRefs, hashes)) {
             super.close();
         }
+    }
+
+    public BytesRefArray getBytesRefs() {
+        return bytesRefs;
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        return BASE_RAM_BYTES_USED + bytesRefs.ramBytesUsed() + ids.ramBytesUsed() + hashes.ramBytesUsed() + spare.bytes.length;
     }
 
 }

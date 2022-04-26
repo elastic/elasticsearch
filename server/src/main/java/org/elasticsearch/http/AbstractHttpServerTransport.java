@@ -8,9 +8,6 @@
 
 package org.elasticsearch.http;
 
-import com.carrotsearch.hppc.IntHashSet;
-import com.carrotsearch.hppc.IntSet;
-
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -51,6 +48,7 @@ import java.nio.channels.CancelledKeyException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -260,12 +258,12 @@ public abstract class AbstractHttpServerTransport extends AbstractLifecycleCompo
 
         // if no matching boundAddress found, check if there is a unique port for all bound addresses
         if (publishPort < 0) {
-            final IntSet ports = new IntHashSet();
+            final Set<Integer> ports = new HashSet<>();
             for (TransportAddress boundAddress : boundAddresses) {
                 ports.add(boundAddress.getPort());
             }
             if (ports.size() == 1) {
-                publishPort = ports.iterator().next().value;
+                publishPort = ports.iterator().next();
             }
         }
 

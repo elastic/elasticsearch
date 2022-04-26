@@ -56,7 +56,7 @@ public final class ProviderLocator<T> implements Supplier<T> {
 
         this.providerName = providerName;
         this.providerType = providerType;
-        this.providerModuleName = caller.getName();
+        this.providerModuleName = providerModuleName;
         this.missingModules = missingModules;
     }
 

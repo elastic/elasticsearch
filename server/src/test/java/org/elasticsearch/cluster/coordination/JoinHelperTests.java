@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
 import org.elasticsearch.cluster.service.MasterService;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.TimeValue;
@@ -42,8 +41,6 @@ import java.util.stream.Stream;
 import static org.elasticsearch.cluster.coordination.JoinHelper.PENDING_JOIN_WAITING_RESPONSE;
 import static org.elasticsearch.monitor.StatusInfo.Status.HEALTHY;
 import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
-import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
-import static org.elasticsearch.transport.AbstractSimpleTransportTestCase.IGNORE_DESERIALIZATION_ERRORS_SETTING;
 import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.core.Is.is;
@@ -206,71 +203,6 @@ public class JoinHelperTests extends ESTestCase {
         );
     }
 
-    public void testJoinValidationRejectsMismatchedClusterUUID() {
-        DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
-        MockTransport mockTransport = new MockTransport();
-        DiscoveryNode localNode = new DiscoveryNode("node0", buildNewFakeTransportAddress(), Version.CURRENT);
-
-        final ClusterState localClusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().generateClusterUuidIfNeeded().clusterUUIDCommitted(true))
-            .build();
-
-        ThreadPool threadPool = deterministicTaskQueue.getThreadPool();
-        TransportService transportService = mockTransport.createTransportService(
-            Settings.EMPTY,
-            threadPool,
-            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            x -> localNode,
-            null,
-            Collections.emptySet()
-        );
-        final String dataPath = "/my/data/path";
-        new JoinHelper(
-            Settings.builder().put(Environment.PATH_DATA_SETTING.getKey(), dataPath).build(),
-            null,
-            new FakeThreadPoolMasterService("node0", "master", threadPool, deterministicTaskQueue::scheduleNow),
-            transportService,
-            () -> 0L,
-            () -> localClusterState,
-            (joinRequest, joinCallback) -> { throw new AssertionError(); },
-            startJoinRequest -> { throw new AssertionError(); },
-            Collections.emptyList(),
-            (s, p, r) -> {},
-            null,
-            new JoinReasonService(() -> 0L)
-        ); // registers request handler
-        transportService.start();
-        transportService.acceptIncomingRequests();
-
-        final ClusterState otherClusterState = ClusterState.builder(ClusterName.DEFAULT)
-            .metadata(Metadata.builder().generateClusterUuidIfNeeded())
-            .build();
-
-        final PlainActionFuture<TransportResponse.Empty> future = new PlainActionFuture<>();
-        transportService.sendRequest(
-            localNode,
-            JoinHelper.JOIN_VALIDATE_ACTION_NAME,
-            new ValidateJoinRequest(otherClusterState),
-            new ActionListenerResponseHandler<>(future, in -> TransportResponse.Empty.INSTANCE)
-        );
-        deterministicTaskQueue.runAllTasks();
-
-        final CoordinationStateRejectedException coordinationStateRejectedException = expectThrows(
-            CoordinationStateRejectedException.class,
-            future::actionGet
-        );
-        assertThat(
-            coordinationStateRejectedException.getMessage(),
-            allOf(
-                containsString("This node previously joined a cluster with UUID"),
-                containsString("and is now trying to join a different cluster"),
-                containsString(localClusterState.metadata().clusterUUID()),
-                containsString(otherClusterState.metadata().clusterUUID()),
-                containsString("data path [" + dataPath + "]")
-            )
-        );
-    }
-
     public void testJoinFailureOnUnhealthyNodes() {
         DeterministicTaskQueue deterministicTaskQueue = new DeterministicTaskQueue();
         CapturingTransport capturingTransport = new HandshakingCapturingTransport();
@@ -334,83 +266,6 @@ public class JoinHelperTests extends ESTestCase {
         assertThat(capturedRequests1a.length, equalTo(1));
         CapturedRequest capturedRequest1a = capturedRequests1a[0];
         assertEquals(node1, capturedRequest1a.node());
-    }
-
-    public void testJoinValidationFailsOnUnreadableClusterState() {
-        final List<Releasable> releasables = new ArrayList<>(3);
-        try {
-            final ThreadPool threadPool = new TestThreadPool("test");
-            releasables.add(() -> ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS));
-
-            final var settings = Settings.builder()
-                .put(NODE_NAME_SETTING.getKey(), "test")
-                .put(IGNORE_DESERIALIZATION_ERRORS_SETTING.getKey(), true)
-                .build();
-            final TransportService remoteTransportService = MockTransportService.createNewService(settings, Version.CURRENT, threadPool);
-            releasables.add(remoteTransportService);
-
-            final var masterService = new MasterService(
-                settings,
-                new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                threadPool
-            );
-
-            new JoinHelper(
-                settings,
-                null,
-                masterService,
-                remoteTransportService,
-                () -> 0L,
-                () -> null,
-                (joinRequest, joinCallback) -> { throw new AssertionError(); },
-                startJoinRequest -> { throw new AssertionError(); },
-                Collections.emptyList(),
-                (s, p, r) -> {},
-                () -> { throw new AssertionError(); },
-                new JoinReasonService(() -> 0L)
-            );
-
-            masterService.setClusterStatePublisher((event, publishListener, ackListener) -> fail("should not be called"));
-            masterService.setClusterStateSupplier(() -> { throw new AssertionError("should not be called"); });
-            masterService.start();
-            releasables.add(masterService);
-
-            remoteTransportService.start();
-            remoteTransportService.acceptIncomingRequests();
-
-            final TransportService localTransportService = MockTransportService.createNewService(
-                Settings.EMPTY,
-                Version.CURRENT,
-                threadPool
-            );
-            releasables.add(localTransportService);
-
-            localTransportService.start();
-            localTransportService.acceptIncomingRequests();
-
-            AbstractSimpleTransportTestCase.connectToNode(localTransportService, remoteTransportService.getLocalNode());
-
-            final PlainActionFuture<TransportResponse.Empty> future = new PlainActionFuture<>();
-            localTransportService.sendRequest(
-                remoteTransportService.getLocalNode(),
-                JoinHelper.JOIN_VALIDATE_ACTION_NAME,
-                new ValidateJoinRequest(ClusterState.builder(ClusterName.DEFAULT).putCustom("test", new BadCustom()).build()),
-                new ActionListenerResponseHandler<>(future, in -> TransportResponse.Empty.INSTANCE)
-            );
-
-            final RemoteTransportException exception = expectThrows(
-                ExecutionException.class,
-                RemoteTransportException.class,
-                () -> future.get(10, TimeUnit.SECONDS)
-            );
-            assertThat(exception, instanceOf(RemoteTransportException.class));
-            assertThat(exception.getCause(), instanceOf(IllegalArgumentException.class));
-            assertThat(exception.getCause().getMessage(), containsString("Unknown NamedWriteable"));
-
-        } finally {
-            Collections.reverse(releasables);
-            Releasables.close(releasables);
-        }
     }
 
     private static class HandshakingCapturingTransport extends CapturingTransport {

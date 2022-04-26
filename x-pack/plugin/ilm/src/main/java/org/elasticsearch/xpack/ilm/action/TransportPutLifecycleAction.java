@@ -17,7 +17,6 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -111,76 +110,69 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
             }
         }
 
-        clusterService.submitStateUpdateTask(
-            "put-lifecycle-" + request.getPolicy().getName(),
-            new AckedClusterStateUpdateTask(request, listener) {
-                @Override
-                public ClusterState execute(ClusterState currentState) throws Exception {
-                    final IndexLifecycleMetadata currentMetadata = currentState.metadata()
-                        .custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
-                    final LifecyclePolicyMetadata existingPolicyMetadata = currentMetadata.getPolicyMetadatas()
-                        .get(request.getPolicy().getName());
+        submitUnbatchedTask("put-lifecycle-" + request.getPolicy().getName(), new AckedClusterStateUpdateTask(request, listener) {
+            @Override
+            public ClusterState execute(ClusterState currentState) throws Exception {
+                final IndexLifecycleMetadata currentMetadata = currentState.metadata()
+                    .custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
+                final LifecyclePolicyMetadata existingPolicyMetadata = currentMetadata.getPolicyMetadatas()
+                    .get(request.getPolicy().getName());
 
-                    // Double-check for no-op in the state update task, in case it was changed/reset in the meantime
-                    if (isNoopUpdate(existingPolicyMetadata, request.getPolicy(), filteredHeaders)) {
-                        return currentState;
-                    }
+                // Double-check for no-op in the state update task, in case it was changed/reset in the meantime
+                if (isNoopUpdate(existingPolicyMetadata, request.getPolicy(), filteredHeaders)) {
+                    return currentState;
+                }
 
-                    validatePrerequisites(request.getPolicy(), currentState);
+                validatePrerequisites(request.getPolicy(), currentState);
 
-                    ClusterState.Builder stateBuilder = ClusterState.builder(currentState);
-                    long nextVersion = (existingPolicyMetadata == null) ? 1L : existingPolicyMetadata.getVersion() + 1L;
-                    SortedMap<String, LifecyclePolicyMetadata> newPolicies = new TreeMap<>(currentMetadata.getPolicyMetadatas());
-                    LifecyclePolicyMetadata lifecyclePolicyMetadata = new LifecyclePolicyMetadata(
-                        request.getPolicy(),
-                        filteredHeaders,
-                        nextVersion,
-                        Instant.now().toEpochMilli()
-                    );
-                    LifecyclePolicyMetadata oldPolicy = newPolicies.put(lifecyclePolicyMetadata.getName(), lifecyclePolicyMetadata);
-                    if (oldPolicy == null) {
-                        logger.info("adding index lifecycle policy [{}]", request.getPolicy().getName());
-                    } else {
-                        logger.info("updating index lifecycle policy [{}]", request.getPolicy().getName());
-                    }
-                    IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies, currentMetadata.getOperationMode());
-                    stateBuilder.metadata(
-                        Metadata.builder(currentState.getMetadata()).putCustom(IndexLifecycleMetadata.TYPE, newMetadata).build()
-                    );
-                    ClusterState nonRefreshedState = stateBuilder.build();
-                    if (oldPolicy == null) {
+                ClusterState.Builder stateBuilder = ClusterState.builder(currentState);
+                long nextVersion = (existingPolicyMetadata == null) ? 1L : existingPolicyMetadata.getVersion() + 1L;
+                SortedMap<String, LifecyclePolicyMetadata> newPolicies = new TreeMap<>(currentMetadata.getPolicyMetadatas());
+                LifecyclePolicyMetadata lifecyclePolicyMetadata = new LifecyclePolicyMetadata(
+                    request.getPolicy(),
+                    filteredHeaders,
+                    nextVersion,
+                    Instant.now().toEpochMilli()
+                );
+                LifecyclePolicyMetadata oldPolicy = newPolicies.put(lifecyclePolicyMetadata.getName(), lifecyclePolicyMetadata);
+                if (oldPolicy == null) {
+                    logger.info("adding index lifecycle policy [{}]", request.getPolicy().getName());
+                } else {
+                    logger.info("updating index lifecycle policy [{}]", request.getPolicy().getName());
+                }
+                IndexLifecycleMetadata newMetadata = new IndexLifecycleMetadata(newPolicies, currentMetadata.getOperationMode());
+                stateBuilder.metadata(
+                    Metadata.builder(currentState.getMetadata()).putCustom(IndexLifecycleMetadata.TYPE, newMetadata).build()
+                );
+                ClusterState nonRefreshedState = stateBuilder.build();
+                if (oldPolicy == null) {
+                    return nonRefreshedState;
+                } else {
+                    try {
+                        return updateIndicesForPolicy(
+                            nonRefreshedState,
+                            xContentRegistry,
+                            client,
+                            oldPolicy.getPolicy(),
+                            lifecyclePolicyMetadata,
+                            licenseState
+                        );
+                    } catch (Exception e) {
+                        logger.warn(
+                            new ParameterizedMessage("unable to refresh indices phase JSON for updated policy [{}]", oldPolicy.getName()),
+                            e
+                        );
+                        // Revert to the non-refreshed state
                         return nonRefreshedState;
-                    } else {
-                        try {
-                            return updateIndicesForPolicy(
-                                nonRefreshedState,
-                                xContentRegistry,
-                                client,
-                                oldPolicy.getPolicy(),
-                                lifecyclePolicyMetadata,
-                                licenseState
-                            );
-                        } catch (Exception e) {
-                            logger.warn(
-                                new ParameterizedMessage(
-                                    "unable to refresh indices phase JSON for updated policy [{}]",
-                                    oldPolicy.getName()
-                                ),
-                                e
-                            );
-                            // Revert to the non-refreshed state
-                            return nonRefreshedState;
-                        }
                     }
                 }
-            },
-            newExecutor()
-        );
+            }
+        });
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     /**

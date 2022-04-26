@@ -21,7 +21,7 @@ import org.elasticsearch.xpack.core.security.action.profile.Profile;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationContext;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmDomain;
@@ -31,9 +31,9 @@ import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.user.User;
 
 import java.time.Instant;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
@@ -133,17 +133,18 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
 
         final RealmConfig.RealmIdentifier authenticationRealmIdentifier = randomFrom(domainRealms);
 
-        final Authentication authentication = new Authentication(
-            new User("Foo"),
-            new Authentication.RealmRef(
-                authenticationRealmIdentifier.getName(),
-                authenticationRealmIdentifier.getType(),
-                nodeName,
-                realmDomain
-            ),
-            null
-        );
-        final Subject subject = AuthenticationContext.fromAuthentication(authentication).getEffectiveSubject();
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("Foo"))
+            .realmRef(
+                new Authentication.RealmRef(
+                    authenticationRealmIdentifier.getName(),
+                    authenticationRealmIdentifier.getType(),
+                    nodeName,
+                    realmDomain
+                )
+            )
+            .build(false);
+        final Subject subject = authentication.getEffectiveSubject();
 
         // Profile does not exist yet
         final PlainActionFuture<ProfileService.VersionedDocument> future1 = new PlainActionFuture<>();
@@ -184,12 +185,11 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
         // Scenario 1
         // The recorded realm_name_1 is no longer part of a domain.
         // Authentication for this realm still works for retrieving the same profile document
-        final Authentication authentication1 = new Authentication(
-            new User("Foo"),
-            new Authentication.RealmRef(realmIdentifier1.getName(), realmIdentifier1.getType(), nodeName),
-            null
-        );
-        final Subject subject1 = AuthenticationContext.fromAuthentication(authentication1).getEffectiveSubject();
+        final Authentication authentication1 = AuthenticationTestHelper.builder()
+            .user(new User("Foo"))
+            .realmRef(new Authentication.RealmRef(realmIdentifier1.getName(), realmIdentifier1.getType(), nodeName))
+            .build(false);
+        final Subject subject1 = authentication1.getEffectiveSubject();
 
         final PlainActionFuture<ProfileService.VersionedDocument> future1 = new PlainActionFuture<>();
         profileService.searchVersionedDocumentForSubject(subject1, future1);
@@ -201,12 +201,11 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
         // The recorded realm_name_1 is no longer part of a domain.
         // Authentication for realm_name_2 (which is still part of domainA) does not work for retrieving the profile document
         final RealmDomain realmDomain1 = new RealmDomain("domainA", Set.of(realmIdentifier2));
-        final Authentication authentication2 = new Authentication(
-            new User("Foo"),
-            new Authentication.RealmRef(realmIdentifier2.getName(), realmIdentifier2.getType(), nodeName, realmDomain1),
-            null
-        );
-        final Subject subject2 = AuthenticationContext.fromAuthentication(authentication2).getEffectiveSubject();
+        final Authentication authentication2 = AuthenticationTestHelper.builder()
+            .user(new User("Foo"))
+            .realmRef(new Authentication.RealmRef(realmIdentifier2.getName(), realmIdentifier2.getType(), nodeName, realmDomain1))
+            .build(false);
+        final Subject subject2 = authentication2.getEffectiveSubject();
 
         final PlainActionFuture<ProfileService.VersionedDocument> future2 = new PlainActionFuture<>();
         profileService.searchVersionedDocumentForSubject(subject2, future2);
@@ -214,12 +213,11 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
 
         // Scenario 3
         // Both recorded realm_name_1 and the authentication realm_name_2 are no longer part of a domain.
-        final Authentication authentication3 = new Authentication(
-            new User("Foo"),
-            new Authentication.RealmRef(realmIdentifier2.getName(), realmIdentifier2.getType(), nodeName),
-            null
-        );
-        final Subject subject3 = AuthenticationContext.fromAuthentication(authentication3).getEffectiveSubject();
+        final Authentication authentication3 = AuthenticationTestHelper.builder()
+            .user(new User("Foo"))
+            .realmRef(new Authentication.RealmRef(realmIdentifier2.getName(), realmIdentifier2.getType(), nodeName))
+            .build(false);
+        final Subject subject3 = authentication3.getEffectiveSubject();
 
         final PlainActionFuture<ProfileService.VersionedDocument> future3 = new PlainActionFuture<>();
         profileService.searchVersionedDocumentForSubject(subject3, future3);
@@ -285,6 +283,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
                 }
                 """.formatted("not-" + username), XContentType.JSON).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).request();
             client().update(updateRequest).actionGet();
+            logger.info("manually creating a collision document: [{}]", existingUid);
         } else {
             existingUid = null;
         }
@@ -293,7 +292,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
         final Thread[] threads = new Thread[randomIntBetween(5, 10)];
         final CountDownLatch readyLatch = new CountDownLatch(threads.length);
         final CountDownLatch startLatch = new CountDownLatch(1);
-        final Set<String> allUids = new HashSet<>();
+        final Set<String> allUids = ConcurrentHashMap.newKeySet();
         for (int i = 0; i < threads.length; i++) {
             threads[i] = new Thread(() -> {
                 try {
@@ -305,7 +304,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
                     startLatch.await();
                     try {
                         final String uid = future.actionGet().uid();
-                        logger.info("create profile [{}] for authentication [{}]", uid, authentication);
+                        logger.info("created profile [{}] for authentication [{}]", uid, authentication);
                         allUids.add(uid);
                     } catch (VersionConflictEngineException e) {
                         // Updating existing profile can error with version conflict. This is the current way
@@ -327,7 +326,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
                 thread.join();
             }
             // Exactly one profile is created
-            assertThat(allUids, hasSize(1));
+            assertThat("All created profile uids: " + allUids, allUids, hasSize(1));
             final String uid = allUids.iterator().next();
             if (existingCollision) {
                 assertThat(uid, endsWith("_1"));
@@ -406,7 +405,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
                 authentication = authentication.token();
             }
         }
-        final Subject subject = AuthenticationContext.fromAuthentication(authentication).getEffectiveSubject();
+        final Subject subject = authentication.getEffectiveSubject();
         final ProfileService profileService = getInstanceFromRandomNode(ProfileService.class);
         final PlainActionFuture<Profile> future1 = new PlainActionFuture<>();
         profileService.activateProfile(authentication, future1);

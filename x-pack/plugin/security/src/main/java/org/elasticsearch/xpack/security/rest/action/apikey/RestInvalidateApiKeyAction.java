@@ -85,7 +85,7 @@ public final class RestInvalidateApiKeyAction extends SecurityBaseRestHandler {
         return "xpack_security_invalidate_api_key";
     }
 
-    private ConstructingObjectParser<InvalidateApiKeyRequest, Void> getObjectParser(RestRequest request) {
+    private static ConstructingObjectParser<InvalidateApiKeyRequest, Void> getObjectParser(RestRequest request) {
         if (request.getRestApiVersion() == RestApiVersion.V_7) {
             final ConstructingObjectParser<InvalidateApiKeyRequest, Void> objectParser = new ConstructingObjectParser<>(
                 "invalidate_api_key_v7",

@@ -74,52 +74,6 @@ public interface ClusterStateTaskExecutor<T extends ClusterStateTaskListener> {
     }
 
     /**
-     * Creates a task executor that only executes a single task. Use a new instance of this executor to specifically submit a cluster state
-     * update task that should be executed in isolation and not be batched with other state updates.
-     * <p>
-     * This executor exists for legacy reasons but is forbidden in new production code because unbatched tasks are a source of performance
-     * and stability bugs. You should instead implement your update logic in a dedicated {@link ClusterStateTaskExecutor} which is reused
-     * across multiple task instances. The task itself is typically just a collection of parameters consumed by the executor, together with
-     * any listeners to be notified when execution completes.
-     *
-     * @param <T> The type of task to execute
-     * @return A single-use executor to execute a single task.
-     */
-    static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> unbatched() {
-        return new ClusterStateTaskExecutor<>() {
-            @Override
-            public ClusterState execute(ClusterState currentState, List<TaskContext<T>> taskContexts) throws Exception {
-                assert taskContexts.size() == 1 : "this only supports a single task but received " + taskContexts;
-                final var taskContext = taskContexts.get(0);
-                final var task = taskContext.getTask();
-                final var newState = task.execute(currentState);
-                final var publishListener = new ActionListener<ClusterState>() {
-                    @Override
-                    public void onResponse(ClusterState publishedState) {
-                        task.clusterStateProcessed(currentState, publishedState);
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        task.onFailure(e);
-                    }
-                };
-                if (task instanceof ClusterStateAckListener ackListener) {
-                    taskContext.success(publishListener, ackListener);
-                } else {
-                    taskContext.success(publishListener);
-                }
-                return newState;
-            }
-
-            @Override
-            public String describeTasks(List<T> tasks) {
-                return ""; // one of task, source is enough
-            }
-        };
-    }
-
-    /**
      * An {@link ActionListener} for passing to {@link ClusterStateTaskExecutor.TaskContext#success} which preserves the
      * legacy behaviour of calling {@link ClusterStateTaskListener#clusterStateProcessed} or {@link ClusterStateTaskListener#onFailure}.
      * <p>

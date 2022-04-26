@@ -1098,8 +1098,8 @@ fetch geo_point:
           fields: [ "*" ]
   - length: { hits.hits.0.fields: 1 }
   - match: { hits.hits.0.fields.field.0.type: Point }
-  - close_to: { hits.hits.0.fields.field.0.coordinates.0: { value: -71.34, error: 0.005 } }
-  - close_to: { hits.hits.0.fields.field.0.coordinates.1: { value:  41.12, error: 0.005 } }
+  - match: { hits.hits.0.fields.field.0.coordinates.0: -71.34 }
+  - match: { hits.hits.0.fields.field.0.coordinates.1:  41.12 }
 
   - do:
       search:
@@ -1110,8 +1110,8 @@ fetch geo_point:
               format: geojson
   - length: { hits.hits.0.fields: 1 }
   - match: { hits.hits.0.fields.field.0.type: Point }
-  - close_to: { hits.hits.0.fields.field.0.coordinates.0: { value: -71.34, error: 0.005 } }
-  - close_to: { hits.hits.0.fields.field.0.coordinates.1: { value:  41.12, error: 0.005 } }
+  - match: { hits.hits.0.fields.field.0.coordinates.0: -71.34 }
+  - match: { hits.hits.0.fields.field.0.coordinates.1:  41.12 }
 
   - do:
       search:
@@ -1121,8 +1121,4 @@ fetch geo_point:
             - field: field
               format: wkt
   - length: { hits.hits.0.fields: 1 }
-  # When we fetch from _source we get precisely the precision in the _source,
-  # so precisely `POINT (-71.34 41.12)`. But loading from doc values gets double
-  # precision rounding fun: `POINT (-71.34000004269183 41.1199999647215)`.
-  - match: { hits.hits.0.fields.field.0: /POINT\ \(-71.34.+/ }
-  - match: { hits.hits.0.fields.field.0: /\ 41.1.+\)/ }
+  - match: { hits.hits.0.fields.field.0: "POINT (-71.34 41.12)" }

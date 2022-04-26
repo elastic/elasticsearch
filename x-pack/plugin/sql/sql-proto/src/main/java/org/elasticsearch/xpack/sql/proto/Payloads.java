@@ -23,6 +23,7 @@ import java.time.ZoneId;
 import java.util.List;
 import java.util.function.Function;
 
+import static org.elasticsearch.xpack.sql.proto.CoreProtocol.ALLOW_PARTIAL_SEARCH_RESULTS_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.BINARY_FORMAT_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.CATALOG_NAME;
 import static org.elasticsearch.xpack.sql.proto.CoreProtocol.CLIENT_ID_NAME;
@@ -170,6 +171,7 @@ public final class Payloads {
         generator.writeStringField("mode", request.mode().toString());
         writeIfValid(generator, "client_id", request.clientId());
         writeIfValidAsString(generator, "version", request.version());
+        writeIfValid(generator, "binary_format", request.binaryCommunication());
 
         generator.writeEndObject();
     }
@@ -222,26 +224,24 @@ public final class Payloads {
         if (request.pageTimeout() != CoreProtocol.PAGE_TIMEOUT) {
             generator.writeStringField(PAGE_TIMEOUT_NAME, request.pageTimeout().getStringRep());
         }
-        if (request.columnar() != null) {
-            generator.writeBooleanField(COLUMNAR_NAME, request.columnar());
-        }
+        writeIfValid(generator, COLUMNAR_NAME, request.columnar());
         if (request.fieldMultiValueLeniency()) {
             generator.writeBooleanField(FIELD_MULTI_VALUE_LENIENCY_NAME, request.fieldMultiValueLeniency());
         }
         if (request.indexIncludeFrozen()) {
             generator.writeBooleanField(INDEX_INCLUDE_FROZEN_NAME, request.indexIncludeFrozen());
         }
-        if (request.binaryCommunication() != null) {
-            generator.writeBooleanField(BINARY_FORMAT_NAME, request.binaryCommunication());
-        }
+        writeIfValid(generator, BINARY_FORMAT_NAME, request.binaryCommunication());
         writeIfValid(generator, CURSOR_NAME, request.cursor());
-
         writeIfValidAsString(generator, WAIT_FOR_COMPLETION_TIMEOUT_NAME, request.waitForCompletionTimeout(), TimeValue::getStringRep);
 
         if (request.keepOnCompletion()) {
             generator.writeBooleanField(KEEP_ON_COMPLETION_NAME, request.keepOnCompletion());
         }
         writeIfValidAsString(generator, KEEP_ALIVE_NAME, request.keepAlive(), TimeValue::getStringRep);
+        if (request.allowPartialSearchResults()) {
+            generator.writeBooleanField(ALLOW_PARTIAL_SEARCH_RESULTS_NAME, request.allowPartialSearchResults());
+        }
 
         if (extraFields != null) {
             extraFields.accept(generator);
@@ -252,6 +252,12 @@ public final class Payloads {
     private static void writeIfValid(JsonGenerator generator, String name, String value) throws IOException {
         if (value != null) {
             generator.writeStringField(name, value);
+        }
+    }
+
+    private static void writeIfValid(JsonGenerator generator, String name, Boolean value) throws IOException {
+        if (value != null) {
+            generator.writeBooleanField(name, value);
         }
     }
 

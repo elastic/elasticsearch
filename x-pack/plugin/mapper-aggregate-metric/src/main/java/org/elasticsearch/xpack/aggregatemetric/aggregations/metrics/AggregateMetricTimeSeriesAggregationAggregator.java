@@ -24,6 +24,7 @@ import org.elasticsearch.search.aggregations.timeseries.aggregation.Function;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.TimeSeriesAggregationAggregator;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.AggregatorFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.AvgFunction;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.function.LastFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.ValueCountFunction;
 import org.elasticsearch.xpack.aggregatemetric.aggregations.support.AggregateMetricsValuesSource;
 import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricFieldMapper.Metric;
@@ -31,6 +32,7 @@ import org.elasticsearch.xpack.aggregatemetric.mapper.AggregateDoubleMetricField
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 
 @SuppressWarnings({ "unchecked", "rawtypes" })
 public class AggregateMetricTimeSeriesAggregationAggregator extends TimeSeriesAggregationAggregator {
@@ -91,24 +93,27 @@ public class AggregateMetricTimeSeriesAggregationAggregator extends TimeSeriesAg
         if (metricType != null) {
             final SortedNumericDoubleValues values = valuesSource.getAggregateMetricValues(context, metricType);
             return new Collector(sub, values, aggCtx, (doc) -> {
-                if (values.advanceExact(doc)) {
-                    final int valuesCount = values.docValueCount();
-                    for (int i = 0; i < valuesCount; i++) {
-                        double value = values.nextValue();
-                        AggregatorFunction function = getAggregatorFunction();
-                        function.collect(value);
-                    }
+                if (aggCtx.getTimestamp() + downsampleRange < preRounding) {
+                    return;
                 }
-            });
-        } else if (metricType == Metric.value_count) {
-            final SortedNumericDoubleValues values = valuesSource.getAggregateMetricValues(context, metricType);
-            return new Collector(sub, values, aggCtx, (doc) -> {
+
                 if (values.advanceExact(doc)) {
                     final int valuesCount = values.docValueCount();
                     for (int i = 0; i < valuesCount; i++) {
                         double value = values.nextValue();
-                        AggregatorFunction function = getAggregatorFunction();
-                        ((ValueCountFunction) function).collectExact((long) value);
+                        for (Entry<Long, AggregatorFunction> entry : timeBucketMetrics.entrySet()) {
+                            Long timestamp = entry.getKey();
+                            AggregatorFunction function = entry.getValue();
+                            if (aggCtx.getTimestamp() + downsampleRange > timestamp) {
+                                if (function instanceof ValueCountFunction) {
+                                    ((ValueCountFunction) function).collectExact((long) value);
+                                } else {
+                                    function.collect(value);
+                                }
+                            } else {
+                                break;
+                            }
+                        }
                     }
                 }
             });
@@ -134,8 +139,15 @@ public class AggregateMetricTimeSeriesAggregationAggregator extends TimeSeriesAg
                     }
                 }
 
-                AggregatorFunction function = getAggregatorFunction();
-                ((AvgFunction) function).collectExact(sum, valueCount);
+                for (Entry<Long, AggregatorFunction> entry : timeBucketMetrics.entrySet()) {
+                    Long timestamp = entry.getKey();
+                    AggregatorFunction function = entry.getValue();
+                    if (aggCtx.getTimestamp() + downsampleRange > timestamp) {
+                        ((AvgFunction) function).collectExact(sum, valueCount);
+                    } else {
+                        break;
+                    }
+                }
             });
         }
     }

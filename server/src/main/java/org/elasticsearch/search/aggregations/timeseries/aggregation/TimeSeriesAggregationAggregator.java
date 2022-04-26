@@ -74,7 +74,7 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
     private long interval;
     private long offset;
     private Function aggregator;
-    private long downsampleRange;
+    protected long downsampleRange;
     protected Function downsampleFunction;
     private BucketOrder order;
     private TermsAggregator.BucketCountThresholds bucketCountThresholds;
@@ -84,10 +84,10 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
 
     private BytesRef preTsid;
     private long preBucketOrdinal;
-    private long preRounding = -1;
+    protected long preRounding = -1;
     private Rounding.Prepared rounding;
     private boolean needGroupBy;
-    private Map<Long, AggregatorFunction> timeBucketMetrics; // TODO replace map
+    protected Map<Long, AggregatorFunction> timeBucketMetrics; // TODO replace map
     private Map<Long, Map<Long, InternalAggregation>> groupBucketValues; // TODO replace map
     private Map<Long, AggregatorBucketFunction> aggregatorCollectors; // TODO replace map
 
@@ -196,7 +196,7 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
                     AggregatorBucketFunction aggregatorBucketFunction = aggregatorCollectors.get(ord);
                     LongKeyedBucketOrds.BucketOrdsEnum timeOrdsEnum = timestampOrds.ordsEnum(ord);
                     while (timeOrdsEnum.next()) {
-                        values.put(timeOrdsEnum.value(), aggregatorBucketFunction.getAggregation(timeOrdsEnum.ord(), format, metadata()));
+                        values.put(timeOrdsEnum.value() + offset, aggregatorBucketFunction.getAggregation(timeOrdsEnum.ord(), format, metadata()));
                     }
                 } else {
                     values = groupBucketValues.get(ord);
@@ -302,18 +302,6 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
     protected LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector sub) throws IOException {
         // TODO: remove this method in a follow up PR
         throw new UnsupportedOperationException("Shouldn't be here");
-    }
-
-    /**
-     * get the downsample function of the current rouding
-     */
-    protected AggregatorFunction getAggregatorFunction() throws IOException {
-        AggregatorFunction function = timeBucketMetrics.get(preRounding);
-        if (function == null) {
-            function = downsampleFunction.getAggregatorFunction();
-            timeBucketMetrics.put(preRounding, function);
-        }
-        return function;
     }
 
     protected LeafBucketCollector getLeafCollector(LeafReaderContext context, LeafBucketCollector sub, AggregationExecutionContext aggCtx)
@@ -443,7 +431,7 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
             }
         } else {
             Map<Long, InternalAggregation> tsids = new LinkedHashMap<>();
-            timeBucketMetrics.forEach((k, v) -> { tsids.put(k, v.getAggregation(format, metadata())); });
+            timeBucketMetrics.forEach((k, v) -> { tsids.put(k + offset, v.getAggregation(format, metadata())); });
             groupBucketValues.put(bucketOrd, tsids);
         }
     }

@@ -22,6 +22,8 @@ import org.elasticsearch.search.aggregations.timeseries.aggregation.function.Agg
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -90,11 +92,12 @@ public class TSIDInternalAggregation extends InternalAggregation {
         for (InternalAggregation aggregation : aggregations) {
             TSIDInternalAggregation tsidAgg = (TSIDInternalAggregation) aggregation;
             tsidAgg.values.forEach((tsid, value) -> {
-                if (false == reduced.containsKey(tsid)) {
-                    reduced.put(tsid, List.of(value));
-                } else {
-                    reduced.get(tsid).add(value);
+                List<InternalAggregation> values = reduced.get(tsid);
+                if (values == null) {
+                    values = new ArrayList<>();
+                    reduced.put(tsid, values);
                 }
+                values.add(value);
             });
         }
 

@@ -61,7 +61,7 @@ public abstract class MapReduceAggregator extends AggregatorBase {
         }
     }
 
-    private final MapReduceContext context;
+    private final MapReduceContext mapReduceContext;
 
     protected MapReduceAggregator(
         String name,
@@ -77,32 +77,32 @@ public abstract class MapReduceAggregator extends AggregatorBase {
             .map(c -> context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, c).build(c))
             .collect(Collectors.toList());
 
-        this.context = new MapReduceContext(extractors, mapReducer);
+        this.mapReduceContext = new MapReduceContext(extractors, mapReducer);
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
         // TODO: handle empty MapReducer???
-        return new InternalMapReduceAggregation(name, metadata(), context.getMapReducer(0));
+        return new InternalMapReduceAggregation(name, metadata(), mapReduceContext.getMapReducer(0));
     }
 
     @Override
     public final InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
         InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
         for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-            results[ordIdx] = new InternalMapReduceAggregation(name, metadata(), context.getMapReducer(ordIdx));
+            results[ordIdx] = new InternalMapReduceAggregation(name, metadata(), mapReduceContext.getMapReducer(ordIdx));
         }
         return results;
     }
 
     @Override
     protected LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
-        return new LeafBucketCollectorBase(sub, context) {
+        return new LeafBucketCollectorBase(sub, mapReduceContext) {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
 
                 // TODO: partition by owningBucketOrd
-                context.getMapReducer(owningBucketOrd).map(context.getExtractors().stream().map(extractor -> {
+                mapReduceContext.getMapReducer(owningBucketOrd).map(mapReduceContext.getExtractors().stream().map(extractor -> {
                     try {
                         return extractor.collectValues(ctx, doc);
                     } catch (IOException e) {

@@ -17,7 +17,6 @@ public class ItemSetTraverser implements Releasable {
 
     private final TransactionStore.TopItemIds topItemIds;
 
-    // private int depth = -1;
     private long itemId = -1;
     private Stack<TransactionStore.TopItemIds.IdIterator> itemIteratorStack = new Stack<>();
     private Stack<Long> itemIdStack = new Stack<>();
@@ -59,13 +58,10 @@ public class ItemSetTraverser implements Releasable {
             }
         }
 
-        // TODO: calculate support??
-
         // push a new iterator to the stack, TODO: avoid object churn
         // the iterator starts at the position of the current one, so it won't create dups
         itemIteratorStack.add(topItemIds.iterator(itemIteratorStack.peek().getIndex()));
         itemIdStack.add(itemId);
-        // depth++;
 
         return true;
     }

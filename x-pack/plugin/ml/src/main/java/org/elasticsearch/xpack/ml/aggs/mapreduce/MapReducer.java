@@ -49,9 +49,7 @@ public interface MapReducer extends NamedWriteable, ToXContent {
     String getAggregationWritableName();
 
     /**
-     * Definition of the mapper that gets executed locally on every shard
-     *
-     * TODO: assumes only 1 "flat" input, what about multi inputs?
+     * Definition of the mapper that gets executed locally on every shard     *
      *
      * @param keyValues A stream of keys and values, while a value is a list of values.
      */

@@ -671,59 +671,74 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
             );
             DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
 
-            // IndexMetadata not found case:
-            dataStream.validate((index) -> null);
-
-            // index is not time_series index:
-            dataStream.validate(
-                (index) -> IndexMetadata.builder(index)
-                    .settings(
-                        Settings.builder()
-                            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
-                            .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
-                            .build()
+            {
+                // IndexMetadata not found case:
+                var e = expectThrows(IllegalStateException.class, () -> dataStream.validate((index) -> null));
+                assertThat(
+                    e.getMessage(),
+                    equalTo(
+                        "index ["
+                            + DataStream.getDefaultBackingIndexName(dataStreamName, 1, start1.toEpochMilli())
+                            + "] is not found in the index metadata supplier"
                     )
-                    .build()
-            );
+                );
+            }
 
-            Instant start3 = currentTime.minus(6, ChronoUnit.HOURS);
-            Instant end3 = currentTime.plus(2, ChronoUnit.HOURS);
-            var e = expectThrows(
-                IllegalArgumentException.class,
-                () -> dataStream.validate(
+            {
+                // index is not time_series index:
+                dataStream.validate(
                     (index) -> IndexMetadata.builder(index)
                         .settings(
                             Settings.builder()
                                 .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
                                 .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
                                 .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
-                                .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), start3.toEpochMilli())
-                                .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), end3.toEpochMilli())
                                 .build()
                         )
                         .build()
-                )
-            );
-            var formatter = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
-            assertThat(
-                e.getMessage(),
-                equalTo(
-                    "backing index ["
-                        + DataStream.getDefaultBackingIndexName(dataStreamName, 1, start1.toEpochMilli())
-                        + "] with range ["
-                        + formatter.format(start3)
-                        + " TO "
-                        + formatter.format(end3)
-                        + "] is overlapping with backing index ["
-                        + DataStream.getDefaultBackingIndexName(dataStreamName, 2, start2.toEpochMilli())
-                        + "] with range ["
-                        + formatter.format(start3)
-                        + " TO "
-                        + formatter.format(end3)
-                        + "]"
-                )
-            );
+                );
+            }
+
+            {
+                // invalid IndexMetadata result
+                Instant start3 = currentTime.minus(6, ChronoUnit.HOURS);
+                Instant end3 = currentTime.plus(2, ChronoUnit.HOURS);
+                var e = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> dataStream.validate(
+                        (index) -> IndexMetadata.builder(index)
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                                    .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+                                    .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), start3.toEpochMilli())
+                                    .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), end3.toEpochMilli())
+                                    .build()
+                            )
+                            .build()
+                    )
+                );
+                var formatter = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
+                assertThat(
+                    e.getMessage(),
+                    equalTo(
+                        "backing index ["
+                            + DataStream.getDefaultBackingIndexName(dataStreamName, 1, start1.toEpochMilli())
+                            + "] with range ["
+                            + formatter.format(start3)
+                            + " TO "
+                            + formatter.format(end3)
+                            + "] is overlapping with backing index ["
+                            + DataStream.getDefaultBackingIndexName(dataStreamName, 2, start2.toEpochMilli())
+                            + "] with range ["
+                            + formatter.format(start3)
+                            + " TO "
+                            + formatter.format(end3)
+                            + "]"
+                    )
+                );
+            }
         }
     }
 

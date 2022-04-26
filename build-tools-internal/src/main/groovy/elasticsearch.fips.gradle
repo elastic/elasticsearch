@@ -66,6 +66,7 @@ if (BuildParams.inFipsJvm) {
           setting 'xpack.security.enabled', 'false'
           setting 'xpack.security.fips_mode.enabled', 'true'
           setting 'xpack.license.self_generated.type', 'trial'
+          setting 'xpack.security.authc.password_hashing.algorithm', 'pbkdf2_stretch'
           keystorePassword 'keystore-password'
         }
       }

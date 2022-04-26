@@ -634,7 +634,7 @@
               "type": "keyword",
               "ignore_above": 1024
             },
-            "delay": {
+            "duration": {
               "type": "long"
             },
             "end": {

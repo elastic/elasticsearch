@@ -96,7 +96,7 @@ public class Authentication implements ToXContentObject {
         this.metadata = metadata;
         if (user.isRunAs()) {
             authenticatingSubject = new Subject(user.authenticatedUser(), authenticatedBy, version, metadata);
-            // The lookup user for run-as currently don't have authentication metadata associated with them because
+            // The lookup user for run-as currently doesn't have authentication metadata associated with them because
             // lookupUser only returns the User object. The lookup user for authorization delegation does have
             // authentication metadata, but the realm does not expose this difference between authenticatingUser and
             // delegateUser so effectively this is handled together with the authenticatingSubject not effectiveSubject.
@@ -121,7 +121,7 @@ public class Authentication implements ToXContentObject {
         metadata = in.readMap();
         if (user.isRunAs()) {
             authenticatingSubject = new Subject(user.authenticatedUser(), authenticatedBy, version, metadata);
-            // The lookup user for run-as currently don't have authentication metadata associated with them because
+            // The lookup user for run-as currently doesn't have authentication metadata associated with them because
             // lookupUser only returns the User object. The lookup user for authorization delegation does have
             // authentication metadata, but the realm does not expose this difference between authenticatingUser and
             // delegateUser so effectively this is handled together with the authenticatingSubject not effectiveSubject.

@@ -106,6 +106,9 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     private final List<Consumer<ClusterState>> ingestClusterStateListeners = new CopyOnWriteArrayList<>();
     private volatile ClusterState state;
 
+    /**
+     * Cluster state task executor for ingest pipeline operations
+     */
     private static final ClusterStateTaskExecutor<PipelineClusterStateUpdateTask> PIPELINE_TASK_EXECUTOR = (currentState, taskContexts) -> {
         ClusterState state = currentState;
         for (final var taskContext : taskContexts) {
@@ -120,6 +123,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return state;
     };
 
+    /**
+     * Specialized cluster state update task specifically for ingest pipeline operations.
+     * These operations all receive an AcknowledgedResponse.
+     */
     private abstract static class PipelineClusterStateUpdateTask extends ClusterStateUpdateTask {
         private final ActionListener<AcknowledgedResponse> listener;
 

@@ -123,6 +123,9 @@ public class MetadataIndexTemplateService {
     private final SystemIndices systemIndices;
     private final Set<IndexSettingProvider> indexSettingProviders;
 
+    /**
+     * This is the cluster state task executor for all template-based actions.
+     */
     private static final ClusterStateTaskExecutor<TemplateClusterStateUpdateTask> TEMPLATE_TASK_EXECUTOR = (currentState, taskContexts) -> {
         ClusterState state = currentState;
         for (final var taskContext : taskContexts) {
@@ -137,6 +140,10 @@ public class MetadataIndexTemplateService {
         return state;
     };
 
+    /**
+     * A specialized cluster state update task that always takes a listener handling an
+     * AcknowledgedResponse, as all template actions have simple acknowledged yes/no responses.
+     */
     private abstract static class TemplateClusterStateUpdateTask extends ClusterStateUpdateTask {
         private final ActionListener<AcknowledgedResponse> listener;
 

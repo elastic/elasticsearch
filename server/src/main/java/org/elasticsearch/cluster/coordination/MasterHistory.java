@@ -21,7 +21,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -31,9 +30,8 @@ import java.util.stream.Collectors;
  * if and when the cluster state changes with a new master node.
  */
 public class MasterHistory implements ClusterStateListener {
-    private final List<TimeAndMaster> masterHistory;
+    private volatile List<TimeAndMaster> masterHistory;
     Supplier<Long> nowSupplier; // Can be changed for testing
-    final ReentrantReadWriteLock masterHistoryReadWriteLock = new ReentrantReadWriteLock();
 
     public MasterHistory(ThreadPool threadPool, ClusterService clusterService) {
         this.masterHistory = new ArrayList<>();
@@ -45,14 +43,11 @@ public class MasterHistory implements ClusterStateListener {
     public void clusterChanged(ClusterChangedEvent event) {
         DiscoveryNode currentMaster = event.state().nodes().getMasterNode();
         DiscoveryNode previousMaster = event.previousState().nodes().getMasterNode();
-        masterHistoryReadWriteLock.writeLock().lock();
-        try {
-            if (currentMaster == null || currentMaster.equals(previousMaster) == false || masterHistory.isEmpty()) {
-                masterHistory.add(new TimeAndMaster(nowSupplier.get(), currentMaster));
-                removeOldMasterHistory();
-            }
-        } finally {
-            masterHistoryReadWriteLock.writeLock().unlock();
+        if (currentMaster == null || currentMaster.equals(previousMaster) == false || masterHistory.isEmpty()) {
+            List<TimeAndMaster> newMasterHistory = new ArrayList<>(masterHistory);
+            newMasterHistory.add(new TimeAndMaster(nowSupplier.get(), currentMaster));
+            removeOldMasterHistory(newMasterHistory);
+            masterHistory = newMasterHistory;
         }
     }
 
@@ -146,13 +141,7 @@ public class MasterHistory implements ClusterStateListener {
      * entry in even if it is more than 30 minutes old).
      */
     private List<TimeAndMaster> getMasterHistoryForLast30Minutes() {
-        List<TimeAndMaster> masterHistoryCopy;
-        masterHistoryReadWriteLock.readLock().lock();
-        try {
-            masterHistoryCopy = new ArrayList<>(masterHistory);
-        } finally {
-            masterHistoryReadWriteLock.readLock().unlock();
-        }
+        List<TimeAndMaster> masterHistoryCopy = new ArrayList<>(masterHistory);
         if (masterHistoryCopy.size() < 2) {
             return masterHistoryCopy;
         }
@@ -173,18 +162,17 @@ public class MasterHistory implements ClusterStateListener {
      * Clears out anything from masterHistory that is from more than 30 minutes before now (but leaves the newest entry in even if it is
      * more than 30 minutes old). Rather than being scheduled, this method is called whenever the cluster state changes.
      */
-    private void removeOldMasterHistory() {
-        assert masterHistoryReadWriteLock.isWriteLockedByCurrentThread();
-        if (masterHistory.size() < 2) {
+    private void removeOldMasterHistory(List<TimeAndMaster> newMasterHistory) {
+        if (newMasterHistory.size() < 2) {
             return;
         }
         long now = nowSupplier.get();
         TimeValue thirtyMinutes = new TimeValue(30, TimeUnit.MINUTES);
         long thirtyMinutesAgo = now - thirtyMinutes.getMillis();
-        TimeAndMaster mostRecent = masterHistory.isEmpty() ? null : masterHistory.get(masterHistory.size() - 1);
-        masterHistory.removeIf(timeAndMaster -> timeAndMaster.time < thirtyMinutesAgo);
-        if (masterHistory.isEmpty() && mostRecent != null) { // The most recent entry was more than 30 minutes ago
-            masterHistory.add(mostRecent);
+        TimeAndMaster mostRecent = newMasterHistory.isEmpty() ? null : newMasterHistory.get(newMasterHistory.size() - 1);
+        newMasterHistory.removeIf(timeAndMaster -> timeAndMaster.time < thirtyMinutesAgo);
+        if (newMasterHistory.isEmpty() && mostRecent != null) { // The most recent entry was more than 30 minutes ago
+            newMasterHistory.add(mostRecent);
         }
     }
 

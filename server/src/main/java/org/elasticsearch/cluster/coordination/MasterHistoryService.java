@@ -13,10 +13,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.admin.cluster.coordination.MasterHistoryAction;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectionProfile;
@@ -51,15 +49,6 @@ public class MasterHistoryService {
         this.transportService = transportService;
         this.localMasterHistory = new MasterHistory(threadPool, clusterService);
         this.clusterService = clusterService;
-        // Set the initial state for the local history once it is available:
-        coordinator.addLifecycleListener(new LifecycleListener() {
-            @Override
-            public void afterStart() {
-                localMasterHistory.clusterChanged(
-                    new ClusterChangedEvent(MasterHistoryService.class.getName(), clusterService.state(), clusterService.state())
-                );
-            }
-        });
     }
 
     /**

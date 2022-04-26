@@ -8,14 +8,11 @@
 package org.elasticsearch.oldrepos;
 
 import org.apache.http.HttpHost;
-import org.apache.http.entity.ContentType;
-import org.apache.http.entity.StringEntity;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -40,7 +37,6 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -426,17 +422,6 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         assertEquals(sourceForDoc(num), searchResponse.getHits().getHits()[0].getSourceAsString());
 
         if (sourceOnlyRepository == false) {
-            // check that doc values can be accessed by (reverse) sorting on numeric val field
-            // first add mapping for field (this will be done automatically in the future)
-            XContentBuilder mappingBuilder = JsonXContent.contentBuilder();
-            mappingBuilder.startObject().startObject("properties");
-            mappingBuilder.startObject("val").field("type", "long").endObject();
-            mappingBuilder.endObject().endObject();
-            Request putMappingRequest = new Request("PUT", "/" + index + "/_mapping");
-            putMappingRequest.setEntity(new StringEntity(Strings.toString(mappingBuilder), ContentType.APPLICATION_JSON));
-            Response response = client.getLowLevelClient().performRequest(putMappingRequest);
-            assertTrue(AcknowledgedResponse.fromXContent(responseAsParser(response)).isAcknowledged());
-
             // search using reverse sort on val
             searchResponse = client.search(
                 new SearchRequest(index).source(

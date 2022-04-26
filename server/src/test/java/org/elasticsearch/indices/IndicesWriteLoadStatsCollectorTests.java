@@ -29,8 +29,8 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
@@ -92,7 +92,7 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
             final var firstTotalIndexingTimeReading = shard.getTotalIndexingTimeInNanos();
             assertThat(firstTotalIndexingTimeReading, is(greaterThan(0L)));
 
-            final AtomicReference<Iterable<IndexShard>> shardsProvider = new AtomicReference<>(List.of(shard));
+            final AtomicReference<List<IndexShard>> shardsProvider = new AtomicReference<>(List.of(shard));
             final var indicesWriteLoadStatsCollector = new TestIndicesWriteLoadStatsCollector(shardsProvider::get, stoppedClock());
 
             indicesWriteLoadStatsCollector.collectWriteLoadStats();
@@ -121,10 +121,26 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
         final var samplingFrequency = TimeValue.timeValueSeconds(1);
         try (var shardRef = createShard(fakeClock)) {
             final var shard = shardRef.shard();
+            final var index = shard.shardId().getIndex();
 
-            final AtomicReference<Iterable<IndexShard>> shardsProvider = new AtomicReference<>(List.of(shard));
+            final AtomicReference<List<IndexShard>> shardsProvider = new AtomicReference<>(List.of(shard));
             final var clusterService = mock(ClusterService.class);
-            when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
+            final var clusterState = ClusterState.builder(new ClusterName("cluster"))
+                .metadata(
+                    Metadata.builder()
+                        .put(getDataStream(index))
+                        .put(
+                            IndexMetadata.builder(index.getName())
+                                .settings(settings(Version.CURRENT))
+                                .numberOfShards(1)
+                                .numberOfReplicas(0)
+                                .build(),
+                            false
+                        )
+                        .build()
+                )
+                .build();
+            when(clusterService.state()).thenReturn(clusterState);
             final var indicesWriteLoadStatsCollector = new TestIndicesWriteLoadStatsCollector(
                 clusterService,
                 shardsProvider::get,
@@ -182,7 +198,7 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
         try (var shardRef = createShard(fakeClock, NoMergePolicy.INSTANCE)) {
             final var shard = shardRef.shard();
 
-            final AtomicReference<Iterable<IndexShard>> shardsProvider = new AtomicReference<>(List.of(shard));
+            final AtomicReference<List<IndexShard>> shardsProvider = new AtomicReference<>(List.of(shard));
             final var indicesWriteLoadStatsCollector = new TestIndicesWriteLoadStatsCollector(
                 shardsProvider::get,
                 fakeClock(samplingFrequency)
@@ -222,7 +238,7 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
         try (var shardRef = createShard(fakeClock, mergePolicy)) {
             final var shard = shardRef.shard();
 
-            final AtomicReference<Iterable<IndexShard>> shardsProvider = new AtomicReference<>(List.of(shard));
+            final AtomicReference<List<IndexShard>> shardsProvider = new AtomicReference<>(List.of(shard));
             final var indicesWriteLoadStatsCollector = new TestIndicesWriteLoadStatsCollector(
                 shardsProvider::get,
                 fakeClock(samplingFrequency)
@@ -262,7 +278,7 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
         try (var shardRef = createShard(fakeClock)) {
             final var shard = shardRef.shard();
 
-            final AtomicReference<Iterable<IndexShard>> shardsProvider = new AtomicReference<>(List.of(shard));
+            final AtomicReference<List<IndexShard>> shardsProvider = new AtomicReference<>(List.of(shard));
             final var indicesWriteLoadStatsCollector = new TestIndicesWriteLoadStatsCollector(
                 shardsProvider::get,
                 fakeClock(samplingFrequency)
@@ -297,7 +313,7 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
         try (var shardRef = createShard(fakeClock)) {
             final var shard = shardRef.shard();
 
-            final AtomicReference<Iterable<IndexShard>> shardsProvider = new AtomicReference<>(List.of(shard));
+            final AtomicReference<List<IndexShard>> shardsProvider = new AtomicReference<>(List.of(shard));
             final var indicesWriteLoadStatsCollector = new TestIndicesWriteLoadStatsCollector(
                 shardsProvider::get,
                 fakeClock(samplingFrequency)
@@ -334,7 +350,7 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
             final var rolledOverShard = rolledOverDataStreamShardRef.shard();
             final var rolledOverIndex = rolledOverShard.shardId().getIndex();
 
-            final AtomicReference<Iterable<IndexShard>> shardsProvider = new AtomicReference<>(List.of(firstDataStreamShard));
+            final AtomicReference<List<IndexShard>> shardsProvider = new AtomicReference<>(List.of(firstDataStreamShard));
             final var clusterService = mock(ClusterService.class);
             final var clusterState = ClusterState.builder(new ClusterName("cluster"))
                 .metadata(
@@ -414,9 +430,16 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
             }
 
             final var writeLoadDistributionAfterRollOver = indicesWriteLoadStatsCollector.getWriteLoadDistributionAndReset();
+            assertThat(writeLoadDistributionAfterRollOver, hasSize(2));
+            assertThat(
+                writeLoadDistributionAfterRollOver.stream().anyMatch(s -> s.shardId().getIndex().equals(firstDataStreamIndex)),
+                is(true)
+            );
+            assertThat(writeLoadDistributionAfterRollOver.stream().anyMatch(s -> s.shardId().getIndex().equals(rolledOverIndex)), is(true));
 
-            assertThat(writeLoadDistributionAfterRollOver, hasSize(1));
-            final var shardWriteLoadDistributionAfterRollover = writeLoadDistributionAfterRollOver.get(0);
+            final var writeLoadAfterRolloverCleanup = indicesWriteLoadStatsCollector.getShardLoadDistributions();
+            assertThat(writeLoadAfterRolloverCleanup, hasSize(1));
+            final var shardWriteLoadDistributionAfterRollover = writeLoadAfterRolloverCleanup.get(0);
             assertThat(shardWriteLoadDistributionAfterRollover.shardId(), is(equalTo(rolledOverShard.shardId())));
         }
     }
@@ -630,15 +653,15 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
     }
 
     private static class TestIndicesWriteLoadStatsCollector extends IndicesWriteLoadStatsCollector {
-        private final Supplier<Iterable<IndexShard>> shardsSupplier;
+        private final Supplier<List<IndexShard>> shardsSupplier;
 
-        TestIndicesWriteLoadStatsCollector(Supplier<Iterable<IndexShard>> shardsSupplier, LongSupplier relativeTimeInNanosSupplier) {
+        TestIndicesWriteLoadStatsCollector(Supplier<List<IndexShard>> shardsSupplier, LongSupplier relativeTimeInNanosSupplier) {
             this(mock(ClusterService.class), shardsSupplier, relativeTimeInNanosSupplier);
         }
 
         TestIndicesWriteLoadStatsCollector(
             ClusterService clusterService,
-            Supplier<Iterable<IndexShard>> shardsSupplier,
+            Supplier<List<IndexShard>> shardsSupplier,
             LongSupplier relativeTimeInNanosSupplier
         ) {
             super(clusterService, mock(IndicesService.class), relativeTimeInNanosSupplier);
@@ -646,7 +669,7 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
         }
 
         @Override
-        Iterable<IndexShard> getDataStreamsWriteIndicesShards() {
+        List<IndexShard> getDataStreamsWriteIndicesShards() {
             return shardsSupplier.get();
         }
 

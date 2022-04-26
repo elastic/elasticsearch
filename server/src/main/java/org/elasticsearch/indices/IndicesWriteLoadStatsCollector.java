@@ -12,7 +12,6 @@ import org.HdrHistogram.DoubleHistogram;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
@@ -24,8 +23,7 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.LongSupplier;
@@ -35,7 +33,7 @@ public class IndicesWriteLoadStatsCollector implements IndexEventListener, Clust
     private final ClusterService clusterService;
     private final IndicesService indicesService;
     private final LongSupplier relativeTimeInNanosSupplier;
-    private final Map<ShardId, ShardWriteLoadHistogram> histograms = ConcurrentCollections.newConcurrentMap();
+    private final ConcurrentMap<ShardId, ShardWriteLoadHistogram> histograms = ConcurrentCollections.newConcurrentMap();
     private final AtomicBoolean clusterStateReady = new AtomicBoolean();
 
     public IndicesWriteLoadStatsCollector(
@@ -68,42 +66,23 @@ public class IndicesWriteLoadStatsCollector implements IndexEventListener, Clust
         }
     }
 
-    Iterable<IndexShard> getDataStreamsWriteIndicesShards() {
+    List<IndexShard> getDataStreamsWriteIndicesShards() {
         // Wait until the node has access to the cluster state
         if (clusterStateReady.get() == false) {
             return Collections.emptyList();
         }
 
-        return () -> clusterService.state()
-            .metadata()
-            .getIndicesLookup()
-            .values()
-            .stream()
-            .filter(IndexAbstraction::isDataStreamRelated)
-            .map(dataStream -> indicesService.indexService(dataStream.getWriteIndex()))
-            .filter(Objects::nonNull)
-            .flatMap(f -> StreamSupport.stream(f.spliterator(), false))
-            .iterator();
+        return StreamSupport.stream(indicesService.spliterator(), false)
+            .filter(indexService -> isDataStreamWriteIndex(indexService.index()))
+            .flatMap(indexService -> StreamSupport.stream(indexService.spliterator(), false))
+            .toList();
     }
 
     private void cleanRolledOverIndices() {
-        final Metadata metadata = clusterService.state().metadata();
-        for (IndexAbstraction indexAbstraction : metadata.getIndicesLookup().values()) {
-            if (indexAbstraction.isDataStreamRelated() == false) {
-                continue;
-            }
-
-            Index writeIndex = indexAbstraction.getWriteIndex();
-            for (Index index : indexAbstraction.getIndices()) {
-                if (index.equals(writeIndex)) {
-                    continue;
-                }
-
-                for (IndexShard indexShard : getShardsForIndex(index)) {
-                    histograms.remove(indexShard.shardId());
-                }
-            }
-        }
+        histograms.entrySet().removeIf(entry -> {
+            final var shardId = entry.getKey();
+            return isDataStreamWriteIndex(shardId.getIndex()) == false;
+        });
     }
 
     protected Iterable<IndexShard> getShardsForIndex(Index index) {
@@ -122,9 +101,26 @@ public class IndicesWriteLoadStatsCollector implements IndexEventListener, Clust
         return parentDataStream != null ? parentDataStream.getName() : null;
     }
 
+    private boolean isDataStreamWriteIndex(Index index) {
+        final var indicesLookup = clusterService.state().metadata().getIndicesLookup();
+        final var indexAbstraction = indicesLookup.get(index.getName());
+        if (indexAbstraction == null) {
+            return false;
+        }
+
+        final var parentDataStream = indexAbstraction.getParentDataStream();
+        return parentDataStream != null && index.equals(parentDataStream.getWriteIndex());
+    }
+
     public List<ShardWriteLoadDistribution> getWriteLoadDistributionAndReset() {
+        final var shardWriteLoadDistributions = histograms.values()
+            .stream()
+            .map(ShardWriteLoadHistogram::getWriteLoadDistributionAndReset)
+            .toList();
+
         cleanRolledOverIndices();
-        return histograms.values().stream().map(ShardWriteLoadHistogram::getWriteLoadDistributionAndReset).toList();
+
+        return shardWriteLoadDistributions;
     }
 
     public List<ShardWriteLoadDistribution> getShardLoadDistributions() {

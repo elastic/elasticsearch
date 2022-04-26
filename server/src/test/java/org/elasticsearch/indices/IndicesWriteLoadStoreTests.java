@@ -24,9 +24,11 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -34,15 +36,18 @@ import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -50,14 +55,11 @@ import java.util.stream.Stream;
 import static org.elasticsearch.indices.IndicesWriteLoadStore.INDICES_WRITE_LOAD_DATA_STREAM;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 @SuppressWarnings("unchecked")
 public class IndicesWriteLoadStoreTests extends ESTestCase {
-    private static final Settings testDefaultSettings = Settings.builder()
-        .put(IndicesWriteLoadStore.FLUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1))
-        .build();
-
     private ThreadPool threadPool;
     private ClusterSettings clusterSettings;
 
@@ -73,32 +75,31 @@ public class IndicesWriteLoadStoreTests extends ESTestCase {
     }
 
     public void testRequestAreNotSentWhenDisabled() throws Exception {
-        final var settings = Settings.builder().put(testDefaultSettings).put(IndicesWriteLoadStore.ENABLED_SETTING.getKey(), false).build();
-        final var latch = new CountDownLatch(1);
+        final var settings = Settings.builder()
+            .put(IndicesWriteLoadStore.MAX_DOCUMENTS_PER_BULK_SETTING.getKey(), 1)
+            .put(IndicesWriteLoadStore.ENABLED_SETTING.getKey(), false)
+            .build();
         try (
             var client = new MockClient(threadPool);
-            var indicesWriteLoadStore = new IndicesWriteLoadStore(threadPool, client, clusterSettings, settings, () -> {
-                latch.countDown();
-                return true;
-            })
+            var indicesWriteLoadStore = new IndicesWriteLoadStore(threadPool, client, clusterSettings, settings)
         ) {
             client.setHandler((action, request, listener) -> { assert false : "unexpected call"; });
 
             indexRandomSamples(indicesWriteLoadStore, randomIntBetween(1, 100));
-
-            assertFalse(latch.await(IndicesWriteLoadStore.FLUSH_INTERVAL_SETTING.get(settings).seconds(), TimeUnit.SECONDS));
         }
     }
 
     public void testIndicesWriteLoadSamplesAreStored() throws Exception {
+        final int numberOfSamples = randomIntBetween(1, 1000);
+
+        final var settings = Settings.builder().put(IndicesWriteLoadStore.MAX_DOCUMENTS_PER_BULK_SETTING.getKey(), numberOfSamples).build();
         try (
             var client = new MockClient(threadPool);
-            var indicesWriteLoadStore = new IndicesWriteLoadStore(threadPool, client, clusterSettings, testDefaultSettings)
+            var indicesWriteLoadStore = new IndicesWriteLoadStore(threadPool, client, clusterSettings, settings)
         ) {
-            final int numberOfSamples = randomIntBetween(1, 1000);
-            final var calledTimes = new AtomicInteger();
+            final var receivedBulkRequestCount = new AtomicInteger();
             client.setHandler((action, request, listener) -> {
-                calledTimes.incrementAndGet();
+                receivedBulkRequestCount.incrementAndGet();
                 BulkRequest bulkRequest = (BulkRequest) request;
                 assertNotNull(listener);
                 assertThat(action, is(equalTo(BulkAction.INSTANCE)));
@@ -115,16 +116,18 @@ public class IndicesWriteLoadStoreTests extends ESTestCase {
 
             indexRandomSamples(indicesWriteLoadStore, numberOfSamples);
 
-            assertBusy(() -> assertThat(calledTimes.get(), equalTo(1)));
+            assertBusy(() -> assertThat(receivedBulkRequestCount.get(), equalTo(1)));
         }
     }
 
     public void testNonRetryableErrorsAreNotRetried() throws Exception {
+        final var numberOfSamples = randomIntBetween(1, 100);
+
+        final var settings = Settings.builder().put(IndicesWriteLoadStore.MAX_DOCUMENTS_PER_BULK_SETTING.getKey(), numberOfSamples).build();
         try (
             var client = new MockClient(threadPool);
-            var indicesWriteLoadStore = new IndicesWriteLoadStore(threadPool, client, clusterSettings, testDefaultSettings)
+            var indicesWriteLoadStore = new IndicesWriteLoadStore(threadPool, client, clusterSettings, settings)
         ) {
-            final var numberOfSamples = randomIntBetween(1, 100);
             final var calledFuture = PlainActionFuture.newFuture();
             final var calledTimes = new AtomicInteger();
             client.setHandler((action, request, listener) -> {
@@ -160,20 +163,20 @@ public class IndicesWriteLoadStoreTests extends ESTestCase {
     }
 
     public void testIndexingIsRetriedWhenErrorIsRetryable() throws Exception {
+        final var numberOfSamples = randomIntBetween(1, 100);
         final var maxRetries = randomIntBetween(1, 3);
         final var settings = Settings.builder()
-            .put(testDefaultSettings)
+            .put(IndicesWriteLoadStore.MAX_DOCUMENTS_PER_BULK_SETTING.getKey(), numberOfSamples)
             .put(IndicesWriteLoadStore.MAX_RETRIES_SETTING.getKey(), maxRetries)
             .build();
         try (
             var client = new MockClient(threadPool);
             var indicesWriteLoadStore = new IndicesWriteLoadStore(threadPool, client, clusterSettings, settings)
         ) {
-            final var numberOfSamples = randomIntBetween(1, 100);
-            final var calledTimes = new AtomicInteger();
+            final var receivedBulkRequestCount = new AtomicInteger();
             final var successfulWriteResponseFuture = PlainActionFuture.newFuture();
             client.setHandler((action, request, listener) -> {
-                if (calledTimes.incrementAndGet() < maxRetries + 1) {
+                if (receivedBulkRequestCount.incrementAndGet() < maxRetries + 1) {
                     listener.onFailure(new CircuitBreakingException("I'll be back", CircuitBreaker.Durability.TRANSIENT));
                     return;
                 }
@@ -195,65 +198,70 @@ public class IndicesWriteLoadStoreTests extends ESTestCase {
             indexRandomSamples(indicesWriteLoadStore, numberOfSamples);
 
             successfulWriteResponseFuture.get();
-            assertBusy(() -> assertThat(calledTimes.get(), equalTo(maxRetries + 1)));
+            assertBusy(() -> assertThat(receivedBulkRequestCount.get(), equalTo(maxRetries + 1)));
         }
     }
 
-    public void testOnlyOneConcurrentRequestIsSent() throws Exception {
-        final var flushWritesLatch = new CountDownLatch(2);
+    public void testMaxConcurrentRequestIsConfigurable() throws Exception {
+        final int numberOfSamples = randomIntBetween(1, 100);
+        final int maxConcurrentRequests = randomIntBetween(0, 10);
+        final var settings = Settings.builder()
+            .put(IndicesWriteLoadStore.MAX_DOCUMENTS_PER_BULK_SETTING.getKey(), numberOfSamples)
+            .put(IndicesWriteLoadStore.MAX_CONCURRENT_REQUESTS_SETTING.getKey(), maxConcurrentRequests)
+            .build();
         try (
             var client = new MockClient(threadPool);
-            var indicesWriteLoadStore = new IndicesWriteLoadStore(threadPool, client, clusterSettings, testDefaultSettings, () -> {
-                flushWritesLatch.countDown();
-                return true;
-            })
+            var indicesWriteLoadStore = new IndicesWriteLoadStore(threadPool, client, clusterSettings, settings)
         ) {
-
-            final var calledTimes = new AtomicInteger();
+            final var receivedBulkRequestCount = new AtomicInteger();
             final Queue<ActionListener<BulkResponse>> pendingListeners = new ConcurrentLinkedQueue<>();
             client.setHandler((action, request, listener) -> {
-                calledTimes.incrementAndGet();
+                receivedBulkRequestCount.incrementAndGet();
 
                 pendingListeners.add((ActionListener<BulkResponse>) listener);
             });
 
-            {
-                final int numberOfSamples = randomIntBetween(1, 100);
+            for (int i = 1; i <= maxConcurrentRequests; i++) {
+                final int currentRequest = i;
                 indexRandomSamples(indicesWriteLoadStore, numberOfSamples);
-                assertBusy(() -> assertThat(calledTimes.get(), equalTo(1)));
-                assertThat(pendingListeners.size(), is(equalTo(1)));
+                assertBusy(() -> assertThat(receivedBulkRequestCount.get(), equalTo(currentRequest)));
+                assertThat(pendingListeners.size(), is(equalTo(currentRequest)));
             }
 
-            {
-                final int numberOfSamples = randomIntBetween(1, 100);
-                indexRandomSamples(indicesWriteLoadStore, numberOfSamples);
-                assertBusy(() -> assertThat(calledTimes.get(), equalTo(1)));
-            }
+            assertThat(receivedBulkRequestCount.get(), equalTo(maxConcurrentRequests));
+            assertThat(pendingListeners.size(), equalTo(maxConcurrentRequests));
 
-            flushWritesLatch.await();
+            // Since there are maxConcurrentRequest sent the call to indexRandomSamples would block
+            // the thread until some outstanding request is done, therefore we need to spin up a new
+            // thread to avoid blocking the test thread.
+            var thread = new Thread(() -> indexRandomSamples(indicesWriteLoadStore, numberOfSamples));
+            thread.start();
+            assertBusy(() -> assertThat(receivedBulkRequestCount.get(), equalTo(maxConcurrentRequests)));
 
-            {
+            for (int i = 0; i < maxConcurrentRequests; i++) {
                 final var listener = pendingListeners.poll();
                 assertThat(listener, is(notNullValue()));
-                listener.onResponse(getSuccessfulResponse(100));
+                listener.onResponse(getSuccessfulResponse(numberOfSamples));
             }
 
-            assertBusy(() -> assertThat(calledTimes.get(), equalTo(2)));
+            assertBusy(() -> assertThat(receivedBulkRequestCount.get(), equalTo(maxConcurrentRequests + 1)));
+            assertThat(pendingListeners.size(), is(equalTo(1)));
 
-            {
-                final var listener = pendingListeners.poll();
-                assertThat(listener, is(notNullValue()));
-                listener.onResponse(getSuccessfulResponse(100));
-            }
+            final var listener = pendingListeners.poll();
+            assertThat(listener, is(notNullValue()));
+            listener.onResponse(getSuccessfulResponse(100));
+
+            thread.join(TimeValue.timeValueSeconds(5).getMillis());
         }
     }
 
     public void testPartialFailuresAreLogged() throws Exception {
+        final var numberOfSamples = randomIntBetween(2, 100);
+        final var settings = Settings.builder().put(IndicesWriteLoadStore.MAX_DOCUMENTS_PER_BULK_SETTING.getKey(), numberOfSamples).build();
         try (
             var client = new MockClient(threadPool);
-            var indicesWriteLoadStore = new IndicesWriteLoadStore(threadPool, client, clusterSettings, testDefaultSettings)
+            var indicesWriteLoadStore = new IndicesWriteLoadStore(threadPool, client, clusterSettings, settings)
         ) {
-            final var numberOfSamples = randomIntBetween(2, 100);
             final var latch = new CountDownLatch(1);
             client.setHandler((action, request, listener) -> {
                 BulkRequest bulkRequest = (BulkRequest) request;
@@ -313,33 +321,103 @@ public class IndicesWriteLoadStoreTests extends ESTestCase {
         }
     }
 
+    public void testPendingSamplesAreFlushedOnClose() throws Exception {
+        final var numberOfSamples = randomIntBetween(2, 100);
+        final var settings = Settings.builder()
+            .put(IndicesWriteLoadStore.MAX_DOCUMENTS_PER_BULK_SETTING.getKey(), numberOfSamples + 1)
+            .build();
+        final var receivedBulkRequestCount = new AtomicInteger();
+        try (
+            var client = new MockClient(threadPool);
+            var indicesWriteLoadStore = new IndicesWriteLoadStore(threadPool, client, clusterSettings, settings)
+        ) {
+            client.setHandler((action, request, listener) -> {
+                receivedBulkRequestCount.incrementAndGet();
+                BulkRequest bulkRequest = (BulkRequest) request;
+
+                int indexRequestCount = bulkRequest.numberOfActions();
+                ((ActionListener<BulkResponse>) listener).onResponse(getSuccessfulResponse(indexRequestCount));
+            });
+
+            indexRandomSamples(indicesWriteLoadStore, numberOfSamples);
+
+            assertThat(receivedBulkRequestCount.get(), is(equalTo(0)));
+        }
+
+        assertBusy(() -> assertThat(receivedBulkRequestCount.get(), is(equalTo(1))));
+    }
+
+    public void testMaxBulkSizeIsConfigurable() throws Exception {
+        final var maxBulkSize = ByteSizeValue.ofMb(1); // ByteSizeValue.ofKb(randomIntBetween(10, 100));
+        final var averageDocumentSizeInBytes = getWriteLoadDistributionSerializedSize() + 100; // Add some overhead just in case...
+        final var maxDocumentsPerBulk = (int) Math.ceil((double) maxBulkSize.getBytes() / averageDocumentSizeInBytes);
+
+        final var settings = Settings.builder().put(IndicesWriteLoadStore.MAX_BULK_SIZE_SETTING.getKey(), maxBulkSize).build();
+        final var receivedBulkRequestCount = new AtomicInteger();
+        try (
+            var client = new MockClient(threadPool);
+            var indicesWriteLoadStore = new IndicesWriteLoadStore(threadPool, client, clusterSettings, settings)
+        ) {
+            client.setHandler((action, request, listener) -> {
+                receivedBulkRequestCount.incrementAndGet();
+                BulkRequest bulkRequest = (BulkRequest) request;
+
+                int indexRequestCount = bulkRequest.numberOfActions();
+
+                assertThat(indexRequestCount, is(lessThanOrEqualTo(maxDocumentsPerBulk)));
+                ((ActionListener<BulkResponse>) listener).onResponse(getSuccessfulResponse(indexRequestCount));
+            });
+
+            indexRandomSamples(indicesWriteLoadStore, maxDocumentsPerBulk / 2);
+
+            // We're still below the threshold of 10kb
+            assertThat(receivedBulkRequestCount.get(), is(equalTo(0)));
+
+            indexRandomSamples(indicesWriteLoadStore, maxDocumentsPerBulk);
+
+            assertThat(receivedBulkRequestCount.get(), is(equalTo(1)));
+        }
+
+        // Ensure that the remaining docs are flushed after closing the store
+        assertThat(receivedBulkRequestCount.get(), is(equalTo(2)));
+    }
+
     private void indexRandomSamples(IndicesWriteLoadStore indicesWriteLoadStore, int numberOfSamples) {
         int remainingSamples = numberOfSamples;
         while (remainingSamples > 0) {
             final int batchSamples = randomIntBetween(1, remainingSamples);
             final var shardWriteLoadDistributions = new ArrayList<ShardWriteLoadDistribution>(batchSamples);
             for (int i = 0; i < batchSamples; i++) {
-                shardWriteLoadDistributions.add(
-                    new ShardWriteLoadDistribution(
-                        System.currentTimeMillis(),
-                        "parent",
-                        new ShardId("index", "uuid", 0),
-                        randomBoolean(),
-                        randomDouble(),
-                        randomDouble(),
-                        randomDouble(),
-                        randomDouble(),
-                        randomDouble(),
-                        randomDouble(),
-                        randomDouble(),
-                        randomDouble(),
-                        randomDouble()
-                    )
-                );
+                shardWriteLoadDistributions.add(getRandomWriteLoadDistribution());
             }
             indicesWriteLoadStore.putAsync(shardWriteLoadDistributions);
             remainingSamples -= batchSamples;
         }
+    }
+
+    private long getWriteLoadDistributionSerializedSize() throws IOException {
+        try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+            getRandomWriteLoadDistribution().toXContent(builder, ToXContent.EMPTY_PARAMS);
+            return BytesReference.bytes(builder).length();
+        }
+    }
+
+    private ShardWriteLoadDistribution getRandomWriteLoadDistribution() {
+        return new ShardWriteLoadDistribution(
+            System.currentTimeMillis(),
+            "parent",
+            new ShardId("index", "uuid", 0),
+            randomBoolean(),
+            randomDouble(),
+            randomDouble(),
+            randomDouble(),
+            randomDouble(),
+            randomDouble(),
+            randomDouble(),
+            randomDouble(),
+            randomDouble(),
+            randomDouble()
+        );
     }
 
     private BulkResponse getSuccessfulResponse(int numberOps) {

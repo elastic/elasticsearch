@@ -188,7 +188,7 @@ public class IndicesWriteLoadStatsService extends AbstractLifecycleComponent {
             return;
         }
 
-        scheduledSampling = threadPool.schedule(this::collectWriteLoadSamples, samplingFrequency, ThreadPool.Names.GENERIC);
+        scheduledSampling = threadPool.schedule(this::collectWriteLoadSamples, samplingFrequency, ThreadPool.Names.WRITE_LOAD_COLLECTOR);
     }
 
     private void maybeScheduleStore() {
@@ -196,6 +196,6 @@ public class IndicesWriteLoadStatsService extends AbstractLifecycleComponent {
             return;
         }
 
-        scheduledStore = threadPool.schedule(this::storeWriteLoadDistributions, storeFrequency, ThreadPool.Names.GENERIC);
+        scheduledStore = threadPool.schedule(this::storeWriteLoadDistributions, storeFrequency, ThreadPool.Names.WRITE_LOAD_COLLECTOR);
     }
 }

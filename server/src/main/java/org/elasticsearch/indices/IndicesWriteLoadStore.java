@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
@@ -42,7 +43,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 public class IndicesWriteLoadStore implements Closeable {
@@ -58,10 +58,24 @@ public class IndicesWriteLoadStore implements Closeable {
         1,
         Setting.Property.NodeScope
     );
-    public static final Setting<TimeValue> FLUSH_INTERVAL_SETTING = Setting.timeSetting(
-        "indices.write_load.store.flush_interval",
-        TimeValue.timeValueSeconds(5),
-        TimeValue.timeValueSeconds(1),
+    // Average document size is ~450 bytes -> 1Mb / 450b = ~2000 docs
+    public static final Setting<ByteSizeValue> MAX_BULK_SIZE_SETTING = Setting.byteSizeSetting(
+        "indices.write_load.store.max_bulk_size",
+        ByteSizeValue.ofMb(1),
+        Setting.Property.NodeScope
+    );
+    public static final Setting<Integer> MAX_DOCUMENTS_PER_BULK_SETTING = Setting.intSetting(
+        "indices.write_load.store.max_documents",
+        2000,
+        1,
+        10000, // That sets an upper bound of ~5Mb
+        Setting.Property.NodeScope
+    );
+    public static final Setting<Integer> MAX_CONCURRENT_REQUESTS_SETTING = Setting.intSetting(
+        "indices.write_load.store.max_concurrent_requests",
+        1,
+        0,
+        10,
         Setting.Property.NodeScope
     );
 
@@ -100,23 +114,23 @@ public class IndicesWriteLoadStore implements Closeable {
         }
     }
 
-    private final Logger logger = LogManager.getLogger(IndicesWriteLoadStore.class);
+    private static final Logger logger = LogManager.getLogger(IndicesWriteLoadStore.class);
     private final BulkProcessor bulkProcessor;
     private volatile boolean enabled;
 
     public IndicesWriteLoadStore(ThreadPool threadPool, Client client, ClusterSettings clusterSettings, Settings settings) {
-        this(threadPool, client, clusterSettings, settings, () -> true);
+        this(createBulkProcessor(settings, threadPool, client), clusterSettings, settings);
     }
 
-    // Visible for testing
-    IndicesWriteLoadStore(
-        ThreadPool threadPool,
-        Client client,
-        ClusterSettings clusterSettings,
-        Settings settings,
-        Supplier<Boolean> flushCondition
-    ) {
-        this.bulkProcessor = BulkProcessor.builder(client, new BulkProcessor.Listener() {
+    IndicesWriteLoadStore(BulkProcessor bulkProcessor, ClusterSettings clusterSettings, Settings settings) {
+        this.bulkProcessor = bulkProcessor;
+
+        this.enabled = ENABLED_SETTING.get(settings);
+        clusterSettings.addSettingsUpdateConsumer(ENABLED_SETTING, this::setEnabled);
+    }
+
+    static BulkProcessor createBulkProcessor(Settings settings, ThreadPool threadPool, Client client) {
+        return BulkProcessor.builder(client, new BulkProcessor.Listener() {
             @Override
             public void beforeBulk(long executionId, BulkRequest request) {}
 
@@ -142,14 +156,11 @@ public class IndicesWriteLoadStore implements Closeable {
                 logger.warn(new ParameterizedMessage("Failed to index {} items into indices write load index", items), failure);
             }
         }, threadPool, threadPool, () -> {})
-            .setBulkActions(-1)
-            .setFlushInterval(FLUSH_INTERVAL_SETTING.get(settings))
-            .setConcurrentRequests(1)
+            .setBulkActions(MAX_DOCUMENTS_PER_BULK_SETTING.get(settings))
+            .setBulkSize(MAX_BULK_SIZE_SETTING.get(settings))
+            .setConcurrentRequests(MAX_CONCURRENT_REQUESTS_SETTING.get(settings))
             .setBackoffPolicy(BackoffPolicy.exponentialBackoff(TimeValue.timeValueMillis(1000), MAX_RETRIES_SETTING.get(settings)))
-            .setFlushCondition(flushCondition)
             .build();
-        this.enabled = ENABLED_SETTING.get(settings);
-        clusterSettings.addSettingsUpdateConsumer(ENABLED_SETTING, this::setEnabled);
     }
 
     void putAsync(List<ShardWriteLoadDistribution> shardWriteLoadDistributions) {

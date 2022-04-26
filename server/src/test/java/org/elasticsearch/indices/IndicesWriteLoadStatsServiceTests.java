@@ -8,7 +8,7 @@
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.action.bulk.BulkProcessor;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -16,7 +16,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.TestThreadPool;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayDeque;
 import java.util.Collections;
@@ -159,7 +158,7 @@ public class IndicesWriteLoadStatsServiceTests extends ESTestCase {
         final AtomicInteger putAsyncCalls = new AtomicInteger();
 
         InstrumentedWriteLoadStore(ClusterSettings clusterSettings, Settings settings) {
-            super(mock(ThreadPool.class), mock(Client.class), clusterSettings, settings);
+            super(mock(BulkProcessor.class), clusterSettings, settings);
         }
 
         @Override
@@ -204,6 +203,7 @@ public class IndicesWriteLoadStatsServiceTests extends ESTestCase {
 
         @Override
         public ScheduledCancellable schedule(Runnable command, TimeValue delay, String executor) {
+            assertThat(executor, is(equalTo(Names.WRITE_LOAD_COLLECTOR)));
             var scheduledTask = new ScheduledTask(command, delay);
             scheduledTasks.add(scheduledTask);
             return scheduledTask;

@@ -27,6 +27,3 @@ testClusters.configureEach {
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.security.autoconfiguration.enabled', 'false'
 }
-
-// This plugin do not have unit tests
-tasks.named("testingConventions").configure { enabled = false }

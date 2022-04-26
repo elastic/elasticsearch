@@ -53,7 +53,9 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
@@ -93,7 +95,7 @@ public class IndicesWriteLoadIT extends ESIntegTestCase {
         return Settings.builder()
             .put(settings)
             .put(NODE_PROCESSORS_SETTING.getKey(), 1)
-            .put(IndicesWriteLoadStore.FLUSH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(1))
+            .put(IndicesWriteLoadStore.MAX_DOCUMENTS_PER_BULK_SETTING.getKey(), 1)
             .put(IndicesWriteLoadStatsService.STORE_FREQUENCY_SETTING.getKey(), TimeValue.timeValueSeconds(5))
             .build();
     }
@@ -234,14 +236,18 @@ public class IndicesWriteLoadIT extends ESIntegTestCase {
 
         final var rolloverResponse = client().admin().indices().prepareRolloverIndex(dataStream).get();
         assertThat(rolloverResponse.isRolledOver(), is(equalTo(true)));
-        final var timestampAfterDataStreamRollover = System.currentTimeMillis();
+        final var timestampAfterDataStreamRollover = new AtomicLong(System.currentTimeMillis());
 
         assertBusy(() -> {
             final var shardWriteLoadDistributions = getShardWriteLoadDistributionsForDataStreams(
-                timestampAfterDataStreamRollover,
+                timestampAfterDataStreamRollover.get(),
                 dataStream
             );
             assertThat(shardWriteLoadDistributions, is(not(empty())));
+            // The first stored sample after rollover might contain the last reading from the previous write index,
+            // therefore we should search from that point onwards to ensure that we only store samples for the new
+            // write index
+            timestampAfterDataStreamRollover.set(System.currentTimeMillis());
             for (ShardWriteLoadDistribution shardWriteLoadDistribution : shardWriteLoadDistributions) {
                 assertThat(
                     shardWriteLoadDistributions.stream().map(ShardWriteLoadDistribution::shardId).toList().toString(),
@@ -249,7 +255,7 @@ public class IndicesWriteLoadIT extends ESIntegTestCase {
                     is(endsWith("000002"))
                 );
             }
-        });
+        }, 20, TimeUnit.SECONDS);
     }
 
     public void testSamplesAreNotCollectedAfterDisablingService() throws Exception {

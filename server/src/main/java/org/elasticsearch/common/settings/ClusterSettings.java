@@ -520,7 +520,9 @@ public final class ClusterSettings extends AbstractScopedSettings {
         IndicesWriteLoadStatsService.STORE_FREQUENCY_SETTING,
         IndicesWriteLoadStore.ENABLED_SETTING,
         IndicesWriteLoadStore.MAX_RETRIES_SETTING,
-        IndicesWriteLoadStore.FLUSH_INTERVAL_SETTING
+        IndicesWriteLoadStore.MAX_BULK_SIZE_SETTING,
+        IndicesWriteLoadStore.MAX_DOCUMENTS_PER_BULK_SETTING,
+        IndicesWriteLoadStore.MAX_CONCURRENT_REQUESTS_SETTING
     );
 
     static List<SettingUpgrader<?>> BUILT_IN_SETTING_UPGRADERS = Collections.emptyList();

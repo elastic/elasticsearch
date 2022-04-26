@@ -46,7 +46,6 @@ import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.QueryApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationContext;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
@@ -588,14 +587,12 @@ public class AuthorizationService {
 
     // pkg-private for testing
     AuthorizationEngine getRunAsAuthorizationEngine(final Authentication authentication) {
-        final Subject subject = AuthenticationContext.fromAuthentication(authentication).getAuthenticatingSubject();
-        return getAuthorizationEngineForSubject(subject);
+        return getAuthorizationEngineForSubject(authentication.getAuthenticatingSubject());
     }
 
     // pkg-private for testing
     AuthorizationEngine getAuthorizationEngine(final Authentication authentication) {
-        final Subject subject = AuthenticationContext.fromAuthentication(authentication).getEffectiveSubject();
-        return getAuthorizationEngineForSubject(subject);
+        return getAuthorizationEngineForSubject(authentication.getEffectiveSubject());
     }
 
     AuthorizationEngine getAuthorizationEngineForSubject(final Subject subject) {

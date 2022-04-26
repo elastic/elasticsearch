@@ -165,6 +165,7 @@ public class IncludeExclude implements Writeable, ToXContentFragment {
                 return java.lang.Long.hashCode(value);
             }
         }
+
         private Set<Long> valids;
         private Set<Long> invalids;
 

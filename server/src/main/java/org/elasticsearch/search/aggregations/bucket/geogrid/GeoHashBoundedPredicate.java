@@ -63,7 +63,7 @@ public class GeoHashBoundedPredicate {
     }
 
     /**
-     * upper bounds og geohashes intersecting this bounds at the precision provided in the constructor.
+     * upper bounds on count of geohashes intersecting this bounds at the precision provided in the constructor.
      */
     public long getMaxHashes() {
         return maxHashes;

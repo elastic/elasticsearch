@@ -2189,13 +2189,13 @@ used in conjunction with the `hmac_key` setting. Refer to
 // tag::jwt-hmac-key-tag[]
 `hmac_key` {ess-icon}::
 (<<secure-settings,Secure>>)
-The contents of a JSON Web Key with the secret key material that
-the JWT Realm uses for verifying token signatures.
-This format is compatible with OIDC HMAC key encoding, where
-the HMAC key bytes are the UTF-8 encoding of the UNICODE characters.
-This format only supports a single key with no attributes.
-Only one of `hmac_jwkset` or `hmac_key` can be used simultaneously.
-Using the HMAC JWK Set is preferred.
+Contents of a single JSON Web Key (JWK), including the secret key that the JWT 
+realm uses to verify token signatures. This format only supports a single key 
+without attributes, and cannot be used with the `hmac_jwkset` setting. This
+format is compatible with the OIDC HMAC encoding, where the HMAC key bytes are 
+UTF-8 encoded. The `hmac_jwkset` setting is preferred. Refer to
+<<jwt-realm-configuration,Configure {es} to use a JWT realm>>.
+
 // end::jwt-hmac-key-tag[]
 
 // tag::jwt-populate-user-metadata-tag[]

@@ -10,13 +10,8 @@ package org.elasticsearch.cluster.coordination;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NotMasterException;
-import org.elasticsearch.cluster.SimpleDiffable;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
 import org.elasticsearch.cluster.service.MasterService;
@@ -24,35 +19,23 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
-import org.elasticsearch.core.Releasable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.CapturingTransport.CapturedRequest;
-import org.elasticsearch.test.transport.MockTransport;
-import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xcontent.XContentBuilder;
 
-import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -63,10 +46,7 @@ import static org.elasticsearch.monitor.StatusInfo.Status.UNHEALTHY;
 import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.elasticsearch.transport.AbstractSimpleTransportTestCase.IGNORE_DESERIALIZATION_ERRORS_SETTING;
 import static org.elasticsearch.transport.TransportService.HANDSHAKE_ACTION_NAME;
-import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.core.Is.is;
 
 public class JoinHelperTests extends ESTestCase {
@@ -87,15 +67,12 @@ public class JoinHelperTests extends ESTestCase {
             new ClusterConnectionManager(Settings.EMPTY, capturingTransport, threadPool.getThreadContext())
         );
         JoinHelper joinHelper = new JoinHelper(
-            Settings.EMPTY,
             null,
             new FakeThreadPoolMasterService("node0", "master", threadPool, deterministicTaskQueue::scheduleNow),
             transportService,
             () -> 0L,
-            () -> null,
             (joinRequest, joinCallback) -> { throw new AssertionError(); },
             startJoinRequest -> { throw new AssertionError(); },
-            Collections.emptyList(),
             (s, p, r) -> {},
             () -> new StatusInfo(HEALTHY, "info"),
             new JoinReasonService(() -> 0L)
@@ -311,15 +288,12 @@ public class JoinHelperTests extends ESTestCase {
         MasterService masterService = new FakeThreadPoolMasterService("node0", "master", threadPool, deterministicTaskQueue::scheduleNow);
         AtomicReference<StatusInfo> nodeHealthServiceStatus = new AtomicReference<>(new StatusInfo(UNHEALTHY, "unhealthy-info"));
         JoinHelper joinHelper = new JoinHelper(
-            Settings.EMPTY,
             null,
             masterService,
             transportService,
             () -> 0L,
-            () -> null,
             (joinRequest, joinCallback) -> { throw new AssertionError(); },
             startJoinRequest -> { throw new AssertionError(); },
-            Collections.emptyList(),
             (s, p, r) -> {},
             nodeHealthServiceStatus::get,
             new JoinReasonService(() -> 0L)
@@ -453,26 +427,5 @@ public class JoinHelperTests extends ESTestCase {
                 super.onSendRequest(requestId, action, request, node);
             }
         }
-    }
-
-    private static class BadCustom implements SimpleDiffable<ClusterState.Custom>, ClusterState.Custom {
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return builder;
-        }
-
-        @Override
-        public String getWriteableName() {
-            return "deliberately-unknown";
-        }
-
-        @Override
-        public Version getMinimalSupportedVersion() {
-            return Version.CURRENT;
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {}
     }
 }

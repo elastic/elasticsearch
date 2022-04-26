@@ -71,6 +71,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication.Authentication
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.Hasher;
@@ -119,6 +120,7 @@ import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.test.SecurityIntegTestCase.getFastStoredHashAlgoForTests;
 import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
+import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_ID_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_METADATA_KEY;
 import static org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore.SUPERUSER_ROLE_DESCRIPTOR;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
@@ -189,11 +191,10 @@ public class ApiKeyServiceTests extends ESTestCase {
     public void testCreateApiKeyUsesBulkIndexAction() throws Exception {
         final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
         final ApiKeyService service = createApiKeyService(settings);
-        final Authentication authentication = new Authentication(
-            new User("alice", "superuser"),
-            new RealmRef("file", "file", "node-1"),
-            null
-        );
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User("alice", "superuser"))
+            .realmRef(new RealmRef("file", "file", "node-1"))
+            .build(false);
         final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest("key-1", null, null);
         when(client.prepareIndex(anyString())).thenReturn(new IndexRequestBuilder(client, IndexAction.INSTANCE));
         when(client.threadPool()).thenReturn(threadPool);
@@ -339,11 +340,10 @@ public class ApiKeyServiceTests extends ESTestCase {
     public void testCreateApiKeyWillCacheOnCreation() {
         final Settings settings = Settings.builder().put(XPackSettings.API_KEY_SERVICE_ENABLED_SETTING.getKey(), true).build();
         final ApiKeyService service = createApiKeyService(settings);
-        final Authentication authentication = new Authentication(
-            new User(randomAlphaOfLengthBetween(8, 16), "superuser"),
-            new RealmRef(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)),
-            null
-        );
+        final Authentication authentication = AuthenticationTestHelper.builder()
+            .user(new User(randomAlphaOfLengthBetween(8, 16), "superuser"))
+            .realmRef(new RealmRef(randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8), randomAlphaOfLengthBetween(3, 8)))
+            .build(false);
         final CreateApiKeyRequest createApiKeyRequest = new CreateApiKeyRequest(randomAlphaOfLengthBetween(3, 8), null, null);
         when(client.prepareIndex(anyString())).thenReturn(new IndexRequestBuilder(client, IndexAction.INSTANCE));
         when(client.threadPool()).thenReturn(threadPool);
@@ -1683,20 +1683,21 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertEquals(new BytesArray("{}"), apiKeyDoc.roleDescriptorsBytes);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86179")
     public void testGetApiKeyMetadata() throws IOException {
-        final Authentication apiKeyAuthentication = mock(Authentication.class);
-        when(apiKeyAuthentication.getAuthenticationType()).thenReturn(AuthenticationType.API_KEY);
-        when(apiKeyAuthentication.getAuthenticatedBy()).thenReturn(
-            new RealmRef(AuthenticationField.API_KEY_REALM_NAME, AuthenticationField.API_KEY_REALM_TYPE, randomAlphaOfLengthBetween(3, 8))
-        );
-        when(apiKeyAuthentication.isAuthenticatedAsApiKey()).thenCallRealMethod();
+        final Map<String, Object> metadata;
         final Map<String, Object> apiKeyMetadata = ApiKeyTests.randomMetadata();
         if (apiKeyMetadata == null) {
-            when(apiKeyAuthentication.getMetadata()).thenReturn(Map.of());
+            metadata = Map.of(API_KEY_ID_KEY, randomAlphaOfLength(20));
         } else {
             final BytesReference metadataBytes = XContentTestUtils.convertToXContent(apiKeyMetadata, XContentType.JSON);
-            when(apiKeyAuthentication.getMetadata()).thenReturn(Map.of(API_KEY_METADATA_KEY, metadataBytes));
+            metadata = Map.of(API_KEY_ID_KEY, randomAlphaOfLength(20), API_KEY_METADATA_KEY, metadataBytes);
         }
+
+        final Authentication apiKeyAuthentication = Authentication.newApiKeyAuthentication(
+            AuthenticationResult.success(AuthenticationTests.randomUser(), metadata),
+            randomAlphaOfLengthBetween(3, 8)
+        );
 
         final Map<String, Object> restoredApiKeyMetadata = ApiKeyService.getApiKeyMetadata(apiKeyAuthentication);
         if (apiKeyMetadata == null) {
@@ -1705,9 +1706,9 @@ public class ApiKeyServiceTests extends ESTestCase {
             assertThat(restoredApiKeyMetadata, equalTo(apiKeyMetadata));
         }
 
-        final Authentication authentication = mock(Authentication.class);
-        when(authentication.getAuthenticatedBy()).thenReturn(
-            new RealmRef(randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(5, 10), randomAlphaOfLengthBetween(3, 8))
+        final Authentication authentication = AuthenticationTests.randomAuthentication(
+            AuthenticationTests.randomUser(),
+            AuthenticationTests.randomRealmRef(randomBoolean())
         );
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,

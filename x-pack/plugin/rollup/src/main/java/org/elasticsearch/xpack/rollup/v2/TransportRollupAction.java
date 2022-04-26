@@ -139,6 +139,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                     "Rollup requires setting [" + IndexMetadata.SETTING_BLOCKS_WRITE + " = true] for index [" + sourceIndexName + "]"
                 )
             );
+            return;
         }
 
         final String rollupIndexName = request.getRollupIndex();

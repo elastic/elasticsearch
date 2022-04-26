@@ -56,8 +56,12 @@ public class VersionStringDocValuesField extends AbstractScriptFieldFactory<Vers
 
     @Override
     public String getInternal(int index) {
+        return VersionEncoder.decodeVersion(getBytesRefInternal(index));
+    }
+
+    private BytesRef getBytesRefInternal(int index) {
         try {
-            return VersionEncoder.decodeVersion(input.lookupOrd(ords[index]));
+            return input.lookupOrd(ords[index]);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
@@ -120,8 +124,7 @@ public class VersionStringDocValuesField extends AbstractScriptFieldFactory<Vers
         if (isEmpty() || index < 0 || index >= size()) {
             return defaultValue;
         }
-
-        return getVersionFromInternal(index);
+        return new Version(getBytesRefInternal(index));
     }
 
     /**
@@ -144,19 +147,8 @@ public class VersionStringDocValuesField extends AbstractScriptFieldFactory<Vers
                 if (hasNext() == false) {
                     throw new NoSuchElementException();
                 }
-
-                return getVersionFromInternal(index++);
+                return new Version(getBytesRefInternal(index++));
             }
         };
-    }
-
-    private Version getVersionFromInternal(int index) {
-        try {
-            BytesRef bytes = input.lookupOrd(ords[index]);
-            // TODO deep copy of the BytesRef?
-            return new Version(VersionEncoder.decodeVersion(bytes), bytes);
-        } catch (IOException ex) {
-            throw new RuntimeException(ex);
-        }
     }
 }

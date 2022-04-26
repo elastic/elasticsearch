@@ -75,7 +75,7 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
     private NestedSortBuilder nestedSort;
 
-    private DocValueFormat customScriptResultValueFormat = DocValueFormat.RAW;
+    private DocValueFormat scriptResultValueFormat = DocValueFormat.RAW;
 
     /**
      * Constructs a script sort builder with the given script.
@@ -255,14 +255,14 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
             try {
                 // TODO there must be a better way to get the field type...
                 MappedFieldType scriptFieldType = context.buildAnonymousFieldType(this.type.toString());
-                customScriptResultValueFormat = scriptFieldType.docValueFormat(null, null);
+                scriptResultValueFormat = scriptFieldType.docValueFormat(null, null);
             } catch (Exception e) {
                 // "version" type is not available, fall back to RAW and sort as a string
             }
         }
         return new SortFieldAndFormat(
             new SortField("_script", fieldComparatorSource(context), order == SortOrder.DESC),
-            customScriptResultValueFormat == null ? DocValueFormat.RAW : customScriptResultValueFormat
+            scriptResultValueFormat == null ? DocValueFormat.RAW : scriptResultValueFormat
         );
     }
 
@@ -396,10 +396,10 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
                                     return ((BytesRefProducer) result).toBytesRef();
                                 }
 
-                                if (customScriptResultValueFormat == null) {
+                                if (scriptResultValueFormat == null) {
                                     throw new IllegalArgumentException("Invalid sort type: version");
                                 }
-                                return customScriptResultValueFormat.parseBytesRef(result);
+                                return scriptResultValueFormat.parseBytesRef(result);
                             }
                         };
                         return FieldData.singleton(values);

@@ -22,11 +22,12 @@ public class Version implements ToXContent, BytesRefProducer, Comparable<Version
     protected BytesRef bytes;
 
     public Version(String version) {
-        this(version, VersionEncoder.encodeVersion(version).bytesRef);
+        this.version = version;
+        this.bytes = VersionEncoder.encodeVersion(version).bytesRef;
     }
 
-    protected Version(String version, BytesRef bytes) {
-        this.version = version;
+    protected Version(BytesRef bytes) {
+        this.version = VersionEncoder.decodeVersion(bytes);
         this.bytes = bytes;
     }
 

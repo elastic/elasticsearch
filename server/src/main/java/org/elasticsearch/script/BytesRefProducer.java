@@ -10,6 +10,8 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.util.BytesRef;
 
+// decouples this module from org.elasticsearch.xpack.versionfield.Version field type
+// that is defined in x-pack
 public interface BytesRefProducer {
 
     BytesRef toBytesRef();

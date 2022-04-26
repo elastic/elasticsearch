@@ -73,7 +73,7 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
                     Collections.singletonList(
                         new HealthIndicatorImpact(
                             3,
-                            "Scheduled snapshots are not happening, which could lead to future data loss.",
+                            "Scheduled snapshots are not running, which could lead to future data loss.",
                             List.of(ImpactArea.SEARCH)
                         )
                     )

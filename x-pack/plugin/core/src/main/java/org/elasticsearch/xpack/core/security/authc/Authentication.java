@@ -29,8 +29,12 @@ import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.security.user.InternalUserSerializationHelper;
+import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
+import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
+import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
+import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
+import org.elasticsearch.xpack.core.security.user.XPackUser;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -111,7 +115,7 @@ public class Authentication implements ToXContentObject {
     }
 
     public Authentication(StreamInput in) throws IOException {
-        this.user = InternalUserSerializationHelper.readFrom(in);
+        this.user = AuthenticationSerializationHelper.readUserFrom(in);
         this.authenticatedBy = new RealmRef(in);
         if (in.readBoolean()) {
             this.lookedUpBy = new RealmRef(in);
@@ -245,7 +249,7 @@ public class Authentication implements ToXContentObject {
         assert false == getUser().isRunAs();
         assert AuthenticationType.REALM == getAuthenticationType() || AuthenticationType.API_KEY == getAuthenticationType();
         return new Authentication(
-            new User(runAs, getUser()),
+            new RunAsUser(runAs, getUser()),
             getAuthenticatedBy(),
             lookupRealmRef,
             getVersion(),
@@ -304,7 +308,7 @@ public class Authentication implements ToXContentObject {
         final String[] allRoleNames = ArrayUtils.concat(getUser().roles(), anonymousUser.roles());
 
         return new Authentication(
-            new User(
+            new RunAsUser(
                 new User(
                     getUser().principal(),
                     allRoleNames,
@@ -394,7 +398,7 @@ public class Authentication implements ToXContentObject {
     }
 
     public void writeTo(StreamOutput out) throws IOException {
-        InternalUserSerializationHelper.writeTo(user, out);
+        AuthenticationSerializationHelper.writeUserTo(user, out);
         authenticatedBy.writeTo(out);
         if (lookedUpBy != null) {
             out.writeBoolean(true);
@@ -873,5 +877,97 @@ public class Authentication implements ToXContentObject {
         TOKEN,
         ANONYMOUS,
         INTERNAL
+    }
+
+    // Package private for testing
+    static class RunAsUser extends User {
+        final User authenticatingUser;
+
+        RunAsUser(User effectiveUser, User authenticatingUser) {
+            super(
+                effectiveUser.principal(),
+                effectiveUser.roles(),
+                effectiveUser.fullName(),
+                effectiveUser.email(),
+                effectiveUser.metadata(),
+                effectiveUser.enabled()
+            );
+            this.authenticatingUser = authenticatingUser;
+        }
+    }
+
+    public static class AuthenticationSerializationHelper {
+
+        private AuthenticationSerializationHelper() {}
+
+        public static User readUserFrom(StreamInput input) throws IOException {
+            final boolean isInternalUser = input.readBoolean();
+            final String username = input.readString();
+            if (isInternalUser) {
+                if (SystemUser.is(username)) {
+                    return SystemUser.INSTANCE;
+                } else if (XPackUser.is(username)) {
+                    return XPackUser.INSTANCE;
+                } else if (XPackSecurityUser.is(username)) {
+                    return XPackSecurityUser.INSTANCE;
+                } else if (SecurityProfileUser.is(username)) {
+                    return SecurityProfileUser.INSTANCE;
+                } else if (AsyncSearchUser.is(username)) {
+                    return AsyncSearchUser.INSTANCE;
+                }
+                throw new IllegalStateException("user [" + username + "] is not an internal user");
+            }
+            return partialReadUserFrom(username, input);
+        }
+
+        public static void writeUserTo(User user, StreamOutput output) throws IOException {
+            if (SystemUser.is(user)) {
+                output.writeBoolean(true);
+                output.writeString(SystemUser.NAME);
+            } else if (XPackUser.is(user)) {
+                output.writeBoolean(true);
+                output.writeString(XPackUser.NAME);
+            } else if (XPackSecurityUser.is(user)) {
+                output.writeBoolean(true);
+                output.writeString(XPackSecurityUser.NAME);
+            } else if (SecurityProfileUser.is(user)) {
+                output.writeBoolean(true);
+                output.writeString(SecurityProfileUser.NAME);
+            } else if (AsyncSearchUser.is(user)) {
+                output.writeBoolean(true);
+                output.writeString(AsyncSearchUser.NAME);
+            } else {
+                doWriteUserTo(user, output);
+            }
+        }
+
+        private static User partialReadUserFrom(String username, StreamInput input) throws IOException {
+            String[] roles = input.readStringArray();
+            Map<String, Object> metadata = input.readMap();
+            String fullName = input.readOptionalString();
+            String email = input.readOptionalString();
+            boolean enabled = input.readBoolean();
+            User outerUser = new User(username, roles, fullName, email, metadata, enabled);
+            boolean hasInnerUser = input.readBoolean();
+            if (hasInnerUser) {
+                User innerUser = readUserFrom(input);
+                assert false == User.isInternal(innerUser) : "authenticating user cannot be internal";
+                return new RunAsUser(outerUser, innerUser);
+            } else {
+                return outerUser;
+            }
+        }
+
+        private static void doWriteUserTo(User user, StreamOutput output) throws IOException {
+            if (user instanceof RunAsUser runAsUser) {
+                User.writeUser(user, output);
+                output.writeBoolean(true);
+                User.writeUser(runAsUser.authenticatingUser, output);
+            } else {
+                // no backcompat necessary, since there is no inner user
+                User.writeUser(user, output);
+            }
+            output.writeBoolean(false); // last user written, regardless of bwc, does not have an inner user
+        }
     }
 }

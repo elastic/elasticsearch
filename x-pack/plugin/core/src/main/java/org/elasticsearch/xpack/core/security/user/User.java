@@ -7,12 +7,12 @@
 package org.elasticsearch.xpack.core.security.user;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -116,7 +116,7 @@ public class User implements ToXContentObject {
     }
 
     /**
-     * @deprecated We are transitioning to AuthenticationContext which frees User from managing the run-as information.
+     * @deprecated Use {@link Authentication#getAuthenticatingSubject()}.
      * @return The user that was originally authenticated.
      * This may be the user itself, or a different user which used runAs.
      */
@@ -126,7 +126,7 @@ public class User implements ToXContentObject {
     }
 
     /**
-     * @deprecated We are transitioning to AuthenticationContext which frees User from managing the run-as information.
+     * @deprecated Use {@link Authentication#isRunAs()}.
      * Return true if this user was not the originally authenticated user, false otherwise.
      * */
     @Deprecated
@@ -192,41 +192,6 @@ public class User implements ToXContentObject {
         return builder.endObject();
     }
 
-    public static User partialReadFrom(String username, StreamInput input) throws IOException {
-        String[] roles = input.readStringArray();
-        Map<String, Object> metadata = input.readMap();
-        String fullName = input.readOptionalString();
-        String email = input.readOptionalString();
-        boolean enabled = input.readBoolean();
-        User outerUser = new User(username, roles, fullName, email, metadata, enabled, null);
-        boolean hasInnerUser = input.readBoolean();
-        if (hasInnerUser) {
-            User innerUser = readFrom(input);
-            return new User(outerUser, innerUser);
-        } else {
-            return outerUser;
-        }
-    }
-
-    public static User readFrom(StreamInput input) throws IOException {
-        final boolean isInternalUser = input.readBoolean();
-        assert isInternalUser == false : "should always return false. Internal users should use the InternalUserSerializationHelper";
-        final String username = input.readString();
-        return partialReadFrom(username, input);
-    }
-
-    public static void writeTo(User user, StreamOutput output) throws IOException {
-        if (user.authenticatedUser == null) {
-            // no backcompat necessary, since there is no inner user
-            writeUser(user, output);
-        } else {
-            writeUser(user, output);
-            output.writeBoolean(true);
-            writeUser(user.authenticatedUser, output);
-        }
-        output.writeBoolean(false); // last user written, regardless of bwc, does not have an inner user
-    }
-
     public static boolean isInternal(User user) {
         return SystemUser.is(user)
             || XPackUser.is(user)
@@ -244,7 +209,7 @@ public class User implements ToXContentObject {
     }
 
     /** Write just the given {@link User}, but not the inner {@link #authenticatedUser}. */
-    private static void writeUser(User user, StreamOutput output) throws IOException {
+    public static void writeUser(User user, StreamOutput output) throws IOException {
         output.writeBoolean(false); // not a system user
         output.writeString(user.username);
         output.writeStringArray(user.roles);

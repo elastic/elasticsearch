@@ -139,6 +139,8 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
 
         //TODO do we want to optimize for the case where there are no collapsed paths in the mapping?
 
+        // TODO every time we don't expand, the not expanded path is evaluated again later. Shall we do something about that?
+
         //check if any of the parent objects has collapsed set to true
         if (context.isWithinCollapsedPath()) {
             return new String[] { fieldName };
@@ -164,7 +166,7 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
                 //concatenate the full path of the current element that we are parsing with the previously examined parts of the
                 //dotted name that we are splitting, to check if there's a collapsed object in between
                 String fullPath = context.path().pathAsText(currentPath.pathAsText(part));
-                ObjectMapper objectMapper = context.mappingLookup().objectMappers().get(fullPath);
+                ObjectMapper objectMapper = context.getObjectMapper(fullPath);
                 if (objectMapper != null && objectMapper.isCollapsed()) {
                     indexCollapsed = i;
                 }

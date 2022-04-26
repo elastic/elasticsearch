@@ -146,6 +146,16 @@ public abstract class DocumentParserContext {
         return mappingLookup;
     }
 
+    /**
+     * Returns the object mapper identified by the provided path. It could be already defined in the mapping
+     * or part of the dynamic updates triggered while parsing the current document
+     */
+    // TODO looks like we should migrate other consumers to calling this method
+    public final ObjectMapper getObjectMapper(String fieldPath) {
+        ObjectMapper objectMapper = mappingLookup.objectMappers().get(fieldPath);
+        return objectMapper == null ? dynamicObjectMappers.get(fieldPath) : objectMapper;
+    }
+
     public final boolean isWithinCollapsedPath() {
         String parentPath = path().pathAsText("");
         String[] parentPaths = new String[path().length()];
@@ -159,8 +169,7 @@ public abstract class DocumentParserContext {
             pathBuilder.append(c);
         }
         for (int j = parentPaths.length - 1; j >= 0; j--) {
-            String path = parentPaths[j];
-            ObjectMapper objectMapper = mappingLookup().objectMappers().get(path);
+            ObjectMapper objectMapper = getObjectMapper(parentPaths[j]);
             if (objectMapper != null) {
                 //going back from the longest parent path to the root, once we find an object mapper, either it is collapsed or its parent
                 //cannot be collapsed either as they would not be able to hold another object otherwise

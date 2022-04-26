@@ -36,10 +36,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.usage.UsageService;
-import org.hamcrest.Matchers;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -243,6 +241,7 @@ public class ActionModuleTests extends ESTestCase {
         }
     }
 
+    /*
     public void test3rdPartyHandlerIsNotInstalled() {
         Settings settings = Settings.builder().put("xpack.security.enabled", false).put("path.home", createTempDir()).build();
 
@@ -279,6 +278,7 @@ public class ActionModuleTests extends ESTestCase {
             threadPool.shutdown();
         }
     }
+    */
 
     class FakeHandler implements RestHandler {
         @Override

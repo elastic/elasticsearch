@@ -2179,11 +2179,11 @@ File-based resources are polled at a frequency determined by the global {es}
 // tag::jwt-hmac-jwkset-tag[]
 `hmac_jwkset` {ess-icon}::
 (<<secure-settings,Secure>>)
-The contents of a JSON Web Key Set with the secret key material that
-the JWT Realm uses for verifying token signatures.
-This format is compatible with multiple keys and optional attributes.
-Only one of `hmac_jwkset` or `hmac_key` can be used simultaneously.
-Using the HMAC JWK Set is preferred.
+Contents of a JSON Web Key Set (JWKS), including the secret key that the JWT 
+realm uses to verify token signatures. This format supports multiple keys and 
+optional attributes, and is preferred over the `hmac_key` setting. Cannot be
+used in conjunction with the `hmac_key` setting. Refer to
+<<jwt-realm-configuration,Configure {es} to use a JWT realm>>.
 // end::jwt-hmac-jwkset-tag[]
 
 // tag::jwt-hmac-key-tag[]

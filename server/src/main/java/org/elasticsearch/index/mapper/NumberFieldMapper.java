@@ -77,6 +77,8 @@ public class NumberFieldMapper extends FieldMapper {
         return (NumberFieldMapper) in;
     }
 
+    private static final Version MINIMUM_COMPATIBILITY_VERSION = Version.fromString("5.0.0");
+
     public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> indexed = Parameter.indexParam(m -> toType(m).indexed, true);
@@ -994,7 +996,10 @@ public class NumberFieldMapper extends FieldMapper {
         NumberType(String name, NumericType numericType) {
             this.name = name;
             this.numericType = numericType;
-            this.parser = new TypeParser((n, c) -> new Builder(n, this, c.scriptCompiler(), c.getSettings(), c.indexVersionCreated()));
+            this.parser = new TypeParser(
+                (n, c) -> new Builder(n, this, c.scriptCompiler(), c.getSettings(), c.indexVersionCreated()),
+                MINIMUM_COMPATIBILITY_VERSION
+            );
         }
 
         /** Get the associated type name. */

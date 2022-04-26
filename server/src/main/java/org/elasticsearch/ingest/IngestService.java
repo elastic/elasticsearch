@@ -28,6 +28,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
+import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.DataStream.TimestampField;
@@ -39,6 +40,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.regex.Regex;
@@ -332,13 +334,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     return innerDelete(request, currentState);
                 }
             },
+            ClusterStateTaskConfig.build(Priority.NORMAL, request.masterNodeTimeout()),
             PIPELINE_TASK_EXECUTOR
         );
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     static ClusterState innerDelete(DeletePipelineRequest request, ClusterState currentState) {
@@ -494,6 +497,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         return innerPut(request, currentState);
                     }
                 },
+                ClusterStateTaskConfig.build(Priority.NORMAL, request.masterNodeTimeout()),
                 PIPELINE_TASK_EXECUTOR
             );
         }, listener::onFailure));

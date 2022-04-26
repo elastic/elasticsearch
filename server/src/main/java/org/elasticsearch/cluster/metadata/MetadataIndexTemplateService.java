@@ -19,6 +19,7 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -182,8 +183,8 @@ public class MetadataIndexTemplateService {
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     public void removeTemplates(final RemoveRequest request, final ActionListener<AcknowledgedResponse> listener) {
@@ -215,6 +216,7 @@ public class MetadataIndexTemplateService {
                     return ClusterState.builder(currentState).metadata(metadata).build();
                 }
             },
+            ClusterStateTaskConfig.build(Priority.URGENT, request.masterTimeout),
             TEMPLATE_TASK_EXECUTOR
         );
     }
@@ -239,6 +241,7 @@ public class MetadataIndexTemplateService {
                     return addComponentTemplate(currentState, create, name, template);
                 }
             },
+            ClusterStateTaskConfig.build(Priority.URGENT, masterTimeout),
             TEMPLATE_TASK_EXECUTOR
         );
     }
@@ -400,6 +403,7 @@ public class MetadataIndexTemplateService {
                     return innerRemoveComponentTemplate(currentState, names);
                 }
             },
+            ClusterStateTaskConfig.build(Priority.URGENT, masterTimeout),
             TEMPLATE_TASK_EXECUTOR
         );
     }
@@ -506,6 +510,7 @@ public class MetadataIndexTemplateService {
                     return addIndexTemplateV2(currentState, create, name, template);
                 }
             },
+            ClusterStateTaskConfig.build(Priority.URGENT, masterTimeout),
             TEMPLATE_TASK_EXECUTOR
         );
     }
@@ -885,6 +890,7 @@ public class MetadataIndexTemplateService {
                     return innerRemoveIndexTemplateV2(currentState, names);
                 }
             },
+            ClusterStateTaskConfig.build(Priority.URGENT, masterTimeout),
             TEMPLATE_TASK_EXECUTOR
         );
     }
@@ -1009,6 +1015,7 @@ public class MetadataIndexTemplateService {
                     return innerPutTemplate(currentState, request, templateBuilder);
                 }
             },
+            ClusterStateTaskConfig.build(Priority.URGENT, request.masterTimeout),
             TEMPLATE_TASK_EXECUTOR
         );
     }
@@ -1457,7 +1464,7 @@ public class MetadataIndexTemplateService {
             try {
                 MapperService mapperService = tempIndexService.mapperService();
                 for (CompressedXContent mapping : mappings) {
-                    mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MergeReason.INDEX_TEMPLATE);
+                    mapperService.merge(MapperService.SINGLE_MAPPING_NAME, mapping, MapperService.MergeReason.INDEX_TEMPLATE);
                 }
 
                 if (template.getDataStreamTemplate() != null) {
@@ -1528,7 +1535,7 @@ public class MetadataIndexTemplateService {
             maybeTemplate.map(Template::settings).orElse(Settings.EMPTY),
             indexPatterns,
             maybeTemplate.map(Template::aliases)
-                .orElse(Collections.emptyMap())
+                .orElse(emptyMap())
                 .values()
                 .stream()
                 .map(MetadataIndexTemplateService::toAlias)

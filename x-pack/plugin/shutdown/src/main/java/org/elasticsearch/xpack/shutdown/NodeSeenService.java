@@ -13,7 +13,6 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
@@ -71,7 +70,7 @@ public class NodeSeenService implements ClusterStateListener {
             .collect(Collectors.toUnmodifiableSet());
 
         if (nodesNotPreviouslySeen.isEmpty() == false) {
-            clusterService.submitStateUpdateTask("shutdown-seen-nodes-updater", new ClusterStateUpdateTask() {
+            submitUnbatchedTask("shutdown-seen-nodes-updater", new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     NodesShutdownMetadata currentShutdownMetadata = currentState.metadata().custom(NodesShutdownMetadata.TYPE);
@@ -103,12 +102,12 @@ public class NodeSeenService implements ClusterStateListener {
                 public void onFailure(Exception e) {
                     logger.warn(new ParameterizedMessage("failed to mark shutting down nodes as seen: {}", nodesNotPreviouslySeen), e);
                 }
-            }, newExecutor());
+            });
         }
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 }

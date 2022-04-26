@@ -450,25 +450,28 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
                 if (state.nodes().isLocalNodeElectedMaster()) {
                     if (state.custom("test") == null) {
                         if (installed.compareAndSet(false, true)) {
-                            clusterService.submitStateUpdateTask("install-metadata-custom", new ClusterStateUpdateTask(Priority.URGENT) {
+                            clusterService.submitUnbatchedStateUpdateTask(
+                                "install-metadata-custom",
+                                new ClusterStateUpdateTask(Priority.URGENT) {
 
-                                @Override
-                                public ClusterState execute(ClusterState currentState) {
-                                    if (currentState.custom("test") == null) {
-                                        final ClusterState.Builder builder = ClusterState.builder(currentState);
-                                        builder.putCustom("test", new TestCustom(42));
-                                        return builder.build();
-                                    } else {
-                                        return currentState;
+                                    @Override
+                                    public ClusterState execute(ClusterState currentState) {
+                                        if (currentState.custom("test") == null) {
+                                            final ClusterState.Builder builder = ClusterState.builder(currentState);
+                                            builder.putCustom("test", new TestCustom(42));
+                                            return builder.build();
+                                        } else {
+                                            return currentState;
+                                        }
                                     }
-                                }
 
-                                @Override
-                                public void onFailure(Exception e) {
-                                    throw new AssertionError(e);
-                                }
+                                    @Override
+                                    public void onFailure(Exception e) {
+                                        throw new AssertionError(e);
+                                    }
 
-                            }, ClusterStateTaskExecutor.unbatched());
+                                }
+                            );
                         }
                     }
                 }

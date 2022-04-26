@@ -83,7 +83,6 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
-import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
@@ -967,7 +966,6 @@ public abstract class AggregatorTestCase extends ESTestCase {
      * Exception types/messages are not currently checked, just presence/absence of an exception.
      */
     public void testSupportedFieldTypes() throws IOException {
-        MapperRegistry mapperRegistry = new IndicesModule(Collections.emptyList()).getMapperRegistry();
         String fieldName = "typeTestFieldName";
         List<ValuesSourceType> supportedVSTypes = getSupportedValuesSourceTypes();
         List<String> unsupportedMappedFieldTypes = unsupportedMappedFieldTypes();
@@ -977,7 +975,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
             return;
         }
 
-        for (Map.Entry<String, Mapper.TypeParser> mappedType : mapperRegistry.getMapperParsers().entrySet()) {
+        for (Map.Entry<String, Mapper.TypeParser> mappedType : IndicesModule.getMappers(List.of()).entrySet()) {
 
             // Some field types should not be tested, or require more work and are not ready yet
             if (TYPE_TEST_BLACKLIST.contains(mappedType.getKey())) {

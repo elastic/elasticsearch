@@ -111,32 +111,7 @@ final class EmbeddedModulePath {
         }
     }
 
-    // static ModuleDescriptor descriptorFor2(Path path) {
-    // Optional<ModuleDescriptor> vmd = getModuleInfoVersioned(path);
-    // if (vmd.isPresent()) {
-    // var md = vmd.get();
-    // // todo: perform scan and verification
-    // return md;
-    // } else if (hasRootModuleInfo(path)) {
-    // //if (System.getProperty("os.name").startsWith("Windows")) {
-    // // This is a loathsome workaround for JDK-8282444, which affects Windows only
-    // var md = readModuleInfo(path.resolve(MODULE_INFO), path);
-    // // todo: perform scan and verification
-    // return md;
-    // } else {
-    // // just use the JDK's built-in module finder
-    // Set<ModuleReference> mrefs = ModuleFinder.of(path).findAll();
-    // if (mrefs.size() == 1) {
-    // return mrefs.iterator().next().descriptor();
-    // } else {
-    // throw new FindException("more than one module found at path: %s, mods: %s.".formatted(path, mrefs));
-    // }
-    // }
-    // } else {
-    // return descriptorForAutomatic(path);
-    // }
-    // }
-
+    /** A scan result, which aggregates class and services files. */
     record ScanResult(Set<String> classFiles, Set<String> serviceFiles) {}
 
     /**
@@ -146,7 +121,7 @@ final class EmbeddedModulePath {
     static ModuleDescriptor descriptorForAutomatic(Path path) {
         String moduleName = moduleNameFromManifestOrNull(path);
         if (moduleName == null) {
-            throw new FindException("automatic module without a manifest name is not supported, for:" + path);
+            throw new FindException("automatic module without a manifest name is not supported, for: " + path);
         }
         ModuleDescriptor.Builder builder;
         try {
@@ -155,7 +130,9 @@ final class EmbeddedModulePath {
             throw new FindException(AUTOMATIC_MODULE_NAME + ": " + e.getMessage());
         }
 
-        version(path.getFileName().toString()).ifPresent(builder::version);
+        if (path.getFileName() != null) {
+            version(path.getFileName().toString()).ifPresent(builder::version);
+        }
 
         // scan the names of the entries in the exploded JAR
         var scan = scan(path);
@@ -169,6 +146,7 @@ final class EmbeddedModulePath {
         return builder.build();
     }
 
+    /** Scans a given path for class files and services. */
     static ScanResult scan(Path path) {
         try {
             // scan the names of the entries in the JAR file // TODO: add support for multi-release
@@ -186,7 +164,9 @@ final class EmbeddedModulePath {
     static final Pattern DASH_VERSION = Pattern.compile("-(\\d+(\\.|$))");
 
     static Optional<ModuleDescriptor.Version> version(String jarName) {
-        assert jarName.length() > ".jar".length();
+        if (jarName.endsWith(".jar") == false) {
+            throw new IllegalArgumentException("unexpected jar name: " + jarName);
+        }
         // drop ".jar"
         String name = jarName.substring(0, jarName.length() - 4);
         // find first occurrence of -${NUMBER}. or -${NUMBER}$
@@ -201,6 +181,10 @@ final class EmbeddedModulePath {
         return Optional.empty();
     }
 
+    /**
+     * Parses a set of given service files, and returns a map of service name to list of provider
+     * classes.
+     */
     static Map<String, List<String>> services(Set<String> serviceFiles, Path path) {
         // map names of service configuration files to service names
         Set<String> serviceNames = serviceFiles.stream()
@@ -233,7 +217,11 @@ final class EmbeddedModulePath {
         }
     }
 
-    private static Optional<String> toPackageName(Path file, String separator) {
+    /**
+     * Returns an optional containing the package name from a given path and separator, or an
+     * empty optional if none.
+     */
+    static Optional<String> toPackageName(Path file, String separator) {
         Path parent = file.getParent();
         if (parent == null) {
             String name = file.toString();
@@ -253,7 +241,11 @@ final class EmbeddedModulePath {
         }
     }
 
-    private static Optional<String> toPackageName(String name) {
+    /**
+     * Returns an optional containing the package name from a given binary class path name, or an
+     * empty optional if none.
+     */
+    static Optional<String> toPackageName(String name) {
         assert name.endsWith("/") == false;
         int index = name.lastIndexOf("/");
         if (index == -1) {
@@ -273,8 +265,14 @@ final class EmbeddedModulePath {
         }
     }
 
+    /**
+     * Returns an optional containing the service name from a given services path name, or an
+     * empty optional if none.
+     */
     static Optional<String> toServiceName(String cf) {
-        assert cf.startsWith(SERVICES_PREFIX);
+        if (cf.startsWith(SERVICES_PREFIX) == false) {
+            throw new IllegalArgumentException();
+        }
         int index = cf.lastIndexOf("/") + 1;
         if (index < cf.length()) {
             String prefix = cf.substring(0, index);
@@ -288,6 +286,7 @@ final class EmbeddedModulePath {
         return Optional.empty();
     }
 
+    /** Returns the next line from the reader, skipping comment lines. */
     static String nextLine(BufferedReader reader) throws IOException {
         String ln = reader.readLine();
         if (ln != null) {

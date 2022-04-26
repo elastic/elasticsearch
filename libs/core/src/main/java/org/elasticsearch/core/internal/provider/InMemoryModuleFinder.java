@@ -22,21 +22,24 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * An in memory module finder.
+ * An in-memory module finder.
  *
- * <p> An in memory module finder finds module references that are <i>non-openable</i>. Attempts to open a non-openable module
- * reference returned by this finder will result in an {@link UnsupportedOperationException}. In this way an in memory module finder can be
- * used for the purpose of resolution only, and not actual class or resource loading (since it does not provide access to an underlying
- * module reader).
+ * <p> An in-memory module finder finds module references that are <i>non-openable</i>. Attempts to
+ * open a non-openable module reference returned by this finder will result in an
+ * {@link UnsupportedOperationException}. In this way an in-memory module finder can be used for the
+ * purpose of resolution only, and not actual class or resource loading (since it does not provide
+ * access to an underlying module reader).
  */
 class InMemoryModuleFinder implements ModuleFinder {
 
     private final Map<String, ModuleReference> namesToReference;
 
     /**
-     * Creates a module finder that eagerly scans the given paths to build an in memory module finder.
-     * <p>
-     * The set missingModules are filtered out of the requires directives of the retrieved module descriptors.
+     * Creates a module finder that eagerly scans the given paths to build an in memory module
+     * finder.
+     *
+     * <p> The set missingModules are filtered out of the requires directives of the retrieved
+     * module descriptors.
      */
     static InMemoryModuleFinder of(Set<String> missingModules, Path... entries) {
         return new InMemoryModuleFinder(

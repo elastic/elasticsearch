@@ -73,8 +73,8 @@ public class Authentication implements ToXContentObject {
     private final AuthenticationType type;
     private final Map<String, Object> metadata; // authentication contains metadata, includes api_key details (including api_key metadata)
 
-    private Subject authenticatingSubject;
-    private Subject effectiveSubject;
+    private final Subject authenticatingSubject;
+    private final Subject effectiveSubject;
 
     public Authentication(User user, RealmRef authenticatedBy, RealmRef lookedUpBy) {
         this(user, authenticatedBy, lookedUpBy, Version.CURRENT, AuthenticationType.REALM, Collections.emptyMap());
@@ -94,6 +94,16 @@ public class Authentication implements ToXContentObject {
         this.version = version;
         this.type = type;
         this.metadata = metadata;
+        if (user.isRunAs()) {
+            authenticatingSubject = new Subject(user.authenticatedUser(), authenticatedBy, version, metadata);
+            // The lookup user for run-as currently don't have authentication metadata associated with them because
+            // lookupUser only returns the User object. The lookup user for authorization delegation does have
+            // authentication metadata, but the realm does not expose this difference between authenticatingUser and
+            // delegateUser so effectively this is handled together with the authenticatingSubject not effectiveSubject.
+            effectiveSubject = new Subject(user, lookedUpBy, version, Map.of());
+        } else {
+            authenticatingSubject = effectiveSubject = new Subject(user, authenticatedBy, version, metadata);
+        }
         this.assertApiKeyMetadata();
         this.assertDomainAssignment();
     }
@@ -109,6 +119,16 @@ public class Authentication implements ToXContentObject {
         this.version = in.getVersion();
         type = AuthenticationType.values()[in.readVInt()];
         metadata = in.readMap();
+        if (user.isRunAs()) {
+            authenticatingSubject = new Subject(user.authenticatedUser(), authenticatedBy, version, metadata);
+            // The lookup user for run-as currently don't have authentication metadata associated with them because
+            // lookupUser only returns the User object. The lookup user for authorization delegation does have
+            // authentication metadata, but the realm does not expose this difference between authenticatingUser and
+            // delegateUser so effectively this is handled together with the authenticatingSubject not effectiveSubject.
+            effectiveSubject = new Subject(user, lookedUpBy, version, Map.of());
+        } else {
+            authenticatingSubject = effectiveSubject = new Subject(user, authenticatedBy, version, metadata);
+        }
         this.assertApiKeyMetadata();
         this.assertDomainAssignment();
     }
@@ -117,7 +137,6 @@ public class Authentication implements ToXContentObject {
      * Get the {@link Subject} that performs the actual authentication. This normally means it provides a credentials.
      */
     public Subject getAuthenticatingSubject() {
-        initializeSubjects();
         return authenticatingSubject;
     }
 
@@ -126,7 +145,6 @@ public class Authentication implements ToXContentObject {
      * because the authentication subject can run-as another subject.
      */
     public Subject getEffectiveSubject() {
-        initializeSubjects();
         return effectiveSubject;
     }
 
@@ -135,7 +153,6 @@ public class Authentication implements ToXContentObject {
      * is different from the effective subject.
      */
     public boolean isRunAs() {
-        initializeSubjects();
         return authenticatingSubject != effectiveSubject;
     }
 
@@ -331,7 +348,6 @@ public class Authentication implements ToXContentObject {
      * Whether the authenticating user is an API key, including a simple API key or a token created by an API key.
      */
     public boolean isAuthenticatedAsApiKey() {
-        initializeSubjects();
         return authenticatingSubject.getType() == Subject.Type.API_KEY;
     }
 
@@ -348,7 +364,6 @@ public class Authentication implements ToXContentObject {
      * Authenticate with a service account and no run-as
      */
     public boolean isServiceAccount() {
-        initializeSubjects();
         return effectiveSubject.getType() == Subject.Type.SERVICE_ACCOUNT;
     }
 
@@ -357,7 +372,6 @@ public class Authentication implements ToXContentObject {
      * or a token created by the API key.
      */
     public boolean isApiKey() {
-        initializeSubjects();
         return effectiveSubject.getType() == Subject.Type.API_KEY;
     }
 
@@ -498,21 +512,6 @@ public class Authentication implements ToXContentObject {
                 builder.field("api_key", Map.of("id", apiKeyId));
             } else {
                 builder.field("api_key", Map.of("id", apiKeyId, "name", apiKeyName));
-            }
-        }
-    }
-
-    private void initializeSubjects() {
-        if (authenticatingSubject == null) {
-            if (user.isRunAs()) {
-                authenticatingSubject = new Subject(user.authenticatedUser(), authenticatedBy, version, metadata);
-                // The lookup user for run-as currently don't have authentication metadata associated with them because
-                // lookupUser only returns the User object. The lookup user for authorization delegation does have
-                // authentication metadata, but the realm does not expose this difference between authenticatingUser and
-                // delegateUser so effectively this is handled together with the authenticatingSubject not effectiveSubject.
-                effectiveSubject = new Subject(user, lookedUpBy, version, Map.of());
-            } else {
-                authenticatingSubject = effectiveSubject = new Subject(user, authenticatedBy, version, metadata);
             }
         }
     }

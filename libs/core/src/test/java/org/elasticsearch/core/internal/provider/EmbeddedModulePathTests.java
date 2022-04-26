@@ -8,6 +8,7 @@
 
 package org.elasticsearch.core.internal.provider;
 
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.lang.module.InvalidModuleDescriptorException;
@@ -63,15 +64,15 @@ public class EmbeddedModulePathTests extends ESTestCase {
     static final Class<InvalidModuleDescriptorException> IMDE = InvalidModuleDescriptorException.class;
 
     public void testToPackageNamePath() {
-        String separator = Path.of("foo").getFileSystem().getSeparator();
-        Path p = Path.of("a").resolve("b").resolve("Foo.class");
+        String separator = PathUtils.get("foo").getFileSystem().getSeparator();
+        Path p = PathUtils.get("a").resolve("b").resolve("Foo.class");
         assertThat(EmbeddedModulePath.toPackageName(p, separator).get(), is("a.b"));
 
-        assertThat(EmbeddedModulePath.toPackageName(Path.of("module-info.class"), separator), isEmpty());
-        assertThat(EmbeddedModulePath.toPackageName(Path.of("foo.txt"), separator), isEmpty());
-        assertThat(EmbeddedModulePath.toPackageName(Path.of("META-INF").resolve("MANIFEST.MF"), separator), isEmpty());
+        assertThat(EmbeddedModulePath.toPackageName(PathUtils.get("module-info.class"), separator), isEmpty());
+        assertThat(EmbeddedModulePath.toPackageName(PathUtils.get("foo.txt"), separator), isEmpty());
+        assertThat(EmbeddedModulePath.toPackageName(PathUtils.get("META-INF").resolve("MANIFEST.MF"), separator), isEmpty());
 
-        expectThrows(IMDE, () -> EmbeddedModulePath.toPackageName(Path.of("Foo.class"), separator));
+        expectThrows(IMDE, () -> EmbeddedModulePath.toPackageName(PathUtils.get("Foo.class"), separator));
     }
 
     public void testToPackageNameString() {

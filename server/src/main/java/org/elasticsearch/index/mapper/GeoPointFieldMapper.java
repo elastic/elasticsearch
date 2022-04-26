@@ -162,8 +162,11 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
 
     }
 
+    private static final Version MINIMUM_COMPATIBILITY_VERSION = Version.fromString("5.0.0");
+
     public static TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, c.scriptCompiler(), IGNORE_MALFORMED_SETTING.get(c.getSettings()), c.indexVersionCreated())
+        (n, c) -> new Builder(n, c.scriptCompiler(), IGNORE_MALFORMED_SETTING.get(c.getSettings()), c.indexVersionCreated()),
+        MINIMUM_COMPATIBILITY_VERSION
     );
 
     private final Builder builder;

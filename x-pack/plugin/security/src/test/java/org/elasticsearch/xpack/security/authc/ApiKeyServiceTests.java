@@ -1683,6 +1683,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertEquals(new BytesArray("{}"), apiKeyDoc.roleDescriptorsBytes);
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86179")
     public void testGetApiKeyMetadata() throws IOException {
         final Map<String, Object> metadata;
         final Map<String, Object> apiKeyMetadata = ApiKeyTests.randomMetadata();

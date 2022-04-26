@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.index.mapper.DateFieldMapper.DateFieldType;
@@ -26,10 +27,12 @@ import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Locale;
 
+import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -370,7 +373,7 @@ public class DateFieldMapperTests extends MapperTestCase {
     /**
      * The max date iso8601 can parse. It'll format much larger dates.
      */
-    private static final long MAX_ISO_DATE = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("9999-12-12T23:59:59.999Z");
+    private static final long MAX_ISO_DATE = DEFAULT_DATE_TIME_FORMATTER.parseMillis("9999-12-12T23:59:59.999Z");
 
     public void testFetchMillis() throws IOException {
         assertFetch(dateMapperService(), "field", randomLongBetween(0, Long.MAX_VALUE), null);
@@ -385,12 +388,7 @@ public class DateFieldMapperTests extends MapperTestCase {
     }
 
     public void testFetchMillisFromIso8601() throws IOException {
-        assertFetch(
-            dateMapperService(),
-            "field",
-            DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(randomLongBetween(0, MAX_ISO_DATE)),
-            "iso8601"
-        );
+        assertFetch(dateMapperService(), "field", DEFAULT_DATE_TIME_FORMATTER.formatMillis(randomLongBetween(0, MAX_ISO_DATE)), "iso8601");
     }
 
     public void testFetchMillisFromIso8601Nanos() throws IOException {
@@ -466,9 +464,7 @@ public class DateFieldMapperTests extends MapperTestCase {
      * I'd expect this to be 1970-04-15T05:59:59.253Z but that causes
      * errors. I'm curious about why but not curious enough to track it down.
      */
-    private static final long MAX_MILLIS_DOUBLE_NANOS_KEEPS_PRECISION = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis(
-        "1970-04-10T00:00:00.000Z"
-    );
+    private static final long MAX_MILLIS_DOUBLE_NANOS_KEEPS_PRECISION = DEFAULT_DATE_TIME_FORMATTER.parseMillis("1970-04-10T00:00:00.000Z");
 
     /**
      * Tests round tripping a date with nanosecond resolution through doc
@@ -565,5 +561,27 @@ public class DateFieldMapperTests extends MapperTestCase {
                 equalTo("Failed to parse mapping: Field [ignore_malformed] cannot be set in conjunction with field [script]")
             );
         }
+    }
+
+    public void testLegacyField() throws Exception {
+        // check that unknown date formats are treated leniently on old indices
+        MapperService service = createMapperService(Version.fromString("5.0.0"), Settings.EMPTY, () -> false, mapping(b -> {
+            b.startObject("mydate");
+            b.field("type", "date");
+            b.field("format", "unknown-format");
+            b.endObject();
+        }));
+        assertThat(service.fieldType("mydate"), instanceOf(DateFieldType.class));
+        assertEquals(DEFAULT_DATE_TIME_FORMATTER, ((DateFieldType) service.fieldType("mydate")).dateTimeFormatter);
+
+        // check that date format can be updated
+        merge(service, mapping(b -> {
+            b.startObject("mydate");
+            b.field("type", "date");
+            b.field("format", "YYYY/MM/dd");
+            b.endObject();
+        }));
+        assertThat(service.fieldType("mydate"), instanceOf(DateFieldType.class));
+        assertNotEquals(DEFAULT_DATE_TIME_FORMATTER, ((DateFieldType) service.fieldType("mydate")).dateTimeFormatter);
     }
 }

@@ -8,10 +8,12 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.index.mapper.ObjectMapper.Dynamic;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -20,6 +22,7 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class ObjectMapperTests extends MapperServiceTestCase {
 
@@ -327,6 +330,26 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         assertThat(e.getMessage(), containsString("name cannot be empty string"));
     }
 
+    public void testUnknownLegacyFields() throws Exception {
+        MapperService service = createMapperService(Version.fromString("5.0.0"), Settings.EMPTY, () -> false, mapping(b -> {
+            b.startObject("name");
+            b.field("type", "unknown");
+            b.field("unknown_setting", 5);
+            b.endObject();
+        }));
+        assertThat(service.fieldType("name"), instanceOf(PlaceHolderFieldMapper.PlaceHolderFieldType.class));
+    }
+
+    public void testUnmappedLegacyFields() throws Exception {
+        MapperService service = createMapperService(Version.fromString("5.0.0"), Settings.EMPTY, () -> false, mapping(b -> {
+            b.startObject("name");
+            b.field("type", "text");
+            b.field("unknown_setting", 5);
+            b.endObject();
+        }));
+        assertThat(service.fieldType("name"), instanceOf(PlaceHolderFieldMapper.PlaceHolderFieldType.class));
+    }
+
     public void testCollapsedObject() throws Exception {
         MapperService mapperService = createMapperService(mapping(b -> {
             b.startObject("metrics.service");
@@ -442,7 +465,9 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         assertNull(mapper.mapping().getRoot().dynamic());
         Mapping mergeWith = mapperService.parseMapping(
             "_doc",
-            new CompressedXContent(BytesReference.bytes(topMapping(b -> { b.field("collapsed", false); })))
+            new CompressedXContent(BytesReference.bytes(topMapping(b -> {
+                b.field("collapsed", false);
+            })))
         );
         MapperException exception = expectThrows(
             MapperException.class,

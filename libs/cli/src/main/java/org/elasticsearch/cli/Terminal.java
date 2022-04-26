@@ -72,16 +72,6 @@ public abstract class Terminal {
     /** Reads password text from the terminal input. See {@link Console#readPassword()}}. */
     public abstract char[] readSecret(String prompt);
 
-    /** Read password text form terminal input up to a maximum length. */
-    public char[] readSecret(String prompt, int maxLength) {
-        char[] result = readSecret(prompt);
-        if (result.length > maxLength) {
-            Arrays.fill(result, '\0');
-            throw new IllegalStateException("Secret exceeded maximum length of " + maxLength);
-        }
-        return result;
-    }
-
     /** Returns a Writer which can be used to write to the terminal directly using standard output. */
     public abstract PrintWriter getWriter();
 
@@ -168,8 +158,8 @@ public abstract class Terminal {
      * a Windows-style newline, so we discard the carriage return as well
      * as the newline.
      */
-    public static char[] readLineToCharArray(Reader reader, int maxLength) {
-        char[] buf = new char[maxLength + 2];
+    public static char[] readLineToCharArray(Reader reader) {
+        char[] buf = new char[128];
         try {
             int len = 0;
             int next;
@@ -178,19 +168,17 @@ public abstract class Terminal {
                 if (nextChar == '\n') {
                     break;
                 }
-                if (len < buf.length) {
-                    buf[len] = nextChar;
+                if (len >= buf.length) {
+                    char[] newbuf = new char[buf.length * 2];
+                    System.arraycopy(buf, 0, newbuf, 0, buf.length);
+                    Arrays.fill(buf, '\0');
+                    buf = newbuf;
                 }
-                len++;
+                buf[len++] = nextChar;
             }
 
             if (len > 0 && len < buf.length && buf[len - 1] == '\r') {
                 len--;
-            }
-
-            if (len > maxLength) {
-                Arrays.fill(buf, '\0');
-                throw new RuntimeException("Input exceeded maximum length of " + maxLength);
             }
 
             char[] shortResult = Arrays.copyOf(buf, len);
@@ -301,12 +289,6 @@ public abstract class Terminal {
         @Override
         public char[] readSecret(String text) {
             return readText(text).toCharArray();
-        }
-
-        @Override
-        public char[] readSecret(String text, int maxLength) {
-            getErrorWriter().println(text);
-            return readLineToCharArray(getReader(), maxLength);
         }
     }
 }

@@ -92,7 +92,7 @@ public class GeoTileBoundedPredicate {
 
     /** Check if the provided tile at the provided level intersects with the provided bounds. The provided precision must be
      * lower or equal to the precision provided in the constructor.
-     * */
+     */
     public boolean validTile(int x, int y, int z) {
         assert precision >= z : "input precision bigger than this predicate precision";
         // compute number of splits at precision

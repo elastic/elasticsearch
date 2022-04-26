@@ -23,6 +23,14 @@ categories:
 == Configuration limitations
 
 [discrete]
+[[transforms-underscore-limitation]]
+=== Field names prefixed with underscores omitted from latest {transforms}
+
+If you have field names that start with an underscore character (_), they are
+omitted from the resulting documents in the destination index for `latest` type
+of {transform}, since they are assumed to be internal fields.
+
+[discrete]
 [[transforms-ccs-limitation]]
 === {transforms-cap} support {ccs} if the remote cluster is configured properly
 

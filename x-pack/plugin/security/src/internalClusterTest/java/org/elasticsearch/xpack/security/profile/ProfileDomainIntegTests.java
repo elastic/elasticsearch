@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.core.security.action.profile.Profile;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationContext;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
@@ -145,7 +144,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
                 )
             )
             .build(false);
-        final Subject subject = AuthenticationContext.fromAuthentication(authentication).getEffectiveSubject();
+        final Subject subject = authentication.getEffectiveSubject();
 
         // Profile does not exist yet
         final PlainActionFuture<ProfileService.VersionedDocument> future1 = new PlainActionFuture<>();
@@ -190,7 +189,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
             .user(new User("Foo"))
             .realmRef(new Authentication.RealmRef(realmIdentifier1.getName(), realmIdentifier1.getType(), nodeName))
             .build(false);
-        final Subject subject1 = AuthenticationContext.fromAuthentication(authentication1).getEffectiveSubject();
+        final Subject subject1 = authentication1.getEffectiveSubject();
 
         final PlainActionFuture<ProfileService.VersionedDocument> future1 = new PlainActionFuture<>();
         profileService.searchVersionedDocumentForSubject(subject1, future1);
@@ -206,7 +205,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
             .user(new User("Foo"))
             .realmRef(new Authentication.RealmRef(realmIdentifier2.getName(), realmIdentifier2.getType(), nodeName, realmDomain1))
             .build(false);
-        final Subject subject2 = AuthenticationContext.fromAuthentication(authentication2).getEffectiveSubject();
+        final Subject subject2 = authentication2.getEffectiveSubject();
 
         final PlainActionFuture<ProfileService.VersionedDocument> future2 = new PlainActionFuture<>();
         profileService.searchVersionedDocumentForSubject(subject2, future2);
@@ -218,7 +217,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
             .user(new User("Foo"))
             .realmRef(new Authentication.RealmRef(realmIdentifier2.getName(), realmIdentifier2.getType(), nodeName))
             .build(false);
-        final Subject subject3 = AuthenticationContext.fromAuthentication(authentication3).getEffectiveSubject();
+        final Subject subject3 = authentication3.getEffectiveSubject();
 
         final PlainActionFuture<ProfileService.VersionedDocument> future3 = new PlainActionFuture<>();
         profileService.searchVersionedDocumentForSubject(subject3, future3);
@@ -406,7 +405,7 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
                 authentication = authentication.token();
             }
         }
-        final Subject subject = AuthenticationContext.fromAuthentication(authentication).getEffectiveSubject();
+        final Subject subject = authentication.getEffectiveSubject();
         final ProfileService profileService = getInstanceFromRandomNode(ProfileService.class);
         final PlainActionFuture<Profile> future1 = new PlainActionFuture<>();
         profileService.activateProfile(authentication, future1);

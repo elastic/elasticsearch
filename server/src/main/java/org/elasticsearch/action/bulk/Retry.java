@@ -25,6 +25,8 @@ import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
+
 /**
  * Encapsulates synchronous and asynchronous retry logic.
  */
@@ -161,16 +163,22 @@ public class Retry {
             IndexRequest copy = new IndexRequest(orginal.index());
             copy.id(orginal.id());
             copy.opType(orginal.opType());
-            copy.source(orginal.source(), orginal.getContentType());
+            if (orginal.source() != null) {
+                copy.source(orginal.source(), orginal.getContentType());
+            }
             copy.version(orginal.version());
-            copy.setIfPrimaryTerm(orginal.ifSeqNo());
+            if (copy.ifSeqNo() != UNASSIGNED_SEQ_NO) {
+                copy.setIfSeqNo(orginal.ifSeqNo());
+            }
             copy.setIfPrimaryTerm(orginal.ifPrimaryTerm());
             copy.setPipeline(orginal.getPipeline());
             copy.setFinalPipeline(orginal.getFinalPipeline());
             copy.routing(orginal.routing());
             copy.setRequireAlias(orginal.isRequireAlias());
             copy.setRefreshPolicy(orginal.getRefreshPolicy());
-            copy.setDynamicTemplates(orginal.getDynamicTemplates());
+            if (orginal.getDynamicTemplates() != null) {
+                copy.setDynamicTemplates(orginal.getDynamicTemplates());
+            }
             return copy;
         }
 

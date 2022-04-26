@@ -36,6 +36,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
@@ -748,7 +749,7 @@ public class MetadataIndexTemplateService {
         Set<String> dataStreamsWithNonTsdbTemplate = null;
 
         for (var dataStream : state.metadata().dataStreams().values()) {
-            if (dataStream.isTimeSeries() == false) {
+            if (dataStream.getIndexMode() != IndexMode.TIME_SERIES) {
                 continue;
             }
 

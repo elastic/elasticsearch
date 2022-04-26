@@ -21,6 +21,7 @@ import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
@@ -95,7 +96,7 @@ public final class DataStreamTestHelper {
         Map<String, Object> metadata,
         boolean replicated
     ) {
-        return new DataStream(name, indices, generation, metadata, false, replicated, false, false, false);
+        return new DataStream(name, indices, generation, metadata, false, replicated, false, false, null);
     }
 
     public static String getLegacyDefaultBackingIndexName(
@@ -237,7 +238,7 @@ public final class DataStreamTestHelper {
             false, // Some tests don't work well with system data streams, since these data streams require special handling
             timeProvider,
             randomBoolean(),
-            false // timeSeries=true triggers validation that many unit tests doesn't pass
+            randomBoolean() ? IndexMode.STANDARD : null // IndexMode.TIME_SERIES triggers validation that many unit tests doesn't pass
         );
     }
 
@@ -367,7 +368,7 @@ public final class DataStreamTestHelper {
             false,
             false,
             false,
-            true
+            IndexMode.TIME_SERIES
         );
         builder.put(ds);
     }

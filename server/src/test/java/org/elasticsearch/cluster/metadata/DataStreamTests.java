@@ -14,6 +14,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.test.AbstractSerializingTestCase;
@@ -35,7 +36,6 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -92,10 +92,11 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
         assertTrue(rolledDs.getIndices().containsAll(ds.getIndices()));
         assertTrue(rolledDs.getIndices().contains(rolledDs.getWriteIndex()));
-        assertThat(rolledDs.isTimeSeries(), is(ds.isTimeSeries()));
+        assertThat(rolledDs.getIndexMode(), equalTo(ds.getIndexMode()));
     }
 
     public void testRolloverIndexMode() {
+        IndexMode indexMode = randomBoolean() ? IndexMode.STANDARD : null;
         DataStream ds = DataStreamTestHelper.randomInstance().promoteDataStream();
         // Unsure index_mode=null
         ds = new DataStream(
@@ -107,7 +108,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
             ds.isReplicated(),
             ds.isSystem(),
             ds.isAllowCustomRouting(),
-            false
+            indexMode
         );
         var newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA);
 
@@ -118,7 +119,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
         assertTrue(rolledDs.getIndices().containsAll(ds.getIndices()));
         assertTrue(rolledDs.getIndices().contains(rolledDs.getWriteIndex()));
-        assertThat(rolledDs.isTimeSeries(), is(true));
+        assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.TIME_SERIES));
     }
 
     public void testRolloverIndexMode_keepIndexMode() {
@@ -132,7 +133,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
             ds.isReplicated(),
             ds.isSystem(),
             ds.isAllowCustomRouting(),
-            true
+            IndexMode.TIME_SERIES
         );
         var newCoordinates = ds.nextWriteIndexAndGeneration(Metadata.EMPTY_METADATA);
 
@@ -143,7 +144,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
         assertThat(rolledDs.getIndices().size(), equalTo(ds.getIndices().size() + 1));
         assertTrue(rolledDs.getIndices().containsAll(ds.getIndices()));
         assertTrue(rolledDs.getIndices().contains(rolledDs.getWriteIndex()));
-        assertThat(rolledDs.isTimeSeries(), is(true));
+        assertThat(rolledDs.getIndexMode(), equalTo(IndexMode.TIME_SERIES));
     }
 
     public void testRemoveBackingIndex() {
@@ -492,7 +493,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
             preSnapshotDataStream.isReplicated() && randomBoolean(),
             preSnapshotDataStream.isSystem(),
             preSnapshotDataStream.isAllowCustomRouting(),
-            preSnapshotDataStream.isTimeSeries()
+            preSnapshotDataStream.getIndexMode()
         );
 
         var reconciledDataStream = postSnapshotDataStream.snapshot(
@@ -534,7 +535,7 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
             preSnapshotDataStream.isReplicated(),
             preSnapshotDataStream.isSystem(),
             preSnapshotDataStream.isAllowCustomRouting(),
-            preSnapshotDataStream.isTimeSeries()
+            preSnapshotDataStream.getIndexMode()
         );
 
         assertNull(postSnapshotDataStream.snapshot(preSnapshotDataStream.getIndices().stream().map(Index::getName).toList()));

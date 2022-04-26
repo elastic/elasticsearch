@@ -60,7 +60,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             false,
             false,
             false,
-            true
+            IndexMode.TIME_SERIES
         );
         ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
             .template(new Template(Settings.builder().put("index.routing_path", "uid").build(), null, null))
@@ -148,6 +148,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
     public void testRolloverAndMigrateDataStream() throws Exception {
         Instant now = Instant.now().truncatedTo(ChronoUnit.SECONDS);
         String dataStreamName = "logs-my-app";
+        IndexMode dsIndexMode = randomBoolean() ? null : IndexMode.STANDARD;
         final DataStream dataStream = new DataStream(
             dataStreamName,
             List.of(new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 1, now.toEpochMilli()), "uuid")),
@@ -157,7 +158,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             false,
             false,
             false,
-            false
+            dsIndexMode
         );
         ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
             .template(new Template(Settings.builder().put("index.routing_path", "uid").build(), null, null))
@@ -168,6 +169,9 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
         Settings.Builder indexSettings = ESTestCase.settings(Version.CURRENT)
             .put("index.hidden", true)
             .put(SETTING_INDEX_UUID, dataStream.getWriteIndex().getUUID());
+        if (dsIndexMode != null) {
+            indexSettings.put("index.mode", dsIndexMode.getName());
+        }
         builder.put(
             IndexMetadata.builder(dataStream.getWriteIndex().getName()).settings(indexSettings).numberOfShards(1).numberOfReplicas(0)
         );
@@ -206,7 +210,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
 
             // Assert data stream's index_mode has been changed to time_series.
             assertThat(rolloverMetadata.dataStreams().get(dataStreamName), notNullValue());
-            assertThat(rolloverMetadata.dataStreams().get(dataStreamName).isTimeSeries(), is(true));
+            assertThat(rolloverMetadata.dataStreams().get(dataStreamName).getIndexMode(), equalTo(IndexMode.TIME_SERIES));
 
             // Nothing changed for the original backing index:
             IndexMetadata im = rolloverMetadata.index(rolloverMetadata.dataStreams().get(dataStreamName).getIndices().get(0));
@@ -238,7 +242,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             false,
             false,
             false,
-            true
+            IndexMode.TIME_SERIES
         );
         ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
             .template(new Template(Settings.builder().put("index.routing_path", "uid").build(), null, null))
@@ -295,7 +299,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
 
             // Assert data stream's index_mode remains time_series.
             assertThat(rolloverMetadata.dataStreams().get(dataStreamName), notNullValue());
-            assertThat(rolloverMetadata.dataStreams().get(dataStreamName).isTimeSeries(), is(true));
+            assertThat(rolloverMetadata.dataStreams().get(dataStreamName).getIndexMode(), equalTo(IndexMode.TIME_SERIES));
 
             // Nothing changed for the original tsdb backing index:
             IndexMetadata im = rolloverMetadata.index(rolloverMetadata.dataStreams().get(dataStreamName).getIndices().get(0));

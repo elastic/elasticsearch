@@ -364,7 +364,7 @@ public class TransportRollupAction extends AcknowledgedTransportMasterNodeAction
                         originalDataStream.isReplicated(),
                         originalDataStream.isSystem(),
                         originalDataStream.isAllowCustomRouting(),
-                        originalDataStream.isTimeSeries()
+                        originalDataStream.getIndexMode()
                     );
                     metadataBuilder.put(dataStream);
                 }

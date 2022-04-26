@@ -2783,7 +2783,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                             false,
                             false,
                             false,
-                            false
+                            null
                         )
                     )
             )

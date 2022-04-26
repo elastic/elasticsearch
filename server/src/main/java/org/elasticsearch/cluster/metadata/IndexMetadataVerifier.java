@@ -92,7 +92,7 @@ public class IndexMetadataVerifier {
         // Next we have to run this otherwise if we try to create IndexSettings
         // with broken settings it would fail in checkMappingsCompatibility
         newMetadata = archiveBrokenIndexSettings(newMetadata);
-        checkMappingsCompatibility(newMetadata);
+        createAndValidateMapping(newMetadata);
         return newMetadata;
     }
 
@@ -132,7 +132,7 @@ public class IndexMetadataVerifier {
      * @return the mapping
      */
     @Nullable
-    public Mapping checkMappingsCompatibility(IndexMetadata indexMetadata) {
+    public Mapping createAndValidateMapping(IndexMetadata indexMetadata) {
         try {
 
             // We cannot instantiate real analysis server or similarity service at this point because the node

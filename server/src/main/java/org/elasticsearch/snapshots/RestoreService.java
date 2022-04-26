@@ -1670,7 +1670,7 @@ public class RestoreService implements ClusterStateApplier {
             IndexMetadata convertedIndexMetadata = convertedIndexMetadataBuilder.build();
 
             try {
-                Mapping mapping = indexMetadataVerifier.checkMappingsCompatibility(convertedIndexMetadata);
+                Mapping mapping = indexMetadataVerifier.createAndValidateMapping(convertedIndexMetadata);
                 if (mapping != null) {
                     convertedIndexMetadataBuilder = IndexMetadata.builder(convertedIndexMetadata);
                     // using the recomputed mapping allows stripping some fields that we no longer support (e.g. include_in_all)

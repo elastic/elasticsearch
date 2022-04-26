@@ -688,7 +688,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     @Override
     protected final Optional<StringFieldScript.Factory> nonEmptyFieldScript() {
         return Optional.of((fieldName, params, searchLookup) -> ctx -> new StringFieldScript(fieldName, params, searchLookup, ctx) {
-            @Override public void execute() {
+            @Override
+            public void execute() {
                 emit("foo");
             }
         });

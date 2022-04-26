@@ -662,15 +662,14 @@ public class DateFieldMapperTests extends MapperTestCase {
 
     @Override
     protected Optional<DateFieldScript.Factory> nonEmptyFieldScript() {
-        return Optional.of((fieldName, params, searchLookup, formatter) -> ctx -> new DateFieldScript(fieldName,
-            params,
-            searchLookup,
-            formatter,
-            ctx) {
-            @Override public void execute() {
-                emit(1649343081000L);
+        return Optional.of(
+            (fieldName, params, searchLookup, formatter) -> ctx -> new DateFieldScript(fieldName, params, searchLookup, formatter, ctx) {
+                @Override
+                public void execute() {
+                    emit(1649343081000L);
+                }
             }
-        });
+        );
     }
 
     public void testLegacyField() throws Exception {

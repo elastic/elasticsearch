@@ -727,7 +727,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
         final DeprecationIssue issue = NodeDeprecationChecks.checkMultipleDataPaths(settings, null, null, licenseState);
         assertThat(issue, not(nullValue()));
-        assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.CRITICAL));
+        assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.WARNING));
         assertThat(issue.getMessage(), equalTo("Specifying multiple data paths is deprecated"));
         assertThat(
             issue.getDetails(),
@@ -752,7 +752,7 @@ public class NodeDeprecationChecksTests extends ESTestCase {
         final XPackLicenseState licenseState = new XPackLicenseState(Settings.EMPTY, () -> 0);
         final DeprecationIssue issue = NodeDeprecationChecks.checkDataPathsList(settings, null, null, licenseState);
         assertThat(issue, not(nullValue()));
-        assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.CRITICAL));
+        assertThat(issue.getLevel(), equalTo(DeprecationIssue.Level.WARNING));
         assertThat(issue.getMessage(), equalTo("Multiple data paths are not supported"));
         assertThat(
             issue.getDetails(),

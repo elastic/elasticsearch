@@ -645,7 +645,7 @@ class NodeDeprecationChecks {
         List<String> dataPaths = Environment.PATH_DATA_SETTING.get(nodeSettings);
         if (dataPaths.size() > 1) {
             return new DeprecationIssue(
-                DeprecationIssue.Level.CRITICAL,
+                DeprecationIssue.Level.WARNING,
                 "Specifying multiple data paths is deprecated",
                 "https://ela.st/es-deprecation-7-multiple-paths",
                 "The [path.data] setting contains a list of paths. Specify a single path as a string. Use RAID or other system level "
@@ -665,7 +665,7 @@ class NodeDeprecationChecks {
     ) {
         if (Environment.dataPathUsesList(nodeSettings)) {
             return new DeprecationIssue(
-                DeprecationIssue.Level.CRITICAL,
+                DeprecationIssue.Level.WARNING,
                 "Multiple data paths are not supported",
                 "https://ela.st/es-deprecation-7-multiple-paths",
                 "The [path.data] setting contains a list of paths. Specify a single path as a string. Use RAID or other system level "

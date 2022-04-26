@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -23,9 +22,8 @@ import java.util.function.Function;
  */
 public abstract class MetadataFieldMapper extends FieldMapper {
 
-    public interface TypeParser extends Mapper.TypeParser {
+    public interface TypeParser {
 
-        @Override
         MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
             throws MapperParsingException;
 
@@ -84,11 +82,6 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         public MetadataFieldMapper getDefault(MappingParserContext parserContext) {
             return mapperParser.apply(parserContext);
         }
-
-        @Override
-        public boolean supportsVersion(Version indexCreatedVersion) {
-            return true;
-        }
     }
 
     public static class ConfigurableTypeParser implements TypeParser {
@@ -114,11 +107,6 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         @Override
         public MetadataFieldMapper getDefault(MappingParserContext parserContext) {
             return defaultMapperParser.apply(parserContext);
-        }
-
-        @Override
-        public boolean supportsVersion(Version indexCreatedVersion) {
-            return true;
         }
     }
 

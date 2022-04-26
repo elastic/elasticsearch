@@ -12,6 +12,9 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicReference;
@@ -26,6 +29,7 @@ public abstract class ContinuousComputation<T> {
     private static final Logger logger = LogManager.getLogger(ContinuousComputation.class);
 
     private final ExecutorService executorService;
+    private final AtomicReference<List<Runnable>> listeners = new AtomicReference<>(Collections.synchronizedList(new ArrayList<>()));
     private final AtomicReference<T> enqueuedInput = new AtomicReference<>();
     private final Processor processor = new Processor();
 
@@ -41,6 +45,14 @@ public abstract class ContinuousComputation<T> {
      */
     public void onNewInput(T input) {
         assert input != null;
+        if (enqueuedInput.getAndSet(Objects.requireNonNull(input)) == null) {
+            executorService.execute(processor);
+        }
+    }
+
+    public void onNewInput(T input, Runnable listener) {
+        assert input != null;
+        listeners.get().add(listener);
         if (enqueuedInput.getAndSet(Objects.requireNonNull(input)) == null) {
             executorService.execute(processor);
         }
@@ -88,7 +100,10 @@ public abstract class ContinuousComputation<T> {
 
             processInput(input);
 
-            if (enqueuedInput.compareAndSet(input, null) == false) {
+            if (enqueuedInput.compareAndSet(input, null)) {
+                var triggered = listeners.getAndSet(Collections.synchronizedList(new ArrayList<>()));
+                triggered.forEach(Runnable::run);
+            } else {
                 executorService.execute(this);
             }
         }

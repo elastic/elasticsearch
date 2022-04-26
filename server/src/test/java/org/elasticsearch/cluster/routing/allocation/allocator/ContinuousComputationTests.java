@@ -20,9 +20,11 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.LongAdder;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.sameInstance;
 
@@ -61,6 +63,7 @@ public class ContinuousComputationTests extends ESTestCase {
             }
         };
 
+        final LongAdder listenersComputed = new LongAdder();
         final AtomicInteger inputGenerator = new AtomicInteger(0);
         final int inputsPerThread = 1000;
         final Thread[] threads = new Thread[between(1, 5)];
@@ -73,7 +76,13 @@ public class ContinuousComputationTests extends ESTestCase {
                     throw new AssertionError(e);
                 }
                 for (int i = 0; i < inputsPerThread; i++) {
-                    computation.onNewInput(inputGenerator.incrementAndGet());
+                    final int input = inputGenerator.incrementAndGet();
+                    //TODO another thread gets and submits execution at this point
+                    computation.onNewInput(input, () -> {
+                        assertThat("Should execute listener after computation is complete",
+                            computation.last.get(), greaterThanOrEqualTo(input));
+                        listenersComputed.increment();
+                    });
                 }
             }, "submit-thread-" + t);
             threads[t].start();
@@ -89,6 +98,7 @@ public class ContinuousComputationTests extends ESTestCase {
 
         assertThat("Should keep the latest result", computation.last.get(), equalTo(inputGenerator.get()));
         assertThat("May skip some computations", computation.count.get(), lessThan(threads.length * inputsPerThread));
+        assertThat("Should complete all listeners", listenersComputed.sum(), equalTo((long) threads.length * inputsPerThread));
     }
 
     public void testSkipsObsoleteValues() throws Exception {

@@ -1534,12 +1534,7 @@ public class MetadataIndexTemplateService {
             name,
             maybeTemplate.map(Template::settings).orElse(Settings.EMPTY),
             indexPatterns,
-            maybeTemplate.map(Template::aliases)
-                .orElse(emptyMap())
-                .values()
-                .stream()
-                .map(MetadataIndexTemplateService::toAlias)
-                .toList()
+            maybeTemplate.map(Template::aliases).orElse(emptyMap()).values().stream().map(MetadataIndexTemplateService::toAlias).toList()
         );
     }
 

@@ -230,7 +230,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
    *             Properties to expand when copying packaging files             *
    *****************************************************************************/
   configurations {
-    ['libs', 'libsLaunchers', 'libsVersionChecker', 'libsCliLauncher', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole'].each {
+    ['libs', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole'].each {
       create(it) {
         canBeConsumed = false
         canBeResolved = true
@@ -252,7 +252,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
 
     libsVersionChecker project(':distribution:tools:java-version-checker')
     libsCliLauncher project(':distribution:tools:cli-launcher')
-    libsLaunchers project(':distribution:tools:launchers')
+    libsServerCli project(':distribution:tools:server-cli')
     libsAnsiConsole project(':distribution:tools:ansi-console')
     libsPluginCli project(':distribution:tools:plugin-cli')
     libsKeystoreCli project(path: ':distribution:tools:keystore-cli')
@@ -269,14 +269,14 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
       copySpec {
         // Delay by using closures, since they have not yet been configured, so no jar task exists yet.
         from(configurations.libs)
-        into('launchers') {
-          from(configurations.libsLaunchers)
-        }
         into('java-version-checker') {
           from(configurations.libsVersionChecker)
         }
         into('cli-launcher') {
           from(configurations.libsCliLauncher)
+        }
+        into('tools/server-cli') {
+          from(configurations.libsServerCli)
         }
         into('tools/geoip-cli') {
           from(configurations.libsGeoIpCli)

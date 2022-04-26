@@ -7,6 +7,7 @@
  */
 package org.elasticsearch.legacygeo.mapper;
 
+import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
@@ -446,17 +447,17 @@ public class LegacyGeoShapeFieldMapper extends AbstractShapeGeometryFieldMapper<
         }
 
         @Override
-        public Query geoShapeQuery(Geometry shape, String fieldName, ShapeRelation relation, SearchExecutionContext context) {
+        public Query geoShapeQuery(SearchExecutionContext context, String fieldName, ShapeRelation relation, LatLonGeometry... geometries) {
             throw new UnsupportedOperationException("process method should not be called for PrefixTree based geo_shapes");
         }
 
         @Override
         public Query geoShapeQuery(
-            Geometry shape,
+            SearchExecutionContext context,
             String fieldName,
             SpatialStrategy spatialStrategy,
             ShapeRelation relation,
-            SearchExecutionContext context
+            Geometry shape
         ) {
             return queryProcessor.geoShapeQuery(shape, fieldName, spatialStrategy, relation, context);
         }

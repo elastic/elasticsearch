@@ -9,13 +9,16 @@ package org.elasticsearch.xpack.ilm;
 
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.health.HealthIndicatorDetails;
+import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
+import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
@@ -56,7 +59,14 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
         if (ilmMetadata.getPolicyMetadatas().isEmpty()) {
             return createIndicator(GREEN, "No policies configured", createDetails(includeDetails, ilmMetadata), Collections.emptyList());
         } else if (ilmMetadata.getOperationMode() != OperationMode.RUNNING) {
-            return createIndicator(YELLOW, "ILM is not running", createDetails(includeDetails, ilmMetadata), Collections.emptyList());
+            List<HealthIndicatorImpact> impacts = Collections.singletonList(
+                new HealthIndicatorImpact(
+                    3,
+                    "Indices are not being rolled over, which could lead to future instability.",
+                    List.of(ImpactArea.SEARCH)
+                )
+            );
+            return createIndicator(YELLOW, "ILM is not running", createDetails(includeDetails, ilmMetadata), impacts);
         } else {
             return createIndicator(GREEN, "ILM is running", createDetails(includeDetails, ilmMetadata), Collections.emptyList());
         }

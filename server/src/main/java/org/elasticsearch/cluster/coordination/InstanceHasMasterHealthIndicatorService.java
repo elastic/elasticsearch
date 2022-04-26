@@ -13,11 +13,14 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.health.HealthIndicatorDetails;
+import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthStatus;
+import org.elasticsearch.health.ImpactArea;
 
-import java.util.Collections;
+import java.util.ArrayList;
+import java.util.List;
 
 import static org.elasticsearch.health.ServerHealthComponents.CLUSTER_COORDINATION;
 
@@ -27,6 +30,7 @@ public class InstanceHasMasterHealthIndicatorService implements HealthIndicatorS
 
     private static final String INSTANCE_HAS_MASTER_GREEN_SUMMARY = "Health coordinating instance has a master node.";
     private static final String INSTANCE_HAS_MASTER_RED_SUMMARY = "Health coordinating instance does not have a master node.";
+    private static final String NO_MASTER_IMPACT = "The cluster cannot create, delete, or rebalance indices, and is likely to be unstable";
 
     private final ClusterService clusterService;
 
@@ -54,6 +58,10 @@ public class InstanceHasMasterHealthIndicatorService implements HealthIndicatorS
 
         HealthStatus instanceHasMasterStatus = masterNode == null ? HealthStatus.RED : HealthStatus.GREEN;
         String instanceHasMasterSummary = masterNode == null ? INSTANCE_HAS_MASTER_RED_SUMMARY : INSTANCE_HAS_MASTER_GREEN_SUMMARY;
+        List<HealthIndicatorImpact> impacts = new ArrayList<>();
+        if (masterNode == null) {
+            impacts.add(new HealthIndicatorImpact(1, NO_MASTER_IMPACT, List.of(ImpactArea.INGEST)));
+        }
 
         return createIndicator(instanceHasMasterStatus, instanceHasMasterSummary, includeDetails ? (builder, params) -> {
             builder.startObject();
@@ -71,6 +79,6 @@ public class InstanceHasMasterHealthIndicatorService implements HealthIndicatorS
                 }
             });
             return builder.endObject();
-        } : HealthIndicatorDetails.EMPTY, Collections.emptyList());
+        } : HealthIndicatorDetails.EMPTY, impacts);
     }
 }

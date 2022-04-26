@@ -12,8 +12,10 @@ import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.health.HealthIndicatorDetails;
+import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
+import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.repositories.RepositoryData;
 
@@ -82,7 +84,13 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
                 Collections.emptyList()
             );
         }
-
+        List<HealthIndicatorImpact> impacts = Collections.singletonList(
+            new HealthIndicatorImpact(
+                2,
+                "Snapshots in corrupted repositories cannot be restored. Data loss is possible.",
+                List.of(ImpactArea.SEARCH)
+            )
+        );
         return createIndicator(
             RED,
             createCorruptedRepositorySummary(corrupted),
@@ -98,7 +106,7 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
                     )
                 )
                 : HealthIndicatorDetails.EMPTY,
-            Collections.emptyList()
+            impacts
         );
     }
 

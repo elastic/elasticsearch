@@ -9,13 +9,16 @@ package org.elasticsearch.xpack.slm;
 
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.health.HealthIndicatorDetails;
+import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.HealthIndicatorService;
+import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
 
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
@@ -56,7 +59,14 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
         if (slmMetadata.getSnapshotConfigurations().isEmpty()) {
             return createIndicator(GREEN, "No policies configured", createDetails(includeDetails, slmMetadata), Collections.emptyList());
         } else if (slmMetadata.getOperationMode() != OperationMode.RUNNING) {
-            return createIndicator(YELLOW, "SLM is not running", createDetails(includeDetails, slmMetadata), Collections.emptyList());
+            List<HealthIndicatorImpact> impacts = Collections.singletonList(
+                new HealthIndicatorImpact(
+                    3,
+                    "Scheduled snapshots are not happening, which could lead to future data loss.",
+                    List.of(ImpactArea.SEARCH)
+                )
+            );
+            return createIndicator(YELLOW, "SLM is not running", createDetails(includeDetails, slmMetadata), impacts);
         } else {
             return createIndicator(GREEN, "SLM is running", createDetails(includeDetails, slmMetadata), Collections.emptyList());
         }

@@ -75,7 +75,7 @@ public class WatcherLifeCycleServiceTests extends ESTestCase {
             updateTask.onAllNodesAcked();
             return null;
         };
-        doAnswer(answer).when(clusterService).submitStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class), any());
+        doAnswer(answer).when(clusterService).submitUnbatchedStateUpdateTask(anyString(), any(ClusterStateUpdateTask.class));
         watcherService = mock(WatcherService.class);
         lifeCycleService = new WatcherLifeCycleService(clusterService, watcherService);
     }

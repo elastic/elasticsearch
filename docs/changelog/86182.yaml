@@ -2,4 +2,5 @@ pr: 86182
 summary: Upgrade to Adoptium JDK 18.0.1+10
 area: Packaging
 type: upgrade
-issues: []
+issues:
+ - 86108

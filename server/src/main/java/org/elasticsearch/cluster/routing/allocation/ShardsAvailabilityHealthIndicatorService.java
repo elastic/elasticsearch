@@ -266,14 +266,34 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             + "[POST /_ilm/migrate_to_data_tiers].",
         null
     );
-    public static final UserAction.Definition ACTION_INCREASE_TIER_CAPACITY = new UserAction.Definition(
-        "increase_tier_capacity_for_allocations",
-        "Elasticsearch isn't allowed to allocate some shards from these indices to any of the nodes in their data tiers because there are "
-            + "not enough nodes in the tier to allocate each shard copy on a different node. Increase the number of nodes in this tier or "
-            + "decrease the number of replicas your indices are using.",
-        null
 
+    public static final UserAction.Definition ACTION_INCREASE_NODE_CAPACITY = new UserAction.Definition(
+        "increase_node_capacity_for_allocations",
+        "Elasticsearch isn't allowed to allocate some shards from these indices because there are not enough nodes in the cluster to "
+            + "allocate each shard copy on a different node. Increase the number of nodes in the cluster or decrease the number of "
+            + "replicas your indices are using.",
+        null
     );
+
+    public static final Map<String, UserAction.Definition> ACTION_INCREASE_TIER_CAPACITY_LOOKUP;
+    static {
+        Map<String, UserAction.Definition> lookup = DataTier.ALL_DATA_TIERS.stream()
+            .collect(
+                Collectors.toMap(
+                    tier -> tier,
+                    tier -> new UserAction.Definition(
+                        "increase_tier_capacity_for_allocations_" + tier,
+                        "Elasticsearch isn't allowed to allocate some shards from these indices to any of the nodes in their data tiers "
+                            + "because there are not enough nodes in the ["
+                            + tier
+                            + "] tier to allocate each shard copy on a different node. Increase the number of nodes in this tier or "
+                            + "decrease the number of replicas your indices are using.",
+                        null
+                    )
+                )
+            );
+        ACTION_INCREASE_TIER_CAPACITY_LOOKUP = Collections.unmodifiableMap(lookup);
+    }
 
     private class ShardAllocationCounts {
         private boolean available = true; // This will be true even if no replicas are expected, as long as none are unavailable
@@ -597,7 +617,27 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
                 // Not enough tier nodes to hold shards on different nodes?
                 if (dataTierAllocationResults.stream().allMatch(hasDeciderResult(SameShardAllocationDecider.NAME, Decision.Type.NO))) {
-                    actions.add(ACTION_INCREASE_TIER_CAPACITY);
+                    // Determine the unique roles available on the allowed tier nodes
+                    Set<String> dataTierRolesAvailable = dataTierAllocationResults.stream()
+                        .map(NodeAllocationResult::getNode)
+                        .map(DiscoveryNode::getRoles)
+                        .flatMap(Set::stream)
+                        .map(DiscoveryNodeRole::roleName)
+                        .collect(Collectors.toSet());
+
+                    // Determine which of the preferred tiers is present
+                    Optional<String> preferredTier = indexMetadata.getTierPreference()
+                        .stream()
+                        .filter(dataTierRolesAvailable::contains)
+                        .findFirst();
+
+                    if (preferredTier.isPresent()) {
+                        Optional.ofNullable(ACTION_INCREASE_TIER_CAPACITY_LOOKUP.get(preferredTier.get())).ifPresent(actions::add);
+                    } else {
+                        // We couldn't determine a desired tier. This is likely because there are no tiers in the cluster,
+                        // only `data` nodes. Give a generic ask for increasing the shard limit.
+                        actions.add(ACTION_INCREASE_NODE_CAPACITY);
+                    }
                 }
             }
         }

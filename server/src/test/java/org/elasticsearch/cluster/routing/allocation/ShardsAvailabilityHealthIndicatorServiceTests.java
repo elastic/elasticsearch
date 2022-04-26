@@ -63,11 +63,12 @@ import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHea
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_ENABLE_CLUSTER_ROUTING_ALLOCATION;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_ENABLE_INDEX_ROUTING_ALLOCATION;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_ENABLE_TIERS_LOOKUP;
+import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_NODE_CAPACITY;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING_LOOKUP;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING_LOOKUP;
-import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_TIER_CAPACITY;
+import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_TIER_CAPACITY_LOOKUP;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_MIGRATE_TIERS_AWAY_FROM_INCLUDE_DATA;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_MIGRATE_TIERS_AWAY_FROM_REQUIRE_DATA;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_RESTORE_FROM_SNAPSHOT;
@@ -1125,7 +1126,13 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             List.of(
                 // Shard is allowed on data tier, but disallowed because node is already hosting a copy of it.
                 new NodeAllocationResult(
-                    new DiscoveryNode(randomNodeId(), buildNewFakeTransportAddress(), Version.CURRENT),
+                    new DiscoveryNode(
+                        randomNodeId(),
+                        buildNewFakeTransportAddress(),
+                        Map.of(),
+                        Set.of(DiscoveryNodeRole.DATA_HOT_NODE_ROLE),
+                        Version.CURRENT
+                    ),
                     new Decision.Multi().add(Decision.single(Decision.Type.YES, "data_tier", null))
                         .add(Decision.single(Decision.Type.NO, SameShardAllocationDecider.NAME, null)),
                     1
@@ -1135,7 +1142,49 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
 
         assertThat(actions, hasSize(1));
-        assertThat(actions, contains(ACTION_INCREASE_TIER_CAPACITY));
+        assertThat(actions, contains(ACTION_INCREASE_TIER_CAPACITY_LOOKUP.get(DataTier.DATA_HOT)));
+    }
+
+    public void testDiagnoseIncreaseNodeCapacity() {
+        // Index definition, 1 primary no replicas, in the hot tier
+        IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(DataTier.TIER_PREFERENCE, DataTier.DATA_HOT)
+                    .build()
+            )
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
+
+        var service = createAllocationHealthIndicatorService();
+
+        // Get the list of user actions that are generated for this unassigned index shard
+        List<UserAction.Definition> actions = new ArrayList<>();
+        service.checkDataTierRelatedIssues(
+            actions,
+            indexMetadata,
+            List.of(
+                // Shard is allowed on data tier, but disallowed because node is already hosting a copy of it.
+                new NodeAllocationResult(
+                    new DiscoveryNode(
+                        randomNodeId(),
+                        buildNewFakeTransportAddress(),
+                        Map.of(),
+                        Set.of(DiscoveryNodeRole.DATA_ROLE),
+                        Version.CURRENT
+                    ),
+                    new Decision.Multi().add(Decision.single(Decision.Type.YES, "data_tier", null))
+                        .add(Decision.single(Decision.Type.NO, SameShardAllocationDecider.NAME, null)),
+                    1
+                )
+            ),
+            ClusterState.EMPTY_STATE
+        );
+
+        assertThat(actions, hasSize(1));
+        assertThat(actions, contains(ACTION_INCREASE_NODE_CAPACITY));
     }
 
     private HealthIndicatorResult createExpectedResult(

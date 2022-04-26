@@ -27,7 +27,6 @@ import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
 
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
@@ -64,13 +63,8 @@ public class BeatsMapperBenchmark {
     }
 
     private static String readCompressedMapping(String resource) throws IOException {
-        try (var in = new InputStreamReader(new GZIPInputStream(BeatsMapperBenchmark.class.getResourceAsStream(resource)), UTF_8)) {
-            StringBuilder out = new StringBuilder();
-            char[] buffer = new char[10240];
-            for (int numRead; (numRead = in.read(buffer, 0, buffer.length)) > 0;) {
-                out.append(buffer, 0, numRead);
-            }
-            return out.toString();
+        try (var in = new GZIPInputStream(BeatsMapperBenchmark.class.getResourceAsStream(resource))) {
+            return new String(in.readAllBytes(), UTF_8);
         }
     }
 

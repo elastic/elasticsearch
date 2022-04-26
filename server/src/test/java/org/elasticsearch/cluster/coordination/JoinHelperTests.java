@@ -33,6 +33,7 @@ import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.ClusterConnectionManager;
 import org.elasticsearch.transport.RemoteTransportException;
@@ -80,7 +81,8 @@ public class JoinHelperTests extends ESTestCase {
             x -> localNode,
             null,
             Collections.emptySet(),
-            new ClusterConnectionManager(Settings.EMPTY, capturingTransport, threadPool.getThreadContext())
+            new ClusterConnectionManager(Settings.EMPTY, capturingTransport, threadPool.getThreadContext()),
+            Tracer.NOOP
         );
         JoinHelper joinHelper = new JoinHelper(
             Settings.EMPTY,

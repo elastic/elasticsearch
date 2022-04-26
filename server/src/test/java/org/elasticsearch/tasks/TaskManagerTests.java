@@ -20,6 +20,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.tracing.Tracer;
 import org.elasticsearch.transport.FakeTcpChannel;
 import org.elasticsearch.transport.TcpChannel;
 import org.elasticsearch.transport.TcpTransportChannel;
@@ -28,6 +29,7 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
 import org.junit.Before;
+import org.mockito.Mockito;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -45,7 +47,10 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.in;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class TaskManagerTests extends ESTestCase {
@@ -75,7 +80,7 @@ public class TaskManagerTests extends ESTestCase {
     }
 
     public void testTrackingChannelTask() throws Exception {
-        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of());
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), Tracer.NOOP);
         Set<Task> cancelledTasks = ConcurrentCollections.newConcurrentSet();
         final var transportServiceMock = mock(TransportService.class);
         when(transportServiceMock.getThreadPool()).thenReturn(threadPool);
@@ -125,7 +130,7 @@ public class TaskManagerTests extends ESTestCase {
     }
 
     public void testTrackingTaskAndCloseChannelConcurrently() throws Exception {
-        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of());
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), Tracer.NOOP);
         Set<CancellableTask> cancelledTasks = ConcurrentCollections.newConcurrentSet();
         final var transportServiceMock = mock(TransportService.class);
         when(transportServiceMock.getThreadPool()).thenReturn(threadPool);
@@ -184,7 +189,7 @@ public class TaskManagerTests extends ESTestCase {
     }
 
     public void testRemoveBansOnChannelDisconnects() throws Exception {
-        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of());
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), Tracer.NOOP);
         final var transportServiceMock = mock(TransportService.class);
         when(transportServiceMock.getThreadPool()).thenReturn(threadPool);
         taskManager.setTaskCancellationService(new TaskCancellationService(transportServiceMock) {
@@ -228,6 +233,25 @@ public class TaskManagerTests extends ESTestCase {
         }
         assertBusy(() -> assertThat(taskManager.getBannedTaskIds(), empty()));
         assertThat(taskManager.numberOfChannelPendingTaskTrackers(), equalTo(0));
+    }
+
+    public void testRegisterTaskStartsTracing() {
+        final Tracer mockTracer = Mockito.mock(Tracer.class);
+        final TaskManager taskManager = new TaskManager(Settings.EMPTY, threadPool, Set.of(), mockTracer);
+
+        final Task task = taskManager.register("testType", "testAction", new TaskAwareRequest() {
+
+            @Override
+            public void setParentTask(TaskId taskId) {
+            }
+
+            @Override
+            public TaskId getParentTask() {
+                return TaskId.EMPTY_TASK_ID;
+            }
+        });
+
+        verify(mockTracer).onTraceStarted(any(), eq(task));
     }
 
     static class CancellableRequest extends TransportRequest {

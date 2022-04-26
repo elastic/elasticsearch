@@ -146,7 +146,7 @@ public class Retry {
                     DocWriteRequest<?> originalBulkItemRequest = currentBulkRequest.requests().get(index);
                     if (originalBulkItemRequest instanceof IndexRequest item) {
                         requestToReissue.add(copyBulkItemRequest(item));
-                    }  else {
+                    } else {
                         requestToReissue.add(originalBulkItemRequest);
                     }
                 }

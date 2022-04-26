@@ -79,7 +79,8 @@ public class SqlQueryRequestTests extends AbstractSerializingTestCase<TestSqlQue
             false, // deprecated
             randomTV(),
             randomBoolean(),
-            randomTVGreaterThan(MIN_KEEP_ALIVE)
+            randomTVGreaterThan(MIN_KEEP_ALIVE),
+            randomBoolean()
         );
     }
 
@@ -114,7 +115,10 @@ public class SqlQueryRequestTests extends AbstractSerializingTestCase<TestSqlQue
             request -> request.cursor(randomValueOtherThan(request.cursor(), SqlQueryResponseTests::randomStringCursor)),
             request -> request.waitForCompletionTimeout(randomValueOtherThan(request.waitForCompletionTimeout(), this::randomTV)),
             request -> request.keepOnCompletion(randomValueOtherThan(request.keepOnCompletion(), ESTestCase::randomBoolean)),
-            request -> request.keepAlive(randomValueOtherThan(request.keepAlive(), () -> randomTVGreaterThan(MIN_KEEP_ALIVE)))
+            request -> request.keepAlive(randomValueOtherThan(request.keepAlive(), () -> randomTVGreaterThan(MIN_KEEP_ALIVE))),
+            request -> request.allowPartialSearchResults(
+                randomValueOtherThan(request.allowPartialSearchResults(), ESTestCase::randomBoolean)
+            )
         );
         TestSqlQueryRequest newRequest = new TestSqlQueryRequest(
             instance.query(),
@@ -133,7 +137,8 @@ public class SqlQueryRequestTests extends AbstractSerializingTestCase<TestSqlQue
             instance.indexIncludeFrozen(),
             instance.waitForCompletionTimeout(),
             instance.keepOnCompletion(),
-            instance.keepAlive()
+            instance.keepAlive(),
+            instance.allowPartialSearchResults()
         );
         mutator.accept(newRequest);
         return newRequest;

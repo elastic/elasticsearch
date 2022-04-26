@@ -76,11 +76,11 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
             XContentLocation location = delegate().getTokenLocation();
             Token token = delegate().nextToken();
             if (token == Token.START_OBJECT || token == Token.START_ARRAY) {
-                parsers.push(new DotExpandingXContentParser(new XContentSubParser(delegate()), delegate(), subpaths, location));
+                parsers.push(new DotExpandingXContentParser(new XContentSubParser(delegate()), subpaths, location));
             } else if (token == Token.END_OBJECT || token == Token.END_ARRAY) {
                 throw new IllegalStateException("Expecting START_OBJECT or START_ARRAY or VALUE but got [" + token + "]");
             } else {
-                parsers.push(new DotExpandingXContentParser(new SingletonValueXContentParser(delegate()), delegate(), subpaths, location));
+                parsers.push(new DotExpandingXContentParser(new SingletonValueXContentParser(delegate()), subpaths, location));
             }
         }
 
@@ -162,17 +162,15 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
     }
 
     final String[] subPaths;
-    final XContentParser subparser;
 
     private XContentLocation currentLocation;
     private int expandedTokens = 0;
     private int innerLevel = -1;
     private State state = State.EXPANDING_START_OBJECT;
 
-    private DotExpandingXContentParser(XContentParser subparser, XContentParser root, String[] subPaths, XContentLocation startLocation) {
-        super(root);
+    private DotExpandingXContentParser(XContentParser subparser, String[] subPaths, XContentLocation startLocation) {
+        super(subparser);
         this.subPaths = subPaths;
-        this.subparser = subparser;
         this.currentLocation = startLocation;
     }
 
@@ -196,7 +194,7 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
             return Token.START_OBJECT;
         }
         if (state == State.PARSING_ORIGINAL_CONTENT) {
-            Token token = subparser.nextToken();
+            Token token = delegate().nextToken();
             if (token == Token.START_OBJECT || token == Token.START_ARRAY) {
                 innerLevel++;
             }
@@ -260,7 +258,7 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
             state = State.ENDING_EXPANDED_OBJECT;
         }
         if (state == State.PARSING_ORIGINAL_CONTENT) {
-            subparser.skipChildren();
+            delegate().skipChildren();
         }
     }
 

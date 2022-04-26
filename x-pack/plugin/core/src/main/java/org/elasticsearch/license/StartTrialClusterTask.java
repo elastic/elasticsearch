@@ -100,7 +100,7 @@ public class StartTrialClusterTask implements ClusterStateTaskListener {
             LicensesMetadata newLicensesMetadata = new LicensesMetadata(selfGeneratedLicense, Version.CURRENT);
             taskContext.success(
                 listener.delegateFailure(
-                    (l, s) -> l.onResponse(new PostStartTrialResponse(PostStartTrialResponse.Status.UPGRADED_TO_TRIAL))
+                    (delegate, ignored) -> delegate.onResponse(new PostStartTrialResponse(PostStartTrialResponse.Status.UPGRADED_TO_TRIAL))
                 )
             );
             return newLicensesMetadata;

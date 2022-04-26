@@ -75,15 +75,13 @@ public class StartBasicClusterTask implements ClusterStateTaskListener {
                 if (ackMessageMap.isEmpty() == false) {
                     taskContext.success(
                         listener.delegateFailure(
-                            (l, s) -> {
-                                l.onResponse(
-                                    new PostStartBasicResponse(
-                                        PostStartBasicResponse.Status.NEED_ACKNOWLEDGEMENT,
-                                        ackMessageMap,
-                                        ACKNOWLEDGEMENT_HEADER
-                                    )
-                                );
-                            }
+                            (delegate, ignored) -> delegate.onResponse(
+                                new PostStartBasicResponse(
+                                    PostStartBasicResponse.Status.NEED_ACKNOWLEDGEMENT,
+                                    ackMessageMap,
+                                    ACKNOWLEDGEMENT_HEADER
+                                )
+                            )
                         )
                     );
                     return currentLicensesMetadata;

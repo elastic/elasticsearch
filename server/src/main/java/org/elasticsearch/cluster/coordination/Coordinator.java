@@ -22,7 +22,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.LocalMasterServiceTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -1216,7 +1215,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         final ClusterState state = getLastAcceptedState();
         if (improveConfiguration(state) != state && reconfigurationTaskScheduled.compareAndSet(false, true)) {
             logger.trace("scheduling reconfiguration");
-            masterService.submitStateUpdateTask("reconfigure", new ClusterStateUpdateTask(Priority.URGENT) {
+            submitUnbatchedTask("reconfigure", new ClusterStateUpdateTask(Priority.URGENT) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     reconfigurationTaskScheduled.set(false);
@@ -1230,13 +1229,13 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     reconfigurationTaskScheduled.set(false);
                     logger.debug("reconfiguration failed", e);
                 }
-            }, newExecutor());
+            });
         }
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(String source, ClusterStateUpdateTask task) {
+        masterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     // exposed for tests

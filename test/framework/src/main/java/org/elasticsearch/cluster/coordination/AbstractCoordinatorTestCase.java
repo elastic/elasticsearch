@@ -22,7 +22,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ESAllocationTestCase;
@@ -1441,7 +1440,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 onNode(() -> {
                     logger.trace("[{}] submitUpdateTask: enqueueing [{}]", localNode.getId(), source);
                     final long submittedTerm = coordinator.getCurrentTerm();
-                    masterService.submitStateUpdateTask(source, new ClusterStateUpdateTask() {
+                    masterService.submitUnbatchedStateUpdateTask(source, new ClusterStateUpdateTask() {
                         @Override
                         public ClusterState execute(ClusterState currentState) {
                             assertThat(currentState.term(), greaterThanOrEqualTo(submittedTerm));
@@ -1470,7 +1469,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                             logger.trace("successfully published: [{}]", newState);
                             taskListener.clusterStateProcessed(oldState, newState);
                         }
-                    }, ClusterStateTaskExecutor.unbatched());
+                    });
                 }).run();
                 return ackCollector;
             }

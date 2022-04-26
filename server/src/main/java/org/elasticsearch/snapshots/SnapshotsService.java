@@ -1079,7 +1079,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
             + "] or node configuration changed ["
             + changedNodes
             + "]";
-        clusterService.submitStateUpdateTask(source, new ClusterStateUpdateTask() {
+        submitUnbatchedTask(source, new ClusterStateUpdateTask() {
 
             private final Collection<SnapshotsInProgress.Entry> finishedSnapshots = new ArrayList<>();
 
@@ -1269,7 +1269,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     }
                 }
             }
-        }, newExecutor());
+        });
     }
 
     private static ImmutableOpenMap<ShardId, ShardSnapshotStatus> processWaitingShardsAndRemovedNodes(
@@ -1442,11 +1442,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
                     @Override
                     public void onFailure(Exception e) {
-                        clusterService.submitStateUpdateTask(
-                            "fail repo tasks for [" + repoName + "]",
-                            new FailPendingRepoTasksTask(repoName, e),
-                            newExecutor()
-                        );
+                        submitUnbatchedTask("fail repo tasks for [" + repoName + "]", new FailPendingRepoTasksTask(repoName, e));
                     }
                 });
             } else {
@@ -1705,7 +1701,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      * TODO: optimize this to execute in a single CS update together with finalizing the latest snapshot
      */
     private void runReadyDeletions(RepositoryData repositoryData, String repository) {
-        clusterService.submitStateUpdateTask("Run ready deletions", new ClusterStateUpdateTask() {
+        submitUnbatchedTask("Run ready deletions", new ClusterStateUpdateTask() {
 
             private SnapshotDeletionsInProgress.Entry deletionToRun;
 
@@ -1739,7 +1735,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     deleteSnapshotsFromRepository(deletionToRun, repositoryData, newState.nodes().getMinNodeVersion());
                 }
             }
-        }, newExecutor());
+        });
     }
 
     /**
@@ -1961,7 +1957,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
      */
     private void removeFailedSnapshotFromClusterState(Snapshot snapshot, Exception failure, @Nullable RepositoryData repositoryData) {
         assert failure != null : "Failure must be supplied";
-        clusterService.submitStateUpdateTask(REMOVE_SNAPSHOT_METADATA_TASK_SOURCE, new ClusterStateUpdateTask() {
+        submitUnbatchedTask(REMOVE_SNAPSHOT_METADATA_TASK_SOURCE, new ClusterStateUpdateTask() {
 
             @Override
             public ClusterState execute(ClusterState currentState) {
@@ -2004,7 +2000,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                     runNextQueuedOperation(repositoryData, snapshot.getRepository(), true);
                 }
             }
-        }, newExecutor());
+        });
     }
 
     private static final String REMOVE_SNAPSHOT_METADATA_TASK_SOURCE = "remove snapshot metadata";
@@ -2385,18 +2381,17 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
 
             @Override
             public void onFailure(Exception e) {
-                clusterService.submitStateUpdateTask(
+                submitUnbatchedTask(
                     "fail repo tasks for [" + deleteEntry.repository() + "]",
-                    new FailPendingRepoTasksTask(deleteEntry.repository(), e),
-                    newExecutor()
+                    new FailPendingRepoTasksTask(deleteEntry.repository(), e)
                 );
             }
         });
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     /** Deletes snapshot from repository
@@ -2486,7 +2481,7 @@ public class SnapshotsService extends AbstractLifecycleComponent implements Clus
                 }
             };
         }
-        clusterService.submitStateUpdateTask("remove snapshot deletion metadata", clusterStateUpdateTask, newExecutor());
+        submitUnbatchedTask("remove snapshot deletion metadata", clusterStateUpdateTask);
     }
 
     /**

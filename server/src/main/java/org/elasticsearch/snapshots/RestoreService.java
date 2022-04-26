@@ -19,7 +19,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.RestoreInProgress.ShardRestoreStatus;
@@ -438,7 +437,7 @@ public class RestoreService implements ClusterStateApplier {
 
         // Now we can start the actual restore process by adding shards to be recovered in the cluster state
         // and updating cluster metadata (global and index) as needed
-        clusterService.submitStateUpdateTask(
+        submitUnbatchedTask(
             "restore_snapshot[" + snapshotId.getName() + ']',
             new RestoreSnapshotStateTask(
                 request,
@@ -459,14 +458,13 @@ public class RestoreService implements ClusterStateApplier {
                 updater,
                 repository.getMetadata(),
                 listener
-            ),
-            newExecutor()
+            )
         );
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     private void setRefreshRepositoryUuidOnRestore(boolean refreshRepositoryUuidOnRestore) {
@@ -1040,7 +1038,7 @@ public class RestoreService implements ClusterStateApplier {
 
     // run a cluster state update that removes all completed restores from the cluster state
     private void removeCompletedRestoresFromClusterState() {
-        clusterService.submitStateUpdateTask("clean up snapshot restore status", new ClusterStateUpdateTask(Priority.URGENT) {
+        submitUnbatchedTask("clean up snapshot restore status", new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 RestoreInProgress.Builder restoreInProgressBuilder = new RestoreInProgress.Builder();
@@ -1073,7 +1071,7 @@ public class RestoreService implements ClusterStateApplier {
             public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                 cleanupInProgress = false;
             }
-        }, newExecutor());
+        });
     }
 
     @Override

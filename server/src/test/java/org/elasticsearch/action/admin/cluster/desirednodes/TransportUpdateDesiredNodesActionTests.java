@@ -117,7 +117,7 @@ public class TransportUpdateDesiredNodesActionTests extends DesiredNodesTestCase
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, future::actionGet);
         assertThat(exception.getMessage(), containsString("Invalid settings"));
 
-        verify(clusterService, never()).submitStateUpdateTask(any(), any(), any());
+        verify(clusterService, never()).submitUnbatchedStateUpdateTask(any(), any());
     }
 
     public void testUpdateDesiredNodes() {

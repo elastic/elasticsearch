@@ -26,7 +26,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.search.MaxScoreCollector;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
+import org.elasticsearch.common.util.LongObjectPagedHashMap.Cursor;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -42,7 +44,6 @@ import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -63,9 +64,12 @@ class TopHitsAggregator extends MetricsAggregator {
         }
     }
 
+    private final BigArrays bigArrays;
     private final SubSearchContext subSearchContext;
     private final LongObjectPagedHashMap<Collectors> topDocsCollectors;
     private final List<ProfileResult> fetchProfiles;
+    // this must be mutable so it can be closed/replaced on each call to getLeafCollector
+    private LongObjectPagedHashMap<LeafCollector> leafCollectors;
 
     TopHitsAggregator(
         SubSearchContext subSearchContext,
@@ -75,9 +79,10 @@ class TopHitsAggregator extends MetricsAggregator {
         Map<String, Object> metadata
     ) throws IOException {
         super(name, context, parent, metadata);
-        topDocsCollectors = new LongObjectPagedHashMap<>(1, context.bigArrays());
+        this.bigArrays = context.bigArrays();
         this.subSearchContext = subSearchContext;
-        fetchProfiles = context.profiling() ? new ArrayList<>() : null;
+        this.topDocsCollectors = new LongObjectPagedHashMap<>(1, bigArrays);
+        this.fetchProfiles = context.profiling() ? new ArrayList<>() : null;
     }
 
     @Override
@@ -97,7 +102,10 @@ class TopHitsAggregator extends MetricsAggregator {
         // when post collecting then we have already replaced the leaf readers on the aggregator level have already been
         // replaced with the next leaf readers and then post collection pushes docids of the previous segment, which
         // then causes assertions to trip or incorrect top docs to be computed.
-        final Map<Long, LeafCollector> leafCollectors = new HashMap<>(1);
+        if (leafCollectors != null) {
+            leafCollectors.close();
+        }
+        leafCollectors = new LongObjectPagedHashMap<>(1, bigArrays);
         return new LeafBucketCollectorBase(sub, null) {
 
             Scorable scorer;
@@ -106,8 +114,8 @@ class TopHitsAggregator extends MetricsAggregator {
             public void setScorer(Scorable scorer) throws IOException {
                 this.scorer = scorer;
                 super.setScorer(scorer);
-                for (var leaf : leafCollectors.values()) {
-                    leaf.setScorer(scorer);
+                for (Cursor<LeafCollector> leafCollector : leafCollectors) {
+                    leafCollector.value.setScorer(scorer);
                 }
             }
 
@@ -138,18 +146,14 @@ class TopHitsAggregator extends MetricsAggregator {
                     topDocsCollectors.put(bucket, collectors);
                 }
 
-                final Collector multiCollector = collectors.collector;
-                final LeafCollector leafCollector = leafCollectors.computeIfAbsent(bucket, k -> {
-                    try {
-                        var leaf = multiCollector.getLeafCollector(ctx);
-                        if (scorer != null) {
-                            leaf.setScorer(scorer);
-                        }
-                        return leaf;
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
+                LeafCollector leafCollector = leafCollectors.get(bucket);
+                if (leafCollector == null) {
+                    leafCollector = collectors.collector.getLeafCollector(ctx);
+                    if (scorer != null) {
+                        leafCollector.setScorer(scorer);
                     }
-                });
+                    leafCollectors.put(bucket, leafCollector);
+                }
                 leafCollector.collect(docId);
             }
         };
@@ -249,6 +253,6 @@ class TopHitsAggregator extends MetricsAggregator {
 
     @Override
     protected void doClose() {
-        Releasables.close(topDocsCollectors);
+        Releasables.close(topDocsCollectors, leafCollectors);
     }
 }

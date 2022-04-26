@@ -24,11 +24,11 @@ categories:
 
 [discrete]
 [[transforms-underscore-limitation]]
-=== Field names prefixed with underscores omitted from latest {transforms}
+=== Field names prefixed with underscores are omitted from latest {transforms}
 
-If you have field names that start with an underscore character (_), they are
-omitted from the resulting documents in the destination index for `latest` type
-of {transform}, since they are assumed to be internal fields.
+If you use the `latest` type of {transform} and the source index has field names
+that start with an underscore (_) character, they are assumed to be internal
+fields. Those fields are omitted from the documents in the destination index.
 
 [discrete]
 [[transforms-ccs-limitation]]

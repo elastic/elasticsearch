@@ -8,7 +8,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -78,24 +77,6 @@ public class MappingParserTests extends MapperServiceTestCase {
         assertNotNull(objectMapper.getMapper("baz"));
     }
 
-    public void testFieldNameWithCollapsedDots() throws Exception {
-        DocumentMapper docMapper = createDocumentMapper(topMapping(b -> {
-            b.field("collapsed", true);
-            b.startObject("properties");
-            b.startObject("foo.bar").field("type", "text").endObject();
-            b.startObject("foo.baz").field("type", "keyword").endObject();
-            b.endObject();
-        }));
-        ParsedDocument doc = docMapper.parse(source(b -> {
-            b.field("foo.bar", "first");
-            b.field("foo.baz", "second");
-        }));
-
-        assertNull(doc.dynamicMappingsUpdate());
-        assertNotNull(doc.rootDoc().getField("foo.bar"));
-        assertEquals(new BytesRef("second"), doc.rootDoc().getField("foo.baz").binaryValue());
-    }
-
     public void testFieldNameWithDeepDots() throws Exception {
         XContentBuilder builder = mapping(b -> {
             b.startObject("foo.bar").field("type", "text").endObject();
@@ -126,19 +107,6 @@ public class MappingParserTests extends MapperServiceTestCase {
             () -> createMappingParser(Settings.EMPTY).parse("_doc", new CompressedXContent(BytesReference.bytes(builder)))
         );
         assertTrue(e.getMessage(), e.getMessage().contains("mapper [foo] cannot be changed from type [text] to [ObjectMapper]"));
-    }
-
-    public void testFieldNameWithDotPrefixAllowed() throws IOException {
-        XContentBuilder builder = topMapping(b -> {
-            b.field("collapsed", true);
-            b.startObject("properties");
-            b.startObject("foo").field("type", "text").endObject();
-            b.startObject("foo.baz").field("type", "keyword").endObject();
-            b.endObject();
-        });
-        MapperService mapperService = createMapperService(builder);
-        assertEquals("text", mapperService.fieldType("foo").typeName());
-        assertEquals("keyword", mapperService.fieldType("foo.baz").typeName());
     }
 
     public void testMultiFieldsWithFieldAlias() throws IOException {

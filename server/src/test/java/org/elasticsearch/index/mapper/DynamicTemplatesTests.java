@@ -1078,8 +1078,8 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             }"""), Strings.toString(parsedDoc2.dynamicMappingsUpdate()));
     }
 
-    public void testCollapsedObjects() throws IOException {
-        MapperService mapperService = createMapperService(topMapping(b -> {
+    private MapperService createDynamicTemplateCollapsedObject() throws IOException {
+        return createMapperService(topMapping(b -> {
             b.startArray("dynamic_templates");
             {
                 b.startObject();
@@ -1096,37 +1096,49 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             }
             b.endArray();
         }));
+    }
 
+    private static void assertCollapsedObjects(MapperService mapperService) {
+        assertThat(mapperService.fieldType("foo.bar.baz").typeName(), equalTo("long"));
+        assertNotNull(mapperService.mappingLookup().objectMappers().get("foo.bar"));
+        assertThat(mapperService.fieldType("foo.metric.count").typeName(), equalTo("long"));
+        assertThat(mapperService.fieldType("foo.metric.count.min").typeName(), equalTo("long"));
+        assertThat(mapperService.fieldType("foo.metric.count.max").typeName(), equalTo("long"));
+        assertNotNull(mapperService.mappingLookup().objectMappers().get("foo.metric"));
+        assertNull(mapperService.mappingLookup().objectMappers().get("foo.metric.count"));
+    }
+
+    public void testCollapsedObjectsFlatPaths() throws IOException {
+        MapperService mapperService = createDynamicTemplateCollapsedObject();
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
-            b.field("foo.bar", 10);
+            b.field("foo.bar.baz", 10);
             b.field("foo.metric.count", 10);
             b.field("foo.metric.count.min", 4);
             b.field("foo.metric.count.max", 15);
-            b.startObject("bar");
+        }));
+        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
+        assertCollapsedObjects(mapperService);
+    }
+
+    public void testCollapsedObjectsStructuredPaths() throws IOException {
+        MapperService mapperService = createDynamicTemplateCollapsedObject();
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
+            b.startObject("foo");
             {
-                b.startObject("baz").field("count", 4).endObject();
-                b.startObject("bill");
+                b.startObject("bar");
+                b.field("baz", 10);
+                b.endObject();
+                b.startObject("metric");
                 {
-                    b.startObject("metric");
-                    {
-                        b.field("count", 10);
-                        b.field("count.min", 5);
-                        b.field("count.max", 15);
-                    }
-                    b.endObject();
+                    b.field("count", 10);
+                    b.field("count.min", 4);
+                    b.field("count.max", 15);
                 }
                 b.endObject();
             }
             b.endObject();
         }));
-
         merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
-
-        assertThat(mapperService.fieldType("foo.bar").typeName(), equalTo("long"));
-        assertThat(mapperService.fieldType("foo.metric.count").typeName(), equalTo("long"));
-        assertThat(mapperService.fieldType("foo.metric.count.min").typeName(), equalTo("long"));
-        assertThat(mapperService.fieldType("foo.metric.count.max").typeName(), equalTo("long"));
-        assertThat(mapperService.fieldType("bar.bill.metric.count").typeName(), equalTo("long"));
-        assertNotNull(mapperService.mappingLookup().objectMappers().get("bar.bill.metric"));
+        assertCollapsedObjects(mapperService);
     }
 }

@@ -125,7 +125,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
         final HttpCertificateCommand command = new PathAwareHttpCertificateCommand(outFile);
 
-        final MockTerminal terminal = new MockTerminal();
+        final MockTerminal terminal = MockTerminal.create(false);
 
         terminal.addTextInput("y"); // generate CSR
 
@@ -144,9 +144,9 @@ public class HttpCertificateCommandTests extends ESTestCase {
         terminal.addTextInput(randomBoolean() ? "n" : ""); // don't change advanced settings
 
         final String password = randomPassword(false);
-        terminal.addSecretInput(password);
+        terminal.addTextInput(password);
         if ("".equals(password) == false) {
-            terminal.addSecretInput(password);
+            terminal.addTextInput(password);
         } // confirm
 
         terminal.addTextInput(outFile.toString());
@@ -236,7 +236,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
         final HttpCertificateCommand command = new PathAwareHttpCertificateCommand(outFile);
 
-        final MockTerminal terminal = new MockTerminal();
+        final MockTerminal terminal = MockTerminal.create(false);
 
         terminal.addTextInput(randomBoolean() ? "n" : ""); // don't generate CSR
         terminal.addTextInput("y"); // existing CA
@@ -253,7 +253,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
             }
             case PKCS12 -> terminal.addTextInput(getDataPath("ca.p12").toAbsolutePath().toString());
         }
-        terminal.addSecretInput(caPassword);
+        terminal.addTextInput(caPassword);
 
         terminal.addTextInput(years + "y"); // validity period
 
@@ -272,9 +272,9 @@ public class HttpCertificateCommandTests extends ESTestCase {
         terminal.addTextInput(randomBoolean() ? "n" : ""); // don't change advanced settings
 
         final String password = randomPassword(randomBoolean());
-        terminal.addSecretInput(password);
+        terminal.addTextInput(password);
         if ("".equals(password) == false) {
-            terminal.addSecretInput(password);
+            terminal.addTextInput(password);
             if (password.length() > 50) {
                 terminal.addTextInput("y"); // Accept OpenSSL issue
             }
@@ -357,7 +357,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
         final HttpCertificateCommand command = new PathAwareHttpCertificateCommand(outFile);
 
-        final MockTerminal terminal = new MockTerminal();
+        final MockTerminal terminal = MockTerminal.create(false);
 
         terminal.addTextInput(randomBoolean() ? "n" : ""); // don't generate CSR
         terminal.addTextInput(randomBoolean() ? "n" : ""); // no existing CA
@@ -387,14 +387,14 @@ public class HttpCertificateCommandTests extends ESTestCase {
         // randomly enter a long password here, and then say "no" on the warning prompt
         if (randomBoolean()) {
             String longPassword = randomAlphaOfLengthBetween(60, 120);
-            terminal.addSecretInput(longPassword);
-            terminal.addSecretInput(longPassword);
+            terminal.addTextInput(longPassword);
+            terminal.addTextInput(longPassword);
             terminal.addTextInput("n"); // Change our mind
             expectLongPasswordWarning = true;
         }
-        terminal.addSecretInput(caPassword);
+        terminal.addTextInput(caPassword);
         if ("".equals(caPassword) == false) {
-            terminal.addSecretInput(caPassword);
+            terminal.addTextInput(caPassword);
             if (caPassword.length() > 50) {
                 terminal.addTextInput("y"); // Acknowledge possible OpenSSL issue
             }
@@ -430,12 +430,12 @@ public class HttpCertificateCommandTests extends ESTestCase {
         // randomly enter an incorrect password here which will fail the "enter twice" check and prompt to try again
         if (randomBoolean()) {
             String wrongPassword = randomAlphaOfLengthBetween(8, 20);
-            terminal.addSecretInput(wrongPassword);
-            terminal.addSecretInput("__" + wrongPassword);
+            terminal.addTextInput(wrongPassword);
+            terminal.addTextInput("__" + wrongPassword);
         }
-        terminal.addSecretInput(password);
+        terminal.addTextInput(password);
         if ("".equals(password) == false) {
-            terminal.addSecretInput(password);
+            terminal.addTextInput(password);
         } // confirm
 
         terminal.addTextInput(outFile.toString());
@@ -513,7 +513,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
     public void testParsingValidityPeriod() throws Exception {
         final HttpCertificateCommand command = new HttpCertificateCommand();
-        final MockTerminal terminal = new MockTerminal();
+        final MockTerminal terminal = MockTerminal.create(false);
 
         terminal.addTextInput("2y");
         assertThat(command.readPeriodInput(terminal, "", null, 1), is(Period.ofYears(2)));
@@ -578,7 +578,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
     }
 
     public void testGuessFileType() throws Exception {
-        MockTerminal terminal = new MockTerminal();
+        MockTerminal terminal = MockTerminal.create(false);
 
         final Path caCert = getDataPath("ca.crt");
         final Path caKey = getDataPath("ca.key");

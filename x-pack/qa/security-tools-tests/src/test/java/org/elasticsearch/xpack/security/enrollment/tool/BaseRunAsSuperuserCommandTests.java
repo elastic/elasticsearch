@@ -263,13 +263,13 @@ public class BaseRunAsSuperuserCommandTests extends CommandTestCase {
                 return null;
             }
         }).when(keyStoreWrapper).decrypt(any());
-        terminal.addSecretInput("some-other-password");
+        terminal.addTextInput("some-other-password");
         UserException e = expectThrows(UserException.class, this::execute);
         assertThat(e.exitCode, equalTo(ExitCodes.DATA_ERROR));
         assertNoUsers();
         assertNoUsersRoles();
         assertThat(terminal.getOutput(), is(emptyString()));
-        terminal.addSecretInput("keystore-password");
+        terminal.addTextInput("keystore-password");
         execute();
         assertThat(terminal.getOutput(), is(emptyString()));
         assertNoUsers();

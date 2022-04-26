@@ -72,7 +72,7 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
     }
 
     public void testMissingNoCreate() throws Exception {
-        terminal.addSecretInput(randomFrom("", "keystorepassword"));
+        terminal.addTextInput(randomFrom("", "keystorepassword"));
         terminal.addTextInput("n"); // explicit no
         execute("foo");
         assertNull(KeyStoreWrapper.load(env.configFile()));
@@ -83,8 +83,8 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
         Path file = createRandomFile();
         KeyStoreWrapper keystore = createKeystore(password);
         addFile(keystore, "foo", file, password);
-        terminal.addSecretInput(password);
-        terminal.addSecretInput(password);
+        terminal.addTextInput(password);
+        terminal.addTextInput(password);
         terminal.addTextInput("");
         execute("foo", "path/dne");
         assertSecureFile("foo", file, password);
@@ -95,7 +95,7 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
         Path file = createRandomFile();
         KeyStoreWrapper keystore = createKeystore(password);
         addFile(keystore, "foo", file, password);
-        terminal.addSecretInput(password);
+        terminal.addTextInput(password);
         terminal.addTextInput("n"); // explicit no
         execute("foo", "path/dne");
         assertSecureFile("foo", file, password);
@@ -106,8 +106,8 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
         Path file1 = createRandomFile();
         KeyStoreWrapper keystore = createKeystore(password);
         addFile(keystore, "foo", file1, password);
-        terminal.addSecretInput(password);
-        terminal.addSecretInput(password);
+        terminal.addTextInput(password);
+        terminal.addTextInput(password);
         terminal.addTextInput("y");
         Path file2 = createRandomFile();
         execute("foo", file2.toString());
@@ -120,8 +120,8 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
         KeyStoreWrapper keystore = createKeystore(password);
         addFile(keystore, "foo", file1, password);
         Path file2 = createRandomFile();
-        terminal.addSecretInput(password);
-        terminal.addSecretInput(password);
+        terminal.addTextInput(password);
+        terminal.addTextInput(password);
         execute("-f", "foo", file2.toString());
         assertSecureFile("foo", file2, password);
     }
@@ -132,7 +132,7 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
         KeyStoreWrapper keystore = createKeystore(password);
         addFile(keystore, "foo", file1, password);
         Path file2 = createRandomFile();
-        terminal.addSecretInput(password);
+        terminal.addTextInput(password);
         execute("--force", "foo", file2.toString());
         assertSecureFile("foo", file2, password);
     }
@@ -141,7 +141,7 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
         String password = "keystorepassword";
         createKeystore(password);
         Path file = createRandomFile();
-        terminal.addSecretInput(password);
+        terminal.addTextInput(password);
         execute("--force", "foo", file.toString());
         assertSecureFile("foo", file, password);
     }
@@ -149,7 +149,7 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
     public void testMissingSettingName() throws Exception {
         String password = "keystorepassword";
         createKeystore(password);
-        terminal.addSecretInput(password);
+        terminal.addTextInput(password);
         UserException e = expectThrows(UserException.class, this::execute);
         assertEquals(ExitCodes.USAGE, e.exitCode);
         assertThat(e.getMessage(), containsString("Missing setting name"));
@@ -158,7 +158,7 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
     public void testMissingFileName() throws Exception {
         String password = "keystorepassword";
         createKeystore(password);
-        terminal.addSecretInput(password);
+        terminal.addTextInput(password);
         UserException e = expectThrows(UserException.class, () -> execute("foo"));
         assertEquals(ExitCodes.USAGE, e.exitCode);
         assertThat(e.getMessage(), containsString("settings and filenames must come in pairs"));
@@ -167,7 +167,7 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
     public void testFileDNE() throws Exception {
         String password = "keystorepassword";
         createKeystore(password);
-        terminal.addSecretInput(password);
+        terminal.addTextInput(password);
         UserException e = expectThrows(UserException.class, () -> execute("foo", "path/dne"));
         assertEquals(ExitCodes.IO_ERROR, e.exitCode);
         assertThat(e.getMessage(), containsString("File [path/dne] does not exist"));
@@ -177,7 +177,7 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
         String password = "keystorepassword";
         createKeystore(password);
         Path file = createRandomFile();
-        terminal.addSecretInput(password);
+        terminal.addTextInput(password);
         UserException e = expectThrows(UserException.class, () -> execute("foo", file.toString(), "bar"));
         assertEquals(e.getMessage(), ExitCodes.USAGE, e.exitCode);
         assertThat(e.getMessage(), containsString("settings and filenames must come in pairs"));
@@ -187,7 +187,7 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
         String password = "keystorepassword";
         createKeystore(password);
         Path file = createRandomFile();
-        terminal.addSecretInput("thewrongkeystorepassword");
+        terminal.addTextInput("thewrongkeystorepassword");
         UserException e = expectThrows(UserException.class, () -> execute("foo", file.toString()));
         assertEquals(e.getMessage(), ExitCodes.DATA_ERROR, e.exitCode);
         if (inFipsJvm()) {
@@ -223,7 +223,7 @@ public class AddFileKeyStoreCommandTests extends KeyStoreCommandTestCase {
         for (int i = 0; i < n; i++) {
             settingFilePairs.add(Tuple.tuple("foo" + i, createRandomFile()));
         }
-        terminal.addSecretInput(password);
+        terminal.addTextInput(password);
         execute(settingFilePairs.stream().flatMap(t -> Stream.of(t.v1(), t.v2().toString())).toArray(String[]::new));
         for (int i = 0; i < n; i++) {
             assertSecureFile(settingFilePairs.get(i).v1(), settingFilePairs.get(i).v2(), password);

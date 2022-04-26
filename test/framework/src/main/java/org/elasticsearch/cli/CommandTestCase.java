@@ -20,7 +20,7 @@ import java.util.Map;
 public abstract class CommandTestCase extends ESTestCase {
 
     /** The terminal that execute uses. */
-    protected final MockTerminal terminal = new MockTerminal();
+    protected final MockTerminal terminal = MockTerminal.create(false);
 
     @Before
     public void resetTerminal() {

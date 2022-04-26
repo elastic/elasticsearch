@@ -91,7 +91,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
         passwordProtectedKeystore = mockKeystore(true, useFallback);
         usedKeyStore = randomFrom(keyStore, passwordProtectedKeystore);
         if (usedKeyStore.hasPassword()) {
-            terminal.addSecretInput("keystore-password");
+            terminal.addTextInput("keystore-password");
         }
 
         this.httpClient = mock(CommandLineHttpClient.class);
@@ -159,8 +159,8 @@ public class SetupPasswordToolTests extends CommandTestCase {
             if (SetupPasswordTool.USERS_WITH_SHARED_PASSWORDS.containsValue(user)) {
                 continue;
             }
-            terminal.addSecretInput(user + "-password");
-            terminal.addSecretInput(user + "-password");
+            terminal.addTextInput(user + "-password");
+            terminal.addTextInput(user + "-password");
         }
     }
 
@@ -577,7 +577,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
 
         terminal.reset();
         if (usedKeyStore.hasPassword()) {
-            terminal.addSecretInput("keystore-password");
+            terminal.addTextInput("keystore-password");
         }
         terminal.addTextInput("Y");
         for (String user : SetupPasswordTool.USERS) {
@@ -589,16 +589,16 @@ public class SetupPasswordToolTests extends CommandTestCase {
             int failCount = randomIntBetween(3, 10);
             while (failCount-- > 0) {
                 String password1 = randomAlphaOfLength(randomIntBetween(3, 10));
-                terminal.addSecretInput(password1);
+                terminal.addTextInput(password1);
                 Validation.Error err = Validation.Users.validatePassword(new SecureString(password1.toCharArray()));
                 if (err == null) {
                     // passes strength validation, fail by mismatch
-                    terminal.addSecretInput(password1 + "typo");
+                    terminal.addTextInput(password1 + "typo");
                 }
             }
             // two good passwords
-            terminal.addSecretInput(user + "-password");
-            terminal.addSecretInput(user + "-password");
+            terminal.addTextInput(user + "-password");
+            terminal.addTextInput(user + "-password");
         }
 
         execute("interactive");
@@ -628,7 +628,7 @@ public class SetupPasswordToolTests extends CommandTestCase {
     public void testWrongKeystorePassword() throws Exception {
         Command commandWithPasswordProtectedKeystore = getSetupPasswordCommandWithKeyStore(passwordProtectedKeystore);
         terminal.reset();
-        terminal.addSecretInput("wrong-password");
+        terminal.addTextInput("wrong-password");
         final UserException e = expectThrows(UserException.class, () -> {
             if (randomBoolean()) {
                 execute(commandWithPasswordProtectedKeystore, "auto", "-b", "true");

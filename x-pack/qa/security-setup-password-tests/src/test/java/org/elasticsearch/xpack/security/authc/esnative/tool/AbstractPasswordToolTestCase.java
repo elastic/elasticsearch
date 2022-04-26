@@ -73,7 +73,7 @@ public abstract class AbstractPasswordToolTestCase extends ESRestTestCase {
     protected void possiblyDecryptKeystore(MockTerminal mockTerminal) {
         if (inFipsJvm()) {
             // In our FIPS 140-2 tests, we set the keystore password to `keystore-password`
-            mockTerminal.addSecretInput("keystore-password");
+            mockTerminal.addTextInput("keystore-password");
         }
     }
 

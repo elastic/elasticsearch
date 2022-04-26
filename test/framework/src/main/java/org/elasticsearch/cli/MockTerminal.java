@@ -8,13 +8,13 @@
 
 package org.elasticsearch.cli;
 
+import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * A terminal for tests which captures all output, and
@@ -22,10 +22,40 @@ import java.util.List;
  */
 public class MockTerminal extends Terminal {
 
-    private final ByteArrayOutputStream stdoutBuffer = new ByteArrayOutputStream();
-    private final ByteArrayOutputStream stderrBuffer = new ByteArrayOutputStream();
-    private final PrintWriter writer = new PrintWriter(new OutputStreamWriter(stdoutBuffer, StandardCharsets.UTF_8));
-    private final PrintWriter errorWriter = new PrintWriter(new OutputStreamWriter(stderrBuffer, StandardCharsets.UTF_8));
+    /**
+     * A ByteArrayInputStream that has its bytes set after construction.
+     */
+    private static class LazyByteArrayInputStream extends ByteArrayInputStream {
+        LazyByteArrayInputStream() {
+            super(new byte[128], 0, 0);
+        }
+
+        void append(byte[] bytes) {
+            int availableSpace = buf.length - count;
+            if (bytes.length > availableSpace) {
+                // resize
+                int remaining = count - pos;
+                int newSize = Math.max(buf.length * 2, remaining + bytes.length);
+                byte[] newBuf = new byte[newSize];
+                System.arraycopy(buf, pos, newBuf, 0, remaining);
+                buf = newBuf;
+                pos = 0;
+                count = remaining;
+            }
+            System.arraycopy(bytes, 0, buf, count, bytes.length);
+            count += bytes.length;
+        }
+
+        void clear() {
+            pos = 0;
+            count = 0;
+        }
+    }
+
+    private static final byte[] NEWLINE = new byte[] {'\n'};
+
+    private final ByteArrayOutputStream stdoutBuffer;
+    private final ByteArrayOutputStream stderrBuffer;
 
     // A deque would be a perfect data structure for the FIFO queue of input values needed here. However,
     // to support the valid return value of readText being null (defined by Console), we need to be able
@@ -34,60 +64,43 @@ public class MockTerminal extends Terminal {
     // and keep track of the last position which was read. It means that we will hold onto all input
     // setup for the mock terminal during its lifetime, but this is normally a very small amount of data
     // so in reality it will not matter.
-    private final List<String> textInput = new ArrayList<>();
-    private int textIndex = 0;
-    private final List<String> secretInput = new ArrayList<>();
-    private int secretIndex = 0;
+    private final LazyByteArrayInputStream stdinBuffer;
 
-    private boolean hasOutputStream = true;
-
-    public MockTerminal() {
-        super("\n"); // always *nix newlines for tests
+    private MockTerminal(
+        LazyByteArrayInputStream stdin,
+        ByteArrayOutputStream stdout,
+        ByteArrayOutputStream stderr,
+        boolean supportsBinary
+    ) {
+        super(
+            new InputStreamReader(stdin),
+            newPrintWriter(stdout),
+            newPrintWriter(stderr),
+            supportsBinary ? stdin : null,
+            supportsBinary ? stdout : null
+        );
+        this.stdinBuffer = stdin;
+        this.stdoutBuffer = stdout;
+        this.stderrBuffer = stderr;
     }
 
-    @Override
-    public String readText(String prompt) {
-        if (textIndex >= textInput.size()) {
-            throw new IllegalStateException("No text input configured for prompt [" + prompt + "]");
-        }
-        return textInput.get(textIndex++);
+    private static PrintWriter newPrintWriter(OutputStream out) {
+        return new PrintWriter(new OutputStreamWriter(out, StandardCharsets.UTF_8));
     }
 
-    @Override
-    public char[] readSecret(String prompt) {
-        if (secretIndex >= secretInput.size()) {
-            throw new IllegalStateException("No secret input configured for prompt [" + prompt + "]");
-        }
-        return secretInput.get(secretIndex++).toCharArray();
+    public static MockTerminal create(boolean supportsBinary) {
+        return new MockTerminal(new LazyByteArrayInputStream(), new ByteArrayOutputStream(), new ByteArrayOutputStream(), supportsBinary);
     }
 
-    @Override
-    public PrintWriter getWriter() {
-        return writer;
-    }
-
-    @Override
-    public OutputStream getOutputStream() {
-        return hasOutputStream ? stdoutBuffer : null;
-    }
-
-    @Override
-    public PrintWriter getErrorWriter() {
-        return errorWriter;
-    }
-
-    public void setHasOutputStream(boolean hasOutputStream) {
-        this.hasOutputStream = hasOutputStream;
-    }
-
-    /** Adds an an input that will be return from {@link #readText(String)}. Values are read in FIFO order. */
+    /** Adds a character input that will be returned from reading this Terminal. Values are read in FIFO order. */
     public void addTextInput(String input) {
-        textInput.add(input);
+        stdinBuffer.append(input.getBytes(StandardCharsets.UTF_8));
+        stdinBuffer.append(NEWLINE);
     }
 
-    /** Adds an an input that will be return from {@link #readSecret(String)}. Values are read in FIFO order. */
-    public void addSecretInput(String input) {
-        secretInput.add(input);
+    /** Adds a binary input that will be returned from reading this Terminal. Values are read in FIFO order. */
+    public void addBinaryInput(byte[] bytes) {
+        stdinBuffer.append(bytes);
     }
 
     /** Returns all output written to this terminal. */
@@ -107,11 +120,8 @@ public class MockTerminal extends Terminal {
 
     /** Wipes the input and output. */
     public void reset() {
+        stdinBuffer.clear();
         stdoutBuffer.reset();
         stderrBuffer.reset();
-        textIndex = 0;
-        textInput.clear();
-        secretIndex = 0;
-        secretInput.clear();
     }
 }

@@ -32,7 +32,7 @@ public class ResetPasswordToolIT extends AbstractPasswordToolTestCase {
             "beats_system",
             "remote_monitoring_user"
         );
-        MockTerminal mockTerminal = new MockTerminal();
+        MockTerminal mockTerminal = MockTerminal.create(false);
         ResetPasswordTool resetPasswordTool = new ResetPasswordTool();
         final int status;
         final String password;
@@ -43,8 +43,8 @@ public class ResetPasswordToolIT extends AbstractPasswordToolTestCase {
         } else {
             password = randomAlphaOfLengthBetween(14, 20);
             possiblyDecryptKeystore(mockTerminal);
-            mockTerminal.addSecretInput(password);
-            mockTerminal.addSecretInput(password);
+            mockTerminal.addTextInput(password);
+            mockTerminal.addTextInput(password);
             status = resetPasswordTool.main(new String[] { "-i", "-b", "-u", user }, mockTerminal);
         }
         logger.info("CLI TOOL OUTPUT:\n{}", mockTerminal.getOutput());
@@ -102,7 +102,7 @@ public class ResetPasswordToolIT extends AbstractPasswordToolTestCase {
         }
 
         // Now change the password
-        MockTerminal mockTerminal = new MockTerminal();
+        MockTerminal mockTerminal = MockTerminal.create(false);
         ResetPasswordTool resetPasswordTool = new ResetPasswordTool();
         final int status;
         final String password;
@@ -113,8 +113,8 @@ public class ResetPasswordToolIT extends AbstractPasswordToolTestCase {
         } else {
             password = randomAlphaOfLengthBetween(14, 20);
             possiblyDecryptKeystore(mockTerminal);
-            mockTerminal.addSecretInput(password);
-            mockTerminal.addSecretInput(password);
+            mockTerminal.addTextInput(password);
+            mockTerminal.addTextInput(password);
             status = resetPasswordTool.main(new String[] { "-i", "-b", "-u", nativeUser }, mockTerminal);
         }
         logger.info("CLI TOOL OUTPUT:\n{}", mockTerminal.getOutput());

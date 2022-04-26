@@ -306,6 +306,7 @@ public final class TransactionStore implements Writeable, Releasable {
                 writeString(scratchItemBytesRefBuilder, fieldName.v1());
                 // TODO: change fieldValue into a ByteRef
                 // itemBytesRefBuilder.append(new BytesRef(fieldValue.toString()));
+                // TODO: don't turn numbers into strings
                 writeString(scratchItemBytesRefBuilder, fieldValue.toString());
 
                 long id = items.add(scratchItemBytesRefBuilder.get());

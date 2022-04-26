@@ -59,7 +59,9 @@ import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.joining;
 import static org.elasticsearch.cluster.health.ClusterShardHealth.getInactivePrimaryHealth;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING;
+import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING;
 import static org.elasticsearch.health.HealthStatus.GREEN;
@@ -213,11 +215,22 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         ACTION_SHARD_LIMIT_LOOKUP = Collections.unmodifiableMap(lookup);
     }
 
-    public static final UserAction.Definition ACTION_MIGRATE_TIERS = new UserAction.Definition(
-        "migrate_data_tiers",
-        "Elasticsearch isn't allowed to allocate some shards from these indices to any of the nodes in their data tiers because no nodes "
-            + "in the tiers are compatible with the allocation filters in the index settings. Remove the conflicting allocation filters "
-            + "from each index's settings or try migrating to data tiers using the data tier migration action "
+    public static final UserAction.Definition ACTION_MIGRATE_TIERS_AWAY_FROM_REQUIRE_DATA = new UserAction.Definition(
+        "migrate_data_tiers_require_data",
+        "Elasticsearch isn't allowed to allocate some shards from these indices to any of the nodes in their data tiers because the "
+            + "indices are configured with allocation filter rules that are incompatible with the nodes in their tier. Remove ["
+            + INDEX_ROUTING_REQUIRE_GROUP_PREFIX
+            + ".data] from each index's settings or try migrating to data tiers using the data tier migration action "
+            + "[POST /_ilm/migrate_to_data_tiers].",
+        null
+    );
+
+    public static final UserAction.Definition ACTION_MIGRATE_TIERS_AWAY_FROM_INCLUDE_DATA = new UserAction.Definition(
+        "migrate_data_tiers_include_data",
+        "Elasticsearch isn't allowed to allocate some shards from these indices to any of the nodes in their data tiers because the "
+            + "indices are configured with allocation filter rules that are incompatible with the nodes in their tier. Remove ["
+            + INDEX_ROUTING_INCLUDE_GROUP_PREFIX
+            + ".data] from each index's settings or try migrating to data tiers using the data tier migration action "
             + "[POST /_ilm/migrate_to_data_tiers].",
         null
     );
@@ -494,10 +507,11 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                         // Check if the data tier nodes this shard is allowed on have data attributes that match
                         if (requireFilter != null && dataTierNodes.stream().noneMatch(requireFilter::match)) {
                             // No data tier nodes match the required data attribute
-                            actions.add(ACTION_MIGRATE_TIERS);
-                        } else if (includeFilter != null && dataTierNodes.stream().noneMatch(includeFilter::match)) {
+                            actions.add(ACTION_MIGRATE_TIERS_AWAY_FROM_REQUIRE_DATA);
+                        }
+                        if (includeFilter != null && dataTierNodes.stream().noneMatch(includeFilter::match)) {
                             // No data tier nodes match the included data attributes
-                            actions.add(ACTION_MIGRATE_TIERS);
+                            actions.add(ACTION_MIGRATE_TIERS_AWAY_FROM_INCLUDE_DATA);
                         }
                     }
                 }

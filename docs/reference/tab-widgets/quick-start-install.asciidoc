@@ -73,7 +73,7 @@ ifeval::["{release-state}"!="unreleased"]
 ["source","txt",subs="attributes"]
 ----
 docker pull docker.elastic.co/kibana/kibana:{version}
-docker run --name kib-01 --net elastic -p 5601:5601 docker.elastic.co/kibana/kibana:{version}
+docker run --name kibana --net elastic -p 5601:5601 docker.elastic.co/kibana/kibana:{version}
 ----
 +
 When you start {kib}, a unique link is output to your terminal.

@@ -238,7 +238,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
     }
 
     /** Return true if the provided field may have multiple values per document in the leaf **/
-    private boolean isMaybeMultivalued(LeafReaderContext context, SortField sortField) throws IOException {
+    private static boolean isMaybeMultivalued(LeafReaderContext context, SortField sortField) throws IOException {
         SortField.Type type = IndexSortConfig.getSortFieldType(sortField);
         switch (type) {
             case STRING:

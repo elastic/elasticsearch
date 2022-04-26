@@ -54,10 +54,10 @@ public class RestIndexActionTests extends RestActionTestCase {
         RestIndexAction.CreateHandler create = new CreateHandler();
 
         String opType = randomFrom("CREATE", null);
-        create.validateOpType(opType);
+        CreateHandler.validateOpType(opType);
 
         String illegalOpType = randomFrom("index", "unknown", "");
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> create.validateOpType(illegalOpType));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> CreateHandler.validateOpType(illegalOpType));
         assertThat(e.getMessage(), equalTo("opType must be 'create', found: [" + illegalOpType + "]"));
     }
 

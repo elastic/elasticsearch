@@ -14,14 +14,20 @@ import java.util.Objects;
 public class SqlClearCursorRequest extends AbstractSqlRequest {
 
     private final String cursor;
+    private final Boolean binaryCommunication;
 
-    public SqlClearCursorRequest(String cursor, RequestInfo requestInfo) {
+    public SqlClearCursorRequest(String cursor, RequestInfo requestInfo, Boolean binaryCommunication) {
         super(requestInfo);
         this.cursor = cursor;
+        this.binaryCommunication = binaryCommunication;
     }
 
     public String getCursor() {
         return cursor;
+    }
+
+    public Boolean binaryCommunication() {
+        return binaryCommunication;
     }
 
     @Override
@@ -30,11 +36,11 @@ public class SqlClearCursorRequest extends AbstractSqlRequest {
         if (o == null || getClass() != o.getClass()) return false;
         if (super.equals(o) == false) return false;
         SqlClearCursorRequest that = (SqlClearCursorRequest) o;
-        return Objects.equals(cursor, that.cursor);
+        return Objects.equals(cursor, that.cursor) && Objects.equals(binaryCommunication, that.binaryCommunication);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), cursor);
+        return Objects.hash(super.hashCode(), cursor, binaryCommunication);
     }
 }

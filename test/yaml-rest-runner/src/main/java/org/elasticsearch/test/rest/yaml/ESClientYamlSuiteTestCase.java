@@ -26,8 +26,8 @@ import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.client.sniff.ElasticsearchNodesSniffer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.test.ClasspathUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.restspec.ClientYamlSuiteRestApi;
@@ -140,7 +140,7 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
                 os
             );
             clientYamlTestClient = initClientYamlTestClient(restSpec, client(), hosts, esVersion, masterVersion, os);
-            restTestExecutionContext = new ClientYamlTestExecutionContext(testCandidate, clientYamlTestClient, randomizeContentType());
+            restTestExecutionContext = createRestTestExecutionContext(testCandidate, clientYamlTestClient);
             adminExecutionContext = new ClientYamlTestExecutionContext(testCandidate, clientYamlTestClient, false);
             final String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
             blacklistPathMatchers = new ArrayList<>();
@@ -160,6 +160,16 @@ public abstract class ESClientYamlSuiteTestCase extends ESRestTestCase {
         adminExecutionContext.clear();
 
         restTestExecutionContext.clear();
+    }
+
+    /**
+     * Create the test execution context. Can be overwritten in sub-implementations of the test if the context needs to be modified.
+     */
+    protected ClientYamlTestExecutionContext createRestTestExecutionContext(
+        ClientYamlTestCandidate clientYamlTestCandidate,
+        ClientYamlTestClient clientYamlTestClient
+    ) {
+        return new ClientYamlTestExecutionContext(clientYamlTestCandidate, clientYamlTestClient, randomizeContentType());
     }
 
     protected ClientYamlTestClient initClientYamlTestClient(

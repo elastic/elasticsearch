@@ -32,9 +32,9 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -745,7 +745,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
         }, newExecutor());
     }
 
-    public void deleteStoredScript(
+    public static void deleteStoredScript(
         ClusterService clusterService,
         DeleteStoredScriptRequest request,
         ActionListener<AcknowledgedResponse> listener
@@ -767,7 +767,7 @@ public class ScriptService implements Closeable, ClusterStateApplier, ScriptComp
         return ClusterStateTaskExecutor.unbatched();
     }
 
-    public StoredScriptSource getStoredScript(ClusterState state, GetStoredScriptRequest request) {
+    public static StoredScriptSource getStoredScript(ClusterState state, GetStoredScriptRequest request) {
         ScriptMetadata scriptMetadata = state.metadata().custom(ScriptMetadata.TYPE);
 
         if (scriptMetadata != null) {

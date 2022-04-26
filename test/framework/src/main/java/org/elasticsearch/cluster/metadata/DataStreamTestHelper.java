@@ -81,29 +81,22 @@ public final class DataStreamTestHelper {
     private static final int NUMBER_OF_SHARDS = 1;
     private static final int NUMBER_OF_REPLICAS = 1;
 
-    public static DataStream newInstance(String name, DataStream.TimestampField timeStampField, List<Index> indices) {
-        return newInstance(name, timeStampField, indices, indices.size(), null);
+    public static DataStream newInstance(String name, List<Index> indices) {
+        return newInstance(name, indices, indices.size(), null);
+    }
+
+    public static DataStream newInstance(String name, List<Index> indices, long generation, Map<String, Object> metadata) {
+        return newInstance(name, indices, generation, metadata, false);
     }
 
     public static DataStream newInstance(
         String name,
-        DataStream.TimestampField timeStampField,
-        List<Index> indices,
-        long generation,
-        Map<String, Object> metadata
-    ) {
-        return newInstance(name, timeStampField, indices, generation, metadata, false);
-    }
-
-    public static DataStream newInstance(
-        String name,
-        DataStream.TimestampField timeStampField,
         List<Index> indices,
         long generation,
         Map<String, Object> metadata,
         boolean replicated
     ) {
-        return new DataStream(name, timeStampField, indices, generation, metadata, false, replicated, false, false, null);
+        return new DataStream(name, indices, generation, metadata, false, replicated, false, false, null);
     }
 
     public static String getLegacyDefaultBackingIndexName(
@@ -153,10 +146,6 @@ public final class DataStreamTestHelper {
             .settings(Settings.builder().put(SETTINGS.build()).put(SETTING_INDEX_UUID, index.getUUID()))
             .numberOfShards(NUMBER_OF_SHARDS)
             .numberOfReplicas(NUMBER_OF_REPLICAS);
-    }
-
-    public static DataStream.TimestampField createTimestampField(String fieldName) {
-        return new DataStream.TimestampField(fieldName);
     }
 
     public static String generateMapping(String timestampFieldName) {
@@ -224,7 +213,6 @@ public final class DataStreamTestHelper {
 
         return new DataStream(
             dataStreamName,
-            createTimestampField("@timestamp"),
             indices,
             generation,
             metadata,
@@ -308,7 +296,6 @@ public final class DataStreamTestHelper {
 
             DataStream ds = DataStreamTestHelper.newInstance(
                 dsTuple.v1(),
-                createTimestampField("@timestamp"),
                 backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()),
                 dsTuple.v2(),
                 null,
@@ -357,7 +344,6 @@ public final class DataStreamTestHelper {
         }
         DataStream ds = new DataStream(
             dataStream,
-            createTimestampField("@timestamp"),
             backingIndices.stream().map(IndexMetadata::getIndex).collect(Collectors.toList()),
             backingIndices.size(),
             null,

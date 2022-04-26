@@ -17,8 +17,6 @@ testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   // This can be turned on to help debug failing tests, but generates more output than is needed for CI
   // setting 'logger.org.elasticsearch.xpack.security.authc.jwt', 'DEBUG'
 
-  requiresFeature 'es.jwt_realm_feature_flag_enabled', Version.fromString("8.2.0")
-
   extraConfigFile 'http.key', file('src/javaRestTest/resources/ssl/http.key')
   extraConfigFile 'http.crt', file('src/javaRestTest/resources/ssl/http.crt')
   extraConfigFile 'ca.crt', file('src/javaRestTest/resources/ssl/ca.crt')
@@ -68,7 +66,7 @@ testClusters.matching { it.name == 'javaRestTest' }.configureEach {
   keystore 'xpack.security.authc.realms.jwt.jwt2.client_authentication.shared_secret', 'test-secret'
   keystore 'xpack.security.authc.realms.jwt.jwt2.hmac_key', 'test-HMAC/secret passphrase-value'
 
-  // Place PKI realm after JWT realm to verify realm chain fall-throug 
+  // Place PKI realm after JWT realm to verify realm chain fall-throug
   setting 'xpack.security.authc.realms.pki.pki_realm.order', '4'
 
   setting 'xpack.security.authc.realms.jwt.jwt3.order', '5'

@@ -82,7 +82,7 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
         client.searchScroll(request, wrapListener(searchListener));
     }
 
-    private ActionListener<SearchResponse> wrapListener(RejectAwareActionListener<Response> searchListener) {
+    private static ActionListener<SearchResponse> wrapListener(RejectAwareActionListener<Response> searchListener) {
         return new ActionListener<>() {
             @Override
             public void onResponse(SearchResponse searchResponse) {
@@ -128,7 +128,7 @@ public class ClientScrollableHitSource extends ScrollableHitSource {
         onCompletion.run();
     }
 
-    private Response wrapSearchResponse(SearchResponse response) {
+    private static Response wrapSearchResponse(SearchResponse response) {
         List<SearchFailure> failures;
         if (response.getShardFailures() == null) {
             failures = emptyList();

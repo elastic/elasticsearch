@@ -1758,7 +1758,6 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     .put(
                         DataStreamTestHelper.newInstance(
                             "unreferenced",
-                            new DataStream.TimestampField("@timestamp"),
                             Collections.singletonList(new Index(".ds-unreferenced-000001", "uuid2"))
                         )
                     )
@@ -1796,7 +1795,6 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     .put(
                         DataStreamTestHelper.newInstance(
                             "logs-mysql-default",
-                            new DataStream.TimestampField("@timestamp"),
                             Collections.singletonList(new Index(".ds-logs-mysql-default-000001", "uuid"))
                         )
                     )
@@ -1920,7 +1918,6 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     .put(
                         DataStreamTestHelper.newInstance(
                             "unreferenced",
-                            new DataStream.TimestampField("@timestamp"),
                             Collections.singletonList(new Index(".ds-unreferenced-000001", "uuid2"))
                         )
                     )
@@ -1958,7 +1955,6 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
                     .put(
                         DataStreamTestHelper.newInstance(
                             "logs-mysql-default",
-                            new DataStream.TimestampField("@timestamp"),
                             Collections.singletonList(new Index(".ds-logs-mysql-default-000001", "uuid"))
                         )
                     )

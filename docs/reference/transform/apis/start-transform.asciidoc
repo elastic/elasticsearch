@@ -19,14 +19,16 @@ Starts a {transform}.
 
 Requires the following privileges:
 
-* cluster: `manage_transform` (the `transform_admin` built-in role grants this 
+* cluster: `manage_transform` (the `transform_admin` built-in role grants this
   privilege)
 * source indices: `read`, `view_index_metadata`.
+* destination index: `read`, `create_index`, `index`. If a `retention_policy` is configured, the `delete` privilege is
+  also required.
 
 [[start-transform-desc]]
 == {api-description-title}
 
-When you start a {transform}, it creates the destination index if it does not 
+When you start a {transform}, it creates the destination index if it does not
 already exist. The `number_of_shards` is set to `1` and the
 `auto_expand_replicas` is set to `0-1`.
 
@@ -66,7 +68,7 @@ Identifier for the {transform}.
 (Optional, time)
 Period to wait for a response. If no response is received before the timeout
 expires, the request fails and returns an error. Defaults to `30s`.
-   
+
 
 [[start-transform-example]]
 == {api-examples-title}

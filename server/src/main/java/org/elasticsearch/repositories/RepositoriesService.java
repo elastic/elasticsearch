@@ -41,9 +41,9 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.Snapshot;
@@ -148,7 +148,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
         // Trying to create the new repository on master to make sure it works
         try {
-            closeRepository(createRepository(newRepositoryMetadata, typesRegistry, this::throwRepositoryTypeDoesNotExists));
+            closeRepository(createRepository(newRepositoryMetadata, typesRegistry, RepositoriesService::throwRepositoryTypeDoesNotExists));
         } catch (Exception e) {
             listener.onFailure(e);
             return;
@@ -506,24 +506,29 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                         archiveRepositoryStats(repository, state.version());
                         repository = null;
                         try {
-                            repository = createRepository(repositoryMetadata, typesRegistry, this::createUnknownTypeRepository);
+                            repository = createRepository(
+                                repositoryMetadata,
+                                typesRegistry,
+                                RepositoriesService::createUnknownTypeRepository
+                            );
                         } catch (RepositoryException ex) {
                             // TODO: this catch is bogus, it means the old repo is already closed,
                             // but we have nothing to replace it
                             logger.warn(() -> new ParameterizedMessage("failed to change repository [{}]", repositoryMetadata.name()), ex);
+                            repository = new InvalidRepository(repositoryMetadata, ex);
                         }
                     }
                 } else {
                     try {
-                        repository = createRepository(repositoryMetadata, typesRegistry, this::createUnknownTypeRepository);
+                        repository = createRepository(repositoryMetadata, typesRegistry, RepositoriesService::createUnknownTypeRepository);
                     } catch (RepositoryException ex) {
                         logger.warn(() -> new ParameterizedMessage("failed to create repository [{}]", repositoryMetadata.name()), ex);
+                        repository = new InvalidRepository(repositoryMetadata, ex);
                     }
                 }
-                if (repository != null) {
-                    logger.debug("registering repository [{}]", repositoryMetadata.name());
-                    builder.put(repositoryMetadata.name(), repository);
-                }
+                assert repository != null : "repository should not be null here";
+                logger.debug("registering repository [{}]", repositoryMetadata.name());
+                builder.put(repositoryMetadata.name(), repository);
             }
             for (Repository repo : builder.values()) {
                 repo.updateState(state);
@@ -535,7 +540,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         }
     }
 
-    private boolean canUpdateInPlace(RepositoryMetadata updatedMetadata, Repository repository) {
+    private static boolean canUpdateInPlace(RepositoryMetadata updatedMetadata, Repository repository) {
         assert updatedMetadata.name().equals(repository.getMetadata().name());
         return repository.getMetadata().type().equals(updatedMetadata.type())
             && repository.canUpdateInPlace(updatedMetadata.settings(), Collections.emptySet());
@@ -608,7 +613,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         RepositoryMetadata metadata = new RepositoryMetadata(name, type, Settings.EMPTY);
         Repository repository = internalRepositories.computeIfAbsent(name, (n) -> {
             logger.debug("put internal repository [{}][{}]", name, type);
-            return createRepository(metadata, internalTypesRegistry, this::throwRepositoryTypeDoesNotExists);
+            return createRepository(metadata, internalTypesRegistry, RepositoriesService::throwRepositoryTypeDoesNotExists);
         });
         if (type.equals(repository.getMetadata().type()) == false) {
             logger.warn(
@@ -646,7 +651,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     /**
      * Closes the given repository.
      */
-    private void closeRepository(Repository repository) {
+    private static void closeRepository(Repository repository) {
         logger.debug("closing repository [{}][{}]", repository.getMetadata().type(), repository.getMetadata().name());
         repository.close();
     }
@@ -663,7 +668,7 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
     /**
      * Creates repository holder. This method starts the repository
      */
-    private Repository createRepository(
+    private static Repository createRepository(
         RepositoryMetadata repositoryMetadata,
         Map<String, Repository.Factory> factories,
         Function<RepositoryMetadata, Repository> defaultFactory
@@ -688,11 +693,11 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
         }
     }
 
-    private Repository throwRepositoryTypeDoesNotExists(RepositoryMetadata repositoryMetadata) {
+    private static Repository throwRepositoryTypeDoesNotExists(RepositoryMetadata repositoryMetadata) {
         throw new RepositoryException(repositoryMetadata.name(), "repository type [" + repositoryMetadata.type() + "] does not exist");
     }
 
-    private Repository createUnknownTypeRepository(RepositoryMetadata repositoryMetadata) {
+    private static Repository createUnknownTypeRepository(RepositoryMetadata repositoryMetadata) {
         logger.warn(
             "[{}] repository type [{}] is unknown; ensure that all required plugins are installed on this node",
             repositoryMetadata.name(),

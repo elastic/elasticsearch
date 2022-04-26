@@ -90,8 +90,7 @@ public class IndicesModuleTests extends ESTestCase {
         IndicesModule module = new IndicesModule(Collections.emptyList());
         {
             Version version = VersionUtils.randomVersionBetween(random(), Version.V_8_0_0, Version.CURRENT);
-            assertThat(module.getMapperRegistry().getMapperParser("object", Version.CURRENT),
-                instanceOf(ObjectMapper.TypeParser.class));
+            assertThat(module.getMapperRegistry().getMapperParser("object", Version.CURRENT), instanceOf(ObjectMapper.TypeParser.class));
             assertFalse(module.getMapperRegistry().getMetadataMapperParsers(version).isEmpty());
             Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers = module.getMapperRegistry()
                 .getMetadataMapperParsers(version);

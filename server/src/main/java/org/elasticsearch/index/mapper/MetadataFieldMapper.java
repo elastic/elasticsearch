@@ -22,9 +22,8 @@ import java.util.function.Function;
  */
 public abstract class MetadataFieldMapper extends FieldMapper {
 
-    public interface TypeParser extends Mapper.TypeParser {
+    public interface TypeParser {
 
-        @Override
         MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
             throws MapperParsingException;
 

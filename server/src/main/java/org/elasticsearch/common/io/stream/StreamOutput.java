@@ -782,8 +782,10 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     public void writeGenericString(String value) throws IOException {
-        writeByte((byte) 0);
-        writeString(value);
+        byte[] buffer = scratch.get();
+        // put the 0 type identifier byte into the buffer instead of writing it outright to do fewer flushes
+        buffer[0] = 0;
+        writeString(value, buffer, 1);
     }
 
     public void writeGenericNull() throws IOException {

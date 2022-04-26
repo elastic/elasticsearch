@@ -79,8 +79,21 @@ public class FrequentItemSetsAggregationBuilder extends AbstractAggregationBuild
     ) {
         super(name);
         this.fields = fields;
+        if (minimumSupport <= 0 || minimumSupport > 1) {
+            throw new IllegalArgumentException(
+                "[minimum_support] must be greater than 0 and less or equal to 1. Found [" + minimumSupport + "] in [" + name + "]"
+            );
+        }
         this.minimumSupport = minimumSupport;
+        if (minimumSetSize <= 0) {
+            throw new IllegalArgumentException(
+                "[minimum_set_size] must be greater than 0. Found [" + minimumSetSize + "] in [" + name + "]"
+            );
+        }
         this.minimumSetSize = minimumSetSize;
+        if (size <= 0) {
+            throw new IllegalArgumentException("[size] must be greater than 0. Found [" + size + "] in [" + name + "]");
+        }
         this.size = size;
     }
 

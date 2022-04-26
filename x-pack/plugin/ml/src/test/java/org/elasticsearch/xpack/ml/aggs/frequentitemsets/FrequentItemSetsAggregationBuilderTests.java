@@ -99,4 +99,53 @@ public class FrequentItemSetsAggregationBuilderTests extends AbstractSerializing
         return new NamedXContentRegistry(namedXContent);
     }
 
+    public void testValidation() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new FrequentItemSetsAggregationBuilder(
+                "fi",
+                List.of(
+                    new MultiValuesSourceFieldConfig.Builder().setFieldName("fieldA").build(),
+                    new MultiValuesSourceFieldConfig.Builder().setFieldName("fieldB").build()
+                ),
+                1.2,
+                randomIntBetween(1, 20),
+                randomIntBetween(1, 20)
+            )
+        );
+        assertEquals("[minimum_support] must be greater than 0 and less or equal to 1. Found [1.2] in [fi]", e.getMessage());
+
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new FrequentItemSetsAggregationBuilder(
+                "fi",
+                List.of(
+                    new MultiValuesSourceFieldConfig.Builder().setFieldName("fieldA").build(),
+                    new MultiValuesSourceFieldConfig.Builder().setFieldName("fieldB").build()
+                ),
+                randomDoubleBetween(0.0, 1.0, false),
+                -4,
+                randomIntBetween(1, 20)
+            )
+        );
+
+        assertEquals("[minimum_set_size] must be greater than 0. Found [-4] in [fi]", e.getMessage());
+
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new FrequentItemSetsAggregationBuilder(
+                "fi",
+                List.of(
+                    new MultiValuesSourceFieldConfig.Builder().setFieldName("fieldA").build(),
+                    new MultiValuesSourceFieldConfig.Builder().setFieldName("fieldB").build()
+                ),
+                randomDoubleBetween(0.0, 1.0, false),
+                randomIntBetween(1, 20),
+                -2
+            )
+        );
+
+        assertEquals("[size] must be greater than 0. Found [-2] in [fi]", e.getMessage());
+    }
+
 }

@@ -465,9 +465,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         assertNull(mapper.mapping().getRoot().dynamic());
         Mapping mergeWith = mapperService.parseMapping(
             "_doc",
-            new CompressedXContent(BytesReference.bytes(topMapping(b -> {
-                b.field("collapsed", false);
-            })))
+            new CompressedXContent(BytesReference.bytes(topMapping(b -> { b.field("collapsed", false); })))
         );
         MapperException exception = expectThrows(
             MapperException.class,

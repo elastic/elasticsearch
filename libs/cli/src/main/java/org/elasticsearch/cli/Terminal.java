@@ -34,7 +34,7 @@ import java.util.Locale;
 */
 public abstract class Terminal {
 
-    /** Writer to standard error - not supplied by the {@link Console} API, so we share with subclasses */
+    // Writer to standard error - not supplied by the {@link Console} API, so we share with subclasses
     private static final PrintWriter ERROR_WRITER = newErrorWriter();
 
     /** The default terminal implementation, which will be a console if available, or stdout/stderr if not. */
@@ -53,18 +53,23 @@ public abstract class Terminal {
     }
 
     private final Reader reader;
-
     private final PrintWriter outWriter;
-
     private final PrintWriter errWriter;
-
+    // Note that {@link #errWriter} does not have a corresponding binary stream because
+    // the error stream should always be character based, while stdin/stdout can be used for binary data.
     private final InputStream inStream;
-
     private final OutputStream outStream;
-
-    /** The current verbosity for the terminal, defaulting to {@link Verbosity#NORMAL}. */
     private Verbosity currentVerbosity = Verbosity.NORMAL;
 
+    /**
+     * Constructs a terminal instance.
+     *
+     * @param reader A character-based reader over the input of this terminal
+     * @param outWriter A character-based writer for the output of this terminal
+     * @param errWriter A character-based writer for the error stream of this terminal
+     * @param inStream The binary input stream for this terminal, if one exists. This should be the source of {@link #reader}.
+     * @param outStream The binary output stream for this terminal, if one exists. This should be the destination of {@link #outWriter}.
+     */
     protected Terminal(
         Reader reader,
         PrintWriter outWriter,
@@ -79,7 +84,11 @@ public abstract class Terminal {
         this.outStream = outStream;
     }
 
-    /** Sets the verbosity of the terminal. */
+    /**
+     * Sets the verbosity of the terminal.
+     *
+     * <p> Defaults to {@link Verbosity#NORMAL}.
+     */
     public void setVerbosity(Verbosity verbosity) {
         this.currentVerbosity = verbosity;
     }
@@ -150,7 +159,11 @@ public abstract class Terminal {
         print(verbosity, outWriter, msg, false);
     }
 
-    /** Prints message to the terminal at {@code verbosity} level, without a newline. */
+    /**
+     * Prints message to the terminal at {@code verbosity} level.
+     *
+     * Subclasses may override if the writers are not implemented.
+     */
     protected void print(Verbosity verbosity, PrintWriter writer, CharSequence msg, boolean newline) {
         if (isPrintable(verbosity)) {
             if (newline) {
@@ -243,7 +256,10 @@ public abstract class Terminal {
         }
     }
 
-    public void flush() {
+    /**
+     * Flush the outputs of this terminal.
+     */
+    public final void flush() {
         outWriter.flush();
         errWriter.flush();
     }

@@ -127,6 +127,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     private final MasterService masterService;
     private final AllocationService allocationService;
     private final JoinHelper joinHelper;
+    private final JoinValidationService joinValidationService;
     private final NodeRemovalClusterStateTaskExecutor nodeRemovalExecutor;
     private final Supplier<CoordinationState.PersistedState> persistedStateSupplier;
     private final NoMasterBlockService noMasterBlockService;
@@ -195,18 +196,21 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         this.electionStrategy = electionStrategy;
         this.joinReasonService = new JoinReasonService(transportService.getThreadPool()::relativeTimeInMillis);
         this.joinHelper = new JoinHelper(
-            settings,
             allocationService,
             masterService,
             transportService,
             this::getCurrentTerm,
-            this::getStateForMasterService,
             this::handleJoinRequest,
             this::joinLeaderInTerm,
-            this.onJoinValidators,
             rerouteService,
             nodeHealthService,
             joinReasonService
+        );
+        this.joinValidationService = new JoinValidationService(
+            settings,
+            transportService,
+            this::getStateForMasterService,
+            this.onJoinValidators
         );
         this.persistedStateSupplier = persistedStateSupplier;
         this.noMasterBlockService = new NoMasterBlockService(settings, clusterSettings);
@@ -623,7 +627,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         // Before letting the node join the cluster, ensure:
         // - it's a new enough version to pass the version barrier
         // - we have a healthy STATE channel to the node
-        // - if we're already master that it can make sense of a the current cluster state.
+        // - if we're already master that it can make sense of the current cluster state.
         // - we have a healthy PING channel to the node
 
         final ListenableActionFuture<Empty> validateStateListener = new ListenableActionFuture<>();
@@ -638,7 +642,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                     stateForJoinValidation.getNodes().getMinNodeVersion()
                 );
             }
-            sendJoinValidate(joinRequest.getSourceNode(), stateForJoinValidation, validateStateListener);
+            sendJoinValidate(joinRequest.getSourceNode(), validateStateListener);
         } else {
             sendJoinPing(joinRequest.getSourceNode(), TransportRequestOptions.Type.STATE, validateStateListener);
         }
@@ -669,27 +673,21 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         });
     }
 
-    private void sendJoinValidate(DiscoveryNode discoveryNode, ClusterState clusterState, ActionListener<Empty> listener) {
-        transportService.sendRequest(
-            discoveryNode,
-            JoinHelper.JOIN_VALIDATE_ACTION_NAME,
-            new ValidateJoinRequest(clusterState),
-            TransportRequestOptions.of(null, TransportRequestOptions.Type.STATE),
-            new ActionListenerResponseHandler<>(listener.delegateResponse((l, e) -> {
-                logger.warn(() -> new ParameterizedMessage("failed to validate incoming join request from node [{}]", discoveryNode), e);
-                listener.onFailure(
-                    new IllegalStateException(
-                        String.format(
-                            Locale.ROOT,
-                            "failure when sending a join validation request from [%s] to [%s]",
-                            getLocalNode().descriptionWithoutAttributes(),
-                            discoveryNode.descriptionWithoutAttributes()
-                        ),
-                        e
-                    )
-                );
-            }), i -> Empty.INSTANCE, Names.CLUSTER_COORDINATION)
-        );
+    private void sendJoinValidate(DiscoveryNode discoveryNode, ActionListener<Empty> listener) {
+        joinValidationService.validateJoin(discoveryNode, listener.delegateResponse((delegate, e) -> {
+            logger.warn(new ParameterizedMessage("failed to validate incoming join request from node [{}]", discoveryNode), e);
+            delegate.onFailure(
+                new IllegalStateException(
+                    String.format(
+                        Locale.ROOT,
+                        "failure when sending a join validation request from [%s] to [%s]",
+                        getLocalNode().descriptionWithoutAttributes(),
+                        discoveryNode.descriptionWithoutAttributes()
+                    ),
+                    e
+                )
+            );
+        }));
     }
 
     private void sendJoinPing(DiscoveryNode discoveryNode, TransportRequestOptions.Type channelType, ActionListener<Empty> listener) {
@@ -959,6 +957,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
     @Override
     protected void doStop() {
         configuredHostsResolver.stop();
+        joinValidationService.stop();
     }
 
     @Override
@@ -1453,6 +1452,11 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
 
     public Collection<BiConsumer<DiscoveryNode, ClusterState>> getOnJoinValidators() {
         return onJoinValidators;
+    }
+
+    // for tests
+    boolean hasIdleJoinValidationService() {
+        return joinValidationService.isIdle();
     }
 
     public enum Mode {

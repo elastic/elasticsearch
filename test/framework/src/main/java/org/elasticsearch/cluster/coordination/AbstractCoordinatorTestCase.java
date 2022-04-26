@@ -245,7 +245,9 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                 FOLLOWER_CHECK_RETRY_COUNT_SETTING
             )
             // then wait for the new leader to commit a state without the old leader
-            + DEFAULT_CLUSTER_STATE_UPDATE_DELAY;
+            + DEFAULT_CLUSTER_STATE_UPDATE_DELAY
+            // then wait for the join validation service to become idle
+            + defaultMillis(JoinValidationService.JOIN_VALIDATION_CACHE_TIMEOUT_SETTING);
 
     public class Cluster implements Releasable {
 
@@ -535,10 +537,14 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
         }
 
         public void stabilise() {
-            stabilise(DEFAULT_STABILISATION_TIME);
+            stabilise(DEFAULT_STABILISATION_TIME, true);
         }
 
-        void stabilise(long stabilisationDurationMillis) {
+        public void stabilise(long stabilisationDurationMillis) {
+            stabilise(stabilisationDurationMillis, false);
+        }
+
+        private void stabilise(long stabilisationDurationMillis, boolean expectIdleJoinValidationService) {
             assertThat(
                 "stabilisation requires default delay variability (and proper cleanup of raised variability)",
                 deterministicTaskQueue.getExecutionDelayVariabilityMillis(),
@@ -656,6 +662,13 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                             );
                         }
                     }
+                }
+
+                if (expectIdleJoinValidationService) {
+                    // Tests run stabilise(long stabilisationDurationMillis) to assert timely recovery from a disruption. There's no need
+                    // to wait for the JoinValidationService cache to be cleared in these cases, we have enough checks that this eventually
+                    // happens anyway.
+                    assertTrue(nodeId + " has an idle join validation service", clusterNode.coordinator.hasIdleJoinValidationService());
                 }
             }
 
@@ -1138,7 +1151,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                                 chanType,
                                 equalTo(TransportRequestOptions.Type.PING)
                             );
-                            case JoinHelper.JOIN_VALIDATE_ACTION_NAME, PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME,
+                            case JoinValidationService.JOIN_VALIDATE_ACTION_NAME,
+                                 PublicationTransportHandler.PUBLISH_STATE_ACTION_NAME,
                                  Coordinator.COMMIT_STATE_ACTION_NAME -> assertThat(
                                 action,
                                 chanType,

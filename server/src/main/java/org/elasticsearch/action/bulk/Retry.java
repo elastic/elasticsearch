@@ -25,8 +25,6 @@ import java.util.List;
 import java.util.function.BiConsumer;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
-
 /**
  * Encapsulates synchronous and asynchronous retry logic.
  */

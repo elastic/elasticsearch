@@ -544,9 +544,11 @@ public class SetupPasswordToolTests extends CommandTestCase {
     }
 
     public void testInteractiveSetup() throws Exception {
-        URL url = new URL(httpClient.getDefaultURL());
-
+        terminal.reset();
         terminal.addTextInput("Y");
+        setSecretsAndKeyStore();
+
+        URL url = new URL(httpClient.getDefaultURL());
         execute("interactive");
 
         InOrder inOrder = Mockito.inOrder(httpClient);

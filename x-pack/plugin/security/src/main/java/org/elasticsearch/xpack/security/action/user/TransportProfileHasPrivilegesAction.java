@@ -78,11 +78,14 @@ public class TransportProfileHasPrivilegesAction extends HandledTransportAction<
             profileService.getProfileSubjects(Arrays.asList(request.profileUids()), ActionListener.wrap(profileSubjectsAndFailures -> {
                 threadPool.generic().execute(() -> {
                     final List<String> hasPrivilegeProfiles = Collections.synchronizedList(new ArrayList<>());
-                    final List<String> errorProfiles = Collections.synchronizedList(new ArrayList<>(profileSubjectsAndFailures.v2()));
+                    final List<String> errorProfiles = Collections.synchronizedList(
+                        new ArrayList<>(profileSubjectsAndFailures.failureProfileUids())
+                    );
                     final Runnable allDone = () -> listener.onResponse(
                         new ProfileHasPrivilegesResponse(hasPrivilegeProfiles.toArray(new String[0]), errorProfiles.toArray(new String[0]))
                     );
-                    final Collection<Map.Entry<String, Subject>> profileUidAndSubjects = profileSubjectsAndFailures.v1().entrySet();
+                    final Collection<Map.Entry<String, Subject>> profileUidAndSubjects = profileSubjectsAndFailures.profileUidToSubject()
+                        .entrySet();
                     final AtomicInteger counter = new AtomicInteger(profileUidAndSubjects.size());
                     if (counter.get() == 0) {
                         allDone.run();

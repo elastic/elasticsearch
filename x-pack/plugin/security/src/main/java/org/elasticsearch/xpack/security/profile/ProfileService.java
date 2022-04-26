@@ -112,12 +112,12 @@ public class ProfileService {
         );
     }
 
-    public void getProfileSubjects(Collection<String> uids, ActionListener<Tuple<Map<String, Subject>, List<String>>> listener) {
+    public void getProfileSubjects(Collection<String> uids, ActionListener<MultiProfileSubjectResponse> listener) {
         getVersionedDocuments(
             uids,
             listener.map(
                 docsAndException -> docsAndException != null
-                    ? new Tuple<>(
+                    ? new MultiProfileSubjectResponse(
                         docsAndException.v1()
                             .entrySet()
                             .stream()
@@ -126,7 +126,7 @@ public class ProfileService {
                             ),
                         docsAndException.v2()
                     )
-                    : new Tuple<>(Map.of(), List.of())
+                    : new MultiProfileSubjectResponse(Map.of(), List.of())
             )
         );
     }
@@ -745,4 +745,6 @@ public class ProfileService {
             );
         }
     }
+
+    public record MultiProfileSubjectResponse(Map<String, Subject> profileUidToSubject, List<String> failureProfileUids) {}
 }

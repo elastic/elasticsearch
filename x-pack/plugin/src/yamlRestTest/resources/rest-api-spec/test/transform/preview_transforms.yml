@@ -13,6 +13,8 @@ setup:
                 type: float
               event_rate:
                 type: integer
+              _isDeleted:
+                type: boolean
   - do:
       index:
         index: airline-data
@@ -22,7 +24,8 @@ setup:
             "time": "2017-02-18T00:00:00Z",
             "airline": "foo",
             "responsetime": 1.0,
-            "event_rate": 5
+            "event_rate": 5,
+            "_isDeleted": false
           }
 
   - do:
@@ -34,7 +37,8 @@ setup:
             "time": "2017-02-18T00:30:00Z",
             "airline": "foo",
             "responsetime": 1.0,
-            "event_rate": 6
+            "event_rate": 6,
+            "_isDeleted": true
           }
 
   - do:
@@ -46,7 +50,8 @@ setup:
             "time": "2017-02-18T01:00:00Z",
             "airline": "bar",
             "responsetime": 42.0,
-            "event_rate": 8
+            "event_rate": 8,
+            "_isDeleted": false
           }
 
   - do:
@@ -58,7 +63,8 @@ setup:
             "time": "2017-02-18T01:01:00Z",
             "airline": "foo",
             "responsetime": 42.0,
-            "event_rate": 7
+            "event_rate": 7,
+            "_isDeleted": true
           }
 
   - do:
@@ -234,9 +240,11 @@ setup:
   - length: { $body: 2 }
   - match: { preview.0.airline: bar }
   - match: { preview.0.time: "2017-02-18T01:00:00Z" }
+  - is_false: preview.0._isDeleted
   - match: { preview.1.airline: foo }
   - match: { preview.1.time: "2017-02-18T01:01:00Z" }
   - match: { generated_dest_index.mappings.properties: {} }
+  - is_false: preview.1._isDeleted
 
   - do:
       ingest.put_pipeline:
@@ -268,9 +276,11 @@ setup:
   - match: { preview.0.airline: bar }
   - match: { preview.0.time: "2017-02-18T01:00:00Z" }
   - match: { preview.0.my_field: 42 }
+  - is_false: preview.0._isDeleted
   - match: { preview.1.airline: foo }
   - match: { preview.1.time: "2017-02-18T01:01:00Z" }
   - match: { preview.1.my_field: 42 }
+  - is_false: preview.1._isDeleted
   - match: { generated_dest_index.mappings.properties: {} }
 
 ---
@@ -515,8 +525,12 @@ setup:
   - length: { $body: 2 }
   - match: { preview.0.airline: bar }
   - match: { preview.0.time: "2017-02-18T01:00:00Z" }
+  - is_false: preview.0._isDeleted  # field with leading underscore character '_' is treated as internal and filtered out
+  - is_false: preview.0.time-5m  # runtime field is not available in the resulting document, only source fields are
   - match: { preview.1.airline: foo }
   - match: { preview.1.time: "2017-02-18T01:01:00Z" }
+  - is_false: preview.1._isDeleted  # field with leading underscore character '_' is treated as internal and filtered out
+  - is_false: preview.1.time-5m  # runtime field is not available in the resulting document, only source fields are
 
 ---
 "Test preview continuous transform with no warnings":

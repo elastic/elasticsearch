@@ -146,53 +146,49 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
     ) {
         final SettingsUpdater updater = new SettingsUpdater(clusterSettings);
         submitUnbatchedTask(UPDATE_TASK_SOURCE, new ClusterUpdateSettingsTask(clusterSettings, Priority.IMMEDIATE, request, listener) {
-                @Override
-                protected ClusterUpdateSettingsResponse newResponse(boolean acknowledged) {
-                    return new ClusterUpdateSettingsResponse(acknowledged, updater.getTransientUpdates(), updater.getPersistentUpdate());
-                }
+            @Override
+            protected ClusterUpdateSettingsResponse newResponse(boolean acknowledged) {
+                return new ClusterUpdateSettingsResponse(acknowledged, updater.getTransientUpdates(), updater.getPersistentUpdate());
+            }
 
-                @Override
-                public void onAllNodesAcked() {
-                    if (changed) {
-                        reroute(true);
-                    } else {
-                        super.onAllNodesAcked();
-                    }
+            @Override
+            public void onAllNodesAcked() {
+                if (changed) {
+                    reroute(true);
+                } else {
+                    super.onAllNodesAcked();
                 }
+            }
 
-                @Override
-                public void onAckFailure(Exception e) {
-                    if (changed) {
-                        reroute(true);
-                    } else {
-                        super.onAckFailure(e);
-                    }
+            @Override
+            public void onAckFailure(Exception e) {
+                if (changed) {
+                    reroute(true);
+                } else {
+                    super.onAckFailure(e);
                 }
+            }
 
-                @Override
-                public void onAckTimeout() {
-                    if (changed) {
-                        reroute(false);
-                    } else {
-                        super.onAckTimeout();
-                    }
+            @Override
+            public void onAckTimeout() {
+                if (changed) {
+                    reroute(false);
+                } else {
+                    super.onAckTimeout();
                 }
+            }
 
-                private void reroute(final boolean updateSettingsAcked) {
-                    // We're about to send a second update task, so we need to check if we're still the elected master
-                    // For example the minimum_master_node could have been breached and we're no longer elected master,
-                    // so we should *not* execute the reroute.
-                    if (clusterService.state().nodes().isLocalNodeElectedMaster() == false) {
-                        logger.debug("Skipping reroute after cluster update settings, because node is no longer master");
-                        listener.onResponse(
-                            new ClusterUpdateSettingsResponse(
-                                updateSettingsAcked,
-                                updater.getTransientUpdates(),
-                                updater.getPersistentUpdate()
-                            )
-                        );
-                        return;
-                    }
+            private void reroute(final boolean updateSettingsAcked) {
+                // We're about to send a second update task, so we need to check if we're still the elected master
+                // For example the minimum_master_node could have been breached and we're no longer elected master,
+                // so we should *not* execute the reroute.
+                if (clusterService.state().nodes().isLocalNodeElectedMaster() == false) {
+                    logger.debug("Skipping reroute after cluster update settings, because node is no longer master");
+                    listener.onResponse(
+                        new ClusterUpdateSettingsResponse(updateSettingsAcked, updater.getTransientUpdates(), updater.getPersistentUpdate())
+                    );
+                    return;
+                }
 
                 // The reason the reroute needs to be send as separate update task, is that all the *cluster* settings are encapsulate
                 // in the components (e.g. FilterAllocationDecider), so the changes made by the first call aren't visible
@@ -244,14 +240,12 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
                 });
             }
 
-                @Override
-                public void onFailure(Exception e) {
-                    logger.debug(() -> new ParameterizedMessage("failed to perform [{}]", UPDATE_TASK_SOURCE), e);
-                    super.onFailure(e);
-                }
-            },
-            newExecutor()
-        );
+            @Override
+            public void onFailure(Exception e) {
+                logger.debug(() -> new ParameterizedMessage("failed to perform [{}]", UPDATE_TASK_SOURCE), e);
+                super.onFailure(e);
+            }
+        });
     }
 
     public static class ClusterUpdateSettingsTask extends AckedClusterStateUpdateTask {

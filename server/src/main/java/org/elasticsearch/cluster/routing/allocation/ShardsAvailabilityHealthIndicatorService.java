@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -64,6 +65,8 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_INC
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_PREFIX;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_REQUIRE_GROUP_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.INDEX_ROUTING_ALLOCATION_ENABLE_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
@@ -186,33 +189,62 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         ACTION_ENABLE_TIERS_LOOKUP = Collections.unmodifiableMap(lookup);
     }
 
-    public static final UserAction.Definition ACTION_SHARD_LIMIT = new UserAction.Definition(
-        "increase_shard_limit",
-        "Elasticsearch isn't allowed to allocate some shards from these indices to any data nodes because each node has reached its shard "
-            + "limit. Increase the values for the ["
-            + ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()
+    public static final UserAction.Definition ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING = new UserAction.Definition(
+        "increase_shard_limit_index_setting",
+        "Elasticsearch isn't allowed to allocate some shards from these indices to any data nodes because each node has reached these "
+            + "indices' shard limits. Increase the values for the ["
+            + INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()
             + "] index setting on each index or add more nodes to the target tiers.",
         null
     );
 
-    public static final Map<String, UserAction.Definition> ACTION_SHARD_LIMIT_LOOKUP;
+    public static final Map<String, UserAction.Definition> ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING_LOOKUP;
     static {
         Map<String, UserAction.Definition> lookup = DataTier.ALL_DATA_TIERS.stream()
             .collect(
                 Collectors.toMap(
                     tier -> tier,
                     tier -> new UserAction.Definition(
-                        "increase_shard_limit_" + tier,
+                        "increase_shard_limit_index_setting_" + tier,
                         "Elasticsearch isn't allowed to allocate some shards from these indices because each node in the ["
                             + tier
-                            + "] tier has reached this index's shard limit. Increase the values for the ["
-                            + ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()
+                            + "] tier has reached these indices' shard limits. Increase the values for the ["
+                            + INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()
                             + "] index setting on each index or add more nodes to the target tiers.",
                         null
                     )
                 )
             );
-        ACTION_SHARD_LIMIT_LOOKUP = Collections.unmodifiableMap(lookup);
+        ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING_LOOKUP = Collections.unmodifiableMap(lookup);
+    }
+
+    public static final UserAction.Definition ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING = new UserAction.Definition(
+        "increase_shard_limit_cluster_setting",
+        "Elasticsearch isn't allowed to allocate some shards from these indices to any data nodes because each node has reached this "
+            + "cluster's shard limit. Increase the values for the ["
+            + CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey()
+            + "] cluster setting or add more nodes to the target tiers.",
+        null
+    );
+
+    public static final Map<String, UserAction.Definition> ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING_LOOKUP;
+    static {
+        Map<String, UserAction.Definition> lookup = DataTier.ALL_DATA_TIERS.stream()
+            .collect(
+                Collectors.toMap(
+                    tier -> tier,
+                    tier -> new UserAction.Definition(
+                        "increase_shard_limit_cluster_setting_" + tier,
+                        "Elasticsearch isn't allowed to allocate some shards from these indices because each node in the ["
+                            + tier
+                            + "] tier has reached this cluster's shard limit. Increase the values for the ["
+                            + CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey()
+                            + "] cluster setting or add more nodes to the target tiers.",
+                        null
+                    )
+                )
+            );
+        ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING_LOOKUP = Collections.unmodifiableMap(lookup);
     }
 
     public static final UserAction.Definition ACTION_MIGRATE_TIERS_AWAY_FROM_REQUIRE_DATA = new UserAction.Definition(
@@ -393,7 +425,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         IndexMetadata index = state.metadata().index(shardRouting.index());
         if (index != null) {
             checkIsAllocationDisabled(actions, index, nodeAllocationResults);
-            checkDataTierRelatedIssues(actions, index, nodeAllocationResults);
+            checkDataTierRelatedIssues(actions, index, nodeAllocationResults, state);
         }
         if (actions.isEmpty()) {
             actions.add(ACTION_CHECK_ALLOCATION_EXPLAIN_API);
@@ -451,7 +483,8 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     void checkDataTierRelatedIssues(
         List<UserAction.Definition> actions,
         IndexMetadata indexMetadata,
-        List<NodeAllocationResult> nodeAllocationResults
+        List<NodeAllocationResult> nodeAllocationResults,
+        ClusterState clusterState
     ) {
         if (indexMetadata.getTierPreference().size() > 0) {
             List<NodeAllocationResult> dataTierAllocationResults = nodeAllocationResults.stream()
@@ -465,9 +498,42 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
             } else {
                 // All tier nodes at shards limit?
                 if (dataTierAllocationResults.stream().allMatch(hasDeciderResult(ShardsLimitAllocationDecider.NAME, Decision.Type.NO))) {
-                    // Collect the unique roles from the nodes it would normally be allowed on
-                    Set<String> dataTierRolesAvailable = dataTierAllocationResults.stream()
+                    // Collect the nodes from the tiers this index is allowed on
+                    Set<DiscoveryNode> dataTierNodes = dataTierAllocationResults.stream()
                         .map(NodeAllocationResult::getNode)
+                        .collect(Collectors.toSet());
+
+                    // We need the routing nodes for the tiers this index is allowed on to determine the offending shard limits
+                    List<RoutingNode> dataTierRoutingNodes = clusterState.getRoutingNodes()
+                        .stream()
+                        .filter(routingNode -> dataTierNodes.contains(routingNode.node()))
+                        .toList();
+
+                    // Determine which total_shards_per_node settings are present
+                    Integer clusterShardsPerNode = clusterService.getClusterSettings().get(CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING);
+                    Integer indexShardsPerNode = INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(indexMetadata.getSettings());
+                    assert (clusterShardsPerNode > 0 || indexShardsPerNode > 0) : "shards per node must exist if allocation decision is NO";
+
+                    // Determine which total_shards_per_node settings are keeping things from allocating
+                    boolean clusterShardsPerNodeShouldChange = false;
+                    if (clusterShardsPerNode > 0) {
+                        int minShardCountInTier = dataTierRoutingNodes.stream()
+                            .map(RoutingNode::numberOfOwningShards)
+                            .min(Integer::compareTo)
+                            .orElse(-1);
+                        clusterShardsPerNodeShouldChange = minShardCountInTier >= clusterShardsPerNode;
+                    }
+                    boolean indexShardsPerNodeShouldChange = false;
+                    if (indexShardsPerNode > 0) {
+                        int minShardCountInTier = dataTierRoutingNodes.stream()
+                            .map(routingNode -> routingNode.numberOfOwningShardsForIndex(indexMetadata.getIndex()))
+                            .min(Integer::compareTo)
+                            .orElse(-1);
+                        indexShardsPerNodeShouldChange = minShardCountInTier >= indexShardsPerNode;
+                    }
+
+                    // Determine the unique roles available on the allowed tier nodes
+                    Set<String> dataTierRolesAvailable = dataTierNodes.stream()
                         .map(DiscoveryNode::getRoles)
                         .flatMap(Set::stream)
                         .map(DiscoveryNodeRole::roleName)
@@ -479,13 +545,26 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                         .filter(dataTierRolesAvailable::contains)
                         .findFirst();
 
+                    // Add appropriate user action
                     if (preferredTier.isPresent()) {
-                        // We cannot allocate the shard to the most preferred tier because the shard limit is reached.
-                        Optional.ofNullable(ACTION_SHARD_LIMIT_LOOKUP.get(preferredTier.get())).ifPresent(actions::add);
+                        // We cannot allocate the shard to the most preferred tier because a shard limit is reached.
+                        if (clusterShardsPerNodeShouldChange) {
+                            Optional.ofNullable(ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING_LOOKUP.get(preferredTier.get()))
+                                .ifPresent(actions::add);
+                        }
+                        if (indexShardsPerNodeShouldChange) {
+                            Optional.ofNullable(ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING_LOOKUP.get(preferredTier.get()))
+                                .ifPresent(actions::add);
+                        }
                     } else {
                         // We couldn't determine a desired tier. This is likely because there are no tiers in the cluster,
                         // only `data` nodes. Give a generic ask for increasing the shard limit.
-                        actions.add(ACTION_SHARD_LIMIT);
+                        if (clusterShardsPerNodeShouldChange) {
+                            actions.add(ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING);
+                        }
+                        if (indexShardsPerNodeShouldChange) {
+                            actions.add(ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING);
+                        }
                     }
                 }
 

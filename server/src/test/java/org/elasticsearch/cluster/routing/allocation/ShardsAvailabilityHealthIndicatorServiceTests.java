@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -40,6 +41,7 @@ import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.health.UserAction;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.stubbing.Answer;
@@ -61,17 +63,20 @@ import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHea
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_ENABLE_CLUSTER_ROUTING_ALLOCATION;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_ENABLE_INDEX_ROUTING_ALLOCATION;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_ENABLE_TIERS_LOOKUP;
+import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING_LOOKUP;
+import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING;
+import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING_LOOKUP;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_INCREASE_TIER_CAPACITY;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_MIGRATE_TIERS_AWAY_FROM_INCLUDE_DATA;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_MIGRATE_TIERS_AWAY_FROM_REQUIRE_DATA;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_RESTORE_FROM_SNAPSHOT;
-import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_SHARD_LIMIT;
-import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.ACTION_SHARD_LIMIT_LOOKUP;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorService.NAME;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorServiceTests.ShardState.AVAILABLE;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorServiceTests.ShardState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorServiceTests.ShardState.RESTARTING;
 import static org.elasticsearch.cluster.routing.allocation.ShardsAvailabilityHealthIndicatorServiceTests.ShardState.UNAVAILABLE;
+import static org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING;
 import static org.elasticsearch.common.util.CollectionUtils.concatLists;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.health.HealthStatus.GREEN;
@@ -240,6 +245,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 index("yellow-index-1", new ShardAllocation(randomNodeId(), AVAILABLE), new ShardAllocation(randomNodeId(), UNAVAILABLE)),
                 index("yellow-index-2", new ShardAllocation(randomNodeId(), AVAILABLE), new ShardAllocation(randomNodeId(), UNAVAILABLE))
             ),
+            List.of(),
             List.of()
         );
         var service = createAllocationHealthIndicatorService(clusterState);
@@ -283,6 +289,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                 index("index-1", new ShardAllocation(randomNodeId(), AVAILABLE), new ShardAllocation(randomNodeId(), UNAVAILABLE)),
                 index("index-2", new ShardAllocation(randomNodeId(), AVAILABLE), new ShardAllocation(randomNodeId(), UNAVAILABLE))
             ),
+            List.of(),
             List.of()
         );
         var service = createAllocationHealthIndicatorService(clusterState);
@@ -470,6 +477,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var clusterState = createClusterStateWith(
             List.of(indexMetadata),
             List.of(index("red-index", new ShardAllocation(randomNodeId(), UNAVAILABLE, noShardCopy()))),
+            List.of(),
             List.of()
         );
 
@@ -526,6 +534,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var clusterState = createClusterStateWith(
             List.of(indexMetadata),
             List.of(index("red-index", new ShardAllocation(randomNodeId(), UNAVAILABLE, decidersNo()))),
+            List.of(),
             List.of()
         );
 
@@ -714,26 +723,53 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     new Decision.Multi().add(Decision.single(Decision.Type.NO, "data_tier", null)),
                     1
                 )
-            )
+            ),
+            ClusterState.EMPTY_STATE
         );
 
         assertThat(actions, hasSize(1));
         assertThat(actions, contains(ACTION_ENABLE_TIERS_LOOKUP.get(DataTier.DATA_HOT)));
     }
 
-    public void testDiagnoseIncreaseShardLimitInTier() {
-        // Index definition, 1 primary no replicas, in the hot tier
+    public void testDiagnoseIncreaseShardLimitIndexSettingInTier() {
+        // Index definition, 2 primaries no replicas, in the hot tier, and at most 1 shard per node
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(
                 Settings.builder()
                     .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
                     .put(DataTier.TIER_PREFERENCE, DataTier.DATA_HOT)
+                    .put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1)
                     .build()
             )
-            .numberOfShards(1)
+            .numberOfShards(2)
             .numberOfReplicas(0)
             .build();
+        Index index = indexMetadata.getIndex();
 
+        // One node that is in the hot tier
+        DiscoveryNode hotNode = new DiscoveryNode(
+            randomNodeId(),
+            buildNewFakeTransportAddress(),
+            Map.of(),
+            Set.of(DiscoveryNodeRole.DATA_HOT_NODE_ROLE),
+            Version.CURRENT
+        );
+
+        var clusterState = createClusterStateWith(
+            List.of(indexMetadata),
+            List.of(
+                IndexRoutingTable.builder(index)
+                    // Already allocated shard on hot node (places it at limit)
+                    .addShard(createShardRouting(new ShardId(index, 0), true, new ShardAllocation(hotNode.getId(), AVAILABLE)))
+                    // Unallocated shard
+                    .addShard(
+                        createShardRouting(new ShardId(index, 1), true, new ShardAllocation(randomNodeId(), UNAVAILABLE, decidersNo()))
+                    )
+                    .build()
+            ),
+            List.of(),
+            List.of(hotNode)
+        );
         var service = createAllocationHealthIndicatorService();
 
         // Get the list of user actions that are generated for this unassigned index shard
@@ -743,28 +779,22 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             indexMetadata,
             List.of(
                 new NodeAllocationResult(
-                    // One node that is in the hot tier
-                    new DiscoveryNode(
-                        randomNodeId(),
-                        buildNewFakeTransportAddress(),
-                        Map.of(),
-                        Set.of(DiscoveryNodeRole.DATA_HOT_NODE_ROLE),
-                        Version.CURRENT
-                    ),
+                    hotNode,
                     // Shard is allowed on data tier, but disallowed because of shard limits
                     new Decision.Multi().add(Decision.single(Decision.Type.YES, "data_tier", null))
                         .add(Decision.single(Decision.Type.NO, ShardsLimitAllocationDecider.NAME, null)),
                     1
                 )
-            )
+            ),
+            clusterState
         );
 
         assertThat(actions, hasSize(1));
-        assertThat(actions, contains(ACTION_SHARD_LIMIT_LOOKUP.get(DataTier.DATA_HOT)));
+        assertThat(actions, contains(ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING_LOOKUP.get(DataTier.DATA_HOT)));
     }
 
-    public void testDiagnoseIncreaseShardLimitInGeneral() {
-        // Index definition, 1 primary no replicas, in the hot tier
+    public void testDiagnoseIncreaseShardLimitClusterSettingInTier() {
+        // Index definition, 2 primaries no replicas, in the hot tier
         IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
             .settings(
                 Settings.builder()
@@ -772,10 +802,103 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     .put(DataTier.TIER_PREFERENCE, DataTier.DATA_HOT)
                     .build()
             )
-            .numberOfShards(1)
+            .numberOfShards(2)
             .numberOfReplicas(0)
             .build();
+        Index index = indexMetadata.getIndex();
 
+        // One node that is in the hot tier
+        DiscoveryNode hotNode = new DiscoveryNode(
+            randomNodeId(),
+            buildNewFakeTransportAddress(),
+            Map.of(),
+            Set.of(DiscoveryNodeRole.DATA_HOT_NODE_ROLE),
+            Version.CURRENT
+        );
+
+        var clusterState = createClusterStateWith(
+            List.of(indexMetadata),
+            List.of(
+                IndexRoutingTable.builder(index)
+                    // Already allocated shard on hot node (places it at limit)
+                    .addShard(createShardRouting(new ShardId(index, 0), true, new ShardAllocation(hotNode.getId(), AVAILABLE)))
+                    // Unallocated shard
+                    .addShard(
+                        createShardRouting(new ShardId(index, 1), true, new ShardAllocation(randomNodeId(), UNAVAILABLE, decidersNo()))
+                    )
+                    .build()
+            ),
+            List.of(),
+            List.of(hotNode)
+        );
+
+        // Configure at most 1 shard per node
+        var service = createAllocationHealthIndicatorService(
+            Settings.builder().put(CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1).build(),
+            clusterState,
+            Map.of()
+        );
+
+        // Get the list of user actions that are generated for this unassigned index shard
+        List<UserAction.Definition> actions = new ArrayList<>();
+        service.checkDataTierRelatedIssues(
+            actions,
+            indexMetadata,
+            List.of(
+                new NodeAllocationResult(
+                    hotNode,
+                    // Shard is allowed on data tier, but disallowed because of shard limits
+                    new Decision.Multi().add(Decision.single(Decision.Type.YES, "data_tier", null))
+                        .add(Decision.single(Decision.Type.NO, ShardsLimitAllocationDecider.NAME, null)),
+                    1
+                )
+            ),
+            clusterState
+        );
+
+        assertThat(actions, hasSize(1));
+        assertThat(actions, contains(ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING_LOOKUP.get(DataTier.DATA_HOT)));
+    }
+
+    public void testDiagnoseIncreaseShardLimitIndexSettingInGeneral() {
+        // Index definition, 2 primaries no replicas, in the hot tier, and at most 1 shard per node
+        IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(DataTier.TIER_PREFERENCE, DataTier.DATA_HOT)
+                    .put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1)
+                    .build()
+            )
+            .numberOfShards(2)
+            .numberOfReplicas(0)
+            .build();
+        Index index = indexMetadata.getIndex();
+
+        // One node that is a generic data node
+        DiscoveryNode dataNode = new DiscoveryNode(
+            randomNodeId(),
+            buildNewFakeTransportAddress(),
+            Map.of(),
+            Set.of(DiscoveryNodeRole.DATA_ROLE),
+            Version.CURRENT
+        );
+
+        var clusterState = createClusterStateWith(
+            List.of(indexMetadata),
+            List.of(
+                IndexRoutingTable.builder(index)
+                    // Already allocated shard on data node (places it at limit)
+                    .addShard(createShardRouting(new ShardId(index, 0), true, new ShardAllocation(dataNode.getId(), AVAILABLE)))
+                    // Unallocated shard
+                    .addShard(
+                        createShardRouting(new ShardId(index, 1), true, new ShardAllocation(randomNodeId(), UNAVAILABLE, decidersNo()))
+                    )
+                    .build()
+            ),
+            List.of(),
+            List.of(dataNode)
+        );
         var service = createAllocationHealthIndicatorService();
 
         // Get the list of user actions that are generated for this unassigned index shard
@@ -785,24 +908,85 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             indexMetadata,
             List.of(
                 new NodeAllocationResult(
-                    // One node that is a generic data node
-                    new DiscoveryNode(
-                        randomNodeId(),
-                        buildNewFakeTransportAddress(),
-                        Map.of(),
-                        Set.of(DiscoveryNodeRole.DATA_ROLE),
-                        Version.CURRENT
-                    ),
+                    dataNode,
                     // Shard is allowed on data tier, but disallowed because of shard limits
                     new Decision.Multi().add(Decision.single(Decision.Type.YES, "data_tier", null))
                         .add(Decision.single(Decision.Type.NO, ShardsLimitAllocationDecider.NAME, null)),
                     1
                 )
-            )
+            ),
+            clusterState
         );
 
         assertThat(actions, hasSize(1));
-        assertThat(actions, contains(ACTION_SHARD_LIMIT));
+        assertThat(actions, contains(ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING));
+    }
+
+    public void testDiagnoseIncreaseShardLimitClusterSettingInGeneral() {
+        // Index definition, 2 primaries no replicas, in the hot tier
+        IndexMetadata indexMetadata = IndexMetadata.builder("red-index")
+            .settings(
+                Settings.builder()
+                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT)
+                    .put(DataTier.TIER_PREFERENCE, DataTier.DATA_HOT)
+                    .build()
+            )
+            .numberOfShards(2)
+            .numberOfReplicas(0)
+            .build();
+        Index index = indexMetadata.getIndex();
+
+        // One node that is a generic data node
+        DiscoveryNode dataNode = new DiscoveryNode(
+            randomNodeId(),
+            buildNewFakeTransportAddress(),
+            Map.of(),
+            Set.of(DiscoveryNodeRole.DATA_ROLE),
+            Version.CURRENT
+        );
+
+        var clusterState = createClusterStateWith(
+            List.of(indexMetadata),
+            List.of(
+                IndexRoutingTable.builder(index)
+                    // Already allocated shard on data node (places it at limit)
+                    .addShard(createShardRouting(new ShardId(index, 0), true, new ShardAllocation(dataNode.getId(), AVAILABLE)))
+                    // Unallocated shard
+                    .addShard(
+                        createShardRouting(new ShardId(index, 1), true, new ShardAllocation(randomNodeId(), UNAVAILABLE, decidersNo()))
+                    )
+                    .build()
+            ),
+            List.of(),
+            List.of(dataNode)
+        );
+
+        // Configure at most 1 shard per node
+        var service = createAllocationHealthIndicatorService(
+            Settings.builder().put(CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), 1).build(),
+            clusterState,
+            Map.of()
+        );
+
+        // Get the list of user actions that are generated for this unassigned index shard
+        List<UserAction.Definition> actions = new ArrayList<>();
+        service.checkDataTierRelatedIssues(
+            actions,
+            indexMetadata,
+            List.of(
+                new NodeAllocationResult(
+                    dataNode,
+                    // Shard is allowed on data tier, but disallowed because of shard limits
+                    new Decision.Multi().add(Decision.single(Decision.Type.YES, "data_tier", null))
+                        .add(Decision.single(Decision.Type.NO, ShardsLimitAllocationDecider.NAME, null)),
+                    1
+                )
+            ),
+            clusterState
+        );
+
+        assertThat(actions, hasSize(1));
+        assertThat(actions, contains(ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING));
     }
 
     public void testDiagnoseMigrateDataRequiredToDataTiers() {
@@ -835,7 +1019,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                         .add(Decision.single(Decision.Type.NO, FilterAllocationDecider.NAME, null)),
                     1
                 )
-            )
+            ),
+            ClusterState.EMPTY_STATE
         );
 
         assertThat(actions, hasSize(1));
@@ -872,7 +1057,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                         .add(Decision.single(Decision.Type.NO, FilterAllocationDecider.NAME, null)),
                     1
                 )
-            )
+            ),
+            ClusterState.EMPTY_STATE
         );
 
         assertThat(actions, hasSize(1));
@@ -908,7 +1094,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                         .add(Decision.single(Decision.Type.NO, FilterAllocationDecider.NAME, null)),
                     1
                 )
-            )
+            ),
+            ClusterState.EMPTY_STATE
         );
 
         // checkDataTierRelatedIssues will leave list empty. Diagnosis methods upstream will add "Check allocation explain" action.
@@ -943,7 +1130,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                         .add(Decision.single(Decision.Type.NO, SameShardAllocationDecider.NAME, null)),
                     1
                 )
-            )
+            ),
+            ClusterState.EMPTY_STATE
         );
 
         assertThat(actions, hasSize(1));
@@ -982,7 +1170,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     .build()
             )
             .collect(Collectors.toList());
-        return createClusterStateWith(indices, indexRoutes, nodeShutdowns);
+        return createClusterStateWith(indices, indexRoutes, nodeShutdowns, List.of());
     }
 
     private static List<IndexMetadata> createIndexMetadataForIndexNameToPriorityMap(Map<String, Integer> indexNameToPriorityMap) {
@@ -1008,7 +1196,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
     private static ClusterState createClusterStateWith(
         List<IndexMetadata> indexMetadataList,
         List<IndexRoutingTable> indexRoutingTables,
-        List<NodeShutdown> nodeShutdowns
+        List<NodeShutdown> nodeShutdowns,
+        List<DiscoveryNode> nodes
     ) {
         var routingTableBuilder = RoutingTable.builder();
         for (IndexRoutingTable indexRoutingTable : indexRoutingTables) {
@@ -1038,8 +1227,13 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         }
         metadataBuilder.indices(indexMetadataMapBuilder.build());
         metadataBuilder.putCustom(NodesShutdownMetadata.TYPE, nodesShutdownMetadata);
+
+        DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder();
+        nodes.forEach(discoveryNodesBuilder::add);
+
         return ClusterState.builder(new ClusterName("test-cluster"))
             .routingTable(routingTableBuilder.build())
+            .nodes(discoveryNodesBuilder)
             .metadata(metadataBuilder.build())
             .build();
     }

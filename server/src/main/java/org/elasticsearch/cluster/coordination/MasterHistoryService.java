@@ -88,10 +88,12 @@ public class MasterHistoryService {
 
     /**
      * This method attempts to fetch the master history from the requested node. If we are able to successfully fetch it, it will be
-     * available in a later call to getRemoteMasterHistory.
+     * available in a later call to getRemoteMasterHistory. This method only fetches the remote master history once, and it is never
+     * updated unless this method is called again.
      * @param node The node whose view of the master history we want to fetch
      */
     public void requestRemoteMasterHistory(DiscoveryNode node) {
+        long startTime = System.currentTimeMillis();
         transportService.openConnection(
             node,
             ConnectionProfile.buildDefaultConnectionProfile(clusterService.getSettings()),
@@ -107,7 +109,8 @@ public class MasterHistoryService {
 
                             @Override
                             public void onResponse(MasterHistoryAction.Response response) {
-                                logger.trace("Received history from {}", node);
+                                long endTime = System.currentTimeMillis();
+                                logger.trace("Received history from {} in {} ms", node, (endTime - startTime));
                                 synchronized (nodeToHistoryMap) {
                                     nodeToHistoryMap.put(node, response.getMasterHistory());
                                 }

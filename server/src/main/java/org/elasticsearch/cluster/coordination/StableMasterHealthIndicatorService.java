@@ -32,6 +32,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.health.ServerHealthComponents.CLUSTER_COORDINATION;
 
@@ -73,7 +74,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         Collection<HealthIndicatorImpact> impacts = new ArrayList<>();
         MasterHistory localMasterHistory = masterHistoryService.getLocalMasterHistory();
         if (hasSeenMasterInLast30Seconds()) {
-            int masterChanges = getNumberOfMasterChanges(localMasterHistory);
+            long masterChanges = getNumberOfMasterChanges(localMasterHistory);
             logger.trace("Have seen a master in the last 30 seconds");
             if (localMasterHistory.hasSameMasterGoneNullNTimes(3)) {
                 DiscoveryNode master = localMasterHistory.getMostRecentNonNullMaster();
@@ -147,24 +148,11 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         );
     }
 
-    private int getNumberOfMasterChanges(MasterHistory localMasterHistory) {
+    private long getNumberOfMasterChanges(MasterHistory localMasterHistory) {
         /*
-         * We want to count all of the transitions to non-null master nodes after the first non-null master node. That way we don't count a
-         * transition from null to the first non-null node when the cluster is coming up.
+         * We want to count all of the transitions to non-null master nodes after the first non-null master node.
          */
-        List<DiscoveryNode> masterNodes = localMasterHistory.getImmutableView();
-        boolean foundNonNullNode = false;
-        int changes = 0;
-        for (DiscoveryNode masterNode : masterNodes) {
-            if (masterNode != null) {
-                if (foundNonNullNode) {
-                    changes++;
-                } else {
-                    foundNonNullNode = true;
-                }
-            }
-        }
-        return changes;
+        return localMasterHistory.getImmutableView().stream().filter(Objects::nonNull).count() - 1;
     }
 
     private boolean hasSeenMasterInLast30Seconds() {

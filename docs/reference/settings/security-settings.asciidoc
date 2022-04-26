@@ -2179,8 +2179,8 @@ File-based resources are polled at a frequency determined by the global {es}
 // tag::jwt-hmac-jwkset-tag[]
 `hmac_jwkset` {ess-icon}::
 (<<secure-settings,Secure>>)
-Contents of a JSON Web Key Set (JWKS), including the secret key that the JWT 
-realm uses to verify token signatures. This format supports multiple keys and 
+Contents of a JSON Web Key Set (JWKS), including the secret key that the JWT
+realm uses to verify token signatures. This format supports multiple keys and
 optional attributes, and is preferred over the `hmac_key` setting. Cannot be
 used in conjunction with the `hmac_key` setting. Refer to
 <<jwt-realm-configuration,Configure {es} to use a JWT realm>>.
@@ -2189,11 +2189,12 @@ used in conjunction with the `hmac_key` setting. Refer to
 // tag::jwt-hmac-key-tag[]
 `hmac_key` {ess-icon}::
 (<<secure-settings,Secure>>)
-Contents of a single JSON Web Key (JWK), including the secret key that the JWT 
-realm uses to verify token signatures. This format only supports a single key 
+Contents of a single JSON Web Key (JWK), including the secret key that the JWT
+realm uses to verify token signatures. This format only supports a single key
 without attributes, and cannot be used with the `hmac_jwkset` setting. This
-format is compatible with the OIDC HMAC encoding, where the HMAC key bytes are 
-UTF-8 encoded. The `hmac_jwkset` setting is preferred. Refer to
+format is compatible with OIDC, where the HMAC key is a UNICODE string, and
+the HMAC key bytes are the UTF-8 encoding of the UNICODE string.
+The `hmac_jwkset` setting is preferred. Refer to
 <<jwt-realm-configuration,Configure {es} to use a JWT realm>>.
 
 // end::jwt-hmac-key-tag[]

@@ -49,10 +49,10 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.CheckedRunnable;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.seqno.ReplicationTracker;
@@ -1426,6 +1426,19 @@ public abstract class ESRestTestCase extends ESTestCase {
 
     public static void assertOK(Response response) {
         assertThat(response.getStatusLine().getStatusCode(), anyOf(equalTo(200), equalTo(201)));
+    }
+
+    /**
+     * Assert that the index in question has the given number of documents present
+     */
+    public static void assertDocCount(RestClient client, String indexName, long docCount) throws IOException {
+        Request countReq = new Request("GET", "/" + indexName + "/_count");
+        ObjectPath resp = ObjectPath.createFromResponse(client.performRequest(countReq));
+        assertEquals(
+            "expected " + docCount + " documents but it was a different number",
+            docCount,
+            Long.parseLong(resp.evaluate("count").toString())
+        );
     }
 
     public static void assertAcknowledged(Response response) throws IOException {

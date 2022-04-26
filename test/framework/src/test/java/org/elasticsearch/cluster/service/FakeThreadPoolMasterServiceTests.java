@@ -11,7 +11,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -79,7 +78,7 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
         masterService.start();
 
         AtomicBoolean firstTaskCompleted = new AtomicBoolean();
-        masterService.submitStateUpdateTask("test1", new ClusterStateUpdateTask() {
+        masterService.submitUnbatchedStateUpdateTask("test1", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 return ClusterState.builder(currentState)
@@ -97,7 +96,7 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
             public void onFailure(Exception e) {
                 throw new AssertionError();
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        });
         assertThat(runnableTasks.size(), equalTo(1));
         assertThat(lastClusterStateRef.get().metadata().indices().size(), equalTo(0));
         assertThat(lastClusterStateRef.get().version(), equalTo(firstClusterStateVersion));
@@ -119,7 +118,7 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
         assertThat(runnableTasks.size(), equalTo(0));
 
         AtomicBoolean secondTaskCompleted = new AtomicBoolean();
-        masterService.submitStateUpdateTask("test2", new ClusterStateUpdateTask() {
+        masterService.submitUnbatchedStateUpdateTask("test2", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 return ClusterState.builder(currentState)
@@ -137,7 +136,7 @@ public class FakeThreadPoolMasterServiceTests extends ESTestCase {
             public void onFailure(Exception e) {
                 throw new AssertionError();
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        });
         assertThat(runnableTasks.size(), equalTo(0));
 
         publishingCallback.getAndSet(null).onResponse(null);

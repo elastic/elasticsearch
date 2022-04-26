@@ -25,7 +25,7 @@ import java.util.List;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class OperatorSettingsControllerTests extends ESTestCase {
+public class OperatorClusterStateControllerTests extends ESTestCase {
 
     public void testOperatorController() throws IOException {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
@@ -35,7 +35,7 @@ public class OperatorSettingsControllerTests extends ESTestCase {
         ClusterState state = ClusterState.builder(clusterName).build();
         when(clusterService.state()).thenReturn(state);
 
-        OperatorSettingsController controller = new OperatorSettingsController(clusterService);
+        OperatorClusterStateController controller = new OperatorClusterStateController(clusterService);
         controller.initHandlers(List.of(new OperatorClusterUpdateSettingsAction(clusterSettings)));
 
         String testJSON = """
@@ -47,36 +47,12 @@ public class OperatorSettingsControllerTests extends ESTestCase {
                     "transient": {
                         "cluster.routing.allocation.enable": "none"
                     }
-                },
-                "ilm": {
-                    "my_timeseries_lifecycle": {
-                        "policy": {
-                            "phases": {
-                                "warm": {
-                                    "min_age": "10s",
-                                    "actions": {
-                                        "forcemerge": {
-                                            "max_num_segments": 10000
-                                        }
-                                    }
-                                },
-                                "delete": {
-                                    "min_age": "30s",
-                                    "actions": {
-                                        "delete": {
-
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
                 }
             }
             """;
 
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, testJSON)) {
-            controller.process(parser);
+            controller.process("operator", parser);
         }
     }
 }

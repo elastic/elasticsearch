@@ -17,18 +17,17 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
 /**
  * TODO: Write docs
  */
-public class OperatorSettingsController {
+public class OperatorClusterStateController {
     Map<String, OperatorHandler<?>> handlers = null;
     final ClusterService clusterService;
 
-    public OperatorSettingsController(ClusterService clusterService) {
+    public OperatorClusterStateController(ClusterService clusterService) {
         this.clusterService = clusterService;
     }
 
@@ -36,23 +35,29 @@ public class OperatorSettingsController {
         handlers = handlerList.stream().collect(Collectors.toMap(OperatorHandler::key, Function.identity()));
     }
 
-    public ClusterState process(XContentParser parser) throws IOException {
+    public ClusterState process(String namespace, XContentParser parser) throws IOException {
         Map<String, Object> source = parser.map();
 
-        LinkedHashSet<String> orderedHandler = orderedStateHandlers(source.keySet());
+        LinkedHashSet<String> orderedHandlers = orderedStateHandlers(source.keySet());
 
-        AtomicReference<ClusterState> state = new AtomicReference<>(clusterService.state());
+        ClusterState state = clusterService.state();
 
-        orderedHandler.forEach(k -> {
-            OperatorHandler<?> handler = handlers.get(k);
+        // TODO: extract the namespace keys from the state, if any and pass them to each transform
+
+        for (var handlerKey : orderedHandlers) {
+            OperatorHandler<?> handler = handlers.get(handlerKey);
             try {
-                state.set(handler.transform(source.get(k), state.get()));
+                state = handler.transform(source.get(handlerKey), state);
             } catch (Exception e) {
                 throw new IllegalStateException("Error processing state change request for: " + handler.key(), e);
             }
-        });
+        }
 
-        return null;
+        // TODO: extract the keys written for this namespace, and store them in the cluster state
+        // TODO: call a clusterService state update task
+        // TODO: call reroute service
+
+        return state;
     }
 
     LinkedHashSet<String> orderedStateHandlers(Set<String> keys) {

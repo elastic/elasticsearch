@@ -263,8 +263,8 @@ import org.elasticsearch.index.seqno.RetentionLeaseActions;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata;
+import org.elasticsearch.operator.OperatorClusterStateController;
 import org.elasticsearch.operator.OperatorHandler;
-import org.elasticsearch.operator.OperatorSettingsController;
 import org.elasticsearch.operator.action.OperatorClusterUpdateSettingsAction;
 import org.elasticsearch.persistent.CompletionPersistentTaskAction;
 import org.elasticsearch.persistent.RemovePersistentTaskAction;
@@ -445,7 +445,7 @@ public class ActionModule extends AbstractModule {
     private final RequestValidators<PutMappingRequest> mappingRequestValidators;
     private final RequestValidators<IndicesAliasesRequest> indicesAliasesRequestRequestValidators;
     private final ThreadPool threadPool;
-    private final OperatorSettingsController operatorController;
+    private final OperatorClusterStateController operatorController;
     private final ClusterService clusterService;
 
     public ActionModule(
@@ -510,7 +510,7 @@ public class ActionModule extends AbstractModule {
         );
 
         restController = new RestController(headers, restWrapper, nodeClient, circuitBreakerService, usageService);
-        operatorController = new OperatorSettingsController(clusterService);
+        operatorController = new OperatorClusterStateController(clusterService);
     }
 
     public Map<String, ActionHandler<?, ?>> getActions() {

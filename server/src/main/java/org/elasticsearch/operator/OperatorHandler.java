@@ -23,8 +23,6 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
-import java.util.function.Function;
-import java.util.stream.Collectors;
 
 /**
  * TODO: Add docs
@@ -47,9 +45,10 @@ public interface OperatorHandler<T extends MasterNodeRequest<?>> {
         }
     }
 
+    @SuppressWarnings("unchecked")
     default Map<String, ?> asMap(Object input) {
         if (input instanceof Map<?, ?> source) {
-            return source.entrySet().stream().collect(Collectors.toMap(Object::toString, Function.identity()));
+            return (Map<String, Object>) source;
         }
         throw new IllegalStateException("Unsupported " + key() + " request format");
     }

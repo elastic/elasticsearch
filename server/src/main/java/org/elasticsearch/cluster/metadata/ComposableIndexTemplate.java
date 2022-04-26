@@ -342,7 +342,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
                 // (index_mode was behind a feature in the xcontent parser, so it could never actually used)
                 // (this used to be an optional enum, so just need to (de-)serialize a false boolean value here)
                 boolean value = in.readBoolean();
-                assert value == false;
+                assert value == false : "expected false, because this used to be an optional enum that never got set";
             }
         }
 

@@ -85,13 +85,15 @@ aggregation.
 
 [discrete]
 [[frequent-items-example]]
-==== Example
+==== Examples
 
-In the following example, we use the e-commerce {kib} sample data set. The goal 
-is to find out based on transaction data (1.) from what product categories 
-the customers purchase products frequently together and (2.) from which cities 
-they make those purchases. We are interested in sets with three or more items, 
-and want to see the first three frequent item sets with the highest support.
+In the following examples, we use the e-commerce {kib} sample data set.
+
+In the first example, the goal is to find out based on transaction data (1.) 
+from what product categories the customers purchase products frequently together 
+and (2.) from which cities they make those purchases. We are interested in sets 
+with three or more items, and want to see the first three frequent item sets 
+with the highest support.
 
 [source,console]
 -------------------------------------------------
@@ -177,3 +179,117 @@ products from these categories together. The item set with the second highest
 support is `Women's Clothing` and `Women's Accessories` with customers mostly 
 from New York. Finally, the item set with the third highest support is 
 `Men's Clothing` and `Men's Shoes` with customers mostly from Cairo.
+
+The frequent items aggregation enables you to bucket numeric values by using 
+<<runtime,runtime fields>>. The next example demonstrates how to use a script to 
+add a runtime field to your documents that called `price_range` which is 
+calculated from the texful total price of the individual transactions. The 
+runtime field then can be used in the frequent items aggfregation as a field to 
+analyze.
+
+
+[source,console]
+-------------------------------------------------
+GET kibana_sample_data_ecommerce/_search
+{
+  "runtime_mappings": {
+    "price_range": {
+      "type": "keyword",
+      "script": {
+        "source": """
+           def bucket_start = (long) Math.floor(doc['taxful_total_price'].value / 50) * 50;
+           def bucket_end = bucket_start + 50;
+           emit(bucket_start.toString() + "-" + bucket_end.toString());
+        """
+      }
+    }
+  },
+  "size": 0,
+  "aggs": {
+    "my_agg": {
+      "frequent_items": {
+        "minimum_set_size": 4,
+        "fields": [
+          {
+            "field": "category.keyword"
+          },
+          {
+            "field": "price_range"
+          },
+          {
+            "field": "geoip.city_name"
+          }
+        ],
+        "size": 3
+      }
+    }
+  }
+-------------------------------------------------
+// TEST[skip:setup kibana sample data]
+
+The API returns a response similar to the following one:
+
+[source,console-result]
+-------------------------------------------------
+(...)
+"aggregations" : {
+    "my_agg" : {
+      "buckets" : [
+        {
+          "key" : {
+            "category.keyword" : [
+              "Women's Clothing",
+              "Women's Shoes"
+            ],
+            "price_range" : [
+              "50-100"
+            ],
+            "geoip.city_name" : [
+              "New York"
+            ]
+          },
+          "doc_count" : 100,
+          "support" : 0.0213903743315508
+        },
+        {
+          "key" : {
+            "category.keyword" : [
+              "Women's Clothing",
+              "Women's Shoes"
+            ],
+            "price_range" : [
+              "50-100"
+            ],
+            "geoip.city_name" : [
+              "Dubai"
+            ]
+          },
+          "doc_count" : 59,
+          "support" : 0.012620320855614974
+        },
+        {
+          "key" : {
+            "category.keyword" : [
+              "Men's Clothing",
+              "Men's Shoes"
+            ],
+            "price_range" : [
+              "50-100"
+            ],
+            "geoip.city_name" : [
+              "Marrakesh"
+            ]
+          },
+          "doc_count" : 53,
+          "support" : 0.011336898395721925
+        }
+      ],
+    (...)
+    }
+  }
+-------------------------------------------------
+// TEST[skip:setup kibana sample data]
+
+The response shows the categories that customers purchase from most frequently 
+together, the location of the customers who tend to buy items from these 
+categories, and the most frequent price ranges of these purchases.

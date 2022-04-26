@@ -20,6 +20,8 @@ public final class ContentPath {
 
     private String[] path = new String[10];
 
+    private boolean collapsed = false;
+
     public ContentPath() {
         this(0);
     }
@@ -52,6 +54,14 @@ public final class ContentPath {
 
     public void remove() {
         path[index--] = null;
+    }
+
+    public void setCollapsed(boolean collapsed) {
+        this.collapsed = collapsed;
+    }
+
+    public boolean isWithinCollapsedPath() {
+        return collapsed;
     }
 
     public String pathAsText(String name) {

@@ -445,7 +445,13 @@ public final class DocumentParser {
         Mapper objectMapper = getMapper(context, mapper, currentFieldName);
         if (objectMapper != null) {
             context.path().add(currentFieldName);
+            if (objectMapper instanceof ObjectMapper objMapper) {
+                if (objMapper.isCollapsed()) {
+                    context.path().setCollapsed(true);
+                }
+            }
             parseObjectOrField(context, objectMapper);
+            context.path().setCollapsed(false);
             context.path().remove();
         } else {
             parseObjectDynamic(context, mapper, currentFieldName);
@@ -474,7 +480,13 @@ public final class DocumentParser {
                 throwOnCreateDynamicNestedViaCopyTo(dynamicObjectMapper);
             }
             context.path().add(currentFieldName);
+            if (dynamicObjectMapper instanceof ObjectMapper objectMapper) {
+                if (objectMapper.isCollapsed()) {
+                    context.path().setCollapsed(true);
+                }
+            }
             parseObjectOrField(context, dynamicObjectMapper);
+            context.path().setCollapsed(false);
             context.path().remove();
         }
     }

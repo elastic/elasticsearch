@@ -129,7 +129,7 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
         if (fieldName.isEmpty()) {
             throw new IllegalArgumentException("field name cannot be an empty string");
         }
-        if (fieldName.contains(".") == false) {
+        if (fieldName.contains(".") == false || context.path().isWithinCollapsedPath()) {
             return new String[] { fieldName };
         }
         String[] parts = fieldName.split("\\.");
@@ -137,14 +137,7 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
             throw new IllegalArgumentException("field name cannot contain only dots");
         }
 
-        // TODO do we want to optimize for the case where there are no collapsed paths in the mapping?
-
-        // TODO every time we don't expand, the not expanded path is evaluated again later. Shall we do something about that?
-
-        // check if any of the parent objects has collapsed set to true
-        if (context.isWithinCollapsedPath()) {
-            return new String[] { fieldName };
-        }
+        // TODO optimize for the case where there are no collapsed paths in the mapping?
 
         ContentPath currentPath = new ContentPath();
         int indexCollapsed = -1;
@@ -166,7 +159,10 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
                 // concatenate the full path of the current element that we are parsing with the previously examined parts of the
                 // dotted name that we are splitting, to check if there's a collapsed object in between
                 String fullPath = context.path().pathAsText(currentPath.pathAsText(part));
-                ObjectMapper objectMapper = context.getObjectMapper(fullPath);
+                ObjectMapper objectMapper = context.mappingLookup().objectMappers().get(fullPath);
+                if (objectMapper == null) {
+                    objectMapper = context.getDynamicObjectMapper(fullPath);
+                }
                 if (objectMapper != null && objectMapper.isCollapsed()) {
                     indexCollapsed = i;
                 }

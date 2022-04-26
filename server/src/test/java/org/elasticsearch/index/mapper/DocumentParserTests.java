@@ -1898,6 +1898,8 @@ public class DocumentParserTests extends MapperServiceTestCase {
             {
               "metrics.service.time" : 10,
               "metrics.service.time.max" : 500,
+              "metrics.service.time.min" : 1,
+              "metrics.object.inner.field" : 1,
               "metrics.service.test.with.dots" : "value"
             }
             """));
@@ -1923,8 +1925,10 @@ public class DocumentParserTests extends MapperServiceTestCase {
                 "service": {
                   "time" : 10,
                   "time.max" : 500,
+                  "time.min" : 1,
                   "test.with.dots" : "value"
-                }
+                },
+                "object.inner.field": "value"
               }
             }
             """));
@@ -1939,7 +1943,9 @@ public class DocumentParserTests extends MapperServiceTestCase {
             {
               "metrics.service.time" : 10,
               "metrics.service.time.max" : 500,
-              "metrics.service.test.with.dots" : "value"
+              "metrics.service.time.min" : 1,
+              "metrics.service.test.with.dots" : "value",
+              "metrics.object.inner.field" : "value"
             }
             """));
         assertDotsCollapsed(doc);
@@ -1954,14 +1960,18 @@ public class DocumentParserTests extends MapperServiceTestCase {
               "metrics": {
                 "service.time": 10,
                 "service": {
-                  "time.max" : 500
-                }
+                  "time.max" : 500,
+                  "time.min" : 1
+                },
+                "object.inner.field" : "value"
               },
               "metrics.service.test.with.dots" : "value"
             }
             """));
         assertDotsCollapsed(doc);
     }
+
+    // TODO add test with array of objects?
 
     private static void assertDotsCollapsed(ParsedDocument doc) {
         Mapping mappingsUpdate = doc.dynamicMappingsUpdate();
@@ -1974,10 +1984,19 @@ public class DocumentParserTests extends MapperServiceTestCase {
         ObjectMapper serviceObject = (ObjectMapper) service;
         assertNotNull(serviceObject.getMapper("time"));
         assertNotNull(serviceObject.getMapper("time.max"));
+        assertNotNull(serviceObject.getMapper("time.min"));
         assertNotNull(serviceObject.getMapper("test.with.dots"));
+        Mapper object = metricsObject.getMapper("object");
+        assertThat(object, instanceOf(ObjectMapper.class));
+        ObjectMapper objectObject = (ObjectMapper) object;
+        Mapper inner = objectObject.getMapper("inner");
+        assertThat(inner, instanceOf(ObjectMapper.class));
+        ObjectMapper innerObject = (ObjectMapper) inner;
+        assertNotNull(innerObject.getMapper("field"));
 
         assertNotNull(doc.rootDoc().getFields("metrics.service.time"));
         assertNotNull(doc.rootDoc().getFields("metrics.service.time.max"));
+        assertNotNull(doc.rootDoc().getFields("metrics.service.time.min"));
         assertNotNull(doc.rootDoc().getFields("metrics.service.test.with.dots"));
     }
 

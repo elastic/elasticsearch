@@ -31,7 +31,7 @@ public class FrequentItemSetsAggregationBuilder extends AbstractAggregationBuild
     public static final String NAME = "frequent_items";
 
     public static final double DEFAULT_MINIMUM_SUPPORT = 0.01;
-    public static final int DEFAULT_MINIMUM_SET_SIZE = 0;
+    public static final int DEFAULT_MINIMUM_SET_SIZE = 1;
     public static final int DEFAULT_SIZE = 10;
 
     public static final ParseField MINIMUM_SUPPORT = new ParseField("minimum_support");

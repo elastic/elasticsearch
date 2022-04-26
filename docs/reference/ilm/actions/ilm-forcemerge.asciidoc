@@ -6,7 +6,8 @@ Phases allowed: hot, warm.
 
 <<indices-forcemerge,Force merges>> the index into 
 the specified maximum number of <<indices-segments,segments>>.
-This action makes the index <<dynamic-index-settings,read-only>>.
+This action makes the index read-only; 
+writes and metadata changes are no longer allowed.
 
 [NOTE]
 The `forcemerge` action is best effort. It might happen that some of the

@@ -15,7 +15,6 @@ import org.apache.logging.log4j.spi.AbstractLogger;
 import org.apache.logging.log4j.spi.ExtendedLoggerWrapper;
 import org.elasticsearch.cli.Terminal;
 
-import java.io.OutputStream;
 import java.io.PrintWriter;
 
 public final class LoggerTerminal extends Terminal {

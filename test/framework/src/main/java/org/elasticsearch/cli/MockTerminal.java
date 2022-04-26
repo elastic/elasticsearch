@@ -52,7 +52,7 @@ public class MockTerminal extends Terminal {
         }
     }
 
-    private static final byte[] NEWLINE = new byte[] {'\n'};
+    private static final byte[] NEWLINE = new byte[] { '\n' };
 
     private final ByteArrayOutputStream stdoutBuffer;
     private final ByteArrayOutputStream stderrBuffer;

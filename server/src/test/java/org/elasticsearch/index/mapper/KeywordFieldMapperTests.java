@@ -23,6 +23,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexSettings;
@@ -687,10 +688,31 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     @Override
     protected final Optional<StringFieldScript.Factory> nonEmptyFieldScript() {
         return Optional.of((fieldName, params, searchLookup) -> ctx -> new StringFieldScript(fieldName, params, searchLookup, ctx) {
-            @Override
-            public void execute() {
+            @Override public void execute() {
                 emit("foo");
             }
         });
+    }
+
+    public void testLegacyField() throws Exception {
+        // check that unknown normalizers are treated leniently on old indices
+        MapperService service = createMapperService(Version.fromString("5.0.0"), Settings.EMPTY, () -> false, mapping(b -> {
+            b.startObject("mykeyw");
+            b.field("type", "keyword");
+            b.field("normalizer", "unknown-normalizer");
+            b.endObject();
+        }));
+        assertThat(service.fieldType("mykeyw"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+        assertEquals(Lucene.KEYWORD_ANALYZER, ((KeywordFieldMapper.KeywordFieldType) service.fieldType("mykeyw")).normalizer());
+
+        // check that normalizer can be updated
+        merge(service, mapping(b -> {
+            b.startObject("mykeyw");
+            b.field("type", "keyword");
+            b.field("normalizer", "lowercase");
+            b.endObject();
+        }));
+        assertThat(service.fieldType("mykeyw"), instanceOf(KeywordFieldMapper.KeywordFieldType.class));
+        assertNotEquals(Lucene.KEYWORD_ANALYZER, ((KeywordFieldMapper.KeywordFieldType) service.fieldType("mykeyw")).normalizer());
     }
 }

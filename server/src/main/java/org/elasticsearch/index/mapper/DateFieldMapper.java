@@ -8,6 +8,9 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
@@ -73,6 +76,7 @@ import static org.elasticsearch.common.time.DateUtils.toLong;
 public final class DateFieldMapper extends FieldMapper {
 
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(DateFieldMapper.class);
+    private static final Logger logger = LogManager.getLogger(DateFieldMapper.class);
 
     public static final String CONTENT_TYPE = "date";
     public static final String DATE_NANOS_CONTENT_TYPE = "date_nanos";
@@ -267,7 +271,12 @@ public final class DateFieldMapper extends FieldMapper {
             DateFormatter defaultFormat = resolution == Resolution.MILLISECONDS
                 ? DEFAULT_DATE_TIME_FORMATTER
                 : DEFAULT_DATE_TIME_NANOS_FORMATTER;
-            this.format = Parameter.stringParam("format", false, m -> toType(m).format, defaultFormat.pattern());
+            this.format = Parameter.stringParam(
+                "format",
+                indexCreatedVersion.isLegacyIndexVersion(),
+                m -> toType(m).format,
+                defaultFormat.pattern()
+            );
             if (dateFormatter != null) {
                 this.format.setValue(dateFormatter.pattern());
                 this.locale.setValue(dateFormatter.locale());
@@ -278,7 +287,15 @@ public final class DateFieldMapper extends FieldMapper {
             try {
                 return DateFormatter.forPattern(format.getValue()).withLocale(locale.getValue());
             } catch (IllegalArgumentException e) {
-                throw new IllegalArgumentException("Error parsing [format] on field [" + name() + "]: " + e.getMessage(), e);
+                if (indexCreatedVersion.isLegacyIndexVersion()) {
+                    logger.warn(
+                        new ParameterizedMessage("Error parsing format [{}] of legacy index, falling back to default", format.getValue()),
+                        e
+                    );
+                    return DateFormatter.forPattern(format.getDefaultValue()).withLocale(locale.getValue());
+                } else {
+                    throw new IllegalArgumentException("Error parsing [format] on field [" + name() + "]: " + e.getMessage(), e);
+                }
             }
         }
 
@@ -342,6 +359,8 @@ public final class DateFieldMapper extends FieldMapper {
         }
     }
 
+    private static final Version MINIMUM_COMPATIBILITY_VERSION = Version.fromString("5.0.0");
+
     public static final TypeParser MILLIS_PARSER = new TypeParser((n, c) -> {
         boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(c.getSettings());
         return new Builder(
@@ -352,7 +371,7 @@ public final class DateFieldMapper extends FieldMapper {
             ignoreMalformedByDefault,
             c.indexVersionCreated()
         );
-    });
+    }, MINIMUM_COMPATIBILITY_VERSION);
 
     public static final TypeParser NANOS_PARSER = new TypeParser((n, c) -> {
         boolean ignoreMalformedByDefault = IGNORE_MALFORMED_SETTING.get(c.getSettings());
@@ -364,7 +383,7 @@ public final class DateFieldMapper extends FieldMapper {
             ignoreMalformedByDefault,
             c.indexVersionCreated()
         );
-    });
+    }, MINIMUM_COMPATIBILITY_VERSION);
 
     public static final class DateFieldType extends MappedFieldType {
         protected final DateFormatter dateTimeFormatter;

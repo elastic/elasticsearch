@@ -115,6 +115,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 Version.CURRENT,
                 "1.8",
                 pluginClass.getName(),
+                null,
                 Collections.emptyList(),
                 false,
                 PluginType.ISOLATED,

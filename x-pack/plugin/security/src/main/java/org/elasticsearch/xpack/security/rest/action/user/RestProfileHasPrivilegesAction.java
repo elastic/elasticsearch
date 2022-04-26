@@ -19,7 +19,8 @@ import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.security.SecurityContext;
-import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesRequestBuilder;
+import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
+import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesResponse;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
@@ -52,10 +53,10 @@ public class RestProfileHasPrivilegesAction extends SecurityBaseRestHandler {
     }
 
     @Override
-    protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
-        try (XContentParser parser = request.contentOrSourceParamParser()) {
-            ProfileHasPrivilegesRequestBuilder requestBuilder = new ProfileHasPrivilegesRequestBuilder(client).parse(parser);
-            return channel -> requestBuilder.execute(new RestBuilderListener<>(channel) {
+    protected RestChannelConsumer innerPrepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
+        try (XContentParser parser = restRequest.contentOrSourceParamParser()) {
+            ProfileHasPrivilegesRequest request = ProfileHasPrivilegesRequest.PARSER.parse(parser, null);
+            return channel -> client.execute(ProfileHasPrivilegesAction.INSTANCE, request, new RestBuilderListener<>(channel) {
                 @Override
                 public RestResponse buildResponse(ProfileHasPrivilegesResponse response, XContentBuilder builder) throws Exception {
                     response.toXContent(builder, ToXContent.EMPTY_PARAMS);

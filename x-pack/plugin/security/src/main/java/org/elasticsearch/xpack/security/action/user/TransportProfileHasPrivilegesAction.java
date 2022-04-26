@@ -75,7 +75,7 @@ public class TransportProfileHasPrivilegesAction extends HandledTransportAction<
             Arrays.asList(request.applicationPrivileges())
         );
         resolveApplicationPrivileges(request, ActionListener.wrap(applicationPrivilegeDescriptors -> {
-            profileService.getProfileSubjects(Arrays.asList(request.profileUids()), ActionListener.wrap(profileSubjectsAndFailures -> {
+            profileService.getProfileSubjects(request.profileUids(), ActionListener.wrap(profileSubjectsAndFailures -> {
                 threadPool.generic().execute(() -> {
                     final List<String> hasPrivilegeProfiles = Collections.synchronizedList(new ArrayList<>());
                     final List<String> errorProfiles = Collections.synchronizedList(

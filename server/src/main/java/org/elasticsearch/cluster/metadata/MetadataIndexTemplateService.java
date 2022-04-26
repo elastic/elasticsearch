@@ -19,7 +19,6 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -141,12 +140,12 @@ public class MetadataIndexTemplateService {
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     public void removeTemplates(final RemoveRequest request, final RemoveListener listener) {
-        clusterService.submitStateUpdateTask(
+        submitUnbatchedTask(
             "remove-index-template [" + request.name + "]",
             new ClusterStateUpdateTask(Priority.URGENT, request.masterTimeout) {
 
@@ -184,8 +183,7 @@ public class MetadataIndexTemplateService {
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 }
-            },
-            newExecutor()
+            }
         );
     }
 
@@ -201,7 +199,7 @@ public class MetadataIndexTemplateService {
         final ComponentTemplate template,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        clusterService.submitStateUpdateTask(
+        submitUnbatchedTask(
             "create-component-template [" + name + "], cause [" + cause + "]",
             new ClusterStateUpdateTask(Priority.URGENT, masterTimeout) {
 
@@ -219,8 +217,7 @@ public class MetadataIndexTemplateService {
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 }
-            },
-            newExecutor()
+            }
         );
     }
 
@@ -373,7 +370,7 @@ public class MetadataIndexTemplateService {
         final ActionListener<AcknowledgedResponse> listener
     ) {
         validateNotInUse(state.metadata(), names);
-        clusterService.submitStateUpdateTask(
+        submitUnbatchedTask(
             "remove-component-template [" + String.join(",", names) + "]",
             new ClusterStateUpdateTask(Priority.URGENT, masterTimeout) {
 
@@ -391,8 +388,7 @@ public class MetadataIndexTemplateService {
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 }
-            },
-            newExecutor()
+            }
         );
     }
 
@@ -490,7 +486,7 @@ public class MetadataIndexTemplateService {
         final ActionListener<AcknowledgedResponse> listener
     ) {
         validateV2TemplateRequest(clusterService.state().metadata(), name, template);
-        clusterService.submitStateUpdateTask(
+        submitUnbatchedTask(
             "create-index-template-v2 [" + name + "], cause [" + cause + "]",
             new ClusterStateUpdateTask(Priority.URGENT, masterTimeout) {
 
@@ -508,8 +504,7 @@ public class MetadataIndexTemplateService {
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 }
-            },
-            newExecutor()
+            }
         );
     }
 
@@ -884,7 +879,7 @@ public class MetadataIndexTemplateService {
         final TimeValue masterTimeout,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        clusterService.submitStateUpdateTask(
+        submitUnbatchedTask(
             "remove-index-template-v2 [" + String.join(",", names) + "]",
             new ClusterStateUpdateTask(Priority.URGENT, masterTimeout) {
 
@@ -902,8 +897,7 @@ public class MetadataIndexTemplateService {
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 }
-            },
-            newExecutor()
+            }
         );
     }
 
@@ -1018,7 +1012,7 @@ public class MetadataIndexTemplateService {
 
         final IndexTemplateMetadata.Builder templateBuilder = IndexTemplateMetadata.builder(request.name);
 
-        clusterService.submitStateUpdateTask(
+        submitUnbatchedTask(
             "create-index-template [" + request.name + "], cause [" + request.cause + "]",
             new ClusterStateUpdateTask(Priority.URGENT, request.masterTimeout) {
 
@@ -1037,8 +1031,7 @@ public class MetadataIndexTemplateService {
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     listener.onResponse(new PutResponse(true));
                 }
-            },
-            newExecutor()
+            }
         );
     }
 

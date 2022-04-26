@@ -74,3 +74,4 @@ if defined JAVA_OPTS (
   echo pass JVM parameters via ES_JAVA_OPTS
 )
 
+cd %ES_HOME%

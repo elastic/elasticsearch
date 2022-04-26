@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Properties;
 import java.util.function.Function;
 import java.util.stream.Collectors;
@@ -41,6 +42,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
     public static final String ES_PLUGIN_POLICY = "plugin-security.policy";
 
     private static final Version LICENSED_PLUGINS_SUPPORT = Version.V_7_11_0;
+    private static final Version MODULE_NAME_SUPPORT = Version.V_8_3_0;
 
     private final String name;
     private final String description;
@@ -48,6 +50,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
     private final Version elasticsearchVersion;
     private final String javaVersion;
     private final String classname;
+    private final String moduleName;
     private final List<String> extendedPlugins;
     private final boolean hasNativeController;
     private final PluginType type;
@@ -63,6 +66,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
      * @param elasticsearchVersion  the version of Elasticsearch the plugin was built for
      * @param javaVersion           the version of Java the plugin was built with
      * @param classname             the entry point to the plugin
+     * @param moduleName            the module name to load the plugin class from, or null if not in a module
      * @param extendedPlugins       other plugins this plugin extends through SPI
      * @param hasNativeController   whether or not the plugin has a native controller
      * @param type                  the type of the plugin. Expects "bootstrap" or "isolated".
@@ -76,6 +80,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         Version elasticsearchVersion,
         String javaVersion,
         String classname,
+        String moduleName,
         List<String> extendedPlugins,
         boolean hasNativeController,
         PluginType type,
@@ -88,6 +93,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
         this.elasticsearchVersion = elasticsearchVersion;
         this.javaVersion = javaVersion;
         this.classname = classname;
+        this.moduleName = moduleName;
         this.extendedPlugins = Collections.unmodifiableList(extendedPlugins);
         this.hasNativeController = hasNativeController;
         this.type = type;
@@ -108,6 +114,11 @@ public class PluginInfo implements Writeable, ToXContentObject {
         elasticsearchVersion = Version.readVersion(in);
         javaVersion = in.readString();
         this.classname = in.readString();
+        if (in.getVersion().onOrAfter(MODULE_NAME_SUPPORT)) {
+            this.moduleName = in.readOptionalString();
+        } else {
+            this.moduleName = null;
+        }
         extendedPlugins = in.readStringList();
         hasNativeController = in.readBoolean();
 
@@ -130,6 +141,9 @@ public class PluginInfo implements Writeable, ToXContentObject {
         Version.writeVersion(elasticsearchVersion, out);
         out.writeString(javaVersion);
         out.writeString(classname);
+        if (out.getVersion().onOrAfter(MODULE_NAME_SUPPORT)) {
+            out.writeOptionalString(moduleName);
+        }
         out.writeStringCollection(extendedPlugins);
         out.writeBoolean(hasNativeController);
 
@@ -196,6 +210,10 @@ public class PluginInfo implements Writeable, ToXContentObject {
         final PluginType type = getPluginType(name, propsMap.remove("type"));
 
         final String classname = getClassname(name, type, propsMap.remove("classname"));
+        String modulename = propsMap.remove("modulename");
+        if (modulename != null && modulename.isBlank()) {
+            modulename = null;
+        }
 
         final String javaOpts = propsMap.remove("java.opts");
 
@@ -218,6 +236,7 @@ public class PluginInfo implements Writeable, ToXContentObject {
             esVersion,
             javaVersionString,
             classname,
+            modulename,
             extendedPlugins,
             hasNativeController,
             type,
@@ -297,6 +316,15 @@ public class PluginInfo implements Writeable, ToXContentObject {
      */
     public String getClassname() {
         return classname;
+    }
+
+    /**
+     * The module name of the plugin.
+     *
+     * @return the module name of the plugin
+     */
+    public Optional<String> getModuleName() {
+        return Optional.ofNullable(moduleName);
     }
 
     /**

@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
+import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
@@ -109,6 +110,10 @@ public class AuthorizationUtilsTests extends ESTestCase {
 
     public void testSwitchAndExecuteXpackSecurityUser() throws Exception {
         assertSwitchBasedOnOriginAndExecute(ClientHelper.SECURITY_ORIGIN, XPackSecurityUser.INSTANCE);
+    }
+
+    public void testSwitchAndExecuteSecurityProfileUser() throws Exception {
+        assertSwitchBasedOnOriginAndExecute(ClientHelper.SECURITY_PROFILE_ORIGIN, SecurityProfileUser.INSTANCE);
     }
 
     public void testSwitchAndExecuteXpackUser() throws Exception {

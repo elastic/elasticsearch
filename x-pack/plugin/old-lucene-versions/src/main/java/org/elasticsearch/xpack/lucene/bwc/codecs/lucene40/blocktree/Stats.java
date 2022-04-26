@@ -22,7 +22,7 @@ package org.elasticsearch.xpack.lucene.bwc.codecs.lucene40.blocktree;
 import org.apache.lucene.codecs.PostingsReaderBase;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;

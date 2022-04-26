@@ -58,7 +58,6 @@ import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesReque
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesResponse;
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.AuthenticationContext;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -76,7 +75,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
-import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.isFileOrNativeRealm;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ALIAS;
@@ -119,7 +118,7 @@ public class ProfileService {
      *                       to submit the request.
      */
     public void activateProfile(Authentication authentication, ActionListener<Profile> listener) {
-        final Subject subject = AuthenticationContext.fromAuthentication(authentication).getEffectiveSubject();
+        final Subject subject = authentication.getEffectiveSubject();
         if (Subject.Type.USER != subject.getType()) {
             listener.onFailure(
                 new IllegalArgumentException(
@@ -192,7 +191,7 @@ public class ProfileService {
                 listener::onFailure,
                 () -> executeAsyncWithOrigin(
                     client,
-                    SECURITY_ORIGIN,
+                    SECURITY_PROFILE_ORIGIN,
                     SearchAction.INSTANCE,
                     searchRequest,
                     ActionListener.wrap(searchResponse -> {
@@ -282,20 +281,26 @@ public class ProfileService {
             final GetRequest getRequest = new GetRequest(SECURITY_PROFILE_ALIAS, uidToDocId(uid));
             frozenProfileIndex.checkIndexVersionThenExecute(
                 listener::onFailure,
-                () -> executeAsyncWithOrigin(client, SECURITY_ORIGIN, GetAction.INSTANCE, getRequest, ActionListener.wrap(response -> {
-                    if (false == response.isExists()) {
-                        logger.debug("profile with uid [{}] does not exist", uid);
-                        listener.onResponse(null);
-                        return;
-                    }
-                    listener.onResponse(
-                        new VersionedDocument(
-                            buildProfileDocument(response.getSourceAsBytesRef()),
-                            response.getPrimaryTerm(),
-                            response.getSeqNo()
-                        )
-                    );
-                }, listener::onFailure))
+                () -> executeAsyncWithOrigin(
+                    client,
+                    SECURITY_PROFILE_ORIGIN,
+                    GetAction.INSTANCE,
+                    getRequest,
+                    ActionListener.wrap(response -> {
+                        if (false == response.isExists()) {
+                            logger.debug("profile with uid [{}] does not exist", uid);
+                            listener.onResponse(null);
+                            return;
+                        }
+                        listener.onResponse(
+                            new VersionedDocument(
+                                buildProfileDocument(response.getSourceAsBytesRef()),
+                                response.getPrimaryTerm(),
+                                response.getSeqNo()
+                            )
+                        );
+                    }, listener::onFailure)
+                )
             );
         });
     }
@@ -335,7 +340,7 @@ public class ProfileService {
                 listener::onFailure,
                 () -> executeAsyncWithOrigin(
                     client,
-                    SECURITY_ORIGIN,
+                    SECURITY_PROFILE_ORIGIN,
                     SearchAction.INSTANCE,
                     searchRequest,
                     ActionListener.wrap(searchResponse -> {
@@ -407,7 +412,7 @@ public class ProfileService {
             listener::onFailure,
             () -> executeAsyncWithOrigin(
                 client,
-                SECURITY_ORIGIN,
+                SECURITY_PROFILE_ORIGIN,
                 BulkAction.INSTANCE,
                 bulkRequest,
                 TransportSingleItemBulkWriteAction.<IndexResponse>wrapBulkResponse(ActionListener.wrap(indexResponse -> {
@@ -553,12 +558,13 @@ public class ProfileService {
         return updateRequestBuilder.request();
     }
 
-    private void doUpdate(UpdateRequest updateRequest, ActionListener<UpdateResponse> listener) {
+    // Package private for testing
+    void doUpdate(UpdateRequest updateRequest, ActionListener<UpdateResponse> listener) {
         profileIndex.prepareIndexIfNeededThenExecute(
             listener::onFailure,
             () -> executeAsyncWithOrigin(
                 client,
-                SECURITY_ORIGIN,
+                SECURITY_PROFILE_ORIGIN,
                 UpdateAction.INSTANCE,
                 updateRequest,
                 ActionListener.wrap(updateResponse -> {

@@ -45,7 +45,7 @@ import org.apache.lucene.util.IntsRefBuilder;
 import org.apache.lucene.util.StringHelper;
 import org.apache.lucene.util.compress.LZ4;
 import org.apache.lucene.util.compress.LowercaseAsciiCompression;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene70.fst.ByteSequenceOutputs;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene70.fst.BytesRefFSTEnum;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene70.fst.FST;

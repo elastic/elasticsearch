@@ -22,7 +22,7 @@ package org.elasticsearch.xpack.lucene.bwc.codecs.lucene50;
 import org.apache.lucene.codecs.FieldsConsumer;
 import org.apache.lucene.codecs.PostingsWriterBase;
 import org.apache.lucene.index.SegmentWriteState;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene40.blocktree.Lucene40BlockTreeTermsWriter;
 
 import java.io.IOException;

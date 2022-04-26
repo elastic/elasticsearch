@@ -1843,12 +1843,10 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     public void testCollapsedObjectWithInnerObject() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
-            b.startObject("metrics.service").field("type", "object").field("collapsed", true).endObject();
-        }));
-        IllegalArgumentException err = expectThrows(
-            IllegalArgumentException.class,
-            () -> mapper.parse(source("""
+        DocumentMapper mapper = createDocumentMapper(
+            mapping(b -> { b.startObject("metrics.service").field("type", "object").field("collapsed", true).endObject(); })
+        );
+        IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> mapper.parse(source("""
             {
               "metrics": {
                 "service": {
@@ -1863,12 +1861,10 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     public void testCollapsedObjectWithInnerDottedObject() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
-            b.startObject("metrics.service").field("type", "object").field("collapsed", true).endObject();
-        }));
-        IllegalArgumentException err = expectThrows(
-            IllegalArgumentException.class,
-            () -> mapper.parse(source("""
+        DocumentMapper mapper = createDocumentMapper(
+            mapping(b -> { b.startObject("metrics.service").field("type", "object").field("collapsed", true).endObject(); })
+        );
+        IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> mapper.parse(source("""
             {
               "metrics": {
                 "service": {
@@ -1884,9 +1880,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
     public void testCollapsedRootWithInnerObject() throws Exception {
         DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("collapsed", true)));
-        IllegalArgumentException err = expectThrows(
-            IllegalArgumentException.class,
-            () -> mapper.parse(source("""
+        IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> mapper.parse(source("""
             {
               "metrics": {
                 "service": {
@@ -1920,9 +1914,9 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     public void testDotsCollapsedStructuredPath() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
-            b.startObject("metrics.service").field("type", "object").field("collapsed", true).endObject();
-        }));
+        DocumentMapper mapper = createDocumentMapper(
+            mapping(b -> { b.startObject("metrics.service").field("type", "object").field("collapsed", true).endObject(); })
+        );
         ParsedDocument doc = mapper.parse(source("""
             {
               "metrics": {
@@ -1938,9 +1932,9 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     public void testDotsCollapsedFlatPaths() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
-            b.startObject("metrics.service").field("type", "object").field("collapsed", true).endObject();
-        }));
+        DocumentMapper mapper = createDocumentMapper(
+            mapping(b -> { b.startObject("metrics.service").field("type", "object").field("collapsed", true).endObject(); })
+        );
         ParsedDocument doc = mapper.parse(source("""
             {
               "metrics.service.time" : 10,
@@ -1952,9 +1946,9 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     public void testDotsCollapsedMixedPaths() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(mapping(b -> {
-            b.startObject("metrics.service").field("type", "object").field("collapsed", true).endObject();
-        }));
+        DocumentMapper mapper = createDocumentMapper(
+            mapping(b -> { b.startObject("metrics.service").field("type", "object").field("collapsed", true).endObject(); })
+        );
         ParsedDocument doc = mapper.parse(source("""
             {
               "metrics": {

@@ -171,8 +171,8 @@ public abstract class DocumentParserContext {
         for (int j = parentPaths.length - 1; j >= 0; j--) {
             ObjectMapper objectMapper = getObjectMapper(parentPaths[j]);
             if (objectMapper != null) {
-                //going back from the longest parent path to the root, once we find an object mapper, either it is collapsed or its parent
-                //cannot be collapsed either as they would not be able to hold another object otherwise
+                // going back from the longest parent path to the root, once we find an object mapper, either it is collapsed or its parent
+                // cannot be collapsed either as they would not be able to hold another object otherwise
                 return objectMapper.isCollapsed();
             }
         }
@@ -347,7 +347,7 @@ public abstract class DocumentParserContext {
      */
     public final DocumentParserContext createCopyToContext(String copyToField, LuceneDocument doc) throws IOException {
         ContentPath path = new ContentPath(0);
-        //TODO what to do here?
+        // TODO what to do here?
         XContentParser parser = DotExpandingXContentParser.expandDots(new CopyToParser(copyToField, parser()), this);
         return new Wrapper(this) {
             @Override

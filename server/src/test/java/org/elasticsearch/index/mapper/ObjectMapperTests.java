@@ -372,8 +372,10 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             }
             b.endObject();
         })));
-        assertEquals("Failed to parse mapping: Object [service] is collapsed and does not support inner object [time]",
-            exception.getMessage());
+        assertEquals(
+            "Failed to parse mapping: Object [service] is collapsed and does not support inner object [time]",
+            exception.getMessage()
+        );
     }
 
     public void testCollapsedRoot() throws Exception {
@@ -413,23 +415,24 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             }
             b.endObject();
         })));
-        assertEquals("Failed to parse mapping: Object [_doc] is collapsed and does not support inner object [metrics.service.time]",
-            exception.getMessage());
+        assertEquals(
+            "Failed to parse mapping: Object [_doc] is collapsed and does not support inner object [metrics.service.time]",
+            exception.getMessage()
+        );
     }
 
     public void testCollapsedCannotBeUpdated() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "object")));
         DocumentMapper mapper = mapperService.documentMapper();
         assertNull(mapper.mapping().getRoot().dynamic());
-        Mapping mergeWith = mapperService.parseMapping(
-            "_doc",
-            new CompressedXContent(BytesReference.bytes(fieldMapping(b -> {
-                b.field("type", "object");
-                b.field("collapsed", "true");
-            })))
+        Mapping mergeWith = mapperService.parseMapping("_doc", new CompressedXContent(BytesReference.bytes(fieldMapping(b -> {
+            b.field("type", "object");
+            b.field("collapsed", "true");
+        }))));
+        MapperException exception = expectThrows(
+            MapperException.class,
+            () -> mapper.mapping().merge(mergeWith, MergeReason.MAPPING_UPDATE)
         );
-        MapperException exception = expectThrows(MapperException.class,
-            () -> mapper.mapping().merge(mergeWith, MergeReason.MAPPING_UPDATE));
         assertEquals("the [collapsed] parameter can't be updated for the object mapping [field]", exception.getMessage());
     }
 
@@ -439,12 +442,12 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         assertNull(mapper.mapping().getRoot().dynamic());
         Mapping mergeWith = mapperService.parseMapping(
             "_doc",
-            new CompressedXContent(BytesReference.bytes(topMapping(b -> {
-                b.field("collapsed", false);
-            })))
+            new CompressedXContent(BytesReference.bytes(topMapping(b -> { b.field("collapsed", false); })))
         );
-        MapperException exception = expectThrows(MapperException.class,
-            () -> mapper.mapping().merge(mergeWith, MergeReason.MAPPING_UPDATE));
+        MapperException exception = expectThrows(
+            MapperException.class,
+            () -> mapper.mapping().merge(mergeWith, MergeReason.MAPPING_UPDATE)
+        );
         assertEquals("the [collapsed] parameter can't be updated for the object mapping [_doc]", exception.getMessage());
     }
 }

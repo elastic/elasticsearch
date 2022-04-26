@@ -124,7 +124,7 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
         }
     }
 
-    //TODO we may want to move this back to DocumentParser given that it now depends on DocumentParserContext
+    // TODO we may want to move this back to DocumentParser given that it now depends on DocumentParserContext
     static String[] splitAndValidatePath(String fieldName, DocumentParserContext context) {
         if (fieldName.isEmpty()) {
             throw new IllegalArgumentException("field name cannot be an empty string");
@@ -137,11 +137,11 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
             throw new IllegalArgumentException("field name cannot contain only dots");
         }
 
-        //TODO do we want to optimize for the case where there are no collapsed paths in the mapping?
+        // TODO do we want to optimize for the case where there are no collapsed paths in the mapping?
 
         // TODO every time we don't expand, the not expanded path is evaluated again later. Shall we do something about that?
 
-        //check if any of the parent objects has collapsed set to true
+        // check if any of the parent objects has collapsed set to true
         if (context.isWithinCollapsedPath()) {
             return new String[] { fieldName };
         }
@@ -160,11 +160,11 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
                 );
             }
 
-            //e.g. metrics.service.time.max: if 'time' is collapsed, we still need to expand dots fully. 'service' is the last
-            //path part that affects dots expansion for this path if it is collapsed.
+            // e.g. metrics.service.time.max: if 'time' is collapsed, we still need to expand dots fully. 'service' is the last
+            // path part that affects dots expansion for this path if it is collapsed.
             if (indexCollapsed < 0 && i < parts.length - 2) {
-                //concatenate the full path of the current element that we are parsing with the previously examined parts of the
-                //dotted name that we are splitting, to check if there's a collapsed object in between
+                // concatenate the full path of the current element that we are parsing with the previously examined parts of the
+                // dotted name that we are splitting, to check if there's a collapsed object in between
                 String fullPath = context.path().pathAsText(currentPath.pathAsText(part));
                 ObjectMapper objectMapper = context.getObjectMapper(fullPath);
                 if (objectMapper != null && objectMapper.isCollapsed()) {

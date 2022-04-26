@@ -157,8 +157,13 @@ public class ObjectMapper extends Mapper implements Cloneable {
             for (Mapper.Builder builder : mappersBuilders) {
                 Mapper mapper = builder.build(mapperBuilderContext);
                 if (collapsed.value() && mapper instanceof ObjectMapper) {
-                    throw new IllegalArgumentException("Object [" + context.buildFullName(name) +
-                        "] is collapsed and does not support inner object [" + mapper.simpleName() + "]");
+                    throw new IllegalArgumentException(
+                        "Object ["
+                            + context.buildFullName(name)
+                            + "] is collapsed and does not support inner object ["
+                            + mapper.simpleName()
+                            + "]"
+                    );
                 }
                 Mapper existing = mappers.get(mapper.simpleName());
                 if (existing != null) {
@@ -271,8 +276,9 @@ public class ObjectMapper extends Mapper implements Cloneable {
                     }
 
                     if (objBuilder.collapsed.value() && type.equals(ObjectMapper.CONTENT_TYPE)) {
-                        throw new MapperException("Object [" + objBuilder.name() + "] is collapsed and does not support inner object ["
-                            + fieldName + "]");
+                        throw new MapperException(
+                            "Object [" + objBuilder.name() + "] is collapsed and does not support inner object [" + fieldName + "]"
+                        );
                     }
                     Mapper.TypeParser typeParser = parserContext.typeParser(type);
                     if (typeParser == null) {
@@ -316,8 +322,14 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
     protected Map<String, Mapper> mappers;
 
-    ObjectMapper(String name, String fullPath, Explicit<Boolean> enabled, Explicit<Boolean> collapsed,
-                 Dynamic dynamic, Map<String, Mapper> mappers) {
+    ObjectMapper(
+        String name,
+        String fullPath,
+        Explicit<Boolean> enabled,
+        Explicit<Boolean> collapsed,
+        Dynamic dynamic,
+        Map<String, Mapper> mappers
+    ) {
         super(name);
         if (name.isEmpty()) {
             throw new IllegalArgumentException("name cannot be empty string");

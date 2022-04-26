@@ -1306,7 +1306,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
                 if (parameter == null) {
                     if (parserContext.indexVersionCreated().isLegacyIndexVersion()) {
                         // ignore unknown parameters on legacy indices
-                        handleUnknownParam(propName, propNode);
+                        handleUnknownParamOnLegacyIndex(propName, propNode);
                         iterator.remove();
                         continue;
                     }
@@ -1358,7 +1358,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             validate();
         }
 
-        protected void handleUnknownParam(String propName, Object propNode) {
+        protected void handleUnknownParamOnLegacyIndex(String propName, Object propNode) {
             // ignore
         }
 
@@ -1408,6 +1408,10 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             this(builderFunction, (n, c) -> {}, Version.CURRENT.minimumIndexCompatibilityVersion());
         }
 
+        /**
+         * Variant of {@link #TypeParser(BiFunction)} that allows to defining a minimumCompatibilityVersion to
+         * allow parsing mapping definitions of legacy indices (see {@link Mapper.TypeParser#supportsVersion(Version)}).
+         */
         public TypeParser(BiFunction<String, MappingParserContext, Builder> builderFunction, Version minimumCompatibilityVersion) {
             this(builderFunction, (n, c) -> {}, minimumCompatibilityVersion);
         }
@@ -1419,7 +1423,7 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             this(builderFunction, contextValidator, Version.CURRENT.minimumIndexCompatibilityVersion());
         }
 
-        public TypeParser(
+        private TypeParser(
             BiFunction<String, MappingParserContext, Builder> builderFunction,
             BiConsumer<String, MappingParserContext> contextValidator,
             Version minimumCompatibilityVersion

@@ -81,7 +81,7 @@ public class PlaceHolderFieldMapper extends FieldMapper {
         }
 
         @Override
-        protected void handleUnknownParam(String propName, Object propNode) {
+        protected void handleUnknownParamOnLegacyIndex(String propName, Object propNode) {
             unknownParams.put(propName, propNode);
         }
 

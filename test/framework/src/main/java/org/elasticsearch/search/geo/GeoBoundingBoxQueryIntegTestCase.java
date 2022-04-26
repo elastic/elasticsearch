@@ -230,7 +230,14 @@ public abstract class GeoBoundingBoxQueryIntegTestCase extends ESIntegTestCase {
         searchResponse = client().prepareSearch()
             .setQuery(
                 boolQuery().must(termQuery("userid", 534))
-                    .filter(geoBoundingBoxQuery("location").setCorners(45.509526999999999, -73.570986000000005, 45.509526999999999, -73.570986000000005))
+                    .filter(
+                        geoBoundingBoxQuery("location").setCorners(
+                            45.509526999999999,
+                            -73.570986000000005,
+                            45.509526999999999,
+                            -73.570986000000005
+                        )
+                    )
             )
             .get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
@@ -255,14 +262,28 @@ public abstract class GeoBoundingBoxQueryIntegTestCase extends ESIntegTestCase {
         searchResponse = client().prepareSearch()
             .setQuery(
                 boolQuery().must(termQuery("userid", 880))
-                    .filter(geoBoundingBoxQuery("location").setCorners(74.579421999999994, 59.328355000000002, -66.668903999999998, 59.328355000000002))
+                    .filter(
+                        geoBoundingBoxQuery("location").setCorners(
+                            74.579421999999994,
+                            59.328355000000002,
+                            -66.668903999999998,
+                            59.328355000000002
+                        )
+                    )
             )
             .get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         searchResponse = client().prepareSearch()
             .setQuery(
                 boolQuery().must(termQuery("userid", 534))
-                    .filter(geoBoundingBoxQuery("location").setCorners(74.579421999999994, -73.570986000000005, -66.668903999999998, -73.570986000000005))
+                    .filter(
+                        geoBoundingBoxQuery("location").setCorners(
+                            74.579421999999994,
+                            -73.570986000000005,
+                            -66.668903999999998,
+                            -73.570986000000005
+                        )
+                    )
             )
             .get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
@@ -351,14 +372,19 @@ public abstract class GeoBoundingBoxQueryIntegTestCase extends ESIntegTestCase {
 
         // top == bottom
         searchResponse = client().prepareSearch()
-            .setQuery(geoBoundingBoxQuery("location").setValidationMethod(GeoValidationMethod.COERCE).setCorners(59.328355000000002, 0, 59.328355000000002, 360))
+            .setQuery(
+                geoBoundingBoxQuery("location").setValidationMethod(GeoValidationMethod.COERCE)
+                    .setCorners(59.328355000000002, 0, 59.328355000000002, 360)
+            )
             .get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
         searchResponse = client().prepareSearch()
-            .setQuery(geoBoundingBoxQuery("location").setValidationMethod(GeoValidationMethod.COERCE).setCorners(59.328355000000002, -180, 59.328355000000002, 180))
+            .setQuery(
+                geoBoundingBoxQuery("location").setValidationMethod(GeoValidationMethod.COERCE)
+                    .setCorners(59.328355000000002, -180, 59.328355000000002, 180)
+            )
             .get();
         assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L));
-
 
         // Distance query
         searchResponse = client().prepareSearch()

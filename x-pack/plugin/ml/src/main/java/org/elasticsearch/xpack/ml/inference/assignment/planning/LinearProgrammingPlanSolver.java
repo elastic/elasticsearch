@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.ml.inference.assignment.planning;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Model;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Node;
 import org.ojalgo.optimisation.ExpressionsBasedModel;
@@ -124,11 +126,12 @@ class LinearProgrammingPlanSolver {
         AssignmentPlan.Builder assignmentPlan = AssignmentPlan.builder(nodes, models);
 
         for (Model m : models.stream().sorted(Comparator.comparingDouble(this::dsafModelOrder)).toList()) {
-            while (true) {
+            double lastW;
+            do {
+                lastW = w;
                 List<Node> orderedNodes = nodes.stream()
                     .sorted(Comparator.comparingDouble(n -> dsafNodeOrder(n, m, assignmentPlan)))
                     .toList();
-                double lastW = w;
                 for (Node n : orderedNodes) {
                     int allocations = Math.min(
                         assignmentPlan.getRemainingCores(n) / m.threadsPerAllocation(),
@@ -141,10 +144,7 @@ class LinearProgrammingPlanSolver {
                         break;
                     }
                 }
-                if (lastW == w || assignmentPlan.getRemainingAllocations(m) == 0) {
-                    break;
-                }
-            }
+            } while (lastW != w && assignmentPlan.getRemainingAllocations(m) > 0);
         }
 
         for (Model m : models) {
@@ -167,15 +167,15 @@ class LinearProgrammingPlanSolver {
     }
 
     private double dsafNodeOrder(Node n, Model m, AssignmentPlan.Builder assignmentPlan) {
-        // as java.lang.Math#abs(long) is a forbidden API, we compute an abs manually
-        int distanceOfRemainingCoresToModelThreads = assignmentPlan.getRemainingCores(n) - assignmentPlan.getRemainingThreads(m);
-        if (distanceOfRemainingCoresToModelThreads < 0) {
-            distanceOfRemainingCoresToModelThreads = -distanceOfRemainingCoresToModelThreads;
-        }
         return (m.currentAllocationByNodeId().containsKey(n.id()) ? 0 : 1) + (assignmentPlan.getRemainingCores(n) >= assignmentPlan
-            .getRemainingThreads(m) ? 0 : 1) + (0.01 * distanceOfRemainingCoresToModelThreads) - (0.01 * assignmentPlan.getRemainingMemory(
-                n
-            ));
+            .getRemainingThreads(m) ? 0 : 1) + (0.01 * distance(assignmentPlan.getRemainingCores(n), assignmentPlan.getRemainingThreads(m)))
+            - (0.01 * assignmentPlan.getRemainingMemory(n));
+    }
+
+    @SuppressForbidden(reason = "Math#abs(int) is safe here as we protect against MIN_VALUE")
+    private static int distance(int x, int y) {
+        int distance = x - y;
+        return distance == Integer.MIN_VALUE ? Integer.MAX_VALUE : Math.abs(distance);
     }
 
     private double minWeight(Model m, Node n, double w) {
@@ -251,6 +251,8 @@ class LinearProgrammingPlanSolver {
         }
 
         for (Model m : models) {
+            // Each model should not get more allocations than is required.
+            // Also, if the model has previous assignments, it should get at least as many allocations as it did before.
             model.addExpression("allocations_of_model_" + m.id() + "_not_more_than_required")
                 .lower(m.getPreviouslyAssignedAllocations())
                 .upper(m.allocations())
@@ -259,12 +261,16 @@ class LinearProgrammingPlanSolver {
 
         double[] threadsPerAllocationPerModel = models.stream().mapToDouble(m -> m.threadsPerAllocation()).toArray();
         for (Node n : nodes) {
+            // Allocations should not use more cores than the node has.
+            // We multiply the allocation variables with the threads per allocation for each model to find the total number of cores used.
             model.addExpression("threads_on_node_" + n.id() + "_not_more_than_cores")
                 .upper(coresPerNode.get(n))
                 .setLinearFactors(varsForNode(n, allocationVars), Access1D.wrap(threadsPerAllocationPerModel));
         }
 
         for (Node n : nodes) {
+            // No more memory should be used than the node has available.
+            // This is the m_i * a_i_j * t_i / N_j constraint.
             List<Variable> allocations = new ArrayList<>();
             List<Double> modelMemories = new ArrayList<>();
             models.stream().filter(m -> m.currentAllocationByNodeId().containsKey(n.id()) == false).forEach(m -> {

@@ -53,7 +53,7 @@ public class AssignmentPlanner {
             ? planKeepingOneAllocationOnPreviousAssignments
             : solvePreservingAllPreviousAssignments();
         logger.debug(() -> "Best plan =\n" + bestPlan.prettyPrint());
-        logger.debug(prettyPrintOverallStats(bestPlan));
+        logger.debug(() -> prettyPrintOverallStats(bestPlan));
         return bestPlan;
     }
 

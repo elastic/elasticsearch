@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.ml.inference.assignment.planning;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Model;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Node;
@@ -36,7 +37,9 @@ import java.util.Set;
  */
 class RandomizedAssignmentRounding {
 
-    private final Logger logger = LogManager.getLogger(RandomizedAssignmentRounding.class);
+    private static final Logger logger = LogManager.getLogger(RandomizedAssignmentRounding.class);
+
+    private static final double EPS = 1e-6;
 
     private final Random random;
     private final int rounds;
@@ -365,14 +368,18 @@ class RandomizedAssignmentRounding {
             long remainingNodeMemory,
             int remainingModelAllocations
         ) {
-            // as java.lang.Math#abs(long) is a forbidden API, we compute an abs manually
-            int distanceOfRemainingCoresToModelThreads = remainingNodeCores - remainingModelAllocations * m.threadsPerAllocation();
-            if (distanceOfRemainingCoresToModelThreads < 0) {
-                distanceOfRemainingCoresToModelThreads = -distanceOfRemainingCoresToModelThreads;
-            }
             return (m.currentAllocationByNodeId().containsKey(n.id()) ? 0 : 1) + (remainingNodeCores <= remainingModelAllocations * m
-                .threadsPerAllocation() ? 0 : 0.5) + (0.01 * distanceOfRemainingCoresToModelThreads) + (0.01 * remainingNodeMemory);
+                .threadsPerAllocation() ? 0 : 0.5) + (0.01 * distance(
+                    remainingNodeCores,
+                    remainingModelAllocations * m.threadsPerAllocation()
+                )) + (0.01 * remainingNodeMemory);
         }
+    }
+
+    @SuppressForbidden(reason = "Math#abs(int) is safe here as we protect against MIN_VALUE")
+    private static int distance(int x, int y) {
+        int distance = x - y;
+        return distance == Integer.MIN_VALUE ? Integer.MAX_VALUE : Math.abs(distance);
     }
 
     private static class ResourceTracker {
@@ -414,6 +421,6 @@ class RandomizedAssignmentRounding {
 
     private static boolean isInteger(double value) {
         // it is possible that the solver results in values that are really close to an int, we should treat those as ints
-        return Double.isFinite(value) && Math.abs(value - Math.rint(value)) < 1e-6;
+        return Double.isFinite(value) && Math.abs(value - Math.rint(value)) < EPS;
     }
 }

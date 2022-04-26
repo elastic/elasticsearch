@@ -140,9 +140,7 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
 
         for (Map.Entry<Model, Map<Node, Integer>> entry : assignments.entrySet()) {
             Model m = entry.getKey();
-            if (isSatisfyingPreviousAssignments && isSatisfyingPreviousAssignmentsForModel(m) == false) {
-                isSatisfyingPreviousAssignments = false;
-            }
+            isSatisfyingPreviousAssignments = isSatisfyingPreviousAssignments && isSatisfyingPreviousAssignmentsForModel(m);
             Map<Node, Integer> modelAssignments = entry.getValue();
             if (modelAssignments != null) {
                 for (Node n : modelAssignments.keySet()) {

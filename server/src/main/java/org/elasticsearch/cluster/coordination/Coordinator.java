@@ -732,7 +732,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 joinAccumulator.handleJoinRequest(joinRequest.getSourceNode(), joinListener);
 
                 if (prevElectionWon == false && coordState.electionWon()) {
-                    becomeLeader("handleJoinRequest");
+                    becomeLeader();
                 }
             }
         } catch (Exception e) {
@@ -780,14 +780,13 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         preVoteCollector.update(getPreVoteResponse(), null);
     }
 
-    void becomeLeader(String method) {
+    private void becomeLeader() {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
         assert mode == Mode.CANDIDATE : "expected candidate but was " + mode;
         assert getLocalNode().isMasterNode() : getLocalNode() + " became a leader but is not master-eligible";
 
         logger.debug(
-            "{}: coordinator becoming LEADER in term {} (was {}, lastKnownLeader was [{}])",
-            method,
+            "handleJoinRequest: coordinator becoming LEADER in term {} (was {}, lastKnownLeader was [{}])",
             getCurrentTerm(),
             mode,
             lastKnownLeader
@@ -1207,7 +1206,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         return true;
     }
 
-    private AtomicBoolean reconfigurationTaskScheduled = new AtomicBoolean();
+    private final AtomicBoolean reconfigurationTaskScheduled = new AtomicBoolean();
 
     private void scheduleReconfigurationIfNeeded() {
         assert Thread.holdsLock(mutex) : "Coordinator mutex not held";
@@ -1473,7 +1472,7 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
                 settings,
                 transportService,
                 transportAddressConnector,
-                singleNodeDiscovery ? hostsResolver -> Collections.emptyList() : configuredHostsResolver
+                singleNodeDiscovery ? hostsResolver -> {} : configuredHostsResolver
             );
         }
 
@@ -1495,10 +1494,9 @@ public class Coordinator extends AbstractLifecycleComponent implements ClusterSt
         @Override
         protected void onFoundPeersUpdated() {
             synchronized (mutex) {
-                final Iterable<DiscoveryNode> foundPeers = getFoundPeers();
                 if (mode == Mode.CANDIDATE) {
                     final VoteCollection expectedVotes = new VoteCollection();
-                    foundPeers.forEach(expectedVotes::addVote);
+                    getFoundPeers().forEach(expectedVotes::addVote);
                     expectedVotes.addVote(Coordinator.this.getLocalNode());
                     final boolean foundQuorum = coordinationState.get().isElectionQuorum(expectedVotes);
 

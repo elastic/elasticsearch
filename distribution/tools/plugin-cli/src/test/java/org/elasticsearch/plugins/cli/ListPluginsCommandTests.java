@@ -8,17 +8,17 @@
 
 package org.elasticsearch.plugins.cli;
 
+import joptsimple.OptionSet;
+
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
-import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.MockTerminal;
-import org.elasticsearch.cli.UserException;
+import org.elasticsearch.cli.Command;
+import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.plugins.PluginTestUtil;
-import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -26,49 +26,20 @@ import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.Map;
 import java.util.stream.Collectors;
 
 @LuceneTestCase.SuppressFileSystems("*")
-public class ListPluginsCommandTests extends ESTestCase {
+public class ListPluginsCommandTests extends CommandTestCase {
 
     private Path home;
     private Environment env;
 
     @Before
-    public void setUp() throws Exception {
-        super.setUp();
+    public void initEnv() throws Exception {
         home = createTempDir();
         Files.createDirectories(home.resolve("plugins"));
         Settings settings = Settings.builder().put("path.home", home).build();
         env = TestEnvironment.newEnvironment(settings);
-    }
-
-    static MockTerminal listPlugins(Path home) throws Exception {
-        return listPlugins(home, new String[0]);
-    }
-
-    static MockTerminal listPlugins(Path home, String[] args) throws Exception {
-        String[] argsAndHome = new String[args.length + 1];
-        System.arraycopy(args, 0, argsAndHome, 0, args.length);
-        argsAndHome[args.length] = "-Epath.home=" + home;
-        MockTerminal terminal = new MockTerminal();
-        int status = new ListPluginsCommand() {
-            @Override
-            protected Environment createEnv(Map<String, String> settings) throws UserException {
-                Settings.Builder builder = Settings.builder().put("path.home", home);
-                settings.forEach((k, v) -> builder.put(k, v));
-                final Settings realSettings = builder.build();
-                return new Environment(realSettings, home.resolve("config"));
-            }
-
-            @Override
-            protected boolean addShutdownHook() {
-                return false;
-            }
-        }.main(argsAndHome, terminal);
-        assertEquals(ExitCodes.OK, status);
-        return terminal;
     }
 
     private static String buildMultiline(String... args) {
@@ -108,32 +79,31 @@ public class ListPluginsCommandTests extends ESTestCase {
 
     public void testPluginsDirMissing() throws Exception {
         Files.delete(env.pluginsFile());
-        IOException e = expectThrows(IOException.class, () -> listPlugins(home));
+        IOException e = expectThrows(IOException.class, () -> execute());
         assertEquals("Plugins directory missing: " + env.pluginsFile(), e.getMessage());
     }
 
     public void testNoPlugins() throws Exception {
-        MockTerminal terminal = listPlugins(home);
+        execute();
         assertTrue(terminal.getOutput(), terminal.getOutput().isEmpty());
     }
 
     public void testOnePlugin() throws Exception {
         buildFakePlugin(env, "fake desc", "fake", "org.fake");
-        MockTerminal terminal = listPlugins(home);
+        execute();
         assertEquals(buildMultiline("fake"), terminal.getOutput());
     }
 
     public void testTwoPlugins() throws Exception {
         buildFakePlugin(env, "fake desc", "fake1", "org.fake");
         buildFakePlugin(env, "fake desc 2", "fake2", "org.fake");
-        MockTerminal terminal = listPlugins(home);
+        execute();
         assertEquals(buildMultiline("fake1", "fake2"), terminal.getOutput());
     }
 
     public void testPluginWithVerbose() throws Exception {
         buildFakePlugin(env, "fake desc", "fake_plugin", "org.fake");
-        String[] params = { "-v" };
-        MockTerminal terminal = listPlugins(home, params);
+        execute("-v");
         assertEquals(
             buildMultiline(
                 "Plugins directory: " + env.pluginsFile(),
@@ -156,8 +126,7 @@ public class ListPluginsCommandTests extends ESTestCase {
 
     public void testPluginWithNativeController() throws Exception {
         buildFakePlugin(env, "fake desc 1", "fake_plugin1", "org.fake", true);
-        String[] params = { "-v" };
-        MockTerminal terminal = listPlugins(home, params);
+        execute("-v");
         assertEquals(
             buildMultiline(
                 "Plugins directory: " + env.pluginsFile(),
@@ -181,8 +150,7 @@ public class ListPluginsCommandTests extends ESTestCase {
     public void testPluginWithVerboseMultiplePlugins() throws Exception {
         buildFakePlugin(env, "fake desc 1", "fake_plugin1", "org.fake");
         buildFakePlugin(env, "fake desc 2", "fake_plugin2", "org.fake2");
-        String[] params = { "-v" };
-        MockTerminal terminal = listPlugins(home, params);
+        execute("-v");
         assertEquals(
             buildMultiline(
                 "Plugins directory: " + env.pluginsFile(),
@@ -218,22 +186,21 @@ public class ListPluginsCommandTests extends ESTestCase {
     public void testPluginWithoutVerboseMultiplePlugins() throws Exception {
         buildFakePlugin(env, "fake desc 1", "fake_plugin1", "org.fake");
         buildFakePlugin(env, "fake desc 2", "fake_plugin2", "org.fake2");
-        MockTerminal terminal = listPlugins(home, new String[0]);
-        String output = terminal.getOutput();
-        assertEquals(buildMultiline("fake_plugin1", "fake_plugin2"), output);
+        execute();
+        assertEquals(buildMultiline("fake_plugin1", "fake_plugin2"), terminal.getOutput());
     }
 
     public void testPluginWithoutDescriptorFile() throws Exception {
         final Path pluginDir = env.pluginsFile().resolve("fake1");
         Files.createDirectories(pluginDir);
-        NoSuchFileException e = expectThrows(NoSuchFileException.class, () -> listPlugins(home));
+        NoSuchFileException e = expectThrows(NoSuchFileException.class, () -> execute());
         assertEquals(pluginDir.resolve(PluginInfo.ES_PLUGIN_PROPERTIES).toString(), e.getFile());
     }
 
     public void testPluginWithWrongDescriptorFile() throws Exception {
         final Path pluginDir = env.pluginsFile().resolve("fake1");
         PluginTestUtil.writePluginProperties(pluginDir, "description", "fake desc");
-        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> listPlugins(home));
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> execute());
         final Path descriptorPath = pluginDir.resolve(PluginInfo.ES_PLUGIN_PROPERTIES);
         assertEquals("property [name] is missing in [" + descriptorPath.toString() + "]", e.getMessage());
     }
@@ -256,7 +223,7 @@ public class ListPluginsCommandTests extends ESTestCase {
         );
         buildFakePlugin(env, "fake desc 2", "fake_plugin2", "org.fake2");
 
-        MockTerminal terminal = listPlugins(home);
+        execute();
         String message = "plugin [fake_plugin1] was built for Elasticsearch version 1.0.0 but version " + Version.CURRENT + " is required";
         assertEquals("""
             fake_plugin1
@@ -264,11 +231,26 @@ public class ListPluginsCommandTests extends ESTestCase {
             """, terminal.getOutput());
         assertEquals("WARNING: " + message + "\n", terminal.getErrorOutput());
 
-        String[] params = { "-s" };
-        terminal = listPlugins(home, params);
+        terminal.reset();
+        execute("-s");
         assertEquals("""
             fake_plugin1
             fake_plugin2
             """, terminal.getOutput());
+    }
+
+    @Override
+    protected Command newCommand() {
+        return new ListPluginsCommand() {
+            @Override
+            protected Environment createEnv(OptionSet options) {
+                return env;
+            }
+
+            @Override
+            protected boolean addShutdownHook() {
+                return false;
+            }
+        };
     }
 }

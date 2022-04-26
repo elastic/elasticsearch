@@ -14,16 +14,17 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
-import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.sameInstance;
-import static org.junit.Assert.assertEquals;
 
 public class ContinuousComputationTests extends ESTestCase {
 
@@ -45,36 +46,37 @@ public class ContinuousComputationTests extends ESTestCase {
 
     public void testConcurrency() throws Exception {
 
-        final var result = new AtomicReference<Integer>();
         final var computation = new ContinuousComputation<Integer>(threadPool.generic()) {
 
             public final Semaphore executePermit = new Semaphore(1);
+            public final AtomicInteger last = new AtomicInteger();
+            public final AtomicInteger count = new AtomicInteger();
 
             @Override
             protected void processInput(Integer input) {
-                assertTrue(executePermit.tryAcquire(1));
-                result.set(input);
+                assertThat("Should execute computations sequentially", executePermit.tryAcquire(1), equalTo(true));
+                assertThat("Should not reorder executions", input, greaterThan(last.getAndSet(input)));
+                count.incrementAndGet();
                 executePermit.release();
             }
         };
 
+        final AtomicInteger inputGenerator = new AtomicInteger(0);
+        final int inputsPerThread = 1000;
         final Thread[] threads = new Thread[between(1, 5)];
-        final int[] valuePerThread = new int[threads.length];
         final CountDownLatch startLatch = new CountDownLatch(1);
-        for (int i = 0; i < threads.length; i++) {
-            final int threadIndex = i;
-            valuePerThread[threadIndex] = randomInt();
-            threads[threadIndex] = new Thread(() -> {
+        for (int t = 0; t < threads.length; t++) {
+            threads[t] = new Thread(() -> {
                 try {
                     assertTrue(startLatch.await(10, TimeUnit.SECONDS));
                 } catch (Exception e) {
                     throw new AssertionError(e);
                 }
-                for (int j = 1000; j >= 0; j--) {
-                    computation.onNewInput(valuePerThread[threadIndex] = valuePerThread[threadIndex] + j);
+                for (int i = 0; i < inputsPerThread; i++) {
+                    computation.onNewInput(inputGenerator.incrementAndGet());
                 }
-            }, "submit-thread-" + threadIndex);
-            threads[threadIndex].start();
+            }, "submit-thread-" + t);
+            threads[t].start();
         }
 
         startLatch.countDown();
@@ -85,7 +87,8 @@ public class ContinuousComputationTests extends ESTestCase {
 
         assertBusy(() -> assertFalse(computation.isActive()));
 
-        assertTrue(Arrays.toString(valuePerThread) + " vs " + result.get(), Arrays.stream(valuePerThread).anyMatch(i -> i == result.get()));
+        assertThat("Should keep the latest result", computation.last.get(), equalTo(inputGenerator.get()));
+        assertThat("May skip some computations", computation.count.get(), lessThan(threads.length * inputsPerThread));
     }
 
     public void testSkipsObsoleteValues() throws Exception {

@@ -12,10 +12,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.desirednodes.DesiredNodesSettingsValidator;
@@ -40,6 +38,7 @@ import static java.lang.String.format;
 public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction<UpdateDesiredNodesRequest, UpdateDesiredNodesResponse> {
 
     private final DesiredNodesSettingsValidator settingsValidator;
+
     private final MasterServiceTaskQueue<UpdateDesiredNodesTask> taskQueue;
 
     @Inject
@@ -81,11 +80,7 @@ public class TransportUpdateDesiredNodesAction extends TransportMasterNodeAction
     ) throws Exception {
         try {
             settingsValidator.validate(request.getNodes());
-            taskQueue.submitTask(
-                "update-desired-nodes",
-                new UpdateDesiredNodesTask(request, listener),
-                request.masterNodeTimeout(),
-            );
+            taskQueue.submitTask("update-desired-nodes", new UpdateDesiredNodesTask(request, listener), request.masterNodeTimeout());
         } catch (Exception e) {
             listener.onFailure(e);
         }

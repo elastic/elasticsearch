@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -53,7 +52,7 @@ public class TransportDeleteDesiredNodesAction extends TransportMasterNodeAction
             in -> ActionResponse.Empty.INSTANCE,
             ThreadPool.Names.SAME
         );
-        this.taskQueue = clusterService.getTaskQueue("delete-desired-nodes", Priority.HIGH, new DesiredNodesClusterStateTaskExecutor());
+        this.taskQueue = clusterService.getTaskQueue("delete-desired-nodes", Priority.HIGH, new DeleteDesiredNodesExecutor());
     }
 
     @Override
@@ -63,9 +62,12 @@ public class TransportDeleteDesiredNodesAction extends TransportMasterNodeAction
         ClusterState state,
         ActionListener<ActionResponse.Empty> listener
     ) throws Exception {
-        taskQueue.submitTask("delete-desired-nodes",
-            new DeleteDesiredNodesTask(listener),
-            request.masterNodeTimeout());
+        taskQueue.submitTask("delete-desired-nodes", new DeleteDesiredNodesTask(listener), request.masterNodeTimeout());
+    }
+
+    @Override
+    protected ClusterBlockException checkBlock(DeleteDesiredNodesAction.Request request, ClusterState state) {
+        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
     }
 
     private record DeleteDesiredNodesTask(ActionListener<ActionResponse.Empty> listener) implements ClusterStateTaskListener {
@@ -83,11 +85,7 @@ public class TransportDeleteDesiredNodesAction extends TransportMasterNodeAction
                     taskContext.getTask().listener().delegateFailure((l, s) -> l.onResponse(ActionResponse.Empty.INSTANCE))
                 );
             }
-        }, null);
-    }
-
-    @Override
-    protected ClusterBlockException checkBlock(DeleteDesiredNodesAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+            return currentState.copyAndUpdateMetadata(metadata -> metadata.removeCustom(DesiredNodesMetadata.TYPE));
+        }
     }
 }

@@ -10,6 +10,8 @@ package org.elasticsearch.cli;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
+import java.io.FilterReader;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
@@ -52,35 +54,47 @@ public class MockTerminal extends Terminal {
         }
     }
 
+    static class ResettableInputStreamReader extends FilterReader {
+        final LazyByteArrayInputStream stream;
+
+        private ResettableInputStreamReader(LazyByteArrayInputStream stream) {
+            super(createReader(stream));
+            this.stream = stream;
+        }
+
+        static InputStreamReader createReader(InputStream stream) {
+            return new InputStreamReader(stream, StandardCharsets.UTF_8);
+        }
+
+        @Override
+        public void reset() {
+            in = createReader(stream);
+        }
+    }
+
     // use the system line ending so we get coverage of windows line endings when running tests on windows
     private static final byte[] NEWLINE = System.lineSeparator().getBytes(StandardCharsets.UTF_8);
 
+    private final ResettableInputStreamReader stdinReader;
+    private final LazyByteArrayInputStream stdinBuffer;
     private final ByteArrayOutputStream stdoutBuffer;
     private final ByteArrayOutputStream stderrBuffer;
 
-    // A deque would be a perfect data structure for the FIFO queue of input values needed here. However,
-    // to support the valid return value of readText being null (defined by Console), we need to be able
-    // to store nulls. However, java the java Deque api does not allow nulls because it uses null as
-    // a special return value from certain methods like peek(). So instead of deque, we use an array list here,
-    // and keep track of the last position which was read. It means that we will hold onto all input
-    // setup for the mock terminal during its lifetime, but this is normally a very small amount of data
-    // so in reality it will not matter.
-    private final LazyByteArrayInputStream stdinBuffer;
-
     private MockTerminal(
-        LazyByteArrayInputStream stdin,
+        ResettableInputStreamReader stdinReader,
         ByteArrayOutputStream stdout,
         ByteArrayOutputStream stderr,
         boolean supportsBinary
     ) {
         super(
-            new InputStreamReader(stdin),
+            stdinReader,
             newPrintWriter(stdout),
             newPrintWriter(stderr),
-            supportsBinary ? stdin : null,
+            supportsBinary ? stdinReader.stream : null,
             supportsBinary ? stdout : null
         );
-        this.stdinBuffer = stdin;
+        this.stdinReader = stdinReader;
+        this.stdinBuffer = stdinReader.stream;
         this.stdoutBuffer = stdout;
         this.stderrBuffer = stderr;
     }
@@ -90,7 +104,8 @@ public class MockTerminal extends Terminal {
     }
 
     public static MockTerminal create(boolean supportsBinary) {
-        return new MockTerminal(new LazyByteArrayInputStream(), new ByteArrayOutputStream(), new ByteArrayOutputStream(), supportsBinary);
+        var reader = new ResettableInputStreamReader(new LazyByteArrayInputStream());
+        return new MockTerminal(reader, new ByteArrayOutputStream(), new ByteArrayOutputStream(), supportsBinary);
     }
 
     /** Adds a character input that will be returned from reading this Terminal. Values are read in FIFO order. */
@@ -121,6 +136,7 @@ public class MockTerminal extends Terminal {
 
     /** Wipes the input and output. */
     public void reset() {
+        stdinReader.reset();
         stdinBuffer.clear();
         stdoutBuffer.reset();
         stderrBuffer.reset();

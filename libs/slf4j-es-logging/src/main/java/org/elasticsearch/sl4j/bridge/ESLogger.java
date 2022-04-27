@@ -8,7 +8,7 @@
 
 package org.elasticsearch.sl4j.bridge;
 
-import org.elasticsearch.logging.StandardLevels;
+import org.elasticsearch.logging.Level;
 import org.slf4j.Logger;
 import org.slf4j.Marker;
 
@@ -270,14 +270,14 @@ public class ESLogger implements Logger {
 
     public static org.elasticsearch.logging.Level elasticsearchLevel(final int level) {
         return switch (level) {
-            case StandardLevels.OFF -> org.elasticsearch.logging.Level.OFF;
-            case StandardLevels.FATAL -> org.elasticsearch.logging.Level.FATAL;
-            case StandardLevels.ERROR -> org.elasticsearch.logging.Level.ERROR;
-            case StandardLevels.WARN -> org.elasticsearch.logging.Level.WARN;
-            case StandardLevels.INFO -> org.elasticsearch.logging.Level.INFO;
-            case StandardLevels.DEBUG -> org.elasticsearch.logging.Level.DEBUG;
-            case StandardLevels.TRACE -> org.elasticsearch.logging.Level.TRACE;
-            case StandardLevels.ALL -> org.elasticsearch.logging.Level.ALL;
+            case Level.StandardLevels.OFF -> org.elasticsearch.logging.Level.OFF;
+            case Level.StandardLevels.FATAL -> org.elasticsearch.logging.Level.FATAL;
+            case Level.StandardLevels.ERROR -> org.elasticsearch.logging.Level.ERROR;
+            case Level.StandardLevels.WARN -> org.elasticsearch.logging.Level.WARN;
+            case Level.StandardLevels.INFO -> org.elasticsearch.logging.Level.INFO;
+            case Level.StandardLevels.DEBUG -> org.elasticsearch.logging.Level.DEBUG;
+            case Level.StandardLevels.TRACE -> org.elasticsearch.logging.Level.TRACE;
+            case Level.StandardLevels.ALL -> org.elasticsearch.logging.Level.ALL;
             default -> org.elasticsearch.logging.Level.ERROR;
         };
     }

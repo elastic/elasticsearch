@@ -10,6 +10,9 @@ package org.elasticsearch.logging;
 
 import org.elasticsearch.logging.spi.LogManagerFactory;
 
+/**
+ * A class used for creating loggers.
+ */
 public class LogManager {
 
     public static Logger getLogger(final String name) {

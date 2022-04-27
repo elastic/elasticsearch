@@ -14,6 +14,9 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
+/**
+ * Identifies the severity of the log event.
+ */
 public final class Level {
 
     public static final Level OFF = new Level("OFF", StandardLevels.OFF);
@@ -100,5 +103,27 @@ public final class Level {
     @Override
     public int hashCode() {
         return Objects.hash(name, severity);
+    }
+
+    public static class StandardLevels {
+
+        public static final int OFF = 0;
+
+        public static final int FATAL = 100;
+
+        public static final int ERROR = 200;
+
+        public static final int WARN = 300;
+
+        public static final int INFO = 400;
+
+        public static final int DEBUG = 500;
+
+        public static final int TRACE = 600;
+
+        public static final int ALL = Integer.MAX_VALUE;
+
+        private StandardLevels() {}
+
     }
 }

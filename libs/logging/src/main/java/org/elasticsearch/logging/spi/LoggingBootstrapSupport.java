@@ -47,7 +47,7 @@ public interface LoggingBootstrapSupport {
      *
      * @throws IOException   if there is an issue readings any log4j2.properties in the config
      *                       directory
-     * @gthrows UserException if there are no log4j2.properties in the specified configs path
+     * xgthrows UserException if there are no log4j2.properties in the specified configs path
      */
     void configure(
         String clusterName,

@@ -13,6 +13,10 @@ import org.elasticsearch.logging.spi.LogManagerFactory;
 import java.util.Arrays;
 import java.util.stream.Stream;
 
+/**
+ * A logger that prefixes all log messages with given prefix.
+ * Common usage is to prefix with plugin name, or index and shard id.
+ */
 public class PrefixLogger {
 
     public PrefixLogger() {}

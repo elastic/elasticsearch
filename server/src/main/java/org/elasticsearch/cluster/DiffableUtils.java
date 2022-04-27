@@ -232,21 +232,30 @@ public final class DiffableUtils {
             super(keySerializer, valueSerializer);
             assert after != null && before != null;
 
-            for (K key : before.keySet()) {
-                if (after.containsKey(key) == false) {
-                    deletes.add(key);
-                }
-            }
-
+            int inserts = 0;
             for (Map.Entry<K, T> partIter : after.entrySet()) {
-                T beforePart = before.get(partIter.getKey());
+                final K key = partIter.getKey();
+                T beforePart = before.get(key);
                 if (beforePart == null) {
-                    upserts.put(partIter.getKey(), partIter.getValue());
+                    upserts.put(key, partIter.getValue());
+                    inserts++;
                 } else if (partIter.getValue().equals(beforePart) == false) {
                     if (valueSerializer.supportsDiffableValues()) {
-                        diffs.put(partIter.getKey(), valueSerializer.diff(partIter.getValue(), beforePart));
+                        diffs.put(key, valueSerializer.diff(partIter.getValue(), beforePart));
                     } else {
-                        upserts.put(partIter.getKey(), partIter.getValue());
+                        upserts.put(key, partIter.getValue());
+                    }
+                }
+            }
+            int expectedDeletes = before.size() + inserts - after.size();
+            assert expectedDeletes >= 0;
+            if (expectedDeletes > 0) {
+                for (K key : before.keySet()) {
+                    if (after.containsKey(key) == false) {
+                        deletes.add(key);
+                        if (--expectedDeletes == 0) {
+                            break;
+                        }
                     }
                 }
             }
@@ -290,21 +299,30 @@ public final class DiffableUtils {
             super(keySerializer, valueSerializer);
             assert after != null && before != null;
 
-            for (Map.Entry<K, T> key : before.entrySet()) {
-                if (after.containsKey(key.getKey()) == false) {
-                    deletes.add(key.getKey());
-                }
-            }
-
+            int inserts = 0;
             for (Map.Entry<K, T> partIter : after.entrySet()) {
                 T beforePart = before.get(partIter.getKey());
                 if (beforePart == null) {
                     upserts.put(partIter.getKey(), partIter.getValue());
+                    inserts++;
                 } else if (partIter.getValue().equals(beforePart) == false) {
                     if (valueSerializer.supportsDiffableValues()) {
                         diffs.put(partIter.getKey(), valueSerializer.diff(partIter.getValue(), beforePart));
                     } else {
                         upserts.put(partIter.getKey(), partIter.getValue());
+                    }
+                }
+            }
+
+            int expectedDeletes = before.size() + inserts - after.size();
+            assert expectedDeletes >= 0;
+            if (expectedDeletes > 0) {
+                for (Map.Entry<K, T> key : before.entrySet()) {
+                    if (after.containsKey(key.getKey()) == false) {
+                        deletes.add(key.getKey());
+                        if (--expectedDeletes == 0) {
+                            break;
+                        }
                     }
                 }
             }

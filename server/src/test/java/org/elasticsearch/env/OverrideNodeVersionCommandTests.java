@@ -117,7 +117,7 @@ public class OverrideNodeVersionCommandTests extends ESTestCase {
         final Version nodeVersion = NodeMetadataTests.tooOldVersion();
         PersistedClusterStateService.overrideVersion(nodeVersion, nodePaths);
         final MockTerminal mockTerminal = MockTerminal.create(false);
-        mockTerminal.addTextInput("n\n");
+        mockTerminal.addTextInput("n");
         final ElasticsearchException elasticsearchException = expectThrows(
             ElasticsearchException.class,
             () -> new OverrideNodeVersionCommand().processNodePaths(mockTerminal, nodePaths, noOptions, environment)

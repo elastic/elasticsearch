@@ -67,7 +67,6 @@ import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.GetApiKeyResponse;
 import org.elasticsearch.xpack.core.security.action.apikey.InvalidateApiKeyResponse;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
-import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
@@ -559,23 +558,18 @@ public class ApiKeyServiceTests extends ESTestCase {
     ) throws IOException {
         final Authentication authentication;
         if (user.isRunAs()) {
-            authentication = new Authentication(
-                user,
-                new RealmRef("authRealm", "test", "foo"),
-                new RealmRef("realm1", "native", "node01"),
-                Version.CURRENT,
-                randomFrom(AuthenticationType.REALM, AuthenticationType.TOKEN, AuthenticationType.INTERNAL, AuthenticationType.ANONYMOUS),
-                Collections.emptyMap()
-            );
+            authentication = AuthenticationTestHelper.builder()
+                .user(user.authenticatedUser())
+                .realmRef(new RealmRef("authRealm", "test", "foo"))
+                .runAs()
+                .user(new User(user.principal(), user.roles(), user.fullName(), user.email(), user.metadata(), user.enabled()))
+                .realmRef(new RealmRef("realm1", "native", "node01"))
+                .build();
         } else {
-            authentication = new Authentication(
-                user,
-                new RealmRef("realm1", "native", "node01"),
-                null,
-                Version.CURRENT,
-                randomFrom(AuthenticationType.REALM, AuthenticationType.TOKEN, AuthenticationType.INTERNAL, AuthenticationType.ANONYMOUS),
-                Collections.emptyMap()
-            );
+            authentication = AuthenticationTestHelper.builder()
+                .user(user)
+                .realmRef(new RealmRef("realm1", "native", "node01"))
+                .build(false);
         }
         @SuppressWarnings("unchecked")
         final Map<String, Object> metadata = ApiKeyTests.randomMetadata();
@@ -1683,7 +1677,7 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertEquals(new BytesArray("{}"), apiKeyDoc.roleDescriptorsBytes);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86179")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86211")
     public void testGetApiKeyMetadata() throws IOException {
         final Map<String, Object> metadata;
         final Map<String, Object> apiKeyMetadata = ApiKeyTests.randomMetadata();
@@ -1694,10 +1688,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             metadata = Map.of(API_KEY_ID_KEY, randomAlphaOfLength(20), API_KEY_METADATA_KEY, metadataBytes);
         }
 
-        final Authentication apiKeyAuthentication = Authentication.newApiKeyAuthentication(
-            AuthenticationResult.success(AuthenticationTests.randomUser(), metadata),
-            randomAlphaOfLengthBetween(3, 8)
-        );
+        final Authentication apiKeyAuthentication = AuthenticationTestHelper.builder().apiKey().metadata(metadata).build(false);
 
         final Map<String, Object> restoredApiKeyMetadata = ApiKeyService.getApiKeyMetadata(apiKeyAuthentication);
         if (apiKeyMetadata == null) {
@@ -1708,7 +1699,8 @@ public class ApiKeyServiceTests extends ESTestCase {
 
         final Authentication authentication = AuthenticationTests.randomAuthentication(
             AuthenticationTests.randomUser(),
-            AuthenticationTests.randomRealmRef(randomBoolean())
+            AuthenticationTests.randomRealmRef(randomBoolean()),
+            false
         );
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,

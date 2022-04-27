@@ -9,83 +9,54 @@ package org.elasticsearch.xpack.shutdown;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor.TaskContext;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
+import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.shutdown.TransportPutShutdownNodeAction.PutShutdownNodeExecutor;
-import org.elasticsearch.xpack.shutdown.TransportPutShutdownNodeAction.PutShutdownNodeTask;
-import org.junit.Before;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
 
-import java.util.List;
+import java.util.Collections;
+import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.hamcrest.Matchers.sameInstance;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.Mockito.clearInvocations;
+import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
 
 public class TransportPutShutdownNodeActionTests extends ESTestCase {
 
-    private ClusterService clusterService;
-    private TransportPutShutdownNodeAction action;
-
-    // must use member mock for generic
-    @Mock
-    private TaskContext<PutShutdownNodeTask> taskContext;
-
-    @Before
-    public void init() {
-        MockitoAnnotations.openMocks(this);
-        // TODO: it takes almost 2 seconds to create these mocks....WHY?!?
-        var threadPool = mock(ThreadPool.class);
-        var transportService = mock(TransportService.class);
-        clusterService = mock(ClusterService.class);
-        var actionFilters = mock(ActionFilters.class);
-        var indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
-        action = new TransportPutShutdownNodeAction(
-            transportService,
+    public void testNoop() {
+        final var clusterService = ClusterServiceUtils.createSingleThreadedClusterService();
+        final var appliedStateCount = new AtomicInteger();
+        clusterService.addListener(event -> appliedStateCount.incrementAndGet());
+        final var action = new TransportPutShutdownNodeAction(
+            mock(TransportService.class),
             clusterService,
-            threadPool,
-            actionFilters,
-            indexNameExpressionResolver
+            clusterService.getClusterApplierService().threadPool(),
+            new ActionFilters(Collections.emptySet()),
+            TestIndexNameExpressionResolver.newInstance()
         );
-    }
+        final var initialState = clusterService.state();
+        final var type = randomFrom(Type.REMOVE, Type.REPLACE, Type.RESTART);
+        final var allocationDelay = type == Type.RESTART ? TimeValue.timeValueMinutes(randomIntBetween(1, 3)) : null;
+        final var targetNodeName = type == Type.REPLACE ? randomAlphaOfLength(5) : null;
+        final var request = new PutShutdownNodeAction.Request("node1", type, "sunsetting", allocationDelay, targetNodeName);
 
-    public void testNoop() throws Exception {
-        var type = randomFrom(Type.REMOVE, Type.REPLACE, Type.RESTART);
-        var allocationDelay = type == Type.RESTART ? TimeValue.timeValueMinutes(randomIntBetween(1, 3)) : null;
-        var targetNodeName = type == Type.REPLACE ? randomAlphaOfLength(5) : null;
-        var request = new PutShutdownNodeAction.Request("node1", type, "sunsetting", allocationDelay, targetNodeName);
-        action.masterOperation(null, request, ClusterState.EMPTY_STATE, ActionListener.noop());
-        var updateTask = ArgumentCaptor.forClass(PutShutdownNodeTask.class);
-        var taskConfig = ArgumentCaptor.forClass(ClusterStateTaskConfig.class);
-        var taskExecutor = ArgumentCaptor.forClass(PutShutdownNodeExecutor.class);
-        verify(clusterService).submitStateUpdateTask(any(), updateTask.capture(), taskConfig.capture(), taskExecutor.capture());
-        when(taskContext.getTask()).thenReturn(updateTask.getValue());
-        ClusterState stableState = taskExecutor.getValue().execute(ClusterState.EMPTY_STATE, List.of(taskContext));
+        // run the request against the initial state - the master service should compute and apply the update
+        action.masterOperation(null, request, initialState, ActionListener.noop());
+        assertThat(appliedStateCount.get(), equalTo(1));
+        var stableState = clusterService.state();
+        assertNotSame(initialState, stableState);
 
-        // run the request again, there should be no call to submit an update task
-        clearInvocations(clusterService);
+        // run the request again with stale state to bypass the action's noop detection - the master service should compute an update based
+        // on the last-applied state, determine it's a no-op, and skip publication
+        action.masterOperation(null, request, initialState, ActionListener.noop());
+        assertThat(appliedStateCount.get(), equalTo(1));
+        assertSame(stableState, clusterService.state());
+
+        // run the request again but with the latest state - the action should not even submit a task to the master
+        clusterService.getMasterService().setClusterStateSupplier(() -> { throw new AssertionError("should not submit task"); });
         action.masterOperation(null, request, stableState, ActionListener.noop());
-        verifyNoInteractions(clusterService);
-
-        // run the request again with empty state, the update task should return the same state
-        action.masterOperation(null, request, ClusterState.EMPTY_STATE, ActionListener.noop());
-        verify(clusterService).submitStateUpdateTask(any(), updateTask.capture(), taskConfig.capture(), taskExecutor.capture());
-        when(taskContext.getTask()).thenReturn(updateTask.getValue());
-        ClusterState gotState = taskExecutor.getValue().execute(stableState, List.of(taskContext));
-        assertThat(gotState, sameInstance(stableState));
+        assertThat(appliedStateCount.get(), equalTo(1));
+        assertSame(stableState, clusterService.state());
     }
 }

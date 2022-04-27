@@ -41,20 +41,23 @@ import java.util.jar.Manifest;
 import static java.util.jar.Attributes.Name.MULTI_RELEASE;
 
 /**
- * A class loader that is responsible for loading implementation classes and resources embedded within an archive.
+ * A class loader that is responsible for loading implementation classes and resources embedded
+ * within an archive.
  *
- * <p> This loader facilitates a scenario whereby an API can embed its implementation and dependencies all within the same archive as the
- * API itself. The archive can be put directly on the class path, where it's API classes are loadable by the application class loader, but
- * the embedded implementation and dependencies are not. When locating a concrete provider, the API can create an instance of an
- * EmbeddedImplClassLoader to locate and load the implementation.
+ * <p> This loader facilitates a scenario whereby an API can embed its implementation and
+ * dependencies all within the same archive as the API itself. The archive can be put directly on
+ * the class path, where it's API classes are loadable by the application class loader, but the
+ * embedded implementation and dependencies are not. When locating a concrete provider, the API can
+ * create an instance of an EmbeddedImplClassLoader to locate and load the implementation.
  *
  * <p> The archive typically consists of two disjoint logically groups:
  *  1. the top-level classes and resources,
  *  2. the embedded classes and resources
  *
- * <p> The top-level classes and resources are typically loaded and located, respectively, by the parent of an EmbeddedImplClassLoader
- * loader. The embedded classes and resources, are located by the parent loader as pure resources with a provider specific name prefix, and
- * classes are defined by the EmbeddedImplClassLoader. The list of prefixes is determined by reading the entries in the MANIFEST.TXT.
+ * <p> The top-level classes and resources are typically loaded and located, respectively, by the
+ * parent of an EmbeddedImplClassLoader loader. The embedded classes and resources, are located by
+ * the parent loader as pure resources with a provider specific name prefix, and classes are defined
+ * by the EmbeddedImplClassLoader. The list of prefixes is determined by reading the entries in the MANIFEST.TXT.
  *
  * <p> For example, the structure of the archive named x-content:
  * <pre>
@@ -165,10 +168,12 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
     // -- modules
 
     /**
-     * Returns a module finder capable of finding the modules that are loadable by this embedded impl class loader.
+     * Returns a module finder capable of finding the modules that are loadable by this embedded
+     * impl class loader.
      *
-     * <p> The module finder returned by this method can be used during resolution in order to create a configuration. This configuration
-     * can subsequently be materialized as a module layer in which classes and resources are loaded by this embedded impl class loader.
+     * <p> The module finder returned by this method can be used during resolution in order to
+     * create a configuration. This configuration can subsequently be materialized as a module layer
+     * in which classes and resources are loaded by this embedded impl class loader.
      */
     InMemoryModuleFinder moduleFinder(Set<String> missingModules) throws IOException {
         Path[] modulePath = modulePath();
@@ -180,12 +185,17 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
         return moduleFinder;
     }
 
+    /**
+     * Returns the base prefix for a versioned prefix. Otherwise, the given prefix if not versioned.
+     * For example, given "IMPL-JARS/x-content/jackson-core-2.13.2.jar/META-INF/versions/9", returns
+     * "IMPL-JARS/x-content/jackson-core-2.13.2.jar".
+     */
     static String basePrefix(String prefix) {
         int idx = prefix.indexOf(MRJAR_VERSION_PREFIX);
         if (idx == -1) {
             return prefix;
         }
-        return prefix.substring(0, idx - 1);   // drop the leading / TODO: fix this
+        return prefix.substring(0, idx - 1);
     }
 
     private Path[] modulePath() throws IOException {
@@ -209,11 +219,11 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
     // -- infra
 
     /**
-     * Returns the root URI for a given url. The root URI is the base URI where all classes and resources can be searched for by appending
-     * a prefixes.
+     * Returns the root URI for a given url. The root URI is the base URI where all classes and
+     * resources can be searched for by appending a prefixes.
      *
-     * Depending on whether running from a jar (distribution), or an exploded archive (testing), the given url will have one of two schemes,
-     * "file", or "jar:file". For example:
+     * Depending on whether running from a jar (distribution), or an exploded archive (testing),
+     * the given url will have one of two schemes, "file", or "jar:file". For example:
      *  distro- jar:file:/xxx/distro/lib/elasticsearch-x-content-8.2.0-SNAPSHOT.jar!/IMPL-JARS/x-content/xlib-2.10.4.jar
      *  test  - file:/x/git/es_modules/libs/x-content/build/generated-resources/impl/IMPL-JARS/x-content/xlib-2.10.4.jar
      */
@@ -235,7 +245,7 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
         String providerPrefix = IMPL_PREFIX + providerName;
         URL listingURL = parent.getResource(providerPrefix + JAR_LISTING_FILE);
         if (listingURL == null) {
-            throw new IllegalStateException("missing x-content provider jars list");
+            throw new IllegalStateException("missing %s provider jars list".formatted(providerName));
         }
         try (
             InputStream in = listingURL.openStream();

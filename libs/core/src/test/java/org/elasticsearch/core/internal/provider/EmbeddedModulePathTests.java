@@ -10,6 +10,7 @@ package org.elasticsearch.core.internal.provider;
 
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 
 import java.lang.module.InvalidModuleDescriptorException;
 import java.lang.module.ModuleDescriptor.Version;
@@ -23,6 +24,8 @@ import java.util.Optional;
 import java.util.Set;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.elasticsearch.test.hamcrest.ModuleDescriptorMatchers.exportsOf;
+import static org.elasticsearch.test.hamcrest.ModuleDescriptorMatchers.opensOf;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isEmpty;
 import static org.elasticsearch.test.hamcrest.OptionalMatchers.isPresent;
 import static org.hamcrest.Matchers.aMapWithSize;
@@ -59,6 +62,42 @@ public class EmbeddedModulePathTests extends ESTestCase {
         expectThrows(IAE, () -> EmbeddedModulePath.version("foo"));
         expectThrows(IAE, () -> EmbeddedModulePath.version("foo."));
         expectThrows(IAE, () -> EmbeddedModulePath.version("foo.ja"));
+    }
+
+    public void testExplicitModuleDescriptorForEmbeddedJar() throws Exception {
+        Map<String, CharSequence> sources = Map.of(
+            "module-info",
+            "module m { exports p;  opens q; }",
+            "p.Foo",
+            "package p; public class Foo extends q.Bar { }",
+            "q.Bar",
+            "package q; public class Bar { }"
+        );
+        var classToBytes = InMemoryJavaCompiler.compile(sources);
+        Path topLevelDir = createTempDir();
+
+        Map<String, byte[]> jarEntries = Map.of(
+            "/a/b/m.jar/module-info.class",
+            classToBytes.get("module-info"),
+            "/a/b/m.jar/p/Foo.class",
+            classToBytes.get("p.Foo"),
+            "/a/b/m.jar/q/Bar.class",
+            classToBytes.get("q.Bar"),
+            "/a/b/m.jar/r/R.class",
+            "<empty>".getBytes(UTF_8)
+        );
+        Path outerJar = topLevelDir.resolve("impl.jar");
+        JarUtils.createJarFile(topLevelDir.resolve("impl.jar"), jarEntries);
+
+        try (FileSystem fileSystem = FileSystems.newFileSystem(outerJar, Map.of(), EmbeddedModulePathTests.class.getClassLoader())) {
+            Path mRoot = fileSystem.getPath("/a/b/m.jar");
+            var md = EmbeddedModulePath.descriptorFor(mRoot);
+            assertThat(md.isAutomatic(), is(false));
+            assertThat(md.name(), is("m"));
+            assertThat(md.exports(), containsInAnyOrder(exportsOf("p")));
+            assertThat(md.opens(), containsInAnyOrder(opensOf("q")));
+            assertThat(md.packages(), containsInAnyOrder(is("p"), is("q"), is("r")));
+        }
     }
 
     static final Class<InvalidModuleDescriptorException> IMDE = InvalidModuleDescriptorException.class;

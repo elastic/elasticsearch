@@ -37,7 +37,13 @@ public final class ProviderLocator<T> implements Supplier<T> {
     private final String providerName;
     private final Class<T> providerType;
     private final String providerModuleName;
+
+    private final ClassLoader parentLoader;
+
     private final Set<String> missingModules;
+
+    // whether to load the provider implementation as a module or not
+    private final boolean loadAsProviderModule;
 
     public ProviderLocator(
         Module caller,
@@ -46,18 +52,33 @@ public final class ProviderLocator<T> implements Supplier<T> {
         String providerModuleName,
         Set<String> missingModules
     ) {
+        this(caller, providerName, providerType, ProviderLocator.class.getClassLoader(),
+            providerModuleName, missingModules, ProviderLocator.class.getModule().isNamed());
+    }
+
+    public ProviderLocator(
+        Module caller,
+        String providerName,
+        Class<T> providerType,
+        ClassLoader parentLoader,
+        String providerModuleName,
+        Set<String> missingModules,
+        boolean loadAsProviderModule
+    ) {
         Objects.requireNonNull(providerName);
         Objects.requireNonNull(providerType);
+        Objects.requireNonNull(parentLoader);
         Objects.requireNonNull(providerModuleName);
         Objects.requireNonNull(missingModules);
         if (caller.isNamed() && caller.getDescriptor().uses().stream().anyMatch(providerType.getName()::equals) == false) {
             throw new ServiceConfigurationError("%s: module does not declare uses %s".formatted(caller, providerType));
         }
-
         this.providerName = providerName;
         this.providerType = providerType;
         this.providerModuleName = providerModuleName;
+        this.parentLoader = parentLoader;
         this.missingModules = missingModules;
+        this.loadAsProviderModule = loadAsProviderModule;
     }
 
     @Override
@@ -71,8 +92,8 @@ public final class ProviderLocator<T> implements Supplier<T> {
     }
 
     private T load() throws IOException {
-        EmbeddedImplClassLoader loader = EmbeddedImplClassLoader.getInstance(ProviderLocator.class.getClassLoader(), providerName);
-        if (ProviderLocator.class.getModule().isNamed()) {
+        EmbeddedImplClassLoader loader = EmbeddedImplClassLoader.getInstance(parentLoader, providerName);
+        if (loadAsProviderModule) {
             return loadAsModule(loader);
         } else {
             return loadAsNonModule(loader);
@@ -81,7 +102,7 @@ public final class ProviderLocator<T> implements Supplier<T> {
 
     private T loadAsNonModule(EmbeddedImplClassLoader loader) {
         ServiceLoader<T> sl = ServiceLoader.load(providerType, loader);
-        return sl.findFirst().orElseThrow(() -> new IllegalStateException("cannot locate %s provider".formatted(providerName)));
+        return sl.findFirst().orElseThrow(illegalStateException(providerName));
     }
 
     private T loadAsModule(EmbeddedImplClassLoader loader) throws IOException {
@@ -92,6 +113,10 @@ public final class ProviderLocator<T> implements Supplier<T> {
         Configuration cf = parentLayer.configuration().resolve(ModuleFinder.of(), moduleFinder, Set.of(providerModuleName));
         ModuleLayer layer = parentLayer.defineModules(cf, nm -> loader); // all modules in one loader
         ServiceLoader<T> sl = ServiceLoader.load(layer, providerType);
-        return sl.findFirst().orElseThrow(() -> new IllegalStateException("cannot locate %s provider".formatted(providerName)));
+        return sl.findFirst().orElseThrow(illegalStateException(providerName));
+    }
+
+    Supplier<IllegalStateException> illegalStateException(String providerName) {
+        return () -> new IllegalStateException("cannot locate %s provider".formatted(providerName));
     }
 }

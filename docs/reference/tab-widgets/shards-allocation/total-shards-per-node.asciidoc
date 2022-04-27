@@ -49,7 +49,7 @@ nodes.
 To inspect which tier is an index targeting for assignemnt, use the <<indices-get-settings, get index setting>>
 API to retrieve the configured value for the `index.routing.allocation.include._tier_preference`
 setting:
-+
+
 [source,console]
 ----
 GET /my-index-000001/_settings/index.routing.allocation.include._tier_preference
@@ -67,7 +67,10 @@ Alternatively, if adding more nodes to the {es} cluster is not desired,
 inspecting the configuration for the `index.routing.allocation.total_shards_per_node` 
 <<indices-get-settings, index setting>> and increasing the configured value will 
 allow more shards to be assigned on the same node.
-+
+
+. Inspect the `index.routing.allocation.total_shards_per_node` <<indices-get-settings, index setting>> 
+for the index with unassigned shards:
+
 [source,console]
 ----
 GET /my-index-000001/_settings/index.routing.allocation.total_shards_per_node
@@ -76,7 +79,7 @@ GET /my-index-000001/_settings/index.routing.allocation.total_shards_per_node
 
 . <<indices-update-settings,Increase>> the maximum number of shards that can be assigned on one node or
 reset the value to unbounded (`-1`):
-+
+
 [source,console]
 ----
 PUT /my-index-000001/_settings

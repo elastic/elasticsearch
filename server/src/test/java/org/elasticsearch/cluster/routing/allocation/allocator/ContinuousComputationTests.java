@@ -19,7 +19,6 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.atomic.LongAdder;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -62,7 +61,7 @@ public class ContinuousComputationTests extends ESTestCase {
             }
         };
 
-        final LongAdder listenersComputed = new LongAdder();
+        final AtomicInteger listenersComputed = new AtomicInteger();
         final AtomicInteger inputGenerator = new AtomicInteger(0);
         final int inputs = 10_000;
 
@@ -71,7 +70,7 @@ public class ContinuousComputationTests extends ESTestCase {
             computation.onNewInput(input, () -> {
                 assertThat("Should execute listener after the computation is complete",
                     computation.last.get(), greaterThanOrEqualTo(input));
-                listenersComputed.increment();
+                listenersComputed.incrementAndGet();
             });
         }
 
@@ -79,7 +78,7 @@ public class ContinuousComputationTests extends ESTestCase {
 
         assertThat("Should keep the latest result", computation.last.get(), equalTo(inputGenerator.get()));
         assertThat("May skip some computations", computation.count.get(), lessThan(inputs));
-        assertBusy(() -> assertThat("Should complete all listeners", listenersComputed.sum(), equalTo((long)inputs)));
+        assertBusy(() -> assertThat("Should complete all listeners", listenersComputed.get(), equalTo(inputs)));
     }
 
     public void testSkipsObsoleteValues() throws Exception {

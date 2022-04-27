@@ -61,7 +61,7 @@ public abstract class HealthIndicatorServiceBase implements HealthIndicatorServi
         };
     }
 
-    private static boolean stateIsKnown(ClusterState clusterState) {
+    static boolean stateIsKnown(ClusterState clusterState) {
         return clusterState.getBlocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false
             && clusterState.getBlocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID) == false;
     }

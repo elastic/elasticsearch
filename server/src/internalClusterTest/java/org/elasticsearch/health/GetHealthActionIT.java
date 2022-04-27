@@ -11,6 +11,7 @@ package org.elasticsearch.health;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -120,7 +121,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
     /**
      * This indicator pulls its status from the statusSetting Setting.
      */
-    public static class TestHealthIndicatorService implements HealthIndicatorService {
+    public static class TestHealthIndicatorService extends HealthIndicatorServiceBase {
 
         private final ClusterService clusterService;
         private final String componentName;
@@ -133,6 +134,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
             String indicatorName,
             Setting<HealthStatus> statusSetting
         ) {
+            super(clusterService);
             this.clusterService = clusterService;
             this.componentName = componentName;
             this.indicatorName = indicatorName;
@@ -150,7 +152,7 @@ public class GetHealthActionIT extends ESIntegTestCase {
         }
 
         @Override
-        public HealthIndicatorResult calculate(boolean includeDetails) {
+        public HealthIndicatorResult doCalculate(ClusterState clusterState, boolean includeDetails) {
             var status = clusterService.getClusterSettings().get(statusSetting);
             return createIndicator(
                 status,
@@ -190,6 +192,9 @@ public class GetHealthActionIT extends ESIntegTestCase {
         var ilmIndicatorStatus = randomFrom(HealthStatus.values());
         var slmIndicatorStatus = randomFrom(HealthStatus.values());
         var clusterCoordinationIndicatorStatus = randomFrom(HealthStatus.values());
+
+        // Ensure no blocks
+        assertBusy(() -> assertTrue("Cluster state is not stable", HealthIndicatorServiceBase.stateIsKnown(clusterService().state())));
 
         try {
             updateClusterSettings(

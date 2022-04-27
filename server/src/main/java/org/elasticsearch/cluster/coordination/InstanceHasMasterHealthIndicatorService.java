@@ -14,24 +14,22 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorResult;
-import org.elasticsearch.health.HealthIndicatorService;
+import org.elasticsearch.health.HealthIndicatorServiceBase;
 import org.elasticsearch.health.HealthStatus;
 
 import java.util.Collections;
 
 import static org.elasticsearch.health.ServerHealthComponents.CLUSTER_COORDINATION;
 
-public class InstanceHasMasterHealthIndicatorService implements HealthIndicatorService {
+public class InstanceHasMasterHealthIndicatorService extends HealthIndicatorServiceBase {
 
     public static final String NAME = "instance_has_master";
 
     private static final String INSTANCE_HAS_MASTER_GREEN_SUMMARY = "Health coordinating instance has a master node.";
     private static final String INSTANCE_HAS_MASTER_RED_SUMMARY = "Health coordinating instance does not have a master node.";
 
-    private final ClusterService clusterService;
-
     public InstanceHasMasterHealthIndicatorService(ClusterService clusterService) {
-        this.clusterService = clusterService;
+        super(clusterService);
     }
 
     @Override
@@ -45,10 +43,18 @@ public class InstanceHasMasterHealthIndicatorService implements HealthIndicatorS
     }
 
     @Override
-    public HealthIndicatorResult calculate(boolean includeDetails) {
+    protected HealthIndicatorResult doCalculate(ClusterState clusterState, boolean calculateDetails) {
+        return calculateResult(clusterState, calculateDetails);
+    }
 
-        DiscoveryNode coordinatingNode = clusterService.localNode();
-        ClusterState clusterState = clusterService.state();
+    @Override
+    protected HealthIndicatorResult doCalculateUnknown(ClusterState clusterState, boolean calculateDetails) {
+        return calculateResult(clusterState, calculateDetails);
+    }
+
+    HealthIndicatorResult calculateResult(ClusterState clusterState, boolean includeDetails) {
+
+        DiscoveryNode coordinatingNode = clusterState.nodes().getLocalNode();
         DiscoveryNodes nodes = clusterState.nodes();
         DiscoveryNode masterNode = nodes.getMasterNode();
 

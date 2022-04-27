@@ -1677,7 +1677,6 @@ public class ApiKeyServiceTests extends ESTestCase {
         assertEquals(new BytesArray("{}"), apiKeyDoc.roleDescriptorsBytes);
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/86211")
     public void testGetApiKeyMetadata() throws IOException {
         final Map<String, Object> metadata;
         final Map<String, Object> apiKeyMetadata = ApiKeyTests.randomMetadata();
@@ -1688,7 +1687,10 @@ public class ApiKeyServiceTests extends ESTestCase {
             metadata = Map.of(API_KEY_ID_KEY, randomAlphaOfLength(20), API_KEY_METADATA_KEY, metadataBytes);
         }
 
-        final Authentication apiKeyAuthentication = AuthenticationTestHelper.builder().apiKey().metadata(metadata).build(false);
+        final Authentication apiKeyAuthentication = Authentication.newApiKeyAuthentication(
+            AuthenticationResult.success(new User(ESTestCase.randomAlphaOfLengthBetween(3, 8)), metadata),
+            randomAlphaOfLengthBetween(3, 8)
+        );
 
         final Map<String, Object> restoredApiKeyMetadata = ApiKeyService.getApiKeyMetadata(apiKeyAuthentication);
         if (apiKeyMetadata == null) {

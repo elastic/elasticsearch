@@ -1,0 +1,5 @@
+pr: 86226
+summary: Deduplicate + intern field names in mappers and field caps responses
+area: Search
+type: bug
+issues: []

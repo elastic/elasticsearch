@@ -18,8 +18,7 @@ import static java.util.Collections.emptyMap;
 
 public final class TransformBuilders {
 
-    private TransformBuilders() {
-    }
+    private TransformBuilders() {}
 
     public static SearchTransform.Builder searchTransform(WatcherSearchTemplateRequest request) {
         return SearchTransform.builder(request);
@@ -33,7 +32,7 @@ public final class TransformBuilders {
         return ScriptTransform.builder(script);
     }
 
-    public static ChainTransform.Builder chainTransform(Transform.Builder... transforms) {
+    public static ChainTransform.Builder chainTransform(Transform.Builder<?>... transforms) {
         return ChainTransform.builder().add(transforms);
     }
 

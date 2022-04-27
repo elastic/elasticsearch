@@ -9,6 +9,8 @@
 package org.elasticsearch.packaging.test;
 
 import org.elasticsearch.packaging.util.Distribution;
+import org.elasticsearch.packaging.util.Packages;
+import org.elasticsearch.packaging.util.ServerUtils;
 import org.junit.BeforeClass;
 
 import java.nio.file.Paths;
@@ -55,26 +57,19 @@ public class DebPreservationTests extends PackagingTestCase {
             installation.config(Paths.get("jvm.options.d", "heap.options"))
         );
 
-        if (distribution().isDefault()) {
-            assertPathsExist(
-                installation.config,
-                installation.config("role_mapping.yml"),
-                installation.config("roles.yml"),
-                installation.config("users"),
-                installation.config("users_roles")
-            );
-        }
+        assertPathsExist(
+            installation.config,
+            installation.config("role_mapping.yml"),
+            installation.config("roles.yml"),
+            installation.config("users"),
+            installation.config("users_roles")
+        );
 
-        // keystore was removed
-
-        assertPathsDoNotExist(installation.config("elasticsearch.keystore"), installation.config(".elasticsearch.keystore.initial_md5sum"));
+        // keystore was not removed
+        assertPathsExist(installation.config("elasticsearch.keystore"));
 
         // doc files were removed
-
-        assertPathsDoNotExist(
-            Paths.get("/usr/share/doc/" + distribution().flavor.name),
-            Paths.get("/usr/share/doc/" + distribution().flavor.name + "/copyright")
-        );
+        assertPathsDoNotExist(Paths.get("/usr/share/doc/elasticsearch"), Paths.get("/usr/share/doc/elasticsearch/copyright"));
 
         // defaults file was not removed
         assertThat(installation.envFile, fileExists());
@@ -83,12 +78,34 @@ public class DebPreservationTests extends PackagingTestCase {
     public void test30Purge() throws Exception {
         append(installation.config(Paths.get("jvm.options.d", "heap.options")), "# foo");
 
-        sh.run("dpkg --purge " + distribution().flavor.name);
+        sh.run("dpkg --purge elasticsearch");
 
         assertRemoved(distribution());
 
         assertPathsDoNotExist(installation.config, installation.envFile);
 
-        assertThat(packageStatus(distribution()).exitCode, is(1));
+        assertThat(packageStatus(distribution()).exitCode(), is(1));
+
+        installation = null;
+    }
+
+    /**
+     * Check that restarting on upgrade doesn't run into a problem where the keystore
+     * upgrade is attempted as the wrong user i.e. the restart happens at the correct
+     * point. See #82433.
+     */
+    public void test40RestartOnUpgrade() throws Exception {
+        assertRemoved(distribution());
+        installation = installPackage(sh, distribution());
+        assertInstalled(distribution());
+
+        // Ensure ES is started
+        Packages.runElasticsearchStartCommand(sh);
+        ServerUtils.waitForElasticsearch(installation);
+
+        sh.getEnv().put("RESTART_ON_UPGRADE", "true");
+        installation = installPackage(sh, distribution());
+
+        ServerUtils.waitForElasticsearch(installation);
     }
 }

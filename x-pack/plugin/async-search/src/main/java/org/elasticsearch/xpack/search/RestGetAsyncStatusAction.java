@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.search;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestStatusToXContentListener;
@@ -15,16 +15,13 @@ import org.elasticsearch.xpack.core.search.action.GetAsyncStatusAction;
 
 import java.util.List;
 
-import static java.util.Arrays.asList;
-import static java.util.Collections.unmodifiableList;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 
-public class RestGetAsyncStatusAction extends BaseRestHandler  {
+public class RestGetAsyncStatusAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
-        return unmodifiableList(asList(new Route(GET, "/_async_search/status/{id}")));
+        return List.of(new Route(GET, "/_async_search/status/{id}"));
     }
-
 
     @Override
     public String getName() {

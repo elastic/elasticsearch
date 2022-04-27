@@ -17,7 +17,7 @@ import org.apache.lucene.util.OfflineSorter;
 import org.elasticsearch.common.lucene.store.FilterIndexOutput;
 import org.elasticsearch.common.lucene.store.IndexOutputOutputStream;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 
 import java.io.DataInputStream;
 import java.io.DataOutputStream;
@@ -31,11 +31,8 @@ import java.util.zip.InflaterInputStream;
  * An {@link OfflineSorter} that compresses the values using a {@link Deflater}.
  */
 class CompressingOfflineSorter extends OfflineSorter {
-    CompressingOfflineSorter(Directory dir,
-                             String tempFileNamePrefix,
-                             Comparator<BytesRef> comparator,
-                             int ramBufferSizeMB) {
-        super(dir, tempFileNamePrefix, comparator, OfflineSorter.BufferSize.megabytes(ramBufferSizeMB/2), 2, -1, null, 1);
+    CompressingOfflineSorter(Directory dir, String tempFileNamePrefix, Comparator<BytesRef> comparator, int ramBufferSizeMB) {
+        super(dir, tempFileNamePrefix, comparator, OfflineSorter.BufferSize.megabytes(ramBufferSizeMB / 2), 2, -1, null, 1);
     }
 
     static class Writer extends ByteSequencesWriter {

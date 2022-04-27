@@ -39,4 +39,9 @@ public class ProfilingLeafBucketCollector extends LeafBucketCollector {
         delegate.setScorer(scorer);
     }
 
+    @Override
+    public boolean isNoop() {
+        return delegate.isNoop();
+    }
+
 }

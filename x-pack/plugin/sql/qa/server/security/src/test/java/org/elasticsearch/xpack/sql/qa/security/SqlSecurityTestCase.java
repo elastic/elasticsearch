@@ -16,11 +16,11 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xpack.core.security.index.RestrictedIndicesNames;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
@@ -28,6 +28,9 @@ import org.junit.Before;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -43,6 +46,7 @@ import java.util.Map;
 import java.util.TreeMap;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import java.util.zip.GZIPInputStream;
 
 import static java.util.Arrays.asList;
 import static java.util.Collections.singletonMap;
@@ -170,14 +174,15 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
         Request request = new Request("PUT", "/_bulk");
         request.addParameter("refresh", "true");
 
-        StringBuilder bulk = new StringBuilder();
-        bulk.append("{\"index\":{\"_index\": \"test\", \"_id\":\"1\"}\n");
-        bulk.append("{\"a\": 1, \"b\": 2, \"c\": 3}\n");
-        bulk.append("{\"index\":{\"_index\": \"test\", \"_id\":\"2\"}\n");
-        bulk.append("{\"a\": 4, \"b\": 5, \"c\": 6}\n");
-        bulk.append("{\"index\":{\"_index\": \"bort\", \"_id\":\"1\"}\n");
-        bulk.append("{\"a\": \"test\"}\n");
-        request.setJsonEntity(bulk.toString());
+        String bulk = """
+            {"index":{"_index": "test", "_id":"1"}}
+            {"a": 1, "b": 2, "c": 3}
+            {"index":{"_index": "test", "_id":"2"}}
+            {"a": 4, "b": 5, "c": 6}
+            {"index":{"_index": "bort", "_id":"1"}}
+            {"a": "test"}
+            """;
+        request.setJsonEntity(bulk);
         client().performRequest(request);
         oneTimeSetup = true;
     }
@@ -522,20 +527,12 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
             String principal,
             Matcher<? extends Iterable<? extends String>> indicesMatcher
         ) {
-            String request;
-            switch (action) {
-                case SQL_ACTION_NAME:
-                    request = "SqlQueryRequest";
-                    break;
-                case GetIndexAction.NAME:
-                    request = GetIndexRequest.class.getSimpleName();
-                    break;
-                case FieldCapabilitiesAction.NAME:
-                    request = FieldCapabilitiesRequest.class.getSimpleName();
-                    break;
-                default:
-                    throw new IllegalArgumentException("Unknown action [" + action + "]");
-            }
+            String request = switch (action) {
+                case SQL_ACTION_NAME -> "SqlQueryRequest";
+                case GetIndexAction.NAME -> GetIndexRequest.class.getSimpleName();
+                case FieldCapabilitiesAction.NAME -> FieldCapabilitiesRequest.class.getSimpleName();
+                default -> throw new IllegalArgumentException("Unknown action [" + action + "]");
+            };
             final String eventAction = granted ? "access_granted" : "access_denied";
             final String realm = principal.equals("test_admin") ? "default_file" : "default_native";
             return expect(eventAction, action, principal, realm, indicesMatcher, request);
@@ -586,8 +583,11 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                             if (localAuditFileRolledOver == false && Files.exists(ROLLED_OVER_AUDIT_LOG_FILE)) {
                                 // once the audit file rolled over, it will stay like this
                                 auditFileRolledOver = true;
+                                // unzip the file
+                                InputStream gzipStream = new GZIPInputStream(Files.newInputStream(ROLLED_OVER_AUDIT_LOG_FILE));
+                                Reader decoder = new InputStreamReader(gzipStream, StandardCharsets.UTF_8);
                                 // the order in the array matters, as the readers will be used in that order
-                                logReaders[0] = Files.newBufferedReader(ROLLED_OVER_AUDIT_LOG_FILE, StandardCharsets.UTF_8);
+                                logReaders[0] = new BufferedReader(decoder);
                             }
                             logReaders[1] = Files.newBufferedReader(AUDIT_LOG_FILE, StandardCharsets.UTF_8);
                             return null;
@@ -647,7 +647,7 @@ public abstract class SqlSecurityTestCase extends ESRestTestCase {
                                          * don't show them.
                                          */
                                         indices = indices.stream()
-                                            .filter(idx -> false == RestrictedIndicesNames.isRestricted(idx))
+                                            .filter(idx -> false == TestRestrictedIndices.RESTRICTED_INDICES.isRestricted(idx))
                                             .collect(Collectors.toList());
                                     }
                                 }

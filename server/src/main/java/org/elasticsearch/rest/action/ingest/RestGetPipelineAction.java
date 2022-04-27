@@ -9,7 +9,7 @@
 package org.elasticsearch.rest.action.ingest;
 
 import org.elasticsearch.action.ingest.GetPipelineRequest;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -24,9 +24,7 @@ public class RestGetPipelineAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(GET, "/_ingest/pipeline"),
-            new Route(GET, "/_ingest/pipeline/{id}"));
+        return List.of(new Route(GET, "/_ingest/pipeline"), new Route(GET, "/_ingest/pipeline/{id}"));
     }
 
     @Override
@@ -36,7 +34,10 @@ public class RestGetPipelineAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        GetPipelineRequest request = new GetPipelineRequest(Strings.splitStringByCommaToArray(restRequest.param("id")));
+        GetPipelineRequest request = new GetPipelineRequest(
+            restRequest.paramAsBoolean("summary", false),
+            Strings.splitStringByCommaToArray(restRequest.param("id"))
+        );
         request.masterNodeTimeout(restRequest.paramAsTime("master_timeout", request.masterNodeTimeout()));
         return channel -> client.admin().cluster().getPipeline(request, new RestStatusToXContentListener<>(channel));
     }

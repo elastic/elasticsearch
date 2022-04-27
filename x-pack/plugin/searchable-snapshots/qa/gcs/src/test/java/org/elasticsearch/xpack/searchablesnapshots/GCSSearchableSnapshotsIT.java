@@ -15,12 +15,12 @@ import static org.hamcrest.Matchers.not;
 public class GCSSearchableSnapshotsIT extends AbstractSearchableSnapshotsRestTestCase {
 
     @Override
-    protected String repositoryType() {
+    protected String writeRepositoryType() {
         return "gcs";
     }
 
     @Override
-    protected Settings repositorySettings() {
+    protected Settings writeRepositorySettings() {
         final String bucket = System.getProperty("test.gcs.bucket");
         assertThat(bucket, not(blankOrNullString()));
 

@@ -13,7 +13,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.MatchPhraseQueryBuilder;
-import org.elasticsearch.index.search.MatchQueryParser.ZeroTermsQuery;
+import org.elasticsearch.index.query.ZeroTermsQueryOption;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
 
@@ -35,7 +35,8 @@ public class MatchPhraseQueryIT extends ESIntegTestCase {
             Settings.builder()
                 .put(indexSettings())
                 .put("index.analysis.analyzer.standard_stopwords.type", "standard")
-                .putList("index.analysis.analyzer.standard_stopwords.stopwords", "of", "the", "who"));
+                .putList("index.analysis.analyzer.standard_stopwords.stopwords", "of", "the", "who")
+        );
         assertAcked(createIndexRequest);
         ensureGreen();
     }
@@ -44,14 +45,13 @@ public class MatchPhraseQueryIT extends ESIntegTestCase {
         List<IndexRequestBuilder> indexRequests = getIndexRequests();
         indexRandom(true, false, indexRequests);
 
-        MatchPhraseQueryBuilder baseQuery = matchPhraseQuery("name", "the who")
-            .analyzer("standard_stopwords");
+        MatchPhraseQueryBuilder baseQuery = matchPhraseQuery("name", "the who").analyzer("standard_stopwords");
 
-        MatchPhraseQueryBuilder matchNoneQuery = baseQuery.zeroTermsQuery(ZeroTermsQuery.NONE);
+        MatchPhraseQueryBuilder matchNoneQuery = baseQuery.zeroTermsQuery(ZeroTermsQueryOption.NONE);
         SearchResponse matchNoneResponse = client().prepareSearch(INDEX).setQuery(matchNoneQuery).get();
         assertHitCount(matchNoneResponse, 0L);
 
-        MatchPhraseQueryBuilder matchAllQuery = baseQuery.zeroTermsQuery(ZeroTermsQuery.ALL);
+        MatchPhraseQueryBuilder matchAllQuery = baseQuery.zeroTermsQuery(ZeroTermsQueryOption.ALL);
         SearchResponse matchAllResponse = client().prepareSearch(INDEX).setQuery(matchAllQuery).get();
         assertHitCount(matchAllResponse, 2L);
     }

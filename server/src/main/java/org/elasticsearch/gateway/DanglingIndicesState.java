@@ -8,7 +8,6 @@
 
 package org.elasticsearch.gateway;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.metadata.IndexGraveyard;
@@ -54,8 +53,8 @@ public class DanglingIndicesState {
 
         final Set<String> excludeIndexPathIds = new HashSet<>(metadata.indices().size());
 
-        for (ObjectCursor<IndexMetadata> cursor : metadata.indices().values()) {
-            excludeIndexPathIds.add(cursor.value.getIndex().getUUID());
+        for (IndexMetadata indexMetadata : metadata.indices().values()) {
+            excludeIndexPathIds.add(indexMetadata.getIndex().getUUID());
         }
 
         try {
@@ -83,14 +82,14 @@ public class DanglingIndicesState {
      * Importing dangling indices with aliases is dangerous, it could for instance result in inability to write to an existing alias if it
      * previously had only one index with any is_write_index indication.
      */
-    private IndexMetadata stripAliases(IndexMetadata indexMetadata) {
+    private static IndexMetadata stripAliases(IndexMetadata indexMetadata) {
         if (indexMetadata.getAliases().isEmpty()) {
             return indexMetadata;
         } else {
             logger.info(
                 "[{}] stripping aliases: {} from index before importing",
                 indexMetadata.getIndex(),
-                indexMetadata.getAliases().keys()
+                indexMetadata.getAliases().keySet()
             );
             return IndexMetadata.builder(indexMetadata).removeAllAliases().build();
         }

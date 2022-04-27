@@ -1,0 +1,88 @@
+
+// tag::cloud[]
+include::{docs-root}/shared/cloud/ess-getting-started.asciidoc[tag=generic]
+
+. Click **Continue** to open {kib}.
+
+. Click **Explore on my own**.
+// end::cloud[]
+
+// tag::self-managed[]
+**Install and run {es}**
+
+ifeval::["{release-state}"=="unreleased"]
+NOTE: No Docker image is currently available for {es} {version}.
+endif::[]
+
+ifeval::["{release-state}"!="unreleased"]
+
+. Install and start https://www.docker.com/products/docker-desktop[Docker
+Desktop].
+
+. Run:
++
+[source,sh,subs="attributes"]
+----
+docker network create elastic
+docker pull {docker-repo}:{version}
+docker run --name es01 --net elastic -p 9200:9200 -p 9300:9300 -it {docker-image}
+----
++
+When you start {es} for the first time, the following security configuration 
+occurs automatically:
++
+--
+* <<elasticsearch-security-certificates,Certificates and keys>> are generated
+for the transport and HTTP layers.
+* The Transport Layer Security (TLS) configuration settings are written to
+`elasticsearch.yml`.
+* A password is generated for the `elastic` user.
+* An enrollment token is generated for {kib}.
+
+NOTE: You might need to scroll back a bit in the terminal to view the password 
+and enrollment token.
+--
+
+. Copy the generated password and enrollment token and save them in a secure 
+location. These values are shown only when you start {es} for the first time.
+You'll use these to enroll {kib} with your {es} cluster and log in.
++
+[NOTE]
+====
+If you need to reset the password for the `elastic` user or other
+built-in users, run the <<reset-password,`elasticsearch-reset-password`>> tool.
+To generate new enrollment tokens for {kib} or {es} nodes, run the
+<<create-enrollment-token,`elasticsearch-create-enrollment-token`>> tool.
+These tools are available in the {es} `bin` directory.
+====
+endif::[]
+
+**Install and run {kib}**
+
+To analyze, visualize, and manage {es} data using an intuitive UI, install
+{kib}.
+
+ifeval::["{release-state}"=="unreleased"]
+NOTE: No Docker image is currently available for {kib} {version}.
+endif::[]
+
+ifeval::["{release-state}"!="unreleased"]
+
+. In a new terminal session, run:
++
+["source","txt",subs="attributes"]
+----
+docker pull docker.elastic.co/kibana/kibana:{version}
+docker run --name kibana --net elastic -p 5601:5601 docker.elastic.co/kibana/kibana:{version}
+----
++
+When you start {kib}, a unique link is output to your terminal.
+
+. To access {kib}, click the generated link in your terminal.
+
+  .. In your browser, paste the enrollment token that you copied and click the button to connect your {kib} instance with {es}.
+
+  .. Log in to {kib} as the `elastic` user with the password that was generated when you started {es}.
+
+endif::[]
+// end::self-managed[]

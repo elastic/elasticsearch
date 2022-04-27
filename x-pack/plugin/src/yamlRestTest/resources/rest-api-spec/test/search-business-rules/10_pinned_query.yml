@@ -1,0 +1,80 @@
+setup:
+  - do:
+      index:
+        index: test1
+        id: a
+        body:
+          title: "title one"
+        refresh: true
+
+  - do:
+      index:
+        index: test1
+        id: b
+        body:
+          title: "title two"
+        refresh: true
+
+  - do:
+      index:
+        index: test2
+        id: a
+        body:
+          title: "title"
+        refresh: true
+
+  - do:
+      index:
+        index: test2
+        id: c
+        body:
+          title: "another title"
+        refresh: true
+
+---
+"Test pinned query with IDs":
+  - do:
+      search:
+        index: test1
+        body:
+          query:
+            pinned:
+              ids: [b]
+              organic:
+                match:
+                  title:
+                    query: "title"
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.hits.0._id: b }
+  - match: { hits.hits.1._id: a }
+
+---
+"Test pinned query with ID and index":
+  - skip:
+      version: " - 7.14.99"
+      reason: "the 'docs' option was added in 7.15"
+  - do:
+      search:
+        index: test1,test2
+        body:
+          query:
+            pinned:
+              docs:
+                - { _id: a, _index: test2 }
+                - { _id: c, _index: test2 }
+                - { _id: a, _index: test1 }
+              organic:
+                match:
+                  title:
+                    query: "title"
+
+  - match: { hits.total.value: 4 }
+
+  - match: { hits.hits.0._id: "a" }
+  - match: { hits.hits.0._index: "test2" }
+  - match: { hits.hits.1._id: "c" }
+  - match: { hits.hits.2._id: "a" }
+  - match: { hits.hits.2._index: "test1" }
+  - match: { hits.hits.3._id: "b" }
+

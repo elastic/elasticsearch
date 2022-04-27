@@ -1,0 +1,132 @@
+#
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License
+# 2.0 and the Server Side Public License, v 1; you may not use this file except
+# in compliance with, at your election, the Elastic License 2.0 or the Server
+# Side Public License, v 1.
+#
+
+# The whitelist for the fields api
+
+class org.elasticsearch.script.field.Field @dynamic_type {
+  String getName()
+  boolean isEmpty()
+  int size()
+}
+
+class org.elasticsearch.script.field.EmptyField @dynamic_type {
+  def get(def)
+  def get(int, def)
+}
+
+class org.elasticsearch.script.DocBasedScript {
+  org.elasticsearch.script.field.Field field(String)
+}
+
+class org.elasticsearch.script.field.DelegateDocValuesField @dynamic_type {
+}
+
+class org.elasticsearch.script.field.BinaryDocValuesField @dynamic_type {
+  ByteBuffer get(ByteBuffer)
+  ByteBuffer get(int, ByteBuffer)
+}
+
+class org.elasticsearch.script.field.BooleanDocValuesField @dynamic_type {
+  boolean get(boolean)
+  boolean get(int, boolean)
+}
+
+class org.elasticsearch.script.field.IntegerDocValuesField @dynamic_type {
+  int get(int)
+  int get(int, int)
+}
+
+class org.elasticsearch.script.field.LongDocValuesField @dynamic_type {
+  long get(long)
+  long get(int, long)
+}
+
+class org.elasticsearch.script.field.DoubleDocValuesField @dynamic_type {
+  double get(double)
+  double get(int, double)
+}
+
+class org.elasticsearch.script.field.FloatDocValuesField @dynamic_type {
+  float get(float)
+  float get(int, float)
+}
+
+class org.elasticsearch.script.field.ScaledFloatDocValuesField @dynamic_type {
+  double get(double)
+  double get(int, double)
+}
+
+# defaults are cast to float, taking an double facilitates resolution with constants without casting
+class org.elasticsearch.script.field.HalfFloatDocValuesField @dynamic_type {
+  float get(double)
+  float get(int, double)
+  List asDoubles()
+  double asDouble(double)
+  double asDouble(int, double)
+}
+
+# defaults are cast to byte, taking an int facilitates resolution with constants without casting
+class org.elasticsearch.script.field.ByteDocValuesField @dynamic_type {
+  byte get(int)
+  byte get(int, int)
+}
+
+# defaults are cast to short, taking an int facilitates resolution with constants without casting
+class org.elasticsearch.script.field.ShortDocValuesField @dynamic_type {
+  short get(int)
+  short get(int, int)
+}
+
+class org.elasticsearch.script.field.DateMillisDocValuesField @dynamic_type {
+  ZonedDateTime get(ZonedDateTime)
+  ZonedDateTime get(int, ZonedDateTime)
+}
+
+class org.elasticsearch.script.field.DateNanosDocValuesField @dynamic_type {
+  ZonedDateTime get(ZonedDateTime)
+  ZonedDateTime get(int, ZonedDateTime)
+}
+
+class org.elasticsearch.script.field.AbstractKeywordDocValuesField @dynamic_type {
+  String get(String)
+  String get(int, String)
+}
+
+# subclass of AbstractKeywordDocValuesField
+class org.elasticsearch.script.field.KeywordDocValuesField @dynamic_type {
+}
+
+# subclass of AbstractKeywordDocValuesField
+class org.elasticsearch.script.field.FlattenedDocValuesField @dynamic_type {
+}
+
+class org.elasticsearch.script.field.GeoPointDocValuesField @dynamic_type {
+  GeoPoint get(GeoPoint)
+  GeoPoint get(int, GeoPoint)
+}
+
+class org.elasticsearch.script.field.IpDocValuesField @dynamic_type {
+  IPAddress get(IPAddress)
+  IPAddress get(int, IPAddress)
+  List asStrings()
+  String asString(String)
+  String asString(int, String)
+}
+
+class org.elasticsearch.script.field.AbstractLongDocValuesField @dynamic_type {
+  long get(long)
+  long get(int, long)
+}
+
+# subclass of AbstractLongDocValuesField
+class org.elasticsearch.script.field.SeqNoDocValuesField @dynamic_type {
+}
+
+# subclass of AbstractLongDocValuesField
+class org.elasticsearch.script.field.VersionDocValuesField @dynamic_type {
+}

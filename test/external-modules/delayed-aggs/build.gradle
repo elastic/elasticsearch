@@ -8,11 +8,11 @@
 
 esplugin {
   description 'A test module that allows to delay aggregations on shards with a configurable time'
-  classname 'org.elasticsearch.search.aggregations.DelayedShardAggregationPlugin'
+  classname 'org.elasticsearch.test.delayedshard.DelayedShardAggregationPlugin'
 }
 
 restResources {
   restApi {
-    includeCore '_common', 'indices', 'index', 'cluster', 'search'
+    include '_common', 'indices', 'index', 'cluster', 'search'
   }
 }

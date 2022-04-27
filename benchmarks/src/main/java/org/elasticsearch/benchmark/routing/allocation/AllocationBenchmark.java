@@ -14,7 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.common.settings.Settings;
 import org.openjdk.jmh.annotations.Benchmark;
@@ -31,6 +31,8 @@ import org.openjdk.jmh.annotations.Warmup;
 
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 @Fork(3)
 @Warmup(iterations = 10)
@@ -46,56 +48,58 @@ public class AllocationBenchmark {
     // we cannot use individual @Params as some will lead to invalid combinations which do not let the benchmark terminate. JMH offers no
     // support to constrain the combinations of benchmark parameters and we do not want to rely on OptionsBuilder as each benchmark would
     // need its own main method and we cannot execute more than one class with a main method per JAR.
-    @Param({
-        // indices| shards| replicas| nodes
-        "       10|      1|        0|     1",
-        "       10|      3|        0|     1",
-        "       10|     10|        0|     1",
-        "      100|      1|        0|     1",
-        "      100|      3|        0|     1",
-        "      100|     10|        0|     1",
+    @Param(
+        {
+            // indices| shards| replicas| nodes
+            "       10|      1|        0|     1",
+            "       10|      3|        0|     1",
+            "       10|     10|        0|     1",
+            "      100|      1|        0|     1",
+            "      100|      3|        0|     1",
+            "      100|     10|        0|     1",
 
-        "       10|      1|        0|    10",
-        "       10|      3|        0|    10",
-        "       10|     10|        0|    10",
-        "      100|      1|        0|    10",
-        "      100|      3|        0|    10",
-        "      100|     10|        0|    10",
+            "       10|      1|        0|    10",
+            "       10|      3|        0|    10",
+            "       10|     10|        0|    10",
+            "      100|      1|        0|    10",
+            "      100|      3|        0|    10",
+            "      100|     10|        0|    10",
 
-        "       10|      1|        1|    10",
-        "       10|      3|        1|    10",
-        "       10|     10|        1|    10",
-        "      100|      1|        1|    10",
-        "      100|      3|        1|    10",
-        "      100|     10|        1|    10",
+            "       10|      1|        1|    10",
+            "       10|      3|        1|    10",
+            "       10|     10|        1|    10",
+            "      100|      1|        1|    10",
+            "      100|      3|        1|    10",
+            "      100|     10|        1|    10",
 
-        "       10|      1|        2|    10",
-        "       10|      3|        2|    10",
-        "       10|     10|        2|    10",
-        "      100|      1|        2|    10",
-        "      100|      3|        2|    10",
-        "      100|     10|        2|    10",
+            "       10|      1|        2|    10",
+            "       10|      3|        2|    10",
+            "       10|     10|        2|    10",
+            "      100|      1|        2|    10",
+            "      100|      3|        2|    10",
+            "      100|     10|        2|    10",
 
-        "       10|      1|        0|    50",
-        "       10|      3|        0|    50",
-        "       10|     10|        0|    50",
-        "      100|      1|        0|    50",
-        "      100|      3|        0|    50",
-        "      100|     10|        0|    50",
+            "       10|      1|        0|    50",
+            "       10|      3|        0|    50",
+            "       10|     10|        0|    50",
+            "      100|      1|        0|    50",
+            "      100|      3|        0|    50",
+            "      100|     10|        0|    50",
 
-        "       10|      1|        1|    50",
-        "       10|      3|        1|    50",
-        "       10|     10|        1|    50",
-        "      100|      1|        1|    50",
-        "      100|      3|        1|    50",
-        "      100|     10|        1|    50",
+            "       10|      1|        1|    50",
+            "       10|      3|        1|    50",
+            "       10|     10|        1|    50",
+            "      100|      1|        1|    50",
+            "      100|      3|        1|    50",
+            "      100|     10|        1|    50",
 
-        "       10|      1|        2|    50",
-        "       10|      3|        2|    50",
-        "       10|     10|        2|    50",
-        "      100|      1|        2|    50",
-        "      100|      3|        2|    50",
-        "      100|     10|        2|    50" })
+            "       10|      1|        2|    50",
+            "       10|      3|        2|    50",
+            "       10|     10|        2|    50",
+            "      100|      1|        2|    50",
+            "      100|      3|        2|    50",
+            "      100|     10|        2|    50" }
+    )
     public String indicesShardsReplicasNodes = "10|1|0|1";
 
     public int numTags = 2;
@@ -152,7 +156,11 @@ public class AllocationBenchmark {
         while (clusterState.getRoutingNodes().hasUnassignedShards()) {
             clusterState = strategy.applyStartedShards(
                 clusterState,
-                clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.INITIALIZING)
+                clusterState.getRoutingNodes()
+                    .stream()
+                    .flatMap(shardRoutings -> StreamSupport.stream(shardRoutings.spliterator(), false))
+                    .filter(ShardRouting::initializing)
+                    .collect(Collectors.toList())
             );
             clusterState = strategy.reroute(clusterState, "reroute");
         }

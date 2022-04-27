@@ -19,6 +19,11 @@ public class MockStep extends Step implements Writeable {
         super(stepKey, nextStepKey);
     }
 
+    @Override
+    public boolean isRetryable() {
+        return false;
+    }
+
     public MockStep(Step other) {
         super(other.getKey(), other.getNextStepKey());
     }

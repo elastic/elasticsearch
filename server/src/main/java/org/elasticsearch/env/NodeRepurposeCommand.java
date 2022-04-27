@@ -7,9 +7,9 @@
  */
 package org.elasticsearch.env;
 
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cluster.ClusterState;
@@ -19,7 +19,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.gateway.PersistedClusterStateService;
 
@@ -28,10 +28,10 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.env.NodeEnvironment.INDICES_FOLDER;
 
@@ -54,7 +54,7 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
     @Override
     protected boolean validateBeforeLock(Terminal terminal, Environment env) {
         Settings settings = env.settings();
-        if (DiscoveryNode.isDataNodeBasedOnNamingConvention(settings)) {
+        if (DiscoveryNode.canContainData(settings)) {
             terminal.println(Terminal.Verbosity.NORMAL, NO_CLEANUP);
             return false;
         }
@@ -64,7 +64,7 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
 
     @Override
     protected void processNodePaths(Terminal terminal, Path[] dataPaths, OptionSet options, Environment env) throws IOException {
-        assert DiscoveryNode.isDataNodeBasedOnNamingConvention(env.settings()) == false;
+        assert DiscoveryNode.canContainData(env.settings()) == false;
 
         if (DiscoveryNode.isMasterNode(env.settings()) == false) {
             processNoMasterNoDataNode(terminal, dataPaths, env);
@@ -73,7 +73,7 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
         }
     }
 
-    private void processNoMasterNoDataNode(Terminal terminal, Path[] dataPaths, Environment env) throws IOException {
+    private static void processNoMasterNoDataNode(Terminal terminal, Path[] dataPaths, Environment env) throws IOException {
         NodeEnvironment.NodePath[] nodePaths = toNodePaths(dataPaths);
 
         terminal.println(Terminal.Verbosity.VERBOSE, "Collecting shard data paths");
@@ -92,9 +92,10 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
             return;
         }
 
-        final Set<String> indexUUIDs = Sets.union(indexUUIDsFor(indexPaths),
-            StreamSupport.stream(metadata.indices().values().spliterator(), false)
-                .map(imd -> imd.value.getIndexUUID()).collect(Collectors.toSet()));
+        final Set<String> indexUUIDs = Sets.union(
+            indexUUIDsFor(indexPaths),
+            metadata.indices().values().stream().map(IndexMetadata::getIndexUUID).collect(Collectors.toSet())
+        );
 
         outputVerboseInformation(terminal, indexPaths, indexUUIDs, metadata);
 
@@ -112,7 +113,7 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
         terminal.println("Node successfully repurposed to no-master and no-data.");
     }
 
-    private void processMasterNoDataNode(Terminal terminal, Path[] dataPaths, Environment env) throws IOException {
+    private static void processMasterNoDataNode(Terminal terminal, Path[] dataPaths, Environment env) throws IOException {
         NodeEnvironment.NodePath[] nodePaths = toNodePaths(dataPaths);
 
         terminal.println(Terminal.Verbosity.VERBOSE, "Collecting shard data paths");
@@ -142,12 +143,17 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
         terminal.println("Node successfully repurposed to master and no-data.");
     }
 
-    private ClusterState loadClusterState(Terminal terminal, Environment env, PersistedClusterStateService psf) throws IOException {
+    private static ClusterState loadClusterState(Terminal terminal, Environment env, PersistedClusterStateService psf) throws IOException {
         terminal.println(Terminal.Verbosity.VERBOSE, "Loading cluster state");
         return clusterState(env, psf.loadBestOnDiskState());
     }
 
-    private void outputVerboseInformation(Terminal terminal, Collection<Path> pathsToCleanup, Set<String> indexUUIDs, Metadata metadata) {
+    private static void outputVerboseInformation(
+        Terminal terminal,
+        Collection<Path> pathsToCleanup,
+        Set<String> indexUUIDs,
+        Metadata metadata
+    ) {
         if (terminal.isPrintable(Terminal.Verbosity.VERBOSE)) {
             terminal.println(Terminal.Verbosity.VERBOSE, "Paths to clean up:");
             pathsToCleanup.forEach(p -> terminal.println(Terminal.Verbosity.VERBOSE, "  " + p.toString()));
@@ -156,41 +162,41 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
         }
     }
 
-    private void outputHowToSeeVerboseInformation(Terminal terminal) {
+    private static void outputHowToSeeVerboseInformation(Terminal terminal) {
         if (terminal.isPrintable(Terminal.Verbosity.VERBOSE) == false) {
             terminal.println("Use -v to see list of paths and indices affected");
         }
     }
-    private String toIndexName(String uuid, Metadata metadata) {
+
+    private static String toIndexName(String uuid, Metadata metadata) {
         if (metadata != null) {
-            for (ObjectObjectCursor<String, IndexMetadata> indexMetadata : metadata.indices()) {
-                if (indexMetadata.value.getIndexUUID().equals(uuid)) {
-                    return indexMetadata.value.getIndex().getName();
+            for (Map.Entry<String, IndexMetadata> indexMetadata : metadata.indices().entrySet()) {
+                if (indexMetadata.getValue().getIndexUUID().equals(uuid)) {
+                    return indexMetadata.getValue().getIndex().getName();
                 }
             }
         }
         return "no name for uuid: " + uuid;
     }
 
-    private Set<String> indexUUIDsFor(Set<Path> indexPaths) {
+    private static Set<String> indexUUIDsFor(Set<Path> indexPaths) {
         return indexPaths.stream().map(Path::getFileName).map(Path::toString).collect(Collectors.toSet());
     }
 
     static String noMasterMessage(int indexes, int shards, int indexMetadata) {
-        return "Found " + indexes + " indices ("
-                + shards + " shards and " + indexMetadata + " index meta data) to clean up";
+        return "Found " + indexes + " indices (" + shards + " shards and " + indexMetadata + " index meta data) to clean up";
     }
 
     static String shardMessage(int shards, int indices) {
         return "Found " + shards + " shards in " + indices + " indices to clean up";
     }
 
-    private void removePaths(Terminal terminal, Collection<Path> paths) {
+    private static void removePaths(Terminal terminal, Collection<Path> paths) {
         terminal.println(Terminal.Verbosity.VERBOSE, "Removing data");
-        paths.forEach(this::removePath);
+        paths.forEach(NodeRepurposeCommand::removePath);
     }
 
-    private void removePath(Path path) {
+    private static void removePath(Path path) {
         try {
             IOUtils.rm(path);
         } catch (IOException e) {
@@ -200,12 +206,12 @@ public class NodeRepurposeCommand extends ElasticsearchNodeCommand {
 
     @SafeVarargs
     @SuppressWarnings("varargs")
-    private Set<Path> uniqueParentPaths(Collection<Path>... paths) {
+    private static Set<Path> uniqueParentPaths(Collection<Path>... paths) {
         // equals on Path is good enough here due to the way these are collected.
         return Arrays.stream(paths).flatMap(Collection::stream).map(Path::getParent).collect(Collectors.toSet());
     }
 
-    //package-private for testing
+    // package-private for testing
     OptionParser getParser() {
         return parser;
     }

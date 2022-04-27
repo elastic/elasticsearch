@@ -97,10 +97,19 @@ public class MoveDecisionTests extends ESTestCase {
         Type finalDecision = randomFrom(Type.values());
         DiscoveryNode assignedNode = finalDecision == Type.YES ? node1 : null;
         nodeDecisions.add(new NodeAllocationResult(node1, Decision.NO, 2));
-        nodeDecisions.add(new NodeAllocationResult(node2, finalDecision == Type.YES ? Decision.YES :
-                                                              randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES), 1));
-        MoveDecision moveDecision = MoveDecision.cannotRemain(Decision.NO, AllocationDecision.fromDecisionType(finalDecision),
-            assignedNode, nodeDecisions);
+        nodeDecisions.add(
+            new NodeAllocationResult(
+                node2,
+                finalDecision == Type.YES ? Decision.YES : randomFrom(Decision.NO, Decision.THROTTLE, Decision.YES),
+                1
+            )
+        );
+        MoveDecision moveDecision = MoveDecision.cannotRemain(
+            Decision.NO,
+            AllocationDecision.fromDecisionType(finalDecision),
+            assignedNode,
+            nodeDecisions
+        );
         BytesStreamOutput output = new BytesStreamOutput();
         moveDecision.writeTo(output);
         MoveDecision readDecision = new MoveDecision(output.bytes().streamInput());

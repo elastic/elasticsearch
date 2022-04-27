@@ -11,21 +11,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.eql.execution.payload.ReversePayload;
 import org.elasticsearch.xpack.eql.session.Payload;
 
-public class ReverseListener implements ActionListener<Payload> {
-
-    private final ActionListener<Payload> delegate;
+public class ReverseListener extends ActionListener.Delegating<Payload, Payload> {
 
     public ReverseListener(ActionListener<Payload> delegate) {
-        this.delegate = delegate;
+        super(delegate);
     }
 
     @Override
     public void onResponse(Payload response) {
         delegate.onResponse(new ReversePayload(response));
-    }
-
-    @Override
-    public void onFailure(Exception e) {
-        delegate.onFailure(e);
     }
 }

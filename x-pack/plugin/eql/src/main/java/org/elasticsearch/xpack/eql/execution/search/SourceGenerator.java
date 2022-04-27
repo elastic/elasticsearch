@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.ql.querydsl.container.ScriptSort;
 import org.elasticsearch.xpack.ql.querydsl.container.Sort;
 
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
@@ -31,7 +32,12 @@ public abstract class SourceGenerator {
 
     private SourceGenerator() {}
 
-    public static SearchSourceBuilder sourceBuilder(QueryContainer container, QueryBuilder filter, List<FieldAndFormat> fetchFields) {
+    public static SearchSourceBuilder sourceBuilder(
+        QueryContainer container,
+        QueryBuilder filter,
+        List<FieldAndFormat> fetchFields,
+        Map<String, Object> runtimeMappings
+    ) {
         QueryBuilder finalQuery = null;
         // add the source
         if (container.query() != null) {
@@ -69,6 +75,11 @@ public abstract class SourceGenerator {
             fetchFields.forEach(source::fetchField);
         }
 
+        // add the runtime fields
+        if (runtimeMappings != null) {
+            source.runtimeMappings(runtimeMappings);
+        }
+
         if (container.limit() != null) {
             // add size and from
             source.size(container.limit().absLimit());
@@ -87,22 +98,19 @@ public abstract class SourceGenerator {
         for (Sort sortable : container.sort().values()) {
             SortBuilder<?> sortBuilder = null;
 
-            if (sortable instanceof AttributeSort) {
-                AttributeSort as = (AttributeSort) sortable;
+            if (sortable instanceof AttributeSort as) {
                 Attribute attr = as.attribute();
 
                 // sorting only works on not-analyzed fields - look for a multi-field replacement
-                if (attr instanceof FieldAttribute) {
-                    FieldAttribute fa = ((FieldAttribute) attr).exactAttribute();
+                if (attr instanceof FieldAttribute fieldAttribute) {
+                    FieldAttribute fa = fieldAttribute.exactAttribute();
 
-                    sortBuilder = fieldSort(fa.name())
-                            .missing(as.missing().position())
-                            .unmappedType(fa.dataType().esType());
+                    sortBuilder = fieldSort(fa.name()).missing(as.missing().searchOrder(as.direction()))
+                        .unmappedType(fa.dataType().esType());
 
                     if (fa.isNested()) {
-                        FieldSortBuilder fieldSort = fieldSort(fa.name())
-                                .missing(as.missing().position())
-                                .unmappedType(fa.dataType().esType());
+                        FieldSortBuilder fieldSort = fieldSort(fa.name()).missing(as.missing().searchOrder(as.direction()))
+                            .unmappedType(fa.dataType().esType());
 
                         NestedSortBuilder newSort = new NestedSortBuilder(fa.nestedParent().name());
                         NestedSortBuilder nestedSort = fieldSort.getNestedSort();
@@ -124,10 +132,11 @@ public abstract class SourceGenerator {
                         sortBuilder = fieldSort;
                     }
                 }
-            } else if (sortable instanceof ScriptSort) {
-                ScriptSort ss = (ScriptSort) sortable;
-                sortBuilder = scriptSort(ss.script().toPainless(),
-                        ss.script().outputType().isNumeric() ? ScriptSortType.NUMBER : ScriptSortType.STRING);
+            } else if (sortable instanceof ScriptSort ss) {
+                sortBuilder = scriptSort(
+                    ss.script().toPainless(),
+                    ss.script().outputType().isNumeric() ? ScriptSortType.NUMBER : ScriptSortType.STRING
+                );
             }
 
             if (sortBuilder != null) {

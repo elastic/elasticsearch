@@ -1,0 +1,20 @@
+{
+  "@timestamp": "2099-11-15T14:12:12",
+  "http": {
+    "request": {
+      "method": "get"
+    },
+    "response": {
+      "bytes": 1070000,
+      "status_code": 200
+    },
+    "version": "1.1"
+  },
+  "message": "GET /search HTTP/1.1 200 1070000",
+  "source": {
+    "ip": "192.168.0.1"
+  },
+  "user": {
+    "id": "user"
+  }
+}

@@ -77,12 +77,8 @@ class RateAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     @Override
-    protected Aggregator doCreateInternal(
-        Aggregator parent,
-        CardinalityUpperBound bucketCardinality,
-        Map<String, Object> metadata
-    ) throws IOException {
-        return aggregatorSupplier
-            .build(name, config, rateUnit, rateMode, context, parent, metadata);
+    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound bucketCardinality, Map<String, Object> metadata)
+        throws IOException {
+        return aggregatorSupplier.build(name, config, rateUnit, rateMode, context, parent, metadata);
     }
 }

@@ -1,0 +1,63 @@
+---
+"search with query_string parameters":
+  - do:
+      indices.create:
+          index:  test
+          body:
+            mappings:
+              properties:
+                number:
+                  type: integer
+
+  - do:
+      index:
+          index:  test
+          id:     "1"
+          body:   { field: foo bar}
+
+  - do:
+      indices.refresh:
+        index: [test]
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        q: bar
+        df: field
+
+  - match: {hits.total: 1}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        q: field:foo field:xyz
+
+  - match: {hits.total: 1}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        q: field:foo field:xyz
+        default_operator: AND
+
+  - match: {hits.total: 0}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        q: field:BA*
+
+  - match: {hits.total: 1}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        q: number:foo
+        lenient: true
+
+  - match: {hits.total: 0}

@@ -13,6 +13,7 @@ import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
@@ -29,13 +30,16 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
     private final Long precisionThreshold;
     private final CardinalityAggregatorSupplier aggregatorSupplier;
 
-    CardinalityAggregatorFactory(String name, ValuesSourceConfig config,
-                                    Long precisionThreshold,
-                                    AggregationContext context,
-                                    AggregatorFactory parent,
-                                    AggregatorFactories.Builder subFactoriesBuilder,
-                                    Map<String, Object> metadata,
-                                    CardinalityAggregatorSupplier aggregatorSupplier) throws IOException {
+    CardinalityAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        Long precisionThreshold,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata,
+        CardinalityAggregatorSupplier aggregatorSupplier
+    ) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
 
         this.aggregatorSupplier = aggregatorSupplier;
@@ -43,29 +47,51 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
     }
 
     public static void registerAggregators(ValuesSourceRegistry.Builder builder) {
-        builder.register(CardinalityAggregationBuilder.REGISTRY_KEY,
-            CoreValuesSourceType.ALL_CORE,
+        builder.register(
+            CardinalityAggregationBuilder.REGISTRY_KEY,
+            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.BOOLEAN, CoreValuesSourceType.DATE),
+            NumericCardinalityAggregator::new,
+            true
+        );
+
+        builder.register(
+            CardinalityAggregationBuilder.REGISTRY_KEY,
+            List.of(CoreValuesSourceType.GEOPOINT, CoreValuesSourceType.RANGE),
+            BytesCardinalityAggregator::new,
+            true
+        );
+        builder.register(
+            CardinalityAggregationBuilder.REGISTRY_KEY,
+            List.of(CoreValuesSourceType.KEYWORD, CoreValuesSourceType.IP),
             (name, valuesSourceConfig, precision, context, parent, metadata) -> {
                 // check global ords
                 if (valuesSourceConfig.hasValues()) {
-                    final ValuesSource valuesSource = valuesSourceConfig.getValuesSource();
-                    if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals) {
-                        final ValuesSource.Bytes.WithOrdinals source = (ValuesSource.Bytes.WithOrdinals) valuesSource;
+                    if (valuesSourceConfig.getValuesSource()instanceof final ValuesSource.Bytes.WithOrdinals source) {
                         if (useGlobalOrds(context, source, precision)) {
                             final long maxOrd = source.globalMaxOrd(context.searcher());
-                            return new GlobalOrdCardinalityAggregator(name, source, precision, Math.toIntExact(maxOrd),
-                                context, parent, metadata);
+                            return new GlobalOrdCardinalityAggregator(
+                                name,
+                                source,
+                                precision,
+                                Math.toIntExact(maxOrd),
+                                context,
+                                parent,
+                                metadata
+                            );
                         }
+                        // fallback in the default aggregator
+                        return new SegmentOrdinalsCardinalityAggregator(name, valuesSourceConfig, precision, context, parent, metadata);
                     }
                 }
-                // fallback in the default aggregator
-                return new CardinalityAggregator(name, valuesSourceConfig, precision, context, parent, metadata);
-            }, true);
+                // If we don't have ordinals, don't try to use an ordinals collector
+                return new BytesCardinalityAggregator(name, valuesSourceConfig, precision, context, parent, metadata);
+            },
+            true
+        );
     }
 
-    private static boolean useGlobalOrds(AggregationContext context,
-                                         ValuesSource.Bytes.WithOrdinals source,
-                                         int precision) throws IOException {
+    private static boolean useGlobalOrds(AggregationContext context, ValuesSource.Bytes.WithOrdinals source, int precision)
+        throws IOException {
         final List<LeafReaderContext> leaves = context.searcher().getIndexReader().leaves();
         // we compute the total number of terms across all segments
         long total = 0;
@@ -81,21 +107,23 @@ class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory {
 
     @Override
     protected Aggregator createUnmapped(Aggregator parent, Map<String, Object> metadata) throws IOException {
-        return new CardinalityAggregator(name, config, precision(), context, parent, metadata);
+        return new CardinalityAggregator(name, config, precision(), context, parent, metadata) {
+            @Override
+            public LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException {
+                return new EmptyCollector();
+            }
+        };
     }
 
     @Override
-    protected Aggregator doCreateInternal(
-        Aggregator parent,
-        CardinalityUpperBound cardinality,
-        Map<String, Object> metadata
-    ) throws IOException {
+    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException {
         return aggregatorSupplier.build(name, config, precision(), context, parent, metadata);
     }
 
     private int precision() {
         return precisionThreshold == null
-                ? HyperLogLogPlusPlus.DEFAULT_PRECISION
-                : HyperLogLogPlusPlus.precisionFromThreshold(precisionThreshold);
+            ? HyperLogLogPlusPlus.DEFAULT_PRECISION
+            : HyperLogLogPlusPlus.precisionFromThreshold(precisionThreshold);
     }
 }

@@ -1,0 +1,8 @@
+---
+"Get Features":
+  - skip:
+      features: contains
+      version: " - 7.11.99"
+      reason: "This API was added in 7.12.0"
+  - do: { features.get_features: {}}
+  - contains: {'features': {'name': 'tasks'}}

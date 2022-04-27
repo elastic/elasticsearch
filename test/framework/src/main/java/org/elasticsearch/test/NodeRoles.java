@@ -38,9 +38,7 @@ public class NodeRoles {
     public static Settings onlyRoles(final Settings settings, final Set<DiscoveryNodeRole> roles) {
         return Settings.builder()
             .put(settings)
-            .putList(
-                NodeRoleSettings.NODE_ROLES_SETTING.getKey(),
-                roles.stream().map(DiscoveryNodeRole::roleName).collect(Collectors.toUnmodifiableList()))
+            .putList(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), roles.stream().map(DiscoveryNodeRole::roleName).toList())
             .build();
     }
 
@@ -56,7 +54,7 @@ public class NodeRoles {
                 .stream()
                 .filter(Predicate.not(roles::contains))
                 .map(DiscoveryNodeRole::roleName)
-                .collect(Collectors.toUnmodifiableList())
+                .toList()
         );
         return builder.build();
     }
@@ -72,7 +70,7 @@ public class NodeRoles {
             Stream.concat(NodeRoleSettings.NODE_ROLES_SETTING.get(settings).stream(), roles.stream())
                 .map(DiscoveryNodeRole::roleName)
                 .distinct()
-                .collect(Collectors.toUnmodifiableList())
+                .toList()
         );
         return builder.build();
     }
@@ -106,7 +104,11 @@ public class NodeRoles {
     }
 
     public static Settings nonDataNode(final Settings settings) {
-        return removeRoles(settings, Set.of(DiscoveryNodeRole.DATA_ROLE));
+        final Set<DiscoveryNodeRole> dataRoles = DiscoveryNodeRole.roles()
+            .stream()
+            .filter(DiscoveryNodeRole::canContainData)
+            .collect(Collectors.toUnmodifiableSet());
+        return removeRoles(settings, dataRoles);
     }
 
     public static Settings ingestNode() {

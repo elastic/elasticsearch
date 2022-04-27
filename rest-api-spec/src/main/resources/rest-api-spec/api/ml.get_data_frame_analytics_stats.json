@@ -1,0 +1,59 @@
+{
+  "ml.get_data_frame_analytics_stats":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/get-dfanalytics-stats.html",
+      "description":"Retrieves usage information for data frame analytics jobs."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/data_frame/analytics/_stats",
+          "methods":[
+            "GET"
+          ]
+        },
+        {
+          "path":"/_ml/data_frame/analytics/{id}/_stats",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "id":{
+              "type":"string",
+              "description":"The ID of the data frame analytics stats to fetch"
+            }
+          }
+        }
+      ]
+    },
+    "params":{
+      "allow_no_match":{
+        "type":"boolean",
+        "required":false,
+        "description":"Whether to ignore if a wildcard expression matches no data frame analytics. (This includes `_all` string or when no data frame analytics have been specified)",
+        "default":true
+      },
+      "from":{
+        "type":"int",
+        "description":"skips a number of analytics",
+        "default":0
+      },
+      "size":{
+        "type":"int",
+        "description":"specifies a max number of analytics to get",
+        "default":100
+      },
+      "verbose":{
+        "type":"boolean",
+        "required":false,
+        "description":"whether the stats response should be verbose",
+        "default":false
+      }
+    }
+  }
+}

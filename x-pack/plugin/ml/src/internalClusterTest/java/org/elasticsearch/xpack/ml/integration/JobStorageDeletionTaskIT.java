@@ -8,9 +8,8 @@ package org.elasticsearch.xpack.ml.integration;
 
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.OriginSettingClient;
+import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -18,8 +17,8 @@ import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -35,7 +34,6 @@ import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.job.persistence.BucketsQueryBuilder;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsProvider;
-import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
 import org.junit.Before;
@@ -62,21 +60,26 @@ public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
 
     @Before
     public void createComponents() {
-        Settings settings = nodeSettings(0);
+        Settings settings = nodeSettings(0, Settings.EMPTY);
         ThreadPool tp = mockThreadPool();
-        ClusterSettings clusterSettings = new ClusterSettings(settings,
-            new HashSet<>(Arrays.asList(InferenceProcessor.MAX_INFERENCE_PROCESSORS,
-                MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
-                ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
-                OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
-                ClusterService.USER_DEFINED_METADATA,
-                ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING)));
+        ClusterSettings clusterSettings = new ClusterSettings(
+            settings,
+            new HashSet<>(
+                Arrays.asList(
+                    InferenceProcessor.MAX_INFERENCE_PROCESSORS,
+                    MasterService.MASTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
+                    ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
+                    OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
+                    ClusterService.USER_DEFINED_METADATA,
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING
+                )
+            )
+        );
         ClusterService clusterService = new ClusterService(settings, clusterSettings, tp);
         OriginSettingClient originSettingClient = new OriginSettingClient(client(), ClientHelper.ML_ORIGIN);
         ResultsPersisterService resultsPersisterService = new ResultsPersisterService(tp, originSettingClient, clusterService, settings);
-        jobResultsProvider = new JobResultsProvider(client(), settings, new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY)));
-        jobResultsPersister = new JobResultsPersister(
-            originSettingClient, resultsPersisterService, new AnomalyDetectionAuditor(client(), clusterService));
+        jobResultsProvider = new JobResultsProvider(client(), settings, TestIndexNameExpressionResolver.newInstance());
+        jobResultsPersister = new JobResultsPersister(originSettingClient, resultsPersisterService);
     }
 
     public void testUnrelatedIndexNotTouched() throws Exception {
@@ -125,24 +128,26 @@ public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
         createBuckets(jobIdShared, 1, 10);
 
         // Manually switching over alias info
-        IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest()
-            .addAliasAction(IndicesAliasesRequest.AliasActions
-                .add()
+        IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest().addAliasAction(
+            IndicesAliasesRequest.AliasActions.add()
                 .alias(AnomalyDetectorsIndex.jobResultsAliasedName(jobIdDedicated))
                 .isHidden(true)
                 .index(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared")
                 .writeIndex(false)
-                .filter(QueryBuilders.boolQuery().filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobIdDedicated))))
-            .addAliasAction(IndicesAliasesRequest.AliasActions
-                .add()
-                .alias(AnomalyDetectorsIndex.resultsWriteAlias(jobIdDedicated))
-                .index(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared")
-                .isHidden(true)
-                .writeIndex(true))
-            .addAliasAction(IndicesAliasesRequest.AliasActions
-                .remove()
-                .alias(AnomalyDetectorsIndex.resultsWriteAlias(jobIdDedicated))
-                .index(dedicatedIndex));
+                .filter(QueryBuilders.boolQuery().filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobIdDedicated)))
+        )
+            .addAliasAction(
+                IndicesAliasesRequest.AliasActions.add()
+                    .alias(AnomalyDetectorsIndex.resultsWriteAlias(jobIdDedicated))
+                    .index(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "shared")
+                    .isHidden(true)
+                    .writeIndex(true)
+            )
+            .addAliasAction(
+                IndicesAliasesRequest.AliasActions.remove()
+                    .alias(AnomalyDetectorsIndex.resultsWriteAlias(jobIdDedicated))
+                    .index(dedicatedIndex)
+            );
 
         client().admin().indices().aliases(aliasesRequest).actionGet();
 
@@ -150,11 +155,17 @@ public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
         client().admin().indices().prepareRefresh(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*").get();
         AtomicReference<QueryPage<Bucket>> bucketHandler = new AtomicReference<>();
         AtomicReference<Exception> failureHandler = new AtomicReference<>();
-        blockingCall(listener ->  jobResultsProvider.buckets(jobIdDedicated,
-            new BucketsQueryBuilder().from(0).size(22),
-            listener::onResponse,
-            listener::onFailure,
-            client()), bucketHandler, failureHandler);
+        blockingCall(
+            listener -> jobResultsProvider.buckets(
+                jobIdDedicated,
+                new BucketsQueryBuilder().from(0).size(22),
+                listener::onResponse,
+                listener::onFailure,
+                client()
+            ),
+            bucketHandler,
+            failureHandler
+        );
         assertThat(failureHandler.get(), is(nullValue()));
         assertThat(bucketHandler.get().count(), equalTo(22L));
 
@@ -166,35 +177,48 @@ public class JobStorageDeletionTaskIT extends BaseMlIntegTestCase {
         // Make sure our shared index job is OK
         bucketHandler = new AtomicReference<>();
         failureHandler = new AtomicReference<>();
-        blockingCall(listener ->  jobResultsProvider.buckets(jobIdShared,
-            new BucketsQueryBuilder().from(0).size(21),
-            listener::onResponse,
-            listener::onFailure,
-            client()), bucketHandler, failureHandler);
+        blockingCall(
+            listener -> jobResultsProvider.buckets(
+                jobIdShared,
+                new BucketsQueryBuilder().from(0).size(21),
+                listener::onResponse,
+                listener::onFailure,
+                client()
+            ),
+            bucketHandler,
+            failureHandler
+        );
         assertThat(failureHandler.get(), is(nullValue()));
         assertThat(bucketHandler.get().count(), equalTo(11L));
 
         // Make sure dedicated index is gone
-        assertThat(client().admin()
-            .indices()
-            .prepareGetIndex()
-            .setIndices(dedicatedIndex)
-            .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
-            .get()
-            .indices().length, equalTo(0));
+        assertThat(
+            client().admin()
+                .indices()
+                .prepareGetIndex()
+                .setIndices(dedicatedIndex)
+                .setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
+                .get()
+                .indices().length,
+            equalTo(0)
+        );
 
         // Make sure all results referencing the dedicated job are gone
-        assertThat(client().prepareSearch()
-            .setIndices(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*")
-            .setIndicesOptions(IndicesOptions.lenientExpandOpenHidden())
-            .setTrackTotalHits(true)
-            .setSize(0)
-            .setSource(SearchSourceBuilder.searchSource()
-                .query(QueryBuilders.boolQuery().filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobIdDedicated))))
-            .get()
-            .getHits()
-            .getTotalHits()
-            .value, equalTo(0L));
+        assertThat(
+            client().prepareSearch()
+                .setIndices(AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*")
+                .setIndicesOptions(IndicesOptions.lenientExpandOpenHidden())
+                .setTrackTotalHits(true)
+                .setSize(0)
+                .setSource(
+                    SearchSourceBuilder.searchSource()
+                        .query(QueryBuilders.boolQuery().filter(QueryBuilders.termQuery(Job.ID.getPreferredName(), jobIdDedicated)))
+                )
+                .get()
+                .getHits()
+                .getTotalHits().value,
+            equalTo(0L)
+        );
     }
 
     private void createBuckets(String jobId, int from, int count) {

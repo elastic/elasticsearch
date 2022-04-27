@@ -4,99 +4,158 @@
 <titleabbrev>Script</titleabbrev>
 ++++
 
-Allows inline and stored scripts to be executed within ingest pipelines.
+Runs an inline or stored <<modules-scripting,script>> on incoming documents. The
+script runs in the {painless}/painless-ingest-processor-context.html[`ingest`]
+context.
 
-See <<modules-scripting-using, How to use scripts>> to learn more about writing scripts. The Script Processor
-leverages caching of compiled scripts for improved performance. Since the
-script specified within the processor is potentially re-compiled per document, it is important
-to understand how script caching works. To learn more about
-caching see <<modules-scripting-using-caching, Script Caching>>.
+The script processor uses the <<scripts-and-search-speed,script cache>> to avoid
+recompiling the script for each incoming document. To improve performance,
+ensure the script cache is properly sized before using a script processor in
+production.
 
 [[script-options]]
-.Script Options
+.Script options
 [options="header"]
 |======
-| Name                   | Required  | Default    | Description
-| `lang`                 | no        | "painless" | The scripting language
-| `id`                   | no        | -          | The stored script id to refer to
-| `source`               | no        | -          | An inline script to be executed
-| `params`               | no        | -          | Script Parameters
+| Name        | Required  | Default    | Description
+| `lang`      | no        | "painless" | <<scripting-available-languages,Script language>>.
+| `id`        | no        | -          | ID of a <<create-stored-script-api,stored script>>.
+                                         If no `source` is specified, this parameter is required.
+| `source`    | no        | -          | Inline script.
+                                         If no `id` is specified, this parameter is required.
+| `params`    | no        | -          | Object containing parameters for the script.
 include::common-options.asciidoc[]
 |======
 
-One of `id` or `source` options must be provided in order to properly reference a script to execute.
+[discrete]
+[[script-processor-access-source-fields]]
+==== Access source fields
 
-You can access the current ingest document from within the script context by using the `ctx` variable.
+The script processor parses each incoming document's JSON source fields into a
+set of maps, lists, and primitives. To access these fields with a Painless
+script, use the
+{painless}/painless-operators-reference.html#map-access-operator[map access
+operator]: `ctx['my-field']`. You can also use the shorthand `ctx.<my-field>`
+syntax.
 
-The following example sets a new field called `field_a_plus_b_times_c` to be the sum of two existing
-numeric fields `field_a` and `field_b` multiplied by the parameter param_c:
+NOTE: The script processor does not support the `ctx['_source']['my-field']` or
+`ctx._source.<my-field>` syntaxes.
 
-[source,js]
---------------------------------------------------
-{
-  "script": {
-    "lang": "painless",
-    "source": "ctx.field_a_plus_b_times_c = (ctx.field_a + ctx.field_b) * params.param_c",
-    "params": {
-      "param_c": 10
-    }
-  }
-}
---------------------------------------------------
-// NOTCONSOLE
-
-It is possible to use the Script Processor to manipulate document metadata like `_index` during
-ingestion. Here is an example of an Ingest Pipeline that renames the index to `my-index` no matter what
-was provided in the original index request:
+The following processor uses a Painless script to extract the `tags` field from
+the `env` source field.
 
 [source,console]
---------------------------------------------------
-PUT _ingest/pipeline/my-index
+----
+POST _ingest/pipeline/_simulate
 {
-  "description": "use index:my-index",
-  "processors": [
+  "pipeline": {
+    "processors": [
+      {
+        "script": {
+          "description": "Extract 'tags' from 'env' field",
+          "lang": "painless",
+          "source": """
+            String[] envSplit = ctx['env'].splitOnToken(params['delimiter']);
+            ArrayList tags = new ArrayList();
+            tags.add(envSplit[params['position']].trim());
+            ctx['tags'] = tags;
+          """,
+          "params": {
+            "delimiter": "-",
+            "position": 1
+          }
+        }
+      }
+    ]
+  },
+  "docs": [
     {
-      "script": {
-        "source": """
-          ctx._index = 'my-index';
-        """
+      "_source": {
+        "env": "es01-prod"
       }
     }
   ]
 }
---------------------------------------------------
+----
 
-Using the above pipeline, we can attempt to index a document into the `any-index` index.
-
-[source,console]
---------------------------------------------------
-PUT any-index/_doc/1?pipeline=my-index
-{
-  "message": "text"
-}
---------------------------------------------------
-// TEST[continued]
-
-The response from the above index request:
+The processor produces:
 
 [source,console-result]
---------------------------------------------------
+----
 {
-  "_index": "my-index",
-  "_id": "1",
-  "_version": 1,
-  "result": "created",
-  "_shards": {
-    "total": 2,
-    "successful": 1,
-    "failed": 0
-  },
-  "_seq_no": 89,
-  "_primary_term": 1,
+  "docs": [
+    {
+      "doc": {
+        ...
+        "_source": {
+          "env": "es01-prod",
+          "tags": [
+            "prod"
+          ]
+        }
+      }
+    }
+  ]
 }
---------------------------------------------------
-// TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
+----
+// TESTRESPONSE[s/\.\.\./"_index":"_index","_id":"_id","_ingest":{"timestamp":$body.docs.0.doc._ingest.timestamp},/]
 
-In the above response, you can see that our document was actually indexed into `my-index` instead of
-`any-index`. This type of manipulation is often convenient in pipelines that have various branches of transformation,
-and depending on the progress made, indexed into different indices.
+
+[discrete]
+[[script-processor-access-metadata-fields]]
+==== Access metadata fields
+
+You can also use a script processor to access metadata fields. The following
+processor uses a Painless script to set an incoming document's `_index`.
+
+[source,console]
+----
+POST _ingest/pipeline/_simulate
+{
+  "pipeline": {
+    "processors": [
+      {
+        "script": {
+          "description": "Set index based on `lang` field and `dataset` param",
+          "lang": "painless",
+          "source": """
+            ctx['_index'] = ctx['lang'] + '-' + params['dataset'];
+          """,
+          "params": {
+            "dataset": "catalog"
+          }
+        }
+      }
+    ]
+  },
+  "docs": [
+    {
+      "_index": "generic-index",
+      "_source": {
+        "lang": "fr"
+      }
+    }
+  ]
+}
+----
+
+The processor changes the document's `_index` to `fr-catalog` from
+`generic-index`.
+
+[source,console-result]
+----
+{
+  "docs": [
+    {
+      "doc": {
+        ...
+        "_index": "fr-catalog",
+        "_source": {
+          "lang": "fr"
+        }
+      }
+    }
+  ]
+}
+----
+// TESTRESPONSE[s/\.\.\./"_id":"_id","_ingest":{"timestamp":$body.docs.0.doc._ingest.timestamp},/]

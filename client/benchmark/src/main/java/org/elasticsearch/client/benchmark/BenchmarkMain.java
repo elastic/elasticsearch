@@ -8,7 +8,7 @@
 package org.elasticsearch.client.benchmark;
 
 import org.elasticsearch.client.benchmark.rest.RestClientBenchmark;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.util.Arrays;
 
@@ -16,15 +16,14 @@ public class BenchmarkMain {
     @SuppressForbidden(reason = "system out is ok for a command line tool")
     public static void main(String[] args) throws Exception {
         String type = args[0];
-        AbstractBenchmark<?> benchmark = null;
-        switch (type) {
-            case "rest":
-                benchmark = new RestClientBenchmark();
-                break;
-            default:
+        AbstractBenchmark<?> benchmark = switch (type) {
+            case "rest" -> new RestClientBenchmark();
+            default -> {
                 System.err.println("Unknown client type [" + type + "]");
                 System.exit(1);
-        }
+                yield null;
+            }
+        };
         benchmark.run(Arrays.copyOfRange(args, 1, args.length));
     }
 }

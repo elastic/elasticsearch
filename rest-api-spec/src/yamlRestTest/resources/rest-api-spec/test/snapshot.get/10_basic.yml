@@ -1,0 +1,268 @@
+---
+setup:
+
+  - do:
+      snapshot.create_repository:
+        repository: test_repo_get_1
+        body:
+          type: fs
+          settings:
+            location: "test_repo_get_1_loc"
+
+---
+"Get snapshot info":
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 0
+
+  - do:
+      snapshot.create:
+        repository: test_repo_get_1
+        snapshot: test_snapshot
+        wait_for_completion: true
+
+  - do:
+      snapshot.get:
+        repository: test_repo_get_1
+        snapshot: test_snapshot
+
+  - is_true: snapshots
+  - is_true: snapshots.0.failures
+
+  - do:
+      snapshot.delete:
+        repository: test_repo_get_1
+        snapshot: test_snapshot
+
+---
+"Get missing snapshot info throws an exception":
+
+  - do:
+      catch: /snapshot_missing_exception.+ is missing/
+      snapshot.get:
+        repository: test_repo_get_1
+        snapshot: test_nonexistent_snapshot
+
+---
+"Get missing snapshot info succeeds when ignore_unavailable is true":
+
+  - do:
+      snapshot.get:
+        repository: test_repo_get_1
+        snapshot: test_nonexistent_snapshot
+        ignore_unavailable: true
+
+  - is_true: snapshots
+
+---
+"Get snapshot info when verbose is false":
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 0
+
+  - do:
+      snapshot.create:
+        repository: test_repo_get_1
+        snapshot: test_snapshot
+        wait_for_completion: true
+
+  - do:
+      snapshot.get:
+        repository: test_repo_get_1
+        snapshot: test_snapshot
+        verbose: false
+
+  - is_true: snapshots
+  - match: { snapshots.0.snapshot: test_snapshot }
+  - match: { snapshots.0.state: SUCCESS }
+  - is_false: snapshots.0.failures
+  - is_false: snapshots.0.shards
+  - is_false: snapshots.0.version
+  - is_false: snapshots.0._meta
+
+  - do:
+      snapshot.delete:
+        repository: test_repo_get_1
+        snapshot: test_snapshot
+
+---
+"Get snapshot info contains include_global_state":
+  - skip:
+      version: " - 6.1.99"
+      reason: "include_global_state field has been added in the response in 6.2.0"
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 0
+
+  - do:
+      snapshot.create:
+        repository: test_repo_get_1
+        snapshot: test_snapshot_with_include_global_state
+        wait_for_completion: true
+        body: |
+          { "include_global_state": true }
+
+  - do:
+      snapshot.get:
+        repository: test_repo_get_1
+        snapshot: test_snapshot_with_include_global_state
+
+  - is_true: snapshots
+  - match: { snapshots.0.snapshot: test_snapshot_with_include_global_state }
+  - match: { snapshots.0.state: SUCCESS }
+  - match: { snapshots.0.include_global_state: true }
+
+  - do:
+      snapshot.delete:
+        repository: test_repo_get_1
+        snapshot: test_snapshot_with_include_global_state
+
+  - do:
+      snapshot.create:
+        repository: test_repo_get_1
+        snapshot: test_snapshot_without_include_global_state
+        wait_for_completion: true
+        body: |
+          { "include_global_state": false }
+
+  - do:
+      snapshot.get:
+        repository: test_repo_get_1
+        snapshot: test_snapshot_without_include_global_state
+
+  - is_true: snapshots
+  - match: { snapshots.0.snapshot: test_snapshot_without_include_global_state }
+  - match: { snapshots.0.state: SUCCESS }
+  - match: { snapshots.0.include_global_state: false }
+
+  - do:
+      snapshot.delete:
+        repository: test_repo_get_1
+        snapshot: test_snapshot_without_include_global_state
+
+---
+"Get snapshot info with metadata":
+  - skip:
+      version: " - 7.2.99"
+      reason: "Introduced with 7.3"
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 0
+
+  - do:
+      snapshot.create:
+        repository: test_repo_get_1
+        snapshot: test_snapshot_with_metadata
+        wait_for_completion: true
+        body: |
+          { "metadata": {"taken_by": "test", "foo": {"bar": "baz"}} }
+
+  - do:
+      snapshot.get:
+        repository: test_repo_get_1
+        snapshot: test_snapshot_with_metadata
+
+  - is_true: snapshots
+  - match: { snapshots.0.snapshot: test_snapshot_with_metadata }
+  - match: { snapshots.0.state: SUCCESS }
+  - match: { snapshots.0.metadata.taken_by: test }
+  - match: { snapshots.0.metadata.foo.bar: baz }
+  - is_false: snapshots.0.index_details
+
+  - do:
+      snapshot.delete:
+        repository: test_repo_get_1
+        snapshot: test_snapshot_with_metadata
+
+---
+"Get snapshot info with index details":
+  - skip:
+      version: " - 7.12.99"
+      reason: "Introduced in 7.13.0"
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 0
+
+  - do:
+      snapshot.create:
+        repository: test_repo_get_1
+        snapshot: test_snapshot_with_index_details
+        wait_for_completion: true
+
+  - do:
+      snapshot.get:
+        repository: test_repo_get_1
+        snapshot: test_snapshot_with_index_details
+        index_details: true
+        human: true
+
+  - is_true: snapshots
+  - match: { snapshots.0.snapshot: test_snapshot_with_index_details }
+  - match: { snapshots.0.state: SUCCESS }
+  - gt:  { snapshots.0.index_details.test_index.shard_count: 0 }
+  - gt:  { snapshots.0.index_details.test_index.size_in_bytes: 0 }
+  - gte: { snapshots.0.index_details.test_index.max_segments_per_shard: 0 }
+  - is_true: snapshots.0.index_details.test_index.size
+
+  - do:
+      snapshot.delete:
+        repository: test_repo_get_1
+        snapshot: test_snapshot_with_index_details
+
+---
+"Get snapshot info without repository names":
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_shards:   1
+            number_of_replicas: 0
+
+  - do:
+      snapshot.create:
+        repository: test_repo_get_1
+        snapshot: test_snapshot_no_repo_name
+        wait_for_completion: true
+
+  - do:
+      snapshot.get:
+        repository: test_repo_get_1
+        snapshot: test_snapshot_no_repo_name
+        include_repository: false
+        human: true
+
+  - is_true: snapshots
+  - match: { snapshots.0.snapshot: test_snapshot_no_repo_name }
+  - match: { snapshots.0.state: SUCCESS }
+  - is_false: snapshots.0.repository
+
+  - do:
+      snapshot.delete:
+        repository: test_repo_get_1
+        snapshot: test_snapshot_no_repo_name

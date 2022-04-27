@@ -13,20 +13,20 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParseException;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.alias.RandomAliasActionsGenerator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParseException;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.index.alias.RandomAliasActionsGenerator.randomAliasAction;
-import static org.elasticsearch.index.alias.RandomAliasActionsGenerator.randomMap;
 import static org.elasticsearch.index.alias.RandomAliasActionsGenerator.randomRouting;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -41,8 +41,10 @@ public class AliasActionsTests extends ESTestCase {
             Exception e = expectThrows(IllegalArgumentException.class, () -> new AliasActions(type).validate());
             assertEquals("One of [index] or [indices] is required", e.getMessage());
         } else {
-            Exception e = expectThrows(IllegalArgumentException.class,
-                    () -> new AliasActions(type).alias(randomAlphaOfLength(5)).validate());
+            Exception e = expectThrows(
+                IllegalArgumentException.class,
+                () -> new AliasActions(type).alias(randomAlphaOfLength(5)).validate()
+            );
             assertEquals("One of [index] or [indices] is required", e.getMessage());
             e = expectThrows(IllegalArgumentException.class, () -> new AliasActions(type).index(randomAlphaOfLength(5)).validate());
             assertEquals("One of [alias] or [aliases] is required", e.getMessage());
@@ -50,22 +52,32 @@ public class AliasActionsTests extends ESTestCase {
     }
 
     public void testEmptyIndex() {
-        Exception e = expectThrows(IllegalArgumentException.class,
-                () -> new AliasActions(randomFrom(AliasActions.Type.values())).index(null));
+        Exception e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new AliasActions(randomFrom(AliasActions.Type.values())).index(null)
+        );
         assertEquals("[index] can't be empty string", e.getMessage());
         e = expectThrows(IllegalArgumentException.class, () -> new AliasActions(randomFrom(AliasActions.Type.values())).index(""));
         assertEquals("[index] can't be empty string", e.getMessage());
-        e = expectThrows(IllegalArgumentException.class,
-                () -> new AliasActions(randomFrom(AliasActions.Type.values())).indices((String[]) null));
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new AliasActions(randomFrom(AliasActions.Type.values())).indices((String[]) null)
+        );
         assertEquals("[indices] can't be empty", e.getMessage());
-        e = expectThrows(IllegalArgumentException.class,
-                () -> new AliasActions(randomFrom(AliasActions.Type.values())).indices(new String[0]));
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new AliasActions(randomFrom(AliasActions.Type.values())).indices(new String[0])
+        );
         assertEquals("[indices] can't be empty", e.getMessage());
-        e = expectThrows(IllegalArgumentException.class,
-                () -> new AliasActions(randomFrom(AliasActions.Type.values())).indices("test", null));
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new AliasActions(randomFrom(AliasActions.Type.values())).indices("test", null)
+        );
         assertEquals("[indices] can't contain empty string", e.getMessage());
-        e = expectThrows(IllegalArgumentException.class,
-                () -> new AliasActions(randomFrom(AliasActions.Type.values())).indices("test", ""));
+        e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new AliasActions(randomFrom(AliasActions.Type.values())).indices("test", "")
+        );
         assertEquals("[indices] can't contain empty string", e.getMessage());
     }
 
@@ -111,7 +123,7 @@ public class AliasActionsTests extends ESTestCase {
     public void testParseAdd() throws IOException {
         String[] indices = generateRandomStringArray(10, 5, false, false);
         String[] aliases = generateRandomStringArray(10, 5, false, false);
-        Map<String, Object> filter = randomBoolean() ? randomMap(5) : null;
+        Map<String, Object> filter = randomBoolean() ? RandomAliasActionsGenerator.randomMap(5) : null;
         Object searchRouting = randomBoolean() ? randomRouting() : null;
         Object indexRouting = randomBoolean() ? randomBoolean() ? searchRouting : randomRouting() : null;
         boolean writeIndex = randomBoolean();

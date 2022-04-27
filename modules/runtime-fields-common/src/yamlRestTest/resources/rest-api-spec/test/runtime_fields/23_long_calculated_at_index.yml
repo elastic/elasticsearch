@@ -1,0 +1,152 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: sensor
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            properties:
+              timestamp:
+                type: date
+              temperature:
+                type: long
+              voltage:
+                type: double
+              node:
+                type: keyword
+              voltage_times_ten:
+                type: long
+                script:
+                  source: |
+                   for (double v : doc['voltage']) {
+                     emit((long)(v * params.multiplier));
+                   }
+                  params:
+                    multiplier: 10
+              voltage_times_ten_no_dv:
+                type: long
+                doc_values: false
+                script:
+                  source: |
+                    for (double v : doc['voltage']) {
+                      emit((long)(v * params.multiplier));
+                    }
+                  params:
+                    multiplier: 10
+              # test multiple values
+              temperature_digits:
+                type: long
+                script:
+                  source: |
+                    for (long temperature : doc['temperature']) {
+                      long t = temperature;
+                      while (t != 0) {
+                        emit(t % 10);
+                        t /= 10;
+                      }
+                    }
+
+  - do:
+      bulk:
+        index: sensor
+        refresh: true
+        body: |
+          {"index":{}}
+          {"timestamp": 1516729294000, "temperature": 200, "voltage": 5.2, "node": "a"}
+          {"index":{}}
+          {"timestamp": 1516642894000, "temperature": 201, "voltage": 5.8, "node": "b"}
+          {"index":{}}
+          {"timestamp": 1516556494000, "temperature": 202, "voltage": 5.1, "node": "a"}
+          {"index":{}}
+          {"timestamp": 1516470094000, "temperature": 198, "voltage": 5.6, "node": "b"}
+          {"index":{}}
+          {"timestamp": 1516383694000, "temperature": 200, "voltage": 4.2, "node": "c"}
+          {"index":{}}
+          {"timestamp": 1516297294000, "temperature": 202, "voltage": 4.0, "node": "c"}
+
+---
+"get mapping":
+  - do:
+      indices.get_mapping:
+        index: sensor
+  - match: {sensor.mappings.properties.voltage_times_ten.type: long }
+  - match:
+      sensor.mappings.properties.voltage_times_ten.script.source: |
+        for (double v : doc['voltage']) {
+          emit((long)(v * params.multiplier));
+        }
+  - match: {sensor.mappings.properties.voltage_times_ten.script.params: {multiplier: 10} }
+  - match: {sensor.mappings.properties.voltage_times_ten.script.lang: painless }
+
+---
+"fetch fields":
+  - do:
+      search:
+        index: sensor
+        body:
+          sort: timestamp
+          fields:
+            - voltage_times_ten
+            - voltage_times_ten_no_dv
+            - temperature_digits
+  - match: {hits.total.value: 6}
+  - match: {hits.hits.0.fields.voltage_times_ten: [40] }
+  - match: {hits.hits.0.fields.temperature_digits: [2, 0, 2] }
+  - match: {hits.hits.0.fields.voltage_times_ten: [40] }
+  - match: {hits.hits.0.fields.voltage_times_ten_no_dv: [40] }
+  - match: {hits.hits.1.fields.voltage_times_ten: [42] }
+  - match: {hits.hits.2.fields.voltage_times_ten: [56] }
+  - match: {hits.hits.3.fields.voltage_times_ten: [51] }
+  - match: {hits.hits.4.fields.voltage_times_ten: [58] }
+  - match: {hits.hits.5.fields.voltage_times_ten: [52] }
+
+---
+"docvalue_fields":
+  - do:
+      search:
+        index: sensor
+        body:
+          sort: timestamp
+          docvalue_fields:
+            - voltage_times_ten
+            - temperature_digits
+  - match: {hits.total.value: 6}
+  - match: {hits.hits.0.fields.voltage_times_ten: [40] }
+  - match: {hits.hits.0.fields.temperature_digits: [0, 2, 2] }
+  - match: {hits.hits.0.fields.voltage_times_ten: [40] }
+  - match: {hits.hits.1.fields.voltage_times_ten: [42] }
+  - match: {hits.hits.2.fields.voltage_times_ten: [56] }
+  - match: {hits.hits.3.fields.voltage_times_ten: [51] }
+  - match: {hits.hits.4.fields.voltage_times_ten: [58] }
+  - match: {hits.hits.5.fields.voltage_times_ten: [52] }
+
+---
+"terms agg":
+  - do:
+      search:
+        index: sensor
+        body:
+          aggs:
+            v10:
+              terms:
+                field: voltage_times_ten
+  - match: {hits.total.value: 6}
+  - match: {aggregations.v10.buckets.0.key: 40.0}
+  - match: {aggregations.v10.buckets.0.doc_count: 1}
+  - match: {aggregations.v10.buckets.1.key: 42.0}
+  - match: {aggregations.v10.buckets.1.doc_count: 1}
+
+---
+"term query":
+  - do:
+      search:
+        index: sensor
+        body:
+          query:
+            term:
+              voltage_times_ten: 58
+  - match: {hits.total.value: 1}
+  - match: {hits.hits.0._source.voltage: 5.8}

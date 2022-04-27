@@ -12,7 +12,7 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.BufferedInputStream;
@@ -75,8 +75,8 @@ class HttpClient {
 
     private HttpURLConnection createConnection(String url) throws IOException {
         HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
-        conn.setConnectTimeout(5000);
-        conn.setReadTimeout(5000);
+        conn.setConnectTimeout(10000);
+        conn.setReadTimeout(10000);
         conn.setDoOutput(false);
         conn.setInstanceFollowRedirects(false);
         return conn;

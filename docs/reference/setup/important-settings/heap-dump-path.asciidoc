@@ -1,6 +1,6 @@
 [[heap-dump-path]]
 [discrete]
-=== JVM heap dump path setting
+==== JVM heap dump path setting
 
 By default, {es} configures the JVM to dump the heap on out of
 memory exceptions to the default data directory. On <<rpm,RPM>> and
@@ -9,7 +9,7 @@ memory exceptions to the default data directory. On <<rpm,RPM>> and
 the `data` directory is located under the root of the {es} installation.
 
 If this path is not suitable for receiving heap dumps, modify the
-`-XX:HeapDumpPath=...` entry in <<jvm-options,`jvm.options`>>:
+`-XX:HeapDumpPath=...` entry in <<set-jvm-options,`jvm.options`>>:
 
 * If you specify a directory, the JVM will generate a filename for the heap
 dump based on the PID of the running instance.

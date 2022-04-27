@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authc;
 
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken;
 import org.junit.After;
 import org.junit.Before;
@@ -41,13 +42,13 @@ public class NativeRealmAuthIT extends SecurityRealmSmokeTestCase {
 
     public void testAuthenticationUsingNativeRealm() throws IOException {
         Map<String, Object> authenticate = super.authenticate(
-            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization",
-                UsernamePasswordToken.basicAuthHeaderValue(USERNAME, PASSWORD))
+            RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", UsernamePasswordToken.basicAuthHeaderValue(USERNAME, PASSWORD))
         );
 
         assertUsername(authenticate, USERNAME);
         assertRealm(authenticate, "native", "native1");
         assertRoles(authenticate, ROLE_NAME);
+        assertNoApiKeyInfo(authenticate, Authentication.AuthenticationType.REALM);
     }
 
 }

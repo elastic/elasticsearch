@@ -8,13 +8,13 @@
 package org.elasticsearch.docker.test;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.common.CharArrays;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
@@ -24,11 +24,8 @@ import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
-import java.nio.CharBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.Base64;
 
 public class DockerYmlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
@@ -47,8 +44,7 @@ public class DockerYmlTestSuiteIT extends ESClientYamlSuiteTestCase {
     @Override
     protected String getTestRestCluster() {
         String distribution = getDistribution();
-        return new StringBuilder()
-            .append("localhost:")
+        return new StringBuilder().append("localhost:")
             .append(getProperty("test.fixtures.elasticsearch-" + distribution + "-1.tcp.9200"))
             .append(",")
             .append("localhost:")
@@ -76,8 +72,10 @@ public class DockerYmlTestSuiteIT extends ESClientYamlSuiteTestCase {
     private String getProperty(String key) {
         String value = System.getProperty(key);
         if (value == null) {
-            throw new IllegalStateException("Could not find system properties from test.fixtures. " +
-                "This test expects to run with the elasticsearch.test.fixtures Gradle plugin");
+            throw new IllegalStateException(
+                "Could not find system properties from test.fixtures. "
+                    + "This test expects to run with the elasticsearch.test.fixtures Gradle plugin"
+            );
         }
         return value;
     }
@@ -108,7 +106,7 @@ public class DockerYmlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     @AfterClass
     public static void clearTrustedCert() {
-        trustedCertFile  = null;
+        trustedCertFile = null;
     }
 
     @Override
@@ -129,23 +127,5 @@ public class DockerYmlTestSuiteIT extends ESClientYamlSuiteTestCase {
             return "http";
         }
         return "https";
-    }
-
-    private static String basicAuthHeaderValue(String username, SecureString passwd) {
-        CharBuffer chars = CharBuffer.allocate(username.length() + passwd.length() + 1);
-        byte[] charBytes = null;
-        try {
-            chars.put(username).put(':').put(passwd.getChars());
-            charBytes = CharArrays.toUtf8Bytes(chars.array());
-
-            //TODO we still have passwords in Strings in headers. Maybe we can look into using a CharSequence?
-            String basicToken = Base64.getEncoder().encodeToString(charBytes);
-            return "Basic " + basicToken;
-        } finally {
-            Arrays.fill(chars.array(), (char) 0);
-            if (charBytes != null) {
-                Arrays.fill(charBytes, (byte) 0);
-            }
-        }
     }
 }

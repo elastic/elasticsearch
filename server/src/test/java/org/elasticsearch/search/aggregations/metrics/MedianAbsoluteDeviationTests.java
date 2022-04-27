@@ -12,8 +12,9 @@ public class MedianAbsoluteDeviationTests extends AbstractNumericMetricTestCase<
 
     @Override
     protected MedianAbsoluteDeviationAggregationBuilder doCreateTestAggregatorFactory() {
-        MedianAbsoluteDeviationAggregationBuilder builder =
-            new MedianAbsoluteDeviationAggregationBuilder(randomAlphaOfLengthBetween(1, 20));
+        MedianAbsoluteDeviationAggregationBuilder builder = new MedianAbsoluteDeviationAggregationBuilder(
+            randomAlphaOfLengthBetween(1, 20)
+        );
 
         if (randomBoolean()) {
             builder.compression(randomDoubleBetween(0, 1000.0, false));

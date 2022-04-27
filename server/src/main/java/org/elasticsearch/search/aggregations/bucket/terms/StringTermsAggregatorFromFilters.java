@@ -10,10 +10,9 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.common.CheckedFunction;
+import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AdaptingAggregator;
@@ -24,7 +23,7 @@ import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalOrder;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
-import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator;
+import org.elasticsearch.search.aggregations.bucket.filter.FilterByFilterAggregator;
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilters;
 import org.elasticsearch.search.aggregations.bucket.terms.GlobalOrdinalsStringTermsAggregator.OrdBucket;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregator.BucketCountThresholds;
@@ -68,18 +67,39 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
         if (false == valuesSourceConfig.alignesWithSearchIndex()) {
             return null;
         }
-        if (false == FiltersAggregator.canUseFilterByFilter(parent, factories, null)) {
-            return null;
-        }
-        List<String> keys = new ArrayList<>();
-        List<Query> filters = new ArrayList<>();
         TermsEnum terms = values.termsEnum();
+        FilterByFilterAggregator.AdapterBuilder<StringTermsAggregatorFromFilters> filterByFilterBuilder =
+            new FilterByFilterAggregator.AdapterBuilder<StringTermsAggregatorFromFilters>(
+                name,
+                false,
+                null,
+                context,
+                parent,
+                cardinality,
+                metadata
+            ) {
+                @Override
+                protected StringTermsAggregatorFromFilters adapt(
+                    CheckedFunction<AggregatorFactories, FilterByFilterAggregator, IOException> delegate
+                ) throws IOException {
+                    return new StringTermsAggregatorFromFilters(
+                        parent,
+                        factories,
+                        delegate,
+                        showTermDocCountError,
+                        valuesSourceConfig.format(),
+                        order,
+                        bucketCountThresholds,
+                        terms
+                    );
+                }
+            };
+        String field = valuesSourceConfig.fieldContext().field();
         for (long ord = 0; ord < values.getValueCount(); ord++) {
             if (acceptedOrds.test(ord) == false) {
                 continue;
             }
             terms.seekExact(ord);
-            keys.add(Long.toString(ord));
             /*
              * It *feels* like there should be a query that operates
              * directly on the global ordinals but there isn't. Building
@@ -88,34 +108,10 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
              * the segment ordinal to the global ordinal. You could
              * search the mapping to get it but, like I said, tricky.
              */
-            TermQueryBuilder b = new TermQueryBuilder(
-                valuesSourceConfig.fieldContext().field(),
-                valuesSourceConfig.format().format(terms.term())
-            );
-            filters.add(context.buildQuery(b));
+            TermQueryBuilder builder = new TermQueryBuilder(field, valuesSourceConfig.format().format(terms.term()));
+            filterByFilterBuilder.add(Long.toString(ord), context.buildQuery(builder));
         }
-        StringTermsAggregatorFromFilters adapted = new StringTermsAggregatorFromFilters(
-            parent,
-            factories,
-            subAggs -> FiltersAggregator.buildFilterByFilter(
-                name,
-                subAggs,
-                keys.toArray(String[]::new),
-                filters.toArray(Query[]::new),
-                false,
-                null,
-                context,
-                parent,
-                cardinality,
-                metadata
-            ),
-            showTermDocCountError,
-            valuesSourceConfig.format(),
-            order,
-            bucketCountThresholds,
-            terms
-        );
-        return adapted.delegate() == null ? null : adapted;
+        return filterByFilterBuilder.build();
     }
 
     private final boolean showTermDocCountError;
@@ -127,7 +123,7 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
     public StringTermsAggregatorFromFilters(
         Aggregator parent,
         AggregatorFactories subAggregators,
-        CheckedFunction<AggregatorFactories, Aggregator, IOException> delegate,
+        CheckedFunction<AggregatorFactories, FilterByFilterAggregator, IOException> delegate,
         boolean showTermDocCountError,
         DocValueFormat format,
         BucketOrder order,
@@ -148,6 +144,21 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
         List<StringTerms.Bucket> buckets;
         long otherDocsCount = 0;
         BucketOrder reduceOrder = isKeyOrder(order) ? order : InternalOrder.key(true);
+        /*
+         * We default to a shardMinDocCount of 0 which means we'd keep all
+         * hits, even those that don't have live documents or those that
+         * don't match any documents in the top level query. This is correct
+         * if the minDocCount is also 0, but if it is larger than 0 then we
+         * don't need to send those buckets back to the coordinating node.
+         * GlobalOrdinalsStringTermsAggregator doesn't collect those
+         * buckets either. It's a good thing, too, because if you take them
+         * into account when you sort by, say, key, you might throw away
+         * buckets with actual docs in them.
+         */
+        long minDocCount = bucketCountThresholds.getShardMinDocCount();
+        if (minDocCount == 0 && bucketCountThresholds.getMinDocCount() > 0) {
+            minDocCount = 1;
+        }
         if (filters.getBuckets().size() > bucketCountThresholds.getShardSize()) {
             PriorityQueue<OrdBucket> queue = new PriorityQueue<OrdBucket>(bucketCountThresholds.getShardSize()) {
                 private final Comparator<Bucket> comparator = order.comparator();
@@ -159,7 +170,7 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
             };
             OrdBucket spare = null;
             for (InternalFilters.InternalBucket b : filters.getBuckets()) {
-                if (b.getDocCount() < bucketCountThresholds.getShardMinDocCount()) {
+                if (b.getDocCount() < minDocCount) {
                     continue;
                 }
                 if (spare == null) {
@@ -197,7 +208,7 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
         } else {
             buckets = new ArrayList<>(filters.getBuckets().size());
             for (InternalFilters.InternalBucket b : filters.getBuckets()) {
-                if (b.getDocCount() < bucketCountThresholds.getShardMinDocCount()) {
+                if (b.getDocCount() < minDocCount) {
                     continue;
                 }
                 buckets.add(buildBucket(b));
@@ -216,7 +227,7 @@ public class StringTermsAggregatorFromFilters extends AdaptingAggregator {
             showTermDocCountError,
             otherDocsCount,
             buckets,
-            0
+            null
         );
     }
 

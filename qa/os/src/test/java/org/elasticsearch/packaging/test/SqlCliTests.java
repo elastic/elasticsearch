@@ -8,18 +8,11 @@
 
 package org.elasticsearch.packaging.test;
 
-import org.elasticsearch.packaging.util.Distribution;
 import org.elasticsearch.packaging.util.Shell;
-import org.junit.Before;
 
 import static org.hamcrest.CoreMatchers.containsString;
-import static org.junit.Assume.assumeTrue;
 
 public class SqlCliTests extends PackagingTestCase {
-    @Before
-    public void filterDistros() {
-        assumeTrue("only default distro", distribution.flavor == Distribution.Flavor.DEFAULT);
-    }
 
     public void test010Install() throws Exception {
         install();
@@ -27,6 +20,6 @@ public class SqlCliTests extends PackagingTestCase {
 
     public void test020Help() throws Exception {
         Shell.Result result = installation.executables().sqlCli.run("--help");
-        assertThat(result.stdout, containsString("Elasticsearch SQL CLI"));
+        assertThat(result.stdout(), containsString("Elasticsearch SQL CLI"));
     }
 }

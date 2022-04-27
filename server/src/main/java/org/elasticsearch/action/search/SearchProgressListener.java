@@ -20,7 +20,6 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 /**
@@ -29,7 +28,8 @@ import java.util.stream.StreamSupport;
 public abstract class SearchProgressListener {
     private static final Logger logger = LogManager.getLogger(SearchProgressListener.class);
 
-    public static final SearchProgressListener NOOP = new SearchProgressListener() {};
+    public static final SearchProgressListener NOOP = new SearchProgressListener() {
+    };
 
     private List<SearchShard> shards;
 
@@ -109,8 +109,10 @@ public abstract class SearchProgressListener {
         try {
             onQueryResult(shardIndex);
         } catch (Exception e) {
-            logger.warn(() -> new ParameterizedMessage("[{}] Failed to execute progress listener on query result",
-                shards.get(shardIndex)), e);
+            logger.warn(
+                () -> new ParameterizedMessage("[{}] Failed to execute progress listener on query result", shards.get(shardIndex)),
+                e
+            );
         }
     }
 
@@ -118,8 +120,10 @@ public abstract class SearchProgressListener {
         try {
             onQueryFailure(shardIndex, shardTarget, exc);
         } catch (Exception e) {
-            logger.warn(() -> new ParameterizedMessage("[{}] Failed to execute progress listener on query failure",
-                shards.get(shardIndex)), e);
+            logger.warn(
+                () -> new ParameterizedMessage("[{}] Failed to execute progress listener on query failure", shards.get(shardIndex)),
+                e
+            );
         }
     }
 
@@ -143,8 +147,10 @@ public abstract class SearchProgressListener {
         try {
             onFetchResult(shardIndex);
         } catch (Exception e) {
-            logger.warn(() -> new ParameterizedMessage("[{}] Failed to execute progress listener on fetch result",
-                shards.get(shardIndex)), e);
+            logger.warn(
+                () -> new ParameterizedMessage("[{}] Failed to execute progress listener on fetch result", shards.get(shardIndex)),
+                e
+            );
         }
     }
 
@@ -152,8 +158,10 @@ public abstract class SearchProgressListener {
         try {
             onFetchFailure(shardIndex, shardTarget, exc);
         } catch (Exception e) {
-            logger.warn(() -> new ParameterizedMessage("[{}] Failed to execute progress listener on fetch failure",
-                shards.get(shardIndex)), e);
+            logger.warn(
+                () -> new ParameterizedMessage("[{}] Failed to execute progress listener on fetch failure", shards.get(shardIndex)),
+                e
+            );
         }
     }
 
@@ -162,12 +170,10 @@ public abstract class SearchProgressListener {
             .filter(Objects::nonNull)
             .map(SearchPhaseResult::getSearchShardTarget)
             .map(e -> new SearchShard(e.getClusterAlias(), e.getShardId()))
-            .collect(Collectors.toUnmodifiableList());
+            .toList();
     }
 
     static List<SearchShard> buildSearchShards(GroupShardsIterator<SearchShardIterator> its) {
-        return StreamSupport.stream(its.spliterator(), false)
-            .map(e -> new SearchShard(e.getClusterAlias(), e.shardId()))
-            .collect(Collectors.toUnmodifiableList());
+        return StreamSupport.stream(its.spliterator(), false).map(e -> new SearchShard(e.getClusterAlias(), e.shardId())).toList();
     }
 }

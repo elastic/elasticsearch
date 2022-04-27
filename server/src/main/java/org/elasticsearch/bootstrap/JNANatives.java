@@ -14,17 +14,9 @@ import com.sun.jna.WString;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
-import org.elasticsearch.snapshots.SnapshotUtils;
 
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.lang.reflect.Field;
-import java.nio.file.Files;
 import java.nio.file.Path;
 
 import static org.elasticsearch.bootstrap.JNAKernel32Library.SizeT;
@@ -88,21 +80,23 @@ class JNANatives {
         }
 
         // mlockall failed for some reason
-        logger.warn("Unable to lock JVM Memory: error={}, reason={}", errno , errMsg);
+        logger.warn("Unable to lock JVM Memory: error={}, reason={}", errno, errMsg);
         logger.warn("This can result in part of the JVM being swapped out.");
         if (errno == JNACLibrary.ENOMEM) {
             if (rlimitSuccess) {
-                logger.warn("Increase RLIMIT_MEMLOCK, soft limit: {}, hard limit: {}", rlimitToString(softLimit),
-                    rlimitToString(hardLimit));
+                logger.warn(
+                    "Increase RLIMIT_MEMLOCK, soft limit: {}, hard limit: {}",
+                    rlimitToString(softLimit),
+                    rlimitToString(hardLimit)
+                );
                 if (Constants.LINUX) {
                     // give specific instructions for the linux case to make it easy
                     String user = System.getProperty("user.name");
-                    logger.warn("These can be adjusted by modifying /etc/security/limits.conf, for example: \n" +
-                                "\t# allow user '{}' mlockall\n" +
-                                "\t{} soft memlock unlimited\n" +
-                                "\t{} hard memlock unlimited",
-                                user, user, user
-                                );
+                    logger.warn("""
+                        These can be adjusted by modifying /etc/security/limits.conf, for example:
+                        \t# allow user '{}' mlockall
+                        \t{} soft memlock unlimited
+                        \t{} hard memlock unlimited""", user, user, user);
                     logger.warn("If you are logged in interactively, you will have to re-login for the new limits to take effect.");
                 }
             } else {
@@ -188,8 +182,8 @@ class JNANatives {
                 long address = 0;
                 while (kernel.VirtualQueryEx(process, new Pointer(address), memInfo, memInfo.size()) != 0) {
                     boolean lockable = memInfo.State.longValue() == JNAKernel32Library.MEM_COMMIT
-                            && (memInfo.Protect.longValue() & JNAKernel32Library.PAGE_NOACCESS) != JNAKernel32Library.PAGE_NOACCESS
-                            && (memInfo.Protect.longValue() & JNAKernel32Library.PAGE_GUARD) != JNAKernel32Library.PAGE_GUARD;
+                        && (memInfo.Protect.longValue() & JNAKernel32Library.PAGE_NOACCESS) != JNAKernel32Library.PAGE_NOACCESS
+                        && (memInfo.Protect.longValue() & JNAKernel32Library.PAGE_GUARD) != JNAKernel32Library.PAGE_GUARD;
                     if (lockable) {
                         kernel.VirtualLock(memInfo.BaseAddress, new SizeT(memInfo.RegionSize.longValue()));
                     }
@@ -269,39 +263,4 @@ class JNANatives {
         }
     }
 
-    @SuppressForbidden(reason = "need access to fd on FileOutputStream")
-    static void fallocateSnapshotCacheFile(Environment environment, long fileSize) throws IOException {
-        final JNAFalloc falloc = JNAFalloc.falloc();
-        if (falloc == null) {
-            logger.debug("not trying to create a shared cache file using fallocate because native fallocate library could not be loaded.");
-            return;
-        }
-
-        Path cacheFile = SnapshotUtils.findCacheSnapshotCacheFilePath(environment, fileSize);
-        if (cacheFile == null) {
-            throw new IOException("could not find a directory with adequate free space for cache file");
-        }
-        boolean success = false;
-        try (FileOutputStream fileChannel = new FileOutputStream(cacheFile.toFile())) {
-            long currentSize = fileChannel.getChannel().size();
-            if (currentSize < fileSize) {
-                final Field field = fileChannel.getFD().getClass().getDeclaredField("fd");
-                field.setAccessible(true);
-                final int result = falloc.fallocate((int) field.get(fileChannel.getFD()), currentSize, fileSize - currentSize);
-                if (result == 0) {
-                    success = true;
-                    logger.info("allocated cache file [{}] using fallocate", cacheFile);
-                } else {
-                    logger.warn("failed to initialize cache file [{}] using fallocate errno [{}]", cacheFile, result);
-                }
-            }
-        } catch (Exception e) {
-            logger.warn(new ParameterizedMessage("failed to initialize cache file [{}] using fallocate", cacheFile), e);
-        } finally {
-            if (success == false) {
-                // if anything goes wrong, delete the potentially created file to not waste disk space
-                Files.deleteIfExists(cacheFile);
-            }
-        }
-    }
 }

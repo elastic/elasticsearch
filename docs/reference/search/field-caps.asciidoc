@@ -31,7 +31,7 @@ GET /_field_caps?fields=rating
 
 * If the {es} {security-features} are enabled, you must have the
 `view_index_metadata`, `read`, or `manage` <<privileges-list-indices,index
-privilege>> for the target data stream, index, or index alias.
+privilege>> for the target data stream, index, or alias.
 
 [[search-field-caps-api-desc]]
 ==== {api-description-title}
@@ -49,13 +49,9 @@ other field. For example, a runtime field with a type of
 ==== {api-path-parms-title}
 
 `<target>`::
-(Optional, string)
-Comma-separated list of data streams, indices, and index aliases used to limit
-the request. Wildcard expressions (`*`) are supported.
-+
-To target all data streams and indices in a cluster, omit this parameter or use
-`_all` or `*`.
-
+(Optional, string) Comma-separated list of data streams, indices, and aliases
+used to limit the request. Supports wildcards (`*`). To target all data streams
+and indices, omit this parameter or use `*` or `_all`.
 
 [[search-field-caps-api-query-params]]
 ==== {api-query-parms-title}
@@ -81,6 +77,30 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailab
   (Optional, Boolean) If `true`, unmapped fields are included in the response.
   Defaults to `false`.
 
+`filters`::
+(Optional, string) Comma-separated list of filters to apply to the response.
++
+.Valid values for `filters`
+[%collapsible%open]
+====
+`+metadata`::
+Only include metadata fields
+`-metadata`::
+Exclude metadata fields
+`-parent`::
+Exclude parent fields
+`-nested`::
+Exclude nested fields
+`-multifield`::
+Exclude multifields
+====
+
+`types`::
+(Optional, string) Comma-separated list of field types to include. Any fields that
+do not match one of these types will be excluded from the results.  Defaults to empty,
+meaning that all field types are returned.  See <<field-caps-field-types,here>> for
+more information about field types in field capabilities requests and responses.
+
 [[search-field-caps-api-request-body]]
 ==== {api-request-body-title}
 
@@ -98,7 +118,7 @@ same name in the index mappings.
 [[search-field-caps-api-response-body]]
 ==== {api-response-body-title}
 
-
+[[field-caps-field-types]]
 The types used in the response describe _families_ of field types.
 Normally a type family is the same as the field type declared in the mapping,
 but to simplify matters certain field types that behave identically are
@@ -106,12 +126,22 @@ described using a type family. For example, `keyword`, `constant_keyword` and `w
 field types are all described as the `keyword` type family.
 
 
+`metadata_field`::
+  Whether this field is registered as a <<mapping-fields,metadata field>>.
 
 `searchable`::
   Whether this field is indexed for search on all indices.
 
 `aggregatable`::
   Whether this field can be aggregated on all indices.
+
+`time_series_dimension`::
+  experimental:[]
+  Whether this field is used as a time series dimension.
+
+`time_series_metric`::
+  experimental:[]
+  Contains metric type if this fields is used as a time series metrics, absent if the field is not used as metric.
 
 `indices`::
   The list of indices where this field has the same type family, or null if all indices
@@ -124,6 +154,16 @@ field types are all described as the `keyword` type family.
 `non_aggregatable_indices`::
   The list of indices where this field is not aggregatable, or null if all
   indices have the same definition for the field.
+
+`non_dimension_indices`::
+  experimental:[]
+  If this list is present in response then some indices have the field marked as a dimension and other indices, the
+  ones in this list, do not.
+
+`metric_conflicts_indices`::
+  experimental:[]
+  The list of indices where this field is present if these indices don't have the same `time_series_metric` value for
+  this field.
 
 `meta`::
   Merged metadata across all indices as a map of string keys to arrays of values.
@@ -162,12 +202,14 @@ The API returns the following response:
   "fields": {
     "rating": {                                   <1>
       "long": {
+        "metadata_field": false,
         "searchable": true,
         "aggregatable": false,
         "indices": [ "index1", "index2" ],
         "non_aggregatable_indices": [ "index1" ]  <2>
       },
       "keyword": {
+        "metadata_field": false,
         "searchable": false,
         "aggregatable": true,
         "indices": [ "index3", "index4" ],
@@ -176,9 +218,9 @@ The API returns the following response:
     },
     "title": {                                    <4>
       "text": {
+        "metadata_field": false,
         "searchable": true,
         "aggregatable": false
-
       }
     }
   }
@@ -211,18 +253,21 @@ in some indices but not all:
   "fields": {
     "rating": {
       "long": {
+        "metadata_field": false,
         "searchable": true,
         "aggregatable": false,
         "indices": [ "index1", "index2" ],
         "non_aggregatable_indices": [ "index1" ]
       },
       "keyword": {
+        "metadata_field": false,
         "searchable": false,
         "aggregatable": true,
         "indices": [ "index3", "index4" ],
         "non_searchable_indices": [ "index4" ]
       },
       "unmapped": {                               <1>
+        "metadata_field": false,
         "indices": [ "index5" ],
         "searchable": false,
         "aggregatable": false
@@ -230,11 +275,13 @@ in some indices but not all:
     },
     "title": {
       "text": {
+        "metadata_field": false,
         "indices": [ "index1", "index2", "index3", "index4" ],
         "searchable": true,
         "aggregatable": false
       },
       "unmapped": {                               <2>
+        "metadata_field": false,
         "indices": [ "index5" ],
         "searchable": false,
         "aggregatable": false

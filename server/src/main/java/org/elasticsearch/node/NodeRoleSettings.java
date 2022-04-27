@@ -8,26 +8,28 @@
 
 package org.elasticsearch.node;
 
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 public class NodeRoleSettings {
 
     public static final Setting<List<DiscoveryNodeRole>> NODE_ROLES_SETTING = Setting.listSetting(
         "node.roles",
         null,
-        DiscoveryNode::getRoleFromRoleName,
-        settings -> DiscoveryNode.getPossibleRoles()
+        DiscoveryNodeRole::getRoleFromRoleName,
+        settings -> DiscoveryNodeRole.roles()
             .stream()
             .filter(role -> role.isEnabledByDefault(settings))
             .map(DiscoveryNodeRole::roleName)
-            .collect(Collectors.toList()),
-        roles -> {},
+            .toList(),
+        roles -> {
+            for (final DiscoveryNodeRole role : roles) {
+                role.validateRoles(roles);
+            }
+        },
         Property.NodeScope
     );
 

@@ -8,12 +8,12 @@
 
 package org.elasticsearch.ingest.attachment;
 
-import java.util.Collections;
-import java.util.Map;
-
 import org.elasticsearch.ingest.Processor;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
+
+import java.util.Collections;
+import java.util.Map;
 
 public class IngestAttachmentPlugin extends Plugin implements IngestPlugin {
 

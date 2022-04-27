@@ -8,11 +8,10 @@
 package org.elasticsearch.xpack.transform.transforms;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -26,9 +25,9 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.test.ESTestCase;
@@ -43,13 +42,12 @@ import org.elasticsearch.xpack.transform.notifications.TransformAuditor;
 import org.elasticsearch.xpack.transform.persistence.IndexBasedTransformConfigManager;
 import org.elasticsearch.xpack.transform.persistence.TransformInternalIndexTests;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -64,15 +62,16 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         TransformPersistentTasksExecutor executor = buildTaskExecutor();
 
         assertThat(
-            executor.getAssignment(new TransformTaskParams("new-task-id", Version.CURRENT, null, true), cs).getExecutorNode(),
+            executor.getAssignment(new TransformTaskParams("new-task-id", Version.CURRENT, null, true), cs.nodes(), cs).getExecutorNode(),
             equalTo("current-data-node-with-1-tasks")
         );
         assertThat(
-            executor.getAssignment(new TransformTaskParams("new-task-id", Version.CURRENT, null, false), cs).getExecutorNode(),
+            executor.getAssignment(new TransformTaskParams("new-task-id", Version.CURRENT, null, false), cs.nodes(), cs).getExecutorNode(),
             equalTo("current-data-node-with-0-tasks-transform-remote-disabled")
         );
         assertThat(
-            executor.getAssignment(new TransformTaskParams("new-old-task-id", Version.V_7_7_0, null, true), cs).getExecutorNode(),
+            executor.getAssignment(new TransformTaskParams("new-old-task-id", Version.V_7_7_0, null, true), cs.nodes(), cs)
+                .getExecutorNode(),
             equalTo("past-data-node-1")
         );
     }
@@ -83,7 +82,11 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         ClusterState cs = buildClusterState(nodes);
         TransformPersistentTasksExecutor executor = buildTaskExecutor();
 
-        Assignment assignment = executor.getAssignment(new TransformTaskParams("new-task-id", Version.CURRENT, null, false), cs);
+        Assignment assignment = executor.getAssignment(
+            new TransformTaskParams("new-task-id", Version.CURRENT, null, false),
+            cs.nodes(),
+            cs
+        );
         assertNull(assignment.getExecutorNode());
         assertThat(
             assignment.getExplanation(),
@@ -95,7 +98,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         cs = buildClusterState(nodes);
         executor = buildTaskExecutor();
 
-        assignment = executor.getAssignment(new TransformTaskParams("new-task-id", Version.CURRENT, null, false), cs);
+        assignment = executor.getAssignment(new TransformTaskParams("new-task-id", Version.CURRENT, null, false), cs.nodes(), cs);
         assertNotNull(assignment.getExecutorNode());
         assertThat(assignment.getExecutorNode(), equalTo("dedicated-transform-node"));
 
@@ -104,7 +107,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         cs = buildClusterState(nodes);
         executor = buildTaskExecutor();
 
-        assignment = executor.getAssignment(new TransformTaskParams("new-task-id", Version.V_8_0_0, null, false), cs);
+        assignment = executor.getAssignment(new TransformTaskParams("new-task-id", Version.V_8_0_0, null, false), cs.nodes(), cs);
         assertNull(assignment.getExecutorNode());
         assertThat(
             assignment.getExplanation(),
@@ -117,7 +120,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             )
         );
 
-        assignment = executor.getAssignment(new TransformTaskParams("new-task-id", Version.V_7_5_0, null, false), cs);
+        assignment = executor.getAssignment(new TransformTaskParams("new-task-id", Version.V_7_5_0, null, false), cs.nodes(), cs);
         assertNotNull(assignment.getExecutorNode());
         assertThat(assignment.getExecutorNode(), equalTo("past-data-node-1"));
 
@@ -126,7 +129,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         cs = buildClusterState(nodes);
         executor = buildTaskExecutor();
 
-        assignment = executor.getAssignment(new TransformTaskParams("new-task-id", Version.V_7_5_0, null, true), cs);
+        assignment = executor.getAssignment(new TransformTaskParams("new-task-id", Version.V_7_5_0, null, true), cs.nodes(), cs);
         assertNull(assignment.getExecutorNode());
         assertThat(
             assignment.getExplanation(),
@@ -138,7 +141,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             )
         );
 
-        assignment = executor.getAssignment(new TransformTaskParams("new-task-id", Version.CURRENT, null, false), cs);
+        assignment = executor.getAssignment(new TransformTaskParams("new-task-id", Version.CURRENT, null, false), cs.nodes(), cs);
         assertNotNull(assignment.getExecutorNode());
         assertThat(assignment.getExecutorNode(), equalTo("current-data-node-with-0-tasks-transform-remote-disabled"));
 
@@ -147,7 +150,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         cs = buildClusterState(nodes);
         executor = buildTaskExecutor();
 
-        assignment = executor.getAssignment(new TransformTaskParams("new-task-id", Version.V_7_5_0, null, true), cs);
+        assignment = executor.getAssignment(new TransformTaskParams("new-task-id", Version.V_7_5_0, null, true), cs.nodes(), cs);
         assertNull(assignment.getExecutorNode());
         assertThat(
             assignment.getExplanation(),
@@ -165,7 +168,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         cs = buildClusterState(nodes);
         executor = buildTaskExecutor();
 
-        assignment = executor.getAssignment(new TransformTaskParams("new-task-id", Version.V_7_5_0, null, true), cs);
+        assignment = executor.getAssignment(new TransformTaskParams("new-task-id", Version.V_7_5_0, null, true), cs.nodes(), cs);
         assertNotNull(assignment.getExecutorNode());
         assertThat(assignment.getExecutorNode(), equalTo("past-data-node-1"));
     }
@@ -180,11 +183,12 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         csBuilder.metadata(metadata);
 
         ClusterState cs = csBuilder.build();
-        assertEquals(0,
-            TransformPersistentTasksExecutor.verifyIndicesPrimaryShardsAreActive(cs,
-                new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))).size());
+        assertEquals(
+            0,
+            TransformPersistentTasksExecutor.verifyIndicesPrimaryShardsAreActive(cs, TestIndexNameExpressionResolver.newInstance()).size()
+        );
 
-        metadata = new Metadata.Builder(cs.metadata());
+        metadata = Metadata.builder(cs.metadata());
         routingTable = new RoutingTable.Builder(cs.routingTable());
         String indexToRemove = TransformInternalIndexConstants.LATEST_INDEX_NAME;
         if (randomBoolean()) {
@@ -209,7 +213,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         csBuilder.metadata(metadata);
         List<String> result = TransformPersistentTasksExecutor.verifyIndicesPrimaryShardsAreActive(
             csBuilder.build(),
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))
+            TestIndexNameExpressionResolver.newInstance()
         );
         assertEquals(1, result.size());
         assertEquals(indexToRemove, result.get(0));
@@ -251,12 +255,6 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         boolean transformLocalOnlyNodes,
         boolean currentDataNode
     ) {
-
-        Map<String, String> transformNodeAttributes = new HashMap<>();
-        transformNodeAttributes.put(Transform.TRANSFORM_ENABLED_NODE_ATTR, "true");
-        Map<String, String> transformNodeAttributesDisabled = new HashMap<>();
-        transformNodeAttributesDisabled.put(Transform.TRANSFORM_ENABLED_NODE_ATTR, "false");
-
         DiscoveryNodes.Builder nodes = DiscoveryNodes.builder();
 
         if (dedicatedTransformNode) {
@@ -264,8 +262,14 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                 new DiscoveryNode(
                     "dedicated-transform-node",
                     buildNewFakeTransportAddress(),
-                    transformNodeAttributes,
-                    new HashSet<>(Arrays.asList(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)),
+                    Collections.emptyMap(),
+                    new HashSet<>(
+                        Arrays.asList(
+                            DiscoveryNodeRole.MASTER_ROLE,
+                            DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE,
+                            DiscoveryNodeRole.TRANSFORM_ROLE
+                        )
+                    ),
                     Version.CURRENT
                 )
             );
@@ -276,10 +280,15 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                 new DiscoveryNode(
                     "past-data-node-1",
                     buildNewFakeTransportAddress(),
-                    transformNodeAttributes,
-                    new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE,
-                        DiscoveryNodeRole.MASTER_ROLE,
-                        DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)),
+                    Collections.emptyMap(),
+                    new HashSet<>(
+                        Arrays.asList(
+                            DiscoveryNodeRole.DATA_ROLE,
+                            DiscoveryNodeRole.MASTER_ROLE,
+                            DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE,
+                            DiscoveryNodeRole.TRANSFORM_ROLE
+                        )
+                    ),
                     Version.V_7_7_0
                 )
             );
@@ -290,8 +299,14 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                 new DiscoveryNode(
                     "current-data-node-with-2-tasks",
                     buildNewFakeTransportAddress(),
-                    transformNodeAttributes,
-                    new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)),
+                    Collections.emptyMap(),
+                    new HashSet<>(
+                        Arrays.asList(
+                            DiscoveryNodeRole.DATA_ROLE,
+                            DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE,
+                            DiscoveryNodeRole.TRANSFORM_ROLE
+                        )
+                    ),
                     Version.CURRENT
                 )
             )
@@ -299,8 +314,14 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                     new DiscoveryNode(
                         "current-data-node-with-1-tasks",
                         buildNewFakeTransportAddress(),
-                        transformNodeAttributes,
-                        new HashSet<>(Arrays.asList(DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE)),
+                        Collections.emptyMap(),
+                        new HashSet<>(
+                            Arrays.asList(
+                                DiscoveryNodeRole.MASTER_ROLE,
+                                DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE,
+                                DiscoveryNodeRole.TRANSFORM_ROLE
+                            )
+                        ),
                         Version.CURRENT
                     )
                 );
@@ -311,8 +332,10 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                 new DiscoveryNode(
                     "current-data-node-with-0-tasks-transform-remote-disabled",
                     buildNewFakeTransportAddress(),
-                    transformNodeAttributes,
-                    new HashSet<>(Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE)),
+                    Collections.emptyMap(),
+                    new HashSet<>(
+                        Arrays.asList(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.TRANSFORM_ROLE)
+                    ),
                     Version.CURRENT
                 )
             );
@@ -323,7 +346,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
                 new DiscoveryNode(
                     "current-data-node-with-transform-disabled",
                     buildNewFakeTransportAddress(),
-                    transformNodeAttributesDisabled,
+                    Collections.emptyMap(),
                     Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE, DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE),
                     Version.CURRENT
                 )
@@ -369,10 +392,17 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
     }
 
     public TransformPersistentTasksExecutor buildTaskExecutor() {
+        ClusterService clusterService = mock(ClusterService.class);
         Client client = mock(Client.class);
         TransformAuditor mockAuditor = mock(TransformAuditor.class);
-        IndexBasedTransformConfigManager transformsConfigManager = new IndexBasedTransformConfigManager(client, xContentRegistry());
+        IndexBasedTransformConfigManager transformsConfigManager = new IndexBasedTransformConfigManager(
+            clusterService,
+            TestIndexNameExpressionResolver.newInstance(),
+            client,
+            xContentRegistry()
+        );
         TransformCheckpointService transformCheckpointService = new TransformCheckpointService(
+            Clock.systemUTC(),
             Settings.EMPTY,
             new ClusterService(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS), null),
             transformsConfigManager,
@@ -386,9 +416,8 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         );
 
         ClusterSettings cSettings = new ClusterSettings(Settings.EMPTY, Collections.singleton(Transform.NUM_FAILURE_RETRIES_SETTING));
-        ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(cSettings);
-        when(clusterService.state()).thenReturn(TransformInternalIndexTests.STATE_WITH_LATEST_VERSIONED_INDEX);
+        when(clusterService.state()).thenReturn(TransformInternalIndexTests.randomTransformClusterState());
 
         return new TransformPersistentTasksExecutor(
             client,
@@ -396,7 +425,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             mock(ThreadPool.class),
             clusterService,
             Settings.EMPTY,
-            new IndexNameExpressionResolver(new ThreadContext(Settings.EMPTY))
+            TestIndexNameExpressionResolver.newInstance()
         );
     }
 }

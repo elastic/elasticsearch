@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.repositories.metering.rest;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.repositories.metering.action.ClearRepositoriesMet
 
 import java.util.List;
 
+import static org.elasticsearch.rest.RestRequest.Method.DELETE;
+
 public class RestClearRepositoriesMeteringArchiveAction extends BaseRestHandler {
     @Override
     public String getName() {
@@ -25,7 +27,7 @@ public class RestClearRepositoriesMeteringArchiveAction extends BaseRestHandler 
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.DELETE, "/_nodes/{nodeId}/_repositories_metering/{maxVersionToClear}"));
+        return List.of(new Route(DELETE, "/_nodes/{nodeId}/_repositories_metering/{maxVersionToClear}"));
     }
 
     @Override

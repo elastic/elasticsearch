@@ -30,6 +30,7 @@ import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.query.SimpleQueryStringBuilder;
+import org.elasticsearch.index.query.ZeroTermsQueryOption;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -50,21 +51,25 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
     private final MultiMatchQueryParser queryBuilder;
 
     /** Creates a new parser with custom flags used to enable/disable certain features. */
-    public SimpleQueryStringQueryParser(Map<String, Float> weights, int flags,
-                                        Settings settings, SearchExecutionContext context) {
+    public SimpleQueryStringQueryParser(Map<String, Float> weights, int flags, Settings settings, SearchExecutionContext context) {
         this(null, weights, flags, settings, context);
     }
 
     /** Creates a new parser with custom flags used to enable/disable certain features. */
-    public SimpleQueryStringQueryParser(Analyzer analyzer, Map<String, Float> weights, int flags,
-                                        Settings settings, SearchExecutionContext context) {
+    public SimpleQueryStringQueryParser(
+        Analyzer analyzer,
+        Map<String, Float> weights,
+        int flags,
+        Settings settings,
+        SearchExecutionContext context
+    ) {
         super(analyzer, weights, flags);
         this.settings = settings;
         this.context = context;
         this.queryBuilder = new MultiMatchQueryParser(context);
         this.queryBuilder.setAutoGenerateSynonymsPhraseQuery(settings.autoGenerateSynonymsPhraseQuery());
         this.queryBuilder.setLenient(settings.lenient());
-        this.queryBuilder.setZeroTermsQuery(MatchQueryParser.ZeroTermsQuery.NULL);
+        this.queryBuilder.setZeroTermsQuery(ZeroTermsQueryOption.NULL);
         if (analyzer != null) {
             this.queryBuilder.setAnalyzer(analyzer);
         }
@@ -114,7 +119,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
     @Override
     public Query newFuzzyQuery(String text, int fuzziness) {
         List<Query> disjuncts = new ArrayList<>();
-        for (Map.Entry<String,Float> entry : weights.entrySet()) {
+        for (Map.Entry<String, Float> entry : weights.entrySet()) {
             final String fieldName = entry.getKey();
             final MappedFieldType ft = context.getFieldType(fieldName);
             if (ft == null) {
@@ -123,8 +128,14 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
             }
             try {
                 final BytesRef term = getAnalyzer(ft).normalize(fieldName, text);
-                Query query = ft.fuzzyQuery(term, Fuzziness.fromEdits(fuzziness), settings.fuzzyPrefixLength,
-                    settings.fuzzyMaxExpansions, settings.fuzzyTranspositions, context);
+                Query query = ft.fuzzyQuery(
+                    term,
+                    Fuzziness.fromEdits(fuzziness),
+                    settings.fuzzyPrefixLength,
+                    settings.fuzzyMaxExpansions,
+                    settings.fuzzyTranspositions,
+                    context
+                );
                 disjuncts.add(wrapWithBoost(query, entry.getValue()));
             } catch (RuntimeException e) {
                 disjuncts.add(rethrowUnlessLenient(e));
@@ -157,7 +168,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
     @Override
     public Query newPrefixQuery(String text) {
         List<Query> disjuncts = new ArrayList<>();
-        for (Map.Entry<String,Float> entry : weights.entrySet()) {
+        for (Map.Entry<String, Float> entry : weights.entrySet()) {
             final String fieldName = entry.getKey();
             final MappedFieldType ft = context.getFieldType(fieldName);
             if (ft == null) {
@@ -201,7 +212,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
      * of {@code TermQuery}s and {@code PrefixQuery}s
      */
     private Query newPossiblyAnalyzedQuery(String field, String termStr, Analyzer analyzer) {
-        List<List<BytesRef>> tlist = new ArrayList<> ();
+        List<List<BytesRef>> tlist = new ArrayList<>();
         try (TokenStream source = analyzer.tokenStream(field, termStr)) {
             source.reset();
             List<BytesRef> currentPos = new ArrayList<>();
@@ -243,7 +254,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
         BooleanQuery.Builder builder = new BooleanQuery.Builder();
         for (int pos = 0; pos < tlist.size(); pos++) {
             List<BytesRef> plist = tlist.get(pos);
-            boolean isLastPos = (pos == tlist.size()-1);
+            boolean isLastPos = (pos == tlist.size() - 1);
             Query posQuery;
             if (plist.size() == 1) {
                 if (isLastPos) {
@@ -253,16 +264,16 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
                 }
             } else if (isLastPos == false) {
                 // build a synonym query for terms in the same position.
-                Term[] terms = new Term[plist.size()];
-                for (int i = 0; i < plist.size(); i++) {
-                    terms[i] = new Term(field, plist.get(i));
+                SynonymQuery.Builder sb = new SynonymQuery.Builder(field);
+                for (BytesRef bytesRef : plist) {
+                    sb.addTerm(new Term(field, bytesRef));
+
                 }
-                posQuery = new SynonymQuery(terms);
+                posQuery = sb.build();
             } else {
                 BooleanQuery.Builder innerBuilder = new BooleanQuery.Builder();
                 for (BytesRef token : plist) {
-                    innerBuilder.add(new BooleanClause(new PrefixQuery(new Term(field, token)),
-                        BooleanClause.Occur.SHOULD));
+                    innerBuilder.add(new BooleanClause(new PrefixQuery(new Term(field, token)), BooleanClause.Occur.SHOULD));
                 }
                 posQuery = innerBuilder.build();
             }
@@ -295,8 +306,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
          * Generates default {@link Settings} object (uses ROOT locale, does
          * lowercase terms, no lenient parsing, no wildcard analysis).
          * */
-        public Settings() {
-        }
+        public Settings() {}
 
         public Settings(Settings other) {
             this.lenient = other.lenient;
@@ -381,8 +391,15 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
 
         @Override
         public int hashCode() {
-            return Objects.hash(lenient, analyzeWildcard, quoteFieldSuffix, autoGenerateSynonymsPhraseQuery,
-                fuzzyPrefixLength, fuzzyMaxExpansions, fuzzyTranspositions);
+            return Objects.hash(
+                lenient,
+                analyzeWildcard,
+                quoteFieldSuffix,
+                autoGenerateSynonymsPhraseQuery,
+                fuzzyPrefixLength,
+                fuzzyMaxExpansions,
+                fuzzyTranspositions
+            );
         }
 
         @Override
@@ -394,13 +411,13 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
                 return false;
             }
             Settings other = (Settings) obj;
-            return Objects.equals(lenient, other.lenient) &&
-                Objects.equals(analyzeWildcard, other.analyzeWildcard) &&
-                Objects.equals(quoteFieldSuffix, other.quoteFieldSuffix) &&
-                Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery) &&
-                Objects.equals(fuzzyPrefixLength, other.fuzzyPrefixLength) &&
-                Objects.equals(fuzzyMaxExpansions, other.fuzzyMaxExpansions) &&
-                Objects.equals(fuzzyTranspositions, other.fuzzyTranspositions);
+            return Objects.equals(lenient, other.lenient)
+                && Objects.equals(analyzeWildcard, other.analyzeWildcard)
+                && Objects.equals(quoteFieldSuffix, other.quoteFieldSuffix)
+                && Objects.equals(autoGenerateSynonymsPhraseQuery, other.autoGenerateSynonymsPhraseQuery)
+                && Objects.equals(fuzzyPrefixLength, other.fuzzyPrefixLength)
+                && Objects.equals(fuzzyMaxExpansions, other.fuzzyMaxExpansions)
+                && Objects.equals(fuzzyTranspositions, other.fuzzyTranspositions);
         }
     }
 }

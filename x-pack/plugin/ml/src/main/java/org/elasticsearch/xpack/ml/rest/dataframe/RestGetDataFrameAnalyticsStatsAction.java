@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.rest.dataframe;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -14,7 +14,6 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetDataFrameAnalyticsStatsAction;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsConfig;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -22,15 +21,16 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestGetDataFrameAnalyticsStatsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(GET, MachineLearning.BASE_PATH + "data_frame/analytics/_stats"),
-            new Route(
-                GET, MachineLearning.BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID.getPreferredName() + "}/_stats"));
+            new Route(GET, BASE_PATH + "data_frame/analytics/_stats"),
+            new Route(GET, BASE_PATH + "data_frame/analytics/{" + DataFrameAnalyticsConfig.ID + "}/_stats")
+        );
     }
 
     @Override
@@ -46,12 +46,16 @@ public class RestGetDataFrameAnalyticsStatsAction extends BaseRestHandler {
             request.setId(id);
         }
         if (restRequest.hasParam(PageParams.FROM.getPreferredName()) || restRequest.hasParam(PageParams.SIZE.getPreferredName())) {
-            request.setPageParams(new PageParams(restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
-                    restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)));
+            request.setPageParams(
+                new PageParams(
+                    restRequest.paramAsInt(PageParams.FROM.getPreferredName(), PageParams.DEFAULT_FROM),
+                    restRequest.paramAsInt(PageParams.SIZE.getPreferredName(), PageParams.DEFAULT_SIZE)
+                )
+            );
         }
         request.setAllowNoMatch(
-            restRequest.paramAsBoolean(
-                GetDataFrameAnalyticsStatsAction.Request.ALLOW_NO_MATCH.getPreferredName(), request.isAllowNoMatch()));
+            restRequest.paramAsBoolean(GetDataFrameAnalyticsStatsAction.Request.ALLOW_NO_MATCH.getPreferredName(), request.isAllowNoMatch())
+        );
 
         return channel -> client.execute(GetDataFrameAnalyticsStatsAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }

@@ -9,6 +9,7 @@
 package org.elasticsearch.cli;
 
 import joptsimple.OptionSet;
+
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -23,7 +24,7 @@ public class EvilCommandTests extends ESTestCase {
     public void testCommandShutdownHook() throws Exception {
         final AtomicBoolean closed = new AtomicBoolean();
         final boolean shouldThrow = randomBoolean();
-        final Command command = new Command("test-command-shutdown-hook", () -> {}) {
+        final Command command = new Command("test-command-shutdown-hook") {
             @Override
             protected void execute(Terminal terminal, OptionSet options) throws Exception {
 

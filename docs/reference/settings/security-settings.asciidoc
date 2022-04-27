@@ -5,10 +5,6 @@
 <titleabbrev>Security settings</titleabbrev>
 ++++
 
-By default, the {es} {security-features} are disabled when you have a basic or
-trial license. To enable {security-features}, use the `xpack.security.enabled`
-setting.
-
 You configure `xpack.security` settings to
 <<anonymous-access-settings,enable anonymous access>> and perform message
 authentication,
@@ -27,26 +23,21 @@ For more information about creating and updating the {es} keystore, see
 ==== General security settings
 `xpack.security.enabled`::
 (<<static-cluster-setting,Static>>)
-Set to `true` to enable {es} {security-features} on the node. +
+Defaults to `true`, which enables {es} {security-features} on the node. +
 +
 --
-If set to `false`, which is the default value for basic and trial licenses,
-{security-features} are disabled. It also affects all {kib} instances that
-connect to this {es} instance; you do not need to disable {security-features} in
-those `kibana.yml` files. For more information about disabling {security-features}
-in specific {kib} instances, see
+If set to `false`, {security-features} are disabled, which is not recommended.
+It also affects all {kib} instances that connect to this {es} instance; you do
+not need to disable {security-features} in those `kibana.yml` files. For more
+information about disabling {security-features} in specific {kib} instances, see
 {kibana-ref}/security-settings-kb.html[{kib} security settings].
-
-TIP: If you have gold or higher licenses, the default value is `true`; we
-recommend that you explicitly add this setting to avoid confusion.
-
 --
 
 `xpack.security.hide_settings`::
 (<<static-cluster-setting,Static>>)
 A comma-separated list of settings that are omitted from the results of the
 <<cluster-nodes-info,cluster nodes info API>>. You can use wildcards to include
-multiple settings in the list.  For example, the following value hides all the
+multiple settings in the list. For example, the following value hides all the
 settings for the ad1 active_directory realm:
 `xpack.security.authc.realms.active_directory.ad1.*`.
 The API already omits all `ssl` settings, `bind_dn`, and `bind_password` due to
@@ -54,7 +45,7 @@ the sensitive nature of the information.
 
 `xpack.security.fips_mode.enabled`::
 (<<static-cluster-setting,Static>>)
-Enables fips mode of operation. Set this to `true` if you run this {es} instance in a FIPS 140-2 enabled JVM.  For more information, see <<fips-140-compliance>>. Defaults to `false`.
+Enables fips mode of operation. Set this to `true` if you run this {es} instance in a FIPS 140-2 enabled JVM. For more information, see <<fips-140-compliance>>. Defaults to `false`.
 
 [discrete]
 [[password-hashing-settings]]
@@ -63,14 +54,16 @@ Enables fips mode of operation. Set this to `true` if you run this {es} instance
 `xpack.security.authc.password_hashing.algorithm`::
 (<<static-cluster-setting,Static>>)
 Specifies the hashing algorithm that is used for secure user credential storage.
-See <<password-hashing-algorithms>>. Defaults to `bcrypt`.
+See <<password-hashing-algorithms>>.
+If `xpack.security.fips_mode.enabled` is true (see <<fips-140-compliance>>), defaults to `pbkdf2_stretch`.
+In all other cases, defaults to `bcrypt`.
 
 [discrete]
 [[anonymous-access-settings]]
 ==== Anonymous access settings
 
 You can configure the following anonymous access settings in
-`elasticsearch.yml`.  For more information, see <<anonymous-access>>.
+`elasticsearch.yml`. For more information, see <<anonymous-access>>.
 
 `xpack.security.authc.anonymous.username`::
 (<<static-cluster-setting,Static>>)
@@ -176,9 +169,7 @@ You can set the following API key service settings in
 
 `xpack.security.authc.api_key.enabled`::
 (<<static-cluster-setting,Static>>)
-Set to `false` to disable the built-in API key service. Defaults to `true` unless
- `xpack.security.http.ssl.enabled` is `false`. This prevents sniffing the API key
-  from a connection over plain http.
+Set to `false` to disable the built-in API key service. Defaults to `true`.
 
 `xpack.security.authc.api_key.hashing.algorithm`::
 (<<static-cluster-setting,Static>>)
@@ -201,6 +192,30 @@ cache at any given time. Defaults to 10,000.
 The hashing algorithm that is used for the
 in-memory cached API key credentials. For possible values, see <<cache-hash-algo>>.
 Defaults to `ssha256`.
+
+ifeval::["{release-state}"!="released"]
+[discrete]
+[[security-domain-settings]]
+==== Security domain settings
+// tag::security-domain-settings-description-tag[]
+You configure security domain settings in the `xpack.security.authc.domains`
+namespace in `elasticsearch.yml`.
+
+For example:
+
+[source, yaml]
+------------------------------------------------------------
+xpack:
+  security:
+    authc:
+      domains:
+        my_domain: <1>
+          realms: [ 'default_native', 'saml1' ] <2>
+------------------------------------------------------------
+<1> Specifies the name of the security domain
+<2> Specifies the realms that belong to the domain
+// end::security-domain-settings-description-tag[]
+endif::[]
 
 [discrete]
 [[realm-settings]]
@@ -256,9 +271,8 @@ realm without removing its configuration information. Defaults to `true`.
 [[ref-native-settings]]
 [discrete]
 ===== Native realm settings
-For a native realm, the `type` must be set to `native`. In addition to the
-<<ref-realm-settings,settings that are valid for all realms>>, you can specify
-the following optional settings:
+In addition to the <<ref-realm-settings,settings that are valid for all realms>>,
+you can specify the following optional settings:
 
 `cache.ttl`::
 (<<static-cluster-setting,Static>>)
@@ -290,8 +304,7 @@ Defaults to `true`.
 [discrete]
 ===== File realm settings
 
-The `type` setting must be set to `file`. In addition to the
-<<ref-realm-settings,settings that are valid for all realms>>, you can specify
+In addition to the <<ref-realm-settings,settings that are valid for all realms>>, you can specify
 the following settings:
 
 `cache.ttl`::
@@ -323,8 +336,7 @@ Defaults to `true`.
 [discrete]
 ===== LDAP realm settings
 
-The `type` setting must be set to `ldap`. In addition to the
-<<ref-realm-settings>>, you can specify the following settings:
+In addition to the <<ref-realm-settings>>, you can specify the following settings:
 
 `url`::
 (<<static-cluster-setting,Static>>)
@@ -473,14 +485,14 @@ only group considered. Defaults to  `sub_tree`.
 (<<static-cluster-setting,Static>>)
 Specifies a filter to use to look up a group.
 When not set, the realm searches for `group`, `groupOfNames`, `groupOfUniqueNames`,
-or `posixGroup` with the attributes `member`, `memberOf`, or `memberUid`.  Any
+or `posixGroup` with the attributes `member`, `memberOf`, or `memberUid`. Any
 instance of `{0}` in the filter is replaced by the user attribute defined in
 `group_search.user_attribute`.
 
 `group_search.user_attribute`::
 (<<static-cluster-setting,Static>>)
 Specifies the user attribute that is fetched and provided as a parameter to
-the filter.  If not set, the user DN is passed into the filter. Defaults to Empty.
+the filter. If not set, the user DN is passed into the filter. Defaults to Empty.
 
 `unmapped_groups_as_roles`::
 (<<static-cluster-setting,Static>>)
@@ -601,7 +613,7 @@ include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-p
 
 `ssl.truststore.type`::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-type-pkcs11]
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-type]
 
 `ssl.verification_mode`::
 (<<static-cluster-setting,Static>>)
@@ -648,9 +660,8 @@ Defaults to `true`.
 [discrete]
 ===== Active Directory realm settings
 
-The `type` setting must be set to `active_directory`. In addition to the
-<<ref-realm-settings,settings that are valid for all realms>>, you can specify
-the following settings:
+In addition to the <<ref-realm-settings,settings that are valid for all realms>>,
+you can specify the following settings:
 
 `url`::
 (<<static-cluster-setting,Static>>)
@@ -730,7 +741,7 @@ only user considered. Defaults to `sub_tree`.
 
 `user_search.filter`::
 (<<static-cluster-setting,Static>>)
-Specifies a filter to use to lookup a user given a username.  The default
+Specifies a filter to use to lookup a user given a username. The default
 filter looks up `user` objects with either `sAMAccountName` or
 `userPrincipalName`. If specified, this must be a valid LDAP user search filter.
 For example `(&(objectClass=user)(sAMAccountName={0}))`. For more information,
@@ -792,7 +803,7 @@ Defaults to `60s`.
 
 `group_search.base_dn`::
 (<<static-cluster-setting,Static>>)
-The context to search for groups in which the user has membership.  Defaults
+The context to search for groups in which the user has membership. Defaults
 to the root of the Active Directory domain.
 
 `group_search.scope`::
@@ -817,7 +828,7 @@ Defaults to `5s` (5 seconds ).
 `timeout.tcp_read`::
 (<<static-cluster-setting,Static>>)
 deprecated[7.7] The TCP read timeout period after establishing an LDAP
-connection.  This is equivalent to and is deprecated in favor of
+connection. This is equivalent to and is deprecated in favor of
 `timeout.response` and they cannot be used simultaneously. An `s` at the end
 indicates seconds, or `ms` indicates milliseconds. Defaults to the value of
 `timeout.ldap_search`.
@@ -905,7 +916,7 @@ You cannot use this setting and `ssl.certificate_authorities` at the same time.
 
 `ssl.truststore.type`::
 (<<static-cluster-setting,Static>>)
-include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-type-pkcs11]
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-type]
 
 `ssl.verification_mode`::
 (<<static-cluster-setting,Static>>)
@@ -959,8 +970,7 @@ LDAP operation (such as `search`). Defaults to `true`.
 [discrete]
 ===== PKI realm settings
 
-The `type` setting must be set to `pki`. In addition to the
-<<ref-realm-settings,settings that are valid for all realms>>, you can specify
+In addition to the <<ref-realm-settings,settings that are valid for all realms>>, you can specify
 the following settings:
 
 `username_pattern`::
@@ -996,7 +1006,7 @@ for SSL. This setting cannot be used with `certificate_authorities`.
 `files.role_mapping`::
 (<<static-cluster-setting,Static>>)
 Specifies the <<security-files,location>> of the
-<<mapping-roles,YAML role  mapping configuration file>>.
+<<mapping-roles,YAML role mapping configuration file>>.
 Defaults to `ES_PATH_CONF/role_mapping.yml`.
 
 `authorization_realms`::
@@ -1034,8 +1044,7 @@ Configuring authentication delegation for PKI realms>>.
 [discrete]
 ===== SAML realm settings
 // tag::saml-description-tag[]
-The `type` setting must be set to `saml`. In addition to the
-<<ref-realm-settings,settings that are valid for all realms>>, you can specify
+In addition to the <<ref-realm-settings,settings that are valid for all realms>>, you can specify
 the following settings.
 // end::saml-description-tag[]
 
@@ -1173,7 +1182,7 @@ As per `attribute_patterns.principal`, but for the _dn_ property.
 `nameid_format` {ess-icon}::
 (<<static-cluster-setting,Static>>)
 The NameID format that should be requested when asking the IdP to authenticate
-the current user. The default is to not  include the `nameid_format` attribute.
+the current user. The default is to not include the `nameid_format` attribute.
 // end::saml-nameid-format-tag[]
 
 // tag::saml-nameid-allow-create-tag[]
@@ -1499,7 +1508,7 @@ include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-value
 [[ref-kerberos-settings]]
 ===== Kerberos realm settings
 // tag::kerberos-description-tag[]
-For a Kerberos realm, the `type` must be set to `kerberos`. In addition to the
+In addition to the
 <<ref-realm-settings,settings that are valid for all realms>>, you can specify
 the following settings:
 // end::kerberos-description-tag[]
@@ -1632,6 +1641,23 @@ at the OpenID Connect Provider.
 (<<secure-settings,Secure>>)
 The OAuth 2.0 Client Secret that was assigned to {es} during registration
 at the OpenID Connect Provider.
+
+// tag::rp-client-auth-method-tag[]
+`rp.client_auth_method` {ess-icon}::
+(<<static-cluster-setting, Static>>)
+The client authentication method used by {es} to authenticate
+to the OpenID Connect Provider. Can be `client_secret_basic`, `client_secret_post`,
+or `client_secret_jwt`. Defaults to `client_secret_basic`.
+// end::rp-client-auth-method-tag[]
+
+// tag::rp-client-auth-jwt-signature-algorithm[]
+`rp.client_auth_signature_algorithm` {ess-icon}::
+(<<static-cluster-setting, Static>>)
+The signature algorithm that {es} uses to sign the JWT with which it authenticates
+as a client to the OpenID Connect Provider when `client_secret_jwt` is selected for
+`rp.client_auth_method`. Can be either `HS256`, `HS384`, or `HS512`. Defaults to
+`HS384`.
+// end::rp-client-auth-jwt-signature-algorithm[]
 
 // tag::rp-redirect-uri-tag[]
 `rp.redirect_uri` {ess-icon}::
@@ -1936,6 +1962,343 @@ include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols
 include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-values]
 // end::oidc-ssl-cipher-suites-tag[]
 
+[[ref-jwt-settings]]
+[discrete]
+===== JWT realm settings
+// tag::jwt-description-tag[]
+In addition to the <<ref-realm-settings,settings that are valid for all realms>>, you
+can specify the following settings.
+// end::jwt-description-tag[]
+
+// tag::jwt-allowed-audiences-tag[]
+`allowed_audiences` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+A list of allowed JWT audiences that {es} should verify. {es} will only consume
+JWTs that were intended for any of these audiences, as denoted by the `aud`
+claim in the JWT). Examples of `aud` claim are `https://example.com/client1`
+and `other_service,elasticsearch`.
+// end::jwt-allowed-audiences-tag[]
+
+// tag::jwt-allowed-clock-skew-tag[]
+`allowed_clock_skew` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The maximum allowed clock skew to be taken into consideration when validating
+JWTs with regards to their creation, not before, and expiration times.
+// end::jwt-allowed-clock-skew-tag[]
+
+// tag::jwt-allowed-issuer-tag[]
+`allowed_issuer` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+A verifiable Identifier for your JWT Issuer. An Issuer
+Identifier is usually a case sensitive URL using the https scheme that contains
+scheme, host, and optionally, port number and path components and no query or
+fragment components. However, it can be any string. The value for this setting
+should be provided by your JWT Issuer.
+Examples of `iss` claim are `https://example.com:8443/jwt` and `issuer123`.
+// end::jwt-allowed-issuer-tag[]
+
+// tag::jwt-allowed-signature-algorithms-tag[]
+`allowed_signature_algorithms` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+A list of signature algorithms that will be used by {es} in order to verify the
+signature of the JWT it will receive from the JWT Issuer.
+Defaults to `RS256`. Examples are `HS512,RS512,ES512` and `ES384`.
+Allowed values are `HS256`, `HS384`, `HS512`, `ES256`, `ES384`, `ES512`,
+`RS256`, `RS384`, `RS512`, `PS256`, `PS384`, `PS512`.
+// end::jwt-allowed-signature-algorithms-tag[]
+
+`authorization_realms`::
+(<<static-cluster-setting,Static>>)
+The names of the realms that should be consulted for delegated authorization.
+If this setting is used, then the JWT realm does not perform role
+mapping and instead loads the user from the listed realms.
+See <<authorization_realms>>.
+
+// tag::jwt-claims-dn-tag[]
+`claims.dn` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The name of the JWT claim that contains the user's Distinguished Name (DN),
+which uniquely identifies a user or group. 
+// end::jwt-claims-dn-tag[]
+
+// tag::jwt-claims-pattern-dn-tag[]
+`claim_patterns.dn` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Accepts the same Java regular expression as
+<<jwt-claim-pattern-principal,`claim_patterns.principal`>>, but for the `dn`
+property.
+// end::jwt-claims-pattern-dn-tag[]
+
+// tag::jwt-claims-groups-tag[]
+`claims.groups` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The name of the JWT claim that contains the user's groups, such as `groups` and
+`roles`.
+// end::jwt-claims-groups-tag[]
+
+// tag::jwt-claim-pattern-groups-tag[]
+`claim_patterns.group` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Accepts the same Java regular expression as
+<<jwt-claim-pattern-principal,`claim_patterns.principal`>>, but for the `group`
+property.
+// end::jwt-claim-pattern-groups-tag[]
+
+// tag::jwt-claims-mail-tag[]
+`claims.mail` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The name of the JWT claim that contains the user's e-mail address.
+// end::jwt-claims-mail-tag[]
+
+// tag::jwt-claims-pattern-mail-tag[]
+`claim_patterns.mail` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Accepts the same Java regular expression as
+<<jwt-claim-pattern-principal,`claim_patterns.principal`>>, but for the `mail`
+property.
+// end::jwt-claims-pattern-mail-tag[]
+
+// tag::jwt-claims-name-tag[]
+`claims.name` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The name of the JWT claim that contains the user's username.
+// end::jwt-claims-name-tag[]
+
+// tag::jwt-claims-pattern-name-tag[]
+`claim_patterns.name` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Accepts the same Java regular expression as
+<<jwt-claim-pattern-principal,`claim_patterns.principal`>>, but for the `name`
+property.
+// end::jwt-claims-pattern-name-tag[]
+
+// tag::jwt-claims-principal-tag[]
+`claims.principal`::
+(<<static-cluster-setting,Static>>)
+The name of the JWT claim that contains the user's principal (username), such as
+`sub`, `name`, `email`, and `dn`.
+// end::jwt-claims-principal-tag[]
+
+[[jwt-claim-pattern-principal]]
+// tag::jwt-claim-pattern-principal-tag[]
+`claim_patterns.principal` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+An optional Java regular expression that is matched against the JWT claim specified
+by `claims.principal` before it is applied to the user's `principal` property.
+The value must match the pattern and the value of the first
+_capturing group_ is used as the principal. For example, `^([^@]+)@example\\.com$`
+matches email addresses from the `example.com` domain and uses the local-part as
+the principal. Another example is `sub` which may not need a pattern setting.
+// end::jwt-claim-pattern-principal-tag[]
+
+// tag::jwt-client-authentication-type-tag[]
+`client_authentication.type` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Specifies whether to use `shared_secret` or `none` to authenticate
+incoming client requests. If this value is `shared_secret`, the client is 
+authenticated using an HTTP request header that must match a pre-configured
+secret value. The client must provide this shared secret with every request in
+the `ES-Client-Authentication` header. If this value is `none`, then the
+request header `ES-Client-Authentication` is ignored. Defaults to
+`shared_secret`.
++
+Enabling client authentication is recommended. If JWT bearer
+tokens are shared with other clients or services, client authentication
+restricts which ones are allowed to submit those JWTs to {es}. 
+// end::jwt-client-authentication-type-tag[]
+
+// tag::jwt-client-authentication-shared-secret-tag[]
+`client_authentication.shared_secret` {ess-icon}::
+(<<secure-settings,Secure>>)
+Secret value string for client authentication.
+Required if `client_authentication.type` is `shared_secret`.
+// end::jwt-client-authentication-shared-secret-tag[]
+
+// tag::jwt-http-connect-timeout-tag[]
+`http.connect_timeout` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Sets the timeout for the HTTP client that is used for fetching the JSON Web Key
+Set from a remote URL. A value of zero means the timeout is not used. Defaults
+to `5s`.
+// end::jwt-http-connect-timeout-tag[]
+
+// tag::jwt-http-read-timeout-tag[]
+`http.connection_read_timeout` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Specifies the HTTP timeout used when requesting a connection from the connection
+manager. Defaults to `5s`.
+// end::jwt-http-read-timeout-tag[]
+
+// tag::jwt-http-socket-timeout[]
+`http.socket_timeout` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Specifies the maximum socket timeout (SO_TIMEOUT) for the HTTP client to wait
+for inactivity between two consecutive data packets. Defaults to `5s`.
+// end::jwt-http-socket-timeout[]
+
+// tag::jwt-http-max-connections-tag[]
+`http.max_connections` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Specifies the maximum number of connections allowed across all endpoints.
+// end::jwt-http-max-connections-tag[]
+
+// tag::jwt-http-max-endpoint-connections-tag[]
+`http.max_endpoint_connections` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Specifies the maximum number of connections allowed per endpoint.
+// end::jwt-http-max-endpoint-connections-tag[]
+
+`jwt.cache.size`::
+(<<static-cluster-setting,Static>>)
+Specifies the maximum number of JWT cache entries. If clients use a different
+JWT for every request, set to `0` to disable the JWT cache. Defaults to `100000`.
+
+`jwt.cache.ttl`::
+(<<static-cluster-setting,Static>>)
+Specifies the time-to-live for the period of time to cache JWT entries.
+JWTs can only be cached if client authentication is successful (or disabled).
+Uses the standard {es} <<time-units,time units>>. If clients use a different JWT
+for every request, set to `0` to disable the JWT cache. Defaults to `20m`.
+
+// tag::jwt-jwkset-path-tag[]
+`pkc_jwkset_path` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+The file path or URL to a JSON Web Key Set with the key material that the JWT
+Issuer uses for signing tokens and claims responses. If a path is provided,
+then it is resolved relative to the {es} configuration directory.
+If a URL is provided, then it must be either a `file` URL or an `https` URL.
+{es} automatically caches the retrieved JWK set to avoid unnecessary HTTP
+requests, but will attempt to refresh the JWK upon signature verification
+failure, as this might indicate that the JWT Provider has
+rotated the signing keys.
++
+File-based resources are polled at a frequency determined by the global {es}
+`resource.reload.interval.high` setting, which defaults to `5s`.
+// end::jwt-jwkset-path-tag[]
+
+// tag::jwt-populate-user-metadata-tag[]
+`populate_user_metadata` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Specifies whether to populate the {es} user's metadata with the values that are
+provided by the JWT claims. Defaults to `true`.
+// end::jwt-populate-user-metadata-tag[]
+
+[discrete]
+[[ref-jwt-ssl-settings]]
+===== JWT realm SSL settings
+// tag::jwt-ssl-description-tag[]
+The following settings can be used to configure SSL for fetching the JSON Web
+Key Set from a remote URL.
+
+NOTE: These settings are _only_ used for the back-channel communication between
+{es} and the JWT Issuer.
+
+// end::jwt-ssl-description-tag[]
+
+// tag::jwt-ssl-key-tag[]
+`ssl.key` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-key-pem]
+// end::jwt-ssl-key-tag[]
+
+// tag::jwt-ssl-key-passphrase-tag[]
+`ssl.key_passphrase` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-key-passphrase]
+// end::jwt-ssl-key-passphrase-tag[]
+
+`ssl.secure_key_passphrase`::
+(<<secure-settings,Secure>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-secure-key-passphrase]
++
+You cannot use this setting and `ssl.key_passphrase` at the same time.
+
+// tag::jwt-ssl-certificate-tag[]
+`ssl.certificate` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-certificate]
+// end::jwt-ssl-certificate-tag[]
+
+// tag::jwt-ssl-certificate-authorities-tag[]
+`ssl.certificate_authorities` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-certificate-authorities]
+// end::jwt-ssl-certificate-authorities-tag[]
+
+// tag::jwt-ssl-keystore-path-tag[]
+`ssl.keystore.path` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-path]
+// end::jwt-ssl-keystore-path-tag[]
+
+// tag::jwt-ssl-keystore-type-tag[]
+`ssl.keystore.type` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-type-pkcs12]
+// end::jwt-ssl-keystore-type-tag[]
+
+`ssl.keystore.secure_password`::
+(<<secure-settings,Secure>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-password]
++
+You cannot use this setting and `ssl.keystore.password` at the same time.
+
+`ssl.keystore.key_password`::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-key-password]
++
+You cannot use this setting and `ssl.keystore.secure_key_password` at the same
+time.
+
+`ssl.keystore.secure_key_password`::
+(<<secure-settings,Secure>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-keystore-secure-key-password]
++
+You cannot use this setting and `ssl.keystore.key_password` at the same time.
+
+// tag::jwt-ssl-truststore-path-tag[]
+`ssl.truststore.path` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-path]
+// end::jwt-ssl-truststore-path-tag[]
+
+// tag::jwt-ssl-truststore-type-tag[]
+`ssl.truststore.type` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-type]
+// end::jwt-ssl-truststore-type-tag[]
+
+// tag::jwt-ssl-truststore-password-tag[]
+`ssl.truststore.password` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-password]
+// end::jwt-ssl-truststore-password-tag[]
+
+`ssl.truststore.secure_password`::
+(<<secure-settings,Secure>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-truststore-secure-password]
++
+You cannot use this setting and `ssl.truststore.password` at the same time.
+
+// tag::jwt-ssl-verification-mode-tag[]
+`ssl.verification_mode` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+Controls the verification of certificates.
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-verification-mode-values]
+// end::jwt-ssl-verification-mode-tag[]
+
+// tag::jwt-ssl-supported-protocols-tag[]
+`ssl.supported_protocols` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-supported-protocols]
+// end::jwt-ssl-supported-protocols-tag[]
+
+// tag::jwt-ssl-cipher-suites-tag[]
+`ssl.cipher_suites` {ess-icon}::
+(<<static-cluster-setting,Static>>)
+include::{es-repo-dir}/settings/common-defs.asciidoc[tag=ssl-cipher-suites-values]
+// end::jwt-ssl-cipher-suites-tag[]
+
 [discrete]
 [[load-balancing]]
 ===== Load balancing and failover
@@ -2008,6 +2371,7 @@ a PKCS#12 container includes trusted certificate ("anchor") entries look for
 :verifies!:
 :server:
 :ssl-context:            security-http
+:ssl-layer:              HTTP networking layer, which {es} uses to communicate with other clients
 
 include::ssl-settings.asciidoc[]
 
@@ -2018,6 +2382,7 @@ include::ssl-settings.asciidoc[]
 :verifies:
 :server:
 :ssl-context:            security-transport
+:ssl-layer:              transport networking layer, which nodes use to communicate with each other
 
 include::ssl-settings.asciidoc[]
 

@@ -9,9 +9,9 @@
 package org.elasticsearch.cli;
 
 import java.io.ByteArrayOutputStream;
+import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
-import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -39,6 +39,8 @@ public class MockTerminal extends Terminal {
     private final List<String> secretInput = new ArrayList<>();
     private int secretIndex = 0;
 
+    private boolean hasOutputStream = true;
+
     public MockTerminal() {
         super("\n"); // always *nix newlines for tests
     }
@@ -65,8 +67,17 @@ public class MockTerminal extends Terminal {
     }
 
     @Override
+    public OutputStream getOutputStream() {
+        return hasOutputStream ? stdoutBuffer : null;
+    }
+
+    @Override
     public PrintWriter getErrorWriter() {
         return errorWriter;
+    }
+
+    public void setHasOutputStream(boolean hasOutputStream) {
+        this.hasOutputStream = hasOutputStream;
     }
 
     /** Adds an an input that will be return from {@link #readText(String)}. Values are read in FIFO order. */
@@ -80,13 +91,18 @@ public class MockTerminal extends Terminal {
     }
 
     /** Returns all output written to this terminal. */
-    public String getOutput() throws UnsupportedEncodingException {
-        return stdoutBuffer.toString("UTF-8");
+    public String getOutput() {
+        return stdoutBuffer.toString(StandardCharsets.UTF_8);
+    }
+
+    /** Returns all bytes  written to this terminal. */
+    public byte[] getOutputBytes() {
+        return stdoutBuffer.toByteArray();
     }
 
     /** Returns all output written to this terminal. */
-    public String getErrorOutput() throws UnsupportedEncodingException {
-        return stderrBuffer.toString("UTF-8");
+    public String getErrorOutput() {
+        return stderrBuffer.toString(StandardCharsets.UTF_8);
     }
 
     /** Wipes the input and output. */

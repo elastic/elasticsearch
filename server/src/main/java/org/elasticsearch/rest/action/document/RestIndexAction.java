@@ -12,8 +12,9 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -29,12 +30,18 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
 
 public class RestIndexAction extends BaseRestHandler {
+    static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in document "
+        + "index requests is deprecated, use the typeless endpoints instead (/{index}/_doc/{id}, /{index}/_doc, "
+        + "or /{index}/_create/{id}).";
 
     @Override
     public List<Route> routes() {
         return List.of(
             new Route(POST, "/{index}/_doc/{id}"),
-            new Route(PUT, "/{index}/_doc/{id}"));
+            new Route(PUT, "/{index}/_doc/{id}"),
+            Route.builder(POST, "/{index}/{type}/{id}").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
+            Route.builder(PUT, "/{index}/{type}/{id}").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+        );
     }
 
     @Override
@@ -53,7 +60,10 @@ public class RestIndexAction extends BaseRestHandler {
         public List<Route> routes() {
             return List.of(
                 new Route(POST, "/{index}/_create/{id}"),
-                new Route(PUT, "/{index}/_create/{id}"));
+                new Route(PUT, "/{index}/_create/{id}"),
+                Route.builder(POST, "/{index}/{type}/{id}/_create").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
+                Route.builder(PUT, "/{index}/{type}/{id}/_create").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+            );
         }
 
         @Override
@@ -63,7 +73,7 @@ public class RestIndexAction extends BaseRestHandler {
             return super.prepareRequest(request, client);
         }
 
-        void validateOpType(String opType) {
+        static void validateOpType(String opType) {
             if (null != opType && false == "create".equals(opType.toLowerCase(Locale.ROOT))) {
                 throw new IllegalArgumentException("opType must be 'create', found: [" + opType + "]");
             }
@@ -85,7 +95,10 @@ public class RestIndexAction extends BaseRestHandler {
 
         @Override
         public List<Route> routes() {
-            return List.of(new Route(POST, "/{index}/_doc"));
+            return List.of(
+                new Route(POST, "/{index}/_doc"),
+                Route.builder(POST, "/{index}/{type}").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
+            );
         }
 
         @Override
@@ -101,6 +114,10 @@ public class RestIndexAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        if (request.getRestApiVersion() == RestApiVersion.V_7) {
+            request.param("type"); // consume and ignore the type
+        }
+
         IndexRequest indexRequest = new IndexRequest(request.param("index"));
         indexRequest.id(request.param("id"));
         indexRequest.routing(request.param("routing"));
@@ -122,8 +139,10 @@ public class RestIndexAction extends BaseRestHandler {
             indexRequest.opType(sOpType);
         }
 
-        return channel ->
-                client.index(indexRequest, new RestStatusToXContentListener<>(channel, r -> r.getLocation(indexRequest.routing())));
+        return channel -> client.index(
+            indexRequest,
+            new RestStatusToXContentListener<>(channel, r -> r.getLocation(indexRequest.routing()))
+        );
     }
 
 }

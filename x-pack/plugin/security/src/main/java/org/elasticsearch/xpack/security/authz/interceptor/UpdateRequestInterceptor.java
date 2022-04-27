@@ -13,6 +13,9 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
+
+import java.util.Map;
 
 /**
  * A request interceptor that fails update request if field or document level security is enabled.
@@ -28,18 +31,24 @@ public class UpdateRequestInterceptor extends FieldAndDocumentLevelSecurityReque
     }
 
     @Override
-    protected void disableFeatures(IndicesRequest updateRequest, boolean fieldLevelSecurityEnabled, boolean documentLevelSecurityEnabled,
-                                   ActionListener<Void> listener) {
-        listener.onFailure(new ElasticsearchSecurityException("Can't execute an update request if field or document level security " +
-            "is enabled", RestStatus.BAD_REQUEST));
+    void disableFeatures(
+        IndicesRequest indicesRequest,
+        Map<String, IndicesAccessControl.IndexAccessControl> indicesAccessControlByIndex,
+        ActionListener<Void> listener
+    ) {
+        listener.onFailure(
+            new ElasticsearchSecurityException(
+                "Can't execute an update request if field or document level security " + "is enabled",
+                RestStatus.BAD_REQUEST
+            )
+        );
     }
 
     @Override
     String[] requestIndices(IndicesRequest indicesRequest) {
-        if (indicesRequest instanceof UpdateRequest) {
-            UpdateRequest updateRequest = (UpdateRequest) indicesRequest;
+        if (indicesRequest instanceof UpdateRequest updateRequest) {
             if (updateRequest.getShardId() != null) {
-                return new String[]{updateRequest.getShardId().getIndexName()};
+                return new String[] { updateRequest.getShardId().getIndexName() };
             }
         }
         return new String[0];

@@ -23,7 +23,6 @@ import static org.hamcrest.Matchers.is;
 
 public class SqlTypesTests extends ESTestCase {
 
-
     public void testGeoField() {
         Map<String, EsField> mapping = loadMapping("mapping-geo.json");
         assertThat(mapping.size(), is(2));
@@ -32,7 +31,6 @@ public class SqlTypesTests extends ESTestCase {
         EsField gs = mapping.get("site");
         assertThat(gs.getDataType().typeName(), is("geo_shape"));
     }
-
 
     public void testTextField() {
         Map<String, EsField> mapping = loadMapping("mapping-text.json");

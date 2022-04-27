@@ -17,10 +17,10 @@ automatic discovery of seed hosts. Here is a simple sample configuration:
 --------------------------------------------------
 cloud:
   gce:
-      project_id: <your-google-project-id>
-      zone: <your-zone>
+    project_id: <your-google-project-id>
+    zone: <your-zone>
 discovery:
-      seed_providers: gce
+  seed_providers: gce
 --------------------------------------------------
 
 The following gce settings (prefixed with `cloud.gce`) are supported:
@@ -322,10 +322,10 @@ To enable discovery across more than one zone, just enter add your zone list to 
 --------------------------------------------------
 cloud:
   gce:
-      project_id: <your-google-project-id>
-      zone: ["<your-zone1>", "<your-zone2>"]
+    project_id: <your-google-project-id>
+    zone: ["<your-zone1>", "<your-zone2>"]
 discovery:
-      seed_providers: gce
+  seed_providers: gce
 --------------------------------------------------
 
 
@@ -357,12 +357,12 @@ Then, define it in `elasticsearch.yml`:
 --------------------------------------------------
 cloud:
   gce:
-      project_id: es-cloud
-      zone: europe-west1-a
+    project_id: es-cloud
+    zone: europe-west1-a
 discovery:
-      seed_providers: gce
-      gce:
-            tags: elasticsearch, dev
+  seed_providers: gce
+    gce:
+      tags: elasticsearch, dev
 --------------------------------------------------
 
 [[discovery-gce-usage-port]]
@@ -416,7 +416,7 @@ gcloud config set project es-cloud
 [[discovery-gce-usage-tips-permissions]]
 ===== Machine Permissions
 
-If you have created a machine without the correct permissions, you will see `403 unauthorized` error messages. To change machine permission on an existing instance, first stop the instance then Edit. Scroll down to `Access Scopes` to change permission.  The other way to alter these permissions is to delete the instance (NOT THE DISK). Then create another with the correct permissions.
+If you have created a machine without the correct permissions, you will see `403 unauthorized` error messages. To change machine permission on an existing instance, first stop the instance then Edit. Scroll down to `Access Scopes` to change permission. The other way to alter these permissions is to delete the instance (NOT THE DISK). Then create another with the correct permissions.
 
 Creating machines with gcloud::
 +
@@ -432,9 +432,9 @@ Ensure the following flags are set:
 Creating with console (web)::
 +
 --
-When creating an instance using the web portal, click _Show advanced options_.
+When creating an instance using the web console, scroll down to **Identity and API access**.
 
-At the bottom of the page, under `PROJECT ACCESS`, choose `>> Compute >> Read Write`.
+Select a service account with the correct permissions or choose **Compute Engine default service account** and select **Allow default access** for **Access scopes**.
 --
 
 Creating with knife google::
@@ -450,7 +450,7 @@ knife google server create www1 \
     -Z us-central1-a \
     -i ~/.ssh/id_rsa \
     -x jdoe \
-    --gce-service-account-scopes https://www.googleapis.com/auth/compute.full_control
+    --gce-service-account-scopes https://www.googleapis.com/auth/compute
 --------------------------------------------------
 
 Or, you may use the alias:

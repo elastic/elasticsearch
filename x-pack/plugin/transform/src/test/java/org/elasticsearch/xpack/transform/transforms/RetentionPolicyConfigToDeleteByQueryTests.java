@@ -7,7 +7,8 @@
 
 package org.elasticsearch.xpack.transform.transforms;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
@@ -88,8 +89,7 @@ public class RetentionPolicyConfigToDeleteByQueryTests extends ESTestCase {
         QueryBuilder query = deleteByQueryRequest.getSearchRequest().source().query();
         assertThat(query, instanceOf(RangeQueryBuilder.class));
         RangeQueryBuilder rangeQuery = (RangeQueryBuilder) query;
-
-        assertThat(rangeQuery.to(), equalTo(9_940_000L));
+        assertThat(rangeQuery.to(), equalTo(DateFormatter.forPattern("strict_date_optional_time").formatMillis(9_940_000L)));
         assertTrue(rangeQuery.includeLower());
     }
 

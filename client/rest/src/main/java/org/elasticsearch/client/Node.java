@@ -65,8 +65,7 @@ public class Node {
      * {@code host} are nullable and implementations of {@link NodeSelector}
      * need to decide what to do in their absence.
      */
-    public Node(HttpHost host, Set<HttpHost> boundHosts, String name, String version,
-            Roles roles, Map<String, List<String>> attributes) {
+    public Node(HttpHost host, Set<HttpHost> boundHosts, String name, String version, Roles roles, Map<String, List<String>> attributes) {
         if (host == null) {
             throw new IllegalArgumentException("host cannot be null");
         }
@@ -184,19 +183,72 @@ public class Node {
         }
 
         /**
-         * Teturns whether or not the node <strong>could</strong> be elected master.
+         * Returns whether or not the node <strong>could</strong> be elected master.
          */
         public boolean isMasterEligible() {
             return roles.contains("master");
         }
+
         /**
-         * Teturns whether or not the node stores data.
+         * Returns whether or not the node stores data.
+         * @deprecated use {@link #hasDataRole()} or {@link #canContainData()}
          */
+        @Deprecated
         public boolean isData() {
             return roles.contains("data");
         }
+
         /**
-         * Teturns whether or not the node runs ingest pipelines.
+         * @return true if node has the "data" role
+         */
+        public boolean hasDataRole() {
+            return roles.contains("data");
+        }
+
+        /**
+         * @return true if node has the "data_content" role
+         */
+        public boolean hasDataContentRole() {
+            return roles.contains("data_content");
+        }
+
+        /**
+         * @return true if node has the "data_hot" role
+         */
+        public boolean hasDataHotRole() {
+            return roles.contains("data_hot");
+        }
+
+        /**
+         * @return true if node has the "data_warm" role
+         */
+        public boolean hasDataWarmRole() {
+            return roles.contains("data_warm");
+        }
+
+        /**
+         * @return true if node has the "data_cold" role
+         */
+        public boolean hasDataColdRole() {
+            return roles.contains("data_cold");
+        }
+
+        /**
+         * @return true if node has the "data_frozen" role
+         */
+        public boolean hasDataFrozenRole() {
+            return roles.contains("data_frozen");
+        }
+
+        /**
+         * @return true if node stores any type of data
+         */
+        public boolean canContainData() {
+            return hasDataRole() || roles.stream().anyMatch(role -> role.startsWith("data_"));
+        }
+
+        /**
+         * Returns whether or not the node runs ingest pipelines.
          */
         public boolean isIngest() {
             return roles.contains("ingest");

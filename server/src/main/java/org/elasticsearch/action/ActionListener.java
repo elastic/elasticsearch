@@ -9,10 +9,10 @@
 package org.elasticsearch.action;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.CheckedFunction;
-import org.elasticsearch.common.CheckedRunnable;
 import org.elasticsearch.common.CheckedSupplier;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.CheckedRunnable;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,6 +33,32 @@ public interface ActionListener<Response> {
      * A failure caused by an exception at some phase of the task.
      */
     void onFailure(Exception e);
+
+    @SuppressWarnings("rawtypes")
+    ActionListener NOOP = new ActionListener() {
+        @Override
+        public void onResponse(Object o) {
+
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+
+        }
+
+        @Override
+        public String toString() {
+            return "NoopActionListener";
+        }
+    };
+
+    /**
+     * @return a listener that does nothing
+     */
+    @SuppressWarnings("unchecked")
+    static <T> ActionListener<T> noop() {
+        return (ActionListener<T>) NOOP;
+    }
 
     /**
      * Creates a listener that wraps this listener, mapping response values via the given mapping function and passing along
@@ -62,7 +88,15 @@ public interface ActionListener<Response> {
 
         @Override
         public void onFailure(Exception e) {
-            delegate.onFailure(e);
+            try {
+                delegate.onFailure(e);
+            } catch (RuntimeException ex) {
+                if (ex != e) {
+                    ex.addSuppressed(e);
+                }
+                assert false : new AssertionError("listener.onFailure failed", ex);
+                throw ex;
+            }
         }
 
         @Override
@@ -98,19 +132,6 @@ public interface ActionListener<Response> {
         }
 
         @Override
-        public void onFailure(Exception e) {
-            try {
-                delegate.onFailure(e);
-            } catch (RuntimeException ex) {
-                if (ex != e) {
-                    ex.addSuppressed(e);
-                }
-                assert false : new AssertionError("map: listener.onFailure failed", ex);
-                throw ex;
-            }
-        }
-
-        @Override
         public String toString() {
             return super.toString() + "/" + fn;
         }
@@ -130,8 +151,10 @@ public interface ActionListener<Response> {
      * @param <Response> the type of the response
      * @return a listener that listens for responses and invokes the consumer when received
      */
-    static <Response> ActionListener<Response> wrap(CheckedConsumer<Response, ? extends Exception> onResponse,
-            Consumer<Exception> onFailure) {
+    static <Response> ActionListener<Response> wrap(
+        CheckedConsumer<Response, ? extends Exception> onResponse,
+        Consumer<Exception> onFailure
+    ) {
         return new ActionListener<Response>() {
             @Override
             public void onResponse(Response response) {
@@ -191,7 +214,15 @@ public interface ActionListener<Response> {
 
         @Override
         public void onFailure(Exception e) {
-            bc.accept(delegate, e);
+            try {
+                bc.accept(delegate, e);
+            } catch (RuntimeException ex) {
+                if (ex != e) {
+                    ex.addSuppressed(e);
+                }
+                assert false : new AssertionError("listener.onFailure failed", ex);
+                throw ex;
+            }
         }
 
         @Override
@@ -229,7 +260,33 @@ public interface ActionListener<Response> {
      * @return a listener that listens for responses and invokes the runnable when received
      */
     static <Response> ActionListener<Response> wrap(Runnable runnable) {
-        return wrap(r -> runnable.run(), e -> runnable.run());
+        return new ActionListener<>() {
+            @Override
+            public void onResponse(Response response) {
+                try {
+                    runnable.run();
+                } catch (RuntimeException e) {
+                    assert false : e;
+                    throw e;
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                try {
+                    runnable.run();
+                } catch (RuntimeException ex) {
+                    ex.addSuppressed(e);
+                    assert false : ex;
+                    throw ex;
+                }
+            }
+
+            @Override
+            public String toString() {
+                return "RunnableWrappingActionListener{" + runnable + "}";
+            }
+        };
     }
 
     /**
@@ -316,7 +373,7 @@ public interface ActionListener<Response> {
         @Override
         public void onFailure(Exception e) {
             try {
-                delegate.onFailure(e);
+                super.onFailure(e);
             } finally {
                 runAfter.run();
             }
@@ -352,7 +409,7 @@ public interface ActionListener<Response> {
             try {
                 runBefore.run();
             } catch (Exception ex) {
-                delegate.onFailure(ex);
+                super.onFailure(ex);
                 return;
             }
             delegate.onResponse(response);
@@ -365,7 +422,7 @@ public interface ActionListener<Response> {
             } catch (Exception ex) {
                 e.addSuppressed(ex);
             }
-            delegate.onFailure(e);
+            super.onFailure(e);
         }
 
         @Override

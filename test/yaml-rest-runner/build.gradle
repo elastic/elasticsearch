@@ -1,0 +1,8 @@
+
+apply plugin: 'elasticsearch.build'
+
+dependencies {
+  api project(':test:framework')
+  api project(":client:rest")
+  api project(":client:sniffer")
+}

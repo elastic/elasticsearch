@@ -37,7 +37,7 @@ public class Circle implements Geometry {
         this.x = x;
         this.radiusMeters = radiusMeters;
         this.z = z;
-        if (radiusMeters < 0 ) {
+        if (radiusMeters < 0) {
             throw new IllegalArgumentException("Circle radius [" + radiusMeters + "] cannot be negative");
         }
     }
@@ -114,7 +114,7 @@ public class Circle implements Geometry {
 
     @Override
     public String toString() {
-        return WellKnownText.INSTANCE.toWKT(this);
+        return WellKnownText.toWKT(this);
     }
 
     @Override

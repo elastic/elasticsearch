@@ -1,0 +1,59 @@
+---
+"Update with if_seq_no":
+ - do:
+      catch:        missing
+      update:
+          index:    test_1
+          id:       "1"
+          if_seq_no:  1
+          if_primary_term:  1
+          body:
+            doc:    { foo: baz }
+
+ - do:
+      index:
+          index:    test_1
+          id:       "1"
+          body:
+            foo: baz
+
+ - do:
+      catch:        conflict
+      update:
+          index:    test_1
+          id:       "1"
+          if_seq_no:  234
+          if_primary_term:  1
+          body:
+            doc:    { foo: baz }
+
+ - do:
+     update:
+       index:    test_1
+       id:       "1"
+       if_seq_no:  0
+       if_primary_term:  1
+       body:
+         doc:    { foo: bar }
+
+ - do:
+     get:
+       index:    test_1
+       id:       "1"
+
+ - match: { _source:  { foo: bar } }
+
+ - do:
+     bulk:
+        body:
+          - update:
+              _index: test_1
+              _id: "1"
+              if_seq_no: 100
+              if_primary_term: 200
+          - doc:
+              foo: baz
+
+ - match: { errors: true }
+ - match: { items.0.update.status: 409 }
+

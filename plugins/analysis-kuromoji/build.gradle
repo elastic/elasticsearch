@@ -5,7 +5,8 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
   description 'The Japanese (kuromoji) Analysis plugin integrates Lucene kuromoji analysis module into elasticsearch.'
@@ -13,15 +14,14 @@ esplugin {
 }
 
 dependencies {
-  api "org.apache.lucene:lucene-analyzers-kuromoji:${versions.lucene}"
+  api "org.apache.lucene:lucene-analysis-kuromoji:${versions.lucene}"
 }
 
 restResources {
   restApi {
-    includeCore '_common', 'indices', 'index', 'search'
+    include '_common', 'indices', 'index', 'search'
   }
 }
 tasks.named("dependencyLicenses").configure {
   mapping from: /lucene-.*/, to: 'lucene'
 }
-

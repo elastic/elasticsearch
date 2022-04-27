@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.transform.transforms;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
@@ -26,6 +27,9 @@ import java.time.Instant;
  * All implementations of `retention_policy` are converted to a {@link DeleteByQueryRequest}, which is then executed by the indexer.
  */
 public final class RetentionPolicyToDeleteByQueryRequestConverter {
+
+    private static final String DATE_FORMAT = "strict_date_optional_time";
+    private static final DateFormatter DATE_FORMATER = DateFormatter.forPattern(DATE_FORMAT);
 
     public static class RetentionPolicyException extends ElasticsearchException {
         RetentionPolicyException(String msg, Object... args) {
@@ -92,6 +96,6 @@ public final class RetentionPolicyToDeleteByQueryRequestConverter {
         TransformCheckpoint checkpoint
     ) {
         Instant cutOffDate = Instant.ofEpochMilli(checkpoint.getTimestamp()).minusMillis(config.getMaxAge().getMillis());
-        return QueryBuilders.rangeQuery(config.getField()).lt(cutOffDate.toEpochMilli()).format("epoch_millis");
+        return QueryBuilders.rangeQuery(config.getField()).lt(DATE_FORMATER.format(cutOffDate)).format(DATE_FORMAT);
     }
 }

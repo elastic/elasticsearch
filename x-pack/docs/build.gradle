@@ -1,3 +1,6 @@
+import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.internal.info.BuildParams
+
 apply plugin: 'elasticsearch.docs-test'
 apply plugin: 'elasticsearch.rest-resources'
 
@@ -23,8 +26,7 @@ dependencies {
 
 restResources {
   restApi {
-    includeCore '*'
-    includeXpack '*'
+    include '*'
   }
 }
 
@@ -35,9 +37,6 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   setting 'xpack.security.enabled', 'true'
   setting 'xpack.security.authc.api_key.enabled', 'true'
   setting 'xpack.security.authc.token.enabled', 'true'
-  // Disable monitoring exporters for the docs tests
-  setting 'xpack.monitoring.exporters._local.type', 'local'
-  setting 'xpack.monitoring.exporters._local.enabled', 'false'
   // disable the ILM history for doc tests to avoid potential lingering tasks that'd cause test flakiness
   setting 'indices.lifecycle.history_index_enabled', 'false'
   setting 'xpack.license.self_generated.type', 'trial'
@@ -64,6 +63,9 @@ testClusters.matching { it.name == "integTest" }.configureEach {
   setting 'xpack.security.authc.realms.saml.saml1.sp.acs', 'https://kibana.org/api/security/saml/callback'
   setting 'xpack.security.authc.realms.saml.saml1.attributes.principal', 'uid'
   setting 'xpack.security.authc.realms.saml.saml1.attributes.name', 'urn:oid:2.5.4.3'
+
+  requiresFeature 'es.user_profile_feature_flag_enabled', Version.fromString("8.1.0")
+
   user username: 'test_admin'
 }
 
@@ -73,7 +75,7 @@ tasks.named("buildRestTests").configure { buildRestTests ->
     // No snippets in here!
     exclude 'build.gradle'
     // That is where the snippets go, not where they come from!
-    exclude 'build'
+    exclude 'build/**'
     // These file simply doesn't pass yet. We should figure out how to fix them.
     exclude 'en/watcher/reference/actions.asciidoc'
     exclude 'en/rest-api/security/ssl.asciidoc'
@@ -732,5 +734,12 @@ tasks.named("buildRestTests").configure { buildRestTests ->
                 }
               }
             }
+'''
+  setups['service_token42'] = '''
+  - do:
+      security.create_service_token:
+        namespace: elastic
+        service: fleet-server
+        name: token42
 '''
 }

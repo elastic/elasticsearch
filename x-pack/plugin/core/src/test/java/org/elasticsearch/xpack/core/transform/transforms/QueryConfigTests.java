@@ -8,25 +8,30 @@
 package org.elasticsearch.xpack.core.transform.transforms;
 
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.transform.AbstractSerializingTransformTestCase;
 import org.elasticsearch.xpack.core.transform.MockDeprecatedQueryBuilder;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.LinkedHashMap;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class QueryConfigTests extends AbstractSerializingTransformTestCase<QueryConfig> {
 
@@ -84,8 +89,8 @@ public class QueryConfigTests extends AbstractSerializingTransformTestCase<Query
         String source = query.toString();
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             QueryConfig queryConfig = QueryConfig.fromXContent(parser, true);
+            assertNotNull(queryConfig.getQuery());
             assertEquals(query, queryConfig.getQuery());
-            assertTrue(queryConfig.isValid());
         }
     }
 
@@ -95,7 +100,7 @@ public class QueryConfigTests extends AbstractSerializingTransformTestCase<Query
         // lenient, passes but reports invalid
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             QueryConfig query = QueryConfig.fromXContent(parser, true);
-            assertFalse(query.isValid());
+            assertNull(query.getQuery());
         }
 
         // strict throws
@@ -110,7 +115,7 @@ public class QueryConfigTests extends AbstractSerializingTransformTestCase<Query
         // lenient, passes but reports invalid
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             QueryConfig query = QueryConfig.fromXContent(parser, true);
-            assertFalse(query.isValid());
+            assertNull(query.getQuery());
         }
 
         // strict throws
@@ -125,7 +130,10 @@ public class QueryConfigTests extends AbstractSerializingTransformTestCase<Query
         // lenient, passes but reports invalid
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             QueryConfig query = QueryConfig.fromXContent(parser, true);
-            assertFalse(query.isValid());
+            assertNull(query.getQuery());
+            ValidationException validationException = query.validate(null);
+            assertThat(validationException, is(notNullValue()));
+            assertThat(validationException.getMessage(), containsString("source.query must not be null"));
         }
 
         // strict throws
@@ -138,7 +146,7 @@ public class QueryConfigTests extends AbstractSerializingTransformTestCase<Query
         String source = "{\"" + MockDeprecatedQueryBuilder.NAME + "\" : {}}";
         try (XContentParser parser = createParser(JsonXContent.jsonXContent, source)) {
             QueryConfig query = QueryConfig.fromXContent(parser, false);
-            assertTrue(query.isValid());
+            assertNotNull(query.getQuery());
             assertWarnings(MockDeprecatedQueryBuilder.DEPRECATION_MESSAGE);
         }
     }

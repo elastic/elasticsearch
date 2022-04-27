@@ -10,11 +10,13 @@ package org.elasticsearch.search.aggregations.bucket.terms;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.terms.heuristic.SignificanceHeuristic;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -36,8 +38,15 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedS
      * {@linkplain UnmappedTerms} doesn't ever need to build it because it never returns any buckets.
      */
     protected abstract static class Bucket extends InternalSignificantTerms.Bucket<Bucket> {
-        private Bucket(BytesRef term, long subsetDf, long subsetSize, long supersetDf, long supersetSize, InternalAggregations aggregations,
-                       DocValueFormat format) {
+        private Bucket(
+            BytesRef term,
+            long subsetDf,
+            long subsetSize,
+            long supersetDf,
+            long supersetSize,
+            InternalAggregations aggregations,
+            DocValueFormat format
+        ) {
             super(subsetDf, subsetSize, supersetDf, supersetSize, aggregations, format);
         }
     }
@@ -84,13 +93,24 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedS
     }
 
     @Override
-    Bucket createBucket(long subsetDf, long subsetSize, long supersetDf, long supersetSize,
-                        InternalAggregations aggregations, Bucket prototype) {
+    Bucket createBucket(
+        long subsetDf,
+        long subsetSize,
+        long supersetDf,
+        long supersetSize,
+        InternalAggregations aggregations,
+        Bucket prototype
+    ) {
         throw new UnsupportedOperationException("not supported for UnmappedSignificantTerms");
     }
 
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
+        return new UnmappedSignificantTerms(name, requiredSize, minDocCount, metadata);
+    }
+
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
         return new UnmappedSignificantTerms(name, requiredSize, minDocCount, metadata);
     }
 

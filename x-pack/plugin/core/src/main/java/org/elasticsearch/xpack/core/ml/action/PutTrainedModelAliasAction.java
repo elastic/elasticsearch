@@ -73,7 +73,7 @@ public class PutTrainedModelAliasAction extends ActionType<AcknowledgedResponse>
         }
 
         @Override
-        public void writeTo(StreamOutput out) throws  IOException {
+        public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(modelAlias);
             out.writeString(modelId);
@@ -85,12 +85,7 @@ public class PutTrainedModelAliasAction extends ActionType<AcknowledgedResponse>
             ActionRequestValidationException validationException = null;
             if (modelAlias.equals(modelId)) {
                 validationException = addValidationError(
-                    String.format(
-                        Locale.ROOT,
-                        "model_alias [%s] cannot equal model_id [%s]",
-                        modelAlias,
-                        modelId
-                    ),
+                    String.format(Locale.ROOT, "model_alias [%s] cannot equal model_id [%s]", modelAlias, modelId),
                     validationException
                 );
             }

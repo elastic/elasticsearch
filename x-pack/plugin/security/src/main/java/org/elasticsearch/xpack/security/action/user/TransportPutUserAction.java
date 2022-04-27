@@ -22,9 +22,7 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserResponse;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
 import org.elasticsearch.xpack.core.security.support.Validation;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
-import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
+import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
@@ -35,8 +33,12 @@ public class TransportPutUserAction extends HandledTransportAction<PutUserReques
     private final NativeUsersStore usersStore;
 
     @Inject
-    public TransportPutUserAction(Settings settings, ActionFilters actionFilters,
-                                  NativeUsersStore usersStore, TransportService transportService) {
+    public TransportPutUserAction(
+        Settings settings,
+        ActionFilters actionFilters,
+        NativeUsersStore usersStore,
+        TransportService transportService
+    ) {
         super(PutUserAction.NAME, transportService, actionFilters, PutUserRequest::new);
         this.settings = settings;
         this.usersStore = usersStore;
@@ -73,13 +75,17 @@ public class TransportPutUserAction extends HandledTransportAction<PutUserReques
         final String username = request.username();
         if (ClientReservedRealm.isReserved(username, settings)) {
             if (AnonymousUser.isAnonymousUsername(username, settings)) {
-                validationException =
-                    addValidationError("user [" + username + "] is anonymous and cannot be modified via the API", validationException);
+                validationException = addValidationError(
+                    "user [" + username + "] is anonymous and cannot be modified via the API",
+                    validationException
+                );
             } else {
-                validationException = addValidationError("user [" + username + "] is reserved and only the " +
-                    "password can be changed", validationException);
+                validationException = addValidationError(
+                    "user [" + username + "] is reserved and only the " + "password can be changed",
+                    validationException
+                );
             }
-        } else if (SystemUser.NAME.equals(username) || XPackUser.NAME.equals(username) || XPackSecurityUser.NAME.equals(username)) {
+        } else if (User.isInternalUsername(username)) {
             validationException = addValidationError("user [" + username + "] is internal", validationException);
         } else {
             Validation.Error usernameError = Validation.Users.validateUsername(username, true, settings);

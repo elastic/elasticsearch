@@ -27,16 +27,20 @@ public interface AutodetectProcessFactory {
      * @param onProcessCrash    Callback to execute if the process stops unexpectedly
      * @return The process
      */
-    default AutodetectProcess createAutodetectProcess(Job job,
-                                                      AutodetectParams autodetectParams,
-                                                      ExecutorService executorService,
-                                                      Consumer<String> onProcessCrash) {
+    default AutodetectProcess createAutodetectProcess(
+        Job job,
+        AutodetectParams autodetectParams,
+        ExecutorService executorService,
+        Consumer<String> onProcessCrash
+    ) {
         return createAutodetectProcess(job.getId(), job, autodetectParams, executorService, onProcessCrash);
     }
 
-    AutodetectProcess createAutodetectProcess(String pipelineId,
-                                              Job job,
-                                              AutodetectParams autodetectParams,
-                                              ExecutorService executorService,
-                                              Consumer<String> onProcessCrash);
+    AutodetectProcess createAutodetectProcess(
+        String pipelineId,
+        Job job,
+        AutodetectParams autodetectParams,
+        ExecutorService executorService,
+        Consumer<String> onProcessCrash
+    );
 }

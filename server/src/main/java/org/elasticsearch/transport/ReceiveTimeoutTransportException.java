@@ -23,4 +23,9 @@ public class ReceiveTimeoutTransportException extends ActionTransportException {
         super(in);
     }
 
+    @Override
+    public synchronized Throwable fillInStackTrace() {
+        // stack trace is uninformative
+        return this;
+    }
 }

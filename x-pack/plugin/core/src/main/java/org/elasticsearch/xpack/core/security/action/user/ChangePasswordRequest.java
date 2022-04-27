@@ -13,7 +13,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.CharArrays;
+import org.elasticsearch.core.CharArrays;
 
 import java.io.IOException;
 
@@ -22,8 +22,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Request to change a user's password.
  */
-public class ChangePasswordRequest extends ActionRequest
-        implements UserRequest, WriteRequest<ChangePasswordRequest> {
+public class ChangePasswordRequest extends ActionRequest implements UserRequest, WriteRequest<ChangePasswordRequest> {
 
     private String username;
     private char[] passwordHash;

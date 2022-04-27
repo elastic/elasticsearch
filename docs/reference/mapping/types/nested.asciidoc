@@ -51,7 +51,7 @@ The previous document would be transformed internally into a document that looks
 // NOTCONSOLE
 
 The `user.first` and `user.last` fields are flattened into multi-value fields,
-and the association between `alice` and `white` is lost.  This document would
+and the association between `alice` and `white` is lost. This document would
 incorrectly match a query for `alice AND smith`:
 
 [source,console]
@@ -172,13 +172,13 @@ Nested documents can be:
 =============================================
 
 Because nested documents are indexed as separate documents, they can only be
-accessed  within the scope of the `nested` query, the
+accessed within the scope of the `nested` query, the
 `nested`/`reverse_nested` aggregations, or <<nested-inner-hits,nested inner hits>>.
 
 For instance, if a string field within a nested document has
 <<index-options,`index_options`>> set to `offsets` to allow use of the postings
 during the highlighting, these offsets will not be available during the main highlighting
-phase.  Instead, highlighting needs to be performed via
+phase. Instead, highlighting needs to be performed via
 <<nested-inner-hits,nested inner hits>>. The same consideration applies when loading
 fields during a search through <<docvalue-fields,
 `docvalue_fields`>> or <<stored-fields, `stored_fields`>>.
@@ -193,7 +193,7 @@ The following parameters are accepted by `nested` fields:
 <<dynamic,`dynamic`>>::
 (Optional, string)
 Whether or not new `properties` should be added dynamically to an existing
-nested object.  Accepts `true` (default), `false` and `strict`.
+nested object. Accepts `true` (default), `false` and `strict`.
 
 <<properties,`properties`>>::
 (Optional, object)

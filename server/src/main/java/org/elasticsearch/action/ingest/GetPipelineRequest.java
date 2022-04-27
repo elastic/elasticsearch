@@ -19,31 +19,43 @@ import java.io.IOException;
 public class GetPipelineRequest extends MasterNodeReadRequest<GetPipelineRequest> {
 
     private String[] ids;
+    private final boolean summary;
 
-    public GetPipelineRequest(String... ids) {
+    public GetPipelineRequest(boolean summary, String... ids) {
         if (ids == null) {
             throw new IllegalArgumentException("ids cannot be null");
         }
         this.ids = ids;
+        this.summary = summary;
+    }
+
+    public GetPipelineRequest(String... ids) {
+        this(false, ids);
     }
 
     GetPipelineRequest() {
-        this.ids = Strings.EMPTY_ARRAY;
+        this(false, Strings.EMPTY_ARRAY);
     }
 
     public GetPipelineRequest(StreamInput in) throws IOException {
         super(in);
         ids = in.readStringArray();
+        summary = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeStringArray(ids);
+        out.writeBoolean(summary);
     }
 
     public String[] getIds() {
         return ids;
+    }
+
+    public boolean isSummary() {
+        return summary;
     }
 
     @Override

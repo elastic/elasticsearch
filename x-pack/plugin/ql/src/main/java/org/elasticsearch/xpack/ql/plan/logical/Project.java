@@ -35,7 +35,7 @@ public class Project extends UnaryPlan {
     }
 
     @Override
-    protected Project replaceChild(LogicalPlan newChild) {
+    public Project replaceChild(LogicalPlan newChild) {
         return new Project(source(), newChild, projections);
     }
 
@@ -74,7 +74,6 @@ public class Project extends UnaryPlan {
 
         Project other = (Project) obj;
 
-        return Objects.equals(projections, other.projections)
-                && Objects.equals(child(), other.child());
+        return Objects.equals(projections, other.projections) && Objects.equals(child(), other.child());
     }
 }

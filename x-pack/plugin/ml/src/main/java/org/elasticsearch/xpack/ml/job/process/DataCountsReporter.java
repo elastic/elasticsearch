@@ -17,7 +17,6 @@ import java.util.Date;
 import java.util.Locale;
 import java.util.function.Predicate;
 
-
 /**
  * Status reporter for tracking counts of the good/bad records written to the API.
  * Call one of the reportXXX() methods to update the records counts.
@@ -74,20 +73,23 @@ public class DataCountsReporter {
      *                        but the actual number of fields in the record
      * @param recordTimeMs    The time of the record written
      *                        in milliseconds from the epoch.
+     * @param latestRecordTimeMs The time of the latest (in time) record written.
+     *                           May be greater than or equal to `recordTimeMs`
      */
-    public void reportRecordWritten(long inputFieldCount, long recordTimeMs) {
-        Date recordDate = new Date(recordTimeMs);
+    public void reportRecordWritten(long inputFieldCount, long recordTimeMs, long latestRecordTimeMs) {
+        final Date latestRecordDate = new Date(latestRecordTimeMs);
 
         totalRecordStats.incrementInputFieldCount(inputFieldCount);
         totalRecordStats.incrementProcessedRecordCount(1);
-        totalRecordStats.setLatestRecordTimeStamp(recordDate);
+        totalRecordStats.setLatestRecordTimeStamp(latestRecordDate);
 
         incrementalRecordStats.incrementInputFieldCount(inputFieldCount);
         incrementalRecordStats.incrementProcessedRecordCount(1);
-        incrementalRecordStats.setLatestRecordTimeStamp(recordDate);
+        incrementalRecordStats.setLatestRecordTimeStamp(latestRecordDate);
 
         boolean isFirstReport = totalRecordStats.getEarliestRecordTimeStamp() == null;
         if (isFirstReport) {
+            final Date recordDate = new Date(recordTimeMs);
             totalRecordStats.setEarliestRecordTimeStamp(recordDate);
             incrementalRecordStats.setEarliestRecordTimeStamp(recordDate);
         }
@@ -225,7 +227,6 @@ public class DataCountsReporter {
         return analyzedFieldsPerRecord;
     }
 
-
     /**
      * Report the counts now regardless of whether or not we are at a reporting boundary.
      */
@@ -248,9 +249,15 @@ public class DataCountsReporter {
             return false;
         }
 
-        String status = String.format(Locale.ROOT,
-                "[%s] %d records written to autodetect; missingFieldCount=%d, invalidDateCount=%d, outOfOrderCount=%d", job.getId(),
-                getProcessedRecordCount(), getMissingFieldErrorCount(), getDateParseErrorsCount(), getOutOfOrderRecordCount());
+        String status = String.format(
+            Locale.ROOT,
+            "[%s] %d records written to autodetect; missingFieldCount=%d, invalidDateCount=%d, outOfOrderCount=%d",
+            job.getId(),
+            getProcessedRecordCount(),
+            getMissingFieldErrorCount(),
+            getDateParseErrorsCount(),
+            getOutOfOrderRecordCount()
+        );
 
         logger.info(status);
 

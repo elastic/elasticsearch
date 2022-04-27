@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.action.admin.cluster.configuration;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -23,8 +23,11 @@ public class ClearVotingConfigExclusionsRequestTests extends ESTestCase {
         if (randomBoolean()) {
             originalRequest.setTimeout(TimeValue.timeValueMillis(randomLongBetween(0, 30000)));
         }
-        final ClearVotingConfigExclusionsRequest deserialized
-            = copyWriteable(originalRequest, writableRegistry(), ClearVotingConfigExclusionsRequest::new);
+        final ClearVotingConfigExclusionsRequest deserialized = copyWriteable(
+            originalRequest,
+            writableRegistry(),
+            ClearVotingConfigExclusionsRequest::new
+        );
         assertThat(deserialized.getWaitForRemoval(), equalTo(originalRequest.getWaitForRemoval()));
         assertThat(deserialized.getTimeout(), equalTo(originalRequest.getTimeout()));
     }

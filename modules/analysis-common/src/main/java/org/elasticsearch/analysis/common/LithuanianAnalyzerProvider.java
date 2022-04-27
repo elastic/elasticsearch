@@ -29,7 +29,6 @@ public class LithuanianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Li
             Analysis.parseStopWords(env, settings, LithuanianAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
         );
-        analyzer.setVersion(version);
     }
 
     @Override

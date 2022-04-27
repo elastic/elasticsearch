@@ -29,7 +29,9 @@ A `derivative` aggregation looks like this in isolation:
  details) |Required |
  |`gap_policy` |The policy to apply when gaps are found in the data (see <<gap-policy>> for more
  details)|Optional |`skip` 
- |`format` |format to apply to the output value of this aggregation |Optional | `null` 
+ |`format` |{javadoc}/java.base/java/text/DecimalFormat.html[DecimalFormat pattern] for the
+output value. If specified, the formatted value is returned in the aggregation's
+`value_as_string` property |Optional | `null` 
 |===
 
 
@@ -226,7 +228,7 @@ second derivative
 ==== Units
 
 The derivative aggregation allows the units of the derivative values to be specified. This returns an extra field in the response
-`normalized_value` which reports the derivative value in the desired x-axis units.  In the below example we calculate the derivative
+`normalized_value` which reports the derivative value in the desired x-axis units. In the below example we calculate the derivative
 of the total sales per month but ask for the derivative of the sales as in the units of sales per day:
 
 [source,console]

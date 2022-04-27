@@ -17,9 +17,7 @@ import org.junit.Before;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -28,7 +26,6 @@ import java.util.stream.Stream;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.collection.IsMapContaining.hasKey;
 import static org.junit.Assume.assumeFalse;
-import static org.junit.Assume.assumeTrue;
 
 public class PasswordToolsTests extends PackagingTestCase {
 
@@ -37,23 +34,20 @@ public class PasswordToolsTests extends PackagingTestCase {
 
     @Before
     public void filterDistros() {
-        assumeTrue("only default distro", distribution.flavor == Distribution.Flavor.DEFAULT);
-        assumeFalse("no docker", distribution.isDocker());
+        assumeFalse("only archives", distribution.isDocker() || distribution().isPackage());
     }
 
     public void test010Install() throws Exception {
         install();
-        Files.write(
-            installation.config("elasticsearch.yml"),
-            List.of("xpack.license.self_generated.type: trial", "xpack.security.enabled: true"),
-            StandardOpenOption.APPEND
-        );
+        // Disable auto-configuration for archives so that we can run setup-passwords
+        ServerUtils.disableSecurityAutoConfiguration(installation);
     }
 
     public void test20GeneratePasswords() throws Exception {
         assertWhileRunning(() -> {
+            ServerUtils.waitForElasticsearch(installation);
             Shell.Result result = installation.executables().setupPasswordsTool.run("auto --batch", null);
-            Map<String, String> userpasses = parseUsersAndPasswords(result.stdout);
+            Map<String, String> userpasses = parseUsersAndPasswords(result.stdout());
             for (Map.Entry<String, String> userpass : userpasses.entrySet()) {
                 String response = ServerUtils.makeRequest(
                     Request.Get("http://localhost:9200"),
@@ -121,7 +115,7 @@ public class PasswordToolsTests extends PackagingTestCase {
         assertWhileRunning(() -> {
 
             Shell.Result result = installation.executables().setupPasswordsTool.run("auto --batch", null);
-            Map<String, String> userpasses = parseUsersAndPasswords(result.stdout);
+            Map<String, String> userpasses = parseUsersAndPasswords(result.stdout());
             assertThat(userpasses, hasKey("elastic"));
             for (Map.Entry<String, String> userpass : userpasses.entrySet()) {
                 String response = ServerUtils.makeRequest(

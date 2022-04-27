@@ -11,8 +11,8 @@ score to documents returned from a query.
         User-defined parameters passed in as part of the query.
 
 `doc` (`Map`, read-only)::
-        Contains the fields of the current document.  For single-valued fields,
-        the value can be accessed via `doc['fieldname'].value`.  For multi-valued
+        Contains the fields of the current document. For single-valued fields,
+        the value can be accessed via `doc['fieldname'].value`. For multi-valued
         fields, this returns the first value; other values can be accessed
         via `doc['fieldname'].get(index)`
 

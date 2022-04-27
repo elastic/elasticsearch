@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.Binar
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.ql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.RegexMatch;
+import org.elasticsearch.xpack.ql.planner.ExpressionTranslator;
 import org.elasticsearch.xpack.ql.planner.ExpressionTranslators;
 import org.elasticsearch.xpack.ql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.ql.querydsl.query.GeoDistanceQuery;
@@ -93,36 +94,36 @@ final class QueryTranslator {
     private QueryTranslator() {}
 
     private static final List<SqlExpressionTranslator<?>> QUERY_TRANSLATORS = Arrays.asList(
-            new BinaryComparisons(),
-            new InComparisons(),
-            new Ranges(),
-            new BinaryLogic(),
-            new Nots(),
-            new IsNullTranslator(),
-            new IsNotNullTranslator(),
-            new Likes(),
-            new StringQueries(),
-            new Matches(),
-            new MultiMatches(),
-            new Scalars()
-            );
+        new BinaryComparisons(),
+        new InComparisons(),
+        new Ranges(),
+        new BinaryLogic(),
+        new Nots(),
+        new IsNullTranslator(),
+        new IsNotNullTranslator(),
+        new Likes(),
+        new StringQueries(),
+        new Matches(),
+        new MultiMatches(),
+        new Scalars()
+    );
 
     private static final List<AggTranslator<?>> AGG_TRANSLATORS = Arrays.asList(
-            new Maxes(),
-            new Mins(),
-            new Avgs(),
-            new Sums(),
-            new StatsAggs(),
-            new ExtendedStatsAggs(),
-            new MatrixStatsAggs(),
-            new PercentilesAggs(),
-            new PercentileRanksAggs(),
-            new CountAggs(),
-            new DateTimes(),
-            new Firsts(),
-            new Lasts(),
-            new MADs()
-            );
+        new Maxes(),
+        new Mins(),
+        new Avgs(),
+        new Sums(),
+        new StatsAggs(),
+        new ExtendedStatsAggs(),
+        new MatrixStatsAggs(),
+        new PercentilesAggs(),
+        new PercentileRanksAggs(),
+        new CountAggs(),
+        new DateTimes(),
+        new Firsts(),
+        new Lasts(),
+        new MADs()
+    );
 
     static class QueryTranslation {
         final Query query;
@@ -182,11 +183,9 @@ final class QueryTranslator {
 
         if (left.aggFilter == null) {
             aggFilter = right.aggFilter;
-        }
-        else if (right.aggFilter == null) {
+        } else if (right.aggFilter == null) {
             aggFilter = left.aggFilter;
-        }
-        else {
+        } else {
             aggFilter = new AndAggFilter(left.aggFilter, right.aggFilter);
         }
 
@@ -211,11 +210,9 @@ final class QueryTranslator {
 
         if (left.aggFilter == null) {
             aggFilter = right.aggFilter;
-        }
-        else if (right.aggFilter == null) {
+        } else if (right.aggFilter == null) {
             aggFilter = left.aggFilter;
-        }
-        else {
+        } else {
             aggFilter = new OrAggFilter(left.aggFilter, right.aggFilter);
         }
 
@@ -223,13 +220,12 @@ final class QueryTranslator {
     }
 
     static String nameOf(Expression e) {
-        if (e instanceof DateTimeFunction) {
-            return nameOf(((DateTimeFunction) e).field());
+        if (e instanceof DateTimeFunction dateTimeFunction) {
+            return nameOf(dateTimeFunction.field());
         }
-        if (e instanceof NamedExpression) {
-            return ((NamedExpression) e).name();
-        }
-        else {
+        if (e instanceof NamedExpression namedExpression) {
+            return namedExpression.name();
+        } else {
             return e.sourceText();
         }
     }
@@ -238,8 +234,7 @@ final class QueryTranslator {
         if (arg.foldable()) {
             return String.valueOf(arg.fold());
         }
-        if (arg instanceof FieldAttribute) {
-            FieldAttribute field = (FieldAttribute) arg;
+        if (arg instanceof FieldAttribute field) {
             // COUNT(DISTINCT) uses cardinality aggregation which works on exact values (not changed by analyzers or normalizers)
             if ((af instanceof Count && ((Count) af).distinct()) || af instanceof TopHits) {
                 // use the `keyword` version of the field, if there is one
@@ -247,8 +242,11 @@ final class QueryTranslator {
             }
             return field.name();
         }
-        throw new SqlIllegalArgumentException("Does not know how to convert argument {} for function {}", arg.nodeString(),
-                                              af.nodeString());
+        throw new SqlIllegalArgumentException(
+            "Does not know how to convert argument {} for function {}",
+            arg.nodeString(),
+            af.nodeString()
+        );
     }
 
     private static boolean isFieldOrLiteral(Expression e) {
@@ -307,8 +305,11 @@ final class QueryTranslator {
     static class BinaryLogic extends SqlExpressionTranslator<org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic> {
 
         @Override
-        protected QueryTranslation asQuery(org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic e, boolean onAggs,
-                                           TranslatorHandler handler) {
+        protected QueryTranslation asQuery(
+            org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic e,
+            boolean onAggs,
+            TranslatorHandler handler
+        ) {
             if (e instanceof And) {
                 return and(e.source(), toQuery(e.left(), onAggs), toQuery(e.right(), onAggs));
             }
@@ -398,7 +399,7 @@ final class QueryTranslator {
 
             // Possible geo optimization
             if (bc.left() instanceof StDistance && value instanceof Number) {
-                 if (bc instanceof LessThan || bc instanceof LessThanOrEqual) {
+                if (bc instanceof LessThan || bc instanceof LessThanOrEqual) {
                     // Special case for ST_Distance translatable into geo_distance query
                     StDistance stDistance = (StDistance) bc.left();
                     if (stDistance.left() instanceof FieldAttribute && stDistance.right().foldable()) {
@@ -407,8 +408,14 @@ final class QueryTranslator {
                             Geometry geometry = ((GeoShape) geoShape).toGeometry();
                             if (geometry instanceof Point) {
                                 String field = nameOf(stDistance.left());
-                                return new GeoDistanceQuery(source, field, ((Number) value).doubleValue(),
-                                    ((Point) geometry).getY(), ((Point) geometry).getX());
+                                Query query = new GeoDistanceQuery(
+                                    source,
+                                    field,
+                                    ((Number) value).doubleValue(),
+                                    ((Point) geometry).getY(),
+                                    ((Point) geometry).getX()
+                                );
+                                return ExpressionTranslator.wrapIfNested(query, stDistance.left());
                             }
                         }
                     }
@@ -433,8 +440,7 @@ final class QueryTranslator {
             //
             if (onAggs) {
                 aggFilter = new AggFilter(id(in.value()), in.asScript());
-            }
-            else {
+            } else {
                 query = org.elasticsearch.xpack.ql.planner.ExpressionTranslators.InComparisons.doTranslate(in, handler);
             }
             return new QueryTranslation(query, aggFilter);
@@ -479,7 +485,6 @@ final class QueryTranslator {
             return new QueryTranslation(query, aggFilter);
         }
     }
-
 
     abstract static class SqlExpressionTranslator<E extends Expression> {
 

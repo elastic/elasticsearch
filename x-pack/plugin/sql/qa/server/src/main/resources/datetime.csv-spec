@@ -131,6 +131,21 @@ SELECT WEEK(birth_date) week, birth_date FROM test_emp ORDER BY WEEK(birth_date)
 44             |1961-11-02T00:00:00.000Z
 ;
 
+isoDayOfWeek
+SELECT ISO_DAY_OF_WEEK(birth_date) AS d, SUM(salary) s FROM test_emp GROUP BY d ORDER BY d DESC;
+
+      d:i      |      s:l
+---------------+---------------
+7              |386466       
+6              |643304       
+5              |653130       
+4              |740669       
+3              |655169       
+2              |888011       
+1              |428067       
+null           |430039
+;
+
 isoWeekOfYear
 schema::birth_date:ts|iso_week:i|week:i
 SELECT birth_date, IW(birth_date) iso_week, WEEK(birth_date) week FROM test_emp WHERE IW(birth_date) < 8 AND week >2 ORDER BY iso_week;
@@ -1309,9 +1324,9 @@ SELECT CAST(hire_date AS LONG) AS date FROM test_emp GROUP BY date ORDER BY date
 ;
 
 dateTimeAggByIsoDayOfWeekWithFilter
-SELECT IDOW(birth_date) day, DAY_NAME(birth_date) name, COUNT(*) c FROM test_emp WHERE IDOW(birth_date) < 6 GROUP BY day, name ORDER BY day desc;
+SELECT IDOW(birth_date) day, DAY_NAME(birth_date) dayname, COUNT(*) c FROM test_emp WHERE IDOW(birth_date) < 6 GROUP BY day, dayname ORDER BY day desc;
 
-    day:i      |   name:s      |     c:l       
+    day:i      |   dayname:s   |     c:l       
 ---------------+---------------+---------------
 5              |Friday         |12             
 4              |Thursday       |15             
@@ -1321,9 +1336,9 @@ SELECT IDOW(birth_date) day, DAY_NAME(birth_date) name, COUNT(*) c FROM test_emp
 ;
 
 dateTimeAggByIsoDayOfWeek
-SELECT IDOW(birth_date) day, DAY_NAME(birth_date) name, COUNT(*) c FROM test_emp GROUP BY day, name ORDER BY day desc;
+SELECT IDOW(birth_date) day, DAY_NAME(birth_date) dayname, COUNT(*) c FROM test_emp GROUP BY day, dayname ORDER BY day desc;
 
-    day:i      |   name:s      |     c:l       
+    day:i      |   dayname:s   |     c:l       
 ---------------+---------------+---------------
 7              |Sunday         |10
 6              |Saturday       |13

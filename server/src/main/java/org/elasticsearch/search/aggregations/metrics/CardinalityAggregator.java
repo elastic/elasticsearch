@@ -8,10 +8,6 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
-import java.io.IOException;
-import java.util.Map;
-import java.util.function.BiConsumer;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
@@ -19,14 +15,15 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.Nullable;
+import org.apache.lucene.util.hppc.BitMixer;
 import org.elasticsearch.common.hash.MurmurHash3;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArray;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -36,38 +33,42 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
-import com.carrotsearch.hppc.BitMixer;
+import java.io.IOException;
+import java.util.Map;
+import java.util.function.BiConsumer;
 
 /**
  * An aggregator that computes approximate counts of unique values.
  */
-public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue {
+public abstract class CardinalityAggregator extends NumericMetricsAggregator.SingleValue {
 
-    private final int precision;
+    protected final int precision;
+    protected final ValuesSourceConfig valuesSourceConfig;
     private final ValuesSource valuesSource;
 
     // Expensive to initialize, so we only initialize it when we have an actual value source
     @Nullable
-    private HyperLogLogPlusPlus counts;
+    protected final HyperLogLogPlusPlus counts;
 
     private Collector collector;
 
-    private int emptyCollectorsUsed;
-    private int numericCollectorsUsed;
-    private int ordinalsCollectorsUsed;
-    private int ordinalsCollectorsOverheadTooHigh;
-    private int stringHashingCollectorsUsed;
+    protected int emptyCollectorsUsed;
+    protected int ordinalsCollectorsUsed;
+    protected int ordinalsCollectorsOverheadTooHigh;
+    protected int stringHashingCollectorsUsed;
 
     public CardinalityAggregator(
-            String name,
-            ValuesSourceConfig valuesSourceConfig,
-            int precision,
-            AggregationContext context,
-            Aggregator parent,
-            Map<String, Object> metadata) throws IOException {
+        String name,
+        ValuesSourceConfig valuesSourceConfig,
+        int precision,
+        AggregationContext context,
+        Aggregator parent,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, context, parent, metadata);
         // TODO: Stop using nulls here
         this.valuesSource = valuesSourceConfig.hasValues() ? valuesSourceConfig.getValuesSource() : null;
+        this.valuesSourceConfig = valuesSourceConfig;
         this.precision = precision;
         this.counts = valuesSource == null ? null : new HyperLogLogPlusPlus(precision, context.bigArrays(), 1);
     }
@@ -77,53 +78,10 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         return valuesSource != null && valuesSource.needsScores() ? ScoreMode.COMPLETE : ScoreMode.COMPLETE_NO_SCORES;
     }
 
-    private Collector pickCollector(LeafReaderContext ctx) throws IOException {
-        if (valuesSource == null) {
-            emptyCollectorsUsed++;
-            return new EmptyCollector();
-        }
-
-        if (valuesSource instanceof ValuesSource.Numeric) {
-            ValuesSource.Numeric source = (ValuesSource.Numeric) valuesSource;
-            MurmurHash3Values hashValues = source.isFloatingPoint() ?
-                MurmurHash3Values.hash(source.doubleValues(ctx)) : MurmurHash3Values.hash(source.longValues(ctx));
-            numericCollectorsUsed++;
-            return new DirectCollector(counts, hashValues);
-        }
-
-        if (valuesSource instanceof ValuesSource.Bytes.WithOrdinals) {
-            ValuesSource.Bytes.WithOrdinals source = (ValuesSource.Bytes.WithOrdinals) valuesSource;
-            final SortedSetDocValues ordinalValues = source.ordinalsValues(ctx);
-            final long maxOrd = ordinalValues.getValueCount();
-            if (maxOrd == 0) {
-                emptyCollectorsUsed++;
-                return new EmptyCollector();
-            }
-
-            final long ordinalsMemoryUsage = OrdinalsCollector.memoryOverhead(maxOrd);
-            final long countsMemoryUsage = HyperLogLogPlusPlus.memoryUsage(precision);
-            // only use ordinals if they don't increase memory usage by more than 25%
-            if (ordinalsMemoryUsage < countsMemoryUsage / 4) {
-                ordinalsCollectorsUsed++;
-                return new OrdinalsCollector(counts, ordinalValues, bigArrays());
-            }
-            ordinalsCollectorsOverheadTooHigh++;
-        }
-
-        stringHashingCollectorsUsed++;
-        return new DirectCollector(counts, MurmurHash3Values.hash(valuesSource.bytesValues(ctx)));
-    }
-
     @Override
-    public LeafBucketCollector getLeafCollector(LeafReaderContext ctx,
-            final LeafBucketCollector sub) throws IOException {
-        postCollectLastCollector();
+    public abstract LeafBucketCollector getLeafCollector(LeafReaderContext ctx, LeafBucketCollector sub) throws IOException;
 
-        collector = pickCollector(ctx);
-        return collector;
-    }
-
-    private void postCollectLastCollector() throws IOException {
+    protected void postCollectLastCollector() throws IOException {
         if (collector != null) {
             try {
                 collector.postCollect();
@@ -169,19 +127,18 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         super.collectDebugInfo(add);
         add.accept("empty_collectors_used", emptyCollectorsUsed);
-        add.accept("numeric_collectors_used", numericCollectorsUsed);
         add.accept("ordinals_collectors_used", ordinalsCollectorsUsed);
         add.accept("ordinals_collectors_overhead_too_high", ordinalsCollectorsOverheadTooHigh);
         add.accept("string_hashing_collectors_used", stringHashingCollectorsUsed);
     }
 
-    private abstract static class Collector extends LeafBucketCollector implements Releasable {
+    protected abstract static class Collector extends LeafBucketCollector implements Releasable {
 
         public abstract void postCollect() throws IOException;
 
     }
 
-    private static class EmptyCollector extends Collector {
+    protected static class EmptyCollector extends Collector {
 
         @Override
         public void collect(int doc, long bucketOrd) {
@@ -199,7 +156,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         }
     }
 
-    private static class DirectCollector extends Collector {
+    protected static class DirectCollector extends Collector {
 
         private final MurmurHash3Values hashes;
         private final HyperLogLogPlusPlus counts;
@@ -231,7 +188,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
     }
 
-    private static class OrdinalsCollector extends Collector {
+    protected static class OrdinalsCollector extends Collector {
 
         private static final long SHALLOW_FIXEDBITSET_SIZE = RamUsageEstimator.shallowSizeOfInstance(FixedBitSet.class);
 
@@ -248,8 +205,7 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
         private final HyperLogLogPlusPlus counts;
         private ObjectArray<BitArray> visitedOrds;
 
-        OrdinalsCollector(HyperLogLogPlusPlus counts, SortedSetDocValues values,
-                BigArrays bigArrays) {
+        OrdinalsCollector(HyperLogLogPlusPlus counts, SortedSetDocValues values, BigArrays bigArrays) {
             if (values.getValueCount() > Integer.MAX_VALUE) {
                 throw new IllegalArgumentException();
             }
@@ -287,8 +243,9 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
 
                 try (LongArray hashes = bigArrays.newLongArray(maxOrd, false)) {
                     final MurmurHash3.Hash128 hash = new MurmurHash3.Hash128();
-                    for (long ord = allVisitedOrds.nextSetBit(0); ord < Long.MAX_VALUE;
-                         ord = ord + 1 < maxOrd ? allVisitedOrds.nextSetBit(ord + 1) : Long.MAX_VALUE) {
+                    for (long ord = allVisitedOrds.nextSetBit(0); ord < Long.MAX_VALUE; ord = ord + 1 < maxOrd
+                        ? allVisitedOrds.nextSetBit(ord + 1)
+                        : Long.MAX_VALUE) {
                         final BytesRef value = values.lookupOrd(ord);
                         MurmurHash3.hash128(value.bytes, value.offset, value.length, 0, hash);
                         hashes.set(ord, hash.h1);
@@ -297,8 +254,9 @@ public class CardinalityAggregator extends NumericMetricsAggregator.SingleValue 
                     for (long bucket = visitedOrds.size() - 1; bucket >= 0; --bucket) {
                         final BitArray bits = visitedOrds.get(bucket);
                         if (bits != null) {
-                            for (long ord = bits.nextSetBit(0); ord < Long.MAX_VALUE;
-                                 ord = ord + 1 < maxOrd ? bits.nextSetBit(ord + 1) : Long.MAX_VALUE) {
+                            for (long ord = bits.nextSetBit(0); ord < Long.MAX_VALUE; ord = ord + 1 < maxOrd
+                                ? bits.nextSetBit(ord + 1)
+                                : Long.MAX_VALUE) {
                                 counts.collect(bucket, hashes.get(ord));
                             }
                         }

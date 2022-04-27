@@ -10,6 +10,7 @@ The following APIs are available for managing <<data-streams,data streams>>:
 * <<indices-migrate-to-data-stream>>
 * <<data-stream-stats-api>>
 * <<promote-data-stream-api>>
+* <<modify-data-streams-api>>
 
 For concepts and tutorials, see <<data-streams>>.
 
@@ -24,3 +25,5 @@ include::{es-repo-dir}/indices/migrate-to-data-stream.asciidoc[]
 include::{es-repo-dir}/indices/data-stream-stats.asciidoc[]
 
 include::{es-repo-dir}/data-streams/promote-data-stream-api.asciidoc[]
+
+include::{es-repo-dir}/data-streams/modify-data-streams-api.asciidoc[]

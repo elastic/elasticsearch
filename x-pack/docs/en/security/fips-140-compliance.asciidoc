@@ -27,6 +27,12 @@ For {es}, adherence to FIPS 140-2 is ensured by
 [discrete]
 === Upgrade considerations
 
+[IMPORTANT] 
+==== 
+include::fips-java17.asciidoc[]
+====
+
+
 If you plan to upgrade your existing cluster to a version that can be run in
 a FIPS 140-2 configured JVM, we recommend to first perform a rolling
 upgrade to the new version in your existing JVM and perform all necessary
@@ -128,6 +134,8 @@ native, and file realms are longer than 14 bytes.
 You must set the `cache.hash_algo` realm settings
 and the `xpack.security.authc.password_hashing.algorithm` setting to one of the
 available `pbkdf_stretch_*` values.
+When FIPS-140 mode is enabled, the default value for
+`xpack.security.authc.password_hashing.algorithm` is `pbkdf2_stretch`.
 See <<hashing-settings>>.
 
 Password hashing configuration changes are not retroactive so the stored hashed

@@ -8,14 +8,17 @@
 package org.elasticsearch.xpack.ml.dataframe.steps;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.Locale;
 
 public interface DataFrameAnalyticsStep {
 
     enum Name {
-        REINDEXING, ANALYSIS, INFERENCE, FINAL;
+        REINDEXING,
+        ANALYSIS,
+        INFERENCE,
+        FINAL;
 
         @Override
         public String toString() {

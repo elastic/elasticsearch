@@ -19,7 +19,7 @@ public class HttpUtils {
         try {
             final boolean http10 = httpRequest.protocolVersion() == HttpRequest.HttpVersion.HTTP_1_0;
             return CLOSE.equalsIgnoreCase(httpRequest.header(CONNECTION))
-                || (http10 && !KEEP_ALIVE.equalsIgnoreCase(httpRequest.header(CONNECTION)));
+                || (http10 && KEEP_ALIVE.equalsIgnoreCase(httpRequest.header(CONNECTION)) == false);
         } catch (Exception e) {
             // In case we fail to parse the http protocol version out of the request we always close the connection
             return true;

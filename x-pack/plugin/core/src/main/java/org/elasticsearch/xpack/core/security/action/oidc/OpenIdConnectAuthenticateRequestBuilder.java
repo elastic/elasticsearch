@@ -7,13 +7,14 @@
 package org.elasticsearch.xpack.core.security.action.oidc;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
 /**
  * Request builder for populating a {@link OpenIdConnectAuthenticateRequest}
  */
-public class OpenIdConnectAuthenticateRequestBuilder
-    extends ActionRequestBuilder<OpenIdConnectAuthenticateRequest, OpenIdConnectAuthenticateResponse> {
+public class OpenIdConnectAuthenticateRequestBuilder extends ActionRequestBuilder<
+    OpenIdConnectAuthenticateRequest,
+    OpenIdConnectAuthenticateResponse> {
 
     public OpenIdConnectAuthenticateRequestBuilder(ElasticsearchClient client) {
         super(client, OpenIdConnectAuthenticateAction.INSTANCE, new OpenIdConnectAuthenticateRequest());

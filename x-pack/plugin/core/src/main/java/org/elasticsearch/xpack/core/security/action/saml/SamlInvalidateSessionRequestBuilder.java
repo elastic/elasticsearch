@@ -7,13 +7,14 @@
 package org.elasticsearch.xpack.core.security.action.saml;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
 /**
  * Request builder used to populate a {@link SamlInvalidateSessionRequest}
  */
-public final class SamlInvalidateSessionRequestBuilder
-        extends ActionRequestBuilder<SamlInvalidateSessionRequest, SamlInvalidateSessionResponse> {
+public final class SamlInvalidateSessionRequestBuilder extends ActionRequestBuilder<
+    SamlInvalidateSessionRequest,
+    SamlInvalidateSessionResponse> {
 
     public SamlInvalidateSessionRequestBuilder(ElasticsearchClient client) {
         super(client, SamlInvalidateSessionAction.INSTANCE, new SamlInvalidateSessionRequest());

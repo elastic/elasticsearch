@@ -15,12 +15,12 @@ import static org.hamcrest.Matchers.not;
 public class S3SearchableSnapshotsIT extends AbstractSearchableSnapshotsRestTestCase {
 
     @Override
-    protected String repositoryType() {
+    protected String writeRepositoryType() {
         return "s3";
     }
 
     @Override
-    protected Settings repositorySettings() {
+    protected Settings writeRepositorySettings() {
         final String bucket = System.getProperty("test.s3.bucket");
         assertThat(bucket, not(blankOrNullString()));
 

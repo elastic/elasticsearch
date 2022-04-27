@@ -16,6 +16,8 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.List;
+
 import static org.hamcrest.Matchers.equalTo;
 
 public class TransportSearchHelperTests extends ESTestCase {
@@ -25,22 +27,28 @@ public class TransportSearchHelperTests extends ESTestCase {
         DiscoveryNode node1 = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNode node2 = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNode node3 = new DiscoveryNode("node_3", buildNewFakeTransportAddress(), Version.CURRENT);
-        SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult1 =
-            new SearchAsyncActionTests.TestSearchPhaseResult(new ShardSearchContextId("a", 1), node1);
-        testSearchPhaseResult1.setSearchShardTarget(new SearchShardTarget("node_1", new ShardId("idx", "uuid1", 2), "cluster_x", null));
-        SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult2 =
-            new SearchAsyncActionTests.TestSearchPhaseResult(new ShardSearchContextId("b", 12), node2);
-        testSearchPhaseResult2.setSearchShardTarget(new SearchShardTarget("node_2", new ShardId("idy", "uuid2", 42), "cluster_y", null));
-        SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult3 =
-            new SearchAsyncActionTests.TestSearchPhaseResult(new ShardSearchContextId("c", 42), node3);
-        testSearchPhaseResult3.setSearchShardTarget(new SearchShardTarget("node_3", new ShardId("idy", "uuid2", 43), null, null));
+        SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult1 = new SearchAsyncActionTests.TestSearchPhaseResult(
+            new ShardSearchContextId("a", 1),
+            node1
+        );
+        testSearchPhaseResult1.setSearchShardTarget(new SearchShardTarget("node_1", new ShardId("idx", "uuid1", 2), "cluster_x"));
+        SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult2 = new SearchAsyncActionTests.TestSearchPhaseResult(
+            new ShardSearchContextId("b", 12),
+            node2
+        );
+        testSearchPhaseResult2.setSearchShardTarget(new SearchShardTarget("node_2", new ShardId("idy", "uuid2", 42), "cluster_y"));
+        SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult3 = new SearchAsyncActionTests.TestSearchPhaseResult(
+            new ShardSearchContextId("c", 42),
+            node3
+        );
+        testSearchPhaseResult3.setSearchShardTarget(new SearchShardTarget("node_3", new ShardId("idy", "uuid2", 43), null));
         array.setOnce(0, testSearchPhaseResult1);
         array.setOnce(1, testSearchPhaseResult2);
         array.setOnce(2, testSearchPhaseResult3);
         return array;
     }
 
-    public void testParseScrollId()  {
+    public void testParseScrollId() {
         final AtomicArray<SearchPhaseResult> queryResults = generateQueryResults();
         String scrollId = TransportSearchHelper.buildScrollId(queryResults);
         ParsedScrollId parseScrollId = TransportSearchHelper.parseScrollId(scrollId);
@@ -59,5 +67,23 @@ public class TransportSearchHelperTests extends ESTestCase {
         assertNull(parseScrollId.getContext()[2].getClusterAlias());
         assertEquals(42, parseScrollId.getContext()[2].getSearchContextId().getId());
         assertThat(parseScrollId.getContext()[2].getSearchContextId().getSessionId(), equalTo("c"));
+    }
+
+    public void testGetPreviousMinorSeries() throws Exception {
+        final List<Version> declaredVersions = Version.getDeclaredVersions(Version.class);
+        Version randomVersion = randomValueOtherThanMany(v -> v.before(Version.V_7_1_0), () -> randomFrom(declaredVersions));
+        Version previousFirstMinor = TransportSearchHelper.getPreviousMinorSeries(randomVersion);
+        assertTrue(previousFirstMinor.before(randomVersion));
+        assertTrue(previousFirstMinor.revision == 0);
+        for (int i = declaredVersions.indexOf(previousFirstMinor); i < declaredVersions.indexOf(randomVersion); i++) {
+            Version version = declaredVersions.get(i);
+            assertTrue(version.before(randomVersion));
+            if (randomVersion.major == previousFirstMinor.major) {
+                assertTrue(previousFirstMinor.minor == randomVersion.minor - 1);
+            } else {
+                assertTrue((randomVersion.major - 1) == previousFirstMinor.major);
+                assertTrue(randomVersion.minor == 0);
+            }
+        }
     }
 }

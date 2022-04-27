@@ -8,18 +8,17 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.Query;
+import org.elasticsearch.action.search.SearchShardTask;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.search.aggregations.bucket.global.GlobalAggregator;
+import org.elasticsearch.search.SearchService;
+import org.elasticsearch.search.aggregations.timeseries.TimeSeriesIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.query.CollectorResult;
 import org.elasticsearch.search.profile.query.InternalProfileCollector;
-import org.elasticsearch.search.query.QueryPhaseExecutionException;
+import org.elasticsearch.search.query.QueryPhase;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -28,38 +27,68 @@ import java.util.List;
 public class AggregationPhase {
 
     @Inject
-    public AggregationPhase() {
-    }
+    public AggregationPhase() {}
 
-    public void preProcess(SearchContext context) {
-        if (context.aggregations() != null) {
-            List<Aggregator> collectors = new ArrayList<>();
-            Aggregator[] aggregators;
+    public static void preProcess(SearchContext context) {
+        if (context.aggregations() == null) {
+            return;
+        }
+        BucketCollector bucketCollector;
+        try {
+            context.aggregations().aggregators(context.aggregations().factories().createTopLevelAggregators());
+            bucketCollector = MultiBucketCollector.wrap(true, List.of(context.aggregations().aggregators()));
+            bucketCollector.preCollection();
+        } catch (IOException e) {
+            throw new AggregationInitializationException("Could not initialize aggregators", e);
+        }
+        if (context.aggregations().factories().context() != null
+            && context.aggregations().factories().context().isInSortOrderExecutionRequired()) {
+            TimeSeriesIndexSearcher searcher = new TimeSeriesIndexSearcher(context.searcher(), getCancellationChecks(context));
             try {
-                aggregators = context.aggregations().factories().createTopLevelAggregators();
-                for (int i = 0; i < aggregators.length; i++) {
-                    if (aggregators[i] instanceof GlobalAggregator == false) {
-                        collectors.add(aggregators[i]);
-                    }
-                }
-                context.aggregations().aggregators(aggregators);
-                if (collectors.isEmpty() == false) {
-                    Collector collector = MultiBucketCollector.wrap(collectors);
-                    ((BucketCollector)collector).preCollection();
-                    if (context.getProfilers() != null) {
-                        collector = new InternalProfileCollector(collector, CollectorResult.REASON_AGGREGATION,
-                                // TODO: report on child aggs as well
-                                Collections.emptyList());
-                    }
-                    context.queryCollectors().put(AggregationPhase.class, collector);
-                }
+                searcher.search(context.rewrittenQuery(), bucketCollector);
             } catch (IOException e) {
-                throw new AggregationInitializationException("Could not initialize aggregators", e);
+                throw new AggregationExecutionException("Could not perform time series aggregation", e);
             }
+            context.queryCollectors().put(AggregationPhase.class, BucketCollector.NO_OP_COLLECTOR);
+        } else {
+            Collector collector = context.getProfilers() == null
+                ? bucketCollector
+                : new InternalProfileCollector(bucketCollector, CollectorResult.REASON_AGGREGATION, List.of());
+            context.queryCollectors().put(AggregationPhase.class, collector);
         }
     }
 
-    public void execute(SearchContext context) {
+    private static List<Runnable> getCancellationChecks(SearchContext context) {
+        List<Runnable> cancellationChecks = new ArrayList<>();
+        if (context.lowLevelCancellation()) {
+            // This searching doesn't live beyond this phase, so we don't need to remove query cancellation
+            cancellationChecks.add(() -> {
+                final SearchShardTask task = context.getTask();
+                if (task != null) {
+                    task.ensureNotCancelled();
+                }
+            });
+        }
+
+        boolean timeoutSet = context.scrollContext() == null
+            && context.timeout() != null
+            && context.timeout().equals(SearchService.NO_TIMEOUT) == false;
+
+        if (timeoutSet) {
+            final long startTime = context.getRelativeTimeInMillis();
+            final long timeout = context.timeout().millis();
+            final long maxTime = startTime + timeout;
+            cancellationChecks.add(() -> {
+                final long time = context.getRelativeTimeInMillis();
+                if (time > maxTime) {
+                    throw new QueryPhase.TimeExceededException();
+                }
+            });
+        }
+        return cancellationChecks;
+    }
+
+    public static void execute(SearchContext context) {
         if (context.aggregations() == null) {
             context.queryResult().aggregations(null);
             return;
@@ -71,37 +100,6 @@ public class AggregationPhase {
         }
 
         Aggregator[] aggregators = context.aggregations().aggregators();
-        List<Aggregator> globals = new ArrayList<>();
-        for (int i = 0; i < aggregators.length; i++) {
-            if (aggregators[i] instanceof GlobalAggregator) {
-                globals.add(aggregators[i]);
-            }
-        }
-
-        // optimize the global collector based execution
-        if (globals.isEmpty() == false) {
-            BucketCollector globalsCollector = MultiBucketCollector.wrap(globals);
-            Query query = context.buildFilteredQuery(Queries.newMatchAllQuery());
-
-            try {
-                final Collector collector;
-                if (context.getProfilers() == null) {
-                    collector = globalsCollector;
-                } else {
-                    InternalProfileCollector profileCollector = new InternalProfileCollector(
-                            globalsCollector, CollectorResult.REASON_AGGREGATION_GLOBAL,
-                            // TODO: report on sub collectors
-                            Collections.emptyList());
-                    collector = profileCollector;
-                    // start a new profile with this collector
-                    context.getProfilers().addQueryProfiler().setCollector(profileCollector);
-                }
-                globalsCollector.preCollection();
-                context.searcher().search(query, collector);
-            } catch (Exception e) {
-                throw new QueryPhaseExecutionException(context.shardTarget(), "Failed to execute global aggregators", e);
-            }
-        }
 
         List<InternalAggregation> aggregations = new ArrayList<>(aggregators.length);
         if (context.aggregations().factories().context() != null) {

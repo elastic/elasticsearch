@@ -1,0 +1,42 @@
+<?xml version="1.0"?>
+<!DOCTYPE module PUBLIC
+    "-//Puppy Crawl//DTD Check Configuration 1.3//EN"
+    "http://www.puppycrawl.com/dtds/configuration_1_3.dtd">
+
+<!-- There are some rules that we only want to enable in an IDE. These  -->
+<!-- are extracted to a separate file, and merged into the IDE-specific -->
+<!-- Checkstyle config by the `:configureIdeCheckstyle` task.           -->
+
+<module name="IdeFragment">
+
+    <!-- See CONTRIBUTING.md for our guidelines on Javadoc -->
+
+    <module name="MissingJavadocMethod">
+        <property name="severity" value="info" />
+        <!-- Exclude short methods from this check - we don't want to have to document getters -->
+        <property name="minLineCount" value="5" />
+        <property name="allowedAnnotations" value="Override,Before,BeforeClass,After,AfterClass,Inject,TaskAction" />
+        <property name="ignoreMethodNamesRegex" value="^main$"/>
+        <message key="javadoc.missing" value="Public methods should be documented." />
+    </module>
+
+    <module name="MissingJavadocPackage">
+        <property name="severity" value="warning"/>
+        <message
+            key="package.javadoc.missing"
+            value="A description and other related documentation for a package should be written up in the package-info.java" />
+    </module>
+
+    <!-- Use our fork of this Checkstyle rule, so that we can ignore test classes -->
+    <module name="org.elasticsearch.gradle.internal.checkstyle.MissingJavadocTypeCheck">
+        <property name="ignorePattern" value="^.*(Tests?|IT|TestCase)$"/>
+        <property name="severity" value="info"/>
+        <message key="javadoc.missing" value="Types should explain their purpose" />
+    </module>
+
+    <!-- Check the Javadoc for a method e.g that it has the correct parameters, return type etc -->
+    <module name="JavadocMethod">
+        <property name="severity" value="info"/>
+        <property name="accessModifiers" value="public"/>
+    </module>
+</module>

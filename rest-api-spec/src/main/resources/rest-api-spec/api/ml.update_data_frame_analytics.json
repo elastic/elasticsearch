@@ -1,0 +1,34 @@
+{
+  "ml.update_data_frame_analytics":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/update-dfanalytics.html",
+      "description":"Updates certain properties of a data frame analytics job."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/json"],
+      "content_type": ["application/json"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_ml/data_frame/analytics/{id}/_update",
+          "methods":[
+            "POST"
+          ],
+          "parts":{
+            "id":{
+              "type":"string",
+              "description":"The ID of the data frame analytics to update"
+            }
+          }
+        }
+      ]
+    },
+    "body":{
+      "description":"The data frame analytics settings to update",
+      "required":true
+    }
+  }
+}

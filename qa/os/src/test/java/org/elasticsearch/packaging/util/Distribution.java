@@ -16,8 +16,8 @@ public class Distribution {
     public final Path path;
     public final Packaging packaging;
     public final Platform platform;
-    public final Flavor flavor;
     public final boolean hasJdk;
+    public final String baseVersion;
     public final String version;
 
     public Distribution(Path path) {
@@ -30,27 +30,21 @@ public class Distribution {
             this.packaging = Packaging.DOCKER;
         } else if (filename.endsWith(".ubi.tar")) {
             this.packaging = Packaging.DOCKER_UBI;
+        } else if (filename.endsWith(".ironbank.tar")) {
+            this.packaging = Packaging.DOCKER_IRON_BANK;
+        } else if (filename.endsWith(".cloud.tar")) {
+            this.packaging = Packaging.DOCKER_CLOUD;
+        } else if (filename.endsWith(".cloud-ess.tar")) {
+            this.packaging = Packaging.DOCKER_CLOUD_ESS;
         } else {
             int lastDot = filename.lastIndexOf('.');
             this.packaging = Packaging.valueOf(filename.substring(lastDot + 1).toUpperCase(Locale.ROOT));
         }
 
         this.platform = filename.contains("windows") ? Platform.WINDOWS : Platform.LINUX;
-        this.flavor = filename.contains("oss") ? Flavor.OSS : Flavor.DEFAULT;
         this.hasJdk = filename.contains("no-jdk") == false;
-        String version = filename.split("-", 3)[1];
-        if (filename.contains("-SNAPSHOT")) {
-            version += "-SNAPSHOT";
-        }
-        this.version = version;
-    }
-
-    public boolean isDefault() {
-        return flavor.equals(Flavor.DEFAULT);
-    }
-
-    public boolean isOSS() {
-        return flavor.equals(Flavor.OSS);
+        this.baseVersion = filename.split("-", 3)[1];
+        this.version = filename.contains("-SNAPSHOT") ? this.baseVersion + "-SNAPSHOT" : this.baseVersion;
     }
 
     public boolean isArchive() {
@@ -61,8 +55,14 @@ public class Distribution {
         return packaging == Packaging.RPM || packaging == Packaging.DEB;
     }
 
+    /**
+     * @return whether this distribution is packaged as a Docker image.
+     */
     public boolean isDocker() {
-        return packaging == Packaging.DOCKER || packaging == Packaging.DOCKER_UBI;
+        return switch (packaging) {
+            case DOCKER, DOCKER_UBI, DOCKER_IRON_BANK, DOCKER_CLOUD, DOCKER_CLOUD_ESS -> true;
+            default -> false;
+        };
     }
 
     public enum Packaging {
@@ -72,7 +72,10 @@ public class Distribution {
         DEB(".deb", Platforms.isDPKG()),
         RPM(".rpm", Platforms.isRPM()),
         DOCKER(".docker.tar", Platforms.isDocker()),
-        DOCKER_UBI(".ubi.tar", Platforms.isDocker());
+        DOCKER_UBI(".ubi.tar", Platforms.isDocker()),
+        DOCKER_IRON_BANK(".ironbank.tar", Platforms.isDocker()),
+        DOCKER_CLOUD(".cloud.tar", Platforms.isDocker()),
+        DOCKER_CLOUD_ESS(".cloud-ess.tar", Platforms.isDocker());
 
         /** The extension of this distribution's file */
         public final String extension;

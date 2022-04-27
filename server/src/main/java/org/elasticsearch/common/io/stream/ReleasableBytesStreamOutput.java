@@ -9,10 +9,10 @@
 package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
 /**
  * An bytes stream output that allows providing a {@link BigArrays} instance
@@ -36,5 +36,12 @@ public class ReleasableBytesStreamOutput extends BytesStreamOutput implements Re
     @Override
     public void close() {
         Releasables.close(bytes);
+    }
+
+    @Override
+    public void reset() {
+        assert false;
+        // not supported, close and create a new instance instead
+        throw new UnsupportedOperationException("must not reuse a pooled bytes backed stream");
     }
 }

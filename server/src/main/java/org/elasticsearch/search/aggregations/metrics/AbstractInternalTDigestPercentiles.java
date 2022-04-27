@@ -10,16 +10,17 @@ package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.DocValueFormat;
+import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetricsAggregation.MultiValue {
 
@@ -27,13 +28,18 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
     protected final TDigestState state;
     final boolean keyed;
 
-    AbstractInternalTDigestPercentiles(String name, double[] keys, TDigestState state, boolean keyed, DocValueFormat formatter,
-            Map<String, Object> metadata) {
-        super(name, metadata);
+    AbstractInternalTDigestPercentiles(
+        String name,
+        double[] keys,
+        TDigestState state,
+        boolean keyed,
+        DocValueFormat formatter,
+        Map<String, Object> metadata
+    ) {
+        super(name, formatter, metadata);
         this.keys = keys;
         this.state = state;
         this.keyed = keyed;
-        this.format = formatter;
     }
 
     /**
@@ -41,7 +47,6 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
      */
     protected AbstractInternalTDigestPercentiles(StreamInput in) throws IOException {
         super(in);
-        format = in.readNamedWriteable(DocValueFormat.class);
         keys = in.readDoubleArray();
         state = TDigestState.read(in);
         keyed = in.readBoolean();
@@ -62,7 +67,7 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
 
     @Override
     public Iterable<String> valueNames() {
-        return Arrays.stream(getKeys()).mapToObj(d -> String.valueOf(d)).collect(Collectors.toList());
+        return Arrays.stream(getKeys()).mapToObj(d -> String.valueOf(d)).toList();
     }
 
     public abstract double value(double key);
@@ -97,7 +102,7 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
     }
 
     @Override
-    public AbstractInternalTDigestPercentiles reduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
+    public AbstractInternalTDigestPercentiles reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         TDigestState merged = null;
         for (InternalAggregation aggregation : aggregations) {
             final AbstractInternalTDigestPercentiles percentiles = (AbstractInternalTDigestPercentiles) aggregation;
@@ -109,14 +114,24 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
         return createReduced(getName(), keys, merged, keyed, getMetadata());
     }
 
-    protected abstract AbstractInternalTDigestPercentiles createReduced(String name, double[] keys, TDigestState merged, boolean keyed,
-            Map<String, Object> metadata);
+    @Override
+    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
+        return this;
+    }
+
+    protected abstract AbstractInternalTDigestPercentiles createReduced(
+        String name,
+        double[] keys,
+        TDigestState merged,
+        boolean keyed,
+        Map<String, Object> metadata
+    );
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         if (keyed) {
             builder.startObject(CommonFields.VALUES.getPreferredName());
-            for(int i = 0; i < keys.length; ++i) {
+            for (int i = 0; i < keys.length; ++i) {
                 String key = String.valueOf(keys[i]);
                 double value = value(keys[i]);
                 builder.field(key, state.size() == 0 ? null : value);
@@ -149,9 +164,7 @@ abstract class AbstractInternalTDigestPercentiles extends InternalNumericMetrics
         if (super.equals(obj) == false) return false;
 
         AbstractInternalTDigestPercentiles that = (AbstractInternalTDigestPercentiles) obj;
-        return keyed == that.keyed
-                && Arrays.equals(keys, that.keys)
-                && Objects.equals(state, that.state);
+        return keyed == that.keyed && Arrays.equals(keys, that.keys) && Objects.equals(state, that.state);
     }
 
     @Override

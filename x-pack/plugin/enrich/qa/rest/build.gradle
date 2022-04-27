@@ -1,11 +1,14 @@
-apply plugin: 'elasticsearch.java-rest-test'
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 restResources {
   restApi {
-    includeCore '_common', 'indices', 'index'
+    include '_common', 'indices', 'index', 'enrich'
+  }
+  restTests {
     includeXpack 'enrich'
   }
 }
@@ -20,8 +23,9 @@ if (BuildParams.inFipsJvm){
   tasks.named("yamlRestTest").configure{enabled = false }
 }
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.license.self_generated.type', 'basic'
   setting 'xpack.monitoring.collection.enabled', 'true'
+  setting 'xpack.security.enabled', 'false'
 }

@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.test.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
+import org.junit.Before;
 
 public class XPackRestIT extends AbstractXPackRestTest {
 
@@ -20,5 +22,12 @@ public class XPackRestIT extends AbstractXPackRestTest {
     public static Iterable<Object[]> parameters() throws Exception {
         return createParameters();
     }
-}
 
+    /**
+     * Some rest tests depend on the trial license being generated before they run
+     */
+    @Before
+    public void setupLicense() {
+        super.waitForLicense();
+    }
+}

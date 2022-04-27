@@ -1,0 +1,16 @@
+apply plugin: 'elasticsearch.internal-java-rest-test'
+apply plugin: 'elasticsearch.authenticated-testclusters'
+
+dependencies {
+  javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
+  javaRestTestImplementation project(":client:rest-high-level")
+}
+
+testClusters.configureEach {
+  testDistribution = 'DEFAULT'
+  setting 'xpack.watcher.enabled', 'false'
+  setting 'xpack.ml.enabled', 'false'
+  setting 'xpack.license.self_generated.type', 'trial'
+  rolesFile file('roles.yml')
+  user username: "test", password: "x-pack-test-password", role: "test"
+}

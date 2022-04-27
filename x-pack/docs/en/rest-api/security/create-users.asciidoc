@@ -95,7 +95,7 @@ used in the same request.
 
 `roles`::
 (Required, list) A set of roles the user has. The roles determine the user's
-access  permissions. To create a user without any roles, specify an empty list:
+access permissions. To create a user without any roles, specify an empty list:
 `[]`.
 
 --

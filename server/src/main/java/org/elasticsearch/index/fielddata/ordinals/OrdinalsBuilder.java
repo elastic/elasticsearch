@@ -178,8 +178,7 @@ public final class OrdinalsBuilder implements Closeable {
             } else {
                 final long newSlice = newSlice(1);
                 if (firstNextLevelSlices == null) {
-                    firstNextLevelSlices =
-                        new PagedGrowableWriter(firstOrdinals.size(), PAGE_SIZE, 3, acceptableOverheadRatio);
+                    firstNextLevelSlices = new PagedGrowableWriter(firstOrdinals.size(), PAGE_SIZE, 3, acceptableOverheadRatio);
                 }
                 firstNextLevelSlices.set(docID, newSlice);
                 final long offset = startOffset(1, newSlice);
@@ -229,7 +228,7 @@ public final class OrdinalsBuilder implements Closeable {
                 return;
             }
             // Other levels
-            for (int level = 1; ; ++level) {
+            for (int level = 1;; ++level) {
                 final int numSlots = numSlots(level);
                 ords.longs = ArrayUtil.grow(ords.longs, ords.offset + ords.length + numSlots);
                 final long offset = startOffset(level, sliceID);
@@ -346,15 +345,17 @@ public final class OrdinalsBuilder implements Closeable {
         final float acceptableOverheadRatio = PackedInts.DEFAULT;
         if (numMultiValuedDocs > 0
             || MultiOrdinals.significantlySmallerThanSinglePackedOrdinals(
-                maxDoc, numDocsWithValue, getValueCount(), acceptableOverheadRatio)
-        ) {
+                maxDoc,
+                numDocsWithValue,
+                getValueCount(),
+                acceptableOverheadRatio
+            )) {
             // MultiOrdinals can be smaller than SinglePackedOrdinals for sparse fields
             return new MultiOrdinals(this, acceptableOverheadRatio);
         } else {
             return new SinglePackedOrdinals(this, acceptableOverheadRatio);
         }
     }
-
 
     /**
      * Returns the maximum document ID this builder can associate with an ordinal

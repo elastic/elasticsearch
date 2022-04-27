@@ -1,6 +1,6 @@
-apply plugin: 'elasticsearch.java-rest-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
-import org.elasticsearch.gradle.info.BuildParams
+import org.elasticsearch.gradle.internal.info.BuildParams
 
 dependencies {
   javaRestTestImplementation project(path: xpackModule('eql:qa:common'))
@@ -11,7 +11,7 @@ if (BuildParams.inFipsJvm){
   tasks.named("javaRestTest").configure{enabled = false }
 }
 
-testClusters.all {
+testClusters.configureEach {
   testDistribution = 'DEFAULT'
   setting 'xpack.license.self_generated.type', 'basic'
   setting 'xpack.monitoring.collection.enabled', 'true'

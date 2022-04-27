@@ -7,8 +7,8 @@
 package org.elasticsearch.xpack.core.ml.utils;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.time.Instant;
 
@@ -22,7 +22,8 @@ public class ExponentialAverageCalculationContextTests extends AbstractSerializi
         return new ExponentialAverageCalculationContext(
             randomDouble(),
             randomBoolean() ? Instant.now() : null,
-            randomBoolean() ? randomDouble() : null);
+            randomBoolean() ? randomDouble() : null
+        );
     }
 
     @Override
@@ -49,8 +50,11 @@ public class ExponentialAverageCalculationContextTests extends AbstractSerializi
     }
 
     public void testConstructor() {
-        ExponentialAverageCalculationContext context =
-            new ExponentialAverageCalculationContext(1.23, Instant.ofEpochMilli(123456789), 4.56);
+        ExponentialAverageCalculationContext context = new ExponentialAverageCalculationContext(
+            1.23,
+            Instant.ofEpochMilli(123456789),
+            4.56
+        );
 
         assertThat(context.getIncrementalMetricValueMs(), equalTo(1.23));
         assertThat(context.getLatestTimestamp(), equalTo(Instant.ofEpochMilli(123456789)));
@@ -58,8 +62,11 @@ public class ExponentialAverageCalculationContextTests extends AbstractSerializi
     }
 
     public void testCopyConstructor() {
-        ExponentialAverageCalculationContext context1 =
-            new ExponentialAverageCalculationContext(1.23, Instant.ofEpochMilli(123456789), 4.56);
+        ExponentialAverageCalculationContext context1 = new ExponentialAverageCalculationContext(
+            1.23,
+            Instant.ofEpochMilli(123456789),
+            4.56
+        );
         ExponentialAverageCalculationContext context2 = new ExponentialAverageCalculationContext(context1);
 
         assertThat(context2.getIncrementalMetricValueMs(), equalTo(1.23));
@@ -110,8 +117,11 @@ public class ExponentialAverageCalculationContextTests extends AbstractSerializi
     }
 
     public void testExponentialAverageCalculationOnWindowBoundary() {
-        ExponentialAverageCalculationContext context =
-            new ExponentialAverageCalculationContext(500.0, Instant.parse("2019-07-19T04:25:06.00Z"), 200.0);
+        ExponentialAverageCalculationContext context = new ExponentialAverageCalculationContext(
+            500.0,
+            Instant.parse("2019-07-19T04:25:06.00Z"),
+            200.0
+        );
         assertThat(context.getIncrementalMetricValueMs(), equalTo(500.0));
         assertThat(context.getLatestTimestamp(), equalTo(Instant.parse("2019-07-19T04:25:06.00Z")));
         assertThat(context.getPreviousExponentialAverageMs(), equalTo(200.0));

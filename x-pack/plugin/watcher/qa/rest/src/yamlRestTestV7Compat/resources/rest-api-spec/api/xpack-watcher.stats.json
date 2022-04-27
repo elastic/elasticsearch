@@ -1,0 +1,66 @@
+{
+  "xpack-watcher.stats":{
+    "documentation":{
+      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/watcher-api-stats.html",
+      "description":"Retrieves the current Watcher metrics."
+    },
+    "stability":"stable",
+    "visibility":"public",
+    "headers":{
+      "accept": [ "application/vnd.elasticsearch+json;compatible-with=7"]
+    },
+    "url":{
+      "paths":[
+        {
+          "path":"/_xpack/watcher/stats",
+          "methods":[
+            "GET"
+          ],
+          "deprecated":{
+            "version":"7.0.0",
+            "description":"all _xpack prefix have been deprecated"
+          }
+        },
+        {
+          "path":"/_xpack/watcher/stats/{metric}",
+          "methods":[
+            "GET"
+          ],
+          "parts":{
+            "metric":{
+              "type":"list",
+              "options":[
+                "_all",
+                "queued_watches",
+                "current_watches",
+                "pending_watches"
+              ],
+              "description":"Controls what additional stat metrics should be include in the response"
+            }
+          },
+          "deprecated":{
+            "version":"7.0.0",
+            "description":"all _xpack prefix have been deprecated"
+          }
+        }
+      ]
+    },
+    "params":{
+      "metric":{
+        "type":"list",
+        "options":[
+          "_all",
+          "queued_watches",
+          "current_watches",
+          "pending_watches"
+        ],
+        "description":"Controls what additional stat metrics should be include in the response"
+      },
+      "emit_stacktraces":{
+        "type":"boolean",
+        "description":"Emits stack traces of currently running watches",
+        "required":false
+      }
+    }
+  }
+}

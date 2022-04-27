@@ -10,11 +10,12 @@ package org.elasticsearch.rest;
 
 import org.apache.lucene.search.spell.LevenshteinDistance;
 import org.apache.lucene.util.CollectionUtil;
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesUsageAction;
 
@@ -40,8 +41,18 @@ import java.util.stream.Collectors;
  */
 public abstract class BaseRestHandler implements RestHandler {
 
-    public static final Setting<Boolean> MULTI_ALLOW_EXPLICIT_INDEX =
-        Setting.boolSetting("rest.action.multi.allow_explicit_index", true, Property.NodeScope);
+    /**
+     * Parameter that controls whether certain REST apis should include type names in their requests or responses.
+     * Note: This parameter is only available through compatible rest api for {@link RestApiVersion#V_7}.
+     */
+    public static final String INCLUDE_TYPE_NAME_PARAMETER = "include_type_name";
+    public static final boolean DEFAULT_INCLUDE_TYPE_NAME_POLICY = false;
+
+    public static final Setting<Boolean> MULTI_ALLOW_EXPLICIT_INDEX = Setting.boolSetting(
+        "rest.action.multi.allow_explicit_index",
+        true,
+        Property.NodeScope
+    );
 
     private final LongAdder usageCount = new LongAdder();
 
@@ -72,14 +83,14 @@ public abstract class BaseRestHandler implements RestHandler {
         // use a sorted set so the unconsumed parameters appear in a reliable sorted order
         final SortedSet<String> unconsumedParams = request.unconsumedParams()
             .stream()
-            .filter(p -> responseParams().contains(p) == false)
+            .filter(p -> responseParams(request.getRestApiVersion()).contains(p) == false)
             .collect(Collectors.toCollection(TreeSet::new));
 
         // validate the non-response params
         if (unconsumedParams.isEmpty() == false) {
             final Set<String> candidateParams = new HashSet<>();
             candidateParams.addAll(request.consumedParams());
-            candidateParams.addAll(responseParams());
+            candidateParams.addAll(responseParams(request.getRestApiVersion()));
             throw new IllegalArgumentException(unrecognized(request, unconsumedParams, candidateParams, "parameter"));
         }
 
@@ -92,17 +103,20 @@ public abstract class BaseRestHandler implements RestHandler {
         action.accept(channel);
     }
 
-    protected final String unrecognized(
+    @Override
+    public boolean mediaTypesValid(RestRequest request) {
+        return request.getXContentType() != null;
+    }
+
+    protected static String unrecognized(
         final RestRequest request,
         final Set<String> invalids,
         final Set<String> candidates,
-        final String detail) {
-        StringBuilder message = new StringBuilder(String.format(
-            Locale.ROOT,
-            "request [%s] contains unrecognized %s%s: ",
-            request.path(),
-            detail,
-            invalids.size() > 1 ? "s" : ""));
+        final String detail
+    ) {
+        StringBuilder message = new StringBuilder(
+            String.format(Locale.ROOT, "request [%s] contains unrecognized %s%s: ", request.path(), detail, invalids.size() > 1 ? "s" : "")
+        );
         boolean first = true;
         for (final String invalid : invalids) {
             final LevenshteinDistance ld = new LevenshteinDistance();
@@ -123,7 +137,7 @@ public abstract class BaseRestHandler implements RestHandler {
                 message.append(", ");
             }
             message.append("[").append(invalid).append("]");
-            final List<String> keys = scoredParams.stream().map(Tuple::v2).collect(Collectors.toList());
+            final List<String> keys = scoredParams.stream().map(Tuple::v2).toList();
             if (keys.isEmpty() == false) {
                 message.append(" -> did you mean ");
                 if (keys.size() == 1) {
@@ -144,8 +158,7 @@ public abstract class BaseRestHandler implements RestHandler {
      * the request against a channel.
      */
     @FunctionalInterface
-    protected interface RestChannelConsumer extends CheckedConsumer<RestChannel, Exception> {
-    }
+    protected interface RestChannelConsumer extends CheckedConsumer<RestChannel, Exception> {}
 
     /**
      * Prepare the request for execution. Implementations should consume all request params before
@@ -174,6 +187,18 @@ public abstract class BaseRestHandler implements RestHandler {
         return Collections.emptySet();
     }
 
+    /**
+     * Parameters used for controlling the response and thus might not be consumed during
+     * preparation of the request execution. The value depends on the RestApiVersion provided
+     * by a user on a request.
+     * Used in RestHandlers with Compatible Rest Api
+     * @param restApiVersion - a version provided by a user on a request
+     * @return a set of parameters used to control the response, depending on a restApiVersion
+     */
+    protected Set<String> responseParams(RestApiVersion restApiVersion) {
+        return responseParams();
+    }
+
     public static class Wrapper extends BaseRestHandler {
 
         protected final BaseRestHandler delegate;
@@ -193,16 +218,6 @@ public abstract class BaseRestHandler implements RestHandler {
         }
 
         @Override
-        public List<DeprecatedRoute> deprecatedRoutes() {
-            return delegate.deprecatedRoutes();
-        }
-
-        @Override
-        public List<ReplacedRoute> replacedRoutes() {
-            return delegate.replacedRoutes();
-        }
-
-        @Override
         protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
             return delegate.prepareRequest(request, client);
         }
@@ -210,6 +225,11 @@ public abstract class BaseRestHandler implements RestHandler {
         @Override
         protected Set<String> responseParams() {
             return delegate.responseParams();
+        }
+
+        @Override
+        protected Set<String> responseParams(RestApiVersion restApiVersion) {
+            return delegate.responseParams(restApiVersion);
         }
 
         @Override
@@ -225,6 +245,11 @@ public abstract class BaseRestHandler implements RestHandler {
         @Override
         public boolean allowsUnsafeBuffers() {
             return delegate.allowsUnsafeBuffers();
+        }
+
+        @Override
+        public boolean mediaTypesValid(RestRequest request) {
+            return delegate.mediaTypesValid(request);
         }
     }
 }

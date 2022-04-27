@@ -79,11 +79,11 @@ GET _nodes?filter_path=**.mlockall
 --------------
 
 If you see that `mlockall` is `false`, then it means that the `mlockall`
-request has failed.  You will also see a line with more information in the logs
+request has failed. You will also see a line with more information in the logs
 with the words `Unable to lock JVM Memory`.
 
 The most probable reason, on Linux/Unix systems, is that the user running
-Elasticsearch doesn't have permission to lock memory.  This can be granted as
+Elasticsearch doesn't have permission to lock memory. This can be granted as
 follows:
 
 `.zip` and `.tar.gz`::

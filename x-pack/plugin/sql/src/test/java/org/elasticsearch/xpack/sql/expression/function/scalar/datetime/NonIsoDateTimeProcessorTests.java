@@ -47,15 +47,15 @@ public class NonIsoDateTimeProcessorTests extends AbstractSqlWireSerializingTest
         NonIsoDateTimeProcessor proc = new NonIsoDateTimeProcessor(NonIsoDateTimeExtractor.WEEK_OF_YEAR, UTC);
         // 1 Jan 1988 is Friday - under Sunday,1 rule it is the first week of the year (under ISO rule it would be 53 of the previous year
         // hence the 5th Jan 1988 Tuesday is the second week of a year
-        assertEquals(2, proc.process(dateTime(568372930000L)));  //1988-01-05T09:22:10Z[UTC]
-        assertEquals(6, proc.process(dateTime(981278530000L)));  //2001-02-04T09:22:10Z[UTC]
-        assertEquals(7, proc.process(dateTime(224241730000L)));  //1977-02-08T09:22:10Z[UTC]
+        assertEquals(2, proc.process(dateTime(568372930000L)));  // 1988-01-05T09:22:10Z[UTC]
+        assertEquals(6, proc.process(dateTime(981278530000L)));  // 2001-02-04T09:22:10Z[UTC]
+        assertEquals(7, proc.process(dateTime(224241730000L)));  // 1977-02-08T09:22:10Z[UTC]
 
-        assertEquals(12, proc.process(dateTime(132744130000L))); //1974-03-17T09:22:10Z[UTC]
-        assertEquals(17, proc.process(dateTime(230376130000L))); //1977-04-20T09:22:10Z[UTC]
-        assertEquals(17, proc.process(dateTime(766833730000L))); //1994-04-20T09:22:10Z[UTC]
-        assertEquals(29, proc.process(dateTime(79780930000L)));  //1972-07-12T09:22:10Z[UTC]
-        assertEquals(33, proc.process(dateTime(902913730000L))); //1998-08-12T09:22:10Z[UTC]
+        assertEquals(12, proc.process(dateTime(132744130000L))); // 1974-03-17T09:22:10Z[UTC]
+        assertEquals(17, proc.process(dateTime(230376130000L))); // 1977-04-20T09:22:10Z[UTC]
+        assertEquals(17, proc.process(dateTime(766833730000L))); // 1994-04-20T09:22:10Z[UTC]
+        assertEquals(29, proc.process(dateTime(79780930000L)));  // 1972-07-12T09:22:10Z[UTC]
+        assertEquals(33, proc.process(dateTime(902913730000L))); // 1998-08-12T09:22:10Z[UTC]
 
         // Tested against MS-SQL Server and H2
         assertEquals(2, proc.process(dateTime(1988, 1, 5, 0, 0, 0, 0)));
@@ -117,15 +117,15 @@ public class NonIsoDateTimeProcessorTests extends AbstractSqlWireSerializingTest
 
     public void testNonISODayOfWeekInUTC() {
         NonIsoDateTimeProcessor proc = new NonIsoDateTimeProcessor(NonIsoDateTimeExtractor.DAY_OF_WEEK, UTC);
-        assertEquals(3, proc.process(dateTime(568372930000L))); //1988-01-05T09:22:10Z[UTC]
-        assertEquals(1, proc.process(dateTime(981278530000L))); //2001-02-04T09:22:10Z[UTC]
-        assertEquals(3, proc.process(dateTime(224241730000L))); //1977-02-08T09:22:10Z[UTC]
+        assertEquals(3, proc.process(dateTime(568372930000L))); // 1988-01-05T09:22:10Z[UTC]
+        assertEquals(1, proc.process(dateTime(981278530000L))); // 2001-02-04T09:22:10Z[UTC]
+        assertEquals(3, proc.process(dateTime(224241730000L))); // 1977-02-08T09:22:10Z[UTC]
 
-        assertEquals(1, proc.process(dateTime(132744130000L))); //1974-03-17T09:22:10Z[UTC]
-        assertEquals(4, proc.process(dateTime(230376130000L))); //1977-04-20T09:22:10Z[UTC]
-        assertEquals(4, proc.process(dateTime(766833730000L))); //1994-04-20T09:22:10Z[UTC]
-        assertEquals(7, proc.process(dateTime(333451330000L))); //1980-07-26T09:22:10Z[UTC]
-        assertEquals(6, proc.process(dateTime(874660930000L))); //1997-09-19T09:22:10Z[UTC]
+        assertEquals(1, proc.process(dateTime(132744130000L))); // 1974-03-17T09:22:10Z[UTC]
+        assertEquals(4, proc.process(dateTime(230376130000L))); // 1977-04-20T09:22:10Z[UTC]
+        assertEquals(4, proc.process(dateTime(766833730000L))); // 1994-04-20T09:22:10Z[UTC]
+        assertEquals(7, proc.process(dateTime(333451330000L))); // 1980-07-26T09:22:10Z[UTC]
+        assertEquals(6, proc.process(dateTime(874660930000L))); // 1997-09-19T09:22:10Z[UTC]
     }
 
     public void testNonISODayOfWeekInNonUTCTimeZone() {

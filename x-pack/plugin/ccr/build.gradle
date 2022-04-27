@@ -1,4 +1,4 @@
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
 esplugin {
   name 'x-pack-ccr'
@@ -33,6 +33,7 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation(testArtifact(project(xpackModule('monitoring'))))
+  testImplementation(project(":modules:analysis-common"))
 }
 
 tasks.named("testingConventions").configure {

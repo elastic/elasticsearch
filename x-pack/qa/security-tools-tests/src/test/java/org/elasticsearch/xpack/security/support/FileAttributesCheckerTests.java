@@ -6,6 +6,12 @@
  */
 package org.elasticsearch.xpack.security.support;
 
+import com.google.common.jimfs.Configuration;
+import com.google.common.jimfs.Jimfs;
+
+import org.elasticsearch.cli.MockTerminal;
+import org.elasticsearch.test.ESTestCase;
+
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -15,11 +21,6 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.nio.file.attribute.UserPrincipal;
 import java.util.HashSet;
 import java.util.Set;
-
-import com.google.common.jimfs.Configuration;
-import com.google.common.jimfs.Jimfs;
-import org.elasticsearch.cli.MockTerminal;
-import org.elasticsearch.test.ESTestCase;
 
 public class FileAttributesCheckerTests extends ESTestCase {
 

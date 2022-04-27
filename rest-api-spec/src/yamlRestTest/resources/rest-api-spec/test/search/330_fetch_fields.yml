@@ -1,0 +1,1066 @@
+setup:
+  - skip:
+      version: " - 7.9.99"
+      reason: "the 'fields' parameter was added in 7.10"
+
+---
+"Test basic field retrieval":
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+              integer_range:
+                type: integer_range
+
+  - do:
+      index:
+        index:  test
+        id:     "1"
+        body:
+          keyword: [ "a", "b" ]
+          integer_range:
+            gte: 0
+            lte: 42
+
+  - do:
+      indices.refresh:
+        index: [ test ]
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [keyword, integer_range]
+
+  - is_true: hits.hits.0._id
+  - is_true: hits.hits.0._source
+
+  - match: { hits.hits.0.fields.keyword.0: a }
+  - match: { hits.hits.0.fields.keyword.1: b }
+
+  - match: { hits.hits.0.fields.integer_range.0.gte: 0 }
+  - match: { hits.hits.0.fields.integer_range.0.lte: 42 }
+
+---
+"Test date formatting":
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            index.number_of_shards: 1
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+              date:
+                type: date
+
+  - do:
+      index:
+        index:  test
+        id:     "1"
+        body:
+          keyword: "value"
+          date: "1990-12-29T22:30:00.000Z"
+
+  - do:
+      indices.refresh:
+        index: [ test ]
+
+  - do:
+      search:
+        index: test
+        body:
+          fields:
+            - field: date
+              format: "yyyy/MM/dd"
+
+  - is_true: hits.hits.0._id
+  - is_true: hits.hits.0._source
+  - match: { hits.hits.0.fields.date.0: "1990/12/29" }
+
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          fields:
+            - field: keyword
+              format: "yyyy/MM/dd"
+
+---
+"Test disable source":
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            _source:
+              enabled: false
+            properties:
+              keyword:
+                type: keyword
+
+  - do:
+      index:
+        index:  test
+        id:     "1"
+        body:
+          keyword: [ "a" ]
+
+  - do:
+      indices.refresh:
+        index: [ test ]
+
+  - do:
+      catch: bad_request
+      search:
+        index: test
+        body:
+          fields: [keyword]
+  - match: { error.root_cause.0.type: "illegal_argument_exception" }
+  - match: { error.root_cause.0.reason: "Unable to retrieve the requested [fields] since _source is disabled
+        in the mappings for index [test]" }
+
+---
+"Test ignore malformed":
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+              integer:
+                type: integer
+                ignore_malformed: true
+
+  - do:
+      index:
+        index:  test
+        id:     "1"
+        body:
+          keyword: "a"
+          integer: 42
+
+  - do:
+      index:
+        index:  test
+        id:     "2"
+        body:
+          keyword: "b"
+          integer: "not an integer"
+
+  - do:
+      indices.refresh:
+        index: [ test ]
+
+  - do:
+      search:
+        index: test
+        body:
+          sort: [ keyword ]
+          fields: [ integer ]
+
+  - match: { hits.hits.0.fields.integer.0: 42 }
+  - is_false: hits.hits.1.fields.integer
+
+---
+"Test disable _source loading":
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            number_of_shards: 1
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+              integer:
+                type: integer
+                store: true
+
+  - do:
+      index:
+        index:  test
+        id:     "1"
+        refresh: true
+        body:
+          keyword: "a"
+          integer: 42
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ keyword ]
+          _source: false
+
+  - match: { hits.hits.0.fields.keyword.0: "a" }
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ keyword ]
+          stored_fields: [ integer ]
+          _source: false
+
+  - match: { hits.hits.0.fields.keyword.0: "a" }
+  - match: { hits.hits.0.fields.integer.0: 42 }
+
+---
+"Test search rewrite":
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            index.number_of_shards: 1
+          mappings:
+            properties:
+              date:
+                type: date
+
+  - do:
+      index:
+        index:  test
+        id:     "1"
+        body:
+          date: "1990-12-29T22:30:00.000Z"
+
+  - do:
+      indices.refresh:
+        index: [ test ]
+
+  - do:
+      search:
+        index: test
+        body:
+          query:
+            range:
+              date:
+                from: "1990-12-29T22:30:00.000Z"
+          fields:
+            - field: date
+              format: "yyyy/MM/dd"
+
+  - is_true: hits.hits.0._id
+  - is_true: hits.hits.0._source
+  - match: { hits.hits.0.fields.date.0: "1990/12/29" }
+
+---
+"Test token count":
+  - skip:
+      version: " - 7.9.99"
+      reason: "support for token_count was instroduced in 7.10"
+  - do:
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              count:
+                type: token_count
+                analyzer: standard
+              count_without_dv:
+                type: token_count
+                analyzer: standard
+                doc_values: false
+
+  - do:
+      index:
+        index:  test
+        id:     "1"
+        refresh: true
+        body:
+          count: "some text"
+  - do:
+      search:
+        index: test
+        body:
+          fields: [count, count_without_dv]
+
+  - is_true: hits.hits.0._id
+  - match: { hits.hits.0.fields.count: [2] }
+  - is_false: hits.hits.0.fields.count_without_dv
+---
+Test unmapped field:
+  -  skip:
+        version: ' - 7.10.99'
+        reason: support was introduced in 7.11
+  -  do:
+        indices.create:
+           index: test
+           body:
+              mappings:
+                 dynamic: false
+                 properties:
+                    f1:
+                       type: keyword
+                    f2:
+                       type: object
+                       enabled: false
+                    f3:
+                       type: object
+  -  do:
+        index:
+           index: test
+           id: "1"
+           refresh: true
+           body:
+              f1: some text
+              f2:
+                 a: foo
+                 b: bar
+              f3:
+                 c: baz
+              f4: some other text
+  -  do:
+        search:
+           index: test
+           body:
+              fields:
+              - f1
+              - { "field" : "f4", "include_unmapped" : true }
+  -  match:
+        hits.hits.0.fields.f1:
+        - some text
+  -  match:
+        hits.hits.0.fields.f4:
+        - some other text
+  -  do:
+        search:
+           index: test
+           body:
+              fields:
+              - { "field" : "f*", "include_unmapped" : true }
+  -  match:
+        hits.hits.0.fields.f1:
+        - some text
+  -  match:
+        hits.hits.0.fields.f2\.a:
+        - foo
+  -  match:
+        hits.hits.0.fields.f2\.b:
+        - bar
+  -  match:
+        hits.hits.0.fields.f3\.c:
+        - baz
+  -  match:
+        hits.hits.0.fields.f4:
+        - some other text
+---
+Test unmapped fields inside disabled objects:
+  -  skip:
+        version: ' - 7.10.99'
+        reason: support was introduced in 7.11
+  -  do:
+        indices.create:
+           index: test
+           body:
+              mappings:
+                 properties:
+                    f1:
+                       type: object
+                       enabled: false
+  -  do:
+        index:
+           index: test
+           id: "1"
+           refresh: true
+           body:
+              f1:
+                 - some text
+                 - a: b
+                 -
+                   - 1
+                   - 2
+                   - 3
+  -  do:
+        search:
+           index: test
+           body:
+              fields: [ { "field" : "*", "include_unmapped" : true } ]
+  -  match:
+        hits.hits.0.fields.f1:
+        - 1
+        - 2
+        - 3
+        - some text
+  -  match:
+        hits.hits.0.fields.f1\.a:
+        - b
+---
+Test nested fields:
+  -  skip:
+        version: ' - 7.11.99'
+        reason: support was introduced in 7.12
+  -  do:
+        indices.create:
+           index: test
+           body:
+              mappings:
+                 properties:
+                   products:
+                     type: nested
+                     properties:
+                       manufacturer:
+                         type: keyword
+                       base_price:
+                         type: double
+                       product_id:
+                         type: integer
+
+  -  do:
+        index:
+           index: test
+           id: "1"
+           refresh: true
+           body:
+              products:
+                 - { "manufacturer" : "Supersoft", "base_price" : 1.55, "product_id" : 12345}
+                 - { "manufacturer" : "HyperSmart", "base_price" : 20.20, "product_id" : 54321}
+
+  -  do:
+        search:
+           index: test
+           body:
+              _source: false
+              fields: [ "*" ]
+  - length: { hits.hits.0.fields : 1 }
+  - match:
+        hits.hits.0.fields.products.0: { "manufacturer" : ["Supersoft"], "base_price" : [1.55], "product_id" : [12345]}
+  - match:
+        hits.hits.0.fields.products.1: { "manufacturer" : ["HyperSmart"], "base_price" : [20.20], "product_id" : [54321]}
+
+  -  do:
+        search:
+           index: test
+           body:
+              _source: false
+              fields: ["products.manufacturer", "products.base_price"]
+  - length: { hits.hits.0.fields : 1 }
+  - match:
+        hits.hits.0.fields.products.0: { "manufacturer" : ["Supersoft"], "base_price" : [1.55]}
+  - match:
+        hits.hits.0.fields.products.1: { "manufacturer" : ["HyperSmart"], "base_price" : [20.20]}
+
+  -  do:
+        search:
+           index: test
+           body:
+              _source: false
+              fields: ["products.manufacturer"]
+  - length: { hits.hits.0.fields : 1 }
+  - match:
+        hits.hits.0.fields.products.0: { "manufacturer" : ["Supersoft"]}
+  - match:
+        hits.hits.0.fields.products.1: { "manufacturer" : ["HyperSmart"]}
+
+  -  do:
+        search:
+           index: test
+           body:
+              _source: false
+              fields: ["products"]
+  - is_false: hits.hits.0.fields
+---
+Test nested field inside object structure:
+  -  skip:
+        version: ' - 7.11.99'
+        reason: support was introduced in 7.12
+  -  do:
+        indices.create:
+           index: test
+           body:
+              mappings:
+                 properties:
+                   obj:
+                      type: object
+                      properties:
+                        products:
+                          type: nested
+                          properties:
+                            manufacturer:
+                              type: keyword
+                            base_price:
+                              type: double
+                            product_id:
+                              type: integer
+                        other_obj_field:
+                          type: keyword
+
+  -  do:
+        index:
+           index: test
+           id: "1"
+           refresh: true
+           body:
+              obj:
+                 products:
+                    - { "manufacturer" : "Supersoft", "base_price" : 1.55, "product_id" : 12345}
+                    - { "manufacturer" : "HyperSmart", "base_price" : 20.20, "product_id" : 54321}
+                 other_obj_field: other_value
+  -  do:
+        index:
+           index: test
+           id: "2"
+           refresh: true
+           body:
+              obj:
+                 products:
+                    - { "manufacturer" : "MaxEngine", "base_price" : 11.0, "product_id" : 67890}
+              obj.products:
+                    - { "manufacturer" : "RealTec", "base_price" : 12.55, "product_id" : 23451}
+              obj.other_obj_field: other_value2
+
+
+  -  do:
+        search:
+           index: test
+           body:
+              _source: false
+              sort: "obj.other_obj_field"
+              fields: [ "*" ]
+  - length: { hits.hits.0.fields : 2 }
+  - match:
+        hits.hits.0.fields.obj\.products.0: { "manufacturer" : ["Supersoft"], "base_price" : [1.55], "product_id" : [12345]}
+  - match:
+        hits.hits.0.fields.obj\.products.1: { "manufacturer" : ["HyperSmart"], "base_price" : [20.20], "product_id" : [54321]}
+  - match:
+        hits.hits.0.fields.obj\.other_obj_field.0: other_value
+  - match:
+        hits.hits.1.fields.obj\.products.0: { "manufacturer" : ["MaxEngine"], "base_price" : [11.0], "product_id" : [67890]}
+  - match:
+        hits.hits.1.fields.obj\.products.1: { "manufacturer" : ["RealTec"], "base_price" : [12.55], "product_id" : [23451]}
+  - match:
+        hits.hits.1.fields.obj\.other_obj_field.0: other_value2
+
+  -  do:
+        search:
+           index: test
+           body:
+              sort: "obj.other_obj_field"
+              _source: false
+              fields: ["obj.other_obj_field"]
+  - match:
+        hits.hits.0.fields.obj\.other_obj_field.0: other_value
+  - match:
+        hits.hits.1.fields.obj\.other_obj_field.0: other_value2
+
+  -  do:
+        search:
+           index: test
+           body:
+              sort: "obj.other_obj_field"
+              _source: false
+              fields: ["obj.products.manufacturer"]
+  - match:
+        hits.hits.0.fields.obj\.products.0: { "manufacturer" : ["Supersoft"]}
+  - match:
+        hits.hits.0.fields.obj\.products.1: { "manufacturer" : ["HyperSmart"]}
+  - match:
+        hits.hits.1.fields.obj\.products.0: { "manufacturer" : ["MaxEngine"]}
+  - match:
+        hits.hits.1.fields.obj\.products.1: { "manufacturer" : ["RealTec"]}
+
+  -  do:
+        search:
+           index: test
+           body:
+              sort: "obj.other_obj_field"
+              _source: false
+              fields: ["obj.pro*ts.manufacturer"]
+  - match:
+        hits.hits.0.fields.obj\.products.0: { "manufacturer" : ["Supersoft"]}
+  - match:
+        hits.hits.0.fields.obj\.products.1: { "manufacturer" : ["HyperSmart"]}
+  - match:
+        hits.hits.1.fields.obj\.products.0: { "manufacturer" : ["MaxEngine"]}
+  - match:
+        hits.hits.1.fields.obj\.products.1: { "manufacturer" : ["RealTec"]}
+---
+Test doubly nested fields:
+  -  skip:
+        version: ' - 7.11.99'
+        reason: support was introduced in 7.12
+  -  do:
+        indices.create:
+           index: test
+           body:
+              mappings:
+                 properties:
+                   id:
+                     type: keyword
+                   user:
+                     type: nested
+                     properties:
+                       first:
+                         type: keyword
+                       last:
+                         type: keyword
+                         fields:
+                           keyword:
+                             type : keyword
+                       address:
+                         type: nested
+  -  do:
+        index:
+           index: test
+           id: "1"
+           refresh: true
+           body:
+              id: abcd1234
+              user:
+                 - { "first" : "John", "address" : { "city" : "Berlin" }, "account" : { "size" : 1213 }}
+                 - { "first" : "Alice", "last" : "White", "address" : [{ "city" : "Toronto", "zip" : "1111" },{ "city" : "Ottawa", "zip" : "2222" }]}
+                 - { "first" : "John", "last" : "Snow" }
+
+  -  do:
+        search:
+           index: test
+           body:
+              _source: false
+              fields: [ { "field" : "*" } ]
+  -  match:
+        hits.hits.0.fields.id:
+           - abcd1234
+  - is_false: hits.hits.0.fields.user\.first
+  - is_false: hits.hits.0.fields.user\.last
+  - is_false: hits.hits.0.fields.user\.account\.size
+  -  match:
+        hits.hits.0.fields.user.0: { "first" : [ "John" ], "address" : [{ "city" : ["Berlin"], "city.keyword" : ["Berlin"]}],  "account.size" : [1213] }
+  -  match:
+        hits.hits.0.fields.user.1: { "first" : [ "Alice" ], "last" : [ "White" ], "last.keyword" : [ "White" ], "address" : [ { "zip" : [ "1111" ], "zip.keyword" : [ "1111" ], "city" : [ "Toronto" ], "city.keyword" : [ "Toronto" ] }, { "zip" : ["2222"], "zip.keyword" : ["2222"], "city" : ["Ottawa"], "city.keyword" : [ "Ottawa" ]}] }
+  -  match:
+        hits.hits.0.fields.user.2: { "first" : [ "John" ], "last" : [ "Snow" ], "last.keyword" : [ "Snow" ] }
+
+  -  do:
+        search:
+           index: test
+           body:
+              _source: false
+              fields: [ { "field" : "user.address*" } ]
+
+  -  match:
+        hits.hits.0.fields.user.0: { "address" : [{ "city" : ["Berlin"], "city.keyword" : ["Berlin"]}] }
+  -  match:
+        hits.hits.0.fields.user.1: { "address" : [ { "zip" : [ "1111" ], "zip.keyword" : [ "1111" ], "city" : [ "Toronto" ], "city.keyword" : [ "Toronto" ] }, { "zip" : ["2222"], "zip.keyword" : ["2222"], "city" : ["Ottawa"], "city.keyword" : [ "Ottawa" ]}] }
+  - length: { hits.hits.0.fields.user : 2 }
+
+---
+Test nested fields with unmapped subfields:
+  -  skip:
+        version: ' - 7.11.99'
+        reason: support was introduced in 7.12
+  -  do:
+        indices.create:
+           index: test
+           body:
+              mappings:
+                 properties:
+                   id:
+                     type: keyword
+                   user:
+                     type: nested
+                     properties:
+                       first:
+                         type: keyword
+                       address:
+                         type: object
+                         enabled: false
+                   user_account:
+                     type: nested
+                     properties:
+                       details:
+                         type: object
+                         enabled: false
+
+  -  do:
+        index:
+           index: test
+           id: "1"
+           refresh: true
+           body:
+              id: abcd1234
+              user_account:
+               - { "details" : { "id" : "xyz1234" }}
+              user:
+                 - { "first" : "John", "address" : { "city" : "Berlin" }}
+
+  -  do:
+        search:
+           index: test
+           body:
+              _source: false
+              fields:
+              - { "field" : "*", "include_unmapped" : true }
+  -  match:
+        hits.hits.0.fields.id:
+           - abcd1234
+  - is_false: hits.hits.0.fields.user\.first
+  - is_false: hits.hits.0.fields.user\.last
+  - is_false: hits.hits.0.fields.user_account\.details\.id
+  -  match:
+        hits.hits.0.fields.user.0: { "first" : [ "John" ], "address.city" : ["Berlin"]}
+  -  match:
+        hits.hits.0.fields.user_account.0: { "details.id" : ["xyz1234"]}
+
+  -  do:
+       search:
+          index: test
+          body:
+             _source: false
+             fields:
+             - { "field" : "user.address.*", "include_unmapped" : true }
+  -  match:
+       hits.hits.0.fields.user.0: { "address.city" : ["Berlin"]}
+---
+Test nested fields with ignored subfields:
+  -  skip:
+        version: ' - 7.11.99'
+        reason: support was introduced in 7.12
+  -  do:
+        indices.create:
+           index: test
+           body:
+              mappings:
+                 properties:
+                   malformed_outside:
+                     type: integer
+                     ignore_malformed: true
+                   user:
+                     type: nested
+                     properties:
+                       malformed_inside:
+                         type: integer
+                         ignore_malformed: true
+                       first:
+                         type: keyword
+  -  do:
+        index:
+           index: test
+           id: "1"
+           refresh: true
+           body:
+              malformed_outside : "bad_value_1"
+              user:
+                 - { "first" : "John", "malformed_inside" : "bad_value_2"}
+
+  -  do:
+        search:
+           index: test
+           body:
+              _source: false
+              fields:
+              - { "field" : "*", "include_unmapped" : true }
+  - is_false: hits.hits.0.fields.malformed_outside
+  -  match:
+        hits.hits.0.fields.user:
+           - { "first" : [ "John" ] }
+---
+Test nested field with sibling field resolving to DocValueFetcher:
+  -  skip:
+        version: ' - 7.11.99'
+        reason: support was introduced in 7.12
+  -  do:
+        indices.create:
+           index: test
+           body:
+              mappings:
+                 properties:
+                   owner:
+                     type: text
+                     fields:
+                       length:
+                         type: token_count
+                         analyzer: standard
+                   products:
+                     type: nested
+                     properties:
+                       manufacturer:
+                         type: keyword
+
+  -  do:
+        index:
+           index: test
+           id: "1"
+           refresh: true
+           body:
+              owner: "Anna Ott"
+              products:
+                 - { "manufacturer" : "Supersoft"}
+                 - { "manufacturer" : "HyperSmart"}
+
+  -  do:
+        search:
+           index: test
+           body:
+              _source: false
+              fields: [ "*" ]
+  - length: { hits.hits.0.fields : 3 }
+  - match:
+        hits.hits.0.fields.owner:
+          - "Anna Ott"
+  - match:
+        hits.hits.0.fields.owner\.length:
+        - 2
+  - match:
+        hits.hits.0.fields.products.0: { "manufacturer" : ["Supersoft"]}
+  - match:
+        hits.hits.0.fields.products.1: { "manufacturer" : ["HyperSmart"]}
+---
+"Test ignores malformed values while returning valid ones":
+  - skip:
+      version: ' - 7.11.99'
+      reason:  'Behaviour changed in 7.12'
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              number:
+                type: long
+                ignore_malformed: true
+  - do:
+      index:
+        index: test
+        id: "1"
+        refresh: true
+        body:
+          number: [ 1, 2, "3", "four", 5, 6 ]
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "*" ]
+
+  - length: { hits.hits.0.fields.number : 5 }
+  - match: { hits.hits.0.fields.number.0 : 1 }
+  - match: { hits.hits.0.fields.number.1 : 2 }
+  - match: { hits.hits.0.fields.number.2 : 3 }
+  - match: { hits.hits.0.fields.number.3 : 5 }
+  - match: { hits.hits.0.fields.number.4 : 6 }
+
+---
+Test token_count inside nested field doesn't fail:
+  - skip:
+      version: ' - 7.11.99'
+      reason:  'fix introduced in 7.12.0'
+  -  do:
+        indices.create:
+           index: test
+           body:
+              mappings:
+                 properties:
+                   user:
+                     type: nested
+                     properties:
+                       name:
+                         type: text
+                         fields:
+                           length:
+                             type: token_count
+                             analyzer: standard
+
+  -  do:
+        index:
+           index: test
+           id: "1"
+           refresh: true
+           body:
+              user:
+                 - { "name" : "Ann Marie Smith"}
+                 - { "name" : "James Brown"}
+
+  -  do:
+        search:
+           index: test
+           body:
+              _source: false
+              fields: [ "*" ]
+
+---
+error includes field name:
+  - skip:
+      version: ' - 7.15.99'
+      reason:  'error changed in 7.16.0'
+
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            index.number_of_shards: 1
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+              date:
+                type: date
+
+  - do:
+      index:
+        index:   test
+        id:      "1"
+        refresh: true
+        body:
+          keyword: "value"
+          date: "1990-12-29T22:30:00.000Z"
+
+  - do:
+      catch: '/error fetching \[keyword\]: Field \[keyword\] of type \[keyword\] doesn''t support formats./'
+      search:
+        index: test
+        body:
+          fields:
+            - field: keyword
+              format: "yyyy/MM/dd"
+
+---
+error includes glob pattern:
+  - skip:
+      version: ' - 7.15.99'
+      reason:  'error changed in 7.16.0'
+
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            index.number_of_shards: 1
+          mappings:
+            properties:
+              dkeyword:
+                type: keyword
+              date:
+                type: date
+
+  - do:
+      index:
+        index:   test
+        id:      "1"
+        refresh: true
+        body:
+          dkeyword: "value"
+          date: "1990-12-29T22:30:00.000Z"
+
+  - do:
+      catch: '/error fetching \[dkeyword\] which matched \[d\*\]: Field \[dkeyword\] of type \[keyword\] doesn''t support formats./'
+      search:
+        index: test
+        body:
+          fields:
+            - field: d*
+              format: "yyyy/MM/dd"
+
+
+---
+error for flattened includes whole path:
+  - skip:
+      version: ' - 7.15.99'
+      reason:  'error changed in 7.16.0'
+
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            index.number_of_shards: 1
+          mappings:
+            properties:
+              flattened:
+                type: flattened
+
+              date:
+                type: date
+
+  - do:
+      index:
+        index:   test
+        id:      "1"
+        refresh: true
+        body:
+          flattened:
+            foo: bar
+          date: "1990-12-29T22:30:00.000Z"
+
+  - do:
+      catch: '/error fetching \[flattened.bar\]: Field \[flattened.bar\] of type \[flattened\] doesn''t support formats./'
+      search:
+        index: test
+        body:
+          fields:
+            - field: flattened.bar
+              format: "yyyy/MM/dd"
+
+---
+test fetching metadata fields:
+  - skip:
+      version: ' - 7.99.99'
+      reason:  'fetching metadata via fields introduced in 8.0'
+
+  - do:
+      indices.create:
+        index:  test
+        body:
+          settings:
+            index.number_of_shards: 1
+          mappings:
+            properties:
+              field:
+                type: keyword
+              idAlias:
+                type: alias
+                path: _id
+
+  - do:
+      index:
+        index:   test
+        id:      "1"
+        refresh: true
+        body:
+          field: foo
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "*" ]
+
+  - length: { hits.hits.0.fields : 2 }
+  - match: { hits.hits.0.fields.field.0: "foo" }
+  - match: { hits.hits.0.fields.idAlias.0: "1" }
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "_*" ]
+
+  - is_false: hits.hits.0.fields
+
+  - do:
+      search:
+        index: test
+        body:
+          fields: [ "_id", "_index", "_version" ]
+
+  - length: { hits.hits.0.fields : 3 }
+  - match: { hits.hits.0.fields._id.0: "1" }
+  - match: { hits.hits.0.fields._index.0: "test" }
+  - match: { hits.hits.0.fields._version.0: 1 }

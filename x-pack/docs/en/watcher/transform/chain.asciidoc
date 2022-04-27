@@ -23,17 +23,19 @@ the other available transforms. For example, you can combine a
   "chain" : [ <1>
     {
       "search" : {  <2>
-        "indices" : [ "logstash-*" ],
-        "body" : {
-          "size" : 0,
-          "query" : {
-            "match" : { "priority" : "error" }
+        "request": {
+          "indices" : [ "logstash-*" ],
+          "body" : {
+            "size" : 0,
+            "query" : {
+              "match" : { "priority" : "error" }
+            }
           }
         }
       }
     },
     {
-      "script" : "return [ error_count : ctx.payload.hits.total ]"  <3>
+      "script" : "return [ 'error_count' : ctx.payload.hits.total ]"  <3>
     }
   ]
 }

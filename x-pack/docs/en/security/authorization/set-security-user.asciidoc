@@ -2,8 +2,8 @@
 ==== Pre-processing documents to add security details
 
 // If an index is shared by many small users it makes sense to put all these users
-// into the same index.  Having a dedicated index or shard per user is wasteful.
-// TBD: It's unclear why we're putting users in an index here. 
+// into the same index. Having a dedicated index or shard per user is wasteful.
+// TBD: It's unclear why we're putting users in an index here.
 
 To guarantee that a user reads only their own documents, it makes sense to set up
 document level security. In this scenario, each document must have the username
@@ -20,8 +20,9 @@ The <<ingest-node-set-security-user-processor,set security user processor>> atta
 `username`,  `roles`, `email`, `full_name` and `metadata` ) from the current
 authenticated user to the current document by pre-processing the ingest. When
 you index data with an ingest pipeline, user details are automatically attached
-to the document.
+to the document. If the authenticating credential is an API key, the API key
+`id`, `name` and `metadata` (if it exists and is non-empty) are also attached to
+the document.
 
 For more information see <<ingest>> and
 <<ingest-node-set-security-user-processor>>
-

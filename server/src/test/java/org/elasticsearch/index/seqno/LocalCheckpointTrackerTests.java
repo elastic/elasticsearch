@@ -9,7 +9,6 @@
 package org.elasticsearch.index.seqno;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -19,9 +18,7 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
-import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
@@ -148,7 +145,7 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
         assertThat(tracker.processedCheckpoint.get(), equalTo(maxOps - 1L));
         assertThat(tracker.processedSeqNo.size(), equalTo(aligned ? 0 : 1));
         if (aligned == false) {
-            assertThat(tracker.processedSeqNo.keys().iterator().next().value, equalTo(tracker.processedCheckpoint.get() / BIT_SET_SIZE));
+            assertThat(tracker.processedSeqNo.keySet().iterator().next(), equalTo(tracker.processedCheckpoint.get() / BIT_SET_SIZE));
         }
         assertThat(tracker.hasProcessed(randomFrom(seqNoList)), equalTo(true));
         final long notCompletedSeqNo = randomValueOtherThanMany(seqNoList::contains, ESTestCase::randomNonNegativeLong);
@@ -194,7 +191,7 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
         assertThat(tracker.getProcessedCheckpoint(), equalTo(maxOps - 1L));
         assertThat(tracker.processedSeqNo.size(), is(oneOf(0, 1)));
         if (tracker.processedSeqNo.size() == 1) {
-            assertThat(tracker.processedSeqNo.keys().iterator().next().value, equalTo(tracker.processedCheckpoint.get() / BIT_SET_SIZE));
+            assertThat(tracker.processedSeqNo.keySet().iterator().next(), equalTo(tracker.processedCheckpoint.get() / BIT_SET_SIZE));
         }
     }
 
@@ -248,45 +245,8 @@ public class LocalCheckpointTrackerTests extends ESTestCase {
         assertThat(tracker.hasProcessed(randomLongBetween(maxOps, Long.MAX_VALUE)), equalTo(false));
         assertThat(tracker.processedSeqNo.size(), is(oneOf(0, 1)));
         if (tracker.processedSeqNo.size() == 1) {
-            assertThat(tracker.processedSeqNo.keys().iterator().next().value, equalTo(tracker.processedCheckpoint.get() / BIT_SET_SIZE));
+            assertThat(tracker.processedSeqNo.keySet().iterator().next(), equalTo(tracker.processedCheckpoint.get() / BIT_SET_SIZE));
         }
-    }
-
-    public void testWaitForOpsToComplete() throws BrokenBarrierException, InterruptedException {
-        final int seqNo = randomIntBetween(0, 32);
-        final CyclicBarrier barrier = new CyclicBarrier(2);
-        final AtomicBoolean complete = new AtomicBoolean();
-        final Thread thread = new Thread(() -> {
-            try {
-                // sychronize starting with the test thread
-                barrier.await();
-                tracker.waitForProcessedOpsToComplete(seqNo);
-                complete.set(true);
-                // synchronize with the test thread checking if we are no longer waiting
-                barrier.await();
-            } catch (BrokenBarrierException | InterruptedException e) {
-                throw new RuntimeException(e);
-            }
-        });
-
-        thread.start();
-
-        // synchronize starting with the waiting thread
-        barrier.await();
-
-        final List<Integer> elements = IntStream.rangeClosed(0, seqNo).boxed().collect(Collectors.toList());
-        Randomness.shuffle(elements);
-        for (int i = 0; i < elements.size() - 1; i++) {
-            tracker.markSeqNoAsProcessed(elements.get(i));
-            assertFalse(complete.get());
-        }
-
-        tracker.markSeqNoAsProcessed(elements.get(elements.size() - 1));
-        // synchronize with the waiting thread to mark that it is complete
-        barrier.await();
-        assertTrue(complete.get());
-
-        thread.join();
     }
 
     public void testContains() {

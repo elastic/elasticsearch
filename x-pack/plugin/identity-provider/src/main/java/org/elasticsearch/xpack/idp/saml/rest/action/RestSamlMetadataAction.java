@@ -6,20 +6,19 @@
  */
 package org.elasticsearch.xpack.idp.saml.rest.action;
 
-import org.elasticsearch.client.node.NodeClient;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestBuilderListener;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.idp.action.SamlMetadataAction;
 import org.elasticsearch.xpack.idp.action.SamlMetadataRequest;
 import org.elasticsearch.xpack.idp.action.SamlMetadataResponse;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
@@ -37,7 +36,7 @@ public class RestSamlMetadataAction extends IdpBaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.singletonList(new Route(GET, "/_idp/saml/metadata/{sp_entity_id}"));
+        return List.of(new Route(GET, "/_idp/saml/metadata/{sp_entity_id}"));
     }
 
     @Override
@@ -45,7 +44,9 @@ public class RestSamlMetadataAction extends IdpBaseRestHandler {
         final String spEntityId = request.param("sp_entity_id");
         final String acs = request.param("acs");
         final SamlMetadataRequest metadataRequest = new SamlMetadataRequest(spEntityId, acs);
-        return channel -> client.execute(SamlMetadataAction.INSTANCE, metadataRequest,
+        return channel -> client.execute(
+            SamlMetadataAction.INSTANCE,
+            metadataRequest,
             new RestBuilderListener<SamlMetadataResponse>(channel) {
                 @Override
                 public RestResponse buildResponse(SamlMetadataResponse response, XContentBuilder builder) throws Exception {
@@ -54,7 +55,8 @@ public class RestSamlMetadataAction extends IdpBaseRestHandler {
                     builder.endObject();
                     return new BytesRestResponse(RestStatus.OK, builder);
                 }
-            });
+            }
+        );
 
     }
 }

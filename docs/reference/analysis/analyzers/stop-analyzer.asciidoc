@@ -5,7 +5,7 @@
 ++++
 
 The `stop` analyzer is the same as the <<analysis-simple-analyzer,`simple` analyzer>>
-but adds support for removing stop words.  It defaults to using the
+but adds support for removing stop words. It defaults to using the
 `_english_` stop words.
 
 [discrete]
@@ -111,8 +111,8 @@ The `stop` analyzer accepts the following parameters:
 [horizontal]
 `stopwords`::
 
-    A pre-defined stop words list like `_english_` or an array  containing a
-    list of stop words.  Defaults to `_english_`.
+    A pre-defined stop words list like `_english_` or an array containing a
+    list of stop words. Defaults to `_english_`.
 
 `stopwords_path`::
 

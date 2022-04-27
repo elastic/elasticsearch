@@ -9,12 +9,20 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.SamplingContext;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Optional;
 
 import static org.elasticsearch.search.aggregations.support.AggregationUsageService.OTHER_SUBTYPE;
 
+/**
+ * Aggregator factories are responsible for creating the per-shard aggregator instances.  They should select the aggregator instance type
+ * based on the type of the data being aggregated (using the {@link org.elasticsearch.search.aggregations.support.ValuesSourceRegistry}
+ * when appropriate), and any optimizations that factory can make.  The factory layer is the correct place for heuristics to select
+ * different operating modes (such as using Global Ordinals or not).
+ */
 public abstract class AggregatorFactory {
     protected final String name;
     protected final AggregatorFactory parent;
@@ -31,8 +39,13 @@ public abstract class AggregatorFactory {
      * @throws IOException
      *             if an error occurs creating the factory
      */
-    public AggregatorFactory(String name, AggregationContext context, AggregatorFactory parent,
-                             AggregatorFactories.Builder subFactoriesBuilder, Map<String, Object> metadata) throws IOException {
+    public AggregatorFactory(
+        String name,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata
+    ) throws IOException {
         this.name = name;
         this.context = context;
         this.parent = parent;
@@ -40,12 +53,23 @@ public abstract class AggregatorFactory {
         this.metadata = metadata;
     }
 
+    /**
+     * Climbs up the aggregation factory tree to find the sampling context if one exists.
+     * @return Optional SamplingContext
+     */
+    public Optional<SamplingContext> getSamplingContext() {
+        if (parent != null) {
+            return parent.getSamplingContext();
+        } else {
+            return Optional.empty();
+        }
+    }
+
     public String name() {
         return name;
     }
 
-    public void doValidate() {
-    }
+    public void doValidate() {}
 
     protected abstract Aggregator createInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
         throws IOException;
@@ -76,4 +100,5 @@ public abstract class AggregatorFactory {
     public String getStatsSubtype() {
         return OTHER_SUBTYPE;
     }
+
 }

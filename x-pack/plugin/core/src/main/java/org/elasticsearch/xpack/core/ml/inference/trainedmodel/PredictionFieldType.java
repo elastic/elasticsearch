@@ -49,7 +49,7 @@ public enum PredictionFieldType implements Writeable {
         if (value == null) {
             return null;
         }
-        switch(this) {
+        switch (this) {
             case STRING:
                 return stringRep == null ? value.toString() : stringRep;
             case BOOLEAN:
@@ -83,7 +83,8 @@ public enum PredictionFieldType implements Writeable {
     private static boolean fromDouble(double value) {
         if ((areClose(value, 1.0D) || areClose(value, 0.0D)) == false) {
             throw new IllegalArgumentException(
-                "Cannot transform numbers other than 0.0 or 1.0 to boolean. Provided number [" + value + "]");
+                "Cannot transform numbers other than 0.0 or 1.0 to boolean. Provided number [" + value + "]"
+            );
         }
         return areClose(value, 1.0D);
     }

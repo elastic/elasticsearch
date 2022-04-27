@@ -31,6 +31,7 @@ public abstract class AbstractSnapshotRepoTestKitRestTestCase extends ESRestTest
         request.addParameter("concurrency", "4");
         request.addParameter("max_blob_size", "1mb");
         request.addParameter("timeout", "120s");
+        request.addParameter("seed", Long.toString(randomLong()));
         assertOK(client().performRequest(request));
     }
 

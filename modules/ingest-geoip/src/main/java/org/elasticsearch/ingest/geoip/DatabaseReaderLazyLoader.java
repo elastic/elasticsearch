@@ -11,20 +11,21 @@ package org.elasticsearch.ingest.geoip;
 import com.maxmind.db.NoCache;
 import com.maxmind.db.Reader;
 import com.maxmind.geoip2.DatabaseReader;
-import com.maxmind.geoip2.exception.AddressNotFoundException;
 import com.maxmind.geoip2.model.AbstractResponse;
 import com.maxmind.geoip2.model.AsnResponse;
 import com.maxmind.geoip2.model.CityResponse;
 import com.maxmind.geoip2.model.CountryResponse;
+
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.SpecialPermission;
-import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.CheckedSupplier;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -36,6 +37,7 @@ import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -44,11 +46,11 @@ import java.util.concurrent.atomic.AtomicInteger;
  */
 class DatabaseReaderLazyLoader implements Closeable {
 
-    private static final boolean LOAD_DATABASE_ON_HEAP =
-        Booleans.parseBoolean(System.getProperty("es.geoip.load_db_on_heap", "false"));
+    private static final boolean LOAD_DATABASE_ON_HEAP = Booleans.parseBoolean(System.getProperty("es.geoip.load_db_on_heap", "false"));
 
     private static final Logger LOGGER = LogManager.getLogger(DatabaseReaderLazyLoader.class);
 
+    private final String md5;
     private final GeoIpCache cache;
     private final Path databasePath;
     private final CheckedSupplier<DatabaseReader, IOException> loader;
@@ -57,15 +59,17 @@ class DatabaseReaderLazyLoader implements Closeable {
     // cache the database type so that we do not re-read it on every pipeline execution
     final SetOnce<String> databaseType;
 
+    private volatile boolean deleteDatabaseFileOnClose;
     private final AtomicInteger currentUsages = new AtomicInteger(0);
 
-    DatabaseReaderLazyLoader(final GeoIpCache cache, final Path databasePath) {
-        this(cache, databasePath, createDatabaseLoader(databasePath));
+    DatabaseReaderLazyLoader(GeoIpCache cache, Path databasePath, String md5) {
+        this(cache, databasePath, md5, createDatabaseLoader(databasePath));
     }
 
-    DatabaseReaderLazyLoader(final GeoIpCache cache, final Path databasePath, final CheckedSupplier<DatabaseReader, IOException> loader) {
+    DatabaseReaderLazyLoader(GeoIpCache cache, Path databasePath, String md5, CheckedSupplier<DatabaseReader, IOException> loader) {
         this.cache = cache;
         this.databasePath = Objects.requireNonNull(databasePath);
+        this.md5 = md5;
         this.loader = Objects.requireNonNull(loader);
         this.databaseReader = new SetOnce<>();
         this.databaseType = new SetOnce<>();
@@ -88,7 +92,7 @@ class DatabaseReaderLazyLoader implements Closeable {
                     if (fileSize <= 512) {
                         throw new IOException("unexpected file length [" + fileSize + "] for [" + databasePath + "]");
                     }
-                    final int[] databaseTypeMarker = {'d', 'a', 't', 'a', 'b', 'a', 's', 'e', '_', 't', 'y', 'p', 'e'};
+                    final int[] databaseTypeMarker = { 'd', 'a', 't', 'a', 'b', 'a', 's', 'e', '_', 't', 'y', 'p', 'e' };
                     try (InputStream in = databaseInputStream()) {
                         // read the last 512 bytes
                         final long skipped = in.skip(fileSize - 512);
@@ -149,16 +153,19 @@ class DatabaseReaderLazyLoader implements Closeable {
         return Files.newInputStream(databasePath);
     }
 
+    @Nullable
     CityResponse getCity(InetAddress ipAddress) {
-        return getResponse(ipAddress, DatabaseReader::city);
+        return getResponse(ipAddress, DatabaseReader::tryCity);
     }
 
+    @Nullable
     CountryResponse getCountry(InetAddress ipAddress) {
-        return getResponse(ipAddress, DatabaseReader::country);
+        return getResponse(ipAddress, DatabaseReader::tryCountry);
     }
 
+    @Nullable
     AsnResponse getAsn(InetAddress ipAddress) {
-        return getResponse(ipAddress, DatabaseReader::asn);
+        return getResponse(ipAddress, DatabaseReader::tryAsn);
     }
 
     boolean preLookup() {
@@ -175,19 +182,19 @@ class DatabaseReaderLazyLoader implements Closeable {
         return currentUsages.get();
     }
 
-    private <T extends AbstractResponse> T getResponse(InetAddress ipAddress,
-                                                       CheckedBiFunction<DatabaseReader, InetAddress, T, Exception> responseProvider) {
+    @Nullable
+    private <T extends AbstractResponse> T getResponse(
+        InetAddress ipAddress,
+        CheckedBiFunction<DatabaseReader, InetAddress, Optional<T>, Exception> responseProvider
+    ) {
         SpecialPermission.check();
-        return AccessController.doPrivileged((PrivilegedAction<T>) () ->
-            cache.putIfAbsent(ipAddress, databasePath.toString(), ip -> {
-                try {
-                    return responseProvider.apply(get(), ipAddress);
-                } catch (AddressNotFoundException e) {
-                    throw new GeoIpProcessor.AddressNotFoundRuntimeException(e);
-                } catch (Exception e) {
-                    throw new RuntimeException(e);
-                }
-            }));
+        return AccessController.doPrivileged((PrivilegedAction<T>) () -> cache.putIfAbsent(ipAddress, databasePath.toString(), ip -> {
+            try {
+                return responseProvider.apply(get(), ipAddress).orElse(null);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
+            }
+        }));
     }
 
     DatabaseReader get() throws IOException {
@@ -202,6 +209,15 @@ class DatabaseReaderLazyLoader implements Closeable {
         return databaseReader.get();
     }
 
+    String getMd5() {
+        return md5;
+    }
+
+    public void close(boolean shouldDeleteDatabaseFileOnClose) throws IOException {
+        this.deleteDatabaseFileOnClose = shouldDeleteDatabaseFileOnClose;
+        close();
+    }
+
     @Override
     public void close() throws IOException {
         if (currentUsages.updateAndGet(u -> -1 - u) == -1) {
@@ -213,6 +229,10 @@ class DatabaseReaderLazyLoader implements Closeable {
         IOUtils.close(databaseReader.get());
         int numEntriesEvicted = cache.purgeCacheEntriesForDatabase(databasePath);
         LOGGER.info("evicted [{}] entries from cache after reloading database [{}]", numEntriesEvicted, databasePath);
+        if (deleteDatabaseFileOnClose) {
+            LOGGER.info("deleting [{}]", databasePath);
+            Files.delete(databasePath);
+        }
     }
 
     private static CheckedSupplier<DatabaseReader, IOException> createDatabaseLoader(Path databasePath) {

@@ -69,25 +69,25 @@ public class RunningStats implements Writeable, Cloneable {
     public RunningStats(StreamInput in) throws IOException {
         this();
         // read doc count
-        docCount = (Long)in.readGenericValue();
+        docCount = (Long) in.readGenericValue();
         // read fieldSum
-        fieldSum = convertIfNeeded((Map<String, Double>)in.readGenericValue());
+        fieldSum = convertIfNeeded((Map<String, Double>) in.readGenericValue());
         // counts
-        counts = convertIfNeeded((Map<String, Long>)in.readGenericValue());
+        counts = convertIfNeeded((Map<String, Long>) in.readGenericValue());
         // means
-        means = convertIfNeeded((Map<String, Double>)in.readGenericValue());
+        means = convertIfNeeded((Map<String, Double>) in.readGenericValue());
         // variances
-        variances = convertIfNeeded((Map<String, Double>)in.readGenericValue());
+        variances = convertIfNeeded((Map<String, Double>) in.readGenericValue());
         // skewness
-        skewness = convertIfNeeded((Map<String, Double>)in.readGenericValue());
+        skewness = convertIfNeeded((Map<String, Double>) in.readGenericValue());
         // kurtosis
-        kurtosis = convertIfNeeded((Map<String, Double>)in.readGenericValue());
+        kurtosis = convertIfNeeded((Map<String, Double>) in.readGenericValue());
         // read covariances
-        covariances = convertIfNeeded((Map<String, HashMap<String, Double>>)in.readGenericValue());
+        covariances = convertIfNeeded((Map<String, HashMap<String, Double>>) in.readGenericValue());
     }
 
     // Convert Map to HashMap if it isn't
-    private static <K, V> HashMap<K, V> convertIfNeeded(Map<K,V> map) {
+    private static <K, V> HashMap<K, V> convertIfNeeded(Map<K, V> map) {
         if (map instanceof HashMap) {
             return (HashMap<K, V>) map;
         } else {
@@ -211,7 +211,7 @@ public class RunningStats implements Writeable, Cloneable {
                 this.counts.put(fieldName, other.counts.get(fieldName).longValue());
                 this.fieldSum.put(fieldName, other.fieldSum.get(fieldName).doubleValue());
                 this.variances.put(fieldName, other.variances.get(fieldName).doubleValue());
-                this.skewness.put(fieldName , other.skewness.get(fieldName).doubleValue());
+                this.skewness.put(fieldName, other.skewness.get(fieldName).doubleValue());
                 this.kurtosis.put(fieldName, other.kurtosis.get(fieldName).doubleValue());
                 if (other.covariances.containsKey(fieldName)) {
                     this.covariances.put(fieldName, other.covariances.get(fieldName));
@@ -314,14 +314,14 @@ public class RunningStats implements Writeable, Cloneable {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         RunningStats that = (RunningStats) o;
-        return docCount == that.docCount &&
-            Objects.equals(fieldSum, that.fieldSum) &&
-            Objects.equals(counts, that.counts) &&
-            Objects.equals(means, that.means) &&
-            Objects.equals(variances, that.variances) &&
-            Objects.equals(skewness, that.skewness) &&
-            Objects.equals(kurtosis, that.kurtosis) &&
-            Objects.equals(covariances, that.covariances);
+        return docCount == that.docCount
+            && Objects.equals(fieldSum, that.fieldSum)
+            && Objects.equals(counts, that.counts)
+            && Objects.equals(means, that.means)
+            && Objects.equals(variances, that.variances)
+            && Objects.equals(skewness, that.skewness)
+            && Objects.equals(kurtosis, that.kurtosis)
+            && Objects.equals(covariances, that.covariances);
     }
 
     @Override

@@ -13,15 +13,16 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.IndexableFieldType;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -51,6 +52,11 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
         // no configurable parameters
     }
 
+    @Override
+    protected boolean supportsStoredFields() {
+        return false;
+    }
+
     public void testDefaults() throws Exception {
         XContentBuilder mapping = fieldMapping(this::minimalMapping);
         DocumentMapper mapper = createDocumentMapper(mapping);
@@ -58,7 +64,6 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
 
         ParsedDocument doc = mapper.parse(
             new SourceToParse(
-                "test",
                 "1",
                 BytesReference.bytes(XContentFactory.jsonBuilder().startObject().field("field", "1.2.3").endObject()),
                 XContentType.JSON
@@ -95,7 +100,7 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
         );
         MapperParsingException ex = expectThrows(
             MapperParsingException.class,
-            () -> defaultMapper.parse(new SourceToParse("test", "1", source, XContentType.JSON))
+            () -> defaultMapper.parse(new SourceToParse("1", source, XContentType.JSON))
         );
         assertEquals(
             "failed to parse field [field] of type [version] in document with id '1'. " + "Preview of field's value: '{}'",
@@ -120,12 +125,38 @@ public class VersionStringFieldMapperTests extends MapperTestCase {
         );
         MapperParsingException ex = expectThrows(
             MapperParsingException.class,
-            () -> defaultMapper.parse(new SourceToParse("test", "1", source, XContentType.JSON))
+            () -> defaultMapper.parse(new SourceToParse("1", source, XContentType.JSON))
         );
         assertEquals(
             "failed to parse field [field] of type [version] in document with id '1'. "
                 + "Preview of field's value: '{array_name=[inner_field_first, inner_field_second]}'",
             ex.getMessage()
         );
+    }
+
+    @Override
+    protected String generateRandomInputValue(MappedFieldType ft) {
+        return randomVersionNumber() + (randomBoolean() ? "" : randomPrerelease());
+    }
+
+    private String randomVersionNumber() {
+        int numbers = between(1, 3);
+        String v = Integer.toString(between(0, 100));
+        for (int i = 1; i < numbers; i++) {
+            v += "." + between(0, 100);
+        }
+        return v;
+    }
+
+    private String randomPrerelease() {
+        if (rarely()) {
+            return randomFrom("alpha", "beta", "prerelease", "whatever");
+        }
+        return randomFrom("alpha", "beta", "") + randomVersionNumber();
+    }
+
+    @Override
+    protected boolean dedupAfterFetch() {
+        return true;
     }
 }

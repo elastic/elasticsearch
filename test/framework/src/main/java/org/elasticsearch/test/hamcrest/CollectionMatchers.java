@@ -59,7 +59,7 @@ public class CollectionMatchers {
 
         @Override
         protected boolean matchesSafely(ImmutableOpenMap<String, ?> item) {
-            for (String key: keys) {
+            for (String key : keys) {
                 if (item.containsKey(key) == false) {
                     missingKey = key;
                     return false;
@@ -74,14 +74,13 @@ public class CollectionMatchers {
             if (map.size() == 0) {
                 mismatchDescription.appendText("was empty");
             } else {
-                mismatchDescription.appendText("was ").appendValue(map.keys());
+                mismatchDescription.appendText("was ").appendValue(map.keySet());
             }
         }
 
         @Override
         public void describeTo(Description description) {
-            description
-                .appendText("ImmutableOpenMap should contain all keys ")
+            description.appendText("ImmutableOpenMap should contain all keys ")
                 .appendValue(keys)
                 .appendText(", but key [")
                 .appendValue(missingKey)

@@ -1,0 +1,195 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/elastic/elasticsearch/tree/main/docs/changelog",
+  "$ref": "#/definitions/Changelog",
+  "definitions": {
+    "Changelog": {
+      "type": "object",
+      "properties": {
+        "pr": {
+          "type": "integer"
+        },
+        "issues": {
+          "type": "array",
+          "items": {
+            "type": "integer"
+          }
+        },
+        "area": {
+          "type": "string",
+          "enum": [
+            "Aggregations",
+            "Allocation",
+            "Analysis",
+            "Audit",
+            "Authentication",
+            "Authorization",
+            "Autoscaling",
+            "CAT APIs",
+            "CCR",
+            "CRUD",
+            "Client",
+            "Cluster Coordination",
+            "Data streams",
+            "Discovery-Plugins",
+            "Distributed",
+            "EQL",
+            "Engine",
+            "FIPS",
+            "Features",
+            "Geo",
+            "Graph",
+            "Health",
+            "Highlighting",
+            "ILM+SLM",
+            "IdentityProvider",
+            "Indices APIs",
+            "Infra/CLI",
+            "Infra/Circuit Breakers",
+            "Infra/Core",
+            "Infra/Logging",
+            "Infra/Node Lifecycle",
+            "Infra/Plugins",
+            "Infra/REST API",
+            "Infra/Resiliency",
+            "Infra/Scripting",
+            "Infra/Settings",
+            "Infra/Transport API",
+            "Ingest",
+            "Java High Level REST Client",
+            "Java Low Level REST Client",
+            "License",
+            "Machine Learning",
+            "Mapping",
+            "Monitoring",
+            "Network",
+            "Packaging",
+            "Percolator",
+            "Performance",
+            "Query Languages",
+            "Ranking",
+            "Recovery",
+            "Reindex",
+            "Rollup",
+            "SQL",
+            "Search",
+            "Security",
+            "Snapshot/Restore",
+            "Stats",
+            "Store",
+            "Suggesters",
+            "Task Management",
+            "TLS",
+            "Transform",
+            "TSDB",
+            "Watcher"
+          ]
+        },
+        "type": {
+          "type": "string",
+          "enum": [
+            "breaking",
+            "breaking-java",
+            "bug",
+            "deprecation",
+            "enhancement",
+            "feature",
+            "known-issue",
+            "new-aggregation",
+            "regression",
+            "security",
+            "upgrade"
+          ]
+        },
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "highlight": {
+          "$ref": "#/definitions/Highlight"
+        },
+        "breaking": {
+          "$ref": "#/definitions/CompatibilityChange"
+        },
+        "deprecation": {
+          "$ref": "#/definitions/CompatibilityChange"
+        }
+      },
+      "required": [
+        "type",
+        "summary"
+      ]
+    },
+    "Highlight": {
+      "properties": {
+        "notable": {
+          "type": "boolean"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "body": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": [
+        "title",
+        "body"
+      ],
+      "additionalProperties": false
+    },
+    "CompatibilityChange": {
+      "properties": {
+        "area": {
+          "$ref": "#/definitions/compatibilityChangeArea"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "details": {
+          "type": "string",
+          "minLength": 1
+        },
+        "impact": {
+          "type": "string",
+          "minLength": 1
+        },
+        "notable": {
+          "type": "boolean"
+        },
+        "ess_setting_change": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "area",
+        "title",
+        "details",
+        "impact"
+      ],
+      "additionalProperties": false
+    },
+    "compatibilityChangeArea": {
+      "type": "string",
+      "enum": [
+        "Cluster and node setting",
+        "Command line tool",
+        "CRUD",
+        "Index setting",
+        "JVM option",
+        "Java API",
+        "Logging",
+        "Mapping",
+        "Packaging",
+        "Painless",
+        "REST API",
+        "System requirement",
+        "Transform"
+      ]
+    },
+    "additionalProperties": false
+  }
+}

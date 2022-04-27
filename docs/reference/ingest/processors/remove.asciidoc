@@ -11,7 +11,7 @@ Removes existing fields. If one field doesn't exist, an exception will be thrown
 [options="header"]
 |======
 | Name             | Required  | Default  | Description
-| `field`          | yes       | -        | Fields to be removed. Supports <<accessing-template-fields,template snippets>>.
+| `field`          | yes       | -        | Fields to be removed. Supports <<template-snippets,template snippets>>.
 | `ignore_missing` | no        | `false`  | If `true` and `field` does not exist or is `null`, the processor quietly exits without modifying the document
 include::common-options.asciidoc[]
 |======

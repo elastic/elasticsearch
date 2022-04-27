@@ -31,18 +31,33 @@ public class MonitoringUsageTransportAction extends XPackUsageFeatureTransportAc
     private final Exporters exporters;
 
     @Inject
-    public MonitoringUsageTransportAction(TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                          ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
-                                          MonitoringUsageServices monitoringServices) {
-        super(XPackUsageFeatureAction.MONITORING.name(), transportService, clusterService, threadPool,
-            actionFilters, indexNameExpressionResolver);
+    public MonitoringUsageTransportAction(
+        TransportService transportService,
+        ClusterService clusterService,
+        ThreadPool threadPool,
+        ActionFilters actionFilters,
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        MonitoringUsageServices monitoringServices
+    ) {
+        super(
+            XPackUsageFeatureAction.MONITORING.name(),
+            transportService,
+            clusterService,
+            threadPool,
+            actionFilters,
+            indexNameExpressionResolver
+        );
         this.monitoringService = monitoringServices.monitoringService;
         this.exporters = monitoringServices.exporters;
     }
 
     @Override
-    protected void masterOperation(Task task, XPackUsageRequest request, ClusterState state,
-                                   ActionListener<XPackUsageFeatureResponse> listener) {
+    protected void masterOperation(
+        Task task,
+        XPackUsageRequest request,
+        ClusterState state,
+        ActionListener<XPackUsageFeatureResponse> listener
+    ) {
         final boolean collectionEnabled = monitoringService != null && monitoringService.isMonitoringActive();
         var usage = new MonitoringFeatureSetUsage(collectionEnabled, exportersUsage(exporters));
         listener.onResponse(new XPackUsageFeatureResponse(usage));

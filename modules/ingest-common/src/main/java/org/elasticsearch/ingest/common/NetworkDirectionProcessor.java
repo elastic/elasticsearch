@@ -14,12 +14,17 @@ import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.TemplateScript;
 
 import java.net.InetAddress;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
 import static org.elasticsearch.ingest.ConfigurationUtils.readBooleanProperty;
 
 public class NetworkDirectionProcessor extends AbstractProcessor {
@@ -48,7 +53,8 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
     private final String sourceIpField;
     private final String destinationIpField;
     private final String targetField;
-    private final List<String> internalNetworks;
+    private final List<TemplateScript.Factory> internalNetworks;
+    private final String internalNetworksField;
     private final boolean ignoreMissing;
 
     NetworkDirectionProcessor(
@@ -57,7 +63,8 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
         String sourceIpField,
         String destinationIpField,
         String targetField,
-        List<String> internalNetworks,
+        List<TemplateScript.Factory> internalNetworks,
+        String internalNetworksField,
         boolean ignoreMissing
     ) {
         super(tag, description);
@@ -65,6 +72,7 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
         this.destinationIpField = destinationIpField;
         this.targetField = targetField;
         this.internalNetworks = internalNetworks;
+        this.internalNetworksField = internalNetworksField;
         this.ignoreMissing = ignoreMissing;
     }
 
@@ -80,8 +88,12 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
         return targetField;
     }
 
-    public List<String> getInternalNetworks() {
+    public List<TemplateScript.Factory> getInternalNetworks() {
         return internalNetworks;
+    }
+
+    public String getInternalNetworksField() {
+        return internalNetworksField;
     }
 
     public boolean getIgnoreMissing() {
@@ -103,9 +115,18 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
         return ingestDocument;
     }
 
-    private String getDirection(IngestDocument d) {
-        if (internalNetworks == null) {
-            return null;
+    private String getDirection(IngestDocument d) throws Exception {
+        List<String> networks = new ArrayList<>();
+
+        if (internalNetworksField != null) {
+            @SuppressWarnings("unchecked")
+            List<String> stringList = d.getFieldValue(internalNetworksField, networks.getClass(), ignoreMissing);
+            if (stringList == null) {
+                return null;
+            }
+            networks.addAll(stringList);
+        } else {
+            networks = internalNetworks.stream().map(network -> d.renderTemplate(network)).collect(Collectors.toList());
         }
 
         String sourceIpAddrString = d.getFieldValue(sourceIpField, String.class, ignoreMissing);
@@ -118,8 +139,8 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
             return null;
         }
 
-        boolean sourceInternal = isInternal(sourceIpAddrString);
-        boolean destinationInternal = isInternal(destIpAddrString);
+        boolean sourceInternal = isInternal(networks, sourceIpAddrString);
+        boolean destinationInternal = isInternal(networks, destIpAddrString);
 
         if (sourceInternal && destinationInternal) {
             return DIRECTION_INTERNAL;
@@ -133,8 +154,8 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
         return DIRECTION_EXTERNAL;
     }
 
-    private boolean isInternal(String ip) {
-        for (String network : internalNetworks) {
+    private boolean isInternal(List<String> networks, String ip) {
+        for (String network : networks) {
             if (inNetwork(ip, network)) {
                 return true;
             }
@@ -144,36 +165,25 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
 
     private boolean inNetwork(String ip, String network) {
         InetAddress address = InetAddresses.forString(ip);
-        switch (network) {
-            case LOOPBACK_NAMED_NETWORK:
-                return isLoopback(address);
-            case GLOBAL_UNICAST_NAMED_NETWORK:
-            case UNICAST_NAMED_NETWORK:
-                return isUnicast(address);
-            case LINK_LOCAL_UNICAST_NAMED_NETWORK:
-                return isLinkLocalUnicast(address);
-            case INTERFACE_LOCAL_NAMED_NETWORK:
-                return isInterfaceLocalMulticast(address);
-            case LINK_LOCAL_MULTICAST_NAMED_NETWORK:
-                return isLinkLocalMulticast(address);
-            case MULTICAST_NAMED_NETWORK:
-                return isMulticast(address);
-            case UNSPECIFIED_NAMED_NETWORK:
-                return isUnspecified(address);
-            case PRIVATE_NAMED_NETWORK:
-                return isPrivate(ip);
-            case PUBLIC_NAMED_NETWORK:
-                return isPublic(ip);
-            default:
-                return CIDRUtils.isInRange(ip, network);
-        }
+        return switch (network) {
+            case LOOPBACK_NAMED_NETWORK -> isLoopback(address);
+            case GLOBAL_UNICAST_NAMED_NETWORK, UNICAST_NAMED_NETWORK -> isUnicast(address);
+            case LINK_LOCAL_UNICAST_NAMED_NETWORK -> isLinkLocalUnicast(address);
+            case INTERFACE_LOCAL_NAMED_NETWORK -> isInterfaceLocalMulticast(address);
+            case LINK_LOCAL_MULTICAST_NAMED_NETWORK -> isLinkLocalMulticast(address);
+            case MULTICAST_NAMED_NETWORK -> isMulticast(address);
+            case UNSPECIFIED_NAMED_NETWORK -> isUnspecified(address);
+            case PRIVATE_NAMED_NETWORK -> isPrivate(ip);
+            case PUBLIC_NAMED_NETWORK -> isPublic(ip);
+            default -> CIDRUtils.isInRange(ip, network);
+        };
     }
 
-    private boolean isLoopback(InetAddress ip) {
+    private static boolean isLoopback(InetAddress ip) {
         return ip.isLoopbackAddress();
     }
 
-    private boolean isUnicast(InetAddress ip) {
+    private static boolean isUnicast(InetAddress ip) {
         return Arrays.equals(ip.getAddress(), BROADCAST_IP4) == false
             && isUnspecified(ip) == false
             && isLoopback(ip) == false
@@ -181,36 +191,36 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
             && isLinkLocalUnicast(ip) == false;
     }
 
-    private boolean isLinkLocalUnicast(InetAddress ip) {
+    private static boolean isLinkLocalUnicast(InetAddress ip) {
         return ip.isLinkLocalAddress();
     }
 
-    private boolean isInterfaceLocalMulticast(InetAddress ip) {
+    private static boolean isInterfaceLocalMulticast(InetAddress ip) {
         return ip.isMCNodeLocal();
     }
 
-    private boolean isLinkLocalMulticast(InetAddress ip) {
+    private static boolean isLinkLocalMulticast(InetAddress ip) {
         return ip.isMCLinkLocal();
     }
 
-    private boolean isMulticast(InetAddress ip) {
+    private static boolean isMulticast(InetAddress ip) {
         return ip.isMulticastAddress();
     }
 
-    private boolean isUnspecified(InetAddress ip) {
+    private static boolean isUnspecified(InetAddress ip) {
         var address = ip.getAddress();
         return Arrays.equals(UNDEFINED_IP4, address) || Arrays.equals(UNDEFINED_IP6, address);
     }
 
-    private boolean isPrivate(String ip) {
+    private static boolean isPrivate(String ip) {
         return CIDRUtils.isInRange(ip, "10.0.0.0/8", "172.16.0.0/12", "192.168.0.0/16", "fd00::/8");
     }
 
-    private boolean isPublic(String ip) {
+    private static boolean isPublic(String ip) {
         return isLocalOrPrivate(ip) == false;
     }
 
-    private boolean isLocalOrPrivate(String ip) {
+    private static boolean isLocalOrPrivate(String ip) {
         var address = InetAddresses.forString(ip);
         return isPrivate(ip)
             || isLoopback(address)
@@ -227,10 +237,14 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
     }
 
     public static final class Factory implements Processor.Factory {
-
+        private final ScriptService scriptService;
         static final String DEFAULT_SOURCE_IP = "source.ip";
         static final String DEFAULT_DEST_IP = "destination.ip";
         static final String DEFAULT_TARGET = "network.direction";
+
+        public Factory(ScriptService scriptService) {
+            this.scriptService = scriptService;
+        }
 
         @Override
         public NetworkDirectionProcessor create(
@@ -239,19 +253,45 @@ public class NetworkDirectionProcessor extends AbstractProcessor {
             String description,
             Map<String, Object> config
         ) throws Exception {
-            String sourceIpField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "source_ip", DEFAULT_SOURCE_IP);
-            String destIpField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "destination_ip", DEFAULT_DEST_IP);
-            String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", DEFAULT_TARGET);
-            List<String> internalNetworks = ConfigurationUtils.readList(TYPE, processorTag, config, "internal_networks");
-            boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", true);
+            final String sourceIpField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "source_ip", DEFAULT_SOURCE_IP);
+            final String destIpField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "destination_ip", DEFAULT_DEST_IP);
+            final String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", DEFAULT_TARGET);
+            final boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", true);
 
+            final List<String> internalNetworks = ConfigurationUtils.readOptionalList(TYPE, processorTag, config, "internal_networks");
+            final String internalNetworksField = ConfigurationUtils.readOptionalStringProperty(
+                TYPE,
+                processorTag,
+                config,
+                "internal_networks_field"
+            );
+
+            if (internalNetworks == null && internalNetworksField == null) {
+                throw newConfigurationException(TYPE, processorTag, "internal_networks", "or [internal_networks_field] must be specified");
+            }
+            if (internalNetworks != null && internalNetworksField != null) {
+                throw newConfigurationException(
+                    TYPE,
+                    processorTag,
+                    "internal_networks",
+                    "and [internal_networks_field] cannot both be used in the same processor"
+                );
+            }
+
+            List<TemplateScript.Factory> internalNetworkTemplates = null;
+            if (internalNetworks != null) {
+                internalNetworkTemplates = internalNetworks.stream()
+                    .map(n -> ConfigurationUtils.compileTemplate(TYPE, processorTag, "internal_networks", n, scriptService))
+                    .toList();
+            }
             return new NetworkDirectionProcessor(
                 processorTag,
                 description,
                 sourceIpField,
                 destIpField,
                 targetField,
-                internalNetworks,
+                internalNetworkTemplates,
+                internalNetworksField,
                 ignoreMissing
             );
         }

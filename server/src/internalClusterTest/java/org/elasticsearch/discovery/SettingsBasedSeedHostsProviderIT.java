@@ -21,8 +21,8 @@ import static org.elasticsearch.discovery.SettingsBasedSeedHostsProvider.DISCOVE
 public class SettingsBasedSeedHostsProviderIT extends ESIntegTestCase {
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal));
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        Settings.Builder builder = Settings.builder().put(super.nodeSettings(nodeOrdinal, otherSettings));
 
         // super.nodeSettings enables file-based discovery, but here we disable it again so we can test the static list:
         if (randomBoolean()) {
@@ -39,15 +39,23 @@ public class SettingsBasedSeedHostsProviderIT extends ESIntegTestCase {
 
     public void testClusterFormsWithSingleSeedHostInSettings() {
         final String seedNodeName = internalCluster().startNode();
-        final NodesInfoResponse nodesInfoResponse
-            = client(seedNodeName).admin().cluster().nodesInfo(new NodesInfoRequest("_local")).actionGet();
-        final String seedNodeAddress =
-            nodesInfoResponse.getNodes().get(0).getInfo(TransportInfo.class).getAddress().publishAddress().toString();
+        final NodesInfoResponse nodesInfoResponse = client(seedNodeName).admin()
+            .cluster()
+            .nodesInfo(new NodesInfoRequest("_local"))
+            .actionGet();
+        final String seedNodeAddress = nodesInfoResponse.getNodes()
+            .get(0)
+            .getInfo(TransportInfo.class)
+            .getAddress()
+            .publishAddress()
+            .toString();
         logger.info("--> using seed node address {}", seedNodeAddress);
 
         int extraNodes = randomIntBetween(1, 5);
-        internalCluster().startNodes(extraNodes,
-            Settings.builder().putList(DISCOVERY_SEED_HOSTS_SETTING.getKey(), seedNodeAddress).build());
+        internalCluster().startNodes(
+            extraNodes,
+            Settings.builder().putList(DISCOVERY_SEED_HOSTS_SETTING.getKey(), seedNodeAddress).build()
+        );
 
         ensureStableCluster(extraNodes + 1);
     }

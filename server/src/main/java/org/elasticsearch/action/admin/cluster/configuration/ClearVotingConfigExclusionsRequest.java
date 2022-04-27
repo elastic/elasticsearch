@@ -11,7 +11,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 
@@ -26,8 +26,7 @@ public class ClearVotingConfigExclusionsRequest extends MasterNodeRequest<ClearV
     /**
      * Construct a request to remove all the voting config exclusions from the cluster state.
      */
-    public ClearVotingConfigExclusionsRequest() {
-    }
+    public ClearVotingConfigExclusionsRequest() {}
 
     public ClearVotingConfigExclusionsRequest(StreamInput in) throws IOException {
         super(in);
@@ -81,9 +80,6 @@ public class ClearVotingConfigExclusionsRequest extends MasterNodeRequest<ClearV
 
     @Override
     public String toString() {
-        return "ClearVotingConfigExclusionsRequest{" +
-            ", waitForRemoval=" + waitForRemoval +
-            ", timeout=" + timeout +
-            '}';
+        return "ClearVotingConfigExclusionsRequest{" + ", waitForRemoval=" + waitForRemoval + ", timeout=" + timeout + '}';
     }
 }

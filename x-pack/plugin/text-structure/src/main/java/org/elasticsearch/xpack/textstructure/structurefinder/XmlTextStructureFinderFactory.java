@@ -9,15 +9,16 @@ package org.elasticsearch.xpack.textstructure.structurefinder;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
 import org.xml.sax.SAXException;
 
+import java.io.IOException;
+import java.io.Reader;
+import java.io.StringReader;
+import java.util.List;
+
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.stream.Location;
 import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
-import java.io.IOException;
-import java.io.Reader;
-import java.io.StringReader;
-import java.util.List;
 
 public class XmlTextStructureFinderFactory implements TextStructureFinderFactory {
 

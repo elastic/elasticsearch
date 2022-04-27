@@ -1,7 +1,8 @@
 evaluationDependsOn(xpackModule('core'))
 
-apply plugin: 'elasticsearch.esplugin'
+apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
 esplugin {
     name 'repository-encrypted'
     description 'Elasticsearch Expanded Pack Plugin - client-side encrypted repositories.'
@@ -14,18 +15,4 @@ dependencies {
     // necessary for the license check
     compileOnly project(path: xpackModule('core'))
     testImplementation(testArtifact(project(xpackModule('core'))))
-
-    // required for integ tests of encrypted FS repository
-    internalClusterTestImplementation project(":test:framework")
-    // required for integ tests of encrypted cloud repositories
-    internalClusterTestImplementation testArtifact(project(':plugins:repository-gcs'), 'internalClusterTest')
-    internalClusterTestImplementation testArtifact(project(':plugins:repository-azure'), 'internalClusterTest')
-    internalClusterTestImplementation(testArtifact(project(':plugins:repository-s3'), 'internalClusterTest')) {
-        // HACK, resolves jar hell, such as:
-        // jar1: jakarta.xml.bind/jakarta.xml.bind-api/2.3.2/8d49996a4338670764d7ca4b85a1c4ccf7fe665d/jakarta.xml.bind-api-2.3.2.jar
-        // jar2: javax.xml.bind/jaxb-api/2.2.2/aeb3021ca93dde265796d82015beecdcff95bf09/jaxb-api-2.2.2.jar
-        exclude group: 'javax.xml.bind', module: 'jaxb-api'
-    }
-    // for encrypted GCS repository integ tests
-    internalClusterTestRuntimeOnly 'com.google.guava:guava:26.0-jre'
 }

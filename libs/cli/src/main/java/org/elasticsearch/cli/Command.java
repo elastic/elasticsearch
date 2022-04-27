@@ -17,7 +17,14 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Properties;
+import java.util.stream.Collectors;
 
 /**
  * An action to execute within a cli.
@@ -27,25 +34,30 @@ public abstract class Command implements Closeable {
     /** A description of the command, used in the help output. */
     protected final String description;
 
-    private final Runnable beforeMain;
+    // these are the system properties and env vars from the environment,
+    // but they can be overriden by tests. Really though Command should be stateless,
+    // so the signature of main should take them in, which can happen once the entrypoint
+    // is unified.
+    protected final Map<String, String> sysprops;
+    protected final Map<String, String> envVars;
 
     /** The option parser for this command. */
     protected final OptionParser parser = new OptionParser();
 
     private final OptionSpec<Void> helpOption = parser.acceptsAll(Arrays.asList("h", "help"), "Show help").forHelp();
     private final OptionSpec<Void> silentOption = parser.acceptsAll(Arrays.asList("s", "silent"), "Show minimal output");
-    private final OptionSpec<Void> verboseOption =
-        parser.acceptsAll(Arrays.asList("v", "verbose"), "Show verbose output").availableUnless(silentOption);
+    private final OptionSpec<Void> verboseOption = parser.acceptsAll(Arrays.asList("v", "verbose"), "Show verbose output")
+        .availableUnless(silentOption);
 
     /**
      * Construct the command with the specified command description and runnable to execute before main is invoked.
+     *  @param description the command description
      *
-     * @param description the command description
-     * @param beforeMain the before-main runnable
      */
-    public Command(final String description, final Runnable beforeMain) {
+    public Command(final String description) {
         this.description = description;
-        this.beforeMain = beforeMain;
+        this.sysprops = Objects.requireNonNull(captureSystemProperties());
+        this.envVars = Objects.requireNonNull(captureEnvironmentVariables());
     }
 
     private Thread shutdownHookThread;
@@ -58,9 +70,7 @@ public abstract class Command implements Closeable {
                 try {
                     this.close();
                 } catch (final IOException e) {
-                    try (
-                        StringWriter sw = new StringWriter();
-                        PrintWriter pw = new PrintWriter(sw)) {
+                    try (StringWriter sw = new StringWriter(); PrintWriter pw = new PrintWriter(sw)) {
                         e.printStackTrace(pw);
                         terminal.errorPrintln(sw.toString());
                     } catch (final IOException impossible) {
@@ -73,8 +83,6 @@ public abstract class Command implements Closeable {
             Runtime.getRuntime().addShutdownHook(shutdownHookThread);
         }
 
-        beforeMain.run();
-
         try {
             mainWithoutErrorHandling(args, terminal);
         } catch (OptionException e) {
@@ -86,9 +94,7 @@ public abstract class Command implements Closeable {
             if (e.exitCode == ExitCodes.USAGE) {
                 printHelp(terminal, true);
             }
-            if (e.getMessage() != null) {
-                terminal.errorPrintln(Terminal.Verbosity.SILENT, "ERROR: " + e.getMessage());
-            }
+            printUserException(terminal, e);
             return e.exitCode;
         }
         return ExitCodes.OK;
@@ -97,7 +103,7 @@ public abstract class Command implements Closeable {
     /**
      * Executes the command, but all errors are thrown.
      */
-    void mainWithoutErrorHandling(String[] args, Terminal terminal) throws Exception {
+    protected void mainWithoutErrorHandling(String[] args, Terminal terminal) throws Exception {
         final OptionSet options = parser.parse(args);
 
         if (options.has(helpOption)) {
@@ -133,6 +139,13 @@ public abstract class Command implements Closeable {
     /** Prints additional help information, specific to the command */
     protected void printAdditionalHelp(Terminal terminal) {}
 
+    protected void printUserException(Terminal terminal, UserException e) {
+        if (e.getMessage() != null) {
+            terminal.errorPrintln("");
+            terminal.errorPrintln(Terminal.Verbosity.SILENT, "ERROR: " + e.getMessage());
+        }
+    }
+
     @SuppressForbidden(reason = "Allowed to exit explicitly from #main()")
     protected static void exit(int status) {
         System.exit(status);
@@ -143,6 +156,21 @@ public abstract class Command implements Closeable {
      *
      * Any runtime user errors (like an input file that does not exist), should throw a {@link UserException}. */
     protected abstract void execute(Terminal terminal, OptionSet options) throws Exception;
+
+    // protected to allow for tests to override
+    @SuppressForbidden(reason = "capture system properties")
+    protected Map<String, String> captureSystemProperties() {
+        Properties properties = AccessController.doPrivileged((PrivilegedAction<Properties>) System::getProperties);
+        return properties.entrySet()
+            .stream()
+            .collect(Collectors.toUnmodifiableMap(e -> e.getKey().toString(), e -> e.getValue().toString()));
+    }
+
+    // protected to allow for tests to override
+    @SuppressForbidden(reason = "capture environment variables")
+    protected Map<String, String> captureEnvironmentVariables() {
+        return Collections.unmodifiableMap(System.getenv());
+    }
 
     /**
      * Return whether or not to install the shutdown hook to cleanup resources on exit. This method should only be overridden in test

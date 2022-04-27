@@ -18,9 +18,7 @@ import org.elasticsearch.xpack.core.security.action.user.GetUsersAction;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUsersResponse;
 import org.elasticsearch.xpack.core.security.authc.esnative.ClientReservedRealm;
-import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
-import org.elasticsearch.xpack.core.security.user.XPackUser;
 import org.elasticsearch.xpack.security.authc.esnative.NativeUsersStore;
 import org.elasticsearch.xpack.security.authc.esnative.ReservedRealm;
 
@@ -29,7 +27,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.stream.Collectors;
 
 public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequest, GetUsersResponse> {
 
@@ -38,8 +35,13 @@ public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequ
     private final ReservedRealm reservedRealm;
 
     @Inject
-    public TransportGetUsersAction(Settings settings, ActionFilters actionFilters,
-                                   NativeUsersStore usersStore, TransportService transportService, ReservedRealm reservedRealm) {
+    public TransportGetUsersAction(
+        Settings settings,
+        ActionFilters actionFilters,
+        NativeUsersStore usersStore,
+        TransportService transportService,
+        ReservedRealm reservedRealm
+    ) {
         super(GetUsersAction.NAME, transportService, actionFilters, GetUsersRequest::new);
         this.settings = settings;
         this.usersStore = usersStore;
@@ -57,7 +59,7 @@ public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequ
             for (String username : requestedUsers) {
                 if (ClientReservedRealm.isReserved(username, settings)) {
                     realmLookup.add(username);
-                } else if (SystemUser.NAME.equals(username) || XPackUser.NAME.equals(username)) {
+                } else if (User.isInternalUsername(username)) {
                     listener.onFailure(new IllegalArgumentException("user [" + username + "] is internal"));
                     return;
                 } else {
@@ -67,11 +69,10 @@ public class TransportGetUsersAction extends HandledTransportAction<GetUsersRequ
         }
 
         final ActionListener<Collection<Collection<User>>> sendingListener = ActionListener.wrap((userLists) -> {
-                users.addAll(userLists.stream().flatMap(Collection::stream).filter(Objects::nonNull).collect(Collectors.toList()));
-                listener.onResponse(new GetUsersResponse(users));
-            }, listener::onFailure);
-        final GroupedActionListener<Collection<User>> groupListener =
-                new GroupedActionListener<>(sendingListener, 2);
+            users.addAll(userLists.stream().flatMap(Collection::stream).filter(Objects::nonNull).toList());
+            listener.onResponse(new GetUsersResponse(users));
+        }, listener::onFailure);
+        final GroupedActionListener<Collection<User>> groupListener = new GroupedActionListener<>(sendingListener, 2);
         // We have two sources for the users object, the reservedRealm and the usersStore, we query both at the same time with a
         // GroupedActionListener
         if (realmLookup.isEmpty()) {

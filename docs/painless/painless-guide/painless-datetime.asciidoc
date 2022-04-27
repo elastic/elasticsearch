@@ -381,7 +381,7 @@ source document, or from an indexed document.
 
 ===== Datetime Input From User Parameters
 
-Use the {ref}/modules-scripting-using.html#_script_parameters[params section]
+Use the {ref}/modules-scripting-using.html[params section]
 during script specification to pass in a numeric datetime or string datetime as
 a script input. Access to user-defined parameters within a script is dependent
 on the Painless context, though, the parameters are most commonly accessible

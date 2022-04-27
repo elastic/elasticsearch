@@ -11,7 +11,7 @@ package org.elasticsearch.plugins;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
@@ -130,6 +130,7 @@ public interface IndexStorePlugin {
      * @return a collection of snapshot commit suppliers, keyed by the value of
      *         {@link org.elasticsearch.index.IndexModule#INDEX_STORE_TYPE_SETTING}.
      */
+    // TODO: remove unused API extension point
     default Map<String, SnapshotCommitSupplier> getSnapshotCommitSuppliers() {
         return Collections.emptyMap();
     }

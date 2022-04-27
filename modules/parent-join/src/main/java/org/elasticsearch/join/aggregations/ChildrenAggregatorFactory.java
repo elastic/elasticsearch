@@ -32,14 +32,16 @@ public class ChildrenAggregatorFactory extends ValuesSourceAggregatorFactory {
     private final Query parentFilter;
     private final Query childFilter;
 
-    public ChildrenAggregatorFactory(String name,
-                                        ValuesSourceConfig config,
-                                        Query childFilter,
-                                        Query parentFilter,
-                                        AggregationContext context,
-                                        AggregatorFactory parent,
-                                        AggregatorFactories.Builder subFactoriesBuilder,
-                                        Map<String, Object> metadata) throws IOException {
+    public ChildrenAggregatorFactory(
+        String name,
+        ValuesSourceConfig config,
+        Query childFilter,
+        Query parentFilter,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata
+    ) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
 
         this.childFilter = childFilter;
@@ -61,13 +63,24 @@ public class ChildrenAggregatorFactory extends ValuesSourceAggregatorFactory {
         throws IOException {
         ValuesSource rawValuesSource = config.getValuesSource();
         if (rawValuesSource instanceof WithOrdinals == false) {
-            throw new AggregationExecutionException("ValuesSource type " + rawValuesSource.toString() +
-                "is not supported for aggregation " + this.name());
+            throw new AggregationExecutionException(
+                "ValuesSource type " + rawValuesSource.toString() + "is not supported for aggregation " + this.name()
+            );
         }
         WithOrdinals valuesSource = (WithOrdinals) rawValuesSource;
         long maxOrd = valuesSource.globalMaxOrd(context.searcher());
-        return new ParentToChildrenAggregator(name, factories, context, parent, childFilter,
-            parentFilter, valuesSource, maxOrd, cardinality, metadata);
+        return new ParentToChildrenAggregator(
+            name,
+            factories,
+            context,
+            parent,
+            childFilter,
+            parentFilter,
+            valuesSource,
+            maxOrd,
+            cardinality,
+            metadata
+        );
     }
 
     @Override

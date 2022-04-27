@@ -1,0 +1,6 @@
+elastic/fleet-server/pbkdf2:{PBKDF2}10000$0N2h5/AsDS5uO0/A+B6y8AnTCJ3Tqo8nygbzu1gkgpo=$5aTcCtteHf2g2ye7Y3p6jSZBoGhNJ7l6F3tmUhPTwRo=
+elastic/fleet-server/bcrypt10:$2a$10$ML0BUUxdzs8ApPNf1ayAwuh61ZhfqlzN/1DgZWZn6vNiUhpu1GKTe
+elastic/fleet-server/pbkdf2_stretch:{PBKDF2_STRETCH}10000$Pa3oNkj8xTD8j2gTgjWnTvnE6jseKApWMFjcNCLxX1U=$84ECweHFZQ2DblHEjHTRWA+fG6h5bVMyTSJUmFvTo1o=
+elastic/fleet-server/pbkdf2_50000:{PBKDF2}50000$IMzlphNClmrP/du40yxGM3fNjklg8CuACds12+Ry0jM=$KEC1S9a0NOs3OJKM4gEeBboU18EP4+3m/pyIA4MBDGk=
+elastic/fleet-server/bcrypt:$2a$10$uuCzGHRrEz/QMB/.bmL8qOKXHhPNt57dYBbWCH/Hbb3SjUyZ.Hf1i
+elastic/fleet-server/plain:{plain}_By842iQQVKSCLxVcJZWvw

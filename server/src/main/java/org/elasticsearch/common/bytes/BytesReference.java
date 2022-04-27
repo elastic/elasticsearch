@@ -14,15 +14,14 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.ByteArray;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
-
 
 /**
  * A reference to bytes.
@@ -174,4 +173,25 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
      * @see BytesRefIterator
      */
     BytesRefIterator iterator();
+
+    /**
+     * @return {@code true} if this instance is backed by a byte array
+     */
+    default boolean hasArray() {
+        return false;
+    }
+
+    /**
+     * @return backing byte array for this instance
+     */
+    default byte[] array() {
+        throw new UnsupportedOperationException();
+    }
+
+    /**
+     * @return offset of the first byte of this instance in the backing byte array
+     */
+    default int arrayOffset() {
+        throw new UnsupportedOperationException();
+    }
 }

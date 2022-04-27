@@ -1,0 +1,34 @@
+class org.elasticsearch.painless.DynamicTypeTests$DynI @dynamic_type {
+}
+
+class org.elasticsearch.painless.DynamicTypeTests$DynA {
+  ()
+}
+
+class org.elasticsearch.painless.DynamicTypeTests$DynB @dynamic_type {
+  ()
+}
+
+class org.elasticsearch.painless.DynamicTypeTests$DynC {
+  ()
+}
+
+class org.elasticsearch.painless.DynamicTypeTests$DynD @dynamic_type {
+  ()
+  char letter()
+}
+
+class org.elasticsearch.painless.DynamicTypeTests$DynE @dynamic_type {
+  ()
+  char letter()
+}
+
+class org.elasticsearch.painless.DynamicTypeTests$DynF @dynamic_type {
+  ()
+}
+
+class org.elasticsearch.painless.DynamicTypeTests$DynG @dynamic_type {
+  ()
+  char letter()
+  int value()
+}

@@ -8,16 +8,17 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -35,14 +36,17 @@ import static org.hamcrest.object.HasToString.hasToString;
 public class IndicesStatsResponseTests extends ESTestCase {
 
     public void testInvalidLevel() {
-        final IndicesStatsResponse response = new IndicesStatsResponse(null, 0, 0, 0, null);
+        final IndicesStatsResponse response = new IndicesStatsResponse(new ShardStats[0], 0, 0, 0, null, ClusterState.EMPTY_STATE);
         final String level = randomAlphaOfLength(16);
         final ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap("level", level));
-        final IllegalArgumentException e = expectThrows(IllegalArgumentException.class,
-            () -> response.toXContent(JsonXContent.contentBuilder(), params));
+        final IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> response.toXContent(JsonXContent.contentBuilder(), params)
+        );
         assertThat(
             e,
-            hasToString(containsString("level parameter must be one of [cluster] or [indices] or [shards] but was [" + level + "]")));
+            hasToString(containsString("level parameter must be one of [cluster] or [indices] or [shards] but was [" + level + "]"))
+        );
     }
 
     public void testGetIndices() {
@@ -62,8 +66,10 @@ public class IndicesStatsResponseTests extends ESTestCase {
                 ShardPath shardPath = new ShardPath(false, path, path, shId);
                 ShardRouting routing = createShardRouting(index, shId, (shardId == 0));
                 shards.add(new ShardStats(routing, shardPath, null, null, null, null));
-                AtomicLong primaryShardsCounter = expectedIndexToPrimaryShardsCount.computeIfAbsent(index.getName(),
-                        k -> new AtomicLong(0L));
+                AtomicLong primaryShardsCounter = expectedIndexToPrimaryShardsCount.computeIfAbsent(
+                    index.getName(),
+                    k -> new AtomicLong(0L)
+                );
                 if (routing.primary()) {
                     primaryShardsCounter.incrementAndGet();
                 }
@@ -71,8 +77,14 @@ public class IndicesStatsResponseTests extends ESTestCase {
                 shardsCounter.incrementAndGet();
             }
         }
-        final IndicesStatsResponse indicesStatsResponse = new IndicesStatsResponse(shards.toArray(new ShardStats[shards.size()]), 0, 0, 0,
-                null);
+        final IndicesStatsResponse indicesStatsResponse = new IndicesStatsResponse(
+            shards.toArray(new ShardStats[shards.size()]),
+            0,
+            0,
+            0,
+            null,
+            ClusterState.EMPTY_STATE
+        );
         Map<String, IndexStats> indexStats = indicesStatsResponse.getIndices();
 
         assertThat(indexStats.size(), is(noOfIndexes));

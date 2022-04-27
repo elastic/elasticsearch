@@ -4,6 +4,13 @@
 <titleabbrev>cat thread pool</titleabbrev>
 ++++
 
+[IMPORTANT]
+====
+cat APIs are only intended for human consumption using the command line or {kib} 
+console. They are _not_ intended for use by applications. For application 
+consumption, use the <<cluster-nodes-info,nodes info API>>.
+====
+
 Returns thread pool statistics for each node in a cluster. Returned information
 includes all <<modules-threadpool,built-in thread pools>> and custom thread
 pools.
@@ -102,7 +109,7 @@ Maximum number of tasks permitted in the queue for the current thread pool.
 Configured fixed number of active threads allowed in the current thread pool.
 
 `type`, `t`::
-Type of thread pool. Returned values are `fixed` or `scaling`.
+Type of thread pool. Returned values are `fixed`, `fixed_auto_queue_size`, `direct`, or `scaling`.
 
 --
 

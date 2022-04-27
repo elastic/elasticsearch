@@ -8,8 +8,8 @@
 
 package org.elasticsearch.plugin.store.smb;
 
-import org.elasticsearch.index.store.smbmmapfs.SmbMmapFsDirectoryFactory;
-import org.elasticsearch.index.store.smbsimplefs.SmbSimpleFsDirectoryFactory;
+import org.elasticsearch.index.store.smb.SmbMmapFsDirectoryFactory;
+import org.elasticsearch.index.store.smb.SmbNIOFSDirectoryFactory;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.Plugin;
 
@@ -20,8 +20,13 @@ public class SMBStorePlugin extends Plugin implements IndexStorePlugin {
     @Override
     public Map<String, DirectoryFactory> getDirectoryFactories() {
         return Map.of(
-                "smb_mmap_fs", new SmbMmapFsDirectoryFactory(),
-                "smb_simple_fs", new SmbSimpleFsDirectoryFactory());
+            "smb_mmap_fs",
+            new SmbMmapFsDirectoryFactory(),
+            "smb_simple_fs",
+            new SmbNIOFSDirectoryFactory(),
+            "smb_nio_fs",
+            new SmbNIOFSDirectoryFactory()
+        );
     }
 
 }

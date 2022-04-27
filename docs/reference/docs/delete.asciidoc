@@ -156,8 +156,6 @@ include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=if_seq_no]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=if_primary_term]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=pipeline]
-
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=refresh]
 
 include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=routing]

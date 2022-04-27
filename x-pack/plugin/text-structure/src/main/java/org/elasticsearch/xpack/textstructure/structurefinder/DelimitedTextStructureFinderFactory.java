@@ -27,13 +27,13 @@ public class DelimitedTextStructureFinderFactory implements TextStructureFinderF
         this.trimFields = trimFields;
     }
 
-    DelimitedTextStructureFinderFactory makeSimilar(Character quote, Boolean trimFields) {
+    DelimitedTextStructureFinderFactory makeSimilar(Character quote, Boolean shouldTrimFields) {
 
         return new DelimitedTextStructureFinderFactory(
             (char) csvPreference.getDelimiterChar(),
             (quote == null) ? csvPreference.getQuoteChar() : quote,
             minFieldsPerRow,
-            (trimFields == null) ? this.trimFields : trimFields
+            (shouldTrimFields == null) ? this.trimFields : shouldTrimFields
         );
     }
 
@@ -52,18 +52,11 @@ public class DelimitedTextStructureFinderFactory implements TextStructureFinderF
      */
     @Override
     public boolean canCreateFromSample(List<String> explanation, String sample, double allowedFractionOfBadLines) {
-        String formatName;
-        switch ((char) csvPreference.getDelimiterChar()) {
-            case ',':
-                formatName = "CSV";
-                break;
-            case '\t':
-                formatName = "TSV";
-                break;
-            default:
-                formatName = Character.getName(csvPreference.getDelimiterChar()).toLowerCase(Locale.ROOT) + " delimited values";
-                break;
-        }
+        String formatName = switch ((char) csvPreference.getDelimiterChar()) {
+            case ',' -> "CSV";
+            case '\t' -> "TSV";
+            default -> Character.getName(csvPreference.getDelimiterChar()).toLowerCase(Locale.ROOT) + " delimited values";
+        };
         return DelimitedTextStructureFinder.canCreateFromSample(
             explanation,
             sample,

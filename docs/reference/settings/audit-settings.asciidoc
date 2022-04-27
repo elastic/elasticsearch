@@ -149,6 +149,15 @@ A list of authentication realm names or wildcards. The specified policy will
 not print audit events for users in these realms.
 // end::xpack-sa-lf-events-ignore-realms-tag[]
 
+[[xpack-sa-lf-events-ignore-actions]]
+// tag::xpack-sa-lf-events-ignore-actions-tag[]
+`xpack.security.audit.logfile.events.ignore_filters.<policy_name>.actions`::
+(<<dynamic-cluster-setting,Dynamic>>)
+A list of action names or wildcards. Action name can be found in the `action`
+field of the audit event. The specified policy will not print audit events
+for actions matching these values.
+// end::xpack-sa-lf-events-ignore-actions-tag[]
+
 [[xpack-sa-lf-events-ignore-roles]]
 // tag::xpack-sa-lf-events-ignore-roles-tag[]
 `xpack.security.audit.logfile.events.ignore_filters.<policy_name>.roles`::

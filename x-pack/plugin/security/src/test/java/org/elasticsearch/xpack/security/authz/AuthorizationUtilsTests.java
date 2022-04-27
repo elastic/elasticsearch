@@ -16,8 +16,10 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.user.AsyncSearchUser;
+import org.elasticsearch.xpack.core.security.user.SecurityProfileUser;
 import org.elasticsearch.xpack.core.security.user.SystemUser;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.security.user.XPackSecurityUser;
@@ -48,8 +50,10 @@ public class AuthorizationUtilsTests extends ESTestCase {
     }
 
     public void testSystemUserSwitchWithSystemUser() {
-        threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY,
-                new Authentication(SystemUser.INSTANCE, new RealmRef("test", "test", "foo"), null));
+        threadContext.putTransient(
+            AuthenticationField.AUTHENTICATION_KEY,
+            AuthenticationTestHelper.builder().internal(SystemUser.INSTANCE).build()
+        );
         assertThat(AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, "internal:something"), is(false));
     }
 
@@ -58,16 +62,22 @@ public class AuthorizationUtilsTests extends ESTestCase {
     }
 
     public void testSystemUserSwitchWithNonSystemUser() {
-        User user = new User(randomAlphaOfLength(6), new String[] {});
-        Authentication authentication =  new Authentication(user, new RealmRef("test", "test", "foo"), null);
+        User user = new User(randomAlphaOfLength(6));
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(user)
+            .realmRef(new RealmRef("test", "test", "foo"))
+            .build(false);
         threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
         threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, randomFrom("indices:foo", "cluster:bar"));
         assertThat(AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, "internal:something"), is(true));
     }
 
     public void testSystemUserSwitchWithNonSystemUserAndInternalAction() {
-        User user = new User(randomAlphaOfLength(6), new String[] {});
-        Authentication authentication =  new Authentication(user, new RealmRef("test", "test", "foo"), null);
+        User user = new User(randomAlphaOfLength(6));
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(user)
+            .realmRef(new RealmRef("test", "test", "foo"))
+            .build(false);
         threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
         threadContext.putTransient(AuthorizationServiceField.ORIGINATING_ACTION_KEY, randomFrom("internal:foo/bar"));
         assertThat(AuthorizationUtils.shouldReplaceUserWithSystem(threadContext, "internal:something"), is(false));
@@ -81,8 +91,11 @@ public class AuthorizationUtilsTests extends ESTestCase {
         assertTrue(AuthorizationUtils.shouldSetUserBasedOnActionOrigin(threadContext));
 
         // set authentication
-        User user = new User(randomAlphaOfLength(6), new String[] {});
-        Authentication authentication =  new Authentication(user, new RealmRef("test", "test", "foo"), null);
+        User user = new User(randomAlphaOfLength(6));
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(user)
+            .realmRef(new RealmRef("test", "test", "foo"))
+            .build(false);
         threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
         assertFalse(AuthorizationUtils.shouldSetUserBasedOnActionOrigin(threadContext));
 
@@ -99,9 +112,19 @@ public class AuthorizationUtilsTests extends ESTestCase {
         assertSwitchBasedOnOriginAndExecute(ClientHelper.SECURITY_ORIGIN, XPackSecurityUser.INSTANCE);
     }
 
+    public void testSwitchAndExecuteSecurityProfileUser() throws Exception {
+        assertSwitchBasedOnOriginAndExecute(ClientHelper.SECURITY_PROFILE_ORIGIN, SecurityProfileUser.INSTANCE);
+    }
+
     public void testSwitchAndExecuteXpackUser() throws Exception {
-        for (String origin : Arrays.asList(ClientHelper.ML_ORIGIN, ClientHelper.WATCHER_ORIGIN, ClientHelper.DEPRECATION_ORIGIN,
-                ClientHelper.MONITORING_ORIGIN, PersistentTasksService.PERSISTENT_TASK_ORIGIN, ClientHelper.INDEX_LIFECYCLE_ORIGIN)) {
+        for (String origin : Arrays.asList(
+            ClientHelper.ML_ORIGIN,
+            ClientHelper.WATCHER_ORIGIN,
+            ClientHelper.DEPRECATION_ORIGIN,
+            ClientHelper.MONITORING_ORIGIN,
+            PersistentTasksService.PERSISTENT_TASK_ORIGIN,
+            ClientHelper.INDEX_LIFECYCLE_ORIGIN
+        )) {
             assertSwitchBasedOnOriginAndExecute(origin, XPackUser.INSTANCE);
         }
     }

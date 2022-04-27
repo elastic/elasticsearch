@@ -8,8 +8,8 @@
 package org.elasticsearch.index.query;
 
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.test.geo.RandomShapeGenerator;
+import org.elasticsearch.geo.GeometryTestUtils;
+import org.elasticsearch.geometry.Geometry;
 
 public class GeoShapeQueryBuilderGeoPointTests extends GeoShapeQueryBuilderTests {
 
@@ -18,14 +18,13 @@ public class GeoShapeQueryBuilderGeoPointTests extends GeoShapeQueryBuilderTests
     }
 
     protected GeoShapeQueryBuilder doCreateTestQueryBuilder(boolean indexedShape) {
-        RandomShapeGenerator.ShapeType shapeType = RandomShapeGenerator.ShapeType.POLYGON;
-        ShapeBuilder<?, ?, ?> shape = RandomShapeGenerator.createShapeWithin(random(), null, shapeType);
+        Geometry geometry = GeometryTestUtils.randomPolygon(false);
         GeoShapeQueryBuilder builder;
         clearShapeFields();
         if (indexedShape == false) {
-            builder = new GeoShapeQueryBuilder(fieldName(), shape);
+            builder = new GeoShapeQueryBuilder(fieldName(), geometry);
         } else {
-            indexedShapeToReturn = shape;
+            indexedShapeToReturn = geometry;
             indexedShapeId = randomAlphaOfLengthBetween(3, 20);
             builder = new GeoShapeQueryBuilder(fieldName(), indexedShapeId);
             if (randomBoolean()) {

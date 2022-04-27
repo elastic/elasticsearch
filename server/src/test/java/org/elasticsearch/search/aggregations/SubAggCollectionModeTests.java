@@ -62,7 +62,7 @@ public class SubAggCollectionModeTests extends ESTestCase {
             try (StreamInput in = out.bytes().streamInput()) {
                 SubAggCollectionMode.readFromStream(in);
                 fail("Expected IOException");
-            } catch(IOException e) {
+            } catch (IOException e) {
                 assertThat(e.getMessage(), containsString("Unknown SubAggCollectionMode ordinal ["));
             }
 

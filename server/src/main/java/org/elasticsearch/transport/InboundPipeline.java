@@ -8,13 +8,14 @@
 
 package org.elasticsearch.transport;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.recycler.Recycler;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.util.ArrayDeque;
@@ -38,16 +39,32 @@ public class InboundPipeline implements Releasable {
     private final ArrayDeque<ReleasableBytesReference> pending = new ArrayDeque<>(2);
     private boolean isClosed = false;
 
-    public InboundPipeline(Version version, StatsTracker statsTracker, PageCacheRecycler recycler, LongSupplier relativeTimeInMillis,
-                           Supplier<CircuitBreaker> circuitBreaker,
-                           Function<String, RequestHandlerRegistry<TransportRequest>> registryFunction,
-                           BiConsumer<TcpChannel, InboundMessage> messageHandler) {
-        this(statsTracker, relativeTimeInMillis, new InboundDecoder(version, recycler),
-            new InboundAggregator(circuitBreaker, registryFunction), messageHandler);
+    public InboundPipeline(
+        Version version,
+        StatsTracker statsTracker,
+        Recycler<BytesRef> recycler,
+        LongSupplier relativeTimeInMillis,
+        Supplier<CircuitBreaker> circuitBreaker,
+        Function<String, RequestHandlerRegistry<TransportRequest>> registryFunction,
+        BiConsumer<TcpChannel, InboundMessage> messageHandler,
+        boolean ignoreDeserializationErrors
+    ) {
+        this(
+            statsTracker,
+            relativeTimeInMillis,
+            new InboundDecoder(version, recycler),
+            new InboundAggregator(circuitBreaker, registryFunction, ignoreDeserializationErrors),
+            messageHandler
+        );
     }
 
-    public InboundPipeline(StatsTracker statsTracker, LongSupplier relativeTimeInMillis, InboundDecoder decoder,
-                           InboundAggregator aggregator, BiConsumer<TcpChannel, InboundMessage> messageHandler) {
+    public InboundPipeline(
+        StatsTracker statsTracker,
+        LongSupplier relativeTimeInMillis,
+        InboundDecoder decoder,
+        InboundAggregator aggregator,
+        BiConsumer<TcpChannel, InboundMessage> messageHandler
+    ) {
         this.relativeTimeInMillis = relativeTimeInMillis;
         this.statsTracker = statsTracker;
         this.decoder = decoder;
@@ -58,9 +75,7 @@ public class InboundPipeline implements Releasable {
     @Override
     public void close() {
         isClosed = true;
-        Releasables.closeWhileHandlingException(decoder, aggregator);
-        Releasables.closeWhileHandlingException(pending);
-        pending.clear();
+        Releasables.closeExpectNoException(decoder, aggregator, () -> Releasables.close(pending), pending::clear);
     }
 
     public void handleBytes(TcpChannel channel, ReleasableBytesReference reference) throws IOException {
@@ -121,6 +136,9 @@ public class InboundPipeline implements Releasable {
             if (fragment instanceof Header) {
                 assert aggregator.isAggregating() == false;
                 aggregator.headerReceived((Header) fragment);
+            } else if (fragment instanceof Compression.Scheme) {
+                assert aggregator.isAggregating();
+                aggregator.updateCompressionScheme((Compression.Scheme) fragment);
             } else if (fragment == InboundDecoder.PING) {
                 assert aggregator.isAggregating() == false;
                 messageHandler.accept(channel, PING_MESSAGE);
@@ -138,7 +156,7 @@ public class InboundPipeline implements Releasable {
         }
     }
 
-    private boolean endOfMessage(Object fragment) {
+    private static boolean endOfMessage(Object fragment) {
         return fragment == InboundDecoder.PING || fragment == InboundDecoder.END_CONTENT || fragment instanceof Exception;
     }
 
@@ -152,7 +170,7 @@ public class InboundPipeline implements Releasable {
                 bytesReferences[index] = pendingReference.retain();
                 ++index;
             }
-            final Releasable releasable = () -> Releasables.closeWhileHandlingException(bytesReferences);
+            final Releasable releasable = () -> Releasables.closeExpectNoException(bytesReferences);
             return new ReleasableBytesReference(CompositeBytesReference.of(bytesReferences), releasable);
         }
     }

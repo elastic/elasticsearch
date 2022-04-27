@@ -20,8 +20,7 @@ import static java.util.Collections.singletonList;
 public abstract class Predicates {
 
     public static List<Expression> splitAnd(Expression exp) {
-        if (exp instanceof And) {
-            And and = (And) exp;
+        if (exp instanceof And and) {
             List<Expression> list = new ArrayList<>();
             list.addAll(splitAnd(and.left()));
             list.addAll(splitAnd(and.right()));
@@ -31,8 +30,7 @@ public abstract class Predicates {
     }
 
     public static List<Expression> splitOr(Expression exp) {
-        if (exp instanceof Or) {
-            Or or = (Or) exp;
+        if (exp instanceof Or or) {
             List<Expression> list = new ArrayList<>();
             list.addAll(splitOr(or.left()));
             list.addAll(splitOr(or.right()));
@@ -76,9 +74,11 @@ public abstract class Predicates {
             // combine (in place) expressions in pairs
             // NB: this loop modifies the list (just like an array)
             for (int i = 0; i < result.size() - 1; i++) {
-                Expression l = result.remove(i);
-                Expression r = result.remove(i);
-                result.add(i, combiner.apply(l, r));
+                // keep the current element to update it in place
+                Expression l = result.get(i);
+                // remove the next element due to combining
+                Expression r = result.remove(i + 1);
+                result.set(i, combiner.apply(l, r));
             }
         }
 

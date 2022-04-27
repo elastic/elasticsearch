@@ -8,10 +8,10 @@ package org.elasticsearch.xpack.watcher.condition;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.core.watcher.watch.Payload;
@@ -24,7 +24,7 @@ import java.util.Arrays;
 import java.util.Locale;
 
 import static java.util.Collections.singletonMap;
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.watcher.test.WatcherTestUtils.mockExecutionContext;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -35,7 +35,7 @@ public class CompareConditionTests extends ESTestCase {
         assertThat(CompareCondition.Op.EQ.eval(null, null), is(true));
         assertThat(CompareCondition.Op.EQ.eval(4, 3.0), is(false));
         assertThat(CompareCondition.Op.EQ.eval(3, 3.0), is(true));
-        assertThat(CompareCondition.Op.EQ.eval(2, Float.valueOf((float)3.0)), is(false));
+        assertThat(CompareCondition.Op.EQ.eval(2, Float.valueOf((float) 3.0)), is(false));
         assertThat(CompareCondition.Op.EQ.eval(3, null), is(false));
         assertThat(CompareCondition.Op.EQ.eval(2, "2"), is(true));     // comparing as strings
         assertThat(CompareCondition.Op.EQ.eval(3, "4"), is(false));    // comparing as strings
@@ -61,7 +61,7 @@ public class CompareConditionTests extends ESTestCase {
         assertThat(CompareCondition.Op.NOT_EQ.eval(null, null), is(false));
         assertThat(CompareCondition.Op.NOT_EQ.eval(4, 3.0), is(true));
         assertThat(CompareCondition.Op.NOT_EQ.eval(3, 3.0), is(false));
-        assertThat(CompareCondition.Op.NOT_EQ.eval(2, Float.valueOf((float)3.0)), is(true));
+        assertThat(CompareCondition.Op.NOT_EQ.eval(2, Float.valueOf((float) 3.0)), is(true));
         assertThat(CompareCondition.Op.NOT_EQ.eval(3, null), is(true));
         assertThat(CompareCondition.Op.NOT_EQ.eval(2, "2"), is(false));     // comparing as strings
         assertThat(CompareCondition.Op.NOT_EQ.eval(3, "4"), is(true));    // comparing as strings
@@ -85,7 +85,7 @@ public class CompareConditionTests extends ESTestCase {
     public void testOpEvalGTE() throws Exception {
         assertThat(CompareCondition.Op.GTE.eval(4, 3.0), is(true));
         assertThat(CompareCondition.Op.GTE.eval(3, 3.0), is(true));
-        assertThat(CompareCondition.Op.GTE.eval(2, Float.valueOf((float)3.0)), is(false));
+        assertThat(CompareCondition.Op.GTE.eval(2, Float.valueOf((float) 3.0)), is(false));
         assertThat(CompareCondition.Op.GTE.eval(3, null), is(false));
         assertThat(CompareCondition.Op.GTE.eval(3, "2"), is(true));     // comparing as strings
         assertThat(CompareCondition.Op.GTE.eval(3, "4"), is(false));    // comparing as strings
@@ -105,7 +105,7 @@ public class CompareConditionTests extends ESTestCase {
     public void testOpEvalGT() throws Exception {
         assertThat(CompareCondition.Op.GT.eval(4, 3.0), is(true));
         assertThat(CompareCondition.Op.GT.eval(3, 3.0), is(false));
-        assertThat(CompareCondition.Op.GT.eval(2, Float.valueOf((float)3.0)), is(false));
+        assertThat(CompareCondition.Op.GT.eval(2, Float.valueOf((float) 3.0)), is(false));
         assertThat(CompareCondition.Op.GT.eval(3, null), is(false));
         assertThat(CompareCondition.Op.GT.eval(3, "2"), is(true));     // comparing as strings
         assertThat(CompareCondition.Op.GT.eval(3, "4"), is(false));    // comparing as strings
@@ -177,8 +177,9 @@ public class CompareConditionTests extends ESTestCase {
     public void testExecuteDateMath() throws Exception {
         ClockMock clock = ClockMock.frozen();
         boolean met = randomBoolean();
-        Op op = met ? randomFrom(CompareCondition.Op.GT, CompareCondition.Op.GTE, CompareCondition.Op.NOT_EQ) :
-                randomFrom(CompareCondition.Op.LT, CompareCondition.Op.LTE, CompareCondition.Op.EQ);
+        Op op = met
+            ? randomFrom(CompareCondition.Op.GT, CompareCondition.Op.GTE, CompareCondition.Op.NOT_EQ)
+            : randomFrom(CompareCondition.Op.LT, CompareCondition.Op.LTE, CompareCondition.Op.EQ);
         String value = "<{now-1d}>";
         ZonedDateTime payloadValue = clock.instant().atZone(ZoneId.systemDefault());
 

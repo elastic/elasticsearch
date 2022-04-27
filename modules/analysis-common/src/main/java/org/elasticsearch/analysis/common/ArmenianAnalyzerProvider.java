@@ -26,7 +26,6 @@ public class ArmenianAnalyzerProvider extends AbstractIndexAnalyzerProvider<Arme
             Analysis.parseStopWords(env, settings, ArmenianAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
         );
-        analyzer.setVersion(version);
     }
 
     @Override

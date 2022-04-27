@@ -8,10 +8,9 @@
 
 package org.elasticsearch.search.aggregations.metrics;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ObjectParser;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -22,11 +21,15 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregationBuil
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.xcontent.ObjectParser;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Map;
 
-public class MaxAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOnly<ValuesSource.Numeric, MaxAggregationBuilder> {
+public class MaxAggregationBuilder extends ValuesSourceAggregationBuilder.SingleMetricAggregationBuilder<
+    ValuesSource.Numeric,
+    MaxAggregationBuilder> {
     public static final String NAME = "max";
     public static final ValuesSourceRegistry.RegistryKey<MetricAggregatorSupplier> REGISTRY_KEY = new ValuesSourceRegistry.RegistryKey<>(
         NAME,
@@ -46,9 +49,11 @@ public class MaxAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
         super(name);
     }
 
-    protected MaxAggregationBuilder(MaxAggregationBuilder clone,
-                                    AggregatorFactories.Builder factoriesBuilder,
-                                    Map<String, Object> metadata) {
+    protected MaxAggregationBuilder(
+        MaxAggregationBuilder clone,
+        AggregatorFactories.Builder factoriesBuilder,
+        Map<String, Object> metadata
+    ) {
         super(clone, factoriesBuilder, metadata);
     }
 
@@ -70,18 +75,24 @@ public class MaxAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
     }
 
     @Override
+    public boolean supportsSampling() {
+        return true;
+    }
+
+    @Override
     protected void innerWriteTo(StreamOutput out) {
         // Do nothing, no extra state to write to stream
     }
 
     @Override
-    protected MaxAggregatorFactory innerBuild(AggregationContext context, ValuesSourceConfig config,
-                                              AggregatorFactory parent,
-                                              AggregatorFactories.Builder subFactoriesBuilder) throws IOException {
-        MetricAggregatorSupplier aggregatorSupplier =
-            context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
-        return new MaxAggregatorFactory(name, config, context,
-                                        parent, subFactoriesBuilder, metadata, aggregatorSupplier);
+    protected MaxAggregatorFactory innerBuild(
+        AggregationContext context,
+        ValuesSourceConfig config,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder
+    ) throws IOException {
+        MetricAggregatorSupplier aggregatorSupplier = context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, config);
+        return new MaxAggregatorFactory(name, config, context, parent, subFactoriesBuilder, metadata, aggregatorSupplier);
     }
 
     @Override
@@ -97,5 +108,10 @@ public class MaxAggregationBuilder extends ValuesSourceAggregationBuilder.LeafOn
     @Override
     protected ValuesSourceRegistry.RegistryKey<?> getRegistryKey() {
         return REGISTRY_KEY;
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

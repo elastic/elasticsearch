@@ -69,7 +69,7 @@ The `path_hierarchy` tokenizer accepts the following parameters:
 
 [horizontal]
 `delimiter`::
-    The character to use as the path separator.  Defaults to `/`.
+    The character to use as the path separator. Defaults to `/`.
 
 `replacement`::
     An optional replacement character to use for the delimiter.
@@ -77,20 +77,20 @@ The `path_hierarchy` tokenizer accepts the following parameters:
 
 `buffer_size`::
     The number of characters read into the term buffer in a single pass.
-    Defaults to `1024`.  The term buffer will grow by this size until all the
-    text has been consumed.  It is advisable not to change this setting.
+    Defaults to `1024`. The term buffer will grow by this size until all the
+    text has been consumed. It is advisable not to change this setting.
 
 `reverse`::
-    If set to `true`, emits the tokens in reverse order.  Defaults to `false`.
+    If set to `true`, emits the tokens in reverse order. Defaults to `false`.
 
 `skip`::
-    The number of initial tokens to skip.  Defaults to `0`.
+    The number of initial tokens to skip. Defaults to `0`.
 
 [discrete]
 === Example configuration
 
 In this example, we configure the `path_hierarchy` tokenizer to split on `-`
-characters, and to replace them with `/`.  The first two tokens are skipped:
+characters, and to replace them with `/`. The first two tokens are skipped:
 
 [source,console]
 ----------------------------

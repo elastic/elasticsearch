@@ -10,7 +10,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -85,9 +85,9 @@ public class GetAsyncResultRequest extends ActionRequest {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         GetAsyncResultRequest request = (GetAsyncResultRequest) o;
-        return Objects.equals(id, request.id) &&
-            waitForCompletionTimeout.equals(request.waitForCompletionTimeout) &&
-            keepAlive.equals(request.keepAlive);
+        return Objects.equals(id, request.id)
+            && waitForCompletionTimeout.equals(request.waitForCompletionTimeout)
+            && keepAlive.equals(request.keepAlive);
     }
 
     @Override

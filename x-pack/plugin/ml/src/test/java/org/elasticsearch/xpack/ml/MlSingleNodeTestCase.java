@@ -7,15 +7,18 @@
 package org.elasticsearch.xpack.ml;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
+import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.index.reindex.ReindexPlugin;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.datastreams.DataStreamsPlugin;
+import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
 import org.elasticsearch.ingest.common.IngestCommonPlugin;
 import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.script.IngestScript;
 import org.elasticsearch.script.MockDeterministicScript;
 import org.elasticsearch.script.MockScriptEngine;
@@ -26,15 +29,20 @@ import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ml.MachineLearningField;
-import org.elasticsearch.xpack.datastreams.DataStreamsPlugin;
+import org.elasticsearch.xpack.core.ml.dataframe.analyses.MlDataFrameAnalysisNamedXContentProvider;
+import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.ilm.IndexLifecycle;
+import org.elasticsearch.xpack.ml.aggs.correlation.CorrelationNamedContentProvider;
+import org.elasticsearch.xpack.ml.inference.modelsize.MlModelSizeNamedXContentProvider;
 
-import java.util.Arrays;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -42,8 +50,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.mockito.Matchers.any;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -72,8 +79,13 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
-        SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
-        return new NamedXContentRegistry(searchModule.getNamedXContents());
+        List<NamedXContentRegistry.Entry> namedXContent = new ArrayList<>();
+        namedXContent.addAll(new SearchModule(Settings.EMPTY, Collections.emptyList()).getNamedXContents());
+        namedXContent.addAll(new MlDataFrameAnalysisNamedXContentProvider().getNamedXContentParsers());
+        namedXContent.addAll(new MlInferenceNamedXContentProvider().getNamedXContentParsers());
+        namedXContent.addAll(new MlModelSizeNamedXContentProvider().getNamedXContentParsers());
+        namedXContent.addAll(new CorrelationNamedContentProvider().getNamedXContentParsers());
+        return new NamedXContentRegistry(namedXContent);
     }
 
     @Override
@@ -85,31 +97,17 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
             IngestCommonPlugin.class,
             MockPainlessScriptEngine.TestPlugin.class,
             // ILM is required for .ml-state template index settings
-            IndexLifecycle.class);
+            IndexLifecycle.class,
+            // Needed for scaled_float
+            MapperExtrasPlugin.class
+        );
     }
 
-    /**
-     * This cleanup is to fix the problem described in
-     * https://github.com/elastic/elasticsearch/issues/38952
-     */
     @Override
     public void tearDown() throws Exception {
         try {
             logger.trace("[{}#{}]: ML-specific after test cleanup", getTestClass().getSimpleName(), getTestName());
-            String[] nonAnnotationMlIndices;
-            boolean mlAnnotationsIndexExists;
-            do {
-                String[] mlIndices = client().admin().indices().prepareGetIndex().addIndices(".ml-*").get().indices();
-                nonAnnotationMlIndices = Arrays.stream(mlIndices).filter(name -> name.startsWith(".ml-annotations") == false)
-                    .toArray(String[]::new);
-                mlAnnotationsIndexExists = mlIndices.length > nonAnnotationMlIndices.length;
-            } while (nonAnnotationMlIndices.length > 0 && mlAnnotationsIndexExists == false);
-            if (nonAnnotationMlIndices.length > 0) {
-                // Delete the ML indices apart from the annotations index.  The annotations index will be deleted by the
-                // base class cleanup.  We want to delete all the others first so that the annotations index doesn't get
-                // automatically recreated.
-                assertAcked(client().admin().indices().prepareDelete(nonAnnotationMlIndices).get());
-            }
+            client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest()).actionGet();
         } finally {
             super.tearDown();
         }
@@ -119,24 +117,25 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
         // block until the templates are installed
         assertBusy(() -> {
             ClusterState state = client().admin().cluster().prepareState().get().getState();
-            assertTrue("Timed out waiting for the ML templates to be installed",
-                    MachineLearning.allTemplatesInstalled(state));
+            assertTrue("Timed out waiting for the ML templates to be installed", MachineLearning.criticalTemplatesInstalled(state));
         });
     }
 
-    protected <T> void blockingCall(Consumer<ActionListener<T>> function, AtomicReference<T> response,
-                                  AtomicReference<Exception> error) throws InterruptedException {
+    protected <T> void blockingCall(Consumer<ActionListener<T>> function, AtomicReference<T> response, AtomicReference<Exception> error)
+        throws InterruptedException {
+        blockingCall(function, response::set, error::set);
+    }
+
+    protected <T> void blockingCall(Consumer<ActionListener<T>> function, Consumer<T> response, Consumer<Exception> error)
+        throws InterruptedException {
         CountDownLatch latch = new CountDownLatch(1);
-        ActionListener<T> listener = ActionListener.wrap(
-                r -> {
-                    response.set(r);
-                    latch.countDown();
-                },
-                e -> {
-                    error.set(e);
-                    latch.countDown();
-                }
-        );
+        ActionListener<T> listener = ActionListener.wrap(r -> {
+            response.accept(r);
+            latch.countDown();
+        }, e -> {
+            error.accept(e);
+            latch.countDown();
+        });
 
         function.accept(listener);
         latch.await();
@@ -163,12 +162,9 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
         doAnswer(invocationOnMock -> {
             ((Runnable) invocationOnMock.getArguments()[0]).run();
             return null;
-        }).when(tp).schedule(
-            any(Runnable.class), any(TimeValue.class), any(String.class)
-        );
+        }).when(tp).schedule(any(Runnable.class), any(TimeValue.class), any(String.class));
         return tp;
     }
-
 
     public static void assertNoException(AtomicReference<Exception> error) throws Exception {
         if (error.get() == null) {
@@ -206,8 +202,7 @@ public abstract class MlSingleNodeTestCase extends ESSingleNodeTestCase {
             if (context.name.equals("ingest")) {
                 IngestScript.Factory factory = vars -> new IngestScript(vars) {
                     @Override
-                    public void execute(Map<String, Object> ctx) {
-                    }
+                    public void execute(Map<String, Object> ctx) {}
                 };
                 return context.factoryClazz.cast(factory);
             }

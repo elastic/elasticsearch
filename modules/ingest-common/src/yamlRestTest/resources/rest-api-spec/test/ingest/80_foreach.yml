@@ -31,7 +31,7 @@ teardown:
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "my_pipeline"
         body: >
           {
@@ -41,14 +41,14 @@ teardown:
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - match: { _source.values: ["FOO", "BAR", "BAZ"] }
 
  #exceeds the recurse max per thread and will runs some of these on a different thread
   - do:
       index:
         index: test
-        id: 1
+        id: "1"
         pipeline: "my_pipeline"
         body: >
           {
@@ -59,6 +59,6 @@ teardown:
   - do:
       get:
         index: test
-        id: 1
+        id: "1"
   - match: { _source.values: ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O", "P", "Q", "R", "S", "T", "U",
                               "V", "W", "X", "Y", "Z"] }

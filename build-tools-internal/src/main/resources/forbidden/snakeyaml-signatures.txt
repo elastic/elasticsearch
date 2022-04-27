@@ -1,0 +1,6 @@
+@defaultMessage Pass SafeConstructor to Yaml
+org.yaml.snakeyaml.Yaml#<init>()
+org.yaml.snakeyaml.Yaml#<init>(org.yaml.snakeyaml.DumperOptions)
+org.yaml.snakeyaml.Yaml#<init>(org.yaml.snakeyaml.LoaderOptions)
+org.yaml.snakeyaml.Yaml#<init>(org.yaml.snakeyaml.representer.Representer)
+org.yaml.snakeyaml.Yaml#<init>(org.yaml.snakeyaml.representer.Representer, org.yaml.snakeyaml.DumperOptions)

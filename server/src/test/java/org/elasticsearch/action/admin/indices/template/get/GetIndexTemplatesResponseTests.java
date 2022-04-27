@@ -19,7 +19,6 @@ import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -32,7 +31,7 @@ public class GetIndexTemplatesResponseTests extends AbstractWireSerializingTestC
         int numTemplates = between(0, 10);
         for (int t = 0; t < numTemplates; t++) {
             IndexTemplateMetadata.Builder templateBuilder = IndexTemplateMetadata.builder("template-" + t);
-            templateBuilder.patterns(IntStream.range(0, between(1, 5)).mapToObj(i -> "pattern-" + i).collect(Collectors.toList()));
+            templateBuilder.patterns(IntStream.range(0, between(1, 5)).mapToObj(i -> "pattern-" + i).toList());
             int numAlias = between(0, 5);
             for (int i = 0; i < numAlias; i++) {
                 templateBuilder.putAlias(AliasMetadata.builder(randomAlphaOfLengthBetween(1, 10)));

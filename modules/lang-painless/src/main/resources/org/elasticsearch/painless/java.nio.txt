@@ -1,0 +1,81 @@
+#
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License
+# 2.0 and the Server Side Public License, v 1; you may not use this file except
+# in compliance with, at your election, the Elastic License 2.0 or the Server
+# Side Public License, v 1.
+#
+
+class java.nio.ByteOrder {
+  ByteOrder BIG_ENDIAN
+  ByteOrder LITTLE_ENDIAN
+}
+
+class java.nio.Buffer {
+  int limit()
+}
+
+class java.nio.ByteBuffer {
+  CharBuffer asCharBuffer()
+  DoubleBuffer asDoubleBuffer()
+  FloatBuffer asFloatBuffer()
+  IntBuffer asIntBuffer()
+  LongBuffer asLongBuffer()
+  ShortBuffer asShortBuffer()
+  byte get(int)
+  # TODO: https:#github.com/elastic/elasticsearch/issues/79867
+  # ByteBuffer get(int, byte[])
+  # ByteBuffer get(int, byte[], int, int)
+  char getChar(int)
+  double getDouble(int)
+  float getFloat(int)
+  int getInt(int)
+  long getLong(int)
+  short getShort(int)
+  ByteOrder order()
+  ByteBuffer order(ByteOrder)
+  ByteBuffer wrap(byte[])
+  ByteBuffer wrap(byte[], int, int)
+}
+
+class java.nio.CharBuffer {
+  char get(int)
+  # TODO: https:#github.com/elastic/elasticsearch/issues/79867
+  # CharBuffer get(int, char[])
+  # CharBuffer get(int, char[], int, int)
+}
+
+class java.nio.DoubleBuffer {
+  double get(int)
+  # TODO: https:#github.com/elastic/elasticsearch/issues/79867
+  # DoubleBuffer get(int, double[])
+  # DoubleBuffer get(int, double[], int, int)
+}
+
+class java.nio.FloatBuffer {
+  float get(int)
+  # TODO: https:#github.com/elastic/elasticsearch/issues/79867
+  # FloatBuffer get(int, float[])
+  # FloatBuffer get(int, float[], int, int)
+}
+
+class java.nio.IntBuffer {
+  int get(int)
+  # TODO: https:#github.com/elastic/elasticsearch/issues/79867
+  # IntBuffer get(int, int[])
+  # IntBuffer get(int, int[], int, int)
+}
+
+class java.nio.LongBuffer {
+  long get(int)
+  # TODO: https:#github.com/elastic/elasticsearch/issues/79867
+  # LongBuffer get(int, long[])
+  # LongBuffer get(int, long[], int, int)
+}
+
+class java.nio.ShortBuffer {
+  short get(int)
+  # TODO: https:#github.com/elastic/elasticsearch/issues/79867
+  # ShortBuffer get(int, short[])
+  # ShortBuffer get(int, short[], int, int)
+}

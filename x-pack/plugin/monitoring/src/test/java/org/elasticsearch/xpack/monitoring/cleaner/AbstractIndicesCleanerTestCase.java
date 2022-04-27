@@ -8,7 +8,7 @@ package org.elasticsearch.xpack.monitoring.cleaner;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.xpack.core.monitoring.MonitoringField;
 import org.elasticsearch.xpack.core.monitoring.exporter.MonitoringTemplateUtils;
@@ -33,7 +33,7 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
     public void setup() {
         internalCluster().startNode();
 
-        //Set max retention time to avoid any accidental cleanups
+        // Set max retention time to avoid any accidental cleanups
         CleanerService cleanerService = internalCluster().getInstance(CleanerService.class, internalCluster().getMasterName());
         cleanerService.setGlobalRetention(TimeValue.MAX_VALUE);
     }
@@ -143,8 +143,9 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
     public void testRetentionAsGlobalSetting() throws Exception {
         final int max = 10;
         final int retention = randomIntBetween(1, max);
-        internalCluster().startNode(Settings.builder().put(MonitoringField.HISTORY_DURATION.getKey(),
-                String.format(Locale.ROOT, "%dd", retention)));
+        internalCluster().startNode(
+            Settings.builder().put(MonitoringField.HISTORY_DURATION.getKey(), String.format(Locale.ROOT, "%dd", retention))
+        );
 
         final ZonedDateTime now = now();
         for (int i = 0; i < max; i++) {
@@ -158,7 +159,7 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
         assertIndicesCount(retention);
     }
 
-    protected CleanerService.Listener getListener() {
+    protected CleanerService.Listener getListener() throws Exception {
         Exporters exporters = internalCluster().getInstance(Exporters.class, internalCluster().getMasterName());
         for (Exporter exporter : exporters.getEnabledExporters()) {
             if (exporter instanceof CleanerService.Listener) {
@@ -227,7 +228,7 @@ public abstract class AbstractIndicesCleanerTestCase extends MonitoringIntegTest
 
     protected static TimeValue months(int months) {
         ZonedDateTime now = now();
-        return TimeValue.timeValueMillis(now.toInstant().toEpochMilli()  - now.minusMonths(months).toInstant().toEpochMilli());
+        return TimeValue.timeValueMillis(now.toInstant().toEpochMilli() - now.minusMonths(months).toInstant().toEpochMilli());
     }
 
     protected static TimeValue days(int days) {

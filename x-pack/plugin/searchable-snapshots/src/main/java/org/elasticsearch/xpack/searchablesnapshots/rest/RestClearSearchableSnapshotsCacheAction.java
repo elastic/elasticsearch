@@ -7,7 +7,7 @@
 package org.elasticsearch.xpack.searchablesnapshots.rest;
 
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -17,13 +17,15 @@ import org.elasticsearch.xpack.searchablesnapshots.action.ClearSearchableSnapsho
 
 import java.util.List;
 
+import static org.elasticsearch.rest.RestRequest.Method.POST;
+
 public class RestClearSearchableSnapshotsCacheAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
         return List.of(
-            new Route(RestRequest.Method.POST, "/_searchable_snapshots/cache/clear"),
-            new Route(RestRequest.Method.POST, "/{index}/_searchable_snapshots/cache/clear")
+            new Route(POST, "/_searchable_snapshots/cache/clear"),
+            new Route(POST, "/{index}/_searchable_snapshots/cache/clear")
         );
     }
 

@@ -1,12 +1,11 @@
 [role="xpack"]
-[testenv="enterprise"]
 [[autoscaling-get-autoscaling-capacity]]
 === Get autoscaling capacity API
 ++++
 <titleabbrev>Get autoscaling capacity</titleabbrev>
 ++++
 
-include::../autoscaling-designed-for-note.asciidoc[]
+NOTE: {cloud-only}
 
 Get autoscaling capacity.
 

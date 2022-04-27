@@ -9,9 +9,9 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.util.Map;
 
@@ -21,7 +21,7 @@ public class NullValueTests extends MapperServiceTestCase {
 
     public void testNullNullValue() throws Exception {
 
-        String[] typesToTest = {"integer", "long", "double", "float", "short", "date", "ip", "keyword", "boolean", "byte", "geo_point"};
+        String[] typesToTest = { "integer", "long", "double", "float", "short", "date", "ip", "keyword", "boolean", "byte", "geo_point" };
 
         for (String type : typesToTest) {
             DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", type).nullField("null_value")));

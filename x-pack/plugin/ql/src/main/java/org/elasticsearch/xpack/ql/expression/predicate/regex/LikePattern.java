@@ -52,7 +52,7 @@ public class LikePattern extends AbstractStringPattern {
     @Override
     Automaton createAutomaton() {
         Automaton automaton = WildcardQuery.toAutomaton(new Term(null, wildcard));
-        return MinimizationOperations.minimize(automaton, Operations.DEFAULT_MAX_DETERMINIZED_STATES);
+        return MinimizationOperations.minimize(automaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
     @Override
@@ -90,7 +90,6 @@ public class LikePattern extends AbstractStringPattern {
         }
 
         LikePattern other = (LikePattern) obj;
-        return Objects.equals(pattern, other.pattern)
-                && escape == other.escape;
+        return Objects.equals(pattern, other.pattern) && escape == other.escape;
     }
 }

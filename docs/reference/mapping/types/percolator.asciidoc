@@ -53,7 +53,7 @@ PUT my-index-000001/_doc/match_value
 
 Fields referred to in a percolator query must *already* exist in the mapping
 associated with the index used for percolation. In order to make sure these fields exist,
-add or update a mapping via the <<indices-create-index,create index>> or <<indices-put-mapping,put mapping>> APIs.
+add or update a mapping via the <<indices-create-index,create index>> or <<indices-put-mapping,update mapping>> APIs.
 
 =====================================
 
@@ -414,7 +414,7 @@ This results in a response like this:
 [discrete]
 ==== Optimizing wildcard queries.
 
-Wildcard queries are  more expensive than other queries for the percolator,
+Wildcard queries are more expensive than other queries for the percolator,
 especially if the wildcard expressions are large.
 
 In the case of `wildcard` queries with prefix wildcard expressions or just the `prefix` query,
@@ -732,7 +732,7 @@ aren't available.
 [discrete]
 ===== Field aliases
 
-Percolator queries that contain <<alias, field aliases>> may not always behave as expected. In particular, if a
+Percolator queries that contain <<field-alias, field aliases>> may not always behave as expected. In particular, if a
 percolator query is registered that contains a field alias, and then that alias is updated in the mappings to refer
 to a different field, the stored query will still refer to the original target field. To pick up the change to
 the field alias, the percolator query must be explicitly reindexed.

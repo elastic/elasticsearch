@@ -8,7 +8,7 @@
 
 package org.elasticsearch.common.component;
 
-import org.elasticsearch.common.lease.Releasable;
+import org.elasticsearch.core.Releasable;
 
 public interface LifecycleComponent extends Releasable {
 

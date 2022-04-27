@@ -36,13 +36,13 @@ public class Netty4TransportMultiPortIntegrationIT extends ESNetty4IntegTestCase
     private static String randomPortRange;
 
     @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         if (randomPort == -1) {
             randomPort = randomIntBetween(49152, 65525);
             randomPortRange = String.format(Locale.ROOT, "%s-%s", randomPort, randomPort + 10);
         }
         Settings.Builder builder = Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal))
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put("network.host", "127.0.0.1")
             .put("transport.profiles.client1.port", randomPortRange)
             .put("transport.profiles.client1.publish_host", "127.0.0.7")
@@ -65,8 +65,10 @@ public class Netty4TransportMultiPortIntegrationIT extends ESNetty4IntegTestCase
             // bound addresses
             for (TransportAddress transportAddress : boundTransportAddress.boundAddresses()) {
                 assertThat(transportAddress, instanceOf(TransportAddress.class));
-                assertThat(transportAddress.address().getPort(),
-                    is(allOf(greaterThanOrEqualTo(randomPort), lessThanOrEqualTo(randomPort + 10))));
+                assertThat(
+                    transportAddress.address().getPort(),
+                    is(allOf(greaterThanOrEqualTo(randomPort), lessThanOrEqualTo(randomPort + 10)))
+                );
             }
 
             // publish address

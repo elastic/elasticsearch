@@ -32,8 +32,7 @@ public class Classes {
     }
 
     public static boolean isInnerClass(Class<?> clazz) {
-        return Modifier.isStatic(clazz.getModifiers()) == false
-                && clazz.getEnclosingClass() != null;
+        return Modifier.isStatic(clazz.getModifiers()) == false && clazz.getEnclosingClass() != null;
     }
 
     public static boolean isConcrete(Class<?> clazz) {

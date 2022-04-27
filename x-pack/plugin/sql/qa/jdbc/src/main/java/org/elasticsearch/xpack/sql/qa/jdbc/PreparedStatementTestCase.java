@@ -6,11 +6,13 @@
  */
 package org.elasticsearch.xpack.sql.qa.jdbc;
 
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.core.Tuple;
 
 import java.io.IOException;
 import java.math.BigDecimal;
+import java.math.BigInteger;
 import java.sql.Connection;
 import java.sql.Date;
 import java.sql.JDBCType;
@@ -38,7 +40,9 @@ import static org.elasticsearch.xpack.sql.jdbc.EsType.KEYWORD;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.LONG;
 import static org.elasticsearch.xpack.sql.jdbc.EsType.SHORT;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.JDBC_DRIVER_VERSION;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.UNSIGNED_LONG_TYPE_NAME;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.extractNanosOnly;
+import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.isUnsignedLongSupported;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.randomTimeInNanos;
 import static org.elasticsearch.xpack.sql.qa.jdbc.JdbcTestUtils.versionSupportsDateNanos;
 import static org.hamcrest.Matchers.equalTo;
@@ -56,7 +60,7 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
         byte byteVal = randomByte();
         short shortVal = randomShort();
         BigDecimal bigDecimalVal = BigDecimal.valueOf(randomDouble());
-        long millis = randomNonNegativeLong();
+        long millis = randomLongBetween(1, DateUtils.MAX_MILLIS_BEFORE_9999);
         Calendar calendarVal = Calendar.getInstance(randomTimeZone(), Locale.ROOT);
         Timestamp timestampVal = new Timestamp(millis);
         Timestamp timestampValWithCal = new Timestamp(JdbcTestUtils.convertFromCalendarToUTC(timestampVal.getTime(), calendarVal));
@@ -136,7 +140,7 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
     }
 
     public void testDatetime() throws IOException, SQLException {
-        long randomMillis = randomNonNegativeLong();
+        long randomMillis = randomLongBetween(1, DateUtils.MAX_MILLIS_BEFORE_9999);
         setupIndexForDateTimeTests(randomMillis);
 
         try (Connection connection = esJdbc()) {
@@ -154,16 +158,19 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
     }
 
     public void testDatetimeWithNanos() throws IOException, SQLException {
-        assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
-                versionSupportsDateNanos());
+        assumeTrue(
+            "Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
+            versionSupportsDateNanos()
+        );
 
         long randomTimestampWitnNanos = randomTimeInNanos();
         int randomNanosOnly = extractNanosOnly(randomTimestampWitnNanos);
         setupIndexForDateTimeTestsWithNanos(randomTimestampWitnNanos);
 
         try (Connection connection = esJdbc()) {
-            try (PreparedStatement statement = connection.prepareStatement(
-                    "SELECT id, test_date_nanos FROM emps WHERE test_date_nanos = ?")) {
+            try (
+                PreparedStatement statement = connection.prepareStatement("SELECT id, test_date_nanos FROM emps WHERE test_date_nanos = ?")
+            ) {
                 Timestamp ts = new Timestamp(toMilliSeconds(randomTimestampWitnNanos));
                 statement.setObject(1, ts);
                 try (ResultSet results = statement.executeQuery()) {
@@ -183,16 +190,19 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
     }
 
     public void testDateTimeWithNanosAgainstDriverWithoutSupport() throws IOException, SQLException {
-        assumeFalse("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
-                versionSupportsDateNanos());
+        assumeFalse(
+            "Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support DATETIME with nanosecond resolution]",
+            versionSupportsDateNanos()
+        );
 
         long randomTimestampWitnNanos = randomTimeInNanos();
         int randomNanosOnly = extractNanosOnly(randomTimestampWitnNanos);
         setupIndexForDateTimeTestsWithNanos(randomTimestampWitnNanos);
 
         try (Connection connection = esJdbc()) {
-            try (PreparedStatement statement = connection.prepareStatement(
-                    "SELECT id, test_date_nanos FROM emps WHERE test_date_nanos = ?")) {
+            try (
+                PreparedStatement statement = connection.prepareStatement("SELECT id, test_date_nanos FROM emps WHERE test_date_nanos = ?")
+            ) {
                 Timestamp ts = new Timestamp(toMilliSeconds(randomTimestampWitnNanos));
                 statement.setObject(1, ts);
                 try (ResultSet results = statement.executeQuery()) {
@@ -209,7 +219,7 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
     }
 
     public void testDate() throws IOException, SQLException {
-        long randomMillis = randomNonNegativeLong();
+        long randomMillis = randomLongBetween(1, DateUtils.MAX_MILLIS_BEFORE_9999);
         setupIndexForDateTimeTests(randomMillis);
 
         try (Connection connection = esJdbc()) {
@@ -233,7 +243,7 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
     }
 
     public void testTime() throws IOException, SQLException {
-        long randomMillis = randomNonNegativeLong();
+        long randomMillis = randomLongBetween(1, DateUtils.MAX_MILLIS_BEFORE_9999);
         setupIndexForDateTimeTests(randomMillis);
 
         try (Connection connection = esJdbc()) {
@@ -261,7 +271,8 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
     }
 
     public void testWildcardField() throws IOException, SQLException {
-        String mapping = "\"properties\":{\"id\":{\"type\":\"integer\"},\"text\":{\"type\":\"wildcard\"}}";
+        String mapping = """
+            "properties":{"id":{"type":"integer"},"text":{"type":"wildcard"}}""";
         createIndex("test", Settings.EMPTY, mapping);
         String text = randomAlphaOfLengthBetween(1, 10);
 
@@ -291,7 +302,8 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
     }
 
     public void testConstantKeywordField() throws IOException, SQLException {
-        String mapping = "\"properties\":{\"id\":{\"type\":\"integer\"},\"text\":{\"type\":\"constant_keyword\"}}";
+        String mapping = """
+            "properties":{"id":{"type":"integer"},"text":{"type":"constant_keyword"}}""";
         createIndex("test", Settings.EMPTY, mapping);
         String text = randomAlphaOfLengthBetween(1, 10);
 
@@ -402,6 +414,7 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
         String stringVal = randomAlphaOfLength(randomIntBetween(0, 1000));
         int intVal = randomInt();
         long longVal = randomLong();
+        BigInteger bigIntegerVal = randomBigInteger();
         double doubleVal = randomDouble();
         float floatVal = randomFloat();
         boolean booleanVal = randomBoolean();
@@ -433,6 +446,26 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
         }
     }
 
+    public void testSingleParameterUnsignedLong() throws SQLException {
+        assumeTrue("Driver version [" + JDBC_DRIVER_VERSION + "] doesn't support UNSIGNED_LONGs", isUnsignedLongSupported());
+
+        BigInteger bigIntegerVal = randomBigInteger();
+        long longVal = randomLong();
+
+        try (Connection connection = esJdbc()) {
+            try (PreparedStatement statement = connection.prepareStatement("SELECT ?")) {
+
+                statement.setObject(1, bigIntegerVal);
+                assertEquals(new Tuple<>(UNSIGNED_LONG_TYPE_NAME, bigIntegerVal), execute(statement));
+
+                statement.setObject(1, longVal, JDBCType.BIGINT, 19);
+                assertEquals(new Tuple<>(LONG.getName(), longVal), execute(statement));
+                statement.setObject(1, Math.abs(longVal), JDBCType.BIGINT, 20);
+                assertEquals(new Tuple<>(UNSIGNED_LONG_TYPE_NAME, BigInteger.valueOf(Math.abs(longVal))), execute(statement));
+            }
+        }
+    }
+
     private Tuple<String, Object> execute(PreparedStatement statement) throws SQLException {
         try (ResultSet results = statement.executeQuery()) {
             ResultSetMetaData resultSetMetaData = results.getMetaData();
@@ -460,11 +493,14 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
     }
 
     private static void setupIndexForDateTimeTests(long randomMillisOrNanos, boolean isNanos) throws IOException {
-        String mapping = "\"properties\":{\"id\":{\"type\":\"integer\"},";
+        String mapping = """
+            "properties":{"id":{"type":"integer"},""";
         if (isNanos) {
-            mapping += "\"test_date_nanos\":{\"type\":\"date_nanos\"}}";
+            mapping += """
+                "test_date_nanos":{"type":"date_nanos"}}""";
         } else {
-            mapping += "\"birth_date\":{\"type\":\"date\"}}";
+            mapping += """
+                "birth_date":{"type":"date"}}""";
         }
         createIndex("emps", Settings.EMPTY, mapping);
         for (int i = 1; i <= 3; i++) {

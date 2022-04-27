@@ -86,9 +86,9 @@ POST seats/_bulk?pipeline=seats&refresh=true
 {"create":{"_index":"seats","_id":"1"}}
 {"theatre":"Skyline","play":"Rent","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2021-4-1","time":"3:00PM","cost":37,"row":1,"number":7,"sold":false}
 {"create":{"_index":"seats","_id":"2"}}
-{"theatre":"Graye","play":"Rent","actors":"Dave Christmas","date":"2021-4-1","time":"3:00PM","cost":30,"row":3,"number":5,"sold":false}
+{"theatre":"Graye","play":"Rent","actors":["Dave Christmas"],"date":"2021-4-1","time":"3:00PM","cost":30,"row":3,"number":5,"sold":false}
 {"create":{"_index":"seats","_id":"3"}}
-{"theatre":"Graye","play":"Rented","actors":"Dave Christmas","date":"2021-4-1","time":"3:00PM","cost":33,"row":2,"number":6,"sold":false}
+{"theatre":"Graye","play":"Rented","actors":["Dave Christmas"],"date":"2021-4-1","time":"3:00PM","cost":33,"row":2,"number":6,"sold":false}
 {"create":{"_index":"seats","_id":"4"}}
 {"theatre":"Skyline","play":"Rented","actors":["James Holland","Krissy Smith","Joe Muir","Ryan Earns"],"date":"2021-4-1","time":"3:00PM","cost":20,"row":5,"number":2,"sold":false}
 {"create":{"_index":"seats","_id":"5"}}

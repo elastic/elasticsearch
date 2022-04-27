@@ -21,8 +21,7 @@ import java.util.Map;
 
 public final class InputBuilders {
 
-    private InputBuilders() {
-    }
+    private InputBuilders() {}
 
     public static NoneInput.Builder noneInput() {
         return NoneInput.builder();

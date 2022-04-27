@@ -2,40 +2,24 @@
 [[data-tier-shard-filtering]]
 === Index-level data tier allocation filtering
 
-You can use index-level allocation settings to control which <<data-tiers, data tier>>
-the index is allocated to. The data tier allocator is a
-<<shard-allocation-filtering, shard allocation filter>> that uses two built-in
-node attributes:  `_tier` and `_tier_preference`.
+You can use the index-level `_tier_preference` setting to control
+which <<data-tiers, data tier>> an index is allocated to.
 
-These tier attributes are set using the data node roles:
+This setting corresponds to the data node roles:
 
 * <<data-content-node, data_content>>
 * <<data-hot-node, data_hot>>
 * <<data-warm-node, data_warm>>
 * <<data-cold-node, data_cold>>
+* <<data-frozen-node, data_frozen>>
 
 NOTE: The <<data-node, data>> role is not a valid data tier and cannot be used
-for data tier filtering.
+with the `_tier_preference` setting. The frozen tier stores <<partially-mounted,partially
+mounted indices>> exclusively.
 
 [discrete]
 [[data-tier-allocation-filters]]
 ==== Data tier allocation settings
-
-
-`index.routing.allocation.include._tier`::
-
-    Assign the index to a node whose `node.roles` configuration has at
-    least one of to the comma-separated values.
-
-`index.routing.allocation.require._tier`::
-
-    Assign the index to a node whose `node.roles` configuration has _all_
-    of the comma-separated values.
-
-`index.routing.allocation.exclude._tier`::
-
-    Assign the index to a node whose `node.roles` configuration has _none_ of the
-    comma-separated values.
 
 [[tier-preference-allocation-filter]]
 `index.routing.allocation.include._tier_preference`::
@@ -48,3 +32,4 @@ for data tier filtering.
     are nodes with the `data_warm` role. If there are no nodes in the warm tier,
     but there are nodes with the `data_hot` role, the index is allocated to
     the hot tier.
+    Used in conjuction with <<data-tier-allocation,data tiers>>.

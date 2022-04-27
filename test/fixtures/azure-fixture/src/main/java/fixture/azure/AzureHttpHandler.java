@@ -10,11 +10,12 @@ package fixture.azure;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
-import org.elasticsearch.common.SuppressForbidden;
+
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
 
@@ -98,7 +99,7 @@ public class AzureHttpHandler implements HttpHandler {
                 } else {
                     blobs.put(exchange.getRequestURI().getPath(), Streams.readFully(exchange.getRequestBody()));
                 }
-                exchange.getResponseHeaders().add("x-ms-request-server-encrypted",  "false");
+                exchange.getResponseHeaders().add("x-ms-request-server-encrypted", "false");
                 exchange.sendResponseHeaders(RestStatus.CREATED.getStatus(), -1);
 
             } else if (Regex.simpleMatch("HEAD /" + account + "/" + container + "/*", request)) {
@@ -153,8 +154,9 @@ public class AzureHttpHandler implements HttpHandler {
                 RestUtils.decodeQueryString(exchange.getRequestURI().getQuery(), 0, params);
 
                 final StringBuilder list = new StringBuilder();
-                list.append("<?xml version=\"1.0\" encoding=\"UTF-8\"?>");
-                list.append("<EnumerationResults>");
+                list.append("""
+                    <?xml version="1.0" encoding="UTF-8"?>
+                    <EnumerationResults>""");
                 final String prefix = params.get("prefix");
                 final Set<String> blobPrefixes = new HashSet<>();
                 final String delimiter = params.get("delimiter");
@@ -175,17 +177,22 @@ public class AzureHttpHandler implements HttpHandler {
                             continue;
                         }
                     }
-                    list.append("<Blob><Name>").append(blobPath).append("</Name>");
-                    list.append("<Properties><Content-Length>").append(blob.getValue().length()).append("</Content-Length>");
-                    list.append("<BlobType>BlockBlob</BlobType></Properties></Blob>");
+                    list.append("""
+                        <Blob>
+                           <Name>%s</Name>
+                           <Properties>
+                             <Content-Length>%s</Content-Length>
+                             <BlobType>BlockBlob</BlobType>
+                           </Properties>
+                        </Blob>""".formatted(blobPath, blob.getValue().length()));
                 }
                 if (blobPrefixes.isEmpty() == false) {
                     blobPrefixes.forEach(p -> list.append("<BlobPrefix><Name>").append(p).append("</Name></BlobPrefix>"));
-
                 }
-                list.append("</Blobs>");
-                list.append("<NextMarker />");
-                list.append("</EnumerationResults>");
+                list.append("""
+                    </Blobs>
+                    <NextMarker/>
+                    </EnumerationResults>""");
 
                 byte[] response = list.toString().getBytes(StandardCharsets.UTF_8);
                 exchange.getResponseHeaders().add("Content-Type", "application/xml");
@@ -222,8 +229,12 @@ public class AzureHttpHandler implements HttpHandler {
         if ("HEAD".equals(exchange.getRequestMethod())) {
             exchange.sendResponseHeaders(status.getStatus(), -1L);
         } else {
-            final byte[] response = ("<?xml version=\"1.0\" encoding=\"UTF-8\"?><Error><Code>" + errorCode + "</Code><Message>"
-                + status + "</Message></Error>").getBytes(StandardCharsets.UTF_8);
+            final byte[] response = ("""
+                <?xml version="1.0" encoding="UTF-8"?>
+                <Error>
+                    <Code>%s</Code>
+                    <Message>%s</Message>
+                </Error>""".formatted(errorCode, status)).getBytes(StandardCharsets.UTF_8);
             exchange.sendResponseHeaders(status.getStatus(), response.length);
             exchange.getResponseBody().write(response);
         }
@@ -232,19 +243,15 @@ public class AzureHttpHandler implements HttpHandler {
     // See https://docs.microsoft.com/en-us/rest/api/storageservices/common-rest-api-error-codes
     private static String toAzureErrorCode(final RestStatus status) {
         assert status.getStatus() >= 400;
-        switch (status) {
-            case BAD_REQUEST:
-                return "InvalidMetadata";
-            case NOT_FOUND:
-                return "BlobNotFound";
-            case INTERNAL_SERVER_ERROR:
-                return "InternalError";
-            case SERVICE_UNAVAILABLE:
-                return "ServerBusy";
-            case CONFLICT:
-                return "BlobAlreadyExists";
-            default:
-                throw new IllegalArgumentException("Error code [" + status.getStatus() + "] is not mapped to an existing Azure code");
-        }
+        return switch (status) {
+            case BAD_REQUEST -> "InvalidMetadata";
+            case NOT_FOUND -> "BlobNotFound";
+            case INTERNAL_SERVER_ERROR -> "InternalError";
+            case SERVICE_UNAVAILABLE -> "ServerBusy";
+            case CONFLICT -> "BlobAlreadyExists";
+            default -> throw new IllegalArgumentException(
+                "Error code [" + status.getStatus() + "] is not mapped to an existing Azure code"
+            );
+        };
     }
 }

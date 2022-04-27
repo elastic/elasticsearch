@@ -10,7 +10,7 @@ package org.elasticsearch.rest.action.admin.cluster;
 
 import org.elasticsearch.action.admin.cluster.snapshots.features.GetSnapshottableFeaturesRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.features.SnapshottableFeaturesAction;
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
@@ -18,10 +18,12 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+
 public class RestSnapshottableFeaturesAction extends BaseRestHandler {
     @Override
     public List<Route> routes() {
-        return List.of(new Route(RestRequest.Method.GET, "/_snapshottable_features"));
+        return List.of(new Route(GET, "/_features"));
     }
 
     @Override
@@ -34,8 +36,6 @@ public class RestSnapshottableFeaturesAction extends BaseRestHandler {
         final GetSnapshottableFeaturesRequest req = new GetSnapshottableFeaturesRequest();
         req.masterNodeTimeout(request.paramAsTime("master_timeout", req.masterNodeTimeout()));
 
-        return restChannel -> {
-            client.execute(SnapshottableFeaturesAction.INSTANCE, req, new RestToXContentListener<>(restChannel));
-        };
+        return restChannel -> { client.execute(SnapshottableFeaturesAction.INSTANCE, req, new RestToXContentListener<>(restChannel)); };
     }
 }

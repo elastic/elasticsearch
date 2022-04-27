@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.spatial.ingest;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.test.ESTestCase;
-
 import org.junit.Before;
 
 import java.util.HashMap;
@@ -66,8 +65,10 @@ public class CircleProcessorFactoryTests extends ESTestCase {
     public void testCreateMissingField() {
         Map<String, Object> config = new HashMap<>();
         String processorTag = randomAlphaOfLength(10);
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
-            () -> factory.create(null, processorTag, null, config));
+        ElasticsearchParseException e = expectThrows(
+            ElasticsearchParseException.class,
+            () -> factory.create(null, processorTag, null, config)
+        );
         assertThat(e.getMessage(), equalTo("[field] required property is missing"));
     }
 
@@ -90,8 +91,10 @@ public class CircleProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "field1");
         String processorTag = randomAlphaOfLength(10);
-        ElasticsearchParseException e = expectThrows(ElasticsearchParseException.class,
-            () -> factory.create(null, processorTag, null, config));
+        ElasticsearchParseException e = expectThrows(
+            ElasticsearchParseException.class,
+            () -> factory.create(null, processorTag, null, config)
+        );
         assertThat(e.getMessage(), equalTo("[error_distance] required property is missing"));
     }
 }

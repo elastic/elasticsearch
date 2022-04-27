@@ -1,0 +1,15 @@
+version: '3'
+services:
+  url-fixture:
+    build:
+      context: .
+      args:
+        port: 80
+        workingDir: "/fixture/work"
+        repositoryDir: "/fixture/repo"
+    volumes:
+      - ./testfixtures_shared/shared:/fixture/shared
+      - ./testfixtures_shared/fs-repository:/fixture/repo
+      - ./testfixtures_shared/work:/fixture/work
+    ports:
+      - "80"

@@ -114,7 +114,15 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
     }
 
     protected Expression canonicalize() {
-        return this;
+        if (children().isEmpty()) {
+            return this;
+        }
+        List<Expression> canonicalChildren = Expressions.canonicalize(children());
+        // check if replacement is really needed
+        if (children().equals(canonicalChildren)) {
+            return this;
+        }
+        return replaceChildrenSameSize(canonicalChildren);
     }
 
     public boolean semanticEquals(Expression other) {

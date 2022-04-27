@@ -7,7 +7,7 @@
  */
 package org.elasticsearch.http;
 
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.core.Tuple;
 
 import java.util.ArrayList;
 import java.util.Comparator;
@@ -57,8 +57,7 @@ public class HttpPipeliningAggregator<Listener> {
             return readyResponses;
         } else {
             int eventCount = outboundHoldingQueue.size() + 1;
-            throw new IllegalStateException("Too many pipelined events [" + eventCount + "]. Max events allowed ["
-                + maxEventsHeld + "].");
+            throw new IllegalStateException("Too many pipelined events [" + eventCount + "]. Max events allowed [" + maxEventsHeld + "].");
         }
     }
 

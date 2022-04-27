@@ -6,24 +6,23 @@
  */
 package org.elasticsearch.xpack.ml.rest.job;
 
-import org.elasticsearch.client.node.NodeClient;
+import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xpack.core.ml.action.EstimateModelMemoryAction;
-import org.elasticsearch.xpack.ml.MachineLearning;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
 
 public class RestEstimateModelMemoryAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return Collections.singletonList(new Route(POST, MachineLearning.BASE_PATH + "anomaly_detectors/_estimate_model_memory"));
+        return List.of(new Route(POST, BASE_PATH + "anomaly_detectors/_estimate_model_memory"));
     }
 
     @Override
@@ -33,8 +32,9 @@ public class RestEstimateModelMemoryAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
-        EstimateModelMemoryAction.Request request =
-            EstimateModelMemoryAction.Request.parseRequest(restRequest.contentOrSourceParamParser());
+        EstimateModelMemoryAction.Request request = EstimateModelMemoryAction.Request.parseRequest(
+            restRequest.contentOrSourceParamParser()
+        );
         return channel -> client.execute(EstimateModelMemoryAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

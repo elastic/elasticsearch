@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.ml.integration;
 
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -40,7 +40,8 @@ public class ReopenJobWithGapIT extends MlNativeAutodetectIntegTestCase {
 
     public void test() throws Exception {
         AnalysisConfig.Builder analysisConfig = new AnalysisConfig.Builder(
-                Collections.singletonList(new Detector.Builder("count", null).build()));
+            Collections.singletonList(new Detector.Builder("count", null).build())
+        );
         analysisConfig.setBucketSpan(TimeValue.timeValueSeconds(BUCKET_SPAN_SECONDS));
         DataDescription.Builder dataDescription = new DataDescription.Builder();
         dataDescription.setTimeFormat("epoch");
@@ -48,7 +49,6 @@ public class ReopenJobWithGapIT extends MlNativeAutodetectIntegTestCase {
         job.setAnalysisConfig(analysisConfig);
         job.setDataDescription(dataDescription);
 
-        registerJob(job);
         putJob(job);
         openJob(job.getId());
 

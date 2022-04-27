@@ -14,10 +14,10 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.RealtimeRequest;
 import org.elasticsearch.action.ValidateActions;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -27,8 +27,13 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
+// It's not possible to suppress teh warning at #realtime(boolean) at a method-level.
+@SuppressWarnings("unchecked")
 public class MultiTermVectorsRequest extends ActionRequest
-        implements Iterable<TermVectorsRequest>, CompositeIndicesRequest, RealtimeRequest {
+    implements
+        Iterable<TermVectorsRequest>,
+        CompositeIndicesRequest,
+        RealtimeRequest {
 
     String preference;
     List<TermVectorsRequest> requests = new ArrayList<>();
@@ -67,8 +72,10 @@ public class MultiTermVectorsRequest extends ActionRequest
                 TermVectorsRequest termVectorsRequest = requests.get(i);
                 ActionRequestValidationException validationExceptionForDoc = termVectorsRequest.validate();
                 if (validationExceptionForDoc != null) {
-                    validationException = ValidateActions.addValidationError("at multi term vectors for doc " + i,
-                            validationExceptionForDoc);
+                    validationException = ValidateActions.addValidationError(
+                        "at multi term vectors for doc " + i,
+                        validationExceptionForDoc
+                    );
                 }
             }
         }
@@ -102,7 +109,7 @@ public class MultiTermVectorsRequest extends ActionRequest
                                 throw new IllegalArgumentException("docs array element should include an object");
                             }
                             TermVectorsRequest termVectorsRequest = new TermVectorsRequest(template);
-                            TermVectorsRequest.parseRequest(termVectorsRequest, parser);
+                            TermVectorsRequest.parseRequest(termVectorsRequest, parser, parser.getRestApiVersion());
                             add(termVectorsRequest);
                         }
                     } else if ("ids".equals(currentFieldName)) {
@@ -117,7 +124,7 @@ public class MultiTermVectorsRequest extends ActionRequest
                     }
                 } else if (token == XContentParser.Token.START_OBJECT && currentFieldName != null) {
                     if ("parameters".equals(currentFieldName)) {
-                        TermVectorsRequest.parseRequest(template, parser);
+                        TermVectorsRequest.parseRequest(template, parser, parser.getRestApiVersion());
                     } else {
                         throw new ElasticsearchParseException("no parameter named [{}] and type OBJECT", currentFieldName);
                     }

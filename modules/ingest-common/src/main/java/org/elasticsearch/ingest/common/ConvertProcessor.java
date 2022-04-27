@@ -8,6 +8,7 @@
 
 package org.elasticsearch.ingest.common;
 
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestDocument;
@@ -36,12 +37,13 @@ public final class ConvertProcessor extends AbstractProcessor {
                         return Integer.decode(strValue);
                     }
                     return Integer.parseInt(strValue);
-                } catch(NumberFormatException e) {
+                } catch (NumberFormatException e) {
                     throw new IllegalArgumentException("unable to convert [" + value + "] to integer", e);
                 }
 
             }
-        }, LONG {
+        },
+        LONG {
             @Override
             public Object convert(Object value) {
                 try {
@@ -50,29 +52,32 @@ public final class ConvertProcessor extends AbstractProcessor {
                         return Long.decode(strValue);
                     }
                     return Long.parseLong(strValue);
-                } catch(NumberFormatException e) {
+                } catch (NumberFormatException e) {
                     throw new IllegalArgumentException("unable to convert [" + value + "] to long", e);
                 }
             }
-        }, DOUBLE {
+        },
+        DOUBLE {
             @Override
             public Object convert(Object value) {
                 try {
                     return Double.parseDouble(value.toString());
-                } catch(NumberFormatException e) {
+                } catch (NumberFormatException e) {
                     throw new IllegalArgumentException("unable to convert [" + value + "] to double", e);
                 }
             }
-        }, FLOAT {
+        },
+        FLOAT {
             @Override
             public Object convert(Object value) {
                 try {
                     return Float.parseFloat(value.toString());
-                } catch(NumberFormatException e) {
+                } catch (NumberFormatException e) {
                     throw new IllegalArgumentException("unable to convert [" + value + "] to float", e);
                 }
             }
-        }, BOOLEAN {
+        },
+        BOOLEAN {
             @Override
             public Object convert(Object value) {
                 if (value.toString().equalsIgnoreCase("true")) {
@@ -83,16 +88,26 @@ public final class ConvertProcessor extends AbstractProcessor {
                     throw new IllegalArgumentException("[" + value + "] is not a boolean value, cannot convert to boolean");
                 }
             }
-        }, STRING {
+        },
+        IP {
+            @Override
+            public Object convert(Object value) {
+                // IllegalArgumentException is thrown if unable to convert
+                InetAddresses.forString((String) value);
+                return value;
+            }
+        },
+        STRING {
             @Override
             public Object convert(Object value) {
                 return value.toString();
             }
-        }, AUTO {
+        },
+        AUTO {
             @Override
             public Object convert(Object value) {
                 if ((value instanceof String) == false) {
-                   return value;
+                    return value;
                 }
                 try {
                     return BOOLEAN.convert(value);
@@ -123,9 +138,13 @@ public final class ConvertProcessor extends AbstractProcessor {
         public static Type fromString(String processorTag, String propertyName, String type) {
             try {
                 return Type.valueOf(type.toUpperCase(Locale.ROOT));
-            } catch(IllegalArgumentException e) {
-                throw newConfigurationException(TYPE, processorTag, propertyName, "type [" + type +
-                        "] not supported, cannot convert field.");
+            } catch (IllegalArgumentException e) {
+                throw newConfigurationException(
+                    TYPE,
+                    processorTag,
+                    propertyName,
+                    "type [" + type + "] not supported, cannot convert field."
+                );
             }
         }
     }
@@ -172,8 +191,7 @@ public final class ConvertProcessor extends AbstractProcessor {
             throw new IllegalArgumentException("Field [" + field + "] is null, cannot be converted to type [" + convertType + "]");
         }
 
-        if (oldValue instanceof List) {
-            List<?> list = (List<?>) oldValue;
+        if (oldValue instanceof List<?> list) {
             List<Object> newList = new ArrayList<>(list.size());
             for (Object value : list) {
                 newList.add(convertType.convert(value));
@@ -193,8 +211,12 @@ public final class ConvertProcessor extends AbstractProcessor {
 
     public static final class Factory implements Processor.Factory {
         @Override
-        public ConvertProcessor create(Map<String, Processor.Factory> registry, String processorTag,
-                                       String description, Map<String, Object> config) throws Exception {
+        public ConvertProcessor create(
+            Map<String, Processor.Factory> registry,
+            String processorTag,
+            String description,
+            Map<String, Object> config
+        ) throws Exception {
             String field = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "field");
             String typeProperty = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "type");
             String targetField = ConfigurationUtils.readStringProperty(TYPE, processorTag, config, "target_field", field);

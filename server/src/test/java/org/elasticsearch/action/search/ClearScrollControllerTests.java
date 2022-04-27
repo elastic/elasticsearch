@@ -68,8 +68,7 @@ public class ClearScrollControllerTests extends ESTestCase {
         };
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
         clearScrollRequest.scrollIds(Arrays.asList("_all"));
-        ClearScrollController controller = new ClearScrollController(
-            clearScrollRequest, listener, nodes, logger, searchTransportService);
+        ClearScrollController controller = new ClearScrollController(clearScrollRequest, listener, nodes, logger, searchTransportService);
         controller.run();
         latch.await();
         assertEquals(3, nodesInvoked.size());
@@ -77,21 +76,26 @@ public class ClearScrollControllerTests extends ESTestCase {
         assertEquals(nodesInvoked, Arrays.asList(node1, node2, node3));
     }
 
-
     public void testClearScrollIds() throws IOException, InterruptedException {
         DiscoveryNode node1 = new DiscoveryNode("node_1", buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNode node2 = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNode node3 = new DiscoveryNode("node_3", buildNewFakeTransportAddress(), Version.CURRENT);
         AtomicArray<SearchPhaseResult> array = new AtomicArray<>(3);
-        SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult1 =
-            new SearchAsyncActionTests.TestSearchPhaseResult(new ShardSearchContextId(UUIDs.randomBase64UUID(), 1), node1);
-        testSearchPhaseResult1.setSearchShardTarget(new SearchShardTarget("node_1", new ShardId("idx", "uuid1", 2), null, null));
-        SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult2 =
-            new SearchAsyncActionTests.TestSearchPhaseResult(new ShardSearchContextId(UUIDs.randomBase64UUID(), 12), node2);
-        testSearchPhaseResult2.setSearchShardTarget(new SearchShardTarget("node_2", new ShardId("idy", "uuid2", 42), null, null));
-        SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult3 =
-            new SearchAsyncActionTests.TestSearchPhaseResult(new ShardSearchContextId(UUIDs.randomBase64UUID(), 42), node3);
-        testSearchPhaseResult3.setSearchShardTarget(new SearchShardTarget("node_3", new ShardId("idy", "uuid2", 43), null, null));
+        SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult1 = new SearchAsyncActionTests.TestSearchPhaseResult(
+            new ShardSearchContextId(UUIDs.randomBase64UUID(), 1),
+            node1
+        );
+        testSearchPhaseResult1.setSearchShardTarget(new SearchShardTarget("node_1", new ShardId("idx", "uuid1", 2), null));
+        SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult2 = new SearchAsyncActionTests.TestSearchPhaseResult(
+            new ShardSearchContextId(UUIDs.randomBase64UUID(), 12),
+            node2
+        );
+        testSearchPhaseResult2.setSearchShardTarget(new SearchShardTarget("node_2", new ShardId("idy", "uuid2", 42), null));
+        SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult3 = new SearchAsyncActionTests.TestSearchPhaseResult(
+            new ShardSearchContextId(UUIDs.randomBase64UUID(), 42),
+            node3
+        );
+        testSearchPhaseResult3.setSearchShardTarget(new SearchShardTarget("node_3", new ShardId("idy", "uuid2", 43), null));
         array.setOnce(0, testSearchPhaseResult1);
         array.setOnce(1, testSearchPhaseResult2);
         array.setOnce(2, testSearchPhaseResult3);
@@ -115,8 +119,11 @@ public class ClearScrollControllerTests extends ESTestCase {
         SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
 
             @Override
-            public void sendFreeContext(Transport.Connection connection, ShardSearchContextId contextId,
-                                        ActionListener<SearchFreeContextResponse> listener) {
+            public void sendFreeContext(
+                Transport.Connection connection,
+                ShardSearchContextId contextId,
+                ActionListener<SearchFreeContextResponse> listener
+            ) {
                 nodesInvoked.add(connection.getNode());
                 boolean freed = randomBoolean();
                 if (freed) {
@@ -133,8 +140,7 @@ public class ClearScrollControllerTests extends ESTestCase {
         };
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
         clearScrollRequest.scrollIds(Arrays.asList(scrollId));
-        ClearScrollController controller = new ClearScrollController(clearScrollRequest, listener,
-            nodes, logger, searchTransportService);
+        ClearScrollController controller = new ClearScrollController(clearScrollRequest, listener, nodes, logger, searchTransportService);
         controller.run();
         latch.await();
         assertEquals(3, nodesInvoked.size());
@@ -147,15 +153,21 @@ public class ClearScrollControllerTests extends ESTestCase {
         DiscoveryNode node2 = new DiscoveryNode("node_2", buildNewFakeTransportAddress(), Version.CURRENT);
         DiscoveryNode node3 = new DiscoveryNode("node_3", buildNewFakeTransportAddress(), Version.CURRENT);
         AtomicArray<SearchPhaseResult> array = new AtomicArray<>(3);
-        SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult1 =
-            new SearchAsyncActionTests.TestSearchPhaseResult(new ShardSearchContextId(UUIDs.randomBase64UUID(), 1), node1);
-        testSearchPhaseResult1.setSearchShardTarget(new SearchShardTarget("node_1", new ShardId("idx", "uuid1", 2), null, null));
-        SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult2 =
-            new SearchAsyncActionTests.TestSearchPhaseResult(new ShardSearchContextId(UUIDs.randomBase64UUID(), 12), node2);
-        testSearchPhaseResult2.setSearchShardTarget(new SearchShardTarget("node_2", new ShardId("idy", "uuid2", 42), null, null));
-        SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult3 =
-            new SearchAsyncActionTests.TestSearchPhaseResult(new ShardSearchContextId(UUIDs.randomBase64UUID(), 42), node3);
-        testSearchPhaseResult3.setSearchShardTarget(new SearchShardTarget("node_3", new ShardId("idy", "uuid2", 43), null, null));
+        SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult1 = new SearchAsyncActionTests.TestSearchPhaseResult(
+            new ShardSearchContextId(UUIDs.randomBase64UUID(), 1),
+            node1
+        );
+        testSearchPhaseResult1.setSearchShardTarget(new SearchShardTarget("node_1", new ShardId("idx", "uuid1", 2), null));
+        SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult2 = new SearchAsyncActionTests.TestSearchPhaseResult(
+            new ShardSearchContextId(UUIDs.randomBase64UUID(), 12),
+            node2
+        );
+        testSearchPhaseResult2.setSearchShardTarget(new SearchShardTarget("node_2", new ShardId("idy", "uuid2", 42), null));
+        SearchAsyncActionTests.TestSearchPhaseResult testSearchPhaseResult3 = new SearchAsyncActionTests.TestSearchPhaseResult(
+            new ShardSearchContextId(UUIDs.randomBase64UUID(), 42),
+            node3
+        );
+        testSearchPhaseResult3.setSearchShardTarget(new SearchShardTarget("node_3", new ShardId("idy", "uuid2", 43), null));
         array.setOnce(0, testSearchPhaseResult1);
         array.setOnce(1, testSearchPhaseResult2);
         array.setOnce(2, testSearchPhaseResult3);
@@ -186,8 +198,11 @@ public class ClearScrollControllerTests extends ESTestCase {
         SearchTransportService searchTransportService = new SearchTransportService(null, null, null) {
 
             @Override
-            public void sendFreeContext(Transport.Connection connection, ShardSearchContextId contextId,
-                                        ActionListener<SearchFreeContextResponse> listener) {
+            public void sendFreeContext(
+                Transport.Connection connection,
+                ShardSearchContextId contextId,
+                ActionListener<SearchFreeContextResponse> listener
+            ) {
                 nodesInvoked.add(connection.getNode());
                 boolean freed = randomBoolean();
                 boolean fail = randomBoolean();
@@ -217,8 +232,7 @@ public class ClearScrollControllerTests extends ESTestCase {
         };
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
         clearScrollRequest.scrollIds(Arrays.asList(scrollId));
-        ClearScrollController controller = new ClearScrollController(clearScrollRequest, listener,
-            nodes, logger, searchTransportService);
+        ClearScrollController controller = new ClearScrollController(clearScrollRequest, listener, nodes, logger, searchTransportService);
         controller.run();
         latch.await();
         assertEquals(3 - numConnectionFailures.get(), nodesInvoked.size());

@@ -26,7 +26,7 @@ import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -53,7 +53,7 @@ public class FilterableTermsEnum extends TermsEnum {
     }
 
     static final String UNSUPPORTED_MESSAGE =
-            "This TermsEnum only supports #seekExact(BytesRef) as well as #docFreq() and #totalTermFreq()";
+        "This TermsEnum only supports #seekExact(BytesRef) as well as #docFreq() and #totalTermFreq()";
     protected static final int NOT_FOUND = -1;
     private final Holder[] enums;
     protected int currentDocFreq = 0;

@@ -5,7 +5,8 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
   description 'The Ukrainian Analysis plugin integrates the Lucene UkrainianMorfologikAnalyzer into elasticsearch.'
@@ -13,7 +14,7 @@ esplugin {
 }
 
 dependencies {
-  api "org.apache.lucene:lucene-analyzers-morfologik:${versions.lucene}"
+  api "org.apache.lucene:lucene-analysis-morfologik:${versions.lucene}"
   api "org.carrot2:morfologik-stemming:2.1.1"
   api "org.carrot2:morfologik-fsa:2.1.1"
   api "ua.net.nlp:morfologik-ukrainian-search:3.7.5"
@@ -21,7 +22,7 @@ dependencies {
 
 restResources {
   restApi {
-    includeCore '_common', 'indices', 'index', 'search'
+    include '_common', 'indices', 'index', 'search'
   }
 }
 

@@ -29,8 +29,7 @@ public final class IDGenerator {
 
     private final TreeMap<String, Object> objectsForIDGeneration = new TreeMap<>();
 
-    public IDGenerator() {
-    }
+    public IDGenerator() {}
 
     /**
      * Add a value to the generator
@@ -94,7 +93,7 @@ public final class IDGenerator {
         } else if (value instanceof Integer) {
             return Numbers.intToBytes((Integer) value);
         } else if (value instanceof Boolean) {
-            return new byte[] { (Boolean)value ? (byte)1 : (byte)0 };
+            return new byte[] { (Boolean) value ? (byte) 1 : (byte) 0 };
         }
 
         throw new IllegalArgumentException("Value of type [" + value.getClass() + "] is not supported");

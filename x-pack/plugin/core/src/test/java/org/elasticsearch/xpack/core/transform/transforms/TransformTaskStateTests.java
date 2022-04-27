@@ -73,7 +73,7 @@ public class TransformTaskStateTests extends ESTestCase {
             try (StreamInput in = out.bytes().streamInput()) {
                 TransformTaskState.fromStream(in);
                 fail("Expected IOException");
-            } catch(IOException e) {
+            } catch (IOException e) {
                 assertThat(e.getMessage(), containsString("Unknown TransformTaskState ordinal ["));
             }
 

@@ -15,13 +15,11 @@ import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Range;
 import org.elasticsearch.search.aggregations.bucket.range.RangeAggregator.Unmapped;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
-import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
 
 public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourceAggregatorFactory {
@@ -32,28 +30,19 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
     private final ValuesSourceRegistry.RegistryKey<RangeAggregatorSupplier> registryKey;
     private final RangeAggregatorSupplier aggregatorSupplier;
 
-    public static void registerAggregators(
-        ValuesSourceRegistry.Builder builder,
-        ValuesSourceRegistry.RegistryKey<RangeAggregatorSupplier> registryKey
-    ) {
-        builder.register(
-            registryKey,
-            List.of(CoreValuesSourceType.NUMERIC, CoreValuesSourceType.DATE, CoreValuesSourceType.BOOLEAN),
-            RangeAggregator::build,
-                true);
-    }
-
-    public AbstractRangeAggregatorFactory(String name,
-                                          ValuesSourceRegistry.RegistryKey<RangeAggregatorSupplier> registryKey,
-                                          ValuesSourceConfig config,
-                                          R[] ranges,
-                                          boolean keyed,
-                                          InternalRange.Factory<?, ?> rangeFactory,
-                                          AggregationContext context,
-                                          AggregatorFactory parent,
-                                          AggregatorFactories.Builder subFactoriesBuilder,
-                                          Map<String, Object> metadata,
-                                          RangeAggregatorSupplier aggregatorSupplier) throws IOException {
+    public AbstractRangeAggregatorFactory(
+        String name,
+        ValuesSourceRegistry.RegistryKey<RangeAggregatorSupplier> registryKey,
+        ValuesSourceConfig config,
+        R[] ranges,
+        boolean keyed,
+        InternalRange.Factory<?, ?> rangeFactory,
+        AggregationContext context,
+        AggregatorFactory parent,
+        AggregatorFactories.Builder subFactoriesBuilder,
+        Map<String, Object> metadata,
+        RangeAggregatorSupplier aggregatorSupplier
+    ) throws IOException {
         super(name, config, context, parent, subFactoriesBuilder, metadata);
         this.ranges = ranges;
         this.keyed = keyed;
@@ -68,23 +57,8 @@ public class AbstractRangeAggregatorFactory<R extends Range> extends ValuesSourc
     }
 
     @Override
-    protected Aggregator doCreateInternal(
-        Aggregator parent,
-        CardinalityUpperBound cardinality,
-        Map<String, Object> metadata
-    ) throws IOException {
-        return aggregatorSupplier
-            .build(
-                name,
-                factories,
-                config,
-                rangeFactory,
-                ranges,
-                keyed,
-                context,
-                parent,
-                cardinality,
-                metadata
-            );
+    protected Aggregator doCreateInternal(Aggregator parent, CardinalityUpperBound cardinality, Map<String, Object> metadata)
+        throws IOException {
+        return aggregatorSupplier.build(name, factories, config, rangeFactory, ranges, keyed, context, parent, cardinality, metadata);
     }
 }

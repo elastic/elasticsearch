@@ -9,8 +9,8 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.AbstractSerializingTestCase;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
@@ -32,7 +32,7 @@ public class SnapshotFeatureInfoTests extends AbstractSerializingTestCase<Snapsh
     }
 
     public static SnapshotFeatureInfo randomSnapshotFeatureInfo() {
-        String feature = randomAlphaOfLengthBetween(5,20);
+        String feature = randomAlphaOfLengthBetween(5, 20);
         List<String> indices = randomList(1, 10, () -> randomAlphaOfLengthBetween(5, 20));
         return new SnapshotFeatureInfo(feature, indices);
     }
@@ -40,12 +40,15 @@ public class SnapshotFeatureInfoTests extends AbstractSerializingTestCase<Snapsh
     @Override
     protected SnapshotFeatureInfo mutateInstance(SnapshotFeatureInfo instance) throws IOException {
         if (randomBoolean()) {
-            return new SnapshotFeatureInfo(randomValueOtherThan(instance.getPluginName(), () -> randomAlphaOfLengthBetween(5, 20)),
-                instance.getIndices());
+            return new SnapshotFeatureInfo(
+                randomValueOtherThan(instance.getPluginName(), () -> randomAlphaOfLengthBetween(5, 20)),
+                instance.getIndices()
+            );
         } else {
-            return new SnapshotFeatureInfo(instance.getPluginName(),
-                randomList(1, 10, () -> randomValueOtherThanMany(instance.getIndices()::contains,
-                    () -> randomAlphaOfLengthBetween(5, 20))));
+            return new SnapshotFeatureInfo(
+                instance.getPluginName(),
+                randomList(1, 10, () -> randomValueOtherThanMany(instance.getIndices()::contains, () -> randomAlphaOfLengthBetween(5, 20)))
+            );
         }
     }
 }

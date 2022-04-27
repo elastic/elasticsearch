@@ -1,9 +1,9 @@
 [[gc-logging]]
 [discrete]
-=== GC logging settings
+==== GC logging settings
 
 By default, {es} enables garbage collection (GC) logs. These are configured in
-<<jvm-options,`jvm.options`>> and output to the same default location as
+<<set-jvm-options,`jvm.options`>> and output to the same default location as
 the {es} logs. The default configuration rotates the logs every 64 MB and
 can consume up to 2 GB of disk space.
 

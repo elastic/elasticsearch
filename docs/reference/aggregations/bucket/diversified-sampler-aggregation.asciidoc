@@ -18,10 +18,10 @@ a large spike in a timeline or an over-active forum spammer).
 * Removing bias from analytics by ensuring fair representation of content from different sources
 * Reducing the running cost of aggregations that can produce useful results using only samples e.g. `significant_terms`
 
-A choice of `field` or `script` setting is used to provide values used for de-duplication and the `max_docs_per_value` setting controls the maximum
+The `field` setting is used to provide values used for de-duplication and the `max_docs_per_value` setting controls the maximum
 number of documents collected on any one shard which share a common value. The default setting for `max_docs_per_value` is 1.
 
-The aggregation will throw an error if the choice of `field` or `script` produces multiple values for a single document (de-duplication using multi-valued fields is not supported due to efficiency concerns).
+The aggregation will throw an error if the `field` produces multiple values for a single document (de-duplication using multi-valued fields is not supported due to efficiency concerns).
 
 
 Example:
@@ -89,13 +89,14 @@ Response:
 <1> 151 documents were sampled in total.
 <2> The results of the significant_terms aggregation are not skewed by any single author's quirks because we asked for a maximum of one post from any one author in our sample.
 
-==== Scripted example:
+==== Scripted example
 
-In this scenario we might want to diversify on a combination of field values. We can use a `script` to produce a hash of the
-multiple values in a tags field to ensure we don't have a sample that consists of the same repeated combinations of tags.
+In this scenario we might want to diversify on a combination of field values. We can use a <<runtime,runtime field>> to
+produce a hash of the multiple values in a tags field to ensure we don't have a sample that consists of the same
+repeated combinations of tags.
 
-[source,console,id=diversified-sampler-aggregation-scripted-example]
---------------------------------------------------
+[source,console,id=diversified-sampler-aggregation-runtime-field-example]
+----
 POST /stackoverflow/_search?size=0
 {
   "query": {
@@ -103,15 +104,18 @@ POST /stackoverflow/_search?size=0
       "query": "tags:kibana"
     }
   },
+  "runtime_mappings": {
+    "tags.hash": {
+      "type": "long",
+      "script": "emit(doc['tags'].hashCode())"
+    }
+  },
   "aggs": {
     "my_unbiased_sample": {
       "diversified_sampler": {
         "shard_size": 200,
         "max_docs_per_value": 3,
-        "script": {
-          "lang": "painless",
-          "source": "doc['tags'].hashCode()"
-        }
+        "field": "tags.hash"
       },
       "aggs": {
         "keywords": {
@@ -124,13 +128,13 @@ POST /stackoverflow/_search?size=0
     }
   }
 }
---------------------------------------------------
+----
 // TEST[setup:stackoverflow]
 
 Response:
 
 [source,console-result]
---------------------------------------------------
+----
 {
   ...
   "aggregations": {
@@ -157,7 +161,7 @@ Response:
     }
   }
 }
---------------------------------------------------
+----
 // TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 // TESTRESPONSE[s/2.213/$body.aggregations.my_unbiased_sample.keywords.buckets.0.score/]
 // TESTRESPONSE[s/1.34/$body.aggregations.my_unbiased_sample.keywords.buckets.1.score/]

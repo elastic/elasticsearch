@@ -9,7 +9,8 @@ package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -19,7 +20,6 @@ import java.util.HashSet;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.coordination.LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING;
-import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.greaterThan;
@@ -35,7 +35,7 @@ public class LagDetectorTests extends ESTestCase {
 
     @Before
     public void setupFixture() {
-        deterministicTaskQueue = new DeterministicTaskQueue(Settings.builder().put(NODE_NAME_SETTING.getKey(), "node").build(), random());
+        deterministicTaskQueue = new DeterministicTaskQueue();
 
         failedNodes = new HashSet<>();
 
@@ -47,7 +47,12 @@ public class LagDetectorTests extends ESTestCase {
             followerLagTimeout = CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING.get(Settings.EMPTY);
         }
 
-        lagDetector = new LagDetector(settingsBuilder.build(), deterministicTaskQueue.getThreadPool(), failedNodes::add, () -> localNode);
+        lagDetector = new LagDetector(
+            settingsBuilder.build(),
+            deterministicTaskQueue.getThreadPool(),
+            (discoveryNode, appliedVersion, expectedVersion) -> failedNodes.add(discoveryNode),
+            () -> localNode
+        );
 
         localNode = CoordinationStateTests.createNode("local");
         node1 = CoordinationStateTests.createNode("node1");
@@ -77,8 +82,10 @@ public class LagDetectorTests extends ESTestCase {
     public void testNoLagDetectedIfNodeAppliesVersionJustBeforeTimeout() {
         lagDetector.setTrackedNodes(Collections.singletonList(node1));
         lagDetector.startLagDetector(1);
-        deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + followerLagTimeout.millis() - 1,
-            () -> lagDetector.setAppliedVersion(node1, 1));
+        deterministicTaskQueue.scheduleAt(
+            deterministicTaskQueue.getCurrentTimeMillis() + followerLagTimeout.millis() - 1,
+            () -> lagDetector.setAppliedVersion(node1, 1)
+        );
         deterministicTaskQueue.runAllTasksInTimeOrder();
         assertThat(failedNodes, empty());
     }
@@ -86,8 +93,10 @@ public class LagDetectorTests extends ESTestCase {
     public void testLagDetectedIfNodeAppliesVersionJustAfterTimeout() {
         lagDetector.setTrackedNodes(Collections.singletonList(node1));
         lagDetector.startLagDetector(1);
-        deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + followerLagTimeout.millis() + 1,
-            () -> lagDetector.setAppliedVersion(node1, 1));
+        deterministicTaskQueue.scheduleAt(
+            deterministicTaskQueue.getCurrentTimeMillis() + followerLagTimeout.millis() + 1,
+            () -> lagDetector.setAppliedVersion(node1, 1)
+        );
         deterministicTaskQueue.runAllTasksInTimeOrder();
         assertThat(failedNodes, contains(node1));
     }
@@ -192,13 +201,17 @@ public class LagDetectorTests extends ESTestCase {
         assertThat(failedNodes, empty());
 
         lagDetector.startLagDetector(3);
-        deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + followerLagTimeout.millis() - 1,
-            () -> lagDetector.setAppliedVersion(node1, 3));
+        deterministicTaskQueue.scheduleAt(
+            deterministicTaskQueue.getCurrentTimeMillis() + followerLagTimeout.millis() - 1,
+            () -> lagDetector.setAppliedVersion(node1, 3)
+        );
         assertThat(failedNodes, empty());
 
         lagDetector.startLagDetector(4);
-        deterministicTaskQueue.scheduleAt(deterministicTaskQueue.getCurrentTimeMillis() + followerLagTimeout.millis() + 1,
-            () -> lagDetector.setAppliedVersion(node1, 4));
+        deterministicTaskQueue.scheduleAt(
+            deterministicTaskQueue.getCurrentTimeMillis() + followerLagTimeout.millis() + 1,
+            () -> lagDetector.setAppliedVersion(node1, 4)
+        );
         deterministicTaskQueue.runAllTasksInTimeOrder();
         assertThat(failedNodes, contains(node1));
         failedNodes.clear();

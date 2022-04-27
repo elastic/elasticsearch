@@ -19,16 +19,6 @@ import java.util.List;
 public interface AutoscalingDeciderService {
 
     /**
-     * A marker role to use to also match policies having an empty set of roles.
-     */
-    DiscoveryNodeRole EMPTY_ROLES = new DiscoveryNodeRole("_empty", "_empty") {
-        @Override
-        public Setting<Boolean> legacySetting() {
-            return null;
-        }
-    };
-
-    /**
      * The name of the autoscaling decider.
      *
      * @return the name
@@ -54,6 +44,18 @@ public interface AutoscalingDeciderService {
      * has no restrictions on the roles it applies to. This is intended only for supplying deciders useful for testing.
      */
     List<DiscoveryNodeRole> roles();
+
+    /**
+     * Whether or not the decider applies to a policy that specifies an empty set of roles.
+     *
+     * The default implementation is false, as it is expected that most deciders will apply to specific roles. The application of a policy
+     * that specifies an empty set of roles is useful for testing.
+     *
+     * @return true if the decider applies to a policy that specifies an empty set of roles, otherwise false.
+     */
+    default boolean appliesToEmptyRoles() {
+        return false;
+    }
 
     /**
      * Is the decider default on for policies matching the roles() of this decider service?

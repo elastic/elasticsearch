@@ -31,20 +31,23 @@ public class FetchDocValuesContext {
      */
     public FetchDocValuesContext(SearchExecutionContext searchExecutionContext, List<FieldAndFormat> fieldPatterns) {
         for (FieldAndFormat field : fieldPatterns) {
-            Collection<String> fieldNames = searchExecutionContext.simpleMatchToIndexNames(field.field);
+            Collection<String> fieldNames = searchExecutionContext.getMatchingFieldNames(field.field);
             for (String fieldName : fieldNames) {
-                if (searchExecutionContext.isFieldMapped(fieldName)) {
-                    fields.add(new FieldAndFormat(fieldName, field.format, field.includeUnmapped));
-                }
+                fields.add(new FieldAndFormat(fieldName, field.format, field.includeUnmapped));
             }
         }
 
         int maxAllowedDocvalueFields = searchExecutionContext.getIndexSettings().getMaxDocvalueFields();
         if (fields.size() > maxAllowedDocvalueFields) {
             throw new IllegalArgumentException(
-                "Trying to retrieve too many docvalue_fields. Must be less than or equal to: [" + maxAllowedDocvalueFields
-                    + "] but was [" + fields.size() + "]. This limit can be set by changing the ["
-                    + IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey() + "] index level setting.");
+                "Trying to retrieve too many docvalue_fields. Must be less than or equal to: ["
+                    + maxAllowedDocvalueFields
+                    + "] but was ["
+                    + fields.size()
+                    + "]. This limit can be set by changing the ["
+                    + IndexSettings.MAX_DOCVALUE_FIELDS_SEARCH_SETTING.getKey()
+                    + "] index level setting."
+            );
         }
     }
 

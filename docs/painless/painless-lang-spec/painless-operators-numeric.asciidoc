@@ -668,7 +668,7 @@ def y = x/2; <2>
 ==== Remainder
 
 Use the `remainder operator '%'` to calculate the REMAINDER for division
-between two numeric type values.  Rules for NaN values and division by zero follow the JVM
+between two numeric type values. Rules for NaN values and division by zero follow the JVM
 specification.
 
 *Errors*
@@ -809,7 +809,7 @@ def y = x+2; <2>
 ==== Subtraction
 
 Use the `subtraction operator '-'` to SUBTRACT a right-hand side numeric type
-value from a left-hand side numeric type value.  Rules for resultant overflow
+value from a left-hand side numeric type value. Rules for resultant overflow
 and NaN values follow the JVM specification.
 
 *Errors*
@@ -955,7 +955,7 @@ def y = x << 1; <2>
 
 Use the `right shift operator '>>'` to SHIFT higher order bits to lower order
 bits in a left-hand side integer type value by the distance specified in a
-right-hand side integer type value.  The highest order bit of the left-hand side
+right-hand side integer type value. The highest order bit of the left-hand side
 integer type value is preserved.
 
 *Errors*

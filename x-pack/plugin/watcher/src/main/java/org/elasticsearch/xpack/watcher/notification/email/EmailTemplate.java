@@ -8,13 +8,12 @@ package org.elasticsearch.xpack.watcher.notification.email;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplate;
 import org.elasticsearch.xpack.watcher.common.text.TextTemplateEngine;
 
-import javax.mail.internet.AddressException;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -23,6 +22,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+
+import javax.mail.internet.AddressException;
 
 public class EmailTemplate implements ToXContentObject {
 
@@ -36,9 +37,17 @@ public class EmailTemplate implements ToXContentObject {
     final TextTemplate textBody;
     final TextTemplate htmlBody;
 
-    public EmailTemplate(TextTemplate from, TextTemplate[] replyTo, TextTemplate priority, TextTemplate[] to,
-                         TextTemplate[] cc, TextTemplate[] bcc, TextTemplate subject, TextTemplate textBody,
-                         TextTemplate htmlBody) {
+    public EmailTemplate(
+        TextTemplate from,
+        TextTemplate[] replyTo,
+        TextTemplate priority,
+        TextTemplate[] to,
+        TextTemplate[] cc,
+        TextTemplate[] bcc,
+        TextTemplate subject,
+        TextTemplate textBody,
+        TextTemplate htmlBody
+    ) {
         this.from = from;
         this.replyTo = replyTo;
         this.priority = priority;
@@ -86,8 +95,12 @@ public class EmailTemplate implements ToXContentObject {
         return htmlBody;
     }
 
-    public Email.Builder render(TextTemplateEngine engine, Map<String, Object> model, HtmlSanitizer htmlSanitizer,
-                                Map<String, Attachment> attachments) throws AddressException {
+    public Email.Builder render(
+        TextTemplateEngine engine,
+        Map<String, Object> model,
+        HtmlSanitizer htmlSanitizer,
+        Map<String, Attachment> attachments
+    ) throws AddressException {
         Email.Builder builder = Email.builder();
         if (from != null) {
             builder.from(engine.render(from, model));
@@ -125,12 +138,11 @@ public class EmailTemplate implements ToXContentObject {
 
         String htmlWarnings = "";
         String textWarnings = "";
-        if(warnings.isEmpty() == false){
+        if (warnings.isEmpty() == false) {
             StringBuilder textWarningBuilder = new StringBuilder();
             StringBuilder htmlWarningBuilder = new StringBuilder();
-            warnings.forEach(w ->
-            {
-                if(Strings.isNullOrEmpty(w) == false) {
+            warnings.forEach(w -> {
+                if (Strings.isNullOrEmpty(w) == false) {
                     textWarningBuilder.append(w).append("\n");
                     htmlWarningBuilder.append(w).append("<br>");
                 }
@@ -150,15 +162,15 @@ public class EmailTemplate implements ToXContentObject {
             builder.htmlBody(renderedHtml);
         }
 
-        if(htmlBody == null && textBody == null && Strings.isNullOrEmpty(textWarnings) == false){
+        if (htmlBody == null && textBody == null && Strings.isNullOrEmpty(textWarnings) == false) {
             builder.textBody(textWarnings);
         }
 
         return builder;
     }
 
-    private static Email.AddressList templatesToAddressList(TextTemplateEngine engine, TextTemplate[] templates,
-                                                            Map<String, Object> model) throws AddressException {
+    private static Email.AddressList templatesToAddressList(TextTemplateEngine engine, TextTemplate[] templates, Map<String, Object> model)
+        throws AddressException {
         List<Email.Address> addresses = new ArrayList<>(templates.length);
         for (TextTemplate template : templates) {
             Email.AddressList.parse(engine.render(template, model)).forEach(addresses::add);
@@ -171,15 +183,15 @@ public class EmailTemplate implements ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         EmailTemplate that = (EmailTemplate) o;
-        return Objects.equals(from, that.from) &&
-                Arrays.equals(replyTo, that.replyTo) &&
-                Objects.equals(priority, that.priority) &&
-                Arrays.equals(to, that.to) &&
-                Arrays.equals(cc, that.cc) &&
-                Arrays.equals(bcc, that.bcc) &&
-                Objects.equals(subject, that.subject) &&
-                Objects.equals(textBody, that.textBody) &&
-                Objects.equals(htmlBody, that.htmlBody);
+        return Objects.equals(from, that.from)
+            && Arrays.equals(replyTo, that.replyTo)
+            && Objects.equals(priority, that.priority)
+            && Arrays.equals(to, that.to)
+            && Arrays.equals(cc, that.cc)
+            && Arrays.equals(bcc, that.bcc)
+            && Objects.equals(subject, that.subject)
+            && Objects.equals(textBody, that.textBody)
+            && Objects.equals(htmlBody, that.htmlBody);
     }
 
     @Override
@@ -261,8 +273,7 @@ public class EmailTemplate implements ToXContentObject {
         private TextTemplate textBody;
         private TextTemplate htmlBody;
 
-        private Builder() {
-        }
+        private Builder() {}
 
         public Builder from(String from) {
             return from(new TextTemplate(from));
@@ -438,8 +449,11 @@ public class EmailTemplate implements ToXContentObject {
                         } else if (Email.Field.BODY_HTML.match(currentFieldName, parser.getDeprecationHandler())) {
                             builder.htmlBody(TextTemplate.parse(parser));
                         } else {
-                            throw new ElasticsearchParseException("could not parse email template. unknown field [{}.{}] field",
-                                    fieldName, currentFieldName);
+                            throw new ElasticsearchParseException(
+                                "could not parse email template. unknown field [{}.{}] field",
+                                fieldName,
+                                currentFieldName
+                            );
                         }
                     }
                 }
@@ -453,7 +467,7 @@ public class EmailTemplate implements ToXContentObject {
          * If this is a text template not using mustache
          * @param emails The list of email addresses to parse
          */
-        static void validateEmailAddresses(TextTemplate ... emails) {
+        static void validateEmailAddresses(TextTemplate... emails) {
             for (TextTemplate emailTemplate : emails) {
                 // no mustache, do validation
                 if (emailTemplate.mayRequireCompilation() == false) {

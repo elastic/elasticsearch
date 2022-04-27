@@ -26,7 +26,6 @@ public class CzechAnalyzerProvider extends AbstractIndexAnalyzerProvider<CzechAn
             Analysis.parseStopWords(env, settings, CzechAnalyzer.getDefaultStopSet()),
             Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET)
         );
-        analyzer.setVersion(version);
     }
 
     @Override

@@ -29,8 +29,13 @@ public abstract class DeferableBucketAggregator extends BucketsAggregator {
     private DeferringBucketCollector deferringCollector;
     private List<String> deferredAggregationNames;
 
-    protected DeferableBucketAggregator(String name, AggregatorFactories factories, AggregationContext context, Aggregator parent,
-            Map<String, Object> metadata) throws IOException {
+    protected DeferableBucketAggregator(
+        String name,
+        AggregatorFactories factories,
+        AggregationContext context,
+        Aggregator parent,
+        Map<String, Object> metadata
+    ) throws IOException {
         // Assumes that we're collecting MANY buckets.
         super(name, factories, context, parent, CardinalityUpperBound.MANY, metadata);
     }
@@ -57,7 +62,7 @@ public abstract class DeferableBucketAggregator extends BucketsAggregator {
             deferringCollector.setDeferredCollector(deferredAggregations);
             collectors.add(deferringCollector);
         }
-        collectableSubAggregators = MultiBucketCollector.wrap(collectors);
+        collectableSubAggregators = MultiBucketCollector.wrap(false, collectors);
     }
 
     /**

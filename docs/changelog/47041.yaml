@@ -1,0 +1,6 @@
+pr: 47041
+summary: Add support for comma delimited index patterns to rollup job configuration
+area: Rollup
+type: bug
+issues:
+ - 45591

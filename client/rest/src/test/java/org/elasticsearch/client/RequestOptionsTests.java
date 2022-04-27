@@ -71,8 +71,8 @@ public class RequestOptionsTests extends RestClientTestCase {
         assertEquals(headers, options.getHeaders());
 
         try {
-            options.getHeaders().add(
-                    new RequestOptions.ReqHeader(randomAsciiAlphanumOfLengthBetween(5, 10), randomAsciiAlphanumOfLength(3)));
+            options.getHeaders()
+                .add(new RequestOptions.ReqHeader(randomAsciiAlphanumOfLengthBetween(5, 10), randomAsciiAlphanumOfLength(3)));
             fail("expected failure");
         } catch (UnsupportedOperationException e) {
             assertNull(e.getMessage());
@@ -186,23 +186,23 @@ public class RequestOptionsTests extends RestClientTestCase {
         RequestOptions.Builder mutant = options.toBuilder();
         int mutationType = between(0, 2);
         switch (mutationType) {
-        case 0:
-            mutant.addHeader("extra", "m");
-            return mutant.build();
-        case 1:
-            mutant.setHttpAsyncResponseConsumerFactory(new HeapBufferedResponseConsumerFactory(5));
-            return mutant.build();
-        case 2:
-            mutant.setWarningsHandler(new WarningsHandler() {
-                @Override
-                public boolean warningsShouldFailRequest(List<String> warnings) {
-                    fail("never called");
-                    return false;
-                }
-            });
-            return mutant.build();
-        default:
-            throw new UnsupportedOperationException("Unknown mutation type [" + mutationType + "]");
+            case 0:
+                mutant.addHeader("extra", "m");
+                return mutant.build();
+            case 1:
+                mutant.setHttpAsyncResponseConsumerFactory(new HeapBufferedResponseConsumerFactory(5));
+                return mutant.build();
+            case 2:
+                mutant.setWarningsHandler(new WarningsHandler() {
+                    @Override
+                    public boolean warningsShouldFailRequest(List<String> warnings) {
+                        fail("never called");
+                        return false;
+                    }
+                });
+                return mutant.build();
+            default:
+                throw new UnsupportedOperationException("Unknown mutation type [" + mutationType + "]");
         }
     }
 }

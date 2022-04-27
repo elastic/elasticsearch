@@ -1,0 +1,69 @@
+// tag::cloud[]
+**Use {kib}**
+
+//tag::kibana-api-ex[]
+. Open {kib}'s main menu and go to **Dev Tools > Console**.
++
+[role="screenshot"]
+image::images/kibana-console.png[{kib} Console,align="center"]
+
+. Run the following example API request in the console:
++
+[source,console]
+----
+GET /
+----
+
+//end::kibana-api-ex[]
+
+**Use curl**
+
+To communicate with {es} using curl or another client, you need your cluster's
+endpoint.
+
+. Open {kib}'s main menu and click **Manage this deployment**.
+
+. From your deployment menu, go to the **Elasticsearch** page. Click **Copy
+endpoint**.
+
+. To submit an example API request, run the following curl command in a new
+terminal session. Replace `<password>` with the password for the `elastic` user.
+Replace `<elasticsearch_endpoint>` with your endpoint.
++
+[source,sh]
+----
+curl -u elastic:<password> <elasticsearch_endpoint>/
+----
+// NOTCONSOLE
+
+// end::cloud[]
+
+// tag::self-managed[]
+**Use {kib}**
+
+include::api-call.asciidoc[tag=kibana-api-ex]
+
+**Use curl**
+
+To submit an example API request, run the following curl command in a new
+terminal session.
+
+. Copy the `http_ca.crt` security certificate from your Docker container to
+your local machine.
++
+[source,sh]
+----
+docker cp es01:/usr/share/elasticsearch/config/certs/http_ca.crt .
+----
+
+. Open a new terminal and verify that you can connect to your {es} cluster by
+making an authenticated call, using the `http_ca.crt` file that you copied from
+your Docker container. Enter the password for the `elastic` user when prompted.
++
+[source,sh]
+----
+curl --cacert http_ca.crt -u elastic https://localhost:9200
+----
+// NOTCONSOLE
+
+// end::self-managed[]

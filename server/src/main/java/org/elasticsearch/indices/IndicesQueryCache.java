@@ -11,7 +11,6 @@ package org.elasticsearch.indices;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.LRUQueryCache;
@@ -43,15 +42,25 @@ public class IndicesQueryCache implements QueryCache, Closeable {
 
     private static final Logger logger = LogManager.getLogger(IndicesQueryCache.class);
 
-    public static final Setting<ByteSizeValue> INDICES_CACHE_QUERY_SIZE_SETTING =
-            Setting.memorySizeSetting("indices.queries.cache.size", "10%", Property.NodeScope);
+    public static final Setting<ByteSizeValue> INDICES_CACHE_QUERY_SIZE_SETTING = Setting.memorySizeSetting(
+        "indices.queries.cache.size",
+        "10%",
+        Property.NodeScope
+    );
     // mostly a way to prevent queries from being the main source of memory usage
     // of the cache
-    public static final Setting<Integer> INDICES_CACHE_QUERY_COUNT_SETTING =
-            Setting.intSetting("indices.queries.cache.count", 10_000, 1, Property.NodeScope);
+    public static final Setting<Integer> INDICES_CACHE_QUERY_COUNT_SETTING = Setting.intSetting(
+        "indices.queries.cache.count",
+        10_000,
+        1,
+        Property.NodeScope
+    );
     // enables caching on all segments instead of only the larger ones, for testing only
-    public static final Setting<Boolean> INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING =
-            Setting.boolSetting("indices.queries.cache.all_segments", false, Property.NodeScope);
+    public static final Setting<Boolean> INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING = Setting.boolSetting(
+        "indices.queries.cache.all_segments",
+        false,
+        Property.NodeScope
+    );
 
     private final LRUQueryCache cache;
     private final ShardCoreKeyMap shardKeyMap = new ShardCoreKeyMap();
@@ -66,10 +75,10 @@ public class IndicesQueryCache implements QueryCache, Closeable {
     public IndicesQueryCache(Settings settings) {
         final ByteSizeValue size = INDICES_CACHE_QUERY_SIZE_SETTING.get(settings);
         final int count = INDICES_CACHE_QUERY_COUNT_SETTING.get(settings);
-        logger.debug("using [node] query cache with size [{}] max filter count [{}]",
-                size, count);
+        logger.debug("using [node] query cache with size [{}] max filter count [{}]", size, count);
         if (INDICES_QUERIES_CACHE_ALL_SEGMENTS_SETTING.get(settings)) {
-            cache = new ElasticsearchLRUQueryCache(count, size.getBytes(), context -> true, 1f);
+            // Use the default skip_caching_factor (i.e., 10f) in Lucene
+            cache = new ElasticsearchLRUQueryCache(count, size.getBytes(), context -> true, 10f);
         } else {
             cache = new ElasticsearchLRUQueryCache(count, size.getBytes());
         }
@@ -89,17 +98,20 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         }
         shardStats.add(info);
 
-        // We also have some shared ram usage that we try to distribute to
-        // proportionally to their number of cache entries of each shard
-        long totalSize = 0;
-        for (QueryCacheStats s : stats.values()) {
-            totalSize += s.getCacheSize();
+        // We also have some shared ram usage that we try to distribute
+        // proportionally to their number of cache entries of each shard.
+        // Sometimes it's not possible to do this when there are no shard entries at all,
+        // which can happen as the shared ram usage can extend beyond the closing of all shards.
+        if (stats.isEmpty() == false) {
+            long totalSize = 0;
+            for (QueryCacheStats s : stats.values()) {
+                totalSize += s.getCacheSize();
+            }
+            final double weight = totalSize == 0 ? 1d / stats.size() : ((double) shardStats.getCacheSize()) / totalSize;
+            final long additionalRamBytesUsed = Math.round(weight * sharedRamBytesUsed);
+            assert additionalRamBytesUsed >= 0L : additionalRamBytesUsed;
+            shardStats.add(new QueryCacheStats(additionalRamBytesUsed, 0, 0, 0, 0));
         }
-        final double weight = totalSize == 0
-                ? 1d / stats.size()
-                : ((double) shardStats.getCacheSize()) / totalSize;
-        final long additionalRamBytesUsed = Math.round(weight * sharedRamBytesUsed);
-        shardStats.add(new QueryCacheStats(additionalRamBytesUsed, 0, 0, 0, 0));
         return shardStats;
     }
 
@@ -121,11 +133,6 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         protected CachingWeightWrapper(Weight in) {
             super(in.getQuery());
             this.in = in;
-        }
-
-        @Override
-        public void extractTerms(Set<Term> terms) {
-            in.extractTerms(terms);
         }
 
         @Override
@@ -205,8 +212,19 @@ public class IndicesQueryCache implements QueryCache, Closeable {
 
         @Override
         public String toString() {
-            return "{shardId=" + shardId + ", ramBytedUsed=" + ramBytesUsed + ", hitCount=" + hitCount + ", missCount=" + missCount +
-                    ", cacheCount=" + cacheCount + ", cacheSize=" + cacheSize + "}";
+            return "{shardId="
+                + shardId
+                + ", ramBytedUsed="
+                + ramBytesUsed
+                + ", hitCount="
+                + hitCount
+                + ", missCount="
+                + missCount
+                + ", cacheCount="
+                + cacheCount
+                + ", cacheSize="
+                + cacheSize
+                + "}";
         }
     }
 
@@ -225,7 +243,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         }
     }
 
-    private boolean empty(Stats stats) {
+    private static boolean empty(Stats stats) {
         if (stats == null) {
             return true;
         }
@@ -256,13 +274,7 @@ public class IndicesQueryCache implements QueryCache, Closeable {
         }
 
         private Stats getOrCreateStats(Object coreKey) {
-            final ShardId shardId = shardKeyMap.getShardId(coreKey);
-            Stats stats = shardStats.get(shardId);
-            if (stats == null) {
-                stats = new Stats(shardId);
-                shardStats.put(shardId, stats);
-            }
-            return stats;
+            return shardStats.computeIfAbsent(shardKeyMap.getShardId(coreKey), Stats::new);
         }
 
         // It's ok to not protect these callbacks by a lock since it is

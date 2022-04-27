@@ -52,14 +52,16 @@ public class SuggestStatsIT extends ESIntegTestCase {
         final int shardsIdx2 = Math.max(numNodes - shardsIdx1, randomIntBetween(1, 10));
         final int totalShards = shardsIdx1 + shardsIdx2;
         assertThat(numNodes, lessThanOrEqualTo(totalShards));
-        assertAcked(prepareCreate("test1").setSettings(Settings.builder()
-                .put(SETTING_NUMBER_OF_SHARDS, shardsIdx1)
-                .put(SETTING_NUMBER_OF_REPLICAS, 0))
-                .setMapping("f", "type=text"));
-        assertAcked(prepareCreate("test2").setSettings(Settings.builder()
-                .put(SETTING_NUMBER_OF_SHARDS, shardsIdx2)
-                .put(SETTING_NUMBER_OF_REPLICAS, 0))
-                .setMapping("f", "type=text"));
+        assertAcked(
+            prepareCreate("test1").setSettings(
+                Settings.builder().put(SETTING_NUMBER_OF_SHARDS, shardsIdx1).put(SETTING_NUMBER_OF_REPLICAS, 0)
+            ).setMapping("f", "type=text")
+        );
+        assertAcked(
+            prepareCreate("test2").setSettings(
+                Settings.builder().put(SETTING_NUMBER_OF_SHARDS, shardsIdx2).put(SETTING_NUMBER_OF_REPLICAS, 0)
+            ).setMapping("f", "type=text")
+        );
         assertThat(shardsIdx1 + shardsIdx2, equalTo(numAssignedShards("test1", "test2")));
         assertThat(numAssignedShards("test1", "test2"), greaterThanOrEqualTo(2));
         ensureGreen();
@@ -95,12 +97,18 @@ public class SuggestStatsIT extends ESIntegTestCase {
         assertThat(suggest.getSuggestCurrent(), equalTo(0L));
 
         // check suggest count
-        assertThat(suggest.getSuggestCount(),
-            equalTo((long) (suggestAllIdx * totalShards + suggestIdx1 * shardsIdx1 + suggestIdx2 * shardsIdx2)));
-        assertThat(indicesStats.getIndices().get("test1").getTotal().getSearch().getTotal().getSuggestCount(),
-            equalTo((long) ((suggestAllIdx + suggestIdx1) * shardsIdx1)));
-        assertThat(indicesStats.getIndices().get("test2").getTotal().getSearch().getTotal().getSuggestCount(),
-            equalTo((long) ((suggestAllIdx + suggestIdx2) * shardsIdx2)));
+        assertThat(
+            suggest.getSuggestCount(),
+            equalTo((long) (suggestAllIdx * totalShards + suggestIdx1 * shardsIdx1 + suggestIdx2 * shardsIdx2))
+        );
+        assertThat(
+            indicesStats.getIndices().get("test1").getTotal().getSearch().getTotal().getSuggestCount(),
+            equalTo((long) ((suggestAllIdx + suggestIdx1) * shardsIdx1))
+        );
+        assertThat(
+            indicesStats.getIndices().get("test2").getTotal().getSearch().getTotal().getSuggestCount(),
+            equalTo((long) ((suggestAllIdx + suggestIdx2) * shardsIdx2))
+        );
 
         logger.info("iter {}, iter1 {}, iter2 {}, {}", suggestAllIdx, suggestIdx1, suggestIdx2, endTime - startTime);
         // check suggest time
@@ -155,10 +163,9 @@ public class SuggestStatsIT extends ESIntegTestCase {
         return nodes;
     }
 
-
     protected int numAssignedShards(String... indices) {
         ClusterState state = client().admin().cluster().prepareState().execute().actionGet().getState();
-        GroupShardsIterator allAssignedShardsGrouped = state.routingTable().allAssignedShardsGrouped(indices, true);
+        GroupShardsIterator<?> allAssignedShardsGrouped = state.routingTable().allAssignedShardsGrouped(indices, true);
         return allAssignedShardsGrouped.size();
     }
 }

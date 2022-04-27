@@ -8,12 +8,13 @@ package org.elasticsearch.license.licensor.tools;
 
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+
+import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.LoggingAwareCommand;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
-import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -23,7 +24,7 @@ import java.security.SecureRandom;
 
 import static org.elasticsearch.license.CryptUtils.writeEncryptedPrivateKey;
 
-public class KeyPairGeneratorTool extends LoggingAwareCommand {
+public class KeyPairGeneratorTool extends Command {
 
     private final OptionSpec<String> publicKeyPathOption;
     private final OptionSpec<String> privateKeyPathOption;
@@ -31,14 +32,8 @@ public class KeyPairGeneratorTool extends LoggingAwareCommand {
     public KeyPairGeneratorTool() {
         super("Generates a key pair with RSA 2048-bit security");
         // TODO: in jopt-simple 5.0 we can use a PathConverter to take Path instead of File
-        this.publicKeyPathOption = parser.accepts("publicKeyPath", "public key path")
-            .withRequiredArg().required();
-        this.privateKeyPathOption = parser.accepts("privateKeyPath", "private key path")
-            .withRequiredArg().required();
-    }
-
-    public static void main(String[] args) throws Exception {
-        exit(new KeyPairGeneratorTool().main(args, Terminal.DEFAULT));
+        this.publicKeyPathOption = parser.accepts("publicKeyPath", "public key path").withRequiredArg().required();
+        this.privateKeyPathOption = parser.accepts("privateKeyPath", "private key path").withRequiredArg().required();
     }
 
     @Override
@@ -68,11 +63,9 @@ public class KeyPairGeneratorTool extends LoggingAwareCommand {
         Files.write(publicKeyPath, keyPair.getPublic().getEncoded());
 
         terminal.println(
-                Terminal.Verbosity.VERBOSE,
-                "generating key pair [public key: "
-                        + publicKeyPath
-                        + ", private key: "
-                        + privateKeyPath + "]");
+            Terminal.Verbosity.VERBOSE,
+            "generating key pair [public key: " + publicKeyPath + ", private key: " + privateKeyPath + "]"
+        );
     }
 
     @SuppressForbidden(reason = "Parsing command line path")

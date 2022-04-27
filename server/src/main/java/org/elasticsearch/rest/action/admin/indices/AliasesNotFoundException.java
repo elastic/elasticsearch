@@ -16,11 +16,11 @@ import java.util.Arrays;
 public class AliasesNotFoundException extends ResourceNotFoundException {
 
     public AliasesNotFoundException(String... names) {
-        super("aliases " +  Arrays.toString(names) + " missing");
+        super("aliases " + Arrays.toString(names) + " missing");
         this.setResources("aliases", names);
     }
 
-    public AliasesNotFoundException(StreamInput in) throws IOException{
+    public AliasesNotFoundException(StreamInput in) throws IOException {
         super(in);
     }
 }

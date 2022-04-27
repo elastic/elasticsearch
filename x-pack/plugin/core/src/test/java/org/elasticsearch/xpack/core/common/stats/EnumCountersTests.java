@@ -21,9 +21,18 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class EnumCountersTests extends AbstractWireTestCase<EnumCounters<EnumCountersTests.TestV2>> {
 
-    enum TestV1 {A, B, C}
+    enum TestV1 {
+        A,
+        B,
+        C
+    }
 
-    enum TestV2 {A, B, C, D}
+    enum TestV2 {
+        A,
+        B,
+        C,
+        D
+    }
 
     @Override
     protected EnumCounters<TestV2> createTestInstance() {
@@ -70,7 +79,6 @@ public class EnumCountersTests extends AbstractWireTestCase<EnumCounters<EnumCou
         assertEquals(counters.get(TestV2.C), oldCounters.get(TestV1.C));
     }
 
-
     public void testForwardCompatibility() throws Exception {
         EnumCounters<TestV1> counters = new EnumCounters<>(TestV1.class);
         counters.inc(TestV1.A, 1);
@@ -84,7 +92,9 @@ public class EnumCountersTests extends AbstractWireTestCase<EnumCounters<EnumCou
     }
 
     private <E1 extends Enum<E1>, E2 extends Enum<E2>> EnumCounters<E2> serialize(
-        EnumCounters<E1> source, Writeable.Reader<EnumCounters<E2>> targetReader) throws IOException {
+        EnumCounters<E1> source,
+        Writeable.Reader<EnumCounters<E2>> targetReader
+    ) throws IOException {
 
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             source.writeTo(output);

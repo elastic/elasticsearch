@@ -10,6 +10,7 @@ package org.elasticsearch.common;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.lang.reflect.Method;
 import java.security.SecureRandom;

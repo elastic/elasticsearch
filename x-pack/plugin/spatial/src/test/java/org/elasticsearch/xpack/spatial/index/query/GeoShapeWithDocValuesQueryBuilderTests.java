@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.spatial.LocalStateSpatialPlugin;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -39,11 +41,17 @@ public class GeoShapeWithDocValuesQueryBuilderTests extends AbstractQueryTestCas
     @Override
     protected void initializeAdditionalMappings(MapperService mapperService) throws IOException {
         if (randomBoolean()) {
-            mapperService.merge("_doc", new CompressedXContent(Strings.toString(PutMappingRequest.simpleMapping(
-                "test", "type=geo_shape"))), MapperService.MergeReason.MAPPING_UPDATE);
+            mapperService.merge(
+                "_doc",
+                new CompressedXContent(Strings.toString(PutMappingRequest.simpleMapping("test", "type=geo_shape"))),
+                MapperService.MergeReason.MAPPING_UPDATE
+            );
         } else {
-            mapperService.merge("_doc", new CompressedXContent(Strings.toString(PutMappingRequest.simpleMapping(
-                "test", "type=geo_shape,doc_values=false"))), MapperService.MergeReason.MAPPING_UPDATE);
+            mapperService.merge(
+                "_doc",
+                new CompressedXContent(Strings.toString(PutMappingRequest.simpleMapping("test", "type=geo_shape,doc_values=false"))),
+                MapperService.MergeReason.MAPPING_UPDATE
+            );
         }
     }
 
@@ -52,7 +60,8 @@ public class GeoShapeWithDocValuesQueryBuilderTests extends AbstractQueryTestCas
         Geometry geometry = randomFrom(
             GeometryTestUtils.randomPoint(false),
             GeometryTestUtils.randomLine(false),
-            GeometryTestUtils.randomPolygon(false));
+            GeometryTestUtils.randomPolygon(false)
+        );
         return new GeoShapeQueryBuilder("test", geometry);
     }
 
@@ -63,5 +72,11 @@ public class GeoShapeWithDocValuesQueryBuilderTests extends AbstractQueryTestCas
         MappedFieldType fieldType = context.getFieldType("test");
         boolean IndexOrDocValuesQuery = fieldType.hasDocValues();
         assertThat(IndexOrDocValuesQuery, equalTo(geoShapeQuery instanceof IndexOrDocValuesQuery));
+    }
+
+    @Override
+    protected Map<String, String> getObjectsHoldingArbitraryContent() {
+        // shape field can accept any element but expects a type
+        return Collections.singletonMap("shape", "Required [type]");
     }
 }

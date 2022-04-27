@@ -27,6 +27,7 @@ import static org.elasticsearch.packaging.util.Packages.installPackage;
 import static org.elasticsearch.packaging.util.Packages.remove;
 import static org.elasticsearch.packaging.util.Packages.verifyPackageInstallation;
 import static org.elasticsearch.packaging.util.Platforms.isSystemd;
+import static org.elasticsearch.packaging.util.ServerUtils.enableGeoIpDownloader;
 import static org.hamcrest.core.Is.is;
 import static org.junit.Assume.assumeTrue;
 
@@ -47,10 +48,8 @@ public class RpmPreservationTests extends PackagingTestCase {
 
     public void test20Remove() throws Exception {
         setHeap(null); // remove test heap options, so the config directory can be removed
+        enableGeoIpDownloader(installation);
         remove(distribution());
-
-        // config was removed
-        assertThat(installation.config, fileDoesNotExist());
 
         // defaults file was removed
         assertThat(installation.envFile, fileDoesNotExist());
@@ -71,17 +70,15 @@ public class RpmPreservationTests extends PackagingTestCase {
             .map(each -> installation.config(each))
             .forEach(path -> append(path, "# foo"));
         append(installation.config(Paths.get("jvm.options.d", "heap.options")), "# foo");
-        if (distribution().isDefault()) {
-            Stream.of("role_mapping.yml", "roles.yml", "users", "users_roles")
-                .map(each -> installation.config(each))
-                .forEach(path -> append(path, "# foo"));
-        }
+        Stream.of("role_mapping.yml", "roles.yml", "users", "users_roles")
+            .map(each -> installation.config(each))
+            .forEach(path -> append(path, "# foo"));
 
         remove(distribution());
         assertRemoved(distribution());
 
         if (isSystemd()) {
-            assertThat(sh.runIgnoreExitCode("systemctl is-enabled elasticsearch.service").exitCode, is(1));
+            assertThat(sh.runIgnoreExitCode("systemctl is-enabled elasticsearch.service").exitCode(), is(1));
         }
 
         assertPathsDoNotExist(
@@ -101,9 +98,7 @@ public class RpmPreservationTests extends PackagingTestCase {
         Stream.of("elasticsearch.yml", "jvm.options", "log4j2.properties").forEach(this::assertConfFilePreserved);
         assertThat(installation.config(Paths.get("jvm.options.d", "heap.options")), fileExists());
 
-        if (distribution().isDefault()) {
-            Stream.of("role_mapping.yml", "roles.yml", "users", "users_roles").forEach(this::assertConfFilePreserved);
-        }
+        Stream.of("role_mapping.yml", "roles.yml", "users", "users_roles").forEach(this::assertConfFilePreserved);
     }
 
     private void assertConfFilePreserved(String configFile) {

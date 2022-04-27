@@ -12,9 +12,14 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
+
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.TreeSet;
@@ -155,6 +160,11 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
     }
 
     @Override
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+        return new CancellableTask(id, type, action, "", parentTaskId, headers);
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         indices.writeTo(out);
@@ -179,7 +189,8 @@ public class NodesStatsRequest extends BaseNodesRequest<NodesStatsRequest> {
         INGEST("ingest"),
         ADAPTIVE_SELECTION("adaptive_selection"),
         SCRIPT_CACHE("script_cache"),
-        INDEXING_PRESSURE("indexing_pressure"),;
+        INDEXING_PRESSURE("indexing_pressure"),
+        STATS_REQUESTS("stats_requests"),;
 
         private String metricName;
 

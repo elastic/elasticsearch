@@ -15,7 +15,7 @@ import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -38,8 +38,7 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
     private String[] indices = Strings.EMPTY_ARRAY;
     private IndicesOptions indicesOptions = IndicesOptions.lenientExpandOpen();
 
-    public ClusterStateRequest() {
-    }
+    public ClusterStateRequest() {}
 
     public ClusterStateRequest(StreamInput in) throws IOException {
         super(in);
@@ -179,8 +178,9 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
 
     public ClusterStateRequest waitForMetadataVersion(long waitForMetadataVersion) {
         if (waitForMetadataVersion < 1) {
-            throw new IllegalArgumentException("provided waitForMetadataVersion should be >= 1, but instead is [" +
-                waitForMetadataVersion + "]");
+            throw new IllegalArgumentException(
+                "provided waitForMetadataVersion should be >= 1, but instead is [" + waitForMetadataVersion + "]"
+            );
         }
         this.waitForMetadataVersion = waitForMetadataVersion;
         return this;
@@ -218,8 +218,11 @@ public class ClusterStateRequest extends MasterNodeReadRequest<ClusterStateReque
             stringBuilder.append("local, ");
         }
         if (waitForMetadataVersion != null) {
-            stringBuilder.append("wait for metadata version [").append(waitForMetadataVersion)
-                    .append("] with timeout [").append(waitForTimeout).append("], ");
+            stringBuilder.append("wait for metadata version [")
+                .append(waitForMetadataVersion)
+                .append("] with timeout [")
+                .append(waitForTimeout)
+                .append("], ");
         }
         if (indices.length > 0) {
             stringBuilder.append("indices ").append(Arrays.toString(indices)).append(", ");

@@ -11,7 +11,7 @@ package org.elasticsearch.action.support.master;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.core.TimeValue;
 
 import java.io.IOException;
 
@@ -24,8 +24,7 @@ public abstract class MasterNodeRequest<Request extends MasterNodeRequest<Reques
 
     protected TimeValue masterNodeTimeout = DEFAULT_MASTER_NODE_TIMEOUT;
 
-    protected MasterNodeRequest() {
-    }
+    protected MasterNodeRequest() {}
 
     protected MasterNodeRequest(StreamInput in) throws IOException {
         super(in);

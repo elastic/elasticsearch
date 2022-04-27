@@ -9,16 +9,16 @@
 package org.elasticsearch.http;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.ReleasableBytesStreamOutput;
-import org.elasticsearch.common.lease.Releasable;
-import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -29,7 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.tasks.Task.X_OPAQUE_ID;
+import static org.elasticsearch.tasks.Task.X_OPAQUE_ID_HTTP_HEADER;
 
 /**
  * The default rest channel for incoming requests. This class implements the basic logic for sending a rest
@@ -54,9 +54,16 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     @Nullable
     private final HttpTracer tracerLog;
 
-    DefaultRestChannel(HttpChannel httpChannel, HttpRequest httpRequest, RestRequest request, BigArrays bigArrays,
-                       HttpHandlingSettings settings, ThreadContext threadContext, CorsHandler corsHandler,
-                       @Nullable HttpTracer tracerLog) {
+    DefaultRestChannel(
+        HttpChannel httpChannel,
+        HttpRequest httpRequest,
+        RestRequest request,
+        BigArrays bigArrays,
+        HttpHandlingSettings settings,
+        ThreadContext threadContext,
+        CorsHandler corsHandler,
+        @Nullable HttpTracer tracerLog
+    ) {
         super(request, settings.getDetailedErrorsEnabled());
         this.httpChannel = httpChannel;
         this.httpRequest = httpRequest;
@@ -75,7 +82,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
     @Override
     public void sendResponse(RestResponse restResponse) {
         // We're sending a response so we know we won't be needing the request content again and release it
-        Releasables.closeWhileHandlingException(httpRequest::release);
+        httpRequest.release();
 
         final ArrayList<Releasable> toClose = new ArrayList<>(3);
         if (HttpUtils.shouldCloseConnection(httpRequest)) {
@@ -90,6 +97,7 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
             if (content instanceof Releasable) {
                 toClose.add((Releasable) content);
             }
+            toClose.add(this::releaseOutputBuffer);
 
             BytesReference finalContent = content;
             try {
@@ -97,17 +105,17 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
                     finalContent = BytesArray.EMPTY;
                 }
             } catch (IllegalArgumentException ignored) {
-                assert restResponse.status() == RestStatus.METHOD_NOT_ALLOWED :
-                    "request HTTP method is unsupported but HTTP status is not METHOD_NOT_ALLOWED(405)";
+                assert restResponse.status() == RestStatus.METHOD_NOT_ALLOWED
+                    : "request HTTP method is unsupported but HTTP status is not METHOD_NOT_ALLOWED(405)";
             }
 
             final HttpResponse httpResponse = httpRequest.createResponse(restResponse.status(), finalContent);
 
             corsHandler.setCorsResponseHeaders(httpRequest, httpResponse);
 
-            opaque = request.header(X_OPAQUE_ID);
+            opaque = request.header(X_OPAQUE_ID_HTTP_HEADER);
             if (opaque != null) {
-                setHeaderField(httpResponse, X_OPAQUE_ID, opaque);
+                setHeaderField(httpResponse, X_OPAQUE_ID_HTTP_HEADER, opaque);
             }
 
             // Add all custom headers
@@ -122,13 +130,10 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
 
             addCookies(httpResponse);
 
-            BytesStreamOutput bytesStreamOutput = bytesOutputOrNull();
-            if (bytesStreamOutput instanceof ReleasableBytesStreamOutput) {
-                toClose.add((Releasable) bytesStreamOutput);
-            }
-
             ActionListener<Void> listener = ActionListener.wrap(() -> Releasables.close(toClose));
-            httpChannel.sendResponse(httpResponse, listener);
+            try (ThreadContext.StoredContext existing = threadContext.stashContext()) {
+                httpChannel.sendResponse(httpResponse, listener);
+            }
             success = true;
         } finally {
             if (success == false) {
@@ -140,17 +145,17 @@ public class DefaultRestChannel extends AbstractRestChannel implements RestChann
         }
     }
 
-    private void setHeaderField(HttpResponse response, String headerField, String value) {
+    private static void setHeaderField(HttpResponse response, String headerField, String value) {
         setHeaderField(response, headerField, value, true);
     }
 
-    private void setHeaderField(HttpResponse response, String headerField, String value, boolean override) {
+    private static void setHeaderField(HttpResponse response, String headerField, String value, boolean override) {
         if (override || response.containsHeader(headerField) == false) {
             response.addHeader(headerField, value);
         }
     }
 
-    private void addCustomHeaders(HttpResponse response, Map<String, List<String>> customHeaders) {
+    private static void addCustomHeaders(HttpResponse response, Map<String, List<String>> customHeaders) {
         if (customHeaders != null) {
             for (Map.Entry<String, List<String>> headerEntry : customHeaders.entrySet()) {
                 for (String headerValue : headerEntry.getValue()) {

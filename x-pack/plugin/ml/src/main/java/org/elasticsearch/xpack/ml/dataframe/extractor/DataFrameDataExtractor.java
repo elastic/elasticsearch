@@ -13,9 +13,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.util.CachedSupplier;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -118,6 +118,51 @@ public class DataFrameDataExtractor {
         return hits;
     }
 
+    /**
+     * Provides a preview of the data. Assumes this was created from the source indices.
+     * Does no sorting of the results.
+     * @param listener To alert with the extracted rows
+     */
+    public void preview(ActionListener<List<Row>> listener) {
+
+        SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client, SearchAction.INSTANCE)
+            // This ensures the search throws if there are failures and the scroll context gets cleared automatically
+            .setAllowPartialSearchResults(false)
+            .setIndices(context.indices)
+            .setSize(context.scrollSize)
+            .setQuery(QueryBuilders.boolQuery().filter(context.query));
+
+        setFetchSource(searchRequestBuilder);
+
+        for (ExtractedField docValueField : context.extractedFields.getDocValueFields()) {
+            searchRequestBuilder.addDocValueField(docValueField.getSearchField(), docValueField.getDocValueFormat());
+        }
+
+        searchRequestBuilder.setRuntimeMappings(context.runtimeMappings);
+
+        ClientHelper.executeWithHeadersAsync(
+            context.headers,
+            ClientHelper.ML_ORIGIN,
+            client,
+            SearchAction.INSTANCE,
+            searchRequestBuilder.request(),
+            ActionListener.wrap(searchResponse -> {
+                if (searchResponse.getHits().getHits().length == 0) {
+                    listener.onResponse(Collections.emptyList());
+                    return;
+                }
+
+                final SearchHit[] hits = searchResponse.getHits().getHits();
+                List<Row> rows = new ArrayList<>(hits.length);
+                for (SearchHit hit : hits) {
+                    String[] extractedValues = extractValues(hit);
+                    rows.add(extractedValues == null ? new Row(null, hit, true) : new Row(extractedValues, hit, false));
+                }
+                listener.onResponse(rows);
+            }, listener::onFailure)
+        );
+    }
+
     protected List<Row> nextSearch() throws IOException {
         return tryRequestWithSearchResponse(() -> executeSearchRequest(buildSearchRequest()));
     }
@@ -154,15 +199,22 @@ public class DataFrameDataExtractor {
         long from = lastSortKey + 1;
         long to = from + context.scrollSize;
 
-        LOGGER.trace(() -> new ParameterizedMessage(
-            "[{}] Searching docs with [{}] in [{}, {})", context.jobId, DestinationIndex.INCREMENTAL_ID, from, to));
+        LOGGER.trace(
+            () -> new ParameterizedMessage(
+                "[{}] Searching docs with [{}] in [{}, {})",
+                context.jobId,
+                DestinationIndex.INCREMENTAL_ID,
+                from,
+                to
+            )
+        );
 
         SearchRequestBuilder searchRequestBuilder = new SearchRequestBuilder(client, SearchAction.INSTANCE)
-                // This ensures the search throws if there are failures and the scroll context gets cleared automatically
-                .setAllowPartialSearchResults(false)
-                .addSort(DestinationIndex.INCREMENTAL_ID, SortOrder.ASC)
-                .setIndices(context.indices)
-                .setSize(context.scrollSize);
+            // This ensures the search throws if there are failures and the scroll context gets cleared automatically
+            .setAllowPartialSearchResults(false)
+            .addSort(DestinationIndex.INCREMENTAL_ID, SortOrder.ASC)
+            .setIndices(context.indices)
+            .setSize(context.scrollSize);
 
         searchRequestBuilder.setQuery(
             QueryBuilders.boolQuery()
@@ -247,7 +299,8 @@ public class DataFrameDataExtractor {
                 "field_processor [{}] output size expected to be [{}], instead it was [{}]",
                 processedField.getProcessorName(),
                 processedField.getOutputFieldNames().size(),
-                values.length);
+                values.length
+            );
         }
 
         for (int i = 0; i < processedField.getOutputFieldNames().size(); ++i) {
@@ -266,29 +319,44 @@ public class DataFrameDataExtractor {
     }
 
     private Row createRow(SearchHit hit) {
+        String[] extractedValues = extractValues(hit);
+        if (extractedValues == null) {
+            return new Row(null, hit, true);
+        }
+        boolean isTraining = trainTestSplitter.get().isTraining(extractedValues);
+        Row row = new Row(extractedValues, hit, isTraining);
+        LOGGER.trace(
+            () -> new ParameterizedMessage(
+                "[{}] Extracted row: sort key = [{}], is_training = [{}], values = {}",
+                context.jobId,
+                row.getSortKey(),
+                isTraining,
+                Arrays.toString(row.values)
+            )
+        );
+        return row;
+    }
+
+    private String[] extractValues(SearchHit hit) {
         String[] extractedValues = new String[organicFeatures.length + processedFeatures.length];
         int i = 0;
         for (String organicFeature : organicFeatures) {
             String extractedValue = extractNonProcessedValues(hit, organicFeature);
             if (extractedValue == null) {
-                return new Row(null, hit, true);
+                return null;
             }
             extractedValues[i++] = extractedValue;
         }
         for (ProcessedField processedField : context.extractedFields.getProcessedFields()) {
             String[] processedValues = extractProcessedValue(processedField, hit);
             if (processedValues == null) {
-                return new Row(null, hit, true);
+                return null;
             }
             for (String processedValue : processedValues) {
                 extractedValues[i++] = processedValue;
             }
         }
-        boolean isTraining = trainTestSplitter.get().isTraining(extractedValues);
-        Row row = new Row(extractedValues, hit, isTraining);
-        LOGGER.trace(() -> new ParameterizedMessage("[{}] Extracted row: sort key = [{}], is_training = [{}], values = {}",
-            context.jobId, row.getSortKey(), isTraining, Arrays.toString(row.values)));
-        return row;
+        return extractedValues;
     }
 
     private void markScrollAsErrored() {
@@ -317,29 +385,29 @@ public class DataFrameDataExtractor {
         SearchRequestBuilder searchRequestBuilder = buildDataSummarySearchRequestBuilder();
         final int numberOfFields = organicFeatures.length + processedFeatures.length;
 
-        ClientHelper.executeWithHeadersAsync(context.headers,
+        ClientHelper.executeWithHeadersAsync(
+            context.headers,
             ClientHelper.ML_ORIGIN,
             client,
             SearchAction.INSTANCE,
             searchRequestBuilder.request(),
             ActionListener.wrap(
                 searchResponse -> dataSummaryActionListener.onResponse(
-                    new DataSummary(searchResponse.getHits().getTotalHits().value, numberOfFields)),
-            dataSummaryActionListener::onFailure
-        ));
+                    new DataSummary(searchResponse.getHits().getTotalHits().value, numberOfFields)
+                ),
+                dataSummaryActionListener::onFailure
+            )
+        );
     }
 
     private SearchRequestBuilder buildDataSummarySearchRequestBuilder() {
 
         QueryBuilder summaryQuery = context.query;
         if (context.supportsRowsWithMissingValues == false) {
-            summaryQuery = QueryBuilders.boolQuery()
-                .filter(summaryQuery)
-                .filter(allExtractedFieldsExistQuery());
+            summaryQuery = QueryBuilders.boolQuery().filter(summaryQuery).filter(allExtractedFieldsExistQuery());
         }
 
-        return new SearchRequestBuilder(client, SearchAction.INSTANCE)
-            .setAllowPartialSearchResults(false)
+        return new SearchRequestBuilder(client, SearchAction.INSTANCE).setAllowPartialSearchResults(false)
             .setIndices(context.indices)
             .setSize(0)
             .setQuery(summaryQuery)

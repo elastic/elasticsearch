@@ -1,0 +1,151 @@
+---
+"Create index with mappings":
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            {}
+
+  - do:
+      indices.get_mapping:
+        index: test_index
+
+  - is_true: test_index.mappings
+
+---
+"Create index with settings":
+
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            number_of_replicas: "0"
+
+  - do:
+      indices.get_settings:
+        index: test_index
+
+  - match: { test_index.settings.index.number_of_replicas: "0"}
+
+---
+"Create index":
+
+  - do:
+      indices.create:
+        index: test_index
+
+  - match: { acknowledged: true }
+  - match: { index: "test_index"}
+
+---
+"Create index with wait_for_active_shards set to all":
+
+  - do:
+      indices.create:
+        index: test_index
+        wait_for_active_shards: all
+        body:
+          settings:
+            number_of_replicas: "0"
+
+  - match: { acknowledged: true }
+  - match: { shards_acknowledged: true }
+
+---
+"Create index with aliases":
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            properties:
+              field:
+                type: text
+          aliases:
+            test_alias: {}
+            test_blias:
+              routing: b
+            test_clias:
+              filter:
+                term:
+                  field : value
+
+  - do:
+      indices.get_alias:
+        index: test_index
+
+  - match: {test_index.aliases.test_blias.search_routing: b}
+  - match: {test_index.aliases.test_blias.index_routing: b}
+  - is_false: test_index.aliases.test_blias.filter
+  - match: {test_index.aliases.test_clias.filter.term.field: value}
+  - is_false: test_index.aliases.test_clias.index_routing
+  - is_false: test_index.aliases.test_clias.search_routing
+
+---
+"Create index with write aliases":
+
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          aliases:
+            test_alias: {}
+            test_blias:
+              is_write_index: false
+            test_clias:
+              is_write_index: true
+
+  - do:
+      indices.get_alias:
+        index: test_index
+
+  - is_false: test_index.aliases.test_alias.is_write_index
+  - is_false: test_index.aliases.test_blias.is_write_index
+  - is_true: test_index.aliases.test_clias.is_write_index
+
+---
+"Create index with invalid mappings":
+  - do:
+      catch: /illegal_argument_exception/
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            properties:
+              "":
+                type:     keyword
+
+---
+"Create index without soft deletes":
+  - skip:
+      version:  " - 7.99.99"
+      reason:   "indices without soft-deletes is no longer supported "
+  - do:
+      catch: /illegal_argument_exception/
+      indices.create:
+        index: test_index
+        body:
+          settings:
+            soft_deletes.enabled: false
+
+---
+"Create with alias containing date math":
+  - skip:
+      version: " - 7.12.99"
+      reason: "date math support for aliases was added in 7.13"
+  - do:
+      indices.create:
+        index: <logs_http_{2022-12-31||/d{yyyy-MM-dd}}>
+        body:
+          aliases:
+            '<logs_{2022-12-31||/d{yyyy-MM-dd}}>': {}
+
+  - do:
+      indices.exists_alias:
+        name: logs_2022-12-31
+  - is_true: ''

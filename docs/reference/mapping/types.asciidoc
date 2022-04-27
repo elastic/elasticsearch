@@ -7,14 +7,13 @@ intended use. For example, you can index strings to both `text` and `keyword`
 fields. However, `text` field values are <<analysis,analyzed>> for full-text
 search while `keyword` strings are left as-is for filtering and sorting.
 
-Field types are grouped by _family_. Types in the same family support the same
-search functionality but may have different space usage or performance
+Field types are grouped by _family_. Types in the same family have exactly the
+same search behavior but may have different space usage or performance
 characteristics.
 
-Currently, the only type family is `keyword`, which consists of the `keyword`,
-`constant_keyword`, and `wildcard` field types. Other type families have only a
-single field type. For example, the `boolean` type family consists of one field
-type: `boolean`.
+Currently, there are two type families, `keyword` and `text`. Other type
+families have only a single field type. For example, the `boolean` type family
+consists of one field type: `boolean`.
 
 
 [discrete]
@@ -29,7 +28,7 @@ type: `boolean`.
                         express amounts.
 Dates::                 Date types, including <<date,`date`>> and
                         <<date_nanos,`date_nanos`>>.
-<<alias,`alias`>>::     Defines an alias for an existing field.
+<<field-alias,`alias`>>::     Defines an alias for an existing field.
 
 
 [discrete]
@@ -69,7 +68,8 @@ values.
 [[text-search-types]]
 ==== Text search types
 
-<<text,`text`>>:: Analyzed, unstructured text.
+<<text,`text` fields>>:: The text family, including `text` and `match_only_text`.
+                         Analyzed, unstructured text.
 {plugins}/mapper-annotated-text.html[`annotated-text`]:: Text containing special
 markup. Used for identifying named entities.
 <<completion-suggester,`completion`>>:: Used for auto-complete suggestions.
@@ -119,7 +119,7 @@ same field type. See <<array>>.
 It is often useful to index the same field in different ways for different
 purposes. For instance, a `string` field could be mapped as
 a `text` field for full-text search, and as a `keyword` field for
-sorting or aggregations.  Alternatively, you could index a text field with
+sorting or aggregations. Alternatively, you could index a text field with
 the <<analysis-standard-analyzer,`standard` analyzer>>, the
 <<english-analyzer,`english`>> analyzer, and the
 <<french-analyzer,`french` analyzer>>.

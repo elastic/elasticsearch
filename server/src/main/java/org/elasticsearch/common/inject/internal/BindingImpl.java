@@ -20,7 +20,6 @@ import org.elasticsearch.common.inject.Binding;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.Provider;
-import org.elasticsearch.common.inject.spi.BindingScopingVisitor;
 import org.elasticsearch.common.inject.spi.ElementVisitor;
 import org.elasticsearch.common.inject.spi.InstanceBinding;
 
@@ -35,8 +34,7 @@ public abstract class BindingImpl<T> implements Binding<T> {
     private final Scoping scoping;
     private final InternalFactory<? extends T> internalFactory;
 
-    public BindingImpl(Injector injector, Key<T> key, Object source,
-                       InternalFactory<? extends T> internalFactory, Scoping scoping) {
+    public BindingImpl(Injector injector, Key<T> key, Object source, InternalFactory<? extends T> internalFactory, Scoping scoping) {
         this.injector = injector;
         this.key = key;
         this.source = source;
@@ -97,26 +95,13 @@ public abstract class BindingImpl<T> implements Binding<T> {
         return visitor.visit(this);
     }
 
-    @Override
-    public <V> V acceptScopingVisitor(BindingScopingVisitor<V> visitor) {
-        return scoping.acceptVisitor(visitor);
-    }
-
     protected BindingImpl<T> withScoping(Scoping scoping) {
-        throw new AssertionError();
-    }
-
-    protected BindingImpl<T> withKey(Key<T> key) {
         throw new AssertionError();
     }
 
     @Override
     public String toString() {
-        return new ToStringBuilder(Binding.class)
-                .add("key", key)
-                .add("scope", scoping)
-                .add("source", source)
-                .toString();
+        return new ToStringBuilder(Binding.class).add("key", key).add("scope", scoping).add("source", source).toString();
     }
 
     public Injector getInjector() {

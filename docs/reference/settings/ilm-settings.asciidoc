@@ -37,8 +37,9 @@ You can explicitly set it to <<skipping-rollover, skip rollover>>.
 Defaults to `false`.
 
 `index.lifecycle.name`::
-(<<indices-update-settings, Dynamic>>, string) 
-The name of the policy to use to manage the index.
+(<<indices-update-settings, Dynamic>>, string)
+The name of the policy to use to manage the index. For information about how
+{es} applies policy changes, see <<update-lifecycle-policy>>.
 
 [[index-lifecycle-origination-date]]
 `index.lifecycle.origination_date`::
@@ -58,6 +59,13 @@ where the `date_format` is `yyyy.MM.dd` and the trailing digits are optional.
 An index that was rolled over would normally match the full format, 
 for example `logs-2016.10.31-000002`). 
 If the index name doesn't match the pattern, index creation fails.
+
+[[index-lifecycle-step-wait-time-threshold]]
+`index.lifecycle.step.wait_time_threshold`::
+(<<indices-update-settings,Dynamic>>, <<time-units,time value>>)
+Time to wait for the cluster to resolve allocation issues during an {ilm-init}
+<<ilm-shrink,`shrink`>> action. Must be greater than `1h` (1 hour). Defaults to
+`12h` (12 hours). See <<ilm-shrink-shard-allocation>>.
 
 `index.lifecycle.rollover_alias`::
 (<<indices-update-settings,Dynamic>>, string) 

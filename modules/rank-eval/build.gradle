@@ -5,7 +5,8 @@
  * in compliance with, at your election, the Elastic License 2.0 or the Server
  * Side Public License, v 1.
  */
-apply plugin: 'elasticsearch.yaml-rest-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -15,11 +16,11 @@ esplugin {
 
 restResources {
   restApi {
-    includeCore '_common', 'indices', 'index', 'rank_eval'
+    include '_common', 'indices', 'index', 'rank_eval'
   }
 }
 
-testClusters.all {
+testClusters.configureEach {
   // Modules who's integration is explicitly tested in integration tests
   module ':modules:lang-mustache'
 }

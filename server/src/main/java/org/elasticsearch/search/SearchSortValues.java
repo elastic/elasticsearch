@@ -8,19 +8,19 @@
 
 package org.elasticsearch.search;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.xcontent.ToXContentFragment;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.search.SearchHit.Fields;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Objects;
 
 public class SearchSortValues implements ToXContentFragment, Writeable {
@@ -43,16 +43,12 @@ public class SearchSortValues implements ToXContentFragment, Writeable {
             throw new IllegalArgumentException("formattedSortValues and sortValueFormats must hold the same number of items");
         }
         this.rawSortValues = rawSortValues;
-        this.formattedSortValues = Arrays.copyOf(rawSortValues, rawSortValues.length);
+        this.formattedSortValues = new Object[rawSortValues.length];
         for (int i = 0; i < rawSortValues.length; ++i) {
-            Object sortValue = rawSortValues[i];
-            if (sortValue instanceof BytesRef) {
-                this.formattedSortValues[i] = sortValueFormats[i].format((BytesRef) sortValue);
-            } else if ((sortValue instanceof Long) && (sortValueFormats[i] == DocValueFormat.UNSIGNED_LONG_SHIFTED)) {
-                this.formattedSortValues[i] = sortValueFormats[i].format((Long) sortValue);
-            } else {
-                this.formattedSortValues[i] = sortValue;
-            }
+            final Object v = sortValueFormats[i].formatSortValue(rawSortValues[i]);
+            assert v == null || v instanceof String || v instanceof Number || v instanceof Boolean || v instanceof Map
+                : v + " was not formatted";
+            formattedSortValues[i] = v;
         }
     }
 
@@ -107,8 +103,7 @@ public class SearchSortValues implements ToXContentFragment, Writeable {
             return false;
         }
         SearchSortValues that = (SearchSortValues) o;
-        return Arrays.equals(formattedSortValues, that.formattedSortValues) &&
-            Arrays.equals(rawSortValues, that.rawSortValues);
+        return Arrays.equals(formattedSortValues, that.formattedSortValues) && Arrays.equals(rawSortValues, that.rawSortValues);
     }
 
     @Override

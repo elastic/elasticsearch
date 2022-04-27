@@ -1,5 +1,4 @@
 [role="xpack"]
-[testenv="basic"]
 [[sql-cli]]
 == SQL CLI
 

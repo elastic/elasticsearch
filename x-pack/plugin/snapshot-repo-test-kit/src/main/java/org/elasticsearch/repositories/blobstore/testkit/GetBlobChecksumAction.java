@@ -17,12 +17,11 @@ import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.blobstore.BlobContainer;
-import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryVerificationException;
@@ -85,7 +84,8 @@ public class GetBlobChecksumAction extends ActionType<GetBlobChecksumAction.Resp
             }
 
             final BlobStoreRepository blobStoreRepository = (BlobStoreRepository) repository;
-            final BlobContainer blobContainer = blobStoreRepository.blobStore().blobContainer(new BlobPath().add(request.getBlobPath()));
+            final BlobContainer blobContainer = blobStoreRepository.blobStore()
+                .blobContainer(blobStoreRepository.basePath().add(request.getBlobPath()));
 
             logger.trace("handling [{}]", request);
 

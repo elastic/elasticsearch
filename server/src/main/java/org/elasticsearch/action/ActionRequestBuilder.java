@@ -8,8 +8,8 @@
 
 package org.elasticsearch.action;
 
-import org.elasticsearch.client.ElasticsearchClient;
-import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.client.internal.ElasticsearchClient;
+import org.elasticsearch.core.TimeValue;
 
 import java.util.Objects;
 

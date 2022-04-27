@@ -7,13 +7,12 @@
 package org.elasticsearch.xpack.core.security.action.user;
 
 import org.elasticsearch.action.ActionRequestBuilder;
-import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.client.internal.ElasticsearchClient;
 
 /**
  * Request builder for checking a user's privileges
  */
-public class GetUserPrivilegesRequestBuilder
-        extends ActionRequestBuilder<GetUserPrivilegesRequest, GetUserPrivilegesResponse> {
+public class GetUserPrivilegesRequestBuilder extends ActionRequestBuilder<GetUserPrivilegesRequest, GetUserPrivilegesResponse> {
 
     public GetUserPrivilegesRequestBuilder(ElasticsearchClient client) {
         super(client, GetUserPrivilegesAction.INSTANCE, new GetUserPrivilegesRequest());

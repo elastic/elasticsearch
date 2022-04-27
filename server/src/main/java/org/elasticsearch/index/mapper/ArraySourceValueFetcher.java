@@ -8,7 +8,7 @@
 
 package org.elasticsearch.index.mapper;
 
-import org.elasticsearch.common.Nullable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SourceLookup;
 
@@ -43,7 +43,7 @@ public abstract class ArraySourceValueFetcher implements ValueFetcher {
     }
 
     @Override
-    public List<Object> fetchValues(SourceLookup lookup) {
+    public List<Object> fetchValues(SourceLookup lookup, List<Object> ignoredValues) {
         List<Object> values = new ArrayList<>();
         for (String path : sourcePaths) {
             Object sourceValue = lookup.extractValue(path, nullValue);
@@ -55,7 +55,7 @@ public abstract class ArraySourceValueFetcher implements ValueFetcher {
             } catch (Exception e) {
                 // if parsing fails here then it would have failed at index time
                 // as well, meaning that we must be ignoring malformed values.
-                // So ignore it here too.
+                ignoredValues.add(sourceValue);
             }
         }
         return values;

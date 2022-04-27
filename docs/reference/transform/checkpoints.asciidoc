@@ -10,7 +10,8 @@ destination index, it generates a _checkpoint_.
 
 If your {transform} runs only once, there is logically only one checkpoint. If 
 your {transform} runs continuously, however, it creates checkpoints as it 
-ingests and transforms new source data.
+ingests and transforms new source data. The `sync` property of the {transform} 
+configures checkpointing by specifying a time field.
 
 To create a checkpoint, the {ctransform}:
 
@@ -22,21 +23,25 @@ indices. This check is done based on the interval defined in the transform's
 +
 If the source indices remain unchanged or if a checkpoint is already in progress
 then it waits for the next timer.
-
-. Identifies which entities have changed.
 +
-The {transform} searches to see which entities have changed since the last time 
-it checked. The `sync` configuration object in the {transform} identifies a time 
-field in the source indices. The {transform} uses the values in that field to 
-synchronize the source and destination indices.
+If changes are found a checkpoint is created.
+
+. Identifies which entities and/or time buckets have changed.
++
+The {transform} searches to see which entities or time buckets have changed 
+between the last and the new checkpoint. The {transform} uses the values to
+synchronize the source and destination indices with fewer operations than a
+full re-run.
  
-. Updates the destination index (the {dataframe}) with the changed entities.
+. Updates the destination index (the {dataframe}) with the changes.
 +
 --
-The {transform} applies changes related to either new or changed entities to the 
-destination index. The set of changed entities is paginated. For each page, the 
-{transform} performs a composite aggregation using a `terms` query. After all 
-the pages of changes have been applied, the checkpoint is complete.
+The {transform} applies changes related to either new or changed entities or
+time buckets to the destination index. The set of changes can be paginated. The
+{transform} performs a composite aggregation similarly to the batch {transform} 
+operation, however it also injects query filters based on the previous step to 
+reduce the amount of work. After all changes have been applied, the checkpoint is 
+complete.
 --
 
 This checkpoint process involves both search and indexing activity on the
@@ -48,6 +53,25 @@ support both the composite aggregation search and the indexing of its results.
 
 TIP: If the cluster experiences unsuitable performance degradation due to the
 {transform}, stop the {transform} and refer to <<transform-performance>>.
+
+
+[discrete]
+[[ml-transform-checkpoint-heuristics]]
+== Change detection heuristics
+
+When the {transform} runs in continuous mode, it updates the documents in the
+destination index as new data comes in. The {transform} uses a set of heuristics
+called change detection to update the destination index with fewer operations.
+
+In this example, the data is grouped by host names. Change detection detects 
+which host names have changed,  for example, host `A`, `C` and `G` and only 
+updates documents with those hosts but does not update documents that store 
+information about host `B`, `D`, or any other host that are not changed.
+
+Another heuristic can be applied for time buckets when a `date_histogram` is 
+used to group by time buckets. Change detection detects which time buckets have 
+changed and only update those.
+
 
 [discrete]
 [[ml-transform-checkpoint-errors]]

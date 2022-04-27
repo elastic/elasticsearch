@@ -83,7 +83,6 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         final int count = randomIntBetween(3, 5);
         List<SamlServiceProviderDocument> documents = new ArrayList<>(count);
 
-        final ClusterService clusterService = super.getInstanceFromNode(ClusterService.class);
         // Install the template
         assertTrue("Template should have been installed", installTemplate());
         // No need to install it again
@@ -102,7 +101,7 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         assertThat(indexMetadata, notNullValue());
         assertThat(indexMetadata.getSettings().get("index.format"), equalTo("1"));
         assertThat(indexMetadata.getAliases().size(), equalTo(1));
-        assertThat(indexMetadata.getAliases().keys().toArray(), arrayContainingInAnyOrder(SamlServiceProviderIndex.ALIAS_NAME));
+        assertThat(indexMetadata.getAliases().keySet().toArray(), arrayContainingInAnyOrder(SamlServiceProviderIndex.ALIAS_NAME));
 
         refresh();
 
@@ -140,7 +139,7 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
         assertThat(indexMetadata, notNullValue());
         assertThat(indexMetadata.getSettings().get("index.format"), equalTo("1"));
         assertThat(indexMetadata.getAliases().size(), equalTo(1));
-        assertThat(indexMetadata.getAliases().keys().toArray(), arrayContainingInAnyOrder(SamlServiceProviderIndex.ALIAS_NAME));
+        assertThat(indexMetadata.getAliases().keySet().toArray(), arrayContainingInAnyOrder(SamlServiceProviderIndex.ALIAS_NAME));
 
         SamlServiceProviderDocument document = randomDocument(1);
         writeDocument(document);
@@ -191,10 +190,14 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
 
     private Set<SamlServiceProviderDocument> getAllDocs() {
         final PlainActionFuture<Set<SamlServiceProviderDocument>> future = new PlainActionFuture<>();
-        serviceProviderIndex.findAll(assertListenerIsOnlyCalledOnce(ActionListener.wrap(
-            set -> future.onResponse(set.stream().map(doc -> doc.document.get()).collect(Collectors.toUnmodifiableSet())),
-            future::onFailure
-        )));
+        serviceProviderIndex.findAll(
+            assertListenerIsOnlyCalledOnce(
+                ActionListener.wrap(
+                    set -> future.onResponse(set.stream().map(doc -> doc.document.get()).collect(Collectors.toUnmodifiableSet())),
+                    future::onFailure
+                )
+            )
+        );
         return future.actionGet();
     }
 
@@ -207,16 +210,26 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
 
     private void writeDocument(SamlServiceProviderDocument doc) {
         final PlainActionFuture<DocWriteResponse> future = new PlainActionFuture<>();
-        serviceProviderIndex.writeDocument(doc, DocWriteRequest.OpType.INDEX, WriteRequest.RefreshPolicy.WAIT_UNTIL,
-            assertListenerIsOnlyCalledOnce(future));
+        serviceProviderIndex.writeDocument(
+            doc,
+            DocWriteRequest.OpType.INDEX,
+            WriteRequest.RefreshPolicy.WAIT_UNTIL,
+            assertListenerIsOnlyCalledOnce(future)
+        );
         doc.setDocId(future.actionGet().getId());
     }
 
     private DeleteResponse deleteDocument(SamlServiceProviderDocument doc) {
         final PlainActionFuture<DeleteResponse> future = new PlainActionFuture<>();
-        serviceProviderIndex.readDocument(doc.docId, assertListenerIsOnlyCalledOnce(ActionListener.wrap(
-            info -> serviceProviderIndex.deleteDocument(info.version, WriteRequest.RefreshPolicy.IMMEDIATE, future),
-            future::onFailure)));
+        serviceProviderIndex.readDocument(
+            doc.docId,
+            assertListenerIsOnlyCalledOnce(
+                ActionListener.wrap(
+                    info -> serviceProviderIndex.deleteDocument(info.version, WriteRequest.RefreshPolicy.IMMEDIATE, future),
+                    future::onFailure
+                )
+            )
+        );
         return future.actionGet();
     }
 
@@ -228,10 +241,15 @@ public class SamlServiceProviderIndexTests extends ESSingleNodeTestCase {
 
     private Set<SamlServiceProviderDocument> findAllByEntityId(String entityId) {
         final PlainActionFuture<Set<SamlServiceProviderDocument>> future = new PlainActionFuture<>();
-        serviceProviderIndex.findByEntityId(entityId, assertListenerIsOnlyCalledOnce(ActionListener.wrap(
-            set -> future.onResponse(set.stream().map(doc -> doc.document.get()).collect(Collectors.toUnmodifiableSet())),
-            future::onFailure
-        )));
+        serviceProviderIndex.findByEntityId(
+            entityId,
+            assertListenerIsOnlyCalledOnce(
+                ActionListener.wrap(
+                    set -> future.onResponse(set.stream().map(doc -> doc.document.get()).collect(Collectors.toUnmodifiableSet())),
+                    future::onFailure
+                )
+            )
+        );
         return future.actionGet();
     }
 

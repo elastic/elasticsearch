@@ -8,61 +8,17 @@
 
 package org.elasticsearch.cluster.node;
 
-import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
 
-import java.util.Set;
-
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.hasToString;
-
 public class DiscoveryNodeRoleTests extends ESTestCase {
 
-    public void testDiscoveryNodeSetPossibleRolesRejectsDuplicateRoleNames() {
-        final IllegalStateException e = expectThrows(
-                IllegalStateException.class,
-                () -> DiscoveryNode.setAdditionalRoles(Set.of(
-                        new DiscoveryNodeRole("foo", "f") {
-
-                            @Override
-                            public Setting<Boolean> legacySetting() {
-                                return null;
-                            }
-
-                        },
-                        new DiscoveryNodeRole("foo", "f") {
-
-                            @Override
-                            public Setting<Boolean> legacySetting() {
-                                return null;
-                            }
-
-                        })));
-        assertThat(e, hasToString(containsString("Duplicate key")));
+    public void testRolesIsImmutable() {
+        expectThrows(UnsupportedOperationException.class, () -> DiscoveryNodeRole.roles().add(DiscoveryNodeRole.DATA_ROLE));
     }
 
-    public void testDiscoveryNodeSetPossibleRolesRejectsDuplicateRoleNameAbbreviations() {
-        final IllegalStateException e = expectThrows(
-                IllegalStateException.class,
-                () -> DiscoveryNode.setAdditionalRoles(Set.of(
-                        new DiscoveryNodeRole("foo_1", "f") {
-
-                            @Override
-                            public Setting<Boolean> legacySetting() {
-                                return null;
-                            }
-
-                        },
-                        new DiscoveryNodeRole("foo_2", "f") {
-
-                            @Override
-                            public Setting<Boolean> legacySetting() {
-                                return null;
-                            }
-
-                        })));
-        assertThat(e, hasToString(containsString("Duplicate key")));
+    public void testRoleNamesIsImmutable() {
+        expectThrows(UnsupportedOperationException.class, () -> DiscoveryNodeRole.roleNames().add(DiscoveryNodeRole.DATA_ROLE.roleName()));
     }
 
     public void testDiscoveryNodeRoleEqualsHashCode() {
@@ -71,29 +27,27 @@ public class DiscoveryNodeRoleTests extends ESTestCase {
             r -> new DiscoveryNodeRole.UnknownRole(r.roleName(), r.roleNameAbbreviation(), r.canContainData()),
             r -> {
                 final int value = randomIntBetween(0, 2);
-                switch (value) {
-                    case 0:
-                    return new DiscoveryNodeRole.UnknownRole(
+                return switch (value) {
+                    case 0 -> new DiscoveryNodeRole.UnknownRole(
                         randomAlphaOfLength(21 - r.roleName().length()),
                         r.roleNameAbbreviation(),
                         r.canContainData()
                     );
-                    case 1:
-                    return new DiscoveryNodeRole.UnknownRole(
+                    case 1 -> new DiscoveryNodeRole.UnknownRole(
                         r.roleName(),
                         randomAlphaOfLength(3 - r.roleNameAbbreviation().length()),
-                        r.canContainData());
-                    case 2:
-                        return new DiscoveryNodeRole.UnknownRole(r.roleName(), r.roleNameAbbreviation(), r.canContainData() == false);
-                    default:
-                        throw new AssertionError("unexpected value [" + value + "] not between 0 and 2");
-                }
-            });
+                        r.canContainData()
+                    );
+                    case 2 -> new DiscoveryNodeRole.UnknownRole(r.roleName(), r.roleNameAbbreviation(), r.canContainData() == false);
+                    default -> throw new AssertionError("unexpected value [" + value + "] not between 0 and 2");
+                };
+            }
+        );
 
     }
 
     public void testUnknownRoleIsDistinctFromKnownRoles() {
-        for (DiscoveryNodeRole buildInRole : DiscoveryNodeRole.BUILT_IN_ROLES) {
+        for (DiscoveryNodeRole buildInRole : DiscoveryNodeRole.roles()) {
             final DiscoveryNodeRole.UnknownRole unknownDataRole = new DiscoveryNodeRole.UnknownRole(
                 buildInRole.roleName(),
                 buildInRole.roleNameAbbreviation(),

@@ -1,0 +1,122 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+import org.elasticsearch.gradle.Architecture
+import org.elasticsearch.gradle.OS
+import org.elasticsearch.gradle.internal.info.BuildParams
+import org.gradle.initialization.BuildRequestMetaData
+import org.elasticsearch.gradle.internal.test.rerun.TestRerunPlugin
+import java.util.concurrent.TimeUnit
+
+long startTime = project.gradle.services.get(BuildRequestMetaData).getStartTime()
+
+buildScan {
+  background {
+    URL jenkinsUrl = System.getenv('JENKINS_URL') ? new URL(System.getenv('JENKINS_URL')) : null
+    String buildNumber = System.getenv('BUILD_NUMBER')
+    String buildUrl = System.getenv('BUILD_URL')
+    String jobName = System.getenv('JOB_NAME')
+    String nodeName = System.getenv('NODE_NAME')
+    String jobBranch = System.getenv('ghprbTargetBranch') ?: System.getenv('JOB_BRANCH')
+
+    tag OS.current().name()
+    tag Architecture.current().name()
+
+    // Tag if this build is run in FIPS mode
+    if (BuildParams.inFipsJvm) {
+      tag 'FIPS'
+    }
+
+    // Automatically publish scans from Elasticsearch CI
+    if (jenkinsUrl?.host?.endsWith('elastic.co') || jenkinsUrl?.host?.endsWith('elastic.dev')) {
+      publishAlways()
+      buildScan.server = 'https://gradle-enterprise.elastic.co'
+    }
+
+    // Link to Jenkins worker logs and system metrics
+    if (nodeName) {
+      link 'System logs', "https://ci-stats.elastic.co/app/infra#/logs?" +
+        "&logFilter=(expression:'host.name:${nodeName}',kind:kuery)"
+      buildFinished {
+        link 'System metrics', "https://ci-stats.elastic.co/app/metrics/detail/host/" +
+          "${nodeName}?_g=()&metricTime=(autoReload:!f,refreshInterval:5000," +
+          "time:(from:${startTime - TimeUnit.MILLISECONDS.convert(5, TimeUnit.MINUTES)},interval:%3E%3D1m," +
+          "to:${System.currentTimeMillis() + TimeUnit.MILLISECONDS.convert(5, TimeUnit.MINUTES)}))"
+      }
+    }
+
+    // Jenkins-specific build scan metadata
+    if (jenkinsUrl) {
+      // Disable async upload in CI to ensure scan upload completes before CI agent is terminated
+      uploadInBackground = false
+
+      // Parse job name in the case of matrix builds
+      // Matrix job names come in the form of "base-job-name/matrix_param1=value1,matrix_param2=value2"
+      def splitJobName = jobName.split('/')
+      if (splitJobName.length > 1 && splitJobName.last() ==~ /^([a-zA-Z0-9_\-]+=[a-zA-Z0-9_\-&\.]+,?)+$/) {
+        def baseJobName = splitJobName.dropRight(1).join('/')
+        tag baseJobName
+        tag splitJobName.last()
+        value 'Job Name', baseJobName
+        def matrixParams = splitJobName.last().split(',')
+        matrixParams.collect { it.split('=') }.each { param ->
+          value "MATRIX_${param[0].toUpperCase()}", param[1]
+        }
+      } else {
+        tag jobName
+        value 'Job Name', jobName
+      }
+
+      tag 'CI'
+      link 'CI Build', buildUrl
+      link 'GCP Upload', "https://console.cloud.google.com/storage/browser/_details/elasticsearch-ci-artifacts/jobs/${URLEncoder.encode(jobName, "UTF-8")}/build/${buildNumber}.tar.bz2"
+      value 'Job Number', buildNumber
+      if (jobBranch) {
+        tag jobBranch
+        value 'Git Branch', jobBranch
+      }
+
+      System.getenv().getOrDefault('NODE_LABELS', '').split(' ').each {
+        value 'Jenkins Worker Label', it
+      }
+
+      // Add SCM information
+      def isPrBuild = System.getenv('ROOT_BUILD_CAUSE_GHPRBCAUSE') != null
+      if (isPrBuild) {
+        value 'Git Commit ID', System.getenv('ghprbActualCommit')
+        tag "pr/${System.getenv('ghprbPullId')}"
+        tag 'pull-request'
+        link 'Source', "https://github.com/elastic/elasticsearch/tree/${System.getenv('ghprbActualCommit')}"
+        link 'Pull Request', System.getenv('ghprbPullLink')
+      } else {
+        value 'Git Commit ID', BuildParams.gitRevision
+        link 'Source', "https://github.com/elastic/elasticsearch/tree/${BuildParams.gitRevision}"
+      }
+    } else {
+      tag 'LOCAL'
+    }
+  }
+}
+
+subprojects {
+  project.getPlugins().withType(TestRerunPlugin) {
+    tasks.withType(Test).configureEach(new Action<Test>() {
+      @Override
+      void execute(Test test) {
+        test.doLast(new Action<Test>() {
+          @Override
+          void execute(Test t) {
+            if(t.rerun.didRerun.get() == true) {
+              buildScan.tag 'unexpected-test-jvm-exit'
+            }
+          }
+        })
+      }
+    })
+  }
+}

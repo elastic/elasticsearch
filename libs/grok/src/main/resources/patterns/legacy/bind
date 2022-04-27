@@ -1,0 +1,3 @@
+BIND9_TIMESTAMP %{MONTHDAY}[-]%{MONTH}[-]%{YEAR} %{TIME}
+
+BIND9 %{BIND9_TIMESTAMP:timestamp} queries: %{LOGLEVEL:loglevel}: client(:? @0x(?:[0-9A-Fa-f]+))? %{IP:clientip}#%{POSINT:clientport} \(%{GREEDYDATA:query}\): query: %{GREEDYDATA:query} IN %{GREEDYDATA:querytype} \(%{IP:dns}\)

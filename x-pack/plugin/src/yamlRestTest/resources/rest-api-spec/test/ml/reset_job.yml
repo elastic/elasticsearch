@@ -1,0 +1,46 @@
+setup:
+  - skip:
+      features: headers
+  - do:
+      headers:
+        Authorization: "Basic eF9wYWNrX3Jlc3RfdXNlcjp4LXBhY2stdGVzdC1wYXNzd29yZA==" # run as x_pack_rest_user, i.e. the test setup superuser
+      ml.put_job:
+        job_id: reset-job
+        body:  >
+          {
+            "job_id":"reset-job",
+            "analysis_config" : {
+                "bucket_span": "1h",
+                "detectors" :[{"function":"count"}]
+            },
+            "data_description" : {
+                "time_field":"time",
+                "time_format":"yyyy-MM-dd HH:mm:ssX"
+            }
+          }
+
+---
+"Test reset":
+  - do:
+      ml.reset_job:
+        job_id: reset-job
+  - match: { acknowledged: true }
+
+---
+"Test reset given unknown job id":
+  - do:
+      catch: missing
+      ml.reset_job:
+        job_id: not-a-job
+
+---
+"Test reset given job is open":
+  - do:
+      ml.open_job:
+        job_id: reset-job
+  - match: { opened: true }
+
+  - do:
+      catch: /Can only reset a job when it is closed/
+      ml.reset_job:
+        job_id: reset-job

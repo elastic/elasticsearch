@@ -1,0 +1,1 @@
+preallocate: org.elasticsearch.xpack.searchablesnapshots.preallocate.Preallocate

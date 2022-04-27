@@ -1,0 +1,42 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.testclusters.RunTask
+
+// gradle has an open issue of failing applying plugins in
+// precompiled script plugins (see https://github.com/gradle/gradle/issues/17004)
+// apply plugin: 'elasticsearch.internal-testclusters'
+
+testClusters.register("runTask") {
+    testDistribution = providers.systemProperty('run.distribution').orElse('default').get()
+    if (providers.systemProperty('run.distribution').getOrElse('default') == 'default') {
+      String licenseType = providers.systemProperty("run.license_type").getOrElse("basic")
+      if (licenseType == 'trial') {
+        setting 'xpack.ml.enabled', 'true'
+        setting 'xpack.graph.enabled', 'true'
+        setting 'xpack.watcher.enabled', 'true'
+        setting 'xpack.license.self_generated.type', 'trial'
+      } else if (licenseType != 'basic') {
+        throw new IllegalArgumentException("Unsupported self-generated license type: [" + licenseType + "[basic] or [trial].")
+      }
+      // Not enabled by default in the build, otherwise all integration tests will download the databases from our geoip download service:
+      systemProperty 'ingest.geoip.downloader.enabled.default', 'true'
+      setting 'xpack.security.enabled', 'true'
+      keystore 'bootstrap.password', 'password'
+      user username: 'elastic-admin', password: 'elastic-password', role: '_es_test_root'
+    }
+}
+
+tasks.register("run", RunTask) {
+  useCluster testClusters.named("runTask")
+  description = 'Runs elasticsearch in the foreground'
+  group = 'Verification'
+
+  impliesSubProjects = true
+}

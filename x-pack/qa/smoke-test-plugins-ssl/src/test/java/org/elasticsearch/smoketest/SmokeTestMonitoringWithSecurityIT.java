@@ -8,33 +8,23 @@ package org.elasticsearch.smoketest;
 
 import io.netty.util.ThreadDeathWatcher;
 import io.netty.util.concurrent.GlobalEventExecutor;
+
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
-import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestHighLevelClient;
-import org.elasticsearch.client.indices.GetIndexRequest;
-import org.elasticsearch.client.indices.GetIndexTemplatesRequest;
-import org.elasticsearch.client.indices.GetIndexTemplatesResponse;
-import org.elasticsearch.client.xpack.XPackUsageRequest;
-import org.elasticsearch.client.xpack.XPackUsageResponse;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.test.rest.yaml.ObjectPath;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -52,7 +42,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.core.security.authc.support.UsernamePasswordToken.basicAuthHeaderValue;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -70,6 +59,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * then uses a rest client to check that the data have been correctly received and
  * indexed in the cluster.
  */
+@SuppressWarnings("removal")
 public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
 
     public class TestRestHighLevelClient extends RestHighLevelClient {
@@ -146,7 +136,8 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
         return Settings.builder()
             .put(ThreadContext.PREFIX + ".Authorization", token)
             .put(ESRestTestCase.TRUSTSTORE_PATH, keyStore)
-            .put(ESRestTestCase.TRUSTSTORE_PASSWORD, KEYSTORE_PASS).build();
+            .put(ESRestTestCase.TRUSTSTORE_PASSWORD, KEYSTORE_PASS)
+            .build();
     }
 
     @Before
@@ -163,9 +154,7 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
             .put("xpack.monitoring.exporters._http.ssl.certificate_authorities", "testnode.crt")
             .setSecureSettings(secureSettings)
             .build();
-        ClusterUpdateSettingsResponse response = newHighLevelClient().cluster().putSettings(
-            new ClusterUpdateSettingsRequest().transientSettings(exporterSettings), RequestOptions.DEFAULT);
-        assertTrue(response.isAcknowledged());
+        updateClusterSettings(exporterSettings);
     }
 
     @After
@@ -179,15 +168,12 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
             .putNull("xpack.monitoring.exporters._http.ssl.verification_mode")
             .putNull("xpack.monitoring.exporters._http.ssl.certificate_authorities")
             .build();
-        ClusterUpdateSettingsResponse response = newHighLevelClient().cluster().putSettings(
-            new ClusterUpdateSettingsRequest().transientSettings(exporterSettings), RequestOptions.DEFAULT);
-        assertTrue(response.isAcknowledged());
+        updateClusterSettings(exporterSettings);
     }
 
+    @SuppressWarnings("unchecked")
     private boolean getMonitoringUsageExportersDefined() throws Exception {
-        RestHighLevelClient client = newHighLevelClient();
-        final XPackUsageResponse usageResponse = client.xpack().usage(new XPackUsageRequest(), RequestOptions.DEFAULT);
-        Map<String, Object> monitoringUsage = usageResponse.getUsages().get("monitoring");
+        Map<String, Object> monitoringUsage = (Map<String, Object>) getAsMap("/_xpack/usage").get("monitoring");
         assertThat("Monitoring feature set does not exist", monitoringUsage, notNullValue());
 
         @SuppressWarnings("unchecked")
@@ -202,34 +188,35 @@ public class SmokeTestMonitoringWithSecurityIT extends ESRestTestCase {
 
         RestHighLevelClient client = newHighLevelClient();
         // Checks that the monitoring index templates have been installed
-        GetIndexTemplatesRequest templateRequest = new GetIndexTemplatesRequest(MONITORING_PATTERN);
+        Request templateRequest = new Request("GET", "/_index_template/" + MONITORING_PATTERN);
         assertBusy(() -> {
             try {
-                GetIndexTemplatesResponse response = client.indices().getIndexTemplate(templateRequest, RequestOptions.DEFAULT);
-                assertThat(response.getIndexTemplates().size(), greaterThanOrEqualTo(2));
+                var response = responseAsMap(client.getLowLevelClient().performRequest(templateRequest));
+                List<?> templates = ObjectPath.evaluate(response, "index_templates");
+                assertThat(templates.size(), greaterThanOrEqualTo(2));
             } catch (Exception e) {
                 fail("template not ready yet: " + e.getMessage());
             }
         });
 
-        GetIndexRequest indexRequest = new GetIndexRequest(MONITORING_PATTERN);
+        Request indexRequest = new Request("HEAD", MONITORING_PATTERN);
         // Waits for monitoring indices to be created
         assertBusy(() -> {
             try {
-                assertThat(client.indices().exists(indexRequest, RequestOptions.DEFAULT), equalTo(true));
+                Response response = client.getLowLevelClient().performRequest(indexRequest);
+                assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
             } catch (Exception e) {
                 fail("monitoring index not created yet: " + e.getMessage());
             }
         });
 
         // Waits for indices to be ready
-        ClusterHealthRequest healthRequest = new ClusterHealthRequest(MONITORING_PATTERN);
-        healthRequest.waitForStatus(ClusterHealthStatus.YELLOW);
-        healthRequest.waitForEvents(Priority.LANGUID);
-        healthRequest.waitForNoRelocatingShards(true);
-        healthRequest.waitForNoInitializingShards(true);
-        ClusterHealthResponse response = client.cluster().health(healthRequest, RequestOptions.DEFAULT);
-        assertThat(response.isTimedOut(), is(false));
+        ensureHealth(MONITORING_PATTERN, (request) -> {
+            request.addParameter("wait_for_status", "yellow");
+            request.addParameter("wait_for_events", "languid");
+            request.addParameter("wait_for_no_relocating_shards", "true");
+            request.addParameter("wait_for_no_initializing_shards", "true");
+        });
 
         // Checks that the HTTP exporter has successfully exported some data
         SearchRequest searchRequest = new SearchRequest(new String[] { MONITORING_PATTERN }, new SearchSourceBuilder().size(0));

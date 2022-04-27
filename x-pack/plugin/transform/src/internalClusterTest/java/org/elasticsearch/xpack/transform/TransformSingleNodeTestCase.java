@@ -9,10 +9,15 @@ package org.elasticsearch.xpack.transform;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.LatchedActionListener;
-import org.elasticsearch.common.CheckedConsumer;
-import org.elasticsearch.index.reindex.ReindexPlugin;
+import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
+import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.junit.After;
 
 import java.util.Collection;
 import java.util.concurrent.CountDownLatch;
@@ -28,8 +33,22 @@ public abstract class TransformSingleNodeTestCase extends ESSingleNodeTestCase {
         return pluginList(LocalStateTransform.class, ReindexPlugin.class);
     }
 
-    protected <T> void assertAsync(Consumer<ActionListener<T>> function, T expected, CheckedConsumer<T, ? extends Exception> onAnswer,
-            Consumer<Exception> onException) throws InterruptedException {
+    @Override
+    protected Settings nodeSettings() {
+        return Settings.builder().put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), "master, data, ingest, transform").build();
+    }
+
+    @After
+    public void cleanup() {
+        client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest()).actionGet();
+    }
+
+    protected <T> void assertAsync(
+        Consumer<ActionListener<T>> function,
+        T expected,
+        CheckedConsumer<T, ? extends Exception> onAnswer,
+        Consumer<Exception> onException
+    ) throws InterruptedException {
 
         CountDownLatch latch = new CountDownLatch(1);
 

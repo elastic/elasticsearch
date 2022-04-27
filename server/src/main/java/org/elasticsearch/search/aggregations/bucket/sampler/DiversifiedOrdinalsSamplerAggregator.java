@@ -13,8 +13,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
-import org.apache.lucene.search.DiversifiedTopDocsCollector;
-import org.apache.lucene.search.DiversifiedTopDocsCollector.ScoreDocKey;
+import org.apache.lucene.misc.search.DiversifiedTopDocsCollector;
 import org.apache.lucene.search.TopDocsCollector;
 import org.elasticsearch.index.fielddata.AbstractNumericDocValues;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -27,6 +26,8 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import java.io.IOException;
 import java.util.Map;
 import java.util.function.Consumer;
+
+import static org.apache.lucene.misc.search.DiversifiedTopDocsCollector.ScoreDocKey;
 
 public class DiversifiedOrdinalsSamplerAggregator extends SamplerAggregator {
 
@@ -82,7 +83,6 @@ public class DiversifiedOrdinalsSamplerAggregator extends SamplerAggregator {
         // a lookup from elasticsearch's ValuesSource
         class ValuesDiversifiedTopDocsCollector extends DiversifiedTopDocsCollector {
 
-
             ValuesDiversifiedTopDocsCollector(int numHits, int maxHitsPerKey) {
                 super(numHits, maxHitsPerKey);
             }
@@ -121,8 +121,7 @@ public class DiversifiedOrdinalsSamplerAggregator extends SamplerAggregator {
                             // Check there isn't a second value for this
                             // document
                             if (globalOrds.nextOrd() != SortedSetDocValues.NO_MORE_ORDS) {
-                                throw new IllegalArgumentException(
-                                        "Sample diversifying key must be a single valued-field");
+                                throw new IllegalArgumentException("Sample diversifying key must be a single valued-field");
                             }
                             return true;
                         } else {

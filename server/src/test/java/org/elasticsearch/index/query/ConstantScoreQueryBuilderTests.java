@@ -30,8 +30,8 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
     }
 
     @Override
-    protected void doAssertLuceneQuery(ConstantScoreQueryBuilder queryBuilder, Query query,
-                                       SearchExecutionContext context) throws IOException {
+    protected void doAssertLuceneQuery(ConstantScoreQueryBuilder queryBuilder, Query query, SearchExecutionContext context)
+        throws IOException {
         Query innerQuery = queryBuilder.innerQuery().rewrite(context).toQuery(context);
         if (innerQuery == null) {
             assertThat(query, nullValue());
@@ -57,10 +57,12 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
      * test that "filter" does not accept an array of queries, throws {@link ParsingException}
      */
     public void testNoArrayAsFilterElements() throws IOException {
-        String queryString = "{ \"" + ConstantScoreQueryBuilder.NAME + "\" : {\n" +
-                                    "\"filter\" : [ { \"term\": { \"foo\": \"a\" } },\n" +
-                                                   "{ \"term\": { \"foo\": \"x\" } } ]\n" +
-                            "} }";
+        String queryString = """
+            {
+              "%s": {
+                "filter": [ { "term": { "foo": "a" } }, { "term": { "foo": "x" } } ]
+              }
+            }""".formatted(ConstantScoreQueryBuilder.NAME);
         ParsingException e = expectThrows(ParsingException.class, () -> parseQuery(queryString));
         assertThat(e.getMessage(), containsString("unexpected token [START_ARRAY]"));
     }
@@ -75,18 +77,18 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
     }
 
     public void testFromJson() throws IOException {
-        String json =
-                "{\n" +
-                "  \"constant_score\" : {\n" +
-                "    \"filter\" : {\n" +
-                "      \"terms\" : {\n" +
-                "        \"user\" : [ \"kimchy\", \"elasticsearch\" ],\n" +
-                "        \"boost\" : 42.0\n" +
-                "      }\n" +
-                "    },\n" +
-                "    \"boost\" : 23.0\n" +
-                "  }\n" +
-                "}";
+        String json = """
+            {
+              "constant_score" : {
+                "filter" : {
+                  "terms" : {
+                    "user" : [ "kimchy", "elasticsearch" ],
+                    "boost" : 42.0
+                  }
+                },
+                "boost" : 23.0
+              }
+            }""";
 
         ConstantScoreQueryBuilder parsed = (ConstantScoreQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);
@@ -106,8 +108,7 @@ public class ConstantScoreQueryBuilderTests extends AbstractQueryTestCase<Consta
         SearchExecutionContext context = createSearchExecutionContext();
         context.setAllowUnmappedFields(true);
         ConstantScoreQueryBuilder queryBuilder = new ConstantScoreQueryBuilder(new TermQueryBuilder("unmapped_field", "foo"));
-        IllegalStateException e = expectThrows(IllegalStateException.class,
-                () -> queryBuilder.toQuery(context));
+        IllegalStateException e = expectThrows(IllegalStateException.class, () -> queryBuilder.toQuery(context));
         assertEquals("Rewrite first", e.getMessage());
     }
 }

@@ -38,7 +38,7 @@ PUT /my-index-000001
 [[add-field-mapping]]
 === Add a field to an existing mapping
 
-You can use the <<indices-put-mapping, put mapping>> API to add one or more new
+You can use the <<indices-put-mapping, update mapping>> API to add one or more new
 fields to an existing index.
 
 The following example adds `employee-id`, a `keyword` field with an

@@ -10,13 +10,47 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 
-public class IpRangeFieldMapperTests extends MapperServiceTestCase {
+public class IpRangeFieldMapperTests extends RangeFieldMapperTests {
+
+    @Override
+    protected void minimalMapping(XContentBuilder b) throws IOException {
+        b.field("type", "ip_range");
+    }
+
+    @Override
+    protected XContentBuilder rangeSource(XContentBuilder in) throws IOException {
+        return in.startObject("field").field("gt", "::ffff:c0a8:107").field("lt", "2001:db8::").endObject();
+    }
+
+    @Override
+    protected String storedValue() {
+        return InetAddresses.toAddrString(InetAddresses.forString("192.168.1.7"))
+            + " : "
+            + InetAddresses.toAddrString(InetAddresses.forString("2001:db8:0:0:0:0:0:0"));
+    }
+
+    @Override
+    protected boolean supportsCoerce() {
+        return false;
+    }
+
+    @Override
+    protected Object rangeValue() {
+        return "192.168.1.7";
+    }
+
+    @Override
+    protected boolean supportsDecimalCoerce() {
+        return false;
+    }
 
     public void testStoreCidr() throws Exception {
 
@@ -27,8 +61,7 @@ public class IpRangeFieldMapperTests extends MapperServiceTestCase {
         cases.put("192.168.0.0/16", "192.168.255.255");
         cases.put("192.168.0.0/17", "192.168.127.255");
         for (final Map.Entry<String, String> entry : cases.entrySet()) {
-            ParsedDocument doc =
-                mapper.parse(source(b -> b.field("field", entry.getKey())));
+            ParsedDocument doc = mapper.parse(source(b -> b.field("field", entry.getKey())));
             IndexableField[] fields = doc.rootDoc().getFields("field");
             assertEquals(3, fields.length);
             IndexableField dvField = fields[0];
@@ -37,9 +70,9 @@ public class IpRangeFieldMapperTests extends MapperServiceTestCase {
             assertEquals(2, pointField.fieldType().pointIndexDimensionCount());
             IndexableField storedField = fields[2];
             assertTrue(storedField.fieldType().stored());
-            String strVal =
-                InetAddresses.toAddrString(InetAddresses.forString("192.168.0.0")) + " : " +
-                    InetAddresses.toAddrString(InetAddresses.forString(entry.getValue()));
+            String strVal = InetAddresses.toAddrString(InetAddresses.forString("192.168.0.0"))
+                + " : "
+                + InetAddresses.toAddrString(InetAddresses.forString(entry.getValue()));
             assertThat(storedField.stringValue(), containsString(strVal));
         }
     }

@@ -14,17 +14,17 @@ import org.apache.lucene.search.suggest.document.ContextSuggestField;
 import org.apache.lucene.util.CharsRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.mapper.CompletionFieldMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappingParser;
-import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping.Type;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -53,7 +53,7 @@ public class ContextMappings implements ToXContent, Iterable<ContextMapping<?>> 
             throw new UnsupportedOperationException("Maximum of 10 context types are supported was: " + contextMappings.size());
         }
         this.contextMappings = contextMappings;
-        contextNameMap = new HashMap<>(contextMappings.size());
+        contextNameMap = Maps.newMapWithExpectedSize(contextMappings.size());
         for (ContextMapping<?> mapping : contextMappings) {
             contextNameMap.put(mapping.name(), mapping);
         }
@@ -84,7 +84,7 @@ public class ContextMappings implements ToXContent, Iterable<ContextMapping<?>> 
      * Adds a context-enabled field for all the defined mappings to <code>document</code>
      * see {@link org.elasticsearch.search.suggest.completion.context.ContextMappings.TypedContextField}
      */
-    public void addField(ParseContext.Document document, String name, String input, int weight, Map<String, Set<String>> contexts) {
+    public void addField(LuceneDocument document, String name, String input, int weight, Map<String, Set<String>> contexts) {
         document.add(new TypedContextField(name, input, weight, contexts, document));
     }
 
@@ -112,10 +112,9 @@ public class ContextMappings implements ToXContent, Iterable<ContextMapping<?>> 
      */
     private class TypedContextField extends ContextSuggestField {
         private final Map<String, Set<String>> contexts;
-        private final ParseContext.Document document;
+        private final LuceneDocument document;
 
-        TypedContextField(String name, String value, int weight, Map<String, Set<String>> contexts,
-                          ParseContext.Document document) {
+        TypedContextField(String name, String value, int weight, Map<String, Set<String>> contexts, LuceneDocument document) {
             super(name, value, weight);
             this.contexts = contexts;
             this.document = document;
@@ -189,7 +188,7 @@ public class ContextMappings implements ToXContent, Iterable<ContextMapping<?>> 
      *
      */
     public Map<String, Set<String>> getNamedContexts(List<CharSequence> contexts) {
-        Map<String, Set<String>> contextMap = new HashMap<>(contexts.size());
+        Map<String, Set<String>> contextMap = Maps.newMapWithExpectedSize(contexts.size());
         for (CharSequence typedContext : contexts) {
             int typeId = typedContext.charAt(0);
             assert typeId < contextMappings.size() : "Returned context has invalid type";
@@ -212,6 +211,7 @@ public class ContextMappings implements ToXContent, Iterable<ContextMapping<?>> 
      *  [{"name": .., "type": .., ..}, {..}]
      *
      */
+    @SuppressWarnings("unchecked")
     public static ContextMappings load(Object configuration) throws ElasticsearchParseException {
         final List<ContextMapping<?>> contextMappings;
         if (configuration instanceof List) {
@@ -234,17 +234,10 @@ public class ContextMappings implements ToXContent, Iterable<ContextMapping<?>> 
     private static ContextMapping<?> load(Map<String, Object> contextConfig) {
         String name = extractRequiredValue(contextConfig, FIELD_NAME);
         String type = extractRequiredValue(contextConfig, FIELD_TYPE);
-        final ContextMapping<?> contextMapping;
-        switch (Type.fromString(type)) {
-            case CATEGORY:
-                contextMapping = CategoryContextMapping.load(name, contextConfig);
-                break;
-            case GEO:
-                contextMapping = GeoContextMapping.load(name, contextConfig);
-                break;
-            default:
-                throw new ElasticsearchParseException("unknown context type[" + type + "]");
-        }
+        final ContextMapping<?> contextMapping = switch (Type.fromString(type)) {
+            case CATEGORY -> CategoryContextMapping.load(name, contextConfig);
+            case GEO -> GeoContextMapping.load(name, contextConfig);
+        };
         MappingParser.checkNoRemainingFields(name, contextConfig);
         return contextMapping;
     }

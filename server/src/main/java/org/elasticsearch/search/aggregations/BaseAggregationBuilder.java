@@ -8,8 +8,8 @@
 
 package org.elasticsearch.search.aggregations;
 
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.util.Map;
 

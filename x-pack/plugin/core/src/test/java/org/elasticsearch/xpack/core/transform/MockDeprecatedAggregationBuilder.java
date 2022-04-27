@@ -7,12 +7,11 @@
 
 package org.elasticsearch.xpack.core.transform;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactories.Builder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
@@ -23,6 +22,8 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFacto
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.Map;
@@ -97,7 +98,12 @@ public class MockDeprecatedAggregationBuilder extends ValuesSourceAggregationBui
     }
 
     public static MockDeprecatedAggregationBuilder fromXContent(XContentParser p) {
-        deprecationLogger.deprecate(DeprecationCategory.OTHER, "deprecated_mock", DEPRECATION_MESSAGE);
+        deprecationLogger.warn(DeprecationCategory.OTHER, "deprecated_mock", DEPRECATION_MESSAGE);
         return new MockDeprecatedAggregationBuilder();
+    }
+
+    @Override
+    public Version getMinimalSupportedVersion() {
+        return Version.V_EMPTY;
     }
 }

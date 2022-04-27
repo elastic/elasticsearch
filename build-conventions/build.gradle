@@ -1,0 +1,87 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0 and the Server Side Public License, v 1; you may not use this file except
+ * in compliance with, at your election, the Elastic License 2.0 or the Server
+ * Side Public License, v 1.
+ */
+
+import org.gradle.plugins.ide.eclipse.model.SourceFolder
+
+plugins {
+    id 'java-gradle-plugin'
+    id 'java-test-fixtures'
+    id 'eclipse'
+}
+
+group = "org.elasticsearch"
+
+// This project contains Checkstyle rule implementations used by IDEs which use a Java 11 runtime
+targetCompatibility = 11
+sourceCompatibility = 11
+
+gradlePlugin {
+    // We already configure publication and we don't need or want the one that comes
+    // with the java-gradle-plugin
+    automatedPublishing = false
+    plugins {
+        internalLicenseheaders {
+            id = 'elasticsearch.internal-licenseheaders'
+            implementationClass = 'org.elasticsearch.gradle.internal.conventions.precommit.LicenseHeadersPrecommitPlugin'
+        }
+        eclipse {
+            id = 'elasticsearch.eclipse'
+            implementationClass = 'org.elasticsearch.gradle.internal.conventions.EclipseConventionPlugin'
+        }
+        publish {
+            id = 'elasticsearch.publish'
+            implementationClass = 'org.elasticsearch.gradle.internal.conventions.PublishPlugin'
+        }
+        licensing {
+            id = 'elasticsearch.licensing'
+            implementationClass = 'org.elasticsearch.gradle.internal.conventions.LicensingPlugin'
+        }
+        buildTools {
+            id = 'elasticsearch.build-tools'
+            implementationClass = 'org.elasticsearch.gradle.internal.conventions.BuildToolsConventionsPlugin'
+        }
+        versions {
+            id = 'elasticsearch.versions'
+            implementationClass = 'org.elasticsearch.gradle.internal.conventions.VersionPropertiesPlugin'
+        }
+        formatting {
+            id = 'elasticsearch.formatting'
+            implementationClass = 'org.elasticsearch.gradle.internal.conventions.precommit.FormattingPrecommitPlugin'
+        }
+    }
+}
+
+repositories {
+    mavenCentral()
+    gradlePluginPortal()
+}
+
+dependencies {
+    api 'org.apache.maven:maven-model:3.6.2'
+    api 'gradle.plugin.com.github.johnrengelman:shadow:7.1.2'
+    api 'org.apache.rat:apache-rat:0.11'
+    compileOnly "com.puppycrawl.tools:checkstyle:9.3"
+    api('com.diffplug.spotless:spotless-plugin-gradle:6.4.0') {
+      exclude module: "groovy-xml"
+    }
+}
+
+project.getPlugins().withType(JavaBasePlugin.class) {
+    java.getModularity().getInferModulePath().set(false);
+    eclipse.getClasspath().getFile().whenMerged { classpath ->
+        /*
+         * give each source folder a unique corresponding output folder
+         * outside of the usual `build` folder. We can't put the build
+         * in the usual build folder because eclipse becomes *very* sad
+         * if we delete it. Which `gradlew clean` does all the time.
+         */
+        classpath.getEntries().findAll{ s -> s instanceof SourceFolder }.eachWithIndex { s, i ->
+            s.setOutput("out/eclipse" + i)
+        }
+    }
+}

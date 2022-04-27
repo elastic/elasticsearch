@@ -10,9 +10,7 @@ package org.elasticsearch.bootstrap;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.env.Environment;
 
-import java.io.IOException;
 import java.nio.file.Path;
 
 /**
@@ -133,21 +131,6 @@ final class Natives {
             return false;
         }
         return JNANatives.LOCAL_SYSTEM_CALL_FILTER;
-    }
-
-    /**
-     * On Linux, this method tries to create the searchable snapshot frozen cache file using fallocate if JNA is available. This enables
-     * a much faster creation of the file than the fallback mechanism in the searchable snapshots plugin that will pre-allocate the cache
-     * file by writing zeros to the file.
-     *
-     * @throws IOException on failure to determine free disk space for a data path
-     */
-    public static void tryCreateCacheFile(Environment environment, long fileSize) throws IOException {
-        if (JNA_AVAILABLE == false) {
-            logger.warn("cannot use fallocate to create cache file because JNA is not available");
-            return;
-        }
-        JNANatives.fallocateSnapshotCacheFile(environment, fileSize);
     }
 
 }

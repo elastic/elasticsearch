@@ -25,7 +25,7 @@ public class Head extends LimitWithOffset {
     }
 
     @Override
-    protected Head replaceChild(LogicalPlan newChild) {
+    public Head replaceChild(LogicalPlan newChild) {
         return new Head(source(), limit(), newChild);
     }
 }

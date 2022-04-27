@@ -84,8 +84,8 @@ class TransformContext {
         return currentCheckpoint.get();
     }
 
-    long getAndIncrementCheckpoint() {
-        return currentCheckpoint.getAndIncrement();
+    long incrementAndGetCheckpoint() {
+        return currentCheckpoint.incrementAndGet();
     }
 
     void setNumFailureRetries(int numFailureRetries) {
@@ -94,6 +94,10 @@ class TransformContext {
 
     int getNumFailureRetries() {
         return numFailureRetries;
+    }
+
+    int getFailureCount() {
+        return failureCount.get();
     }
 
     int getAndIncrementFailureCount() {
@@ -129,16 +133,10 @@ class TransformContext {
     }
 
     void markAsFailed(String failureMessage) {
-        taskListener.fail(
-            failureMessage,
-            ActionListener.wrap(
-                r -> {
-                    // Successfully marked as failed, reset counter so that task can be restarted
-                    failureCount.set(0);
-                },
-                e -> {}
-            )
-        );
+        taskListener.fail(failureMessage, ActionListener.wrap(r -> {
+            // Successfully marked as failed, reset counter so that task can be restarted
+            failureCount.set(0);
+        }, e -> {}));
     }
 
 }

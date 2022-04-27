@@ -1,0 +1,40 @@
+[role="xpack"]
+[[operator-only-snapshot-and-restore]]
+=== Operator privileges for snapshot and restore
+
+NOTE: {cloud-only}
+
+Invoking <<operator-only-apis,operator-only APIs>> or updating
+<<operator-only-dynamic-cluster-settings,operator-only dynamic cluster settings>>
+typically results in changes in the cluster state. The cluster state can be
+included in a cluster <<snapshot-restore,snapshot>>. Snapshots are a great way
+to preserve the data of a cluster, which can later be restored to bootstrap a
+new cluster, perform migration, or disaster recovery, for example. In a
+traditional self-managed environment, the intention is for the restore process
+to copy the entire cluster state over when requested. However, in a more
+managed environment, such as {ess-trial}[{ess}], data that is associated with
+<<operator-only-functionality,operator-only functionality>> is explicitly
+managed by the infrastructure code.
+
+Restoring snapshot data associated with
+operator-only functionality could be problematic
+because:
+
+1. A snapshot could contain incorrect values for operator-only functionalities.
+For example, the snapshot could have been taken in a different cluster where 
+requirements are different or the operator privileges feature is not enabled. 
+Restoring data associated with operator-only functionality breaks the guarantee
+of operator privileges.
+2. Even when the infrastructure code can correct the values immediately after
+a restore, there will always be a short period of time when the cluster could be
+in an inconsistent state.
+3. The infrastructure code prefers to configure operator-only functionality from
+a single place, that is to say, through API calls.
+
+Therefore,
+<<configure-operator-privileges,*when the operator privileges feature is enabled*>>,
+snapshot data that is associated with any operator-only functionality is *not* 
+restored.
+
+NOTE: That information is still included when taking a snapshot so that all data
+is always preserved.

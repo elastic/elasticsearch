@@ -1,0 +1,10 @@
+#
+# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+# or more contributor license agreements. Licensed under the Elastic License
+# 2.0; you may not use this file except in compliance with the Elastic License
+# 2.0.
+#
+
+org.elasticsearch.xpack.lucene.bwc.codecs.lucene70.BWCLucene70Codec
+org.elasticsearch.xpack.lucene.bwc.codecs.lucene62.Lucene62Codec
+org.elasticsearch.xpack.lucene.bwc.codecs.lucene60.Lucene60Codec

@@ -17,9 +17,9 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.snapshots.InternalSnapshotsInfoService;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.xpack.autoscaling.AutoscalingMetadata;
@@ -39,7 +39,6 @@ import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
-import java.util.stream.StreamSupport;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -66,7 +65,8 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
             state,
             ClusterInfo.EMPTY,
             null,
-            AutoscalingMemoryInfo.EMPTY
+            AutoscalingMemoryInfo.EMPTY,
+            () -> {}
         );
         assertThat(resultsMap.keySet(), equalTo(policyNames));
         for (Map.Entry<String, AutoscalingDeciderResults> entry : resultsMap.entrySet()) {
@@ -126,7 +126,7 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
             .build();
 
         assertThat(
-            service.calculate(state, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, AutoscalingMemoryInfo.EMPTY)
+            service.calculate(state, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY, AutoscalingMemoryInfo.EMPTY, () -> {})
                 .get("test")
                 .results()
                 .keySet(),
@@ -178,7 +178,8 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
             state,
             info,
             snapshotShardSizeInfo,
-            n -> randomNonNegativeLong()
+            n -> randomNonNegativeLong(),
+            () -> {}
         );
 
         assertSame(state, context.state());
@@ -187,9 +188,9 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         assertThat(context.info(), sameInstance(info));
         assertThat(context.snapshotShardSizeInfo(), sameInstance(snapshotShardSizeInfo));
 
-        Set<DiscoveryNodeRole> roles = roleNames.stream().map(DiscoveryNode::getRoleFromRoleName).collect(Collectors.toSet());
+        Set<DiscoveryNodeRole> roles = roleNames.stream().map(DiscoveryNodeRole::getRoleFromRoleName).collect(Collectors.toSet());
         Set<DiscoveryNodeRole> otherRoles = mutateRoles(roleNames).stream()
-            .map(DiscoveryNode::getRoleFromRoleName)
+            .map(DiscoveryNodeRole::getRoleFromRoleName)
             .collect(Collectors.toSet());
         final long memory = between(0, 1000);
         state = ClusterState.builder(ClusterName.DEFAULT)
@@ -197,10 +198,17 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
                 DiscoveryNodes.builder().add(new DiscoveryNode("nodeId", buildNewFakeTransportAddress(), Map.of(), roles, Version.CURRENT))
             )
             .build();
-        context = new AutoscalingCalculateCapacityService.DefaultAutoscalingDeciderContext(roleNames, state, info, null, n -> memory);
+        context = new AutoscalingCalculateCapacityService.DefaultAutoscalingDeciderContext(
+            roleNames,
+            state,
+            info,
+            null,
+            n -> memory,
+            () -> {}
+        );
 
         assertThat(context.nodes().size(), equalTo(1));
-        assertThat(context.nodes(), equalTo(StreamSupport.stream(state.nodes().spliterator(), false).collect(Collectors.toSet())));
+        assertThat(context.nodes(), equalTo(state.nodes().stream().collect(Collectors.toSet())));
         if (hasDataRole) {
             assertNull(context.currentCapacity());
         } else {
@@ -249,8 +257,15 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
         state = ClusterState.builder(ClusterName.DEFAULT).nodes(nodes).build();
         ImmutableOpenMap<String, DiskUsage> leastUsages = leastUsagesBuilder.build();
         ImmutableOpenMap<String, DiskUsage> mostUsages = mostUsagesBuilder.build();
-        info = new ClusterInfo(leastUsages, mostUsages, null, null, null);
-        context = new AutoscalingCalculateCapacityService.DefaultAutoscalingDeciderContext(roleNames, state, info, null, n -> memory);
+        info = new ClusterInfo(leastUsages, mostUsages, null, null, null, null);
+        context = new AutoscalingCalculateCapacityService.DefaultAutoscalingDeciderContext(
+            roleNames,
+            state,
+            info,
+            null,
+            n -> memory,
+            () -> {}
+        );
 
         assertThat(context.nodes(), equalTo(expectedNodes));
         if (hasDataRole) {
@@ -269,7 +284,8 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
                 state,
                 info,
                 null,
-                AutoscalingMemoryInfo.EMPTY
+                AutoscalingMemoryInfo.EMPTY,
+                () -> {}
             );
             assertThat(context.nodes(), equalTo(expectedNodes));
             assertThat(context.currentCapacity(), is(nullValue()));
@@ -288,8 +304,15 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
                 )
             );
 
-            info = new ClusterInfo(leastUsages, mostUsagesBuilder.build(), null, null, null);
-            context = new AutoscalingCalculateCapacityService.DefaultAutoscalingDeciderContext(roleNames, state, info, null, n -> memory);
+            info = new ClusterInfo(leastUsages, mostUsagesBuilder.build(), null, null, null, null);
+            context = new AutoscalingCalculateCapacityService.DefaultAutoscalingDeciderContext(
+                roleNames,
+                state,
+                info,
+                null,
+                n -> memory,
+                () -> {}
+            );
             assertThat(context.nodes(), equalTo(expectedNodes));
             if (hasDataRole) {
                 assertThat(context.currentCapacity(), is(nullValue()));
@@ -317,10 +340,17 @@ public class AutoscalingCalculateCapacityServiceTests extends AutoscalingTestCas
     public void testValidateDeciderRoles() {
         Set<String> roles = randomRoles();
         AutoscalingCalculateCapacityService service = new AutoscalingCalculateCapacityService(Set.of(new FixedAutoscalingDeciderService() {
+
             @Override
             public List<DiscoveryNodeRole> roles() {
-                return roles.stream().map(DiscoveryNode::getRoleFromRoleName).collect(Collectors.toList());
+                return roles.stream().map(DiscoveryNodeRole::getRoleFromRoleName).collect(Collectors.toList());
             }
+
+            @Override
+            public boolean appliesToEmptyRoles() {
+                return false;
+            }
+
         }));
         SortedSet<String> badRoles = new TreeSet<>(randomRoles());
         badRoles.removeAll(roles);

@@ -16,8 +16,7 @@ public class MetadataUtils {
     public static final String DEPRECATED_REASON_METADATA_KEY = RESERVED_PREFIX + "deprecated_reason";
     public static final Map<String, Object> DEFAULT_RESERVED_METADATA = Map.of(RESERVED_METADATA_KEY, true);
 
-    private MetadataUtils() {
-    }
+    private MetadataUtils() {}
 
     public static boolean containsReservedMetadata(Map<String, Object> metadata) {
         for (String key : metadata.keySet()) {
@@ -29,10 +28,6 @@ public class MetadataUtils {
     }
 
     public static Map<String, Object> getDeprecatedReservedMetadata(String reason) {
-        return Map.of(
-            RESERVED_METADATA_KEY, true,
-            DEPRECATED_METADATA_KEY, true,
-            DEPRECATED_REASON_METADATA_KEY, reason
-        );
+        return Map.of(RESERVED_METADATA_KEY, true, DEPRECATED_METADATA_KEY, true, DEPRECATED_REASON_METADATA_KEY, reason);
     }
 }

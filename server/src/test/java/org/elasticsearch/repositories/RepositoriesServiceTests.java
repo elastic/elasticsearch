@@ -8,10 +8,10 @@
 
 package org.elasticsearch.repositories;
 
-import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
@@ -31,8 +30,7 @@ import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
-import org.elasticsearch.common.xcontent.NamedXContentRegistry;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
@@ -40,12 +38,13 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotId;
-import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -53,7 +52,9 @@ import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
+import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.isA;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -64,21 +65,41 @@ public class RepositoriesServiceTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
+        ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
         ThreadPool threadPool = mock(ThreadPool.class);
-        final TransportService transportService = new TransportService(Settings.EMPTY, mock(Transport.class), threadPool,
+        when(threadPool.getThreadContext()).thenReturn(threadContext);
+        final TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            threadPool,
             TransportService.NOOP_TRANSPORT_INTERCEPTOR,
-            boundAddress -> DiscoveryNode.createLocal(Settings.EMPTY, boundAddress.publishAddress(), UUIDs.randomBase64UUID()), null,
-            Collections.emptySet());
+            boundAddress -> DiscoveryNode.createLocal(Settings.EMPTY, boundAddress.publishAddress(), UUIDs.randomBase64UUID()),
+            null,
+            Collections.emptySet()
+        );
         final ClusterApplierService clusterApplierService = mock(ClusterApplierService.class);
         when(clusterApplierService.threadPool()).thenReturn(threadPool);
         final ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterApplierService()).thenReturn(clusterApplierService);
-        Map<String, Repository.Factory> typesRegistry =
-            Map.of(TestRepository.TYPE, TestRepository::new,
-                MeteredRepositoryTypeA.TYPE, metadata -> new MeteredRepositoryTypeA(metadata, clusterService),
-                MeteredRepositoryTypeB.TYPE, metadata -> new MeteredRepositoryTypeB(metadata, clusterService));
-        repositoriesService = new RepositoriesService(Settings.EMPTY, mock(ClusterService.class),
-            transportService, typesRegistry, typesRegistry, threadPool);
+        Map<String, Repository.Factory> typesRegistry = Map.of(
+            TestRepository.TYPE,
+            TestRepository::new,
+            UnstableRepository.TYPE,
+            UnstableRepository::new,
+            MeteredRepositoryTypeA.TYPE,
+            metadata -> new MeteredRepositoryTypeA(metadata, clusterService),
+            MeteredRepositoryTypeB.TYPE,
+            metadata -> new MeteredRepositoryTypeB(metadata, clusterService)
+        );
+        repositoriesService = new RepositoriesService(
+            Settings.EMPTY,
+            mock(ClusterService.class),
+            transportService,
+            typesRegistry,
+            typesRegistry,
+            threadPool,
+            List.of()
+        );
         repositoriesService.start();
     }
 
@@ -119,7 +140,7 @@ public class RepositoriesServiceTests extends ESTestCase {
     public void testRegisterRejectsInvalidRepositoryNames() {
         assertThrowsOnRegister("");
         assertThrowsOnRegister("contains#InvalidCharacter");
-        for (char c : Strings.INVALID_FILENAME_CHARS) {
+        for (char c : Arrays.asList('\\', '/', '*', '?', '"', '<', '>', '|', ' ', ',')) {
             assertThrowsOnRegister("contains" + c + "InvalidCharacters");
         }
     }
@@ -150,11 +171,125 @@ public class RepositoriesServiceTests extends ESTestCase {
         assertThat(repositoryStatsTypeB.getRepositoryStats(), equalTo(MeteredRepositoryTypeB.STATS));
     }
 
+    // this can happen when the repository plugin is removed, but repository is still exist
+    public void testHandlesUnknownRepositoryTypeWhenApplyingClusterState() {
+        var repoName = randomAlphaOfLengthBetween(10, 25);
+
+        var clusterState = createClusterStateWithRepo(repoName, "unknown");
+        repositoriesService.applyClusterState(new ClusterChangedEvent("starting", clusterState, emptyState()));
+
+        var repo = repositoriesService.repository(repoName);
+        assertThat(repo, isA(UnknownTypeRepository.class));
+    }
+
+    public void testRemoveUnknownRepositoryTypeWhenApplyingClusterState() {
+        var repoName = randomAlphaOfLengthBetween(10, 25);
+
+        var clusterState = createClusterStateWithRepo(repoName, "unknown");
+        repositoriesService.applyClusterState(new ClusterChangedEvent("starting", clusterState, emptyState()));
+        repositoriesService.applyClusterState(new ClusterChangedEvent("removing repo", emptyState(), clusterState));
+
+        assertThat(
+            expectThrows(RepositoryMissingException.class, () -> repositoriesService.repository(repoName)).getMessage(),
+            equalTo("[" + repoName + "] missing")
+        );
+    }
+
+    public void testRegisterRepositoryFailsForUnknownType() {
+        var repoName = randomAlphaOfLengthBetween(10, 25);
+        var request = new PutRepositoryRequest().name(repoName).type("unknown");
+
+        repositoriesService.registerRepository(request, new ActionListener<>() {
+            @Override
+            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                fail("Should not register unknown repository type");
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assertThat(e, isA(RepositoryException.class));
+                assertThat(e.getMessage(), equalTo("[" + repoName + "] repository type [unknown] does not exist"));
+            }
+        });
+    }
+
+    // test InvalidRepository is returned if repository failed to create
+    public void testHandlesCreationFailureWhenApplyingClusterState() {
+        var repoName = randomAlphaOfLengthBetween(10, 25);
+
+        var clusterState = createClusterStateWithRepo(repoName, UnstableRepository.TYPE);
+        repositoriesService.applyClusterState(new ClusterChangedEvent("put unstable repository", clusterState, emptyState()));
+
+        var repo = repositoriesService.repository(repoName);
+        assertThat(repo, isA(InvalidRepository.class));
+    }
+
+    // test InvalidRepository can be replaced if current repo is created successfully
+    public void testReplaceInvalidRepositoryWhenCreationSuccess() {
+        var repoName = randomAlphaOfLengthBetween(10, 25);
+
+        var clusterState = createClusterStateWithRepo(repoName, UnstableRepository.TYPE);
+        repositoriesService.applyClusterState(new ClusterChangedEvent("put unstable repository", clusterState, emptyState()));
+
+        var repo = repositoriesService.repository(repoName);
+        assertThat(repo, isA(InvalidRepository.class));
+
+        clusterState = createClusterStateWithRepo(repoName, TestRepository.TYPE);
+        repositoriesService.applyClusterState(new ClusterChangedEvent("put test repository", clusterState, emptyState()));
+        repo = repositoriesService.repository(repoName);
+        assertThat(repo, isA(TestRepository.class));
+    }
+
+    // test remove InvalidRepository when current repo is removed in cluster state
+    public void testRemoveInvalidRepositoryTypeWhenApplyingClusterState() {
+        var repoName = randomAlphaOfLengthBetween(10, 25);
+
+        var clusterState = createClusterStateWithRepo(repoName, UnstableRepository.TYPE);
+        repositoriesService.applyClusterState(new ClusterChangedEvent("put unstable repository", clusterState, emptyState()));
+        repositoriesService.applyClusterState(new ClusterChangedEvent("removing repo", emptyState(), clusterState));
+        assertThat(
+            expectThrows(RepositoryMissingException.class, () -> repositoriesService.repository(repoName)).getMessage(),
+            equalTo("[" + repoName + "] missing")
+        );
+    }
+
+    // InvalidRepository is created when current node is non-master node and failed to create repository by applying cluster state from
+    // master. When current node become master node later and same repository is put again, current node can create repository successfully
+    // and replace previous InvalidRepository
+    public void testRegisterRepositorySuccessAfterCreationFailed() {
+        // 1. repository creation failed when current node is non-master node and apply cluster state from master
+        var repoName = randomAlphaOfLengthBetween(10, 25);
+
+        var clusterState = createClusterStateWithRepo(repoName, UnstableRepository.TYPE);
+        repositoriesService.applyClusterState(new ClusterChangedEvent("put unstable repository", clusterState, emptyState()));
+
+        var repo = repositoriesService.repository(repoName);
+        assertThat(repo, isA(InvalidRepository.class));
+
+        // 2. repository creation successfully when current node become master node and repository is put again
+        var request = new PutRepositoryRequest().name(repoName).type(TestRepository.TYPE);
+
+        repositoriesService.registerRepository(request, new ActionListener<>() {
+            @Override
+            public void onResponse(AcknowledgedResponse acknowledgedResponse) {
+                assertTrue(acknowledgedResponse.isAcknowledged());
+                assertThat(repositoriesService.repository(repoName), isA(TestRepository.class));
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                assert false : e;
+            }
+        });
+    }
+
     private ClusterState createClusterStateWithRepo(String repoName, String repoType) {
         ClusterState.Builder state = ClusterState.builder(new ClusterName("test"));
         Metadata.Builder mdBuilder = Metadata.builder();
-        mdBuilder.putCustom(RepositoriesMetadata.TYPE,
-            new RepositoriesMetadata(Collections.singletonList(new RepositoryMetadata(repoName, repoType, Settings.EMPTY))));
+        mdBuilder.putCustom(
+            RepositoriesMetadata.TYPE,
+            new RepositoriesMetadata(Collections.singletonList(new RepositoryMetadata(repoName, repoType, Settings.EMPTY)))
+        );
         state.metadata(mdBuilder);
 
         return state.build();
@@ -165,8 +300,7 @@ public class RepositoriesServiceTests extends ESTestCase {
     }
 
     private void assertThrowsOnRegister(String repoName) {
-        PutRepositoryRequest request = new PutRepositoryRequest(repoName);
-        expectThrows(RepositoryException.class, () -> repositoriesService.registerRepository(request, null));
+        expectThrows(RepositoryException.class, () -> repositoriesService.registerRepository(new PutRepositoryRequest(repoName), null));
     }
 
     private static class TestRepository implements Repository {
@@ -187,8 +321,8 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public SnapshotInfo getSnapshotInfo(SnapshotId snapshotId) {
-            return null;
+        public void getSnapshotInfo(GetSnapshotInfoContext context) {
+            throw new UnsupportedOperationException();
         }
 
         @Override
@@ -207,16 +341,17 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public void finalizeSnapshot(ShardGenerations shardGenerations, long repositoryStateId, Metadata clusterMetadata,
-                                     SnapshotInfo snapshotInfo, Version repositoryMetaVersion,
-                                     Function<ClusterState, ClusterState> stateTransformer,
-                                     ActionListener<RepositoryData> listener) {
-            listener.onResponse(null);
+        public void finalizeSnapshot(FinalizeSnapshotContext finalizeSnapshotContext) {
+            finalizeSnapshotContext.onResponse(null);
         }
 
         @Override
-        public void deleteSnapshots(Collection<SnapshotId> snapshotIds, long repositoryStateId, Version repositoryMetaVersion,
-                                    ActionListener<RepositoryData> listener) {
+        public void deleteSnapshots(
+            Collection<SnapshotId> snapshotIds,
+            long repositoryStateId,
+            Version repositoryMetaVersion,
+            ActionListener<RepositoryData> listener
+        ) {
             listener.onResponse(null);
         }
 
@@ -251,15 +386,19 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public void snapshotShard(Store store, MapperService mapperService, SnapshotId snapshotId, IndexId indexId,
-                                  IndexCommit snapshotIndexCommit, String shardStateIdentifier, IndexShardSnapshotStatus snapshotStatus,
-                                  Version repositoryMetaVersion, Map<String, Object> userMetadata, ActionListener<String> listener) {
+        public void snapshotShard(SnapshotShardContext context) {
 
         }
 
         @Override
-        public void restoreShard(Store store, SnapshotId snapshotId, IndexId indexId, ShardId snapshotShardId,
-                                 RecoveryState recoveryState, ActionListener<Void> listener) {
+        public void restoreShard(
+            Store store,
+            SnapshotId snapshotId,
+            IndexId indexId,
+            ShardId snapshotShardId,
+            RecoveryState recoveryState,
+            ActionListener<Void> listener
+        ) {
 
         }
 
@@ -269,19 +408,28 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
 
         @Override
-        public void updateState(final ClusterState state) {
+        public void updateState(final ClusterState state) {}
+
+        @Override
+        public void executeConsistentStateUpdate(
+            Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask,
+            String source,
+            Consumer<Exception> onFailure
+        ) {}
+
+        @Override
+        public void cloneShardSnapshot(
+            SnapshotId source,
+            SnapshotId target,
+            RepositoryShardId shardId,
+            ShardGeneration shardGeneration,
+            ActionListener<ShardSnapshotResult> listener
+        ) {
+
         }
 
         @Override
-        public void executeConsistentStateUpdate(Function<RepositoryData, ClusterStateUpdateTask> createUpdateTask, String source,
-                                                 Consumer<Exception> onFailure) {
-        }
-
-        @Override
-        public void cloneShardSnapshot(SnapshotId source, SnapshotId target, RepositoryShardId shardId, String shardGeneration,
-                                       ActionListener<String> listener) {
-
-        }
+        public void awaitIdle() {}
 
         @Override
         public Lifecycle.State lifecycleState() {
@@ -314,18 +462,29 @@ public class RepositoriesServiceTests extends ESTestCase {
         }
     }
 
+    private static class UnstableRepository extends TestRepository {
+        private static final String TYPE = "unstable";
+
+        private UnstableRepository(RepositoryMetadata metadata) {
+            super(metadata);
+            throw new RepositoryException(TYPE, "failed to create unstable repository");
+        }
+    }
+
     private static class MeteredRepositoryTypeA extends MeteredBlobStoreRepository {
         private static final String TYPE = "type-a";
         private static final RepositoryStats STATS = new RepositoryStats(Map.of("GET", 10L));
 
         private MeteredRepositoryTypeA(RepositoryMetadata metadata, ClusterService clusterService) {
-            super(metadata,
+            super(
+                metadata,
                 mock(NamedXContentRegistry.class),
                 clusterService,
                 MockBigArrays.NON_RECYCLING_INSTANCE,
                 mock(RecoverySettings.class),
-                BlobPath.cleanPath(),
-                Map.of("bucket", "bucket-a"));
+                BlobPath.EMPTY,
+                Map.of("bucket", "bucket-a")
+            );
         }
 
         @Override
@@ -344,13 +503,15 @@ public class RepositoriesServiceTests extends ESTestCase {
         private static final RepositoryStats STATS = new RepositoryStats(Map.of("LIST", 20L));
 
         private MeteredRepositoryTypeB(RepositoryMetadata metadata, ClusterService clusterService) {
-            super(metadata,
+            super(
+                metadata,
                 mock(NamedXContentRegistry.class),
                 clusterService,
                 MockBigArrays.NON_RECYCLING_INSTANCE,
                 mock(RecoverySettings.class),
-                BlobPath.cleanPath(),
-                Map.of("bucket", "bucket-b"));
+                BlobPath.EMPTY,
+                Map.of("bucket", "bucket-b")
+            );
         }
 
         @Override

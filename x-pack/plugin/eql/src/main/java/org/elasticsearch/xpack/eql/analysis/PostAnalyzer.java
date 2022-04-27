@@ -53,9 +53,11 @@ public class PostAnalyzer {
                 Project p = new Project(projectCtx, k.child(), k.extractionAttributes());
 
                 // TODO: this could be incorporated into the query generation
-                LogicalPlan fetchSize = new LimitWithOffset(synthetic("<fetch-size>"),
+                LogicalPlan fetchSize = new LimitWithOffset(
+                    synthetic("<fetch-size>"),
                     new Literal(synthetic("<fetch-value>"), configuration.fetchSize(), DataTypes.INTEGER),
-                    p);
+                    p
+                );
 
                 return new KeyedFilter(k.source(), fetchSize, k.keys(), k.timestamp(), k.tiebreaker());
             });

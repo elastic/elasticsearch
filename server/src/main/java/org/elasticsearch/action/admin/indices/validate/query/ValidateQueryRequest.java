@@ -16,10 +16,10 @@ import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.ToXContentObject;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -30,6 +30,8 @@ import java.util.Arrays;
  * The request requires the query to be set using {@link #query(QueryBuilder)}
  */
 public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest> implements ToXContentObject {
+
+    public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.fromOptions(false, false, true, false);
 
     private QueryBuilder query = new MatchAllQueryBuilder();
 
@@ -65,7 +67,7 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
      */
     public ValidateQueryRequest(String... indices) {
         super(indices);
-        indicesOptions(IndicesOptions.fromOptions(false, false, true, false));
+        indicesOptions(DEFAULT_INDICES_OPTIONS);
     }
 
     @Override
@@ -145,8 +147,16 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
 
     @Override
     public String toString() {
-        return "[" + Arrays.toString(indices) + "] query[" + query + "], explain:" + explain +
-                ", rewrite:" + rewrite + ", all_shards:" + allShards;
+        return "["
+            + Arrays.toString(indices)
+            + "] query["
+            + query
+            + "], explain:"
+            + explain
+            + ", rewrite:"
+            + rewrite
+            + ", all_shards:"
+            + allShards;
     }
 
     @Override

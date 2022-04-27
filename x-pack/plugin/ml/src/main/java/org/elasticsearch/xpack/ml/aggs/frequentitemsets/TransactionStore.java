@@ -82,17 +82,40 @@ public final class TransactionStore implements Writeable, Releasable {
      */
     public static class TopItemIds implements Iterable<Long>, Releasable {
 
-        public interface IdIterator extends Iterator<Long> {
+        public class IdIterator implements Iterator<Long> {
 
-            int getIndex();
+            private int currentIndex;
 
-            /**
-             * Reset the Iterator
-             */
-            void reset();
+            IdIterator (int startIndex) {
+                currentIndex = startIndex;
+            }
 
-            void reset(int startIndex);
+            @Override
+            public boolean hasNext() {
+                return currentIndex < sortedItems.size();
+            }
 
+            @Override
+            public Long next() {
+                return sortedItems.get(currentIndex++);
+            }
+
+            @Override
+            public void remove() {
+                throw new UnsupportedOperationException();
+            }
+
+            public int getIndex() {
+                return currentIndex;
+            }
+
+            public void reset() {
+                currentIndex = 0;
+            }
+
+            public void reset(int startIndex) {
+                currentIndex = startIndex;
+            }
         }
 
         private final LongArray sortedItems;
@@ -106,43 +129,8 @@ public final class TransactionStore implements Writeable, Releasable {
             return iterator(0);
         }
 
-        // TODO: would be good to avoid setting internals
         public IdIterator iterator(int startIndex) {
-            IdIterator it = new IdIterator() {
-
-                private int currentIndex = startIndex;
-
-                @Override
-                public boolean hasNext() {
-                    return currentIndex < sortedItems.size();
-                }
-
-                @Override
-                public Long next() {
-                    return sortedItems.get(currentIndex++);
-                }
-
-                @Override
-                public void remove() {
-                    throw new UnsupportedOperationException();
-                }
-
-                @Override
-                public int getIndex() {
-                    return currentIndex;
-                }
-
-                @Override
-                public void reset() {
-                    currentIndex = 0;
-                }
-
-                @Override
-                public void reset(int startIndex) {
-                    currentIndex = startIndex;
-                }
-            };
-            return it;
+            return new IdIterator(startIndex);
         }
 
         public long size() {

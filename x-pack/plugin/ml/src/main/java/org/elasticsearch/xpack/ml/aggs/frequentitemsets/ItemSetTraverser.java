@@ -10,64 +10,82 @@ package org.elasticsearch.xpack.ml.aggs.frequentitemsets;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Stack;
 
+/**
+ * A traverser that explores the item set tree, so item sets are generated exactly once.
+ *
+ * For example: A tree that builds all combinations would create traverse the set [a, b, c]
+ * several times: a->b->c, a->c->b, b->a->c, b->c->a, c->a->b, c->b->a
+ *
+ * This traverser avoids those duplicates and only traverses [a, b, c] via a->b->c
+ *
+ * With other words: this traverser is only useful if order does not matter ("bag-of-words model").
+ */
 public class ItemSetTraverser implements Releasable {
 
     private final TransactionStore.TopItemIds topItemIds;
 
-    private long itemId = -1;
-    private Stack<TransactionStore.TopItemIds.IdIterator> itemIteratorStack = new Stack<>();
+    // stack implementation: to avoid object churn this is not implemented as classical stack, but optimized for re-usage
+    private List<TransactionStore.TopItemIds.IdIterator> itemIterators = new ArrayList<>();
+    private int stackPosition = 0;
+
     private Stack<Long> itemIdStack = new Stack<>();
 
     public ItemSetTraverser(TransactionStore.TopItemIds topItemIds) {
         this.topItemIds = topItemIds;
 
         // push the first iterator
-        itemIteratorStack.add(topItemIds.iterator());
+        itemIterators.add(topItemIds.iterator());
     }
 
     public boolean hasNext() {
         // check if we are already exhausted
-        if (itemIteratorStack.isEmpty()) {
+        if (stackPosition == -1) {
             return false;
         }
-        return itemIteratorStack.peek().hasNext();
+        return itemIterators.get(stackPosition).hasNext();
     }
 
     public boolean next() {
         // check if we are already exhausted
-        if (itemIteratorStack.isEmpty()) {
+        if (stackPosition == -1) {
             return false;
         }
 
+        long itemId;
         for (;;) {
-            if (itemIteratorStack.peek().hasNext()) {
-                itemId = itemIteratorStack.peek().next();
+            if (itemIterators.get(stackPosition).hasNext()) {
+                itemId = itemIterators.get(stackPosition).next();
 
                 // the way the tree is traversed, it should not create dups
                 assert itemIdStack.contains(itemId) == false : "detected duplicate";
                 break;
             } else {
-                itemIteratorStack.pop();
-                if (itemIteratorStack.isEmpty()) {
+                --stackPosition;
+                if (stackPosition == -1) {
                     return false;
                 }
                 itemIdStack.pop();
             }
         }
 
-        // push a new iterator to the stack, TODO: avoid object churn
-        // the iterator starts at the position of the current one, so it won't create dups
-        itemIteratorStack.add(topItemIds.iterator(itemIteratorStack.peek().getIndex()));
+        if (itemIterators.size() == stackPosition + 1) {
+            itemIterators.add(topItemIds.iterator(itemIterators.get(stackPosition).getIndex()));
+        } else {
+            itemIterators.get(stackPosition + 1).reset(itemIterators.get(stackPosition).getIndex());
+        }
+
         itemIdStack.add(itemId);
+        ++stackPosition;
 
         return true;
     }
 
     public long getItemId() {
-        return itemId;
+        return itemIdStack.peek();
     }
 
     public List<Long> getItemSet() {
@@ -75,18 +93,18 @@ public class ItemSetTraverser implements Releasable {
     }
 
     public int getDepth() {
-        return itemIteratorStack.size() - 1;
+        return stackPosition;
     }
 
     public void prune() {
         // already empty
-        if (itemIteratorStack.isEmpty()) {
+        if (stackPosition == -1) {
             return;
         }
-        itemIteratorStack.pop();
+        --stackPosition;
 
         // the id stack has 1 item less
-        if (itemIteratorStack.isEmpty()) {
+        if (stackPosition == -1) {
             return;
         }
         itemIdStack.pop();

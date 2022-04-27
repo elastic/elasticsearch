@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.ml.inference.assignment.planning;
 
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Model;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Node;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -60,11 +62,20 @@ abstract class AbstractPreserveAllocations {
     }
 
     AssignmentPlan mergePreservedAllocations(AssignmentPlan assignmentPlan) {
+        final Map<Tuple<String, String>, Integer> assignmentsByModelNodeIdPair = new HashMap<>();
+        for (Model m : assignmentPlan.models()) {
+            Map<Node, Integer> assignments = assignmentPlan.assignments(m);
+            if (assignments != null) {
+                for (Map.Entry<Node, Integer> nodeAssignment : assignments.entrySet()) {
+                    assignmentsByModelNodeIdPair.put(Tuple.tuple(m.id(), nodeAssignment.getKey().id()), nodeAssignment.getValue());
+                }
+            }
+        }
+
         AssignmentPlan.Builder mergedPlanBuilder = AssignmentPlan.builder(nodes, models);
         for (Model m : models) {
-            Map<Node, Integer> assignments = assignmentPlan.assignments(m);
             for (Node n : nodes) {
-                int allocations = assignments == null ? 0 : assignments.getOrDefault(n, 0);
+                int allocations = assignmentsByModelNodeIdPair.getOrDefault(Tuple.tuple(m.id(), n.id()), 0);
                 if (m.currentAllocationByNodeId().containsKey(n.id())) {
                     allocations += addPreservedAllocations(n, m);
                 }

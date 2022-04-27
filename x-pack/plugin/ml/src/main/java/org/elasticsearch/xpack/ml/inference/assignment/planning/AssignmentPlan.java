@@ -39,19 +39,6 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         }
 
         @Override
-        public int hashCode() {
-            return Objects.hashCode(id);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Model that = (Model) o;
-            return Objects.equals(id, that.id);
-        }
-
-        @Override
         public String toString() {
             return id
                 + " (mem = "
@@ -67,19 +54,6 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
     };
 
     public record Node(String id, long availableMemoryBytes, int cores) {
-
-        @Override
-        public int hashCode() {
-            return Objects.hashCode(id);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Node that = (Node) o;
-            return Objects.equals(id, that.id);
-        }
 
         @Override
         public String toString() {
@@ -290,13 +264,13 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         AssignmentPlan build() {
             Map<Model, Map<Node, Integer>> finalAssignments = new HashMap<>();
             for (Model m : assignments.keySet()) {
-                Map<Node, Integer> threadsPerNode = new HashMap<>();
+                Map<Node, Integer> allocationsPerNode = new HashMap<>();
                 for (Map.Entry<Node, Integer> entry : assignments.get(m).entrySet()) {
                     if (entry.getValue() > 0) {
-                        threadsPerNode.put(entry.getKey(), entry.getValue());
+                        allocationsPerNode.put(entry.getKey(), entry.getValue());
                     }
                 }
-                finalAssignments.put(m, threadsPerNode);
+                finalAssignments.put(m, allocationsPerNode);
             }
             return new AssignmentPlan(finalAssignments);
         }

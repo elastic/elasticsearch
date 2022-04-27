@@ -1,0 +1,6 @@
+pr: 86240
+summary: Add UNKNOWN status to health api if cluster state is unknown
+area: Health
+type: enhancement
+issues:
+ - 84792

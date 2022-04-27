@@ -52,7 +52,8 @@ public class MockTerminal extends Terminal {
         }
     }
 
-    private static final byte[] NEWLINE = new byte[] { '\n' };
+    // use the system line ending so we get coverage of windows line endings when running tests on windows
+    private static final byte[] NEWLINE = System.lineSeparator().getBytes(StandardCharsets.UTF_8);
 
     private final ByteArrayOutputStream stdoutBuffer;
     private final ByteArrayOutputStream stderrBuffer;

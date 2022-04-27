@@ -7,10 +7,11 @@
 
 package org.elasticsearch.xpack.slm;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorResult;
-import org.elasticsearch.health.HealthIndicatorService;
+import org.elasticsearch.health.HealthIndicatorServiceBase;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecycleMetadata;
@@ -30,14 +31,12 @@ import static org.elasticsearch.health.ServerHealthComponents.SNAPSHOT;
  *
  * SLM must be running to fix warning reported by this indicator.
  */
-public class SlmHealthIndicatorService implements HealthIndicatorService {
+public class SlmHealthIndicatorService extends HealthIndicatorServiceBase {
 
     public static final String NAME = "slm";
 
-    private final ClusterService clusterService;
-
     public SlmHealthIndicatorService(ClusterService clusterService) {
-        this.clusterService = clusterService;
+        super(clusterService);
     }
 
     @Override
@@ -51,8 +50,8 @@ public class SlmHealthIndicatorService implements HealthIndicatorService {
     }
 
     @Override
-    public HealthIndicatorResult calculate(boolean includeDetails) {
-        var slmMetadata = clusterService.state().metadata().custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
+    public HealthIndicatorResult doCalculate(ClusterState clusterState, boolean includeDetails) {
+        var slmMetadata = clusterState.metadata().custom(SnapshotLifecycleMetadata.TYPE, SnapshotLifecycleMetadata.EMPTY);
         if (slmMetadata.getSnapshotConfigurations().isEmpty()) {
             return createIndicator(GREEN, "No policies configured", createDetails(includeDetails, slmMetadata), Collections.emptyList());
         } else if (slmMetadata.getOperationMode() != OperationMode.RUNNING) {

@@ -8,12 +8,13 @@
 
 package org.elasticsearch.snapshots;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorResult;
-import org.elasticsearch.health.HealthIndicatorService;
+import org.elasticsearch.health.HealthIndicatorServiceBase;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.repositories.RepositoryData;
 
@@ -35,14 +36,12 @@ import static org.elasticsearch.health.ServerHealthComponents.SNAPSHOT;
  *
  * Corrupted repository most likely need to be manually cleaned and a new snapshot needs to be created from scratch.
  */
-public class RepositoryIntegrityHealthIndicatorService implements HealthIndicatorService {
+public class RepositoryIntegrityHealthIndicatorService extends HealthIndicatorServiceBase {
 
     public static final String NAME = "repository_integrity";
 
-    private final ClusterService clusterService;
-
     public RepositoryIntegrityHealthIndicatorService(ClusterService clusterService) {
-        this.clusterService = clusterService;
+        super(clusterService);
     }
 
     @Override
@@ -56,8 +55,8 @@ public class RepositoryIntegrityHealthIndicatorService implements HealthIndicato
     }
 
     @Override
-    public HealthIndicatorResult calculate(boolean includeDetails) {
-        var snapshotMetadata = clusterService.state().metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
+    public HealthIndicatorResult doCalculate(ClusterState clusterState, boolean includeDetails) {
+        var snapshotMetadata = clusterState.metadata().custom(RepositoriesMetadata.TYPE, RepositoriesMetadata.EMPTY);
 
         if (snapshotMetadata.repositories().isEmpty()) {
             return createIndicator(GREEN, "No repositories configured.", HealthIndicatorDetails.EMPTY, Collections.emptyList());

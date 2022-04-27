@@ -7,10 +7,11 @@
 
 package org.elasticsearch.xpack.ilm;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorResult;
-import org.elasticsearch.health.HealthIndicatorService;
+import org.elasticsearch.health.HealthIndicatorServiceBase;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
@@ -30,14 +31,12 @@ import static org.elasticsearch.health.ServerHealthComponents.DATA;
  *
  * ILM must be running to fix warning reported by this indicator.
  */
-public class IlmHealthIndicatorService implements HealthIndicatorService {
+public class IlmHealthIndicatorService extends HealthIndicatorServiceBase {
 
     public static final String NAME = "ilm";
 
-    private final ClusterService clusterService;
-
     public IlmHealthIndicatorService(ClusterService clusterService) {
-        this.clusterService = clusterService;
+        super(clusterService);
     }
 
     @Override
@@ -51,8 +50,8 @@ public class IlmHealthIndicatorService implements HealthIndicatorService {
     }
 
     @Override
-    public HealthIndicatorResult calculate(boolean includeDetails) {
-        var ilmMetadata = clusterService.state().metadata().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
+    public HealthIndicatorResult doCalculate(ClusterState clusterState, boolean includeDetails) {
+        var ilmMetadata = clusterState.metadata().custom(IndexLifecycleMetadata.TYPE, IndexLifecycleMetadata.EMPTY);
         if (ilmMetadata.getPolicyMetadatas().isEmpty()) {
             return createIndicator(GREEN, "No policies configured", createDetails(includeDetails, ilmMetadata), Collections.emptyList());
         } else if (ilmMetadata.getOperationMode() != OperationMode.RUNNING) {

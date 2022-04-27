@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -21,7 +22,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
-import org.elasticsearch.health.HealthIndicatorService;
+import org.elasticsearch.health.HealthIndicatorServiceBase;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
@@ -54,14 +55,12 @@ import static org.elasticsearch.health.ServerHealthComponents.DATA;
  * Each shard needs to be available and replicated in order to guarantee high availability and prevent data loses.
  * Shards allocated on nodes scheduled for restart (using nodes shutdown API) will not degrade this indicator health.
  */
-public class ShardsAvailabilityHealthIndicatorService implements HealthIndicatorService {
+public class ShardsAvailabilityHealthIndicatorService extends HealthIndicatorServiceBase {
 
     public static final String NAME = "shards_availability";
 
-    private final ClusterService clusterService;
-
     public ShardsAvailabilityHealthIndicatorService(ClusterService clusterService) {
-        this.clusterService = clusterService;
+        super(clusterService);
     }
 
     @Override
@@ -75,8 +74,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     }
 
     @Override
-    public HealthIndicatorResult calculate(boolean includeDetails) {
-        var state = clusterService.state();
+    public HealthIndicatorResult doCalculate(ClusterState state, boolean includeDetails) {
         var shutdown = state.getMetadata().custom(NodesShutdownMetadata.TYPE, NodesShutdownMetadata.EMPTY);
         var status = new ShardAllocationStatus(state.getMetadata());
 

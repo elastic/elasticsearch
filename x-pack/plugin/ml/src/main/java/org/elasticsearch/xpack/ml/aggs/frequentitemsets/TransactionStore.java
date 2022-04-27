@@ -86,7 +86,7 @@ public final class TransactionStore implements Writeable, Releasable {
 
             private int currentIndex;
 
-            IdIterator (int startIndex) {
+            IdIterator(int startIndex) {
                 currentIndex = startIndex;
             }
 

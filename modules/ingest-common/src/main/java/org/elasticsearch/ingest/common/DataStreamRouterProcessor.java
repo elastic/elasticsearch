@@ -26,8 +26,6 @@ public final class DataStreamRouterProcessor extends AbstractProcessor {
     private static final String DATA_STREAM_TYPE = DATA_STREAM_PREFIX + "type";
     private static final String DATA_STREAM_DATASET = DATA_STREAM_PREFIX + "dataset";
     private static final String DATA_STREAM_NAMESPACE = DATA_STREAM_PREFIX + "namespace";
-    private static final String EVENT_DATASET = "event.dataset";
-
     private static final char[] DISALLOWED_IN_DATASET = new char[] { '\\', '/', '*', '?', '\"', '<', '>', '|', ' ', ',', '#', ':', '-' };
     private static final char[] DISALLOWED_IN_NAMESPACE = new char[] { '\\', '/', '*', '?', '\"', '<', '>', '|', ' ', ',', '#', ':' };
     private static final int MAX_LENGTH = 100;
@@ -77,9 +75,6 @@ public final class DataStreamRouterProcessor extends AbstractProcessor {
         String dataset = getDataset(ingestDocument, datasetFallback);
         String namespace = getNamespace(ingestDocument, namespaceFallback);
         ingestDocument.setFieldValue(DATA_STREAM_TYPE, type);
-        if (ingestDocument.hasField(EVENT_DATASET)) {
-            ingestDocument.setFieldValue(EVENT_DATASET, dataset);
-        }
         ingestDocument.setFieldValue(DATA_STREAM_DATASET, dataset);
         ingestDocument.setFieldValue(DATA_STREAM_NAMESPACE, namespace);
         ingestDocument.setFieldValue(IngestDocument.Metadata.INDEX.getFieldName(), type + "-" + dataset + "-" + namespace);

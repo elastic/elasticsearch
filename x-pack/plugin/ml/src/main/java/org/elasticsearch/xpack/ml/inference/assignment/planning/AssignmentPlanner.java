@@ -14,9 +14,7 @@ import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.M
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Node;
 
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * A planner that computes how allocations for model deployments will be
@@ -61,101 +59,18 @@ public class AssignmentPlanner {
         // We do not want to ever completely unassign a model from a node.
         // We want to keep at least one allocation where an assignment used to be
         // in order to move allocations without having temporary impact on performance.
-        return solvePreservingPreviousAssignments(PreserveAllocations.ONE);
+        return solvePreservingPreviousAssignments(new PreserveOneAllocation(nodes, models));
     }
 
     private AssignmentPlan solvePreservingAllPreviousAssignments() {
-        return solvePreservingPreviousAssignments(PreserveAllocations.ALL);
+        return solvePreservingPreviousAssignments(new PreserveAllAllocations(nodes, models));
     }
 
-    private AssignmentPlan solvePreservingPreviousAssignments(PreserveAllocations preserveAllocations) {
-        List<Node> planNodes = nodes.stream().map(n -> modifyNodePreservingPreviousAssignments(n, preserveAllocations)).toList();
-        List<Model> planModels = models.stream().map(m -> modifyModelPreservingPreviousAssignments(m, preserveAllocations)).toList();
+    private AssignmentPlan solvePreservingPreviousAssignments(AbstractPreserveAllocations preserveAllocations) {
+        List<Node> planNodes = preserveAllocations.nodesPreservingAllocations();
+        List<Model> planModels = preserveAllocations.modelsPreservingAllocations();
         AssignmentPlan assignmentPlan = new LinearProgrammingPlanSolver(planNodes, planModels).solvePlan();
-        return mergePreviousAssignments(assignmentPlan, preserveAllocations);
-    }
-
-    private Node modifyNodePreservingPreviousAssignments(Node n, PreserveAllocations preserveAllocations) {
-        long bytesUsed = 0;
-        int coresUsed = 0;
-        for (Model m : models) {
-            if (m.currentAllocationByNodeId().containsKey(n.id())) {
-                bytesUsed += m.memoryBytes();
-                switch (preserveAllocations) {
-                    case ONE:
-                        coresUsed += m.threadsPerAllocation();
-                        break;
-                    case ALL:
-                        coresUsed += m.currentAllocationByNodeId().get(n.id()) * m.threadsPerAllocation();
-                        break;
-                    default:
-                        throw new IllegalStateException();
-                }
-            }
-        }
-
-        return new Node(n.id(), n.availableMemoryBytes() - bytesUsed, n.cores() - coresUsed);
-    }
-
-    private Model modifyModelPreservingPreviousAssignments(Model m, PreserveAllocations preserveAllocations) {
-        if (m.currentAllocationByNodeId().isEmpty()) {
-            return m;
-        }
-
-        int preservedAllocations = 0;
-        Map<String, Integer> remainingAllocationsToPreservePerNodeId = new HashMap<>();
-        switch (preserveAllocations) {
-            case ONE:
-                preservedAllocations += m.currentAllocationByNodeId().values().stream().filter(v -> v > 0).count();
-                m.currentAllocationByNodeId()
-                    .entrySet()
-                    .forEach(e -> remainingAllocationsToPreservePerNodeId.put(e.getKey(), Math.max(0, e.getValue() - 1)));
-                break;
-            case ALL:
-                preservedAllocations += m.currentAllocationByNodeId().values().stream().mapToInt(Integer::intValue).sum();
-                m.currentAllocationByNodeId().keySet().forEach(k -> remainingAllocationsToPreservePerNodeId.put(k, 0));
-                break;
-            default:
-                throw new IllegalStateException();
-        }
-        return new Model(
-            m.id(),
-            m.memoryBytes(),
-            m.allocations() - preservedAllocations,
-            m.threadsPerAllocation(),
-            remainingAllocationsToPreservePerNodeId
-        );
-    }
-
-    private AssignmentPlan mergePreviousAssignments(AssignmentPlan assignmentPlan, PreserveAllocations preserveAllocations) {
-        AssignmentPlan.Builder mergedPlanBuilder = AssignmentPlan.builder(nodes, models);
-        for (Model m : models) {
-            Map<Node, Integer> assignments = assignmentPlan.assignments(m);
-            for (Node n : nodes) {
-                int allocations = assignments == null ? 0 : assignments.getOrDefault(n, 0);
-                if (m.currentAllocationByNodeId().containsKey(n.id())) {
-                    switch (preserveAllocations) {
-                        case ONE:
-                            allocations++;
-                            break;
-                        case ALL:
-                            allocations += m.currentAllocationByNodeId().get(n.id());
-                            break;
-                        default:
-                            throw new IllegalStateException();
-                    }
-                }
-                if (allocations > 0) {
-                    mergedPlanBuilder.assignModelToNode(m, n, allocations);
-                }
-            }
-        }
-        return mergedPlanBuilder.build();
-    }
-
-    private enum PreserveAllocations {
-        ONE,
-        ALL;
+        return preserveAllocations.mergePreservedAllocations(assignmentPlan);
     }
 
     private String prettyPrintOverallStats(AssignmentPlan assignmentPlan) {

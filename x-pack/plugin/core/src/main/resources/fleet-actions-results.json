@@ -5,7 +5,8 @@
   "data_stream": {},
   "template": {
     "settings": {
-      "index.lifecycle.name": ".fleet-actions-results-ilm-policy"
+      "index.lifecycle.name": ".fleet-actions-results-ilm-policy",
+      "index.auto_expand_replicas": "0-1"
     },
     "mappings": {
       "_meta": {

@@ -48,8 +48,8 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
             "module-info",
             "module x.foo.impl { exports p; opens q; provides java.util.function.Supplier with p.FooSupplier; }",
             "p.FooSupplier",
-            "package p; public class FooSupplier implements java.util.function.Supplier<String> {\n" +
-                "        @Override public String get() { return \"Hello from FooSupplier!\"; } }",
+            "package p; public class FooSupplier implements java.util.function.Supplier<String> {\n"
+                + "        @Override public String get() { return \"Hello from FooSupplier!\"; } }",
             "q.Bar",
             "package q; public class Bar { }"
         );
@@ -70,11 +70,21 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         );
         Path outerJar = topLevelDir.resolve("x-foo-impl.jar");
         JarUtils.createJarFile(topLevelDir.resolve("x-foo-impl.jar"), jarEntries);
-        URLClassLoader parent = URLClassLoader.newInstance(new URL[] {outerJar.toUri().toURL()}, EmbeddedImplClassLoaderTests.class.getClassLoader());
+        URLClassLoader parent = URLClassLoader.newInstance(
+            new URL[] { outerJar.toUri().toURL() },
+            EmbeddedImplClassLoaderTests.class.getClassLoader()
+        );
 
         // test scenario
-        ProviderLocator<Supplier<String>> locator =
-            new ProviderLocator(this.getClass().getModule(), "x-foo", Supplier.class, parent, "x.foo.impl", Set.of(), true);
+        ProviderLocator<Supplier<String>> locator = new ProviderLocator(
+            this.getClass().getModule(),
+            "x-foo",
+            Supplier.class,
+            parent,
+            "x.foo.impl",
+            Set.of(),
+            true
+        );
         Supplier<String> impl = locator.get();
         String msg = impl.get();
         assertThat(msg, equalTo("Hello from FooSupplier!"));
@@ -96,11 +106,14 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
     // variant of testLoadAsModuleEmbeddedJar, but as a non-module
     public void testLoadAsNonModuleEmbeddedJar() throws Exception {
         // test scenario setup, compile source, create jar file, and parent loader
-        Map<String, CharSequence> sources = Map.of(
-            "p.FooSupplier",
-            "package p; public class FooSupplier implements java.util.function.Supplier<String> {\n" +
-                "        @Override public String get() { return \"Hello from FooSupplier - non-modular!\"; } }"
-        );
+        Map<String, CharSequence> sources = Map.of("p.FooSupplier", """
+            package p;
+            public class FooSupplier implements java.util.function.Supplier<String> {
+              @Override public String get() {
+                return "Hello from FooSupplier - non-modular!";
+              }
+            }
+            """);
         var classToBytes = InMemoryJavaCompiler.compile(sources);
         Path topLevelDir = createTempDir();
 
@@ -114,11 +127,21 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         );
         Path outerJar = topLevelDir.resolve("x-foo-nm-impl.jar");
         JarUtils.createJarFile(topLevelDir.resolve("x-foo-nm-impl.jar"), jarEntries);
-        URLClassLoader parent = URLClassLoader.newInstance(new URL[] {outerJar.toUri().toURL()}, EmbeddedImplClassLoaderTests.class.getClassLoader());
+        URLClassLoader parent = URLClassLoader.newInstance(
+            new URL[] { outerJar.toUri().toURL() },
+            EmbeddedImplClassLoaderTests.class.getClassLoader()
+        );
 
         // test scenario
-        ProviderLocator<Supplier<String>> locator =
-            new ProviderLocator(this.getClass().getModule(), "x-foo", Supplier.class, parent, "", Set.of(), false);
+        ProviderLocator<Supplier<String>> locator = new ProviderLocator(
+            this.getClass().getModule(),
+            "x-foo",
+            Supplier.class,
+            parent,
+            "",
+            Set.of(),
+            false
+        );
         Supplier<String> impl = locator.get();
         String msg = impl.get();
         assertThat(msg, equalTo("Hello from FooSupplier - non-modular!"));
@@ -129,17 +152,14 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
     // variant of testLoadAsModuleEmbeddedJar, but exploded file paths
     public void testLoadAsNonModuleExplodedPath() throws Exception {
         // test scenario setup, compile source, create jar file, and parent loader
-        Map<String, CharSequence> sources = Map.of(
-            "pb.BarSupplier",
-            """
-                package pb;
-                public class BarSupplier implements java.util.function.Supplier<String> {
-                  @Override public String get() {
-                    return "Hello from BarSupplier - exploded non-modular!";
-                  }
-                }
-                """
-        );
+        Map<String, CharSequence> sources = Map.of("pb.BarSupplier", """
+            package pb;
+            public class BarSupplier implements java.util.function.Supplier<String> {
+              @Override public String get() {
+                return "Hello from BarSupplier - exploded non-modular!";
+              }
+            }
+            """);
         var classToBytes = InMemoryJavaCompiler.compile(sources);
         Path topLevelDir = createTempDir();
 
@@ -151,11 +171,21 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         Path pb = Files.createDirectories(barRoot.resolve("pb"));
         Files.write(pb.resolve("BarSupplier.class"), classToBytes.get("pb.BarSupplier"));
 
-        URLClassLoader parent = URLClassLoader.newInstance(new URL[] {topLevelDir.toUri().toURL()}, EmbeddedImplClassLoaderTests.class.getClassLoader());
+        URLClassLoader parent = URLClassLoader.newInstance(
+            new URL[] { topLevelDir.toUri().toURL() },
+            EmbeddedImplClassLoaderTests.class.getClassLoader()
+        );
 
         // test scenario
-        ProviderLocator<Supplier<String>> locator =
-            new ProviderLocator(this.getClass().getModule(), "y-bar", Supplier.class, parent, "", Set.of(), false);
+        ProviderLocator<Supplier<String>> locator = new ProviderLocator(
+            this.getClass().getModule(),
+            "y-bar",
+            Supplier.class,
+            parent,
+            "",
+            Set.of(),
+            false
+        );
         Supplier<String> impl = locator.get();
         String msg = impl.get();
         assertThat(msg, equalTo("Hello from BarSupplier - exploded non-modular!"));

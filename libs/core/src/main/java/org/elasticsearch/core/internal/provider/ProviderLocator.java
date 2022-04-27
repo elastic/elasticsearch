@@ -52,8 +52,15 @@ public final class ProviderLocator<T> implements Supplier<T> {
         String providerModuleName,
         Set<String> missingModules
     ) {
-        this(caller, providerName, providerType, ProviderLocator.class.getClassLoader(),
-            providerModuleName, missingModules, ProviderLocator.class.getModule().isNamed());
+        this(
+            caller,
+            providerName,
+            providerType,
+            ProviderLocator.class.getClassLoader(),
+            providerModuleName,
+            missingModules,
+            ProviderLocator.class.getModule().isNamed()
+        );
     }
 
     public ProviderLocator(

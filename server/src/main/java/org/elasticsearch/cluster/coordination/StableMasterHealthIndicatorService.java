@@ -80,8 +80,9 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                 DiscoveryNode master = localMasterHistory.getMostRecentNonNullMaster();
                 logger.trace("One master has gone null 4 or more times recently: " + master);
                 boolean localNodeIsMaster = clusterService.localNode().equals(master);
-                List<DiscoveryNode> remoteHistory = localNodeIsMaster ? localMasterHistory.getImmutableView() :
-                    masterHistoryService.getRemoteMasterHistory(master);
+                List<DiscoveryNode> remoteHistory = localNodeIsMaster
+                    ? localMasterHistory.getImmutableView()
+                    : masterHistoryService.getRemoteMasterHistory(master);
                 if (remoteHistory == null || MasterHistory.hasSameMasterGoneNullNTimes(remoteHistory, 4)) {
                     if (remoteHistory == null) {
                         logger.trace(String.format(Locale.ROOT, "Unable to get master history from %s", master));

@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -21,10 +22,12 @@ import java.util.Map;
 public final class InternalMapReduceAggregation extends InternalAggregation {
 
     private final MapReducer mapReducer;
+    private final boolean profiling;
 
-    InternalMapReduceAggregation(String name, Map<String, Object> metadata, MapReducer mapReducer) {
+    InternalMapReduceAggregation(String name, Map<String, Object> metadata, MapReducer mapReducer, boolean profiling) {
         super(name, metadata);
         this.mapReducer = mapReducer;
+        this.profiling = profiling;
     }
 
     public InternalMapReduceAggregation(StreamInput in) throws IOException {
@@ -32,6 +35,7 @@ public final class InternalMapReduceAggregation extends InternalAggregation {
 
         // TODO: handle error if named writable does not exist
         this.mapReducer = in.readNamedWriteable(MapReducer.class);
+        this.profiling = in.readBoolean();
     }
 
     @Override
@@ -71,13 +75,18 @@ public final class InternalMapReduceAggregation extends InternalAggregation {
 
     @Override
     public Object getProperty(List<String> path) {
-        // TODO Auto-generated method stub
-        return null;
+        if (path.isEmpty()) {
+            return this;
+        }
+        throw new IllegalArgumentException("path not supported for [" + getName() + "]: " + path);
     }
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        return mapReducer.toXContent(builder, params);
+        return mapReducer.toXContent(
+            builder,
+            new DelegatingMapParams(Map.of(SearchProfileResults.PROFILE_FIELD, String.valueOf(profiling)), params)
+        );
     }
 
     // for testing only

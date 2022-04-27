@@ -20,46 +20,15 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceValueSourceRegistry.REGISTRY_KEY;
 
 public abstract class MapReduceAggregator extends AggregatorBase {
-
-    public final class MapReduceContext {
-        private final List<ValuesExtractor> extractors;
-        private final Supplier<MapReducer> mapReduceSupplier;
-        private final Map<Long, MapReducer> mapReducerByBucketOrdinal = new HashMap<>();
-
-        public MapReduceContext(List<ValuesExtractor> extractors, Supplier<MapReducer> mapReduceSupplier) {
-            this.extractors = extractors;
-            this.mapReduceSupplier = mapReduceSupplier;
-        }
-
-        public MapReducer getMapReducer(long bucketOrd) {
-            // TODO: are bucketOrdinals arbitrary long values or a counter (so we can use a list instead)???
-            MapReducer mapReducer = mapReducerByBucketOrdinal.get(bucketOrd);
-            if (mapReducer == null) {
-                mapReducer = mapReduceSupplier.get();
-                mapReducerByBucketOrdinal.put(bucketOrd, mapReducer);
-                mapReducer.mapInit();
-            }
-
-            return mapReducer;
-        }
-
-        public Supplier<MapReducer> getMapReduceSupplier() {
-            return mapReduceSupplier;
-        }
-
-        public List<ValuesExtractor> getExtractors() {
-            return extractors;
-        }
-    }
 
     private final MapReduceContext mapReduceContext;
 
@@ -77,20 +46,29 @@ public abstract class MapReduceAggregator extends AggregatorBase {
             .map(c -> context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, c).build(c))
             .collect(Collectors.toList());
 
-        this.mapReduceContext = new MapReduceContext(extractors, mapReducer);
+        this.mapReduceContext = new MapReduceContext(extractors, mapReducer, context.profiling());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        // TODO: handle empty MapReducer???
-        return new InternalMapReduceAggregation(name, metadata(), mapReduceContext.getMapReducer(0));
+        return new InternalMapReduceAggregation(
+            name,
+            metadata(),
+            mapReduceContext.getMapReduceSupplier().get(),
+            mapReduceContext.profiling()
+        );
     }
 
     @Override
     public final InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
         InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
         for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-            results[ordIdx] = new InternalMapReduceAggregation(name, metadata(), mapReduceContext.getMapReducer(ordIdx));
+            results[ordIdx] = new InternalMapReduceAggregation(
+                name,
+                metadata(),
+                mapReduceContext.getMapReducer(ordIdx),
+                mapReduceContext.profiling()
+            );
         }
         return results;
     }
@@ -101,7 +79,6 @@ public abstract class MapReduceAggregator extends AggregatorBase {
             @Override
             public void collect(int doc, long owningBucketOrd) throws IOException {
 
-                // TODO: partition by owningBucketOrd
                 mapReduceContext.getMapReducer(owningBucketOrd).map(mapReduceContext.getExtractors().stream().map(extractor -> {
                     try {
                         return extractor.collectValues(ctx, doc);
@@ -113,4 +90,8 @@ public abstract class MapReduceAggregator extends AggregatorBase {
         };
     }
 
+    @Override
+    public void collectDebugInfo(BiConsumer<String, Object> add) {
+        add.accept("map_reducer", mapReduceContext.getMapReducer(0).getWriteableName());
+    }
 }

@@ -17,6 +17,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.Aggregation.CommonFields;
+import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ml.aggs.frequentitemsets.TransactionStore.TopItemIds;
 import org.elasticsearch.xpack.ml.aggs.frequentitemsets.TransactionStore.TopTransactionIds;
@@ -137,24 +138,30 @@ public class EclatMapReducer implements MapReducer {
             builder.field(CommonFields.BUCKETS.getPreferredName(), frequentSets);
         }
 
-        builder.startObject("frequencies_debug");
-        TopItemIds topIds = null;
+        if (params != null && params.paramAsBoolean(SearchProfileResults.PROFILE_FIELD, false)) {
+            builder.startObject("profile");
+            builder.startArray("single_items");
 
-        try {
-            topIds = transactionStore.getTopItemIds();
-            for (Long id : topIds) {
-                Tuple<String, String> item = transactionStore.getItem(id);
+            TopItemIds topIds = null;
 
-                builder.startObject(id.toString());
-                builder.field(item.v1(), item.v2());
-                builder.endObject();
+            try {
+                topIds = transactionStore.getTopItemIds();
+                for (Long id : topIds) {
+                    Tuple<String, String> item = transactionStore.getItem(id);
+                    builder.startObject();
+                    builder.field("id", id.toString());
+                    builder.field(item.v1(), item.v2());
+                    builder.field(CommonFields.DOC_COUNT.getPreferredName(), transactionStore.getItemCount(id));
+                    builder.endObject();
+                }
+
+            } finally {
+                Releasables.close(topIds);
             }
 
-        } finally {
-            Releasables.close(topIds);
+            builder.endArray();
+            builder.endObject();
         }
-        builder.endObject();
-
         return builder;
     }
 

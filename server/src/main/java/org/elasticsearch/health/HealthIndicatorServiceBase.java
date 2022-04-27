@@ -19,7 +19,7 @@ import java.util.Collections;
 
 public abstract class HealthIndicatorServiceBase implements HealthIndicatorService {
 
-    static final String COULD_NOT_DETERMINE_HEALTH = "Health could not be determined";
+    static final String COULD_NOT_DETERMINE_HEALTH = "Health could not be determined. Try executing health api again.";
 
     private final ClusterService clusterService;
 

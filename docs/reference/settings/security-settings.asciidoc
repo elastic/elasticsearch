@@ -2191,9 +2191,9 @@ used in conjunction with the `hmac_key` setting. Refer to
 (<<secure-settings,Secure>>)
 Contents of a single JSON Web Key (JWK), including the secret key that the JWT
 realm uses to verify token signatures. This format only supports a single key
-without attributes, and cannot be used with the `hmac_jwkset` setting. This
-format is compatible with OIDC, where the HMAC key is a UNICODE string, and
-the HMAC key bytes are the UTF-8 encoding of the UNICODE string.
+without attributes, and cannot be used with the `hmac_jwkset` setting. This 
+format is compatible with OIDC. The HMAC key must be a UNICODE string, where 
+the key bytes are the UTF-8 encoding of the UNICODE string.
 The `hmac_jwkset` setting is preferred. Refer to
 <<jwt-realm-configuration,Configure {es} to use a JWT realm>>.
 

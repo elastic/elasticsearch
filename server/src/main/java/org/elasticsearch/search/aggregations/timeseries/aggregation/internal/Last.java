@@ -64,6 +64,10 @@ public class Last extends InternalNumericMetricsAggregation.SingleValue {
         return last;
     }
 
+    public long getTimestamp() {
+        return timestamp;
+    }
+
     @Override
     public Last reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
         double last = Double.NEGATIVE_INFINITY;
@@ -71,6 +75,7 @@ public class Last extends InternalNumericMetricsAggregation.SingleValue {
         for (InternalAggregation aggregation : aggregations) {
             if (((Last) aggregation).timestamp > timestamp) {
                 last = ((Last) aggregation).last;
+                timestamp = ((Last) aggregation).timestamp;
             }
         }
         return new Last(name, last, timestamp, format, getMetadata());

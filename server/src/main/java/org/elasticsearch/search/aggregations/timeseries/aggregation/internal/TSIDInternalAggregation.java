@@ -19,11 +19,11 @@ import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggre
 import org.elasticsearch.search.aggregations.timeseries.aggregation.Function;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.bucketfunction.TSIDBucketFunction;
 import org.elasticsearch.search.aggregations.timeseries.aggregation.function.AggregatorFunction;
+import org.elasticsearch.search.aggregations.timeseries.aggregation.function.LastFunction;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -108,7 +108,12 @@ public class TSIDInternalAggregation extends InternalAggregation {
                 if (aggs.size() > 0) {
                     InternalAggregation first = aggs.get(0);
                     InternalNumericMetricsAggregation.SingleValue internalAggregation = (SingleValue) first.reduce(aggs, reduceContext);
-                    aggregatorFunction.collect(internalAggregation.value());
+                    // TODO replace this instanceof logic
+                    if (internalAggregation instanceof Last last && aggregatorFunction instanceof LastFunction lastFunction) {
+                        lastFunction.collectExact(last.value(), last.getTimestamp());
+                    } else {
+                        aggregatorFunction.collect(internalAggregation.value());
+                    }
                 }
             });
             return aggregatorFunction.getAggregation(formatter, getMetadata());

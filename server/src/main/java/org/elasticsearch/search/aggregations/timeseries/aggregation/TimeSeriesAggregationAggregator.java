@@ -86,7 +86,7 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
     private long preBucketOrdinal;
     protected long preRounding = -1;
     private Rounding.Prepared rounding;
-    private boolean needGroupBy;
+    private boolean needAggregator;
     protected Map<Long, AggregatorFunction> timeBucketMetrics; // TODO replace map
     private Map<Long, Map<Long, InternalAggregation>> groupBucketValues; // TODO replace map
     private Map<Long, AggregatorBucketFunction> aggregatorCollectors; // TODO replace map
@@ -114,8 +114,6 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
         this.keyed = keyed;
         this.group = group != null ? Sets.newHashSet(group) : Set.of();
         this.without = without != null ? Sets.newHashSet(without) : Set.of();
-        this.needGroupBy = this.group.size() > 0 || this.without.size() > 0;
-
         this.interval = interval != null ? interval.estimateMillis() : -1;
         if (this.interval <= 0) {
             throw new IllegalArgumentException("time_series_aggregation invalid interval [" + interval + "]");
@@ -123,6 +121,7 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
         this.rounding = Rounding.builder(new TimeValue(this.interval)).build().prepareForUnknown();
         this.offset = offset != null ? offset.estimateMillis() : 0;
         this.aggregator = aggregator;
+        this.needAggregator = this.aggregator != null;
         this.downsampleRange = downsample != null ? downsample.getRange().estimateMillis() : -1;
         this.downsampleFunction = downsample != null ? downsample.getFunction() : Function.last;
         if (this.downsampleRange <= 0) {
@@ -142,8 +141,8 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
         }
         this.timestampBounds = context.getIndexSettings().getTimestampBounds();
 
-        if (needGroupBy && this.aggregator == null) {
-            throw new IllegalArgumentException("time_series_aggregation invalid aggregator [" + aggregator + "]");
+        if ((this.group.size() > 0 || this.without.size() > 0) && this.aggregator == null) {
+            throw new IllegalArgumentException("time_series_aggregation group by must have an aggregator");
         }
 
         groupBucketValues = new LinkedHashMap<>();
@@ -192,11 +191,14 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
                 InternalTimeSeriesAggregation.InternalBucket bucket = ordered.pop();
                 long ord = bucket.bucketOrd;
                 Map<Long, InternalAggregation> values = new LinkedHashMap<>();
-                if (needGroupBy) {
+                if (needAggregator) {
                     AggregatorBucketFunction aggregatorBucketFunction = aggregatorCollectors.get(ord);
                     LongKeyedBucketOrds.BucketOrdsEnum timeOrdsEnum = timestampOrds.ordsEnum(ord);
                     while (timeOrdsEnum.next()) {
-                        values.put(timeOrdsEnum.value() + offset, aggregatorBucketFunction.getAggregation(timeOrdsEnum.ord(), format, metadata()));
+                        values.put(
+                            timeOrdsEnum.value() + offset,
+                            aggregatorBucketFunction.getAggregation(timeOrdsEnum.ord(), format, metadata())
+                        );
                     }
                 } else {
                     values = groupBucketValues.get(ord);
@@ -288,7 +290,7 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
             preTsid = BytesRef.deepCopyOf(tsid);
             preRounding = -1;
 
-            BytesRef bucketValue = needGroupBy ? packKey(preTsid) : preTsid;
+            BytesRef bucketValue = needAggregator ? packKey(preTsid) : preTsid;
             long bucketOrdinal = bucketOrds.add(bucket, bucketValue);
             if (bucketOrdinal < 0) { // already seen
                 bucketOrdinal = -1 - bucketOrdinal;
@@ -323,6 +325,7 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
                         Long timestamp = entry.getKey();
                         AggregatorFunction function = entry.getValue();
                         if (aggCtx.getTimestamp() + downsampleRange > timestamp) {
+                            // TODO replace this instanceof logic
                             if (function instanceof LastFunction last) {
                                 last.collectExact(value, aggCtx.getTimestamp());
                             } else {
@@ -375,6 +378,10 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
      * decode the tsid and pack the bucket key from the group and without config
      */
     private BytesRef packKey(BytesRef tsid) {
+        if (group.size() == 0 && without.size() == 0) {
+            return new BytesRef(new byte[] { 0 });
+        }
+
         Map<String, Object> tsidMap = TimeSeriesIdFieldMapper.decodeTsid(tsid);
         Map<String, Object> groupMap = new LinkedHashMap<>();
         tsidMap.forEach((key, value) -> {
@@ -382,7 +389,7 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
                 if (group.contains(key) && false == without.contains(key)) {
                     groupMap.put(key, value);
                 }
-            } else {
+            } else if (without.size() > 0) {
                 if (false == without.contains(key)) {
                     groupMap.put(key, value);
                 }
@@ -395,7 +402,7 @@ public class TimeSeriesAggregationAggregator extends BucketsAggregator {
      * collect the value of one time series line
      */
     public void collectTimeSeriesValues(long bucketOrd) throws IOException {
-        if (needGroupBy) {
+        if (needAggregator) {
             AggregatorBucketFunction aggregatorBucketFunction = aggregatorCollectors.get(bucketOrd);
             if (aggregatorBucketFunction == null) {
                 AggregatorBucketFunction internal = aggregator.getAggregatorBucketFunction(bigArrays());

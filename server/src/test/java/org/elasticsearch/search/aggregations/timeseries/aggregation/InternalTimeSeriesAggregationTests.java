@@ -38,7 +38,7 @@ public class InternalTimeSeriesAggregationTests extends InternalMultiBucketAggre
         BucketOrder order = BucketOrder.count(false);
         long minDocCount = 1;
         int requiredSize = 3;
-        int shardSize = requiredSize + 2;
+        int shardSize = requiredSize;
         long otherDocCount = 0;
         boolean keyed = randomBoolean();
         boolean showTermDocCountError = randomBoolean();

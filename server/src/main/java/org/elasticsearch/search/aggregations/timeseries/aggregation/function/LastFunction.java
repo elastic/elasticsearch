@@ -27,6 +27,7 @@ public class LastFunction implements AggregatorFunction<Double, Double> {
 
     public void collectExact(double number, long timestamp) {
         if (timestamp > this.timestamp) {
+            this.timestamp = timestamp;
             last = number;
         }
     }

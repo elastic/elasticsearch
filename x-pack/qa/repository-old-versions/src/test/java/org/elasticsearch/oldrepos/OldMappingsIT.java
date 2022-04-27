@@ -197,7 +197,7 @@ public class OldMappingsIT extends ESRestTestCase {
             .startObject()
             .startObject("query")
             .startObject("match")
-            .startObject("apache2.access.agent")
+            .startObject("completion")
             .field("query", "some-agent")
             .endObject()
             .endObject()
@@ -207,7 +207,7 @@ public class OldMappingsIT extends ESRestTestCase {
         ResponseException re = expectThrows(ResponseException.class, () -> entityAsMap(client().performRequest(search)));
         assertThat(
             re.getMessage(),
-            containsString("Field [apache2.access.agent] of type [text] in legacy index does not support match queries")
+            containsString("Field [completion] of type [completion] in legacy index does not support match queries")
         );
     }
 
@@ -218,14 +218,14 @@ public class OldMappingsIT extends ESRestTestCase {
             .startObject("aggs")
             .startObject("agents")
             .startObject("terms")
-            .field("field", "apache2.access.agent")
+            .field("field", "completion")
             .endObject()
             .endObject()
             .endObject()
             .endObject();
         search.setJsonEntity(Strings.toString(query));
         ResponseException re = expectThrows(ResponseException.class, () -> entityAsMap(client().performRequest(search)));
-        assertThat(re.getMessage(), containsString("can't run aggregation or sorts on field type text of legacy index"));
+        assertThat(re.getMessage(), containsString("can't run aggregation or sorts on field type completion of legacy index"));
     }
 
 }

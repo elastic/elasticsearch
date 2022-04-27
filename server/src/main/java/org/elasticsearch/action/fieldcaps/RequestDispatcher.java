@@ -260,13 +260,13 @@ final class RequestDispatcher {
                 withMappingHashes.computeIfAbsent(indexMetadata.mapping().getSha256(), k -> new ArrayList<>()).add(index);
             } else {
                 final GroupShardsIterator<ShardIterator> shardIts = clusterService.operationRouting()
-                    .searchShards(clusterState, new String[] { index }, null, null, null, null);
+                    .searchShards(clusterState, new String[] { index }, null, null);
                 groups.add(new Group(List.of(index), null, shardIts));
             }
         }
         for (Map.Entry<String, List<String>> e : withMappingHashes.entrySet()) {
             final GroupShardsIterator<ShardIterator> shardIts = clusterService.operationRouting()
-                .searchShards(clusterState, e.getValue().toArray(String[]::new), null, null, null, null);
+                .searchShards(clusterState, e.getValue().toArray(String[]::new), null, null);
             groups.add(new Group(e.getValue(), e.getKey(), shardIts));
         }
         return groups;

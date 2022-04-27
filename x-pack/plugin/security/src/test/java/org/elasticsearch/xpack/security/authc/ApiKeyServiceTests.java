@@ -1687,10 +1687,7 @@ public class ApiKeyServiceTests extends ESTestCase {
             metadata = Map.of(API_KEY_ID_KEY, randomAlphaOfLength(20), API_KEY_METADATA_KEY, metadataBytes);
         }
 
-        final Authentication apiKeyAuthentication = Authentication.newApiKeyAuthentication(
-            AuthenticationResult.success(AuthenticationTests.randomUser(), metadata),
-            randomAlphaOfLengthBetween(3, 8)
-        );
+        final Authentication apiKeyAuthentication = AuthenticationTestHelper.builder().apiKey().metadata(metadata).build(false);
 
         final Map<String, Object> restoredApiKeyMetadata = ApiKeyService.getApiKeyMetadata(apiKeyAuthentication);
         if (apiKeyMetadata == null) {

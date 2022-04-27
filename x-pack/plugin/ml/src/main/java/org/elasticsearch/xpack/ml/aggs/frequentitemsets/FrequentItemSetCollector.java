@@ -7,8 +7,7 @@
 
 package org.elasticsearch.xpack.ml.aggs.frequentitemsets;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
+import org.apache.lucene.util.LongsRef;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.aggregations.Aggregation.CommonFields;
@@ -23,34 +22,33 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
+/**
+ * Collector for frequent item sets.
+ *
+ * The collector keeps the best top-n sets found during mining and reports the minimum doc count required to enter.
+ * With other words the last of top-n. This is useful to skip over candidates quickly.
+ *
+ * Technically this is implemented as priority queue which is implemented as heap with the last item on top.
+ *
+ * To get to the top-n results pop the collector until it is empty and than reverse the order.
+ */
 public class FrequentItemSetCollector {
 
+    /**
+     * Container for a single frequent itemset
+     */
     public class FrequentItemSet implements ToXContent {
 
-        private final long[] items;
-        private final long docCount;
+        private LongsRef items;
+        private long docCount;
 
         // every set has a unique id, required for the outer logic
-        private final int id;
+        private int id;
 
-        FrequentItemSet(int id, long[] items, long docCount) {
-            this.items = items;
-            this.docCount = docCount;
-            this.id = id;
-
-            /*logger.info(
-                "add fi set {} ({}) with dc: {}",
-                Strings.collectionToDelimitedString(items.stream().map(id -> {
-                    try {
-                        return transactionStore.getItem(id);
-                    } catch (IOException e) {
-                        return "IO ERROR";
-                    }
-                }).collect(Collectors.toList()), ","),
-                Strings.collectionToDelimitedString(items, ","),
-                docCount
-
-            );*/
+        private FrequentItemSet() {
+            this.id = -1;
+            this.items = new LongsRef(10);
+            this.docCount = -1;
         }
 
         @Override
@@ -60,8 +58,9 @@ public class FrequentItemSetCollector {
             builder.startObject();
             builder.startObject(CommonFields.KEY.getPreferredName());
             Map<String, List<String>> frequentItemsKeyValues = new HashMap<>();
-            for (Long id : items) {
-                Tuple<String, String> item = transactionStore.getItem(id);
+
+            for (int i = 0; i < items.length; ++i) {
+                Tuple<String, String> item = transactionStore.getItem(items.longs[i]);
                 if (frequentItemsKeyValues.containsKey(item.v1())) {
                     frequentItemsKeyValues.get(item.v1()).add(item.v2());
                 } else {
@@ -72,7 +71,6 @@ public class FrequentItemSetCollector {
             }
 
             for (Entry<String, List<String>> item : frequentItemsKeyValues.entrySet()) {
-                // TODO: flatten single lists?
                 builder.field(item.getKey(), item.getValue());
             }
             builder.endObject();
@@ -87,7 +85,7 @@ public class FrequentItemSetCollector {
             return docCount;
         }
 
-        public long[] getItems() {
+        public LongsRef getItems() {
             return items;
         }
 
@@ -98,9 +96,23 @@ public class FrequentItemSetCollector {
         public int size() {
             return items.length;
         }
+
+        private void reset(int id, List<Long> items, long docCount) {
+            if (items.size() > this.items.length) {
+                this.items = new LongsRef(items.size());
+            }
+
+            for (int i = 0; i < items.size(); ++i) {
+                this.items.longs[i] = items.get(i);
+            }
+
+            this.items.length = items.size();
+            this.docCount = docCount;
+            this.id = id;
+        }
     }
 
-    static class FrequentItemSetPriorityQueue extends PriorityQueue<FrequentItemSet> {
+    private static class FrequentItemSetPriorityQueue extends PriorityQueue<FrequentItemSet> {
         FrequentItemSetPriorityQueue(int size) {
             super(size);
         }
@@ -109,8 +121,7 @@ public class FrequentItemSetCollector {
         protected boolean lessThan(FrequentItemSet a, FrequentItemSet b) {
             if (a.docCount == b.docCount) {
                 if (a.size() == b.size()) {
-                    return Arrays.compare(a.items, b.items) < 0;
-
+                    return Arrays.compare(a.items.longs, 0, a.items.length, b.items.longs, 0, b.items.length) < 0;
                 }
                 return a.size() < b.size();
             }
@@ -119,14 +130,17 @@ public class FrequentItemSetCollector {
         }
     }
 
-    private static final Logger logger = LogManager.getLogger(FrequentItemSetCollector.class);
-
     private final TransactionStore transactionStore;
     private final FrequentItemSetPriorityQueue queue;
-    private final int size;
+
+    // index for closed item set de-duplication
     private final Map<Long, List<FrequentItemSet>> frequentItemsByCount;
-    private int count = 0;
+
+    private final int size;
     private final long min;
+
+    private int count = 0;
+    private FrequentItemSet spareSet = new FrequentItemSet();
 
     public FrequentItemSetCollector(TransactionStore transactionStore, int size, long min) {
         this.transactionStore = transactionStore;
@@ -144,44 +158,27 @@ public class FrequentItemSetCollector {
         return queue.size();
     }
 
+    /**
+     * Add an itemSet to the collector, the set is only accepted if the given doc count is larger than the
+     * minimum count and other criteria like the closed set criteria are met.
+     *
+     * Note: If added to the collector the given item set is not reused but deep copied
+     *
+     * @param itemSet the itemSet
+     * @param docCount the doc count for this set
+     * @return the new minimum doc count necessary to enter the collector
+     */
     public long add(List<Long> itemSet, long docCount) {
         if (queue.top() == null || queue.size() < size || docCount > queue.top().getDocCount()) {
 
             // closed set criteria: don't add if we already store a superset
-            List<FrequentItemSet> setsThatShareSameDocCount = getFrequentItemsByCount().get(docCount);
-            boolean foundSuperSet = false;
-            if (setsThatShareSameDocCount != null) {
-                for (FrequentItemSet otherSet : setsThatShareSameDocCount) {
-                    if (otherSet.size() < itemSet.size()) {
-                        continue;
-                    }
-
-                    int pos = 0;
-                    for (Long item : otherSet.getItems()) {
-                        if (item == itemSet.get(pos)) {
-                            pos++;
-                            if (pos == itemSet.size()) {
-                                foundSuperSet = true;
-                                break;
-                            }
-                        }
-                    }
-
-                    if (foundSuperSet) {
-                        break;
-                    }
-                }
-            }
-
-            if (foundSuperSet == false) {
-                // TODO: recycle instances
-                // note: we have to copy the itemSet
-                FrequentItemSet newItemSet = new FrequentItemSet(count++, itemSet.stream().mapToLong(l -> l).toArray(), docCount);
-                FrequentItemSet removedItemSet = queue.insertWithOverflow(newItemSet);
-
+            if (hasSuperSet(itemSet, docCount) == false) {
+                spareSet.reset(count++, itemSet, docCount);
+                FrequentItemSet newItemSet = spareSet;
+                FrequentItemSet removedItemSet = queue.insertWithOverflow(spareSet);
                 if (removedItemSet != null) {
                     // remove item from frequentItemsByCount
-                    getFrequentItemsByCount().compute(removedItemSet.getDocCount(), (k, sets) -> {
+                    frequentItemsByCount.compute(removedItemSet.getDocCount(), (k, sets) -> {
 
                         // short cut, if there is only 1, it must be the one we are looking for
                         if (sets.size() == 1) {
@@ -191,9 +188,12 @@ public class FrequentItemSetCollector {
                         sets.remove(removedItemSet);
                         return sets;
                     });
+                    spareSet = removedItemSet;
+                } else {
+                    spareSet = new FrequentItemSet();
                 }
 
-                getFrequentItemsByCount().compute(newItemSet.getDocCount(), (k, sets) -> {
+                frequentItemsByCount.compute(newItemSet.getDocCount(), (k, sets) -> {
                     if (sets == null) {
                         sets = new ArrayList<>();
                     }
@@ -204,13 +204,54 @@ public class FrequentItemSetCollector {
         }
 
         // return the minimum doc count this collector takes
-        // TODO: return doc count +1? what about the longer sets over smaller sets criteria?
         return queue.size() < size ? min : queue.top().getDocCount();
     }
 
-    // testing only
-    public Map<Long, List<FrequentItemSet>> getFrequentItemsByCount() {
+    // for unit tests
+    Map<Long, List<FrequentItemSet>> getFrequentItemsByCount() {
         return frequentItemsByCount;
+    }
+
+    /**
+     * Criteria for closed sets
+     *
+     * A item set is called closed if no superset has the same support.
+     *
+     * E.g.
+     *
+     * [cat, dog, crocodile] -> 0.2
+     * [cat, dog, crocodile, river] -> 0.2
+     *
+     * [cat, dog, crocodile] gets skipped, because [cat, dog, crocodile, river] has the same support.
+     *
+     */
+    private boolean hasSuperSet(List<Long> itemSet, long docCount) {
+        List<FrequentItemSet> setsThatShareSameDocCount = frequentItemsByCount.get(docCount);
+        boolean foundSuperSet = false;
+        if (setsThatShareSameDocCount != null) {
+            for (FrequentItemSet otherSet : setsThatShareSameDocCount) {
+                if (otherSet.size() < itemSet.size()) {
+                    continue;
+                }
+
+                int pos = 0;
+                LongsRef otherItemSet = otherSet.getItems();
+                for (int i = 0; i < otherItemSet.length; ++i) {
+                    if (otherItemSet.longs[i] == itemSet.get(pos)) {
+                        pos++;
+                        if (pos == itemSet.size()) {
+                            foundSuperSet = true;
+                            break;
+                        }
+                    }
+                }
+
+                if (foundSuperSet) {
+                    break;
+                }
+            }
+        }
+        return foundSuperSet;
     }
 
 }

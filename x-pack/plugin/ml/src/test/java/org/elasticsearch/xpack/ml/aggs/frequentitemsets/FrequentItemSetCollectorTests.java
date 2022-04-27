@@ -66,11 +66,11 @@ public class FrequentItemSetCollectorTests extends ESTestCase {
         // ignore set below current weakest one
         assertEquals(20L, collector.add(List.of(111L, 2L, 3L, 4L), 1L));
 
-        assertThat(collector.pop().getItems(), equalTo(new long[] { 61L, 2L, 3L, 4L }));
-        assertThat(collector.pop().getItems(), equalTo(new long[] { 71L, 2L, 3L, 4L }));
-        assertThat(collector.pop().getItems(), equalTo(new long[] { 81L, 2L, 3L, 4L }));
-        assertThat(collector.pop().getItems(), equalTo(new long[] { 91L, 2L, 3L, 4L }));
-        assertThat(collector.pop().getItems(), equalTo(new long[] { 101L, 2L, 3L, 4L }));
+        assertThat(collector.pop().getItems().longs, equalTo(new long[] { 61L, 2L, 3L, 4L }));
+        assertThat(collector.pop().getItems().longs, equalTo(new long[] { 71L, 2L, 3L, 4L }));
+        assertThat(collector.pop().getItems().longs, equalTo(new long[] { 81L, 2L, 3L, 4L }));
+        assertThat(collector.pop().getItems().longs, equalTo(new long[] { 91L, 2L, 3L, 4L }));
+        assertThat(collector.pop().getItems().longs, equalTo(new long[] { 101L, 2L, 3L, 4L }));
 
         assertEquals(0, collector.size());
     }
@@ -100,11 +100,11 @@ public class FrequentItemSetCollectorTests extends ESTestCase {
         // add as view for demonstration
         assertEquals(13L, collector.add(List.of(81L, 2L, 4L, 23L).subList(0, 3), 20L));
 
-        assertThat(collector.pop().getItems(), equalTo(new long[] { 21L, 2L, 3L, 4L }));
-        assertThat(collector.pop().getItems(), equalTo(new long[] { 61L, 2L, 3L, 4L }));
-        assertThat(collector.pop().getItems(), equalTo(new long[] { 71L, 2L, 3L, 4L }));
-        assertThat(collector.pop().getItems(), equalTo(new long[] { 81L, 2L, 3L, 4L }));
-        assertThat(collector.pop().getItems(), equalTo(new long[] { 91L, 2L, 3L, 4L }));
+        assertThat(collector.pop().getItems().longs, equalTo(new long[] { 21L, 2L, 3L, 4L }));
+        assertThat(collector.pop().getItems().longs, equalTo(new long[] { 61L, 2L, 3L, 4L }));
+        assertThat(collector.pop().getItems().longs, equalTo(new long[] { 71L, 2L, 3L, 4L }));
+        assertThat(collector.pop().getItems().longs, equalTo(new long[] { 81L, 2L, 3L, 4L }));
+        assertThat(collector.pop().getItems().longs, equalTo(new long[] { 91L, 2L, 3L, 4L }));
 
         assertEquals(0, collector.size());
     }
@@ -123,7 +123,7 @@ public class FrequentItemSetCollectorTests extends ESTestCase {
         assertEquals(Long.MAX_VALUE, collector.add(itemSet, 10L));
         itemSet.clear();
 
-        assertThat(collector.pop().getItems(), equalTo(new long[] { 1L, 2L, 3L, 4L, 5L }));
+        assertThat(collector.pop().getItems().longs, equalTo(new long[] { 1L, 2L, 3L, 4L, 5L }));
     }
 
 }

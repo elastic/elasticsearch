@@ -183,8 +183,8 @@ from New York. Finally, the item set with the third highest support is
 The frequent items aggregation enables you to bucket numeric values by using 
 <<runtime,runtime fields>>. The next example demonstrates how to use a script to 
 add a runtime field to your documents that called `price_range` which is 
-calculated from the texful total price of the individual transactions. The 
-runtime field then can be used in the frequent items aggfregation as a field to 
+calculated from the taxful total price of the individual transactions. The 
+runtime field then can be used in the frequent items aggregation as a field to 
 analyze.
 
 

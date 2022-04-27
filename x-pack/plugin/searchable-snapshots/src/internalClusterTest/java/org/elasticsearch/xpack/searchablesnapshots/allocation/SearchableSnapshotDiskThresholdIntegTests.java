@@ -23,6 +23,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.fs.FsRepository;
@@ -33,7 +34,6 @@ import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotA
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest;
 import org.elasticsearch.xpack.core.searchablesnapshots.MountSearchableSnapshotRequest.Storage;
 import org.elasticsearch.xpack.searchablesnapshots.LocalStateSearchableSnapshots;
-import org.elasticsearch.xpack.searchablesnapshots.cache.shared.FrozenCacheService;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -78,7 +78,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         return false;
     }
 
-    public void testHighWatermarkCanBeExceededOnColdOrFrozenNode() throws Exception {
+    public void testHighWatermarkCanBeExceededOnColdNode() throws Exception {
         internalCluster().startMasterOnlyNode();
         final String dataHotNode = internalCluster().startNode(
             Settings.builder()
@@ -105,6 +105,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
                             .put(INDEX_SOFT_DELETES_SETTING.getKey(), true)
                             .put(INDEX_STORE_STATS_REFRESH_INTERVAL_SETTING.getKey(), "0ms")
                             .put(DataTier.TIER_PREFERENCE_SETTING.getKey(), DataTier.DATA_HOT)
+                            .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
                             .build()
                     );
                     int nbDocs = 100;
@@ -159,19 +160,11 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         final Map<String, Long> indicesStoresSizes = sizeOfShardsStores("index-*");
         assertAcked(client().admin().indices().prepareDelete("index-*"));
 
-        final Storage storage = randomFrom(Storage.values());
+        final Storage storage = FULL_COPY;
         logger.info("--> using storage [{}]", storage);
 
         final Settings.Builder otherDataNodeSettings = Settings.builder();
-        if (storage == FULL_COPY) {
-            otherDataNodeSettings.put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_COLD_NODE_ROLE.roleName());
-        } else {
-            otherDataNodeSettings.put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_FROZEN_NODE_ROLE.roleName())
-                .put(
-                    FrozenCacheService.SHARED_CACHE_SIZE_SETTING.getKey(),
-                    ByteSizeValue.ofBytes(Math.min(indicesStoresSizes.values().stream().mapToLong(value -> value).sum(), 5 * 1024L * 1024L))
-                );
-        }
+        otherDataNodeSettings.put(NodeRoleSettings.NODE_ROLES_SETTING.getKey(), DiscoveryNodeRole.DATA_COLD_NODE_ROLE.roleName());
         final String otherDataNode = internalCluster().startNode(otherDataNodeSettings.build());
         ensureStableCluster(3);
 
@@ -248,7 +241,6 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         }
         extraLatch.await();
 
-        // TODO Indices should not be allocated without checking the node disk usage first
         assertBusy(() -> {
             var state = client().admin().cluster().prepareState().setRoutingTable(true).get().getState();
             assertThat(
@@ -259,7 +251,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
                         shardRouting -> shardRouting.shardId().getIndexName().startsWith(extraPrefix)
                             && state.metadata().index(shardRouting.shardId().getIndex()).isSearchableSnapshot()
                     )
-                    .allMatch(
+                    .noneMatch(
                         shardRouting -> shardRouting.state() == ShardRoutingState.STARTED
                             && otherDataNodeId.equals(shardRouting.currentNodeId())
                     ),

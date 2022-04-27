@@ -21,6 +21,8 @@ public interface ClusterInfoService {
      */
     ClusterInfo getClusterInfo();
 
+    default void syncClusterInfo() {};
+
     /**
      * Add a listener for new cluster information
      */

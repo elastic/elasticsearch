@@ -15,6 +15,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotR
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -76,6 +77,7 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
     private final RepositoriesService repositoriesService;
     private final XPackLicenseState licenseState;
     private final SystemIndices systemIndices;
+    private final ClusterInfoService clusterInfoService;
 
     @Inject
     public TransportMountSearchableSnapshotAction(
@@ -87,7 +89,8 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
         ActionFilters actionFilters,
         IndexNameExpressionResolver indexNameExpressionResolver,
         XPackLicenseState licenseState,
-        SystemIndices systemIndices
+        SystemIndices systemIndices,
+        ClusterInfoService clusterInfoService
     ) {
         super(
             MountSearchableSnapshotAction.NAME,
@@ -105,6 +108,7 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
         this.repositoriesService = repositoriesService;
         this.licenseState = Objects.requireNonNull(licenseState);
         this.systemIndices = Objects.requireNonNull(systemIndices);
+        this.clusterInfoService = clusterInfoService;
     }
 
     @Override
@@ -249,6 +253,8 @@ public class TransportMountSearchableSnapshotAction extends TransportMasterNodeA
             for (Setting<String> dataTierAllocationSetting : DATA_TIER_ALLOCATION_SETTINGS) {
                 dataTierAllocationSetting.get(indexSettings);
             }
+
+            clusterInfoService.syncClusterInfo();
 
             client.admin()
                 .cluster()

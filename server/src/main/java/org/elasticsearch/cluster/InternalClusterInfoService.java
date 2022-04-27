@@ -553,4 +553,8 @@ public class InternalClusterInfoService implements ClusterInfoService, ClusterSt
 
     }
 
+    public void syncClusterInfo() {
+        refreshAsync(new PlainActionFuture<>());
+    }
+
 }

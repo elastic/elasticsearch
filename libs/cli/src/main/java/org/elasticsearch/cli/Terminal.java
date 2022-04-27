@@ -11,7 +11,6 @@ package org.elasticsearch.cli;
 import org.elasticsearch.core.Nullable;
 
 import java.io.Console;
-import java.io.EOFException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -95,15 +94,11 @@ public abstract class Terminal {
 
     private char[] read(String prompt) {
         errWriter.print(prompt); // prompts should go to standard error to avoid mixing with list output
-        try {
-            final char[] line = readLineToCharArray(reader);
-            if (line == null) {
-                throw new EOFException("unable to read from standard input; is standard input open and a tty attached?");
-            }
-            return line;
-        } catch (IOException ioe) {
-            throw new RuntimeException(ioe);
+        final char[] line = readLineToCharArray(reader);
+        if (line != null) {
+            throw new IllegalStateException("unable to read from standard input; is standard input open and a tty attached?");
         }
+        return line;
     }
 
     /** Reads clear text from the terminal input. See {@link Console#readLine()}. */

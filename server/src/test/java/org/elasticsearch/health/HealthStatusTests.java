@@ -20,24 +20,24 @@ import static org.elasticsearch.health.HealthStatus.YELLOW;
 
 public class HealthStatusTests extends ESTestCase {
 
-    public void testAllUnknownStatuses() {
-        assertEquals(UNKNOWN, HealthStatus.merge(randomStatusesContaining(UNKNOWN)));
+    public void testAllGreenStatuses() {
+        assertEquals(GREEN, HealthStatus.merge(randomStatusesContaining(GREEN)));
     }
 
-    public void testGreenStatus() {
-        assertEquals(GREEN, HealthStatus.merge(randomStatusesContaining(UNKNOWN, GREEN)));
+    public void testUnknownStatus() {
+        assertEquals(UNKNOWN, HealthStatus.merge(randomStatusesContaining(GREEN, UNKNOWN)));
     }
 
     public void testYellowStatus() {
-        assertEquals(YELLOW, HealthStatus.merge(randomStatusesContaining(UNKNOWN, GREEN, YELLOW)));
+        assertEquals(YELLOW, HealthStatus.merge(randomStatusesContaining(GREEN, UNKNOWN, YELLOW)));
     }
 
     public void testRedStatus() {
-        assertEquals(RED, HealthStatus.merge(randomStatusesContaining(UNKNOWN, GREEN, YELLOW, RED)));
+        assertEquals(RED, HealthStatus.merge(randomStatusesContaining(GREEN, UNKNOWN, YELLOW, RED)));
     }
 
     public void testEmpty() {
-        assertEquals(UNKNOWN, HealthStatus.merge(Stream.empty()));
+        assertEquals(GREEN, HealthStatus.merge(Stream.empty()));
     }
 
     private static Stream<HealthStatus> randomStatusesContaining(HealthStatus... statuses) {

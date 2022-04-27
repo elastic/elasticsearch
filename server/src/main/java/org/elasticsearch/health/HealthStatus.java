@@ -17,8 +17,8 @@ import java.util.Locale;
 import java.util.stream.Stream;
 
 public enum HealthStatus implements Writeable {
-    UNKNOWN((byte) 0),
-    GREEN((byte) 1),
+    GREEN((byte) 0),
+    UNKNOWN((byte) 1),
     YELLOW((byte) 2),
     RED((byte) 3);
 
@@ -38,7 +38,7 @@ public enum HealthStatus implements Writeable {
     }
 
     public static HealthStatus merge(Stream<HealthStatus> statuses) {
-        return statuses.max(Comparator.comparing(HealthStatus::value)).orElse(UNKNOWN);
+        return statuses.max(Comparator.comparing(HealthStatus::value)).orElse(GREEN);
     }
 
     public String xContentValue() {

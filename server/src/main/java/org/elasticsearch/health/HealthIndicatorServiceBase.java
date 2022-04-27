@@ -38,6 +38,7 @@ public abstract class HealthIndicatorServiceBase implements HealthIndicatorServi
     }
 
     protected abstract HealthIndicatorResult doCalculate(ClusterState clusterState, boolean calculateDetails);
+
     protected HealthIndicatorResult doCalculateUnknown(ClusterState clusterState, boolean calculateDetails) {
         return createIndicator(
             HealthStatus.UNKNOWN,
@@ -61,7 +62,7 @@ public abstract class HealthIndicatorServiceBase implements HealthIndicatorServi
     }
 
     private static boolean stateIsKnown(ClusterState clusterState) {
-        return clusterState.getBlocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false &&
-            clusterState.getBlocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID) == false;
+        return clusterState.getBlocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false
+            && clusterState.getBlocks().hasGlobalBlockWithId(NoMasterBlockService.NO_MASTER_BLOCK_ID) == false;
     }
 }

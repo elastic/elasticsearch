@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class HealthIndicatorServiceBaseTest extends ESTestCase {
+public class HealthIndicatorServiceBaseTests extends ESTestCase {
 
     private static final String TEST_INDICATOR_NAME = "test";
     private static final String TEST_INDICATOR_COMPONENT = "testing";

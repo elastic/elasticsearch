@@ -54,6 +54,8 @@ public class EclatMapReducer implements MapReducer {
         this.minimumSupport = minimumSupport;
         this.minimumSetSize = minimumSetSize;
         this.size = size;
+
+        // TODO: big arrays should be taken from AggregationContext
         this.transactionStore = new TransactionStore(BigArrays.NON_RECYCLING_INSTANCE);
     }
 
@@ -140,7 +142,7 @@ public class EclatMapReducer implements MapReducer {
 
         if (params != null && params.paramAsBoolean(SearchProfileResults.PROFILE_FIELD, false)) {
             builder.startObject("profile");
-            builder.startArray("single_items");
+            builder.startArray("items");
 
             TopItemIds topIds = null;
 

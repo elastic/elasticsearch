@@ -28,7 +28,7 @@ public final class FrequentItemSetsAggregator extends MapReduceAggregator {
         int minimumSetSize,
         int size
     ) throws IOException {
-        super(name, context, parent, metadata, () -> {
+        super(name, context, parent, metadata, (bigArrays) -> {
             /**
              * Note about future readiness:
              *

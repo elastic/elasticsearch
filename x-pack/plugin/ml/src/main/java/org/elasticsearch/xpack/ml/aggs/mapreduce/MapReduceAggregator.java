@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.ml.aggs.mapreduce;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorBase;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -23,7 +25,7 @@ import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
-import java.util.function.Supplier;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.ml.aggs.mapreduce.MapReduceValueSourceRegistry.REGISTRY_KEY;
@@ -37,7 +39,7 @@ public abstract class MapReduceAggregator extends AggregatorBase {
         AggregationContext context,
         Aggregator parent,
         Map<String, Object> metadata,
-        Supplier<MapReducer> mapReducer,
+        Function<BigArrays, MapReducer> mapReducer,
         List<ValuesSourceConfig> configs
     ) throws IOException {
         super(name, AggregatorFactories.EMPTY, context, parent, CardinalityUpperBound.NONE, metadata);
@@ -46,17 +48,12 @@ public abstract class MapReduceAggregator extends AggregatorBase {
             .map(c -> context.getValuesSourceRegistry().getAggregator(REGISTRY_KEY, c).build(c))
             .collect(Collectors.toList());
 
-        this.mapReduceContext = new MapReduceContext(extractors, mapReducer, context.profiling());
+        this.mapReduceContext = new MapReduceContext(extractors, mapReducer, context.bigArrays(), context.profiling());
     }
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalMapReduceAggregation(
-            name,
-            metadata(),
-            mapReduceContext.getMapReduceSupplier().get(),
-            mapReduceContext.profiling()
-        );
+        return new InternalMapReduceAggregation(name, metadata(), mapReduceContext.getEmptyMapReducer(), mapReduceContext.profiling());
     }
 
     @Override
@@ -93,5 +90,10 @@ public abstract class MapReduceAggregator extends AggregatorBase {
     @Override
     public void collectDebugInfo(BiConsumer<String, Object> add) {
         add.accept("map_reducer", mapReduceContext.getMapReducer(0).getWriteableName());
+    }
+
+    @Override
+    protected void doClose() {
+        Releasables.close(mapReduceContext);
     }
 }

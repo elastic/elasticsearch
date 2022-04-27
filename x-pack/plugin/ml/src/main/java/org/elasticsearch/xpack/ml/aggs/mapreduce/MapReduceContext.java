@@ -7,20 +7,31 @@
 
 package org.elasticsearch.xpack.ml.aggs.mapreduce;
 
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.function.Supplier;
+import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LongObjectPagedHashMap;
+import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 
-final class MapReduceContext {
+import java.util.List;
+import java.util.function.Function;
+
+final class MapReduceContext implements Releasable {
     private final List<ValuesExtractor> extractors;
-    private final Supplier<MapReducer> mapReduceSupplier;
-    private final Map<Long, MapReducer> mapReducerByBucketOrdinal = new HashMap<>();
+    private final Function<BigArrays, MapReducer> mapReduceSupplier;
+    private final BigArrays bigArrays;
+    private final LongObjectPagedHashMap<MapReducer> mapReducerByBucketOrdinal;
     private final boolean profiling;
 
-    MapReduceContext(List<ValuesExtractor> extractors, Supplier<MapReducer> mapReduceSupplier, boolean profiling) {
+    MapReduceContext(
+        List<ValuesExtractor> extractors,
+        Function<BigArrays, MapReducer> mapReduceSupplier,
+        BigArrays bigArrays,
+        boolean profiling
+    ) {
         this.extractors = extractors;
         this.mapReduceSupplier = mapReduceSupplier;
+        this.bigArrays = bigArrays;
+        this.mapReducerByBucketOrdinal = new LongObjectPagedHashMap<>(1, bigArrays);
         this.profiling = profiling;
     }
 
@@ -28,7 +39,7 @@ final class MapReduceContext {
         // TODO: are bucketOrdinals arbitrary long values or a counter (so we can use a list instead)???
         MapReducer mapReducer = mapReducerByBucketOrdinal.get(bucketOrd);
         if (mapReducer == null) {
-            mapReducer = mapReduceSupplier.get();
+            mapReducer = mapReduceSupplier.apply(bigArrays);
             mapReducerByBucketOrdinal.put(bucketOrd, mapReducer);
             mapReducer.mapInit();
         }
@@ -36,8 +47,8 @@ final class MapReduceContext {
         return mapReducer;
     }
 
-    public Supplier<MapReducer> getMapReduceSupplier() {
-        return mapReduceSupplier;
+    public MapReducer getEmptyMapReducer() {
+        return mapReduceSupplier.apply(bigArrays);
     }
 
     public List<ValuesExtractor> getExtractors() {
@@ -46,5 +57,10 @@ final class MapReduceContext {
 
     public boolean profiling() {
         return profiling;
+    }
+
+    @Override
+    public void close() {
+        Releasables.close(mapReducerByBucketOrdinal);
     }
 }

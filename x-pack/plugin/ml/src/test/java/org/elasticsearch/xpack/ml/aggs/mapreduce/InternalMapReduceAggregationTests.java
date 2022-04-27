@@ -158,7 +158,7 @@ public class InternalMapReduceAggregationTests extends InternalAggregationTestCa
 
         mr.getFrequencies().forEach((key, value) -> expectedFrequencies.merge(key, value, (v1, v2) -> v1 + v2));
 
-        return new InternalMapReduceAggregation(name, metadata, mr);
+        return new InternalMapReduceAggregation(name, metadata, mr, false);
     }
 
     @Override

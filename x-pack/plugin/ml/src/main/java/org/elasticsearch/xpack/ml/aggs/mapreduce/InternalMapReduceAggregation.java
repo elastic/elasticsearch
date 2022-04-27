@@ -33,7 +33,7 @@ public final class InternalMapReduceAggregation extends InternalAggregation {
     public InternalMapReduceAggregation(StreamInput in) throws IOException {
         super(in);
 
-        // TODO: handle error if named writable does not exist
+        // TODO: what if the named writable does not exist?
         this.mapReducer = in.readNamedWriteable(MapReducer.class);
         this.profiling = in.readBoolean();
     }
@@ -46,6 +46,7 @@ public final class InternalMapReduceAggregation extends InternalAggregation {
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeNamedWriteable(mapReducer);
+        out.writeBoolean(profiling);
     }
 
     @Override
@@ -57,13 +58,11 @@ public final class InternalMapReduceAggregation extends InternalAggregation {
             try {
                 mapReducer.reduceFinalize();
             } catch (IOException e) {
-                throw new AggregationExecutionException("Internal Map Reduce failure", e);
+                throw new AggregationExecutionException("Final reduction failed", e);
             }
         } else {
             mapReducer.combine(aggregations.stream().map(agg -> ((InternalMapReduceAggregation) agg).mapReducer));
         }
-
-        // TODO: implement combiner
 
         return this;
     }

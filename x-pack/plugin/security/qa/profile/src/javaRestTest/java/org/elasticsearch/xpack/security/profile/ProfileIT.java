@@ -29,6 +29,7 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 
 public class ProfileIT extends ESRestTestCase {
 
@@ -85,6 +86,35 @@ public class ProfileIT extends ESRestTestCase {
         final String profileUid = (String) activateProfileMap.get("uid");
         final Map<String, Object> profile1 = doGetProfile(profileUid);
         assertThat(profile1, equalTo(activateProfileMap));
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testProfileHasPrivileges() throws IOException {
+        final Map<String, Object> activateProfileMap = doActivateProfile();
+        final String profileUid = (String) activateProfileMap.get("uid");
+        final Request profileHasPrivilegesRequest = new Request("POST", "_security/profile/_has_privileges");
+        profileHasPrivilegesRequest.setJsonEntity("""
+            {
+              "uids": ["%s"],
+              "privileges": {
+                "index": [
+                  {
+                    "names": [ "rac_index_1" ],
+                    "privileges": [ "read" ]
+                  }
+                ],
+                "cluster": [
+                  "cluster:monitor/health"
+                ]
+              }
+            }""".formatted(profileUid));
+
+        final Response profileHasPrivilegesResponse = adminClient().performRequest(profileHasPrivilegesRequest);
+        assertOK(profileHasPrivilegesResponse);
+        Map<String, Object> profileHasPrivilegesResponseMap = responseAsMap(profileHasPrivilegesResponse);
+        assertThat(profileHasPrivilegesResponseMap.keySet(), containsInAnyOrder("has_privilege_uids", "error_uids"));
+        assertThat(((List<String>) profileHasPrivilegesResponseMap.get("error_uids")).isEmpty(), is(true));
+        assertThat(((List<String>) profileHasPrivilegesResponseMap.get("has_privilege_uids")), contains(profileUid));
     }
 
     public void testGetProfile() throws IOException {

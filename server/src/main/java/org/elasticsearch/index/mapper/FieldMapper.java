@@ -1446,5 +1446,4 @@ public abstract class FieldMapper extends Mapper implements Cloneable {
             return indexCreatedVersion.onOrAfter(minimumCompatibilityVersion);
         }
     }
-
 }

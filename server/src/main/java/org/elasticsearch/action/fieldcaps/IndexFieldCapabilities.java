@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 
 import java.io.IOException;
@@ -65,7 +66,6 @@ public class IndexFieldCapabilities implements Writeable {
         TimeSeriesParams.MetricType metricType,
         Map<String, String> meta
     ) {
-
         this.name = name;
         this.type = type;
         this.isMetadatafield = isMetadatafield;
@@ -77,7 +77,7 @@ public class IndexFieldCapabilities implements Writeable {
     }
 
     IndexFieldCapabilities(StreamInput in) throws IOException {
-        this.name = in.readString();
+        this.name = Mapper.internFieldName(in.readString());
         this.type = typeStringDeduplicator.deduplicate(in.readString());
         this.isMetadatafield = in.readBoolean();
         this.isSearchable = in.readBoolean();

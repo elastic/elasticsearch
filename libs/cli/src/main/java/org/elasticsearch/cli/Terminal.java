@@ -54,10 +54,6 @@ public abstract class Terminal {
     private final Reader reader;
     private final PrintWriter outWriter;
     private final PrintWriter errWriter;
-    // Note that {@link #errWriter} does not have a corresponding binary stream because
-    // the error stream should always be character based, while stdin/stdout can be used for binary data.
-    private final InputStream inStream;
-    private final OutputStream outStream;
     private Verbosity currentVerbosity = Verbosity.NORMAL;
 
     /**
@@ -66,21 +62,15 @@ public abstract class Terminal {
      * @param reader A character-based reader over the input of this terminal
      * @param outWriter A character-based writer for the output of this terminal
      * @param errWriter A character-based writer for the error stream of this terminal
-     * @param inStream The binary input stream for this terminal, if one exists. This should be the source of {@link #reader}.
-     * @param outStream The binary output stream for this terminal, if one exists. This should be the destination of {@link #outWriter}.
      */
     protected Terminal(
         Reader reader,
         PrintWriter outWriter,
-        PrintWriter errWriter,
-        @Nullable InputStream inStream,
-        @Nullable OutputStream outStream
+        PrintWriter errWriter
     ) {
         this.reader = reader;
         this.outWriter = outWriter;
         this.errWriter = errWriter;
-        this.inStream = inStream;
-        this.outStream = outStream;
     }
 
     /**
@@ -123,20 +113,24 @@ public abstract class Terminal {
 
     /**
      * Returns an InputStream which can be used to read from the terminal directly using standard input.
-     * May return {@code null} if this Terminal is not capable of binary input.
+     *
+     * <p> May return {@code null} if this Terminal is not capable of binary input.
+     * This corresponds with the underlying stream of bytes read by {@link #reader}.
      */
     @Nullable
-    public final InputStream getInputStream() {
-        return inStream;
+    public InputStream getInputStream() {
+        return null;
     }
 
     /**
      * Returns an OutputStream which can be used to write to the terminal directly using standard output.
-     * May return {@code null} if this Terminal is not capable of binary output.
+     *
+     * <p> May return {@code null} if this Terminal is not capable of binary output.
+     * This corresponds with the underlying stream of bytes written to by {@link #getWriter()}.
       */
     @Nullable
-    public final OutputStream getOutputStream() {
-        return outStream;
+    public OutputStream getOutputStream() {
+        return null;
     }
 
     /** Prints a line to the terminal at {@link Verbosity#NORMAL} verbosity level. */
@@ -274,7 +268,7 @@ public abstract class Terminal {
         private static final Console CONSOLE = System.console();
 
         ConsoleTerminal() {
-            super(CONSOLE.reader(), CONSOLE.writer(), ERROR_WRITER, null, null);
+            super(CONSOLE.reader(), CONSOLE.writer(), ERROR_WRITER);
         }
 
         static boolean isSupported() {
@@ -293,8 +287,8 @@ public abstract class Terminal {
     }
 
     /** visible for testing */
+    @SuppressForbidden(reason = "Access streams for construction")
     static class SystemTerminal extends Terminal {
-        @SuppressForbidden(reason = "Access streams for construction")
         SystemTerminal() {
             super(
                 // TODO: InputStreamReader can advance stdin past what it decodes. We need a way to buffer this and put it back
@@ -302,10 +296,18 @@ public abstract class Terminal {
                 // right after the last character based input (newline)
                 new InputStreamReader(System.in, Charset.defaultCharset()),
                 new PrintWriter(System.out),
-                ERROR_WRITER,
-                System.in,
-                System.out
+                ERROR_WRITER
             );
+        }
+
+        @Override
+        public InputStream getInputStream() {
+            return System.in;
+        }
+
+        @Override
+        public OutputStream getOutputStream() {
+            return System.out;
         }
     }
 }

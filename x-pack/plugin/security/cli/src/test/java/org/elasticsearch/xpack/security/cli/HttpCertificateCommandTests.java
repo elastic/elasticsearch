@@ -125,7 +125,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
         final HttpCertificateCommand command = new PathAwareHttpCertificateCommand(outFile);
 
-        final MockTerminal terminal = MockTerminal.create(false);
+        final MockTerminal terminal = MockTerminal.create();
 
         terminal.addTextInput("y"); // generate CSR
 
@@ -236,7 +236,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
         final HttpCertificateCommand command = new PathAwareHttpCertificateCommand(outFile);
 
-        final MockTerminal terminal = MockTerminal.create(false);
+        final MockTerminal terminal = MockTerminal.create();
 
         terminal.addTextInput(randomBoolean() ? "n" : ""); // don't generate CSR
         terminal.addTextInput("y"); // existing CA
@@ -357,7 +357,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
         final HttpCertificateCommand command = new PathAwareHttpCertificateCommand(outFile);
 
-        final MockTerminal terminal = MockTerminal.create(false);
+        final MockTerminal terminal = MockTerminal.create();
 
         terminal.addTextInput(randomBoolean() ? "n" : ""); // don't generate CSR
         terminal.addTextInput(randomBoolean() ? "n" : ""); // no existing CA
@@ -513,7 +513,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
 
     public void testParsingValidityPeriod() throws Exception {
         final HttpCertificateCommand command = new HttpCertificateCommand();
-        final MockTerminal terminal = MockTerminal.create(false);
+        final MockTerminal terminal = MockTerminal.create();
 
         terminal.addTextInput("2y");
         assertThat(command.readPeriodInput(terminal, "", null, 1), is(Period.ofYears(2)));
@@ -578,7 +578,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
     }
 
     public void testGuessFileType() throws Exception {
-        MockTerminal terminal = MockTerminal.create(false);
+        MockTerminal terminal = MockTerminal.create();
 
         final Path caCert = getDataPath("ca.crt");
         final Path caKey = getDataPath("ca.key");

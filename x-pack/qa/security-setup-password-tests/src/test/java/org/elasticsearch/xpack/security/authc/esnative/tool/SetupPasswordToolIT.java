@@ -23,7 +23,7 @@ public class SetupPasswordToolIT extends AbstractPasswordToolTestCase {
 
     public void testSetupPasswordToolAutoSetup() throws Exception {
 
-        MockTerminal mockTerminal = MockTerminal.create(false);
+        MockTerminal mockTerminal = MockTerminal.create();
         SetupPasswordTool tool = new SetupPasswordTool();
         final int status;
         if (randomBoolean()) {

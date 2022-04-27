@@ -23,7 +23,7 @@ public final class LoggerTerminal extends Terminal {
     private static final String FQCN = LoggerTerminal.class.getName();
 
     private LoggerTerminal(final Logger logger) {
-        super(null, null, null, null, null);
+        super(null, null, null);
         this.logger = new ExtendedLoggerWrapper((AbstractLogger) logger, logger.getName(), logger.getMessageFactory());
     }
 

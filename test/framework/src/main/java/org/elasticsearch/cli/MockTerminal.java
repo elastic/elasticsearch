@@ -79,19 +79,17 @@ public class MockTerminal extends Terminal {
     private final LazyByteArrayInputStream stdinBuffer;
     private final ByteArrayOutputStream stdoutBuffer;
     private final ByteArrayOutputStream stderrBuffer;
+    private boolean supportsBinary = false;
 
     private MockTerminal(
         ResettableInputStreamReader stdinReader,
         ByteArrayOutputStream stdout,
-        ByteArrayOutputStream stderr,
-        boolean supportsBinary
+        ByteArrayOutputStream stderr
     ) {
         super(
             stdinReader,
             newPrintWriter(stdout),
-            newPrintWriter(stderr),
-            supportsBinary ? stdinReader.stream : null,
-            supportsBinary ? stdout : null
+            newPrintWriter(stderr)
         );
         this.stdinReader = stdinReader;
         this.stdinBuffer = stdinReader.stream;
@@ -99,13 +97,23 @@ public class MockTerminal extends Terminal {
         this.stderrBuffer = stderr;
     }
 
+    @Override
+    public InputStream getInputStream() {
+        return supportsBinary ? stdinBuffer : null;
+    }
+
+    @Override
+    public OutputStream getOutputStream() {
+        return supportsBinary ? stdoutBuffer : null;
+    }
+
     private static PrintWriter newPrintWriter(OutputStream out) {
         return new PrintWriter(new OutputStreamWriter(out, StandardCharsets.UTF_8));
     }
 
-    public static MockTerminal create(boolean supportsBinary) {
+    public static MockTerminal create() {
         var reader = new ResettableInputStreamReader(new LazyByteArrayInputStream());
-        return new MockTerminal(reader, new ByteArrayOutputStream(), new ByteArrayOutputStream(), supportsBinary);
+        return new MockTerminal(reader, new ByteArrayOutputStream(), new ByteArrayOutputStream());
     }
 
     /** Adds a character input that will be returned from reading this Terminal. Values are read in FIFO order. */
@@ -132,6 +140,10 @@ public class MockTerminal extends Terminal {
     /** Returns all output written to this terminal. */
     public String getErrorOutput() {
         return stderrBuffer.toString(StandardCharsets.UTF_8);
+    }
+
+    public void setSupportsBinary(boolean supportsBinary) {
+        this.supportsBinary = supportsBinary;
     }
 
     /** Wipes the input and output. */

@@ -18,18 +18,18 @@ import static org.hamcrest.Matchers.equalTo;
 public class TerminalTests extends ESTestCase {
 
     public void testVerbosity() throws Exception {
-        MockTerminal terminal = MockTerminal.create(false);
+        MockTerminal terminal = MockTerminal.create();
         terminal.setVerbosity(Terminal.Verbosity.SILENT);
         assertPrinted(terminal, Terminal.Verbosity.SILENT, "text");
         assertNotPrinted(terminal, Terminal.Verbosity.NORMAL, "text");
         assertNotPrinted(terminal, Terminal.Verbosity.VERBOSE, "text");
 
-        terminal = MockTerminal.create(false);
+        terminal = MockTerminal.create();
         assertPrinted(terminal, Terminal.Verbosity.SILENT, "text");
         assertPrinted(terminal, Terminal.Verbosity.NORMAL, "text");
         assertNotPrinted(terminal, Terminal.Verbosity.VERBOSE, "text");
 
-        terminal = MockTerminal.create(false);
+        terminal = MockTerminal.create();
         terminal.setVerbosity(Terminal.Verbosity.VERBOSE);
         assertPrinted(terminal, Terminal.Verbosity.SILENT, "text");
         assertPrinted(terminal, Terminal.Verbosity.NORMAL, "text");
@@ -37,18 +37,18 @@ public class TerminalTests extends ESTestCase {
     }
 
     public void testErrorVerbosity() throws Exception {
-        MockTerminal terminal = MockTerminal.create(false);
+        MockTerminal terminal = MockTerminal.create();
         terminal.setVerbosity(Terminal.Verbosity.SILENT);
         assertErrorPrinted(terminal, Terminal.Verbosity.SILENT, "text");
         assertErrorNotPrinted(terminal, Terminal.Verbosity.NORMAL, "text");
         assertErrorNotPrinted(terminal, Terminal.Verbosity.VERBOSE, "text");
 
-        terminal = MockTerminal.create(false);
+        terminal = MockTerminal.create();
         assertErrorPrinted(terminal, Terminal.Verbosity.SILENT, "text");
         assertErrorPrinted(terminal, Terminal.Verbosity.NORMAL, "text");
         assertErrorNotPrinted(terminal, Terminal.Verbosity.VERBOSE, "text");
 
-        terminal = MockTerminal.create(false);
+        terminal = MockTerminal.create();
         terminal.setVerbosity(Terminal.Verbosity.VERBOSE);
         assertErrorPrinted(terminal, Terminal.Verbosity.SILENT, "text");
         assertErrorPrinted(terminal, Terminal.Verbosity.NORMAL, "text");
@@ -56,12 +56,12 @@ public class TerminalTests extends ESTestCase {
     }
 
     public void testEscaping() throws Exception {
-        MockTerminal terminal = MockTerminal.create(false);
+        MockTerminal terminal = MockTerminal.create();
         assertPrinted(terminal, Terminal.Verbosity.NORMAL, "This message contains percent like %20n");
     }
 
     public void testPromptYesNoDefault() throws Exception {
-        MockTerminal terminal = MockTerminal.create(false);
+        MockTerminal terminal = MockTerminal.create();
         terminal.addTextInput("");
         assertTrue(terminal.promptYesNo("Answer?", true));
         terminal.addTextInput("");
@@ -69,14 +69,14 @@ public class TerminalTests extends ESTestCase {
     }
 
     public void testPromptYesNoReprompt() throws Exception {
-        MockTerminal terminal = MockTerminal.create(false);
+        MockTerminal terminal = MockTerminal.create();
         terminal.addTextInput("blah");
         terminal.addTextInput("y");
         assertTrue(terminal.promptYesNo("Answer? [Y/n]\nDid not understand answer 'blah'\nAnswer? [Y/n]", true));
     }
 
     public void testPromptYesNoCase() throws Exception {
-        MockTerminal terminal = MockTerminal.create(false);
+        MockTerminal terminal = MockTerminal.create();
         terminal.addTextInput("Y");
         assertTrue(terminal.promptYesNo("Answer?", false));
         terminal.addTextInput("y");

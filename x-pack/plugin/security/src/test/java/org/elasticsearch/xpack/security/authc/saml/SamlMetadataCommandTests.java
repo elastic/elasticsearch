@@ -102,7 +102,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         final Settings settings = settingsBuilder.build();
         final Environment env = TestEnvironment.newEnvironment(settings);
 
-        final MockTerminal terminal = MockTerminal.create(false);
+        final MockTerminal terminal = MockTerminal.create();
 
         if (usedKeyStore.hasPassword()) {
             terminal.addTextInput("keystore-password");
@@ -725,7 +725,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
         final Settings settings = Settings.builder().put("path.home", createTempDir()).build();
         final Environment env = TestEnvironment.newEnvironment(settings);
 
-        final MockTerminal terminal = MockTerminal.create(false);
+        final MockTerminal terminal = MockTerminal.create();
         terminal.addTextInput("wrong-password");
 
         UserException e = expectThrows(UserException.class, () -> { command.buildEntityDescriptor(terminal, options, env); });
@@ -755,7 +755,7 @@ public class SamlMetadataCommandTests extends SamlTestCase {
     }
 
     private MockTerminal getTerminalPossiblyWithPassword(KeyStoreWrapper keyStore) {
-        final MockTerminal terminal = MockTerminal.create(false);
+        final MockTerminal terminal = MockTerminal.create();
         if (keyStore.hasPassword()) {
             terminal.addTextInput("keystore-password");
         }

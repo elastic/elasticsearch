@@ -81,16 +81,8 @@ public class MockTerminal extends Terminal {
     private final ByteArrayOutputStream stderrBuffer;
     private boolean supportsBinary = false;
 
-    private MockTerminal(
-        ResettableInputStreamReader stdinReader,
-        ByteArrayOutputStream stdout,
-        ByteArrayOutputStream stderr
-    ) {
-        super(
-            stdinReader,
-            newPrintWriter(stdout),
-            newPrintWriter(stderr)
-        );
+    private MockTerminal(ResettableInputStreamReader stdinReader, ByteArrayOutputStream stdout, ByteArrayOutputStream stderr) {
+        super(stdinReader, newPrintWriter(stdout), newPrintWriter(stderr));
         this.stdinReader = stdinReader;
         this.stdinBuffer = stdinReader.stream;
         this.stdoutBuffer = stdout;

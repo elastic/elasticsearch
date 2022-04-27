@@ -63,11 +63,7 @@ public abstract class Terminal {
      * @param outWriter A character-based writer for the output of this terminal
      * @param errWriter A character-based writer for the error stream of this terminal
      */
-    protected Terminal(
-        Reader reader,
-        PrintWriter outWriter,
-        PrintWriter errWriter
-    ) {
+    protected Terminal(Reader reader, PrintWriter outWriter, PrintWriter errWriter) {
         this.reader = reader;
         this.outWriter = outWriter;
         this.errWriter = errWriter;

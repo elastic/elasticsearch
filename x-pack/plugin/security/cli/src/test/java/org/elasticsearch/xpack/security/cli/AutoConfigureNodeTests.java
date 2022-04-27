@@ -262,7 +262,7 @@ public class AutoConfigureNodeTests extends ESTestCase {
     private X509Certificate runAutoConfigAndReturnHTTPCertificate(Path configDir, Settings settings) throws Exception {
         final Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", configDir).put(settings).build());
         // runs the command to auto-generate the config files and the keystore
-        new AutoConfigureNode().execute(new MockTerminal(), new OptionParser().parse(), env);
+        new AutoConfigureNode(false).execute(new MockTerminal(), new OptionParser().parse(), env);
 
         KeyStoreWrapper nodeKeystore = KeyStoreWrapper.load(configDir.resolve("config"));
         nodeKeystore.decrypt(new char[0]); // the keystore is always bootstrapped with an empty password

@@ -12,7 +12,6 @@ import java.io.ByteArrayOutputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintWriter;
-import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
@@ -92,8 +91,8 @@ public class MockTerminal extends Terminal {
     }
 
     /** Returns all output written to this terminal. */
-    public String getOutput() throws UnsupportedEncodingException {
-        return stdoutBuffer.toString("UTF-8");
+    public String getOutput() {
+        return stdoutBuffer.toString(StandardCharsets.UTF_8);
     }
 
     /** Returns all bytes  written to this terminal. */
@@ -102,8 +101,8 @@ public class MockTerminal extends Terminal {
     }
 
     /** Returns all output written to this terminal. */
-    public String getErrorOutput() throws UnsupportedEncodingException {
-        return stderrBuffer.toString("UTF-8");
+    public String getErrorOutput() {
+        return stderrBuffer.toString(StandardCharsets.UTF_8);
     }
 
     /** Wipes the input and output. */

@@ -259,12 +259,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
     }
 
     protected static List<QueryBuilder> readQueries(StreamInput in) throws IOException {
-        int size = in.readVInt();
-        List<QueryBuilder> queries = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            queries.add(in.readNamedWriteable(QueryBuilder.class));
-        }
-        return queries;
+        return in.readNamedWriteableList(QueryBuilder.class);
     }
 
     @Override

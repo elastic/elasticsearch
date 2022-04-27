@@ -1341,10 +1341,14 @@ public class FiltersAggregatorTests extends AggregatorTestCase {
         FieldNamesFieldMapper.FieldNamesFieldType fnft = FieldNamesFieldMapper.FieldNamesFieldType.get(true);
         debugTestCase(builder, new MatchAllDocsQuery(), iw -> {
             for (int i = 0; i < 10; i++) {
-                iw.addDocument(buildDocWithField.apply(i));
+                iw.addDocuments(
+                    List.of(
+                        buildDocWithField.apply(i),
+                        // Create a document without the field to prevent DocValueFieldExists from being rewritten to MatchAll
+                        List.of()
+                    )
+                );
             }
-            // Create a document without the field to prever DocValueFieldExists from being rewritten to MatchAll
-            iw.addDocument(List.of());
         }, (InternalFilters result, Class<? extends Aggregator> impl, Map<String, Map<String, Object>> debug) -> {
             assertThat(result.getBuckets(), hasSize(1));
             assertThat(result.getBucketByKey("q1").getDocCount(), equalTo(10L));

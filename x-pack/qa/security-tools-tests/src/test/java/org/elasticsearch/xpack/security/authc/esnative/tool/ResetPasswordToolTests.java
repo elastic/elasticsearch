@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.security.authc.esnative.tool;
 
+import joptsimple.OptionSet;
+
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
 
@@ -19,8 +21,8 @@ import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtilsForTesting;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.xpack.core.security.CommandLineHttpClient;
 import org.elasticsearch.xpack.core.security.HttpResponse;
@@ -66,7 +68,7 @@ public class ResetPasswordToolTests extends CommandTestCase {
     protected Command newCommand() {
         return new ResetPasswordTool(environment -> client, environment -> keyStoreWrapper) {
             @Override
-            protected Environment createEnv(Map<String, String> settings) throws UserException {
+            protected Environment createEnv(OptionSet options) throws UserException {
                 return new Environment(ResetPasswordToolTests.this.settings, confDir);
             }
         };

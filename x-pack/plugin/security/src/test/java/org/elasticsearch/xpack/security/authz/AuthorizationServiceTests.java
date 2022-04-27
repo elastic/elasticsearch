@@ -2697,7 +2697,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testCheckPrivileges() throws Exception {
+    public void testAuthorizationEngineSelectionForCheckPrivileges() throws Exception {
         AuthorizationEngine engine = mock(AuthorizationEngine.class);
         MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.isAllowed(Security.AUTHORIZATION_ENGINE_FEATURE)).thenReturn(true);
@@ -2774,7 +2774,7 @@ public class AuthorizationServiceTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testRetrieveUserPrivileges() throws Exception {
+    public void testAuthorizationEngineSelectionForRetrieveUserPrivileges() throws Exception {
         AuthorizationEngine engine = mock(AuthorizationEngine.class);
         MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.isAllowed(Security.AUTHORIZATION_ENGINE_FEATURE)).thenReturn(true);

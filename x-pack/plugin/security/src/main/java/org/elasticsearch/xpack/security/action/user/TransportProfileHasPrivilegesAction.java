@@ -74,23 +74,24 @@ public class TransportProfileHasPrivilegesAction extends HandledTransportAction<
             Arrays.asList(request.indexPrivileges()),
             Arrays.asList(request.applicationPrivileges())
         );
-        resolveApplicationPrivileges(request, ActionListener.wrap(applicationPrivilegeDescriptors -> {
-            profileService.getProfileSubjects(request.profileUids(), ActionListener.wrap(profileSubjectsAndFailures -> {
-                threadPool.generic().execute(() -> {
-                    final List<String> hasPrivilegeProfiles = Collections.synchronizedList(new ArrayList<>());
-                    final List<String> errorProfiles = Collections.synchronizedList(
-                        new ArrayList<>(profileSubjectsAndFailures.failureProfileUids())
-                    );
-                    final Runnable allDone = () -> listener.onResponse(
-                        new ProfileHasPrivilegesResponse(hasPrivilegeProfiles.toArray(new String[0]), errorProfiles.toArray(new String[0]))
-                    );
-                    final Collection<Map.Entry<String, Subject>> profileUidAndSubjects = profileSubjectsAndFailures.profileUidToSubject()
-                        .entrySet();
-                    final AtomicInteger counter = new AtomicInteger(profileUidAndSubjects.size());
-                    if (counter.get() == 0) {
-                        allDone.run();
-                        return;
-                    }
+        profileService.getProfileSubjects(request.profileUids(), ActionListener.wrap(profileSubjectsAndFailures -> {
+            final List<String> hasPrivilegeProfiles = Collections.synchronizedList(new ArrayList<>());
+            final List<String> errorProfiles = Collections.synchronizedList(
+                new ArrayList<>(profileSubjectsAndFailures.failureProfileUids())
+            );
+            final Runnable allDone = () -> listener.onResponse(
+                new ProfileHasPrivilegesResponse(hasPrivilegeProfiles.toArray(new String[0]), errorProfiles.toArray(new String[0]))
+            );
+            final Collection<Map.Entry<String, Subject>> profileUidAndSubjects = profileSubjectsAndFailures.profileUidToSubject()
+                .entrySet();
+            final AtomicInteger counter = new AtomicInteger(profileUidAndSubjects.size());
+            if (counter.get() == 0) {
+                allDone.run();
+                return;
+            }
+            resolveApplicationPrivileges(
+                request,
+                ActionListener.wrap(applicationPrivilegeDescriptors -> threadPool.generic().execute(() -> {
                     for (Map.Entry<String, Subject> profileUidToSubject : profileUidAndSubjects) {
                         final String profileUid = profileUidToSubject.getKey();
                         final Subject subject = profileUidToSubject.getValue();
@@ -117,8 +118,8 @@ public class TransportProfileHasPrivilegesAction extends HandledTransportAction<
                             })
                         );
                     }
-                });
-            }, listener::onFailure));
+                }), listener::onFailure)
+            );
         }, listener::onFailure));
     }
 

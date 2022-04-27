@@ -77,26 +77,13 @@ public class GeoTileBoundedPredicate {
         return maxY;
     }
 
-    /** Check if the provided tile intersects with the provided bounds. It is assumed that the precision
-     * for the given x/y is the same as the provided in the constructor.*/
-    public boolean validTile(int x, int y) {
-        if (maxY > y && minY <= y) {
-            if (crossesDateline) {
-                return rightX > x || leftX <= x;
-            } else {
-                return rightX > x && leftX <= x;
-            }
-        }
-        return false;
-    }
-
     /** Check if the provided tile at the provided level intersects with the provided bounds. The provided precision must be
      * lower or equal to the precision provided in the constructor.
      */
-    public boolean validTile(int x, int y, int z) {
-        assert precision >= z : "input precision bigger than this predicate precision";
+    public boolean validTile(int x, int y, int precision) {
+        assert this.precision >= precision : "input precision bigger than this predicate precision";
         // compute number of splits at precision
-        final int splits = 1 << precision - z;
+        final int splits = 1 << this.precision - precision;
         final int yMin = y * splits;
         if (maxY > yMin && minY < yMin + splits) {
             final int xMin = x * splits;

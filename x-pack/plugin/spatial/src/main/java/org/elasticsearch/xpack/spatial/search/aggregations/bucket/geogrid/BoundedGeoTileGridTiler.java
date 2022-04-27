@@ -53,13 +53,13 @@ public class BoundedGeoTileGridTiler extends AbstractGeoTileGridTiler {
             final int westMaxX = xTile * splits + splits;
             for (int i = eastMinX; i < eastMaxX; i++) {
                 for (int j = minY; j < maxY; j++) {
-                    assert predicate.validTile(i, j);
+                    assert predicate.validTile(i, j, precision);
                     values.add(valuesIndex++, GeoTileUtils.longEncodeTiles(precision, i, j));
                 }
             }
             for (int i = westMinX; i < westMaxX; i++) {
                 for (int j = minY; j < maxY; j++) {
-                    assert predicate.validTile(i, j);
+                    assert predicate.validTile(i, j, precision);
                     values.add(valuesIndex++, GeoTileUtils.longEncodeTiles(precision, i, j));
                 }
             }
@@ -68,7 +68,7 @@ public class BoundedGeoTileGridTiler extends AbstractGeoTileGridTiler {
             final int _maxX = Math.min(predicate.rightX(), xTile * splits + splits);
             for (int i = _minX; i < _maxX; i++) {
                 for (int j = minY; j < maxY; j++) {
-                    assert predicate.validTile(i, j);
+                    assert predicate.validTile(i, j, precision);
                     values.add(valuesIndex++, GeoTileUtils.longEncodeTiles(precision, i, j));
                 }
             }

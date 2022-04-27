@@ -84,7 +84,7 @@ public class GeoTileCellIdSource extends ValuesSource.Numeric {
         protected int advanceValue(org.elasticsearch.common.geo.GeoPoint target, int valuesIdx) {
             final int x = GeoTileUtils.getXTile(target.getLon(), this.tiles);
             final int y = GeoTileUtils.getYTile(target.getLat(), this.tiles);
-            if (predicate.validTile(x, y)) {
+            if (predicate.validTile(x, y, precision)) {
                 values[valuesIdx] = GeoTileUtils.longEncodeTiles(precision, x, y);
                 return valuesIdx + 1;
             }

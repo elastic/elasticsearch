@@ -59,7 +59,6 @@ public class GeoTileBoundedPredicateTests extends ESTestCase {
     }
 
     private void assertPredicates(long encoded, GeoTileBoundedPredicate predicate, int x, int y, int p) {
-        assertEquals(GeoTileUtils.longEncodeTiles(p, x, y) == encoded, predicate.validTile(x, y));
-        assertEquals(predicate.validTile(x, y, p), predicate.validTile(x, y));
+        assertEquals(GeoTileUtils.longEncodeTiles(p, x, y) == encoded, predicate.validTile(x, y, p));
     }
 }

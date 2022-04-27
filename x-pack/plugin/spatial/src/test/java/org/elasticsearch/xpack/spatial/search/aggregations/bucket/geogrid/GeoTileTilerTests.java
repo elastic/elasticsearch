@@ -165,7 +165,7 @@ public class GeoTileTilerTests extends GeoGridTilerTestCase {
             return true;
         }
         GeoTileBoundedPredicate predicate = new GeoTileBoundedPredicate(precision, bbox);
-        return predicate.validTile(x, y);
+        return predicate.validTile(x, y, precision);
     }
 
     public void testGeoTile() throws Exception {

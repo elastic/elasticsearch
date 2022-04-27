@@ -10,8 +10,10 @@ package org.elasticsearch.script;
 
 import org.apache.lucene.util.BytesRef;
 
-// decouples this module from org.elasticsearch.xpack.versionfield.Version field type
-// that is defined in x-pack
+/**
+ * used by {@link org.elasticsearch.search.sort.ScriptSortBuilder} to refer to classes in x-pack
+ * (eg. org.elasticsearch.xpack.versionfield.Version) that need a custom FieldComparatorSource
+ */
 public interface BytesRefProducer {
 
     BytesRef toBytesRef();

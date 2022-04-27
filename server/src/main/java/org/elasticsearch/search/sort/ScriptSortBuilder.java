@@ -388,18 +388,11 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
 
                             @Override
                             public BytesRef binaryValue() {
-                                Object result = leafScript.execute();
+                                BytesRefProducer result = leafScript.execute();
                                 if (result == null) {
                                     return null;
                                 }
-                                if (result instanceof BytesRefProducer) {
-                                    return ((BytesRefProducer) result).toBytesRef();
-                                }
-
-                                if (scriptResultValueFormat == null) {
-                                    throw new IllegalArgumentException("Invalid sort type: version");
-                                }
-                                return scriptResultValueFormat.parseBytesRef(result);
+                                return result.toBytesRef();
                             }
                         };
                         return FieldData.singleton(values);

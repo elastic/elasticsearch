@@ -39,7 +39,7 @@ public class ListKeyStoreCommandTests extends KeyStoreCommandTestCase {
     public void testEmpty() throws Exception {
         String password = getPossibleKeystorePassword();
         createKeystore(password);
-        terminal.addTextInput(password);
+        terminal.addSecretInput(password);
         execute();
         assertEquals("keystore.seed\n", terminal.getOutput());
     }
@@ -47,7 +47,7 @@ public class ListKeyStoreCommandTests extends KeyStoreCommandTestCase {
     public void testOne() throws Exception {
         String password = getPossibleKeystorePassword();
         createKeystore(password, "foo", "bar");
-        terminal.addTextInput(password);
+        terminal.addSecretInput(password);
         execute();
         assertEquals("foo\nkeystore.seed\n", terminal.getOutput());
     }
@@ -55,7 +55,7 @@ public class ListKeyStoreCommandTests extends KeyStoreCommandTestCase {
     public void testMultiple() throws Exception {
         String password = getPossibleKeystorePassword();
         createKeystore(password, "foo", "1", "baz", "2", "bar", "3");
-        terminal.addTextInput(password);
+        terminal.addSecretInput(password);
         execute();
         assertEquals("bar\nbaz\nfoo\nkeystore.seed\n", terminal.getOutput()); // sorted
     }
@@ -63,7 +63,7 @@ public class ListKeyStoreCommandTests extends KeyStoreCommandTestCase {
     public void testListWithIncorrectPassword() throws Exception {
         String password = "keystorepassword";
         createKeystore(password, "foo", "bar");
-        terminal.addTextInput("thewrongkeystorepassword");
+        terminal.addSecretInput("thewrongkeystorepassword");
         UserException e = expectThrows(UserException.class, this::execute);
         assertEquals(e.getMessage(), ExitCodes.DATA_ERROR, e.exitCode);
         if (inFipsJvm()) {

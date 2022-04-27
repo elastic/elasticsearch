@@ -373,7 +373,7 @@ public class CertificateGenerateToolTests extends ESTestCase {
         final boolean passwordPrompt = randomBoolean();
         MockTerminal terminal = MockTerminal.create();
         if (passwordPrompt) {
-            terminal.addTextInput("testnode");
+            terminal.addSecretInput("testnode");
         }
 
         final int days = randomIntBetween(1, 1024);
@@ -401,7 +401,7 @@ public class CertificateGenerateToolTests extends ESTestCase {
         final char[] password;
         if (passwordPrompt && passwordProtected) {
             password = null;
-            terminal.addTextInput("testnode");
+            terminal.addSecretInput("testnode");
         } else {
             password = "testnode".toCharArray();
         }

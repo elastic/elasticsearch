@@ -36,8 +36,8 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
 
     public void testNotMatchingPasswords() throws Exception {
         String password = getPossibleKeystorePassword();
-        terminal.addTextInput(password);
-        terminal.addTextInput("notthekeystorepasswordyouarelookingfor");
+        terminal.addSecretInput(password);
+        terminal.addSecretInput("notthekeystorepasswordyouarelookingfor");
         UserException e = expectThrows(UserException.class, () -> execute(randomFrom("-p", "--password")));
         assertEquals(e.getMessage(), ExitCodes.DATA_ERROR, e.exitCode);
         assertThat(e.getMessage(), containsString("Passwords are not equal, exiting"));
@@ -55,8 +55,8 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
         // Sometimes (rarely) test with explicit empty password
         final boolean withPassword = password.length() > 0 || rarely();
         if (withPassword) {
-            terminal.addTextInput(password);
-            terminal.addTextInput(password);
+            terminal.addSecretInput(password);
+            terminal.addSecretInput(password);
             execute(randomFrom("-p", "--password"));
         } else {
             execute();
@@ -71,8 +71,8 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
         // Sometimes (rarely) test with explicit empty password
         final boolean withPassword = password.length() > 0 || rarely();
         if (withPassword) {
-            terminal.addTextInput(password);
-            terminal.addTextInput(password);
+            terminal.addSecretInput(password);
+            terminal.addSecretInput(password);
             execute(randomFrom("-p", "--password"));
         } else {
             execute();
@@ -95,12 +95,15 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
         execute();
         assertArrayEquals(content, Files.readAllBytes(keystoreFile));
 
-        terminal.addTextInput("y"); // overwrite
+        terminal.reset();
         // Sometimes (rarely) test with explicit empty password
         final boolean withPassword = password.length() > 0 || rarely();
         if (withPassword) {
-            terminal.addTextInput(password);
-            terminal.addTextInput(password);
+            terminal.addSecretInput(password);
+            terminal.addSecretInput(password);
+        }
+        terminal.addTextInput("y"); // overwrite
+        if (withPassword) {
             execute(randomFrom("-p", "--password"));
         } else {
             execute();

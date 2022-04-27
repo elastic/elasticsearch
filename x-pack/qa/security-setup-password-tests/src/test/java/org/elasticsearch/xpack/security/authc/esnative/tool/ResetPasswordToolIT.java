@@ -43,8 +43,8 @@ public class ResetPasswordToolIT extends AbstractPasswordToolTestCase {
         } else {
             password = randomAlphaOfLengthBetween(14, 20);
             possiblyDecryptKeystore(mockTerminal);
-            mockTerminal.addTextInput(password);
-            mockTerminal.addTextInput(password);
+            mockTerminal.addSecretInput(password);
+            mockTerminal.addSecretInput(password);
             status = resetPasswordTool.main(new String[] { "-i", "-b", "-u", user }, mockTerminal);
         }
         logger.info("CLI TOOL OUTPUT:\n{}", mockTerminal.getOutput());
@@ -113,8 +113,8 @@ public class ResetPasswordToolIT extends AbstractPasswordToolTestCase {
         } else {
             password = randomAlphaOfLengthBetween(14, 20);
             possiblyDecryptKeystore(mockTerminal);
-            mockTerminal.addTextInput(password);
-            mockTerminal.addTextInput(password);
+            mockTerminal.addSecretInput(password);
+            mockTerminal.addSecretInput(password);
             status = resetPasswordTool.main(new String[] { "-i", "-b", "-u", nativeUser }, mockTerminal);
         }
         logger.info("CLI TOOL OUTPUT:\n{}", mockTerminal.getOutput());

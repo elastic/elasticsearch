@@ -145,8 +145,8 @@ public class ResetPasswordToolTests extends CommandTestCase {
     public void testSuccessInteractiveMode() throws Exception {
         final String password = randomAlphaOfLengthBetween(6, 18);
         terminal.addTextInput("y");
-        terminal.addTextInput(password);
-        terminal.addTextInput(password);
+        terminal.addSecretInput(password);
+        terminal.addSecretInput(password);
         execute(randomFrom("-i", "--interactive"), randomFrom("-u", "--username"), user);
         String output = terminal.getOutput();
         assertThat(output, containsString("This tool will reset the password of the [" + user + "] user."));
@@ -200,10 +200,10 @@ public class ResetPasswordToolTests extends CommandTestCase {
         final String password1 = randomAlphaOfLengthBetween(6, 18);
         final String password2 = randomAlphaOfLengthBetween(6, 18);
         terminal.addTextInput("y");
-        terminal.addTextInput(password1);
-        terminal.addTextInput(password2);
-        terminal.addTextInput(password1);
-        terminal.addTextInput(password1);
+        terminal.addSecretInput(password1);
+        terminal.addSecretInput(password2);
+        terminal.addSecretInput(password1);
+        terminal.addSecretInput(password1);
         execute(randomFrom("-i", "--interactive"), randomFrom("-u", "--username"), user);
         String output = terminal.getOutput();
         String error = terminal.getErrorOutput();

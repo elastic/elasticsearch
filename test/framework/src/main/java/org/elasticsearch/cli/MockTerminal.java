@@ -114,6 +114,13 @@ public class MockTerminal extends Terminal {
         stdinBuffer.append(NEWLINE);
     }
 
+    /** Adds a character input that will be returned from reading a secret from this Terminal. Values are read in FIFO order. */
+    public void addSecretInput(String input) {
+        // for now this is just text input
+        // TODO: add assertions this is only read with readSecret
+        addTextInput(input);
+    }
+
     /** Adds a binary input that will be returned from reading this Terminal. Values are read in FIFO order. */
     public void addBinaryInput(byte[] bytes) {
         stdinBuffer.append(bytes);

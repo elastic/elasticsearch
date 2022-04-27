@@ -41,7 +41,7 @@ public class ShowKeyStoreCommandTests extends KeyStoreCommandTestCase {
     public void testErrorOnMissingParameter() throws Exception {
         final String password = getPossibleKeystorePassword();
         createKeystore(password);
-        terminal.addTextInput(password);
+        terminal.addSecretInput(password);
         final UserException e = expectThrows(UserException.class, this::execute);
         assertEquals(ExitCodes.USAGE, e.exitCode);
         assertThat(e.getMessage(), containsString("Must provide a single setting name to show"));
@@ -50,7 +50,7 @@ public class ShowKeyStoreCommandTests extends KeyStoreCommandTestCase {
     public void testErrorWhenSettingDoesNotExist() throws Exception {
         final String password = getPossibleKeystorePassword();
         createKeystore(password);
-        terminal.addTextInput(password);
+        terminal.addSecretInput(password);
         final UserException e = expectThrows(UserException.class, () -> execute("not.a.value"));
         assertEquals(ExitCodes.CONFIG, e.exitCode);
         assertThat(e.getMessage(), containsString("Setting [not.a.value] does not exist in the keystore"));
@@ -60,7 +60,7 @@ public class ShowKeyStoreCommandTests extends KeyStoreCommandTestCase {
         final String password = getPossibleKeystorePassword();
         final String value = randomAlphaOfLengthBetween(6, 12);
         createKeystore(password, "reindex.ssl.keystore.password", value);
-        terminal.addTextInput(password);
+        terminal.addSecretInput(password);
         execute("reindex.ssl.keystore.password");
         assertEquals(value + "\n", terminal.getOutput());
     }
@@ -72,7 +72,7 @@ public class ShowKeyStoreCommandTests extends KeyStoreCommandTestCase {
         ks.setFile("binary.file", value);
         saveKeystore(ks, password);
 
-        terminal.addTextInput(password);
+        terminal.addSecretInput(password);
         terminal.setSupportsBinary(true);
 
         execute("binary.file");
@@ -86,7 +86,7 @@ public class ShowKeyStoreCommandTests extends KeyStoreCommandTestCase {
         ks.setFile("binary.file", value);
         saveKeystore(ks, password);
 
-        terminal.addTextInput(password);
+        terminal.addSecretInput(password);
 
         UserException e = expectThrows(UserException.class, () -> execute("binary.file"));
         assertEquals(e.getMessage(), ExitCodes.IO_ERROR, e.exitCode);
@@ -97,7 +97,7 @@ public class ShowKeyStoreCommandTests extends KeyStoreCommandTestCase {
     public void testErrorOnIncorrectPassword() throws Exception {
         String password = "keystorepassword";
         createKeystore(password, "foo", "bar");
-        terminal.addTextInput("thewrongkeystorepassword");
+        terminal.addSecretInput("thewrongkeystorepassword");
         UserException e = expectThrows(UserException.class, () -> execute("keystore.seed"));
         assertEquals(e.getMessage(), ExitCodes.DATA_ERROR, e.exitCode);
         if (inFipsJvm()) {

@@ -33,8 +33,8 @@ public class ChangeKeyStorePasswordCommandTests extends KeyStoreCommandTestCase 
         assumeFalse("Cannot open unprotected keystore on FIPS JVM", inFipsJvm());
         createKeystore("");
         loadKeystore("");
-        terminal.addTextInput("thepassword");
-        terminal.addTextInput("thepassword");
+        terminal.addSecretInput("thepassword");
+        terminal.addSecretInput("thepassword");
         // Prompted twice for the new password, since we didn't have an existing password
         execute();
         loadKeystore("thepassword");
@@ -43,9 +43,9 @@ public class ChangeKeyStorePasswordCommandTests extends KeyStoreCommandTestCase 
     public void testChangeKeyStorePassword() throws Exception {
         createKeystore("theoldpassword");
         loadKeystore("theoldpassword");
-        terminal.addTextInput("theoldpassword");
-        terminal.addTextInput("the-better-password");
-        terminal.addTextInput("the-better-password");
+        terminal.addSecretInput("theoldpassword");
+        terminal.addSecretInput("the-better-password");
+        terminal.addSecretInput("the-better-password");
         // Prompted thrice: Once for the existing and twice for the new password
         execute();
         loadKeystore("the-better-password");
@@ -55,9 +55,9 @@ public class ChangeKeyStorePasswordCommandTests extends KeyStoreCommandTestCase 
         assumeFalse("Cannot set empty keystore password on FIPS JVM", inFipsJvm());
         createKeystore("theoldpassword");
         loadKeystore("theoldpassword");
-        terminal.addTextInput("theoldpassword");
-        terminal.addTextInput("");
-        terminal.addTextInput("");
+        terminal.addSecretInput("theoldpassword");
+        terminal.addSecretInput("");
+        terminal.addSecretInput("");
         // Prompted thrice: Once for the existing and twice for the new password
         execute();
         loadKeystore("");
@@ -66,9 +66,9 @@ public class ChangeKeyStorePasswordCommandTests extends KeyStoreCommandTestCase 
     public void testChangeKeyStorePasswordWrongVerification() throws Exception {
         createKeystore("theoldpassword");
         loadKeystore("theoldpassword");
-        terminal.addTextInput("theoldpassword");
-        terminal.addTextInput("thepassword");
-        terminal.addTextInput("themisspelledpassword");
+        terminal.addSecretInput("theoldpassword");
+        terminal.addSecretInput("thepassword");
+        terminal.addSecretInput("themisspelledpassword");
         // Prompted thrice: Once for the existing and twice for the new password
         UserException e = expectThrows(UserException.class, this::execute);
         assertEquals(e.getMessage(), ExitCodes.DATA_ERROR, e.exitCode);
@@ -78,7 +78,7 @@ public class ChangeKeyStorePasswordCommandTests extends KeyStoreCommandTestCase 
     public void testChangeKeyStorePasswordWrongExistingPassword() throws Exception {
         createKeystore("theoldpassword");
         loadKeystore("theoldpassword");
-        terminal.addTextInput("theoldmisspelledpassword");
+        terminal.addSecretInput("theoldmisspelledpassword");
         // We'll only be prompted once (for the old password)
         UserException e = expectThrows(UserException.class, this::execute);
         assertEquals(e.getMessage(), ExitCodes.DATA_ERROR, e.exitCode);

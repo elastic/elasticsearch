@@ -281,15 +281,15 @@ public class UsersToolTests extends CommandTestCase {
     }
 
     public void testParseInvalidPasswordInput() throws Exception {
-        terminal.addTextInput("123");
+        terminal.addSecretInput("123");
         UserException e = expectThrows(UserException.class, () -> { UsersTool.parsePassword(terminal, null); });
         assertEquals(ExitCodes.DATA_ERROR, e.exitCode);
         assertTrue(e.getMessage(), e.getMessage().contains("Invalid password"));
     }
 
     public void testParseMismatchPasswordInput() throws Exception {
-        terminal.addTextInput("password1");
-        terminal.addTextInput("password2");
+        terminal.addSecretInput("password1");
+        terminal.addSecretInput("password2");
         UserException e = expectThrows(UserException.class, () -> { UsersTool.parsePassword(terminal, null); });
         assertEquals(ExitCodes.DATA_ERROR, e.exitCode);
         assertTrue(e.getMessage(), e.getMessage().contains("Password mismatch"));
@@ -326,8 +326,8 @@ public class UsersToolTests extends CommandTestCase {
     }
 
     public void testUseraddNoPassword() throws Exception {
-        terminal.addTextInput(SecuritySettingsSourceField.TEST_PASSWORD);
-        terminal.addTextInput(SecuritySettingsSourceField.TEST_PASSWORD);
+        terminal.addSecretInput(SecuritySettingsSourceField.TEST_PASSWORD);
+        terminal.addSecretInput(SecuritySettingsSourceField.TEST_PASSWORD);
         execute("useradd", pathHomeParameter, fileOrderParameter, "username");
         assertUser("username", SecuritySettingsSourceField.TEST_PASSWORD);
     }
@@ -418,8 +418,8 @@ public class UsersToolTests extends CommandTestCase {
     }
 
     public void testPasswdNoPasswordOption() throws Exception {
-        terminal.addTextInput("new-test-user-password");
-        terminal.addTextInput("new-test-user-password");
+        terminal.addSecretInput("new-test-user-password");
+        terminal.addSecretInput("new-test-user-password");
         execute("passwd", pathHomeParameter, fileOrderParameter, "existing_user");
         assertUser("existing_user", "new-test-user-password");
         assertRole("test_admin", "existing_user", "existing_user2"); // roles unchanged

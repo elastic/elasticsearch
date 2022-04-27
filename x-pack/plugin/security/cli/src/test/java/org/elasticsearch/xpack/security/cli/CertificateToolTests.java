@@ -413,7 +413,7 @@ public class CertificateToolTests extends ESTestCase {
             .parse("-ca-dn", "CN=Test-Ca", (expectPrompt ? "-pass" : "-pass=" + longPassword), "-out", caFile.toString());
 
         if (expectPrompt) {
-            terminal.addTextInput(longPassword);
+            terminal.addSecretInput(longPassword);
             terminal.addTextInput("y"); // Yes, really use it
         }
         caCommand.execute(terminal, gen1Options, env);
@@ -438,9 +438,9 @@ public class CertificateToolTests extends ESTestCase {
             );
 
         if (expectPrompt) {
-            terminal.addTextInput(longPassword);
+            terminal.addSecretInput(longPassword);
             terminal.addTextInput("n"); // No, don't really use it
-            terminal.addTextInput(longPassword);
+            terminal.addSecretInput(longPassword);
             terminal.addTextInput("y"); // This time, yes we will use it
         }
         genCommand.execute(terminal, gen2Options, env);
@@ -477,7 +477,7 @@ public class CertificateToolTests extends ESTestCase {
         final boolean passwordPrompt = randomBoolean();
         MockTerminal terminal = MockTerminal.create();
         if (passwordPrompt) {
-            terminal.addTextInput("testnode");
+            terminal.addSecretInput("testnode");
         }
 
         final int keySize = randomFrom(1024, 2048);
@@ -530,7 +530,7 @@ public class CertificateToolTests extends ESTestCase {
         if (passwordProtected) {
             args.add("-ca-pass");
             if (passwordPrompt) {
-                terminal.addTextInput("testnode");
+                terminal.addSecretInput("testnode");
             } else {
                 args.add(caPassword);
             }
@@ -795,7 +795,7 @@ public class CertificateToolTests extends ESTestCase {
                 "node01"
             );
 
-        terminal.addTextInput(node1Password);
+        terminal.addSecretInput(node1Password);
         gen1Command.execute(terminal, gen1Options, env);
 
         assertThat(node1Pkcs12, pathExists());
@@ -818,7 +818,7 @@ public class CertificateToolTests extends ESTestCase {
                 "-pem"
             );
 
-        terminal.addTextInput(caPassword);
+        terminal.addSecretInput(caPassword);
         gen2Command.execute(terminal, gen2Options, env);
 
         assertThat(pemZip, pathExists());

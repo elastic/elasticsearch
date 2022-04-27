@@ -144,9 +144,9 @@ public class HttpCertificateCommandTests extends ESTestCase {
         terminal.addTextInput(randomBoolean() ? "n" : ""); // don't change advanced settings
 
         final String password = randomPassword(false);
-        terminal.addTextInput(password);
+        terminal.addSecretInput(password);
         if ("".equals(password) == false) {
-            terminal.addTextInput(password);
+            terminal.addSecretInput(password);
         } // confirm
 
         terminal.addTextInput(outFile.toString());
@@ -253,7 +253,7 @@ public class HttpCertificateCommandTests extends ESTestCase {
             }
             case PKCS12 -> terminal.addTextInput(getDataPath("ca.p12").toAbsolutePath().toString());
         }
-        terminal.addTextInput(caPassword);
+        terminal.addSecretInput(caPassword);
 
         terminal.addTextInput(years + "y"); // validity period
 
@@ -272,9 +272,9 @@ public class HttpCertificateCommandTests extends ESTestCase {
         terminal.addTextInput(randomBoolean() ? "n" : ""); // don't change advanced settings
 
         final String password = randomPassword(randomBoolean());
-        terminal.addTextInput(password);
+        terminal.addSecretInput(password);
         if ("".equals(password) == false) {
-            terminal.addTextInput(password);
+            terminal.addSecretInput(password);
             if (password.length() > 50) {
                 terminal.addTextInput("y"); // Accept OpenSSL issue
             }
@@ -387,14 +387,14 @@ public class HttpCertificateCommandTests extends ESTestCase {
         // randomly enter a long password here, and then say "no" on the warning prompt
         if (randomBoolean()) {
             String longPassword = randomAlphaOfLengthBetween(60, 120);
-            terminal.addTextInput(longPassword);
-            terminal.addTextInput(longPassword);
+            terminal.addSecretInput(longPassword);
+            terminal.addSecretInput(longPassword);
             terminal.addTextInput("n"); // Change our mind
             expectLongPasswordWarning = true;
         }
-        terminal.addTextInput(caPassword);
+        terminal.addSecretInput(caPassword);
         if ("".equals(caPassword) == false) {
-            terminal.addTextInput(caPassword);
+            terminal.addSecretInput(caPassword);
             if (caPassword.length() > 50) {
                 terminal.addTextInput("y"); // Acknowledge possible OpenSSL issue
             }
@@ -433,9 +433,9 @@ public class HttpCertificateCommandTests extends ESTestCase {
             terminal.addTextInput(wrongPassword);
             terminal.addTextInput("__" + wrongPassword);
         }
-        terminal.addTextInput(password);
+        terminal.addSecretInput(password);
         if ("".equals(password) == false) {
-            terminal.addTextInput(password);
+            terminal.addSecretInput(password);
         } // confirm
 
         terminal.addTextInput(outFile.toString());

@@ -5,24 +5,25 @@ us to gather traces and analyze what Elasticsearch is doing.
 
 ## How is tracing implemented?
 
-The Elasticsearch server code contains a
-[`tracing`](./server/src/main/java/org/elasticsearch/tracing/) package, which is
+The Elasticsearch server code contains a [`tracing`][tracing] package, which is
 an abstraction over the OpenTelemetry API. All locations in the code that
-performing instrumentation and tracing must use these abstractions.
+perform instrumentation and tracing must use these abstractions.
 
 Separately, there is the [`apm-integration`](./x-pack/plugins/apm-integration/)
-module, which works with the OpenTelemetry API directly to manipulate spans.
+module, which works with the OpenTelemetry API directly to record trace data.
 
 ## Where is tracing data sent?
 
 You need to have an OpenTelemetry server running somewhere. For example, you can
-create a deployment in Elastic Cloud, and use Elastic's APM integration.
+create a deployment in Elastic Cloud with Elastic's APM integration.
 
 ## How is tracing data sent?
 
-This branch uses the OpenTelemetry SDK, which is a reference implementation of
-the API. Work is underway to use the Elastic APM agent for Java, which attaches
-at runtime and removes the need for Elasticsearch to hard-code the use of an SDK.
+We use Elastic's APM agent for Java, which attaches at runtime to the
+Elasticsearch JVM, which removes the need for Elasticsearch to hard-code the use
+of an SDK. The agent is configured using a configuration file at
+"config/elasticapm.properties". By default, the agent is disabled, so it is
+present as a Java agent, but will do nothing.
 
 ## What do we trace?
 
@@ -33,33 +34,69 @@ task in the tracing system. We also instrument REST requests, which are not (at
 present) modelled by tasks.
 
 A span can be associated with a parent span, which allows all spans in, for
-example, a REST request to be grouped together. Spans can track the
-Elasticsearch supports the [W3c
-Trace Context](https://www.w3.org/TR/trace-context/) headers. It also uses these
+example, a REST request to be grouped together. Spans can track work across
+different Elasticsearch nodes.
+
+Elasticsearch also supports distributed tracing via [W3c Trace Context][w3c]
+headers. If clients of Elasticsearch send these headers with their requests,
+then that data will be forwarded to the APM server in order to yield a trace
+across systems.
 
 ## Thread contexts and nested spans
 
 When a span is started, Elasticsearch tracks information about that span in the
-current [thread
-context](./server/src/main/java/org/elasticsearch/common/util/concurrent/ThreadContext.java).
-When a nested span is started, a new thread context is created, and the current
-span information is moved so that it becomes the parent span information.
+current [thread context][thread-context].  If a new thread context is created,
+then current span information is propagated but renamed, so that (1) it doesn't
+interfere when new trace information is set in the context, and (2) the previous
+trace information is available to establish a parent / child span relationship.
 
 Sometimes we need to detach new spans from their parent. For example, creating
 an index starts some related background tasks, but these shouldn't be associated
 with the REST request, otherwise all the background task spans will be
 associated with the REST request for as long as Elasticsearch is running.
+`ThreadContext` provides the `clearTraceContext`() method for this purpose.
 
 ## How to I trace something that isn't a task?
 
 First work out if you can turn it into a task. No, really.
 
-If you can't do that, you'll need to ensure that your class can access the
-`Node`'s tracers, then call the appropriate methods on the tracers when a span
-should start and end.
+If you can't do that, you'll need to ensure that your class can get access to a
+`Tracer` instance (this is available to inject, or you'll need to pass it when
+your class is created). Then you need to call the appropriate methods on the
+tracers when a span should start and end.
 
-## What attributes should I set?
+## What additional attributes should I set?
 
-TODO.
+That's up to you. Be careful about capture anything that could leak sensitive
+or personal information.
+
+## What is "scope" and when should I used it?
+
+Usually you won't need to.
+
+That said, sometimes you may want more details to be captured about a particular
+section of code. You can think of "scope" as representing the currently active
+tracing context. Using scope allows the APM agent to do the following:
+
+* Enables automatic correlation between the "active span" and logging, where
+  logs have also been captured.
+* Enables capturing any exceptions thrown when the span is active, and linking
+  those exceptions to the span
+* Allows the sampling profiler to be used as it allows samples to be linked to
+  the active span (if any), so the agent can automatically get extra spans
+  without manual instrumentation.
+
+In the OpenTelemetry documentation, spans, scope and context are fairly
+straightforward to use, since `Scope` is an `AutoCloseable` and so can be
+easily created and cleaned up use try-with-resources blocks. Unfortunately,
+Elasticsearch is a complex piece of software, and also extremely asynchronous,
+so the typical OpenTelemetry examples do not work.
+
+Nonetheless, it is possible to manually use scope where we need more detail by
+explicitly opening a scope via the `Tracer`.
+
 
 [otel]: https://opentelemetry.io/
+[thread-context]: ./server/src/main/java/org/elasticsearch/common/util/concurrent/ThreadContext.java).
+[w3c]: https://www.w3.org/TR/trace-context/
+[tracing]: ./server/src/main/java/org/elasticsearch/tracing/

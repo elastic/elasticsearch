@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
@@ -77,6 +78,10 @@ class HttpTracer {
 
     void setAttribute(Traceable traceable, String key, String value) {
         this.tracer.setAttribute(traceable, key, value);
+    }
+
+    Releasable withScope(Traceable traceable) {
+        return tracer.withScope(traceable);
     }
 
     /**

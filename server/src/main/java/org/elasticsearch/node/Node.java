@@ -994,6 +994,7 @@ public class Node implements Closeable {
                 b.bind(DesiredNodesSettingsValidator.class).toInstance(desiredNodesSettingsValidator);
                 b.bind(HealthService.class).toInstance(healthService);
                 b.bind(StatsRequestLimiter.class).toInstance(statsRequestLimiter);
+                b.bind(Tracer.class).toInstance(tracer);
             });
 
             if (ReadinessService.enabled(environment)) {

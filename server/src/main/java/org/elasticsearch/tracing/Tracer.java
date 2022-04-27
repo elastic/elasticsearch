@@ -9,6 +9,7 @@
 package org.elasticsearch.tracing;
 
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Releasable;
 
 /**
  * Represents a distributed tracing system that keeps track of the start and end of various activities in the cluster.
@@ -17,11 +18,14 @@ public interface Tracer {
 
     /**
      * Called when the {@link Traceable} activity starts.
+     * @param threadContext the current context. Required for tracing parent/child span activity.
+     * @param traceable the thing to start tracing
      */
     void onTraceStarted(ThreadContext threadContext, Traceable traceable);
 
     /**
      * Called when the {@link Traceable} activity ends.
+     * @param traceable the thing to stop tracing
      */
     void onTraceStopped(Traceable traceable);
 
@@ -37,11 +41,11 @@ public interface Tracer {
 
     void setAttribute(Traceable traceable, String key, String value);
 
+    Releasable withScope(Traceable traceable);
+
     Tracer NOOP = new Tracer() {
         @Override
-        public void onTraceStarted(ThreadContext threadContext, Traceable traceable) {
-            return;
-        }
+        public void onTraceStarted(ThreadContext threadContext, Traceable traceable) {}
 
         @Override
         public void onTraceStopped(Traceable traceable) {}
@@ -63,5 +67,10 @@ public interface Tracer {
 
         @Override
         public void setAttribute(Traceable traceable, String key, String value) {}
+
+        @Override
+        public Releasable withScope(Traceable traceable) {
+            return () -> {};
+        }
     };
 }

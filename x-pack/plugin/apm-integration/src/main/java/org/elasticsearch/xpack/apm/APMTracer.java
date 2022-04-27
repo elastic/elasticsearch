@@ -14,7 +14,6 @@ import io.opentelemetry.api.trace.SpanBuilder;
 import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Context;
-import io.opentelemetry.context.Scope;
 import io.opentelemetry.context.propagation.TextMapGetter;
 
 import org.apache.logging.log4j.LogManager;
@@ -27,6 +26,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tracing.Traceable;
 
@@ -34,7 +34,6 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -60,18 +59,17 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         NodeScope
     );
 
-    private record ContextScope(Context context, Scope scope) {
+    private record ContextWrapper(Context context) {
         Span span() {
             return Span.fromContextOrNull(this.context);
         }
 
         void close() {
             this.span().end();
-//            this.scope.close();
         }
     }
 
-    private final Map<String, ContextScope> spans = ConcurrentCollections.newConcurrentMap();
+    private final Map<String, ContextWrapper> spans = ConcurrentCollections.newConcurrentMap();
     private final ClusterService clusterService;
 
     private volatile boolean enabled;
@@ -153,7 +151,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             return;
         }
 
-        spans.computeIfAbsent(traceable.getSpanId(), spanId -> AccessController.doPrivileged((PrivilegedAction<ContextScope>) () -> {
+        spans.computeIfAbsent(traceable.getSpanId(), spanId -> AccessController.doPrivileged((PrivilegedAction<ContextWrapper>) () -> {
             final SpanBuilder spanBuilder = services.tracer.spanBuilder(traceable.getSpanName());
 
             // https://github.com/open-telemetry/opentelemetry-java/discussions/2884#discussioncomment-381870
@@ -172,7 +170,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             setSpanAttributes(threadContext, traceable, spanBuilder);
             final Span span = spanBuilder.startSpan();
             final Context contextForNewSpan = Context.current().with(span);
-//            final Scope scope = contextForNewSpan.makeCurrent();
 
             final Map<String, String> spanHeaders = new HashMap<>();
             services.openTelemetry.getPropagators().getTextMapPropagator().inject(contextForNewSpan, spanHeaders, Map::put);
@@ -184,9 +181,14 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             // propagated
             threadContext.putHeader(spanHeaders);
 
-//            return new ContextScope(contextForNewSpan, scope);
-            return new ContextScope(contextForNewSpan, null);
+            return new ContextWrapper(contextForNewSpan);
         }));
+    }
+
+    @Override
+    public Releasable withScope(Traceable traceable) {
+        var scope = spans.get(traceable.getSpanId()).context.makeCurrent();
+        return scope::close;
     }
 
     private void setSpanAttributes(ThreadContext threadContext, Traceable traceable, SpanBuilder spanBuilder) {
@@ -223,41 +225,41 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     @Override
     public void onTraceException(Traceable traceable, Throwable throwable) {
-        final var contextScope = spans.get(traceable.getSpanId());
-        if (contextScope != null) {
-            contextScope.span().recordException(throwable);
+        final var context = spans.get(traceable.getSpanId());
+        if (context != null) {
+            context.span().recordException(throwable);
         }
     }
 
     @Override
     public void setAttribute(Traceable traceable, String key, boolean value) {
-        final var contextScope = spans.get(traceable.getSpanId());
-        if (contextScope != null) {
-            contextScope.span().setAttribute(key, value);
+        final var context = spans.get(traceable.getSpanId());
+        if (context != null) {
+            context.span().setAttribute(key, value);
         }
     }
 
     @Override
     public void setAttribute(Traceable traceable, String key, double value) {
-        final var contextScope = spans.get(traceable.getSpanId());
-        if (contextScope != null) {
-            contextScope.span().setAttribute(key, value);
+        final var context = spans.get(traceable.getSpanId());
+        if (context != null) {
+            context.span().setAttribute(key, value);
         }
     }
 
     @Override
     public void setAttribute(Traceable traceable, String key, long value) {
-        final var contextScope = spans.get(traceable.getSpanId());
-        if (contextScope != null) {
-            contextScope.span().setAttribute(key, value);
+        final var context = spans.get(traceable.getSpanId());
+        if (context != null) {
+            context.span().setAttribute(key, value);
         }
     }
 
     @Override
     public void setAttribute(Traceable traceable, String key, String value) {
-        final var contextScope = spans.get(traceable.getSpanId());
-        if (contextScope != null) {
-            contextScope.span().setAttribute(key, value);
+        final var context = spans.get(traceable.getSpanId());
+        if (context != null) {
+            context.span().setAttribute(key, value);
         }
     }
 
@@ -291,17 +293,17 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
 
     @Override
     public void onTraceStopped(Traceable traceable) {
-        final var contextScope = spans.remove(traceable.getSpanId());
-        if (contextScope != null) {
-            contextScope.close();
+        final var context = spans.remove(traceable.getSpanId());
+        if (context != null) {
+            context.close();
         }
     }
 
     @Override
     public void onTraceEvent(Traceable traceable, String eventName) {
-        final var contextScope = spans.get(traceable.getSpanId());
-        if (contextScope != null) {
-            contextScope.span().addEvent(eventName);
+        final var context = spans.get(traceable.getSpanId());
+        if (context != null) {
+            context.span().addEvent(eventName);
         }
     }
 
@@ -321,6 +323,4 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     private static boolean isSupportedContextKey(String key) {
         return TRACE_HEADERS.contains(key);
     }
-
-    private static final Set<String> GRAPHVIZ_CACHE = new HashSet<>();
 }

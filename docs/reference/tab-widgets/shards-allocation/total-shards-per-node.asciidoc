@@ -20,21 +20,23 @@ for the index with unassigned shards:
 +
 [source,console]
 ----
-GET /my-index/_settings/index.routing.allocation.total_shards_per_node
+GET /my-index-000001/_settings/index.routing.allocation.total_shards_per_node
 ----
+// TEST[setup:my_index]
 
 . <<indices-update-settings,Increase>> the maximum number of shards that can be assigned on one node or
 reset the value to unbounded (`-1`):
 +
 [source,console]
 ----
-PUT /my-index/_settings
+PUT /my-index-000001/_settings
 {
   "index" : {
     "routing.allocation.total_shards_per_node" : -1
   }
 }
 ----
+// TEST[setup:my_index]
 
 //end::kibana-api-ex[]
 // end::cloud[]
@@ -50,8 +52,9 @@ setting:
 +
 [source,console]
 ----
-GET /my-index/_settings/index.routing.allocation.include._tier_preference
+GET /my-index-000001/_settings/index.routing.allocation.include._tier_preference
 ----
+// TEST[setup:my_index]
 
 This will likely return a comma separated list of data tier node roles, the first
 one in the list being the one with the higher priority i.e. the tier the index is
@@ -67,21 +70,23 @@ allow more shards to be assigned on the same node.
 +
 [source,console]
 ----
-GET /my-index/_settings/index.routing.allocation.total_shards_per_node
+GET /my-index-000001/_settings/index.routing.allocation.total_shards_per_node
 ----
+// TEST[setup:my_index]
 
 . <<indices-update-settings,Increase>> the maximum number of shards that can be assigned on one node or
 reset the value to unbounded (`-1`):
 +
 [source,console]
 ----
-PUT /my-index/_settings
+PUT /my-index-000001/_settings
 {
   "index" : {
     "routing.allocation.total_shards_per_node" : -1
   }
 }
 ----
+// TEST[setup:my_index]
 
 // end::self-managed[]
 

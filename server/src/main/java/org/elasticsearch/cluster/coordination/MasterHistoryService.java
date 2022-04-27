@@ -21,9 +21,9 @@ import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * This service provides access to this node's view of the master history, as well as access to other nodes' view of master stability.
@@ -37,7 +37,7 @@ public class MasterHistoryService {
      * This is a map of a node to the view of master history it has. This is populated asynchronously and is not guaranteed to have an
      * entry for every node.
      */
-    private final Map<DiscoveryNode, List<DiscoveryNode>> nodeToHistoryMap = new HashMap<>();
+    private final Map<DiscoveryNode, List<DiscoveryNode>> nodeToHistoryMap = new ConcurrentHashMap<>();
     private static final Logger logger = LogManager.getLogger(MasterHistoryService.class);
 
     public MasterHistoryService(
@@ -70,9 +70,7 @@ public class MasterHistoryService {
      */
     @Nullable
     public List<DiscoveryNode> getRemoteMasterHistory(DiscoveryNode node) {
-        synchronized (nodeToHistoryMap) {
-            return nodeToHistoryMap.get(node);
-        }
+        return nodeToHistoryMap.get(node);
     }
 
     /**
@@ -100,9 +98,7 @@ public class MasterHistoryService {
                             public void onResponse(MasterHistoryAction.Response response) {
                                 long endTime = System.currentTimeMillis();
                                 logger.trace("Received history from {} in {} ms", node, (endTime - startTime));
-                                synchronized (nodeToHistoryMap) {
-                                    nodeToHistoryMap.put(node, response.getMasterHistory());
-                                }
+                                nodeToHistoryMap.put(node, response.getMasterHistory());
                             }
 
                             @Override

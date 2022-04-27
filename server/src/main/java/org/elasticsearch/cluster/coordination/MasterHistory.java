@@ -92,6 +92,13 @@ public class MasterHistory implements ClusterStateListener {
         );
     }
 
+    /**
+     * Returns true if for List of master nodes passed in only one non-null node has been master, and the master has switched
+     * from that node to null n times.
+     * @param masters The List of masters to use
+     * @param n The number of times the non-null master must have switched to null
+     * @return True if there has been a single non-null master and it has switched to null n or more times in the given list of masters.
+     */
     public static boolean hasSameMasterGoneNullNTimes(List<DiscoveryNode> masters, int n) {
         if (getDistinctMastersSeen(masters).size() != 1) {
             return false;
@@ -118,7 +125,7 @@ public class MasterHistory implements ClusterStateListener {
      */
     public Set<DiscoveryNode> getDistinctMastersSeen() {
         List<TimeAndMaster> masterHistoryCopy = getMasterHistoryForLast30Minutes();
-        return getDistinctMastersSeen(masterHistoryCopy.stream().map(timeAndMaster -> timeAndMaster.master).collect(Collectors.toList()));
+        return masterHistoryCopy.stream().map(timeAndMaster -> timeAndMaster.master).filter(Objects::nonNull).collect(Collectors.toSet());
     }
 
     /**
@@ -141,7 +148,7 @@ public class MasterHistory implements ClusterStateListener {
      * entry in even if it is more than 30 minutes old).
      */
     private List<TimeAndMaster> getMasterHistoryForLast30Minutes() {
-        List<TimeAndMaster> masterHistoryCopy = new ArrayList<>(masterHistory);
+        List<TimeAndMaster> masterHistoryCopy = masterHistory; // In case masterHistory is swapped while we're using it
         if (masterHistoryCopy.size() < 2) {
             return masterHistoryCopy;
         }

@@ -148,11 +148,17 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
         // 3:
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
-        // It has now gone null 3 times, but the master reports that it's ok because the remote history says it has not gone null:
         result = service.calculate(true);
         assertThat(result.status(), equalTo(HealthStatus.GREEN));
         assertThat(result.summary(), equalTo("The cluster has a stable master node"));
-        // But if we have the remote history look like the local history and confirm that it has gone null 3 times, we get a yellow status:
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
+        // 4:
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
+        // It has now gone null 4 times, but the master reports that it's ok because the remote history says it has not gone null:
+        result = service.calculate(true);
+        assertThat(result.status(), equalTo(HealthStatus.GREEN));
+        assertThat(result.summary(), equalTo("The cluster has a stable master node"));
+        // But if we have the remote history look like the local history and confirm that it has gone null 4 times, we get a yellow status:
         List<DiscoveryNode> sameAsLocalHistory = localMasterHistory.getImmutableView();
         when(masterHistoryService.getRemoteMasterHistory(any())).thenReturn(sameAsLocalHistory);
         result = service.calculate(true);

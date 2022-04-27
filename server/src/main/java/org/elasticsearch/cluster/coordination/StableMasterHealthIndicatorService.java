@@ -76,11 +76,11 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         if (hasSeenMasterInLast30Seconds()) {
             long masterChanges = getNumberOfMasterChanges(localMasterHistory);
             logger.trace("Have seen a master in the last 30 seconds");
-            if (localMasterHistory.hasSameMasterGoneNullNTimes(3)) {
+            if (localMasterHistory.hasSameMasterGoneNullNTimes(4)) {
                 DiscoveryNode master = localMasterHistory.getMostRecentNonNullMaster();
                 logger.trace("One master has gone null 3 or more times recently: " + master);
                 List<DiscoveryNode> remoteHistory = masterHistoryService.getRemoteMasterHistory(master);
-                if (remoteHistory == null || MasterHistory.hasSameMasterGoneNullNTimes(remoteHistory, 3)) {
+                if (remoteHistory == null || MasterHistory.hasSameMasterGoneNullNTimes(remoteHistory, 4)) {
                     if (remoteHistory == null) {
                         logger.trace(String.format(Locale.ROOT, "Unable to get master history from %s", master));
                     } else {
@@ -171,7 +171,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         DiscoveryNode currentMaster = event.state().nodes().getMasterNode();
         DiscoveryNode previousMaster = event.previousState().nodes().getMasterNode();
         if (currentMaster == null && previousMaster != null) {
-            if (masterHistoryService.getLocalMasterHistory().hasSameMasterGoneNullNTimes(3)) {
+            if (masterHistoryService.getLocalMasterHistory().hasSameMasterGoneNullNTimes(4)) {
                 DiscoveryNode master = masterHistoryService.getLocalMasterHistory().getMostRecentNonNullMaster();
                 if (master != null) {
                     masterHistoryService.requestRemoteMasterHistory(master);

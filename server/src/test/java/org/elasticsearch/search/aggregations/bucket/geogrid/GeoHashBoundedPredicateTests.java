@@ -18,6 +18,28 @@ import org.hamcrest.Matchers;
 public class GeoHashBoundedPredicateTests extends ESTestCase {
 
     public void testValidTile() {
+        int precision = 3;
+        String hash = "bcd";
+        Rectangle rectangle = Geohash.toBoundingBox(hash);
+        GeoBoundingBox bbox = new GeoBoundingBox(
+            new GeoPoint(rectangle.getMaxLat(), rectangle.getMinLon()),
+            new GeoPoint(rectangle.getMinLat(), rectangle.getMaxLon())
+        );
+        GeoHashBoundedPredicate predicate = new GeoHashBoundedPredicate(precision, bbox);
+        // the same tile should be valid
+        assertEquals(true, predicate.validHash(hash));
+        // neighbour tiles only touching should not be valid
+        assertEquals(false, predicate.validHash("bcc"));
+        assertEquals(false, predicate.validHash("bcf"));
+        assertEquals(false, predicate.validHash("bcg"));
+        assertEquals(false, predicate.validHash("bc9"));
+        assertEquals(false, predicate.validHash("bce"));
+        assertEquals(false, predicate.validHash("bc3"));
+        assertEquals(false, predicate.validHash("bc6"));
+        assertEquals(false, predicate.validHash("bc7"));
+    }
+
+    public void testRandomValidTile() {
         int precision = randomIntBetween(1, Geohash.PRECISION);
         String hash = Geohash.stringEncode(GeoTestUtil.nextLongitude(), GeoTestUtil.nextLatitude(), precision);
         Rectangle rectangle = Geohash.toBoundingBox(hash);

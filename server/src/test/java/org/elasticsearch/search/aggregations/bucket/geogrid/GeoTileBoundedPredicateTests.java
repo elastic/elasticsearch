@@ -15,6 +15,30 @@ import org.elasticsearch.test.ESTestCase;
 public class GeoTileBoundedPredicateTests extends ESTestCase {
 
     public void testValidTile() {
+        int precision = 4;
+        int x = 1;
+        int y = 1;
+        Rectangle rectangle = GeoTileUtils.toBoundingBox(x, y, precision);
+        GeoBoundingBox bbox = new GeoBoundingBox(
+            new GeoPoint(rectangle.getMaxLat(), rectangle.getMinLon()),
+            new GeoPoint(rectangle.getMinLat(), rectangle.getMaxLon())
+        );
+
+        GeoTileBoundedPredicate predicate = new GeoTileBoundedPredicate(precision, bbox);
+        // the same tile should be valid
+        assertEquals(true, predicate.validTile(x, y, precision));
+        // neighbour tiles only touching should not be valid
+        assertEquals(false, predicate.validTile(x + 1, y, precision));
+        assertEquals(false, predicate.validTile(x - 1, y, precision));
+        assertEquals(false, predicate.validTile(x, y + 1, precision));
+        assertEquals(false, predicate.validTile(x, y - 1, precision));
+        assertEquals(false, predicate.validTile(x + 1, y + 1, precision));
+        assertEquals(false, predicate.validTile(x - 1, y - 1, precision));
+        assertEquals(false, predicate.validTile(x + 1, y - 1, precision));
+        assertEquals(false, predicate.validTile(x - 1, y + 1, precision));
+    }
+
+    public void testRandomValidTile() {
         int precision = randomIntBetween(0, GeoTileUtils.MAX_ZOOM);
         int tiles = 1 << precision;
         int x = randomIntBetween(0, tiles - 1);

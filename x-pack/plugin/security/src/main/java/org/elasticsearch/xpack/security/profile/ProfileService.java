@@ -333,6 +333,10 @@ public class ProfileService {
         Collection<String> uids,
         ActionListener<Tuple<Map<String, VersionedDocument>, List<String>>> listener
     ) {
+        if (uids.isEmpty()) {
+            listener.onResponse(new Tuple<>(Map.of(), List.of()));
+            return;
+        }
         tryFreezeAndCheckIndex(listener).ifPresent(frozenProfileIndex -> {
             new OriginSettingClient(client, SECURITY_PROFILE_ORIGIN).prepareMultiGet()
                 .addIds(frozenProfileIndex.aliasName(), uids.stream().map(ProfileService::uidToDocId).toArray(String[]::new))

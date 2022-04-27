@@ -14,6 +14,10 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.get.GetAction;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.get.MultiGetAction;
+import org.elasticsearch.action.get.MultiGetItemResponse;
+import org.elasticsearch.action.get.MultiGetRequest;
+import org.elasticsearch.action.get.MultiGetResponse;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchAction;
@@ -30,6 +34,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -53,6 +58,7 @@ import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.test.SecurityMocks;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Mockito;
@@ -61,21 +67,27 @@ import java.io.IOException;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.util.concurrent.ThreadContext.ACTION_ORIGIN_TRANSIENT_NAME;
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ALIAS;
+import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -90,11 +102,8 @@ public class ProfileServiceTests extends ESTestCase {
             "uid": "%s",
             "enabled": true,
             "user": {
-              "username": "Foo",
-              "roles": [
-                "role1",
-                "role2"
-              ],
+              "username": "%s",
+              "roles": %s,
               "realm": {
                 "name": "realm_name_1",
                 "type": "realm_type_1",
@@ -199,6 +208,64 @@ public class ProfileServiceTests extends ESTestCase {
                 )
             )
         );
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetProfileSubjectsWithMissingNoFailures() throws Exception {
+        final Collection<String> allProfileUids = randomList(1, 5, () -> randomAlphaOfLength(20));
+        final Collection<String> missingProfileUids = randomSubsetOf(allProfileUids);
+        doAnswer(invocation -> {
+            assertThat(threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME), equalTo(SECURITY_PROFILE_ORIGIN));
+            final MultiGetRequest multiGetRequest = (MultiGetRequest) invocation.getArguments()[1];
+            List<MultiGetItemResponse> responses = new ArrayList<>();
+            for (MultiGetRequest.Item item : multiGetRequest.getItems()) {
+                assertThat(item.index(), is(SECURITY_PROFILE_ALIAS));
+                assertThat(item.id(), Matchers.startsWith("profile_"));
+                assertThat(allProfileUids, hasItem(item.id().substring("profile_".length())));
+                if (missingProfileUids.contains(item.id().substring("profile_".length()))) {
+                    GetResponse missingResponse = mock(GetResponse.class);
+                    when(missingResponse.isExists()).thenReturn(false);
+                    when(missingResponse.getId()).thenReturn(item.id());
+                    responses.add(new MultiGetItemResponse(missingResponse, null));
+                } else {
+                    String source = getSampleProfileDocumentSource(
+                        item.id(),
+                        "foo_username_" + item.id().substring("profile_".length()),
+                        List.of("foo_role_" + item.id().substring("profile_".length())),
+                        Instant.now().toEpochMilli()
+                    );
+                    GetResult existingResult = new GetResult(
+                        SECURITY_PROFILE_ALIAS,
+                        item.id(),
+                        0,
+                        1,
+                        1,
+                        true,
+                        new BytesArray(source),
+                        emptyMap(),
+                        emptyMap()
+                    );
+                    responses.add(new MultiGetItemResponse(new GetResponse(existingResult), null));
+                }
+            }
+            final ActionListener<MultiGetResponse> listener = (ActionListener<MultiGetResponse>) invocation.getArguments()[2];
+            listener.onResponse(new MultiGetResponse(responses.toArray(MultiGetItemResponse[]::new)));
+            return null;
+        }).when(client).execute(eq(MultiGetAction.INSTANCE), any(MultiGetRequest.class), anyActionListener());
+
+        final PlainActionFuture<ProfileService.MultiProfileSubjectResponse> future = new PlainActionFuture<>();
+        profileService.getProfileSubjects(allProfileUids, future);
+
+        ProfileService.MultiProfileSubjectResponse multiProfileSubjectResponse = future.get();
+        assertThat(multiProfileSubjectResponse.failureProfileUids().isEmpty(), is(true));
+        assertThat(multiProfileSubjectResponse.profileUidToSubject().size(), is(allProfileUids.size() - missingProfileUids.size()));
+        for (Map.Entry<String, Subject> profileIdAndSubject : multiProfileSubjectResponse.profileUidToSubject().entrySet()) {
+            assertThat(allProfileUids, hasItem(profileIdAndSubject.getKey()));
+            assertThat(missingProfileUids, not(hasItem(profileIdAndSubject.getKey())));
+            assertThat(profileIdAndSubject.getValue().getUser().principal(), is("foo_username_" + profileIdAndSubject.getKey()));
+            assertThat(profileIdAndSubject.getValue().getUser().roles(), arrayWithSize(1));
+            assertThat(profileIdAndSubject.getValue().getUser().roles()[0], is("foo_role_" + profileIdAndSubject.getKey()));
+        }
     }
 
     public void testActivateProfileShouldFailIfSubjectTypeIsNotUser() {
@@ -366,8 +433,20 @@ public class ProfileServiceTests extends ESTestCase {
     }
 
     private void mockGetRequest(String uid, long lastSynchronized) {
-        final String source = SAMPLE_PROFILE_DOCUMENT_TEMPLATE.formatted(uid, lastSynchronized);
+        mockGetRequest(uid, "Foo", List.of("role1", "role2"), lastSynchronized);
+    }
 
+    private String getSampleProfileDocumentSource(String uid, String username, List<String> roles, long lastSynchronized) {
+        return SAMPLE_PROFILE_DOCUMENT_TEMPLATE.formatted(
+            uid,
+            username,
+            roles.stream().map(v -> "\"" + v + "\"").collect(Collectors.toList()),
+            lastSynchronized
+        );
+    }
+
+    private void mockGetRequest(String uid, String username, List<String> roles, long lastSynchronized) {
+        final String source = getSampleProfileDocumentSource(uid, username, roles, lastSynchronized);
         SecurityMocks.mockGetRequest(client, SECURITY_PROFILE_ALIAS, "profile_" + uid, new BytesArray(source));
     }
 

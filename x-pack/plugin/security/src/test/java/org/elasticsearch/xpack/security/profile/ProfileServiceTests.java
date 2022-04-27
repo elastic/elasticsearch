@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.security.profile;
 
+import org.apache.logging.log4j.Level;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkAction;
@@ -31,6 +34,7 @@ import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Tuple;
@@ -44,6 +48,7 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -72,6 +77,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyMap;
@@ -81,6 +87,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
 import static org.elasticsearch.xpack.security.Security.SECURITY_CRYPTO_THREAD_POOL_NAME;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ALIAS;
 import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -210,6 +217,28 @@ public class ProfileServiceTests extends ESTestCase {
         );
     }
 
+    public void testGetProfileSubjectsNoIndex() throws Exception {
+        when(profileIndex.indexExists()).thenReturn(false);
+        PlainActionFuture<ProfileService.MultiProfileSubjectResponse> future = new PlainActionFuture<>();
+        profileService.getProfileSubjects(randomList(1, 5, () -> randomAlphaOfLength(20)), future);
+        ProfileService.MultiProfileSubjectResponse multiProfileSubjectResponse = future.get();
+        assertThat(multiProfileSubjectResponse.profileUidToSubject().size(), is(0));
+        assertThat(multiProfileSubjectResponse.failureProfileUids().size(), is(0));
+        when(profileIndex.indexExists()).thenReturn(true);
+        ElasticsearchException unavailableException = new ElasticsearchException("mock profile index unavailable");
+        when(profileIndex.isAvailable()).thenReturn(false);
+        when(profileIndex.getUnavailableReason()).thenReturn(unavailableException);
+        PlainActionFuture<ProfileService.MultiProfileSubjectResponse> future2 = new PlainActionFuture<>();
+        profileService.getProfileSubjects(randomList(1, 5, () -> randomAlphaOfLength(20)), future2);
+        ExecutionException e = expectThrows(ExecutionException.class, () -> future2.get());
+        assertThat(e.getCause(), is(unavailableException));
+        PlainActionFuture<ProfileService.MultiProfileSubjectResponse> future3 = new PlainActionFuture<>();
+        profileService.getProfileSubjects(List.of(), future3);
+        multiProfileSubjectResponse = future3.get();
+        assertThat(multiProfileSubjectResponse.profileUidToSubject().size(), is(0));
+        assertThat(multiProfileSubjectResponse.failureProfileUids().size(), is(0));
+    }
+
     @SuppressWarnings("unchecked")
     public void testGetProfileSubjectsWithMissingNoFailures() throws Exception {
         final Collection<String> allProfileUids = randomList(1, 5, () -> randomAlphaOfLength(20));
@@ -265,6 +294,75 @@ public class ProfileServiceTests extends ESTestCase {
             assertThat(profileIdAndSubject.getValue().getUser().principal(), is("foo_username_" + profileIdAndSubject.getKey()));
             assertThat(profileIdAndSubject.getValue().getUser().roles(), arrayWithSize(1));
             assertThat(profileIdAndSubject.getValue().getUser().roles()[0], is("foo_role_" + profileIdAndSubject.getKey()));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetProfileSubjectWithFailures() throws Exception {
+        final ElasticsearchException mGetException = new ElasticsearchException("mget Exception");
+        doAnswer(invocation -> {
+            assertThat(threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME), equalTo(SECURITY_PROFILE_ORIGIN));
+            final ActionListener<MultiGetResponse> listener = (ActionListener<MultiGetResponse>) invocation.getArguments()[2];
+            listener.onFailure(mGetException);
+            return null;
+        }).when(client).execute(eq(MultiGetAction.INSTANCE), any(MultiGetRequest.class), anyActionListener());
+        final PlainActionFuture<ProfileService.MultiProfileSubjectResponse> future = new PlainActionFuture<>();
+        profileService.getProfileSubjects(randomList(1, 5, () -> randomAlphaOfLength(20)), future);
+        ExecutionException e = expectThrows(ExecutionException.class, () -> future.get());
+        assertThat(e.getCause(), is(mGetException));
+        final Collection<String> missingProfileUids = randomList(1, 5, () -> randomAlphaOfLength(20));
+        final Collection<String> errorProfileUids = randomSubsetOf(missingProfileUids);
+        final MockLogAppender mockLogAppender = new MockLogAppender();
+        if (false == errorProfileUids.isEmpty()) {
+            mockLogAppender.addExpectation(
+                new MockLogAppender.SeenEventExpectation(
+                    "message",
+                    "org.elasticsearch.xpack.security.profile.ProfileService",
+                    Level.DEBUG,
+                    "Failed to retrieve profiles "
+                        + missingProfileUids.stream().filter(v -> errorProfileUids.contains(v)).collect(Collectors.toList())
+                )
+            );
+        }
+        mockLogAppender.start();
+        final Logger logger = LogManager.getLogger(ProfileService.class);
+        Loggers.setLevel(logger, Level.DEBUG);
+        doAnswer(invocation -> {
+            assertThat(threadPool.getThreadContext().getTransient(ACTION_ORIGIN_TRANSIENT_NAME), equalTo(SECURITY_PROFILE_ORIGIN));
+            final MultiGetRequest multiGetRequest = (MultiGetRequest) invocation.getArguments()[1];
+            List<MultiGetItemResponse> responses = new ArrayList<>();
+            for (MultiGetRequest.Item item : multiGetRequest.getItems()) {
+                assertThat(item.index(), is(SECURITY_PROFILE_ALIAS));
+                assertThat(item.id(), Matchers.startsWith("profile_"));
+                if (false == errorProfileUids.contains(item.id().substring("profile_".length()))) {
+                    GetResponse missingResponse = mock(GetResponse.class);
+                    when(missingResponse.isExists()).thenReturn(false);
+                    when(missingResponse.getId()).thenReturn(item.id());
+                    responses.add(new MultiGetItemResponse(missingResponse, null));
+                } else {
+                    MultiGetResponse.Failure failure = mock(MultiGetResponse.Failure.class);
+                    when(failure.getId()).thenReturn(item.id());
+                    when(failure.getFailure()).thenReturn(new ElasticsearchException("failed mget item"));
+                    responses.add(new MultiGetItemResponse(null, failure));
+                }
+            }
+            final ActionListener<MultiGetResponse> listener = (ActionListener<MultiGetResponse>) invocation.getArguments()[2];
+            listener.onResponse(new MultiGetResponse(responses.toArray(MultiGetItemResponse[]::new)));
+            return null;
+        }).when(client).execute(eq(MultiGetAction.INSTANCE), any(MultiGetRequest.class), anyActionListener());
+
+        try {
+            Loggers.addAppender(logger, mockLogAppender);
+            final PlainActionFuture<ProfileService.MultiProfileSubjectResponse> future2 = new PlainActionFuture<>();
+            profileService.getProfileSubjects(missingProfileUids, future2);
+
+            ProfileService.MultiProfileSubjectResponse multiProfileSubjectResponse = future2.get();
+            assertThat(multiProfileSubjectResponse.profileUidToSubject().isEmpty(), is(true));
+            assertThat(multiProfileSubjectResponse.failureProfileUids(), containsInAnyOrder(errorProfileUids.toArray(String[]::new)));
+            mockLogAppender.assertAllExpectationsMatched();
+        } finally {
+            Loggers.removeAppender(logger, mockLogAppender);
+            mockLogAppender.stop();
         }
     }
 

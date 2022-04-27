@@ -14,7 +14,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -65,40 +64,22 @@ public class ContinuousComputationTests extends ESTestCase {
 
         final LongAdder listenersComputed = new LongAdder();
         final AtomicInteger inputGenerator = new AtomicInteger(0);
-        final int inputsPerThread = 1000;
-        final Thread[] threads = new Thread[between(1, 5)];
-        final CountDownLatch startLatch = new CountDownLatch(1);
-        for (int t = 0; t < threads.length; t++) {
-            threads[t] = new Thread(() -> {
-                try {
-                    assertTrue(startLatch.await(10, TimeUnit.SECONDS));
-                } catch (Exception e) {
-                    throw new AssertionError(e);
-                }
-                for (int i = 0; i < inputsPerThread; i++) {
-                    final int input = inputGenerator.incrementAndGet();
-                    //TODO another thread gets and submits execution at this point
-                    computation.onNewInput(input, () -> {
-                        assertThat("Should execute listener after computation is complete",
-                            computation.last.get(), greaterThanOrEqualTo(input));
-                        listenersComputed.increment();
-                    });
-                }
-            }, "submit-thread-" + t);
-            threads[t].start();
-        }
+        final int inputs = 10_000;
 
-        startLatch.countDown();
-
-        for (Thread thread : threads) {
-            thread.join();
+        for (int i = 0; i < inputs; i++) {
+            final int input = inputGenerator.incrementAndGet();
+            computation.onNewInput(input, () -> {
+                assertThat("Should execute listener after the computation is complete",
+                    computation.last.get(), greaterThanOrEqualTo(input));
+                listenersComputed.increment();
+            });
         }
 
         assertBusy(() -> assertFalse(computation.isActive()));
 
         assertThat("Should keep the latest result", computation.last.get(), equalTo(inputGenerator.get()));
-        assertThat("May skip some computations", computation.count.get(), lessThan(threads.length * inputsPerThread));
-        assertThat("Should complete all listeners", listenersComputed.sum(), equalTo((long) threads.length * inputsPerThread));
+        assertThat("May skip some computations", computation.count.get(), lessThan(inputs));
+        assertBusy(() -> assertThat("Should complete all listeners", listenersComputed.sum(), equalTo((long)inputs)));
     }
 
     public void testSkipsObsoleteValues() throws Exception {

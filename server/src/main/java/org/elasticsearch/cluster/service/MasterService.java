@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.ClusterStatePublicationEvent;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.coordination.ClusterStatePublisher;
 import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.ProcessClusterEventTimeoutException;
@@ -464,19 +465,50 @@ public class MasterService extends AbstractLifecycleComponent {
     }
 
     /**
-     * Submits a cluster state update task
-     * @param source     the source of the cluster state update task
-     * @param updateTask the full context for the cluster state update, which implements {@link ClusterStateTaskListener} so that it is
-     *                   notified when it is executed.
-     * @param executor   the executor for the task; tasks that share the same executor instance may be batched together
+     * Submits an unbatched cluster state update task. This method exists for legacy reasons but is deprecated and forbidden in new
+     * production code because unbatched tasks are a source of performance and stability bugs. You should instead implement your update
+     * logic in a dedicated {@link ClusterStateTaskExecutor} which is reused across multiple task instances. The task itself is typically
+     * just a collection of parameters consumed by the executor, together with any listeners to be notified when execution completes.
      *
+     * @param source     the source of the cluster state update task
+     * @param updateTask the full context for the cluster state update
      */
-    public <T extends ClusterStateTaskConfig & ClusterStateTaskListener> void submitStateUpdateTask(
-        String source,
-        T updateTask,
-        ClusterStateTaskExecutor<T> executor
-    ) {
-        submitStateUpdateTask(source, updateTask, updateTask, executor);
+    @Deprecated
+    public void submitUnbatchedStateUpdateTask(String source, ClusterStateUpdateTask updateTask) {
+        // NB new executor each time so as to avoid batching
+        submitStateUpdateTask(source, updateTask, updateTask, new UnbatchedExecutor());
+    }
+
+    private static class UnbatchedExecutor implements ClusterStateTaskExecutor<ClusterStateUpdateTask> {
+        @Override
+        public ClusterState execute(ClusterState currentState, List<TaskContext<ClusterStateUpdateTask>> taskContexts) throws Exception {
+            assert taskContexts.size() == 1 : "this only supports a single task but received " + taskContexts;
+            final var taskContext = taskContexts.get(0);
+            final var task = taskContext.getTask();
+            final var newState = task.execute(currentState);
+            final var publishListener = new ActionListener<ClusterState>() {
+                @Override
+                public void onResponse(ClusterState publishedState) {
+                    task.clusterStateProcessed(currentState, publishedState);
+                }
+
+                @Override
+                public void onFailure(Exception e) {
+                    task.onFailure(e);
+                }
+            };
+            if (task instanceof ClusterStateAckListener ackListener) {
+                taskContext.success(publishListener, ackListener);
+            } else {
+                taskContext.success(publishListener);
+            }
+            return newState;
+        }
+
+        @Override
+        public String describeTasks(List<ClusterStateUpdateTask> tasks) {
+            return ""; // one task, so the source is enough
+        }
     }
 
     /**

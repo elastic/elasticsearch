@@ -377,7 +377,7 @@ public class TestSecurityClient {
     }
 
     @SuppressWarnings("unchecked")
-    private TokenInvalidation invalidateTokens(String requestBody) throws IOException {
+    public TokenInvalidation invalidateTokens(String requestBody) throws IOException {
         final String endpoint = "/_security/oauth2/token";
         final Request request = new Request(HttpDelete.METHOD_NAME, endpoint);
         // This API returns 404 (with the same body as a 200 response) if there's nothing to delete.

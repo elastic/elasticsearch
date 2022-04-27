@@ -104,6 +104,7 @@ class TopHitsAggregator extends MetricsAggregator {
         // then causes assertions to trip or incorrect top docs to be computed.
         if (leafCollectors != null) {
             leafCollectors.close();
+            leafCollectors = null; // set to null, just in case the new allocation below fails
         }
         leafCollectors = new LongObjectPagedHashMap<>(1, bigArrays);
         return new LeafBucketCollectorBase(sub, null) {

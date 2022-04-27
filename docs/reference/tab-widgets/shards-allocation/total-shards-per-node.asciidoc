@@ -70,7 +70,7 @@ allow more shards to be assigned on the same node.
 
 . Inspect the `index.routing.allocation.total_shards_per_node` <<indices-get-settings, index setting>> 
 for the index with unassigned shards:
-
++
 [source,console]
 ----
 GET /my-index-000001/_settings/index.routing.allocation.total_shards_per_node
@@ -79,7 +79,7 @@ GET /my-index-000001/_settings/index.routing.allocation.total_shards_per_node
 
 . <<indices-update-settings,Increase>> the maximum number of shards that can be assigned on one node or
 reset the value to unbounded (`-1`):
-
++
 [source,console]
 ----
 PUT /my-index-000001/_settings

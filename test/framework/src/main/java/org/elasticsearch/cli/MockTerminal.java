@@ -147,8 +147,8 @@ public class MockTerminal extends Terminal {
 
     /** Wipes the input and output. */
     public void reset() {
-        stdinReader.reset();
         stdinBuffer.clear();
+        stdinReader.reset();
         stdoutBuffer.reset();
         stderrBuffer.reset();
     }

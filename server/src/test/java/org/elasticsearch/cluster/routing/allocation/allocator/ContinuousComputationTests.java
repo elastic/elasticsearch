@@ -23,7 +23,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class ContinuousComputationTests extends ESTestCase {
@@ -63,7 +63,7 @@ public class ContinuousComputationTests extends ESTestCase {
 
         final AtomicInteger listenersComputed = new AtomicInteger();
         final AtomicInteger inputGenerator = new AtomicInteger(0);
-        final int inputs = 10_000;
+        final int inputs = scaledRandomIntBetween(10, 10_000);
 
         for (int i = 0; i < inputs; i++) {
             final int input = inputGenerator.incrementAndGet();
@@ -77,7 +77,7 @@ public class ContinuousComputationTests extends ESTestCase {
         assertBusy(() -> assertFalse(computation.isActive()));
 
         assertThat("Should keep the latest result", computation.last.get(), equalTo(inputGenerator.get()));
-        assertThat("May skip some computations", computation.count.get(), lessThan(inputs));
+        assertThat("May skip some computations", computation.count.get(), lessThanOrEqualTo(inputs));
         assertBusy(() -> assertThat("Should complete all listeners", listenersComputed.get(), equalTo(inputs)));
     }
 

@@ -174,13 +174,12 @@ public class GeoBoundingBox implements ToXContentFragment, Writeable {
         double right = Double.NaN;
 
         String currentFieldName;
-        GeoPoint sparse = new GeoPoint();
         Rectangle envelope = null;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
-                token = parser.nextToken();
+                parser.nextToken();
                 if (WKT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     try {
                         Geometry geometry = WellKnownText.fromWKT(StandardValidator.instance(true), true, parser.text());
@@ -203,19 +202,19 @@ public class GeoBoundingBox implements ToXContentFragment, Writeable {
                     right = parser.doubleValue();
                 } else {
                     if (TOP_LEFT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        GeoUtils.parseGeoPoint(parser, sparse, false, GeoUtils.EffectivePoint.TOP_LEFT);
+                        GeoPoint sparse = GeoUtils.parseGeoPoint(parser, false, GeoUtils.EffectivePoint.TOP_LEFT);
                         top = sparse.getLat();
                         left = sparse.getLon();
                     } else if (BOTTOM_RIGHT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        GeoUtils.parseGeoPoint(parser, sparse, false, GeoUtils.EffectivePoint.BOTTOM_RIGHT);
+                        GeoPoint sparse = GeoUtils.parseGeoPoint(parser, false, GeoUtils.EffectivePoint.BOTTOM_RIGHT);
                         bottom = sparse.getLat();
                         right = sparse.getLon();
                     } else if (TOP_RIGHT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        GeoUtils.parseGeoPoint(parser, sparse, false, GeoUtils.EffectivePoint.TOP_RIGHT);
+                        GeoPoint sparse = GeoUtils.parseGeoPoint(parser, false, GeoUtils.EffectivePoint.TOP_RIGHT);
                         top = sparse.getLat();
                         right = sparse.getLon();
                     } else if (BOTTOM_LEFT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
-                        GeoUtils.parseGeoPoint(parser, sparse, false, GeoUtils.EffectivePoint.BOTTOM_LEFT);
+                        GeoPoint sparse = GeoUtils.parseGeoPoint(parser, false, GeoUtils.EffectivePoint.BOTTOM_LEFT);
                         bottom = sparse.getLat();
                         left = sparse.getLon();
                     } else {

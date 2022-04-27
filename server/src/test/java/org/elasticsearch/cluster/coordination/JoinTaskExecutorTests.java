@@ -39,6 +39,7 @@ import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.mock;
@@ -160,11 +161,11 @@ public class JoinTaskExecutorTests extends ESTestCase {
         // in the cluster but with a different set of roles: the node didn't change roles, but the cluster state came via an older master.
         // In this case we must properly process its join to ensure that the roles are correct.
 
-        final AllocationService allocationService = mock(AllocationService.class);
+        final AllocationService allocationService = createAllocationService();
         when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
 
-        final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor(allocationService, rerouteService, 0L);
+        final JoinTaskExecutor joinTaskExecutor = new JoinTaskExecutor(allocationService, rerouteService);
 
         final DiscoveryNode masterNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
 
@@ -187,25 +188,18 @@ public class JoinTaskExecutorTests extends ESTestCase {
         final var resultingState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
             clusterState,
             joinTaskExecutor,
-            List.of(
-                JoinTask.singleNode(
-                    actualNode,
-                    "test",
-                    ActionListener.wrap(() -> { throw new AssertionError("should not complete publication"); })
-                )
-            )
+            List.of(JoinTask.singleNode(actualNode, "test", NOT_COMPLETED_LISTENER, 0L))
         );
 
         assertThat(resultingState.getNodes().get(actualNode.getId()).getRoles(), equalTo(actualNode.getRoles()));
     }
 
     public void testRejectsStatesWithStaleTerm() {
-        final var allocationService = mock(AllocationService.class);
-        when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
+        final var allocationService = createAllocationService();
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
 
         final long executorTerm = randomLongBetween(0L, Long.MAX_VALUE - 1);
-        final var joinTaskExecutor = new JoinTaskExecutor(allocationService, rerouteService, executorTerm);
+        final var joinTaskExecutor = new JoinTaskExecutor(allocationService, rerouteService);
 
         final var masterNode = new DiscoveryNode(UUIDs.randomBase64UUID(random()), buildNewFakeTransportAddress(), Version.CURRENT);
         final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -224,9 +218,12 @@ public class JoinTaskExecutorTests extends ESTestCase {
                     clusterState,
                     joinTaskExecutor,
                     randomBoolean()
-                        ? List.of(JoinTask.singleNode(masterNode, "test", NOT_COMPLETED_LISTENER))
+                        ? List.of(JoinTask.singleNode(masterNode, "test", NOT_COMPLETED_LISTENER, executorTerm))
                         : List.of(
-                            JoinTask.completingElection(Stream.of(new JoinTask.NodeJoinTask(masterNode, "test", NOT_COMPLETED_LISTENER)))
+                            JoinTask.completingElection(
+                                Stream.of(new JoinTask.NodeJoinTask(masterNode, "test", NOT_COMPLETED_LISTENER)),
+                                executorTerm
+                            )
                         ),
                     t -> fail("should not succeed"),
                     (t, e) -> assertThat(e, instanceOf(NotMasterException.class))
@@ -237,12 +234,11 @@ public class JoinTaskExecutorTests extends ESTestCase {
     }
 
     public void testRejectsStatesWithOtherMaster() {
-        final var allocationService = mock(AllocationService.class);
-        when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
+        final var allocationService = createAllocationService();
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
 
         final long executorTerm = randomNonNegativeLong();
-        final var joinTaskExecutor = new JoinTaskExecutor(allocationService, rerouteService, executorTerm);
+        final var joinTaskExecutor = new JoinTaskExecutor(allocationService, rerouteService);
 
         final var masterNode = new DiscoveryNode(UUIDs.randomBase64UUID(random()), buildNewFakeTransportAddress(), Version.CURRENT);
         final var localNode = new DiscoveryNode(UUIDs.randomBase64UUID(random()), buildNewFakeTransportAddress(), Version.CURRENT);
@@ -269,9 +265,12 @@ public class JoinTaskExecutorTests extends ESTestCase {
                     clusterState,
                     joinTaskExecutor,
                     randomBoolean()
-                        ? List.of(JoinTask.singleNode(masterNode, "test", NOT_COMPLETED_LISTENER))
+                        ? List.of(JoinTask.singleNode(masterNode, "test", NOT_COMPLETED_LISTENER, executorTerm))
                         : List.of(
-                            JoinTask.completingElection(Stream.of(new JoinTask.NodeJoinTask(masterNode, "test", NOT_COMPLETED_LISTENER)))
+                            JoinTask.completingElection(
+                                Stream.of(new JoinTask.NodeJoinTask(masterNode, "test", NOT_COMPLETED_LISTENER)),
+                                executorTerm
+                            )
                         ),
                     t -> fail("should not succeed"),
                     (t, e) -> assertThat(e, instanceOf(NotMasterException.class))
@@ -282,12 +281,11 @@ public class JoinTaskExecutorTests extends ESTestCase {
     }
 
     public void testRejectsStatesWithNoMasterIfNotBecomingMaster() {
-        final var allocationService = mock(AllocationService.class);
-        when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
+        final var allocationService = createAllocationService();
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
 
         final long executorTerm = randomNonNegativeLong();
-        final var joinTaskExecutor = new JoinTaskExecutor(allocationService, rerouteService, executorTerm);
+        final var joinTaskExecutor = new JoinTaskExecutor(allocationService, rerouteService);
 
         final var masterNode = new DiscoveryNode(UUIDs.base64UUID(), buildNewFakeTransportAddress(), Version.CURRENT);
         final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -305,7 +303,7 @@ public class JoinTaskExecutorTests extends ESTestCase {
                 () -> ClusterStateTaskExecutorUtils.executeHandlingResults(
                     clusterState,
                     joinTaskExecutor,
-                    List.of(JoinTask.singleNode(masterNode, "test", NOT_COMPLETED_LISTENER)),
+                    List.of(JoinTask.singleNode(masterNode, "test", NOT_COMPLETED_LISTENER, executorTerm)),
                     t -> fail("should not succeed"),
                     (t, e) -> assertThat(e, instanceOf(NotMasterException.class))
                 )
@@ -315,15 +313,11 @@ public class JoinTaskExecutorTests extends ESTestCase {
     }
 
     public void testRemovesOlderNodeInstancesWhenBecomingMaster() throws Exception {
-        final var allocationService = mock(AllocationService.class);
-        when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
-        when(allocationService.disassociateDeadNodes(any(), anyBoolean(), any())).then(
-            invocationOnMock -> invocationOnMock.getArguments()[0]
-        );
+        final var allocationService = createAllocationService();
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
 
         final long executorTerm = randomLongBetween(1, Long.MAX_VALUE);
-        final var joinTaskExecutor = new JoinTaskExecutor(allocationService, rerouteService, executorTerm);
+        final var joinTaskExecutor = new JoinTaskExecutor(allocationService, rerouteService);
 
         final var masterNode = new DiscoveryNode(UUIDs.randomBase64UUID(random()), buildNewFakeTransportAddress(), Version.CURRENT);
         final var otherNodeOld = new DiscoveryNode(UUIDs.randomBase64UUID(random()), buildNewFakeTransportAddress(), Version.CURRENT);
@@ -355,7 +349,8 @@ public class JoinTaskExecutorTests extends ESTestCase {
                     Stream.of(
                         new JoinTask.NodeJoinTask(masterNode, "test", NOT_COMPLETED_LISTENER),
                         new JoinTask.NodeJoinTask(otherNodeNew, "test", NOT_COMPLETED_LISTENER)
-                    )
+                    ),
+                    executorTerm
                 )
             )
         );
@@ -374,8 +369,8 @@ public class JoinTaskExecutorTests extends ESTestCase {
                 afterElectionClusterState,
                 joinTaskExecutor,
                 List.of(
-                    JoinTask.singleNode(masterNode, "test", NOT_COMPLETED_LISTENER),
-                    JoinTask.singleNode(otherNodeOld, "test", NOT_COMPLETED_LISTENER)
+                    JoinTask.singleNode(masterNode, "test", NOT_COMPLETED_LISTENER, executorTerm),
+                    JoinTask.singleNode(otherNodeOld, "test", NOT_COMPLETED_LISTENER, executorTerm)
                 )
             ).nodes().get(otherNodeNew.getId()).getEphemeralId(),
             equalTo(otherNodeNew.getEphemeralId())
@@ -383,15 +378,11 @@ public class JoinTaskExecutorTests extends ESTestCase {
     }
 
     public void testUpdatesVotingConfigExclusionsIfNeeded() throws Exception {
-        final var allocationService = mock(AllocationService.class);
-        when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
-        when(allocationService.disassociateDeadNodes(any(), anyBoolean(), any())).then(
-            invocationOnMock -> invocationOnMock.getArguments()[0]
-        );
+        final var allocationService = createAllocationService();
         final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
 
         final long executorTerm = randomLongBetween(1, Long.MAX_VALUE);
-        final var joinTaskExecutor = new JoinTaskExecutor(allocationService, rerouteService, executorTerm);
+        final var joinTaskExecutor = new JoinTaskExecutor(allocationService, rerouteService);
 
         final var masterNode = new DiscoveryNode(UUIDs.randomBase64UUID(random()), buildNewFakeTransportAddress(), Version.CURRENT);
         final var otherNode = new DiscoveryNode(
@@ -435,7 +426,8 @@ public class JoinTaskExecutorTests extends ESTestCase {
                         Stream.of(
                             new JoinTask.NodeJoinTask(masterNode, "test", NOT_COMPLETED_LISTENER),
                             new JoinTask.NodeJoinTask(otherNode, "test", NOT_COMPLETED_LISTENER)
-                        )
+                        ),
+                        executorTerm
                     )
                 )
             );
@@ -443,12 +435,17 @@ public class JoinTaskExecutorTests extends ESTestCase {
             clusterState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
                 clusterState,
                 joinTaskExecutor,
-                List.of(JoinTask.completingElection(Stream.of(new JoinTask.NodeJoinTask(masterNode, "test", NOT_COMPLETED_LISTENER))))
+                List.of(
+                    JoinTask.completingElection(
+                        Stream.of(new JoinTask.NodeJoinTask(masterNode, "test", NOT_COMPLETED_LISTENER)),
+                        executorTerm
+                    )
+                )
             );
             clusterState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
                 clusterState,
                 joinTaskExecutor,
-                List.of(JoinTask.singleNode(otherNode, "test", NOT_COMPLETED_LISTENER))
+                List.of(JoinTask.singleNode(otherNode, "test", NOT_COMPLETED_LISTENER, executorTerm))
             );
         }
 
@@ -460,4 +457,49 @@ public class JoinTaskExecutorTests extends ESTestCase {
         );
     }
 
+    public void testIgnoresOlderTerms() throws Exception {
+        final var allocationService = createAllocationService();
+        final RerouteService rerouteService = (reason, priority, listener) -> listener.onResponse(null);
+
+        final long currentTerm = randomLongBetween(100, 1000);
+        final var joinTaskExecutor = new JoinTaskExecutor(allocationService, rerouteService);
+
+        final var masterNode = new DiscoveryNode(UUIDs.randomBase64UUID(random()), buildNewFakeTransportAddress(), Version.CURRENT);
+        final var clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .nodes(DiscoveryNodes.builder().add(masterNode).localNodeId(masterNode.getId()).masterNodeId(masterNode.getId()).build())
+            .metadata(Metadata.builder().coordinationMetadata(CoordinationMetadata.builder().term(currentTerm).build()).build())
+            .build();
+
+        var tasks = Stream.concat(
+            Stream.generate(() -> createRandomTask(masterNode, "outdated", randomLongBetween(0, currentTerm - 1)))
+                .limit(randomLongBetween(1, 10)),
+            Stream.of(createRandomTask(masterNode, "current", currentTerm))
+        ).toList();
+
+        ClusterStateTaskExecutorUtils.executeHandlingResults(
+            clusterState,
+            joinTaskExecutor,
+            tasks,
+            t -> assertThat(t.term(), equalTo(currentTerm)),
+            (t, e) -> {
+                assertThat(t.term(), lessThan(currentTerm));
+                assertThat(e, instanceOf(NotMasterException.class));
+            }
+        );
+    }
+
+    private static JoinTask createRandomTask(DiscoveryNode node, String reason, long term) {
+        return randomBoolean()
+            ? JoinTask.singleNode(node, reason, NOT_COMPLETED_LISTENER, term)
+            : JoinTask.completingElection(Stream.of(new JoinTask.NodeJoinTask(node, reason, NOT_COMPLETED_LISTENER)), term);
+    }
+
+    private static AllocationService createAllocationService() {
+        final var allocationService = mock(AllocationService.class);
+        when(allocationService.adaptAutoExpandReplicas(any())).then(invocationOnMock -> invocationOnMock.getArguments()[0]);
+        when(allocationService.disassociateDeadNodes(any(), anyBoolean(), any())).then(
+            invocationOnMock -> invocationOnMock.getArguments()[0]
+        );
+        return allocationService;
+    }
 }

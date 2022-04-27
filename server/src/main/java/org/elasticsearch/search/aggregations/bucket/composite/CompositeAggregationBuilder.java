@@ -174,7 +174,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
      * this aggregator or the instance of the parent's factory that is incompatible with
      * the composite aggregation.
      */
-    private AggregatorFactory validateParentAggregations(AggregatorFactory factory) {
+    private static AggregatorFactory validateParentAggregations(AggregatorFactory factory) {
         if (factory == null) {
             return null;
         } else if (factory instanceof NestedAggregatorFactory

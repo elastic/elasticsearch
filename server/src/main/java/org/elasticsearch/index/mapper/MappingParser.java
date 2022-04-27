@@ -142,7 +142,10 @@ public final class MappingParser {
              */
             meta = Collections.unmodifiableMap(new HashMap<>(removed));
         }
-        checkNoRemainingFields(mapping, "Root mapping definition has unsupported parameters: ");
+        if (parserContext.indexVersionCreated().isLegacyIndexVersion() == false) {
+            // legacy indices are allowed to have extra definitions that we ignore (we will drop them on import)
+            checkNoRemainingFields(mapping, "Root mapping definition has unsupported parameters: ");
+        }
 
         return new Mapping(rootObjectMapper, metadataMappers.values().toArray(new MetadataFieldMapper[0]), meta);
     }

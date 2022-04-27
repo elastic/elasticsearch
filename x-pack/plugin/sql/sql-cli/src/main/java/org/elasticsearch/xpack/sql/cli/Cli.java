@@ -85,7 +85,7 @@ public class Cli extends Command {
      * Build the CLI.
      */
     public Cli(CliTerminal cliTerminal) {
-        super("Elasticsearch SQL CLI", () -> {});
+        super("Elasticsearch SQL CLI");
 
         this.cliTerminal = cliTerminal;
         parser.acceptsAll(Arrays.asList("d", "debug"), "Enable debug logging");

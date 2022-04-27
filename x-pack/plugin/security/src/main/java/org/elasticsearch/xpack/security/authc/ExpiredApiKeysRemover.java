@@ -78,7 +78,7 @@ public final class ExpiredApiKeysRemover extends AbstractRunnable {
         }
     }
 
-    private void debugDbqResponse(BulkByScrollResponse response) {
+    private static void debugDbqResponse(BulkByScrollResponse response) {
         if (logger.isDebugEnabled()) {
             logger.debug(
                 "delete by query of api keys finished with [{}] deletions, [{}] bulk failures, [{}] search failures",

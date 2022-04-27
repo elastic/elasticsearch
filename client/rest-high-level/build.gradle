@@ -58,16 +58,6 @@ tasks.named('forbiddenApisMain').configure {
   signaturesFiles += files('src/main/resources/forbidden/rest-high-level-signatures.txt')
 }
 
-File nodeCert = file("./testnode.crt")
-File nodeTrustStore = file("./testnode.jks")
-File pkiTrustCert = file("./src/test/resources/org/elasticsearch/client/security/delegate_pki/testRootCA.crt")
-
-def clusterUserNameProvider = providers.systemProperty('tests.rest.cluster.username')
-        .orElse('test_user')
-
-def clusterPasswordProvider = providers.systemProperty('tests.rest.cluster.password')
-        .orElse('test-user-password')
-
 tasks.named('splitPackagesAudit').configure {
   // the client package should be owned by the client, but server has some classes there too
   ignoreClasses 'org.elasticsearch.client.*'

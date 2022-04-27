@@ -27,7 +27,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.jdk.JavaVersion;
 import org.elasticsearch.monitor.os.OsProbe;
 import org.elasticsearch.node.NodeRoleSettings;
 
@@ -55,17 +54,6 @@ public class RecoverySettings {
     static final Setting<ByteSizeValue> TOTAL_PHYSICAL_MEMORY_OVERRIDING_TEST_SETTING = Setting.byteSizeSetting(
         "recovery_settings.total_physical_memory_override",
         settings -> new ByteSizeValue(OsProbe.getInstance().getTotalPhysicalMemorySize()).getStringRep(),
-        Property.NodeScope
-    );
-
-    /**
-     * Undocumented setting, used to override the current JVM version in tests
-     **/
-    // package private for tests
-    static final Setting<JavaVersion> JAVA_VERSION_OVERRIDING_TEST_SETTING = new Setting<>(
-        "recovery_settings.java_version_override",
-        settings -> JavaVersion.current().toString(),
-        JavaVersion::parse,
         Property.NodeScope
     );
 
@@ -224,11 +212,6 @@ public class RecoverySettings {
              * an assumption here that the size of the instance is correlated with I/O resources. That is we are assuming that the
              * larger the instance, the more disk and networking capacity it has available.
              */
-            final JavaVersion javaVersion = JAVA_VERSION_OVERRIDING_TEST_SETTING.get(s);
-            if (javaVersion.compareTo(JavaVersion.parse("14")) < 0) {
-                // prior to JDK 14, the JDK did not take into consideration container memory limits when reporting total system memory
-                return DEFAULT_MAX_BYTES_PER_SEC.getStringRep();
-            }
             final ByteSizeValue totalPhysicalMemory = TOTAL_PHYSICAL_MEMORY_OVERRIDING_TEST_SETTING.get(s);
             final ByteSizeValue maxBytesPerSec;
             if (totalPhysicalMemory.compareTo(new ByteSizeValue(4, ByteSizeUnit.GB)) <= 0) {

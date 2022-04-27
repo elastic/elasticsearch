@@ -32,9 +32,9 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
@@ -862,11 +862,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
         }
     }
 
-    public Function<String, String> dateMathExpressionResolverAt() {
+    public static Function<String, String> dateMathExpressionResolverAt() {
         return expression -> IndexNameExpressionResolver.resolveDateMathExpression(expression, System.currentTimeMillis());
     }
 
-    public Function<String, String> dateMathExpressionResolverAt(long instant) {
+    public static Function<String, String> dateMathExpressionResolverAt(long instant) {
         return expression -> IndexNameExpressionResolver.resolveDateMathExpression(expression, instant);
     }
 

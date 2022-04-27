@@ -25,7 +25,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.Streams;
+import org.elasticsearch.core.Streams;
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.MultiPolygon;

@@ -221,7 +221,7 @@ dependencies {
 
   // same version as http client transitive dep
   api 'commons-codec:commons-codec:1.11'
-  api 'org.apache.commons:commons-compress:1.19'
+  api 'org.apache.commons:commons-compress:1.21'
   api 'org.apache.ant:ant:1.10.8'
   api 'com.netflix.nebula:gradle-info-plugin:11.3.3'
   api 'org.apache.rat:apache-rat:0.11'
@@ -257,7 +257,7 @@ dependencies {
   integTestImplementation("org.junit.jupiter:junit-jupiter") {
     because 'allows to write and run Jupiter tests'
   }
-  integTestImplementation("net.bytebuddy:byte-buddy:1.11.0") {
+  integTestImplementation("net.bytebuddy:byte-buddy:1.12.9") {
     because 'Generating dynamic mocks of internal libraries like JdkJarHell'
   }
   testRuntimeOnly("org.junit.vintage:junit-vintage-engine") {

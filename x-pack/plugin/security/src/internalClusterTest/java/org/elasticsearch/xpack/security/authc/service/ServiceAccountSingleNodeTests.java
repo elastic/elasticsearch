@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.security.authc.service;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
@@ -175,7 +174,7 @@ public class ServiceAccountSingleNodeTests extends SecuritySingleNodeTestCase {
 
     private Authentication getExpectedAuthentication(String tokenName, String tokenSource) {
         final String nodeName = node().settings().get(Node.NODE_NAME_SETTING.getKey());
-        return new Authentication(
+        return Authentication.newServiceAccountAuthentication(
             new User(
                 "elastic/fleet-server",
                 Strings.EMPTY_ARRAY,
@@ -184,10 +183,7 @@ public class ServiceAccountSingleNodeTests extends SecuritySingleNodeTestCase {
                 Map.of("_elastic_service_account", true),
                 true
             ),
-            new Authentication.RealmRef("_service_account", "_service_account", nodeName),
-            null,
-            Version.CURRENT,
-            Authentication.AuthenticationType.TOKEN,
+            nodeName,
             Map.of("_token_name", tokenName, "_token_source", tokenSource)
         );
     }

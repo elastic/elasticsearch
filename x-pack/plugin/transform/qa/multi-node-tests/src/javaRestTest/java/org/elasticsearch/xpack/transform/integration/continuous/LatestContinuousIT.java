@@ -21,6 +21,7 @@ import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfig;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 
@@ -140,7 +141,7 @@ public class LatestContinuousIT extends ContinuousTestCase {
             String transformBucketKey = eventFieldValue != null
                 // The bucket key in source can be either an ordinary field or a runtime field. When it is runtime field, simulate its
                 // script ("toUpperCase()") here.
-                ? "event".equals(eventField) ? eventFieldValue : eventFieldValue.toUpperCase()
+                ? "event".equals(eventField) ? eventFieldValue : eventFieldValue.toUpperCase(Locale.ROOT)
                 : MISSING_BUCKET_KEY;
 
             // Verify that the results from the aggregation and the results from the transform are the same.

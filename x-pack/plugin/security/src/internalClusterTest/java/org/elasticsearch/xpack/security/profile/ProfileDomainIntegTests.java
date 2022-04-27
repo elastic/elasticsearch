@@ -426,7 +426,12 @@ public class ProfileDomainIntegTests extends AbstractProfileIntegTestCase {
     }
 
     private void indexDocument(String uid) {
-        final String source = ProfileServiceTests.SAMPLE_PROFILE_DOCUMENT_TEMPLATE.formatted(uid, Instant.now().toEpochMilli());
+        String source = ProfileServiceTests.getSampleProfileDocumentSource(
+            uid,
+            "Foo",
+            List.of("role1", "role2"),
+            Instant.now().toEpochMilli()
+        );
         client().prepareIndex(randomFrom(INTERNAL_SECURITY_PROFILE_INDEX_8, SECURITY_PROFILE_ALIAS))
             .setId("profile_" + uid)
             .setRefreshPolicy(WriteRequest.RefreshPolicy.WAIT_UNTIL)

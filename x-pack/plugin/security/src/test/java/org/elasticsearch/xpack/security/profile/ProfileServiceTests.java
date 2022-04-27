@@ -103,7 +103,7 @@ import static org.mockito.Mockito.when;
 
 public class ProfileServiceTests extends ESTestCase {
 
-    public static final String SAMPLE_PROFILE_DOCUMENT_TEMPLATE = """
+    private static final String SAMPLE_PROFILE_DOCUMENT_TEMPLATE = """
         {
           "user_profile":  {
             "uid": "%s",
@@ -534,7 +534,7 @@ public class ProfileServiceTests extends ESTestCase {
         mockGetRequest(uid, "Foo", List.of("role1", "role2"), lastSynchronized);
     }
 
-    private String getSampleProfileDocumentSource(String uid, String username, List<String> roles, long lastSynchronized) {
+    public static String getSampleProfileDocumentSource(String uid, String username, List<String> roles, long lastSynchronized) {
         return SAMPLE_PROFILE_DOCUMENT_TEMPLATE.formatted(
             uid,
             username,

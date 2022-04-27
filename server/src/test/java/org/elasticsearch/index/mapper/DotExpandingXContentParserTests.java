@@ -15,21 +15,12 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
-import java.util.function.Function;
 
 public class DotExpandingXContentParserTests extends ESTestCase {
 
-    private static String[] splitFieldPath(String fieldName) {
-        return fieldName.split("\\.");
-    }
-
     private void assertXContentMatches(String dotsExpanded, String withDots) throws IOException {
-        assertXContentMatches(dotsExpanded, withDots, DotExpandingXContentParserTests::splitFieldPath);
-    }
-
-    private void assertXContentMatches(String dotsExpanded, String withDots, Function<String, String[]> splitFieldPath) throws IOException {
         XContentParser inputParser = createParser(JsonXContent.jsonXContent, withDots);
-        XContentParser expandedParser = DotExpandingXContentParser.expandDots(inputParser, splitFieldPath);
+        XContentParser expandedParser = DotExpandingXContentParser.expandDots(inputParser, () -> false);
         expandedParser.allowDuplicateKeys(true);
 
         XContentBuilder actualOutput = XContentBuilder.builder(JsonXContent.jsonXContent).copyCurrentStructure(expandedParser);
@@ -39,7 +30,7 @@ public class DotExpandingXContentParserTests extends ESTestCase {
         expectedParser.allowDuplicateKeys(true);
         XContentParser actualParser = DotExpandingXContentParser.expandDots(
             createParser(JsonXContent.jsonXContent, withDots),
-            splitFieldPath
+            () -> false
         );
         XContentParser.Token currentToken;
         while ((currentToken = actualParser.nextToken()) != null) {
@@ -123,21 +114,118 @@ public class DotExpandingXContentParserTests extends ESTestCase {
               "test.with.dots2" : "value2"}""");
     }
 
-    public void testDotsCollapsing() throws IOException {
-        assertXContentMatches("""
-            {"metrics":{"service":{"time":10}},"metrics":{"service":{"time.max":500}}}""", """
-            {"metrics.service.time": 10, "metrics.service.time.max": 500}
-            """, field -> switch (field) {
-            case "metrics.service.time" -> new String[] { "metrics", "service", "time" };
-            case "metrics.service.time.max" -> new String[] { "metrics", "service", "time.max" };
-            default -> new String[] { field };
-        });
+    public void testDotsCollapsingFlatPaths() throws IOException {
+        ContentPath contentPath = new ContentPath();
+        XContentParser parser = DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, """
+            {"metrics.service.time": 10, "metrics.service.time.max": 500, "metrics.foo": "value"}"""), contentPath::isWithinCollapsedPath);
+        parser.nextToken();
+        assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+        assertEquals("metrics", parser.currentName());
+        assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+        assertEquals(XContentParser.Token.START_OBJECT, parser.currentToken());
+        assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+        assertEquals("service", parser.currentName());
+        contentPath.setWithinCollapsedPath(true);
+        assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+        assertEquals(XContentParser.Token.START_OBJECT, parser.currentToken());
+        assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+        assertEquals("time", parser.currentName());
+        assertEquals(XContentParser.Token.VALUE_NUMBER, parser.nextToken());
+        assertEquals("time", parser.currentName());
+        assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+        assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+        assertEquals("service", parser.currentName());
+        contentPath.setWithinCollapsedPath(false);
+        assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+        assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+        assertEquals("metrics", parser.currentName());
+        assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+        assertEquals("metrics", parser.currentName());
+        assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+        assertEquals(XContentParser.Token.START_OBJECT, parser.currentToken());
+        assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+        assertEquals("service", parser.currentName());
+        contentPath.setWithinCollapsedPath(true);
+        assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+        assertEquals(XContentParser.Token.START_OBJECT, parser.currentToken());
+        assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+        assertEquals("time.max", parser.currentName());
+        assertEquals(XContentParser.Token.VALUE_NUMBER, parser.nextToken());
+        assertEquals("time.max", parser.currentName());
+        assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+        assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+        assertEquals("service", parser.currentName());
+        contentPath.setWithinCollapsedPath(false);
+        assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+        assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+        assertEquals("metrics", parser.currentName());
+        assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+        assertEquals("metrics", parser.currentName());
+        assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+        assertEquals(XContentParser.Token.START_OBJECT, parser.currentToken());
+        assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+        assertEquals("foo", parser.currentName());
+        assertEquals(XContentParser.Token.VALUE_STRING, parser.nextToken());
+        assertEquals("foo", parser.currentName());
+        assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+        assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+        assertEquals("metrics", parser.currentName());
+        assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+        assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+        assertNull(parser.currentName());
+        assertNull(parser.nextToken());
+    }
+
+    public void testDotsCollapsingStructuredPath() throws IOException {
+        ContentPath contentPath = new ContentPath();
+        XContentParser parser = DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, """
+            {
+              "metrics" : {
+                "service" : {
+                  "time" : 10,
+                  "time.max" : 500
+                },
+                "foo" : "value"
+              }
+            }"""), contentPath::isWithinCollapsedPath);
+        parser.nextToken();
+        assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+        assertEquals("metrics", parser.currentName());
+        assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+        assertEquals(XContentParser.Token.START_OBJECT, parser.currentToken());
+        assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+        assertEquals("service", parser.currentName());
+        contentPath.setWithinCollapsedPath(true);
+        assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+        assertEquals(XContentParser.Token.START_OBJECT, parser.currentToken());
+        assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+        assertEquals("time", parser.currentName());
+        assertEquals(XContentParser.Token.VALUE_NUMBER, parser.nextToken());
+        assertEquals("time", parser.currentName());
+        assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+        assertEquals("time.max", parser.currentName());
+        assertEquals(XContentParser.Token.VALUE_NUMBER, parser.nextToken());
+        assertEquals("time.max", parser.currentName());
+        assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+        assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+        assertEquals("service", parser.currentName());
+        contentPath.setWithinCollapsedPath(false);
+        assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
+        assertEquals("foo", parser.currentName());
+        assertEquals(XContentParser.Token.VALUE_STRING, parser.nextToken());
+        assertEquals("foo", parser.currentName());
+        assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+        assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+        assertEquals("metrics", parser.currentName());
+        assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
+        assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+        assertNull(parser.currentName());
+        assertNull(parser.nextToken());
     }
 
     public void testSkipChildren() throws IOException {
         XContentParser parser = DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, """
-            { "test.with.dots" : "value", "nodots" : "value2" }"""), DotExpandingXContentParserTests::splitFieldPath);
-
+            { "test.with.dots" : "value", "nodots" : "value2" }"""), () -> false);
         parser.nextToken();     // start object
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals("test", parser.currentName());
@@ -160,7 +248,7 @@ public class DotExpandingXContentParserTests extends ESTestCase {
 
     public void testSkipChildrenWithinInnerObject() throws IOException {
         XContentParser parser = DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, """
-            { "test.with.dots" : {"obj" : {"field":"value"}}, "nodots" : "value2" }"""), DotExpandingXContentParserTests::splitFieldPath);
+            { "test.with.dots" : {"obj" : {"field":"value"}}, "nodots" : "value2" }"""), () -> false);
 
         parser.nextToken();     // start object
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
@@ -208,7 +296,7 @@ public class DotExpandingXContentParserTests extends ESTestCase {
         XContentParser expectedParser = createParser(JsonXContent.jsonXContent, jsonInput);
         XContentParser dotExpandedParser = DotExpandingXContentParser.expandDots(
             createParser(JsonXContent.jsonXContent, jsonInput),
-            DotExpandingXContentParserTests::splitFieldPath
+            () -> false
         );
 
         assertEquals(expectedParser.getTokenLocation(), dotExpandedParser.getTokenLocation());

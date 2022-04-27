@@ -20,7 +20,7 @@ public final class ContentPath {
 
     private String[] path = new String[10];
 
-    private boolean collapsed = false;
+    private boolean withinCollapsedPath = false;
 
     public ContentPath() {
         this(0);
@@ -56,12 +56,12 @@ public final class ContentPath {
         path[index--] = null;
     }
 
-    public void setCollapsed(boolean collapsed) {
-        this.collapsed = collapsed;
+    public void setWithinCollapsedPath(boolean withinCollapsedPath) {
+        this.withinCollapsedPath = withinCollapsedPath;
     }
 
     public boolean isWithinCollapsedPath() {
-        return collapsed;
+        return withinCollapsedPath;
     }
 
     public String pathAsText(String name) {

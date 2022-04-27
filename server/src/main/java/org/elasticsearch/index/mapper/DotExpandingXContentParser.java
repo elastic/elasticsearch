@@ -20,7 +20,7 @@ import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
+import java.util.function.BooleanSupplier;
 import java.util.function.Supplier;
 
 /**
@@ -36,11 +36,11 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
 
     private static final class WrappingParser extends FilterXContentParser {
 
-        private final Function<String, String[]> pathSplitter;
+        private final BooleanSupplier isWithinCollapsedPath;
         final Deque<XContentParser> parsers = new ArrayDeque<>();
 
-        WrappingParser(XContentParser in, Function<String, String[]> pathSplitter) throws IOException {
-            this.pathSplitter = pathSplitter;
+        WrappingParser(XContentParser in, BooleanSupplier isWithinCollapsedPath) throws IOException {
+            this.isWithinCollapsedPath = isWithinCollapsedPath;
             parsers.push(in);
             if (in.currentToken() == Token.FIELD_NAME) {
                 expandDots();
@@ -64,8 +64,13 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
         }
 
         private void expandDots() throws IOException {
+            // this handles fields that belong to collapsed objects, where the document contains the object which holds the flat fields
+            // e.g. { "metrics.service": { "time.max" : 10 } } with service being collapsed
+            if (isWithinCollapsedPath.getAsBoolean()) {
+                return;
+            }
             String field = delegate().currentName();
-            String[] subpaths = pathSplitter.apply(field);
+            String[] subpaths = splitAndValidatePath(field);
             if (subpaths.length == 0) {
                 throw new IllegalArgumentException("field name cannot contain only dots: [" + field + "]");
             }
@@ -79,11 +84,13 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
             XContentLocation location = delegate().getTokenLocation();
             Token token = delegate().nextToken();
             if (token == Token.START_OBJECT || token == Token.START_ARRAY) {
-                parsers.push(new DotExpandingXContentParser(new XContentSubParser(delegate()), subpaths, location));
+                parsers.push(new DotExpandingXContentParser(new XContentSubParser(delegate()), subpaths, location, isWithinCollapsedPath));
             } else if (token == Token.END_OBJECT || token == Token.END_ARRAY) {
                 throw new IllegalStateException("Expecting START_OBJECT or START_ARRAY or VALUE but got [" + token + "]");
             } else {
-                parsers.push(new DotExpandingXContentParser(new SingletonValueXContentParser(delegate()), subpaths, location));
+                parsers.push(
+                    new DotExpandingXContentParser(new SingletonValueXContentParser(delegate()), subpaths, location, isWithinCollapsedPath)
+                );
             }
         }
 
@@ -124,12 +131,11 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
         }
     }
 
-    // TODO we may want to move this back to DocumentParser given that it now depends on DocumentParserContext
-    static String[] splitAndValidatePath(String fieldName, DocumentParserContext context) {
+    private static String[] splitAndValidatePath(String fieldName) {
         if (fieldName.isEmpty()) {
             throw new IllegalArgumentException("field name cannot be an empty string");
         }
-        if (fieldName.contains(".") == false || context.path().isWithinCollapsedPath()) {
+        if (fieldName.contains(".") == false) {
             return new String[] { fieldName };
         }
         String[] parts = fieldName.split("\\.");
@@ -137,12 +143,7 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
             throw new IllegalArgumentException("field name cannot contain only dots");
         }
 
-        // TODO optimize for the case where there are no collapsed paths in the mapping?
-
-        ContentPath currentPath = new ContentPath();
-        int indexCollapsed = -1;
-        for (int i = 0; i < parts.length; i++) {
-            String part = parts[i];
+        for (String part : parts) {
             // check if the field name contains only whitespace
             if (part.isEmpty()) {
                 throw new IllegalArgumentException("field name cannot contain only whitespace: ['" + fieldName + "']");
@@ -152,36 +153,6 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
                     "field name starting or ending with a [.] makes object resolution ambiguous: [" + fieldName + "]"
                 );
             }
-
-            // e.g. metrics.service.time.max: if 'time' is collapsed, we still need to expand dots fully. 'service' is the last
-            // path part that affects dots expansion for this path if it is collapsed.
-            if (indexCollapsed < 0 && i < parts.length - 2) {
-                // concatenate the full path of the current element that we are parsing with the previously examined parts of the
-                // dotted name that we are splitting, to check if there's a collapsed object in between
-                String fullPath = context.path().pathAsText(currentPath.pathAsText(part));
-                ObjectMapper objectMapper = context.mappingLookup().objectMappers().get(fullPath);
-                if (objectMapper == null) {
-                    objectMapper = context.getDynamicObjectMapper(fullPath);
-                }
-                if (objectMapper != null && objectMapper.isCollapsed()) {
-                    indexCollapsed = i;
-                }
-                currentPath.add(part);
-            }
-        }
-        if (indexCollapsed >= 0) {
-            ContentPath collapsedPath = new ContentPath();
-            String[] finalParts = new String[indexCollapsed + 2];
-            for (int i = 0; i < parts.length - 1; i++) {
-                String part = parts[i];
-                if (i <= indexCollapsed) {
-                    finalParts[i] = part;
-                } else {
-                    collapsedPath.add(part);
-                }
-            }
-            finalParts[indexCollapsed + 1] = collapsedPath.pathAsText(parts[parts.length - 1]);
-            return finalParts;
         }
         return parts;
     }
@@ -191,12 +162,8 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
      * @param in    the parser to wrap
      * @return  the wrapped XContentParser
      */
-    static XContentParser expandDots(XContentParser in, DocumentParserContext context) throws IOException {
-        return expandDots(in, field -> splitAndValidatePath(field, context));
-    }
-
-    static XContentParser expandDots(XContentParser in, Function<String, String[]> pathSplitter) throws IOException {
-        return new WrappingParser(in, pathSplitter);
+    static XContentParser expandDots(XContentParser in, BooleanSupplier isWithinCollapsedPath) throws IOException {
+        return new WrappingParser(in, isWithinCollapsedPath);
     }
 
     private enum State {
@@ -205,17 +172,24 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
         ENDING_EXPANDED_OBJECT
     }
 
-    final String[] subPaths;
+    private final BooleanSupplier isWithinCollapsedPath;
 
+    private String[] subPaths;
     private XContentLocation currentLocation;
     private int expandedTokens = 0;
     private int innerLevel = -1;
     private State state = State.EXPANDING_START_OBJECT;
 
-    private DotExpandingXContentParser(XContentParser subparser, String[] subPaths, XContentLocation startLocation) {
+    private DotExpandingXContentParser(
+        XContentParser subparser,
+        String[] subPaths,
+        XContentLocation startLocation,
+        BooleanSupplier isWithinCollapsedPath
+    ) {
         super(subparser);
         this.subPaths = subPaths;
         this.currentLocation = startLocation;
+        this.isWithinCollapsedPath = isWithinCollapsedPath;
     }
 
     @Override
@@ -233,6 +207,25 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
             }
             // The expansion consists of adding pairs of START_OBJECT and FIELD_NAME tokens
             if (expandedTokens % 2 == 0) {
+                int currentIndex = expandedTokens / 2;
+                // if there's more than one element left to expand and the parent is collapsed, we rewrite the array
+                // e.g. metrics.service.time.max -> ["metrics", "service", "time.max"]
+                if (currentIndex < subPaths.length - 1 && isWithinCollapsedPath.getAsBoolean()) {
+                    String[] newSubPaths = new String[currentIndex + 1];
+                    StringBuilder collapsedPath = new StringBuilder();
+                    for (int i = 0; i < subPaths.length; i++) {
+                        if (i < currentIndex) {
+                            newSubPaths[i] = subPaths[i];
+                        } else {
+                            collapsedPath.append(subPaths[i]);
+                            if (i < subPaths.length - 1) {
+                                collapsedPath.append(".");
+                            }
+                        }
+                    }
+                    newSubPaths[currentIndex] = collapsedPath.toString();
+                    subPaths = newSubPaths;
+                }
                 return Token.FIELD_NAME;
             }
             return Token.START_OBJECT;
@@ -276,7 +269,7 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
     @Override
     public String currentName() throws IOException {
         if (state == State.PARSING_ORIGINAL_CONTENT) {
-            assert expandedTokens == subPaths.length * 2 - 1;
+            // assert expandedTokens == subPaths.length * 2 - 1;
             // whenever we are parsing some inner object/array we can easily delegate to the inner parser
             // e.g. field.with.dots: { obj:{ parsing here } }
             if (innerLevel > 0) {

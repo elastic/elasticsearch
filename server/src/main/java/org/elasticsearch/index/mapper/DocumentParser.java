@@ -447,11 +447,11 @@ public final class DocumentParser {
             context.path().add(currentFieldName);
             if (objectMapper instanceof ObjectMapper objMapper) {
                 if (objMapper.isCollapsed()) {
-                    context.path().setCollapsed(true);
+                    context.path().setWithinCollapsedPath(true);
                 }
             }
             parseObjectOrField(context, objectMapper);
-            context.path().setCollapsed(false);
+            context.path().setWithinCollapsedPath(false);
             context.path().remove();
         } else {
             parseObjectDynamic(context, mapper, currentFieldName);
@@ -482,11 +482,11 @@ public final class DocumentParser {
             context.path().add(currentFieldName);
             if (dynamicObjectMapper instanceof ObjectMapper objectMapper) {
                 if (objectMapper.isCollapsed()) {
-                    context.path().setCollapsed(true);
+                    context.path().setWithinCollapsedPath(true);
                 }
             }
             parseObjectOrField(context, dynamicObjectMapper);
-            context.path().setCollapsed(false);
+            context.path().setWithinCollapsedPath(false);
             context.path().remove();
         }
     }
@@ -830,7 +830,7 @@ public final class DocumentParser {
             if (mappingLookup.getMapping().getRoot().isCollapsed()) {
                 this.parser = parser;
             } else {
-                this.parser = DotExpandingXContentParser.expandDots(parser, this);
+                this.parser = DotExpandingXContentParser.expandDots(parser, this.path::isWithinCollapsedPath);
             }
             this.document = new LuceneDocument();
             this.documents.add(document);

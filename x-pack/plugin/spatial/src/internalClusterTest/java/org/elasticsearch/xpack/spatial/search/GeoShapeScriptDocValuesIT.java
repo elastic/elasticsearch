@@ -165,7 +165,7 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
             }
         }, () -> GeometryTestUtils.randomGeometry(false));
         doTestGeometry(geometry, null);
-        //TODO this failed sometimes, eg. with random seed=11715FCF8E38A3B7, F2B60810A53B2CCC, B3EF41D2CA5B914F
+        // TODO this failed sometimes, eg. with random seed=11715FCF8E38A3B7, F2B60810A53B2CCC, B3EF41D2CA5B914F
     }
 
     public void testPolygonDateline() throws Exception {
@@ -239,7 +239,12 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
             expectedLabelPosition = value;
         }
         assertEquals("Unexpected latitude for label position,", expectedLabelPosition.lat(), fields.get("label_lat").getValue(), 0.0000001);
-        assertEquals("Unexpected longitude for label position,", expectedLabelPosition.lon(), fields.get("label_lon").getValue(), 0.0000001);
+        assertEquals(
+            "Unexpected longitude for label position,",
+            expectedLabelPosition.lon(),
+            fields.get("label_lon").getValue(),
+            0.0000001
+        );
     }
 
     public void testNullShape() throws Exception {

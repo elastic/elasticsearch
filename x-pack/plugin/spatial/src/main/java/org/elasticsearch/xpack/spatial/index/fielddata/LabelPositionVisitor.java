@@ -24,7 +24,7 @@ public class LabelPositionVisitor implements TriangleTreeReader.Visitor {
     public void visitPoint(int x, int y) {
         double lon = encoder.decodeX(x);
         double lat = encoder.decodeY(y);
-        System.out.println("Got point: (" + lon + "," + lat + ")");
+        // System.out.println("Got point: (" + lon + "," + lat + ")");
         if (labelPosition == null) {
             labelPosition = new GeoPoint(lat, lon);
         }
@@ -36,7 +36,7 @@ public class LabelPositionVisitor implements TriangleTreeReader.Visitor {
         double aLat = encoder.decodeY(aY);
         double bLon = encoder.decodeX(bX);
         double bLat = encoder.decodeY(bY);
-        System.out.println("Got line: (" + aLon + "," + aLat + ")-(" + bLon + "," + bLat + ")");
+        // System.out.println("Got line: (" + aLon + "," + aLat + ")-(" + bLon + "," + bLat + ")");
         if (labelPosition == null) {
             // TODO: We could instead choose the point closer to the centroid
             labelPosition = new GeoPoint((aLat + bLat) / 2.0, (aLon + bLon) / 2.0);
@@ -51,7 +51,7 @@ public class LabelPositionVisitor implements TriangleTreeReader.Visitor {
         double bLat = encoder.decodeY(bY);
         double cLon = encoder.decodeX(cX);
         double cLat = encoder.decodeY(cY);
-        System.out.println("Got triangle: (" + aLon + "," + aLat + ")-(" + bLon + "," + bLat + ")-(" + cLon + "," + cLat + ")");
+        // System.out.println("Got triangle: (" + aLon + "," + aLat + ")-(" + bLon + "," + bLat + ")-(" + cLon + "," + cLat + ")");
         if (labelPosition == null) {
             labelPosition = centroid;
         }

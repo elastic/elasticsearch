@@ -64,7 +64,7 @@ They do not support the <<docs-get,Get API>> nor any write APIs.
 Archive indices allow running queries as well as aggregations in so far as
 they are <<archive-indices-supported-field-types,supported by the given field type>>.
 
-Due to `_source` access the data can also be [[docs-reindex,reindexed]]
+Due to `_source` access the data can also be <<docs-reindex,reindexed>>
 to a new index that has full compatibility with the current {es} version.
 
 == How to upgrade older {es} clusters?

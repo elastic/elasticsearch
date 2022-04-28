@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.sql.qa.cli;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cli.MockTerminal;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.IOUtils;
@@ -117,7 +118,7 @@ public class EmbeddedCli implements Closeable {
                  * support Elasticsearch's Terminal abstraction.
                  */
                 Terminal terminal = MockTerminal.create();
-                int exitCode = cli.main(args.toArray(new String[0]), terminal);
+                int exitCode = cli.main(args.toArray(new String[0]), terminal, ProcessInfo.fromSystem());
                 returnCode.set(exitCode);
                 logger.info("cli exited with code [{}]", exitCode);
             } catch (Exception e) {

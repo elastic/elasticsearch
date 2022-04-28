@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.security.authc.esnative.tool;
 
 import org.elasticsearch.cli.MockTerminal;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -38,14 +39,22 @@ public class ResetPasswordToolIT extends AbstractPasswordToolTestCase {
         final String password;
         if (randomBoolean()) {
             possiblyDecryptKeystore(mockTerminal);
-            status = resetPasswordTool.main(new String[] { "-a", "-b", "-u", user }, mockTerminal);
+            status = resetPasswordTool.main(
+                new String[] { "-a", "-b", "-u", user },
+                mockTerminal,
+                new ProcessInfo(Map.of(), Map.of(), createTempDir())
+            );
             password = readPasswordFromOutput(mockTerminal.getOutput());
         } else {
             password = randomAlphaOfLengthBetween(14, 20);
             possiblyDecryptKeystore(mockTerminal);
             mockTerminal.addSecretInput(password);
             mockTerminal.addSecretInput(password);
-            status = resetPasswordTool.main(new String[] { "-i", "-b", "-u", user }, mockTerminal);
+            status = resetPasswordTool.main(
+                new String[] { "-i", "-b", "-u", user },
+                mockTerminal,
+                new ProcessInfo(Map.of(), Map.of(), createTempDir())
+            );
         }
         logger.info("CLI TOOL OUTPUT:\n{}", mockTerminal.getOutput());
         assertEquals(0, status);
@@ -108,14 +117,22 @@ public class ResetPasswordToolIT extends AbstractPasswordToolTestCase {
         final String password;
         if (randomBoolean()) {
             possiblyDecryptKeystore(mockTerminal);
-            status = resetPasswordTool.main(new String[] { "-a", "-b", "-u", nativeUser }, mockTerminal);
+            status = resetPasswordTool.main(
+                new String[] { "-a", "-b", "-u", nativeUser },
+                mockTerminal,
+                new ProcessInfo(Map.of(), Map.of(), createTempDir())
+            );
             password = readPasswordFromOutput(mockTerminal.getOutput());
         } else {
             password = randomAlphaOfLengthBetween(14, 20);
             possiblyDecryptKeystore(mockTerminal);
             mockTerminal.addSecretInput(password);
             mockTerminal.addSecretInput(password);
-            status = resetPasswordTool.main(new String[] { "-i", "-b", "-u", nativeUser }, mockTerminal);
+            status = resetPasswordTool.main(
+                new String[] { "-i", "-b", "-u", nativeUser },
+                mockTerminal,
+                new ProcessInfo(Map.of(), Map.of(), createTempDir())
+            );
         }
         logger.info("CLI TOOL OUTPUT:\n{}", mockTerminal.getOutput());
         assertEquals(0, status);

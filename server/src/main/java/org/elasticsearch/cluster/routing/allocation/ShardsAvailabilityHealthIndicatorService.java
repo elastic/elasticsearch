@@ -519,13 +519,26 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     Optional.ofNullable(ACTION_ENABLE_TIERS_LOOKUP.get(tier)).ifPresent(actions::add);
                 }
             } else {
+                // Collect the nodes from the tiers this index is allowed on
+                Set<DiscoveryNode> dataTierNodes = dataTierAllocationResults.stream()
+                    .map(NodeAllocationResult::getNode)
+                    .collect(Collectors.toSet());
+
+                // Determine the unique roles available on the allowed tier nodes
+                Set<String> dataTierRolesAvailable = dataTierNodes.stream()
+                    .map(DiscoveryNode::getRoles)
+                    .flatMap(Set::stream)
+                    .map(DiscoveryNodeRole::roleName)
+                    .collect(Collectors.toSet());
+
+                // Determine which tier this index would most prefer to live on
+                Optional<String> preferredTier = indexMetadata.getTierPreference()
+                    .stream()
+                    .filter(dataTierRolesAvailable::contains)
+                    .findFirst();
+
                 // All tier nodes at shards limit?
                 if (dataTierAllocationResults.stream().allMatch(hasDeciderResult(ShardsLimitAllocationDecider.NAME, Decision.Type.NO))) {
-                    // Collect the nodes from the tiers this index is allowed on
-                    Set<DiscoveryNode> dataTierNodes = dataTierAllocationResults.stream()
-                        .map(NodeAllocationResult::getNode)
-                        .collect(Collectors.toSet());
-
                     // We need the routing nodes for the tiers this index is allowed on to determine the offending shard limits
                     List<RoutingNode> dataTierRoutingNodes = clusterState.getRoutingNodes()
                         .stream()
@@ -554,19 +567,6 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                             .orElse(-1);
                         indexShardsPerNodeShouldChange = minShardCountInTier >= indexShardsPerNode;
                     }
-
-                    // Determine the unique roles available on the allowed tier nodes
-                    Set<String> dataTierRolesAvailable = dataTierNodes.stream()
-                        .map(DiscoveryNode::getRoles)
-                        .flatMap(Set::stream)
-                        .map(DiscoveryNodeRole::roleName)
-                        .collect(Collectors.toSet());
-
-                    // Determine which tier this index would most prefer to live on
-                    Optional<String> preferredTier = indexMetadata.getTierPreference()
-                        .stream()
-                        .filter(dataTierRolesAvailable::contains)
-                        .findFirst();
 
                     // Add appropriate user action
                     if (preferredTier.isPresent()) {
@@ -605,7 +605,6 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                         ? null
                         : DiscoveryNodeFilters.buildFromKeyValues(DiscoveryNodeFilters.OpType.OR, Map.of("data", includeDataAttributes));
                     if (requireFilter != null || includeFilter != null) {
-                        List<DiscoveryNode> dataTierNodes = dataTierAllocationResults.stream().map(NodeAllocationResult::getNode).toList();
                         // Check if the data tier nodes this shard is allowed on have data attributes that match
                         if (requireFilter != null && dataTierNodes.stream().noneMatch(requireFilter::match)) {
                             // No data tier nodes match the required data attribute
@@ -620,20 +619,6 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
                 // Not enough tier nodes to hold shards on different nodes?
                 if (dataTierAllocationResults.stream().allMatch(hasDeciderResult(SameShardAllocationDecider.NAME, Decision.Type.NO))) {
-                    // Determine the unique roles available on the allowed tier nodes
-                    Set<String> dataTierRolesAvailable = dataTierAllocationResults.stream()
-                        .map(NodeAllocationResult::getNode)
-                        .map(DiscoveryNode::getRoles)
-                        .flatMap(Set::stream)
-                        .map(DiscoveryNodeRole::roleName)
-                        .collect(Collectors.toSet());
-
-                    // Determine which of the preferred tiers is present
-                    Optional<String> preferredTier = indexMetadata.getTierPreference()
-                        .stream()
-                        .filter(dataTierRolesAvailable::contains)
-                        .findFirst();
-
                     if (preferredTier.isPresent()) {
                         Optional.ofNullable(ACTION_INCREASE_TIER_CAPACITY_LOOKUP.get(preferredTier.get())).ifPresent(actions::add);
                     } else {

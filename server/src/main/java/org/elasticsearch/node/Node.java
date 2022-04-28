@@ -793,8 +793,7 @@ public class Node implements Closeable {
                 clusterModule.getMetadataDeleteIndexService(),
                 indexMetadataVerifier,
                 shardLimitValidator,
-                systemIndices,
-                indicesService
+                systemIndices
             );
             final DiskThresholdMonitor diskThresholdMonitor = new DiskThresholdMonitor(
                 settings,

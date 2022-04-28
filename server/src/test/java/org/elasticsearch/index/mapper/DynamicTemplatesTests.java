@@ -1142,5 +1142,36 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         assertCollapsedObjects(mapperService);
     }
 
-    // TODO add test with array of objects?
+    public void testCollapsedObjectsArrayOfObjects() throws IOException {
+        MapperService mapperService = createDynamicTemplateCollapsedObject();
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
+            b.startObject("foo");
+            {
+                b.startArray("metric");
+                {
+                    b.startObject();
+                    {
+                        b.field("count", 10);
+                        b.field("count.min", 4);
+                        b.field("count.max", 15);
+                    }
+                    b.endObject();
+                    b.startObject();
+                    {
+                        b.field("count", 5);
+                        b.field("count.min", 3);
+                        b.field("count.max", 50);
+                    }
+                    b.endObject();
+                }
+                b.endArray();
+                b.startObject("bar");
+                b.field("baz", 10);
+                b.endObject();
+            }
+            b.endObject();
+        }));
+        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
+        assertCollapsedObjects(mapperService);
+    }
 }

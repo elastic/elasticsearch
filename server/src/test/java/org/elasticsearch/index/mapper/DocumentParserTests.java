@@ -1844,7 +1844,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
     public void testCollapsedObjectWithInnerObject() throws Exception {
         DocumentMapper mapper = createDocumentMapper(
-            mapping(b -> { b.startObject("metrics.service").field("type", "object").field("collapsed", true).endObject(); })
+            mapping(b -> b.startObject("metrics.service").field("type", "object").field("collapsed", true).endObject())
         );
         IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> mapper.parse(source("""
             {
@@ -1862,7 +1862,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
     public void testCollapsedObjectWithInnerDottedObject() throws Exception {
         DocumentMapper mapper = createDocumentMapper(
-            mapping(b -> { b.startObject("metrics.service").field("type", "object").field("collapsed", true).endObject(); })
+            mapping(b -> b.startObject("metrics.service").field("type", "object").field("collapsed", true).endObject())
         );
         IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> mapper.parse(source("""
             {
@@ -1917,7 +1917,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
     public void testDotsCollapsedStructuredPath() throws Exception {
         DocumentMapper mapper = createDocumentMapper(
-            mapping(b -> { b.startObject("metrics.service").field("type", "object").field("collapsed", true).endObject(); })
+            mapping(b -> b.startObject("metrics.service").field("type", "object").field("collapsed", true).endObject())
         );
         ParsedDocument doc = mapper.parse(source("""
             {
@@ -1937,7 +1937,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
     public void testDotsCollapsedFlatPaths() throws Exception {
         DocumentMapper mapper = createDocumentMapper(
-            mapping(b -> { b.startObject("metrics.service").field("type", "object").field("collapsed", true).endObject(); })
+            mapping(b -> b.startObject("metrics.service").field("type", "object").field("collapsed", true).endObject())
         );
         ParsedDocument doc = mapper.parse(source("""
             {
@@ -1953,7 +1953,7 @@ public class DocumentParserTests extends MapperServiceTestCase {
 
     public void testDotsCollapsedMixedPaths() throws Exception {
         DocumentMapper mapper = createDocumentMapper(
-            mapping(b -> { b.startObject("metrics.service").field("type", "object").field("collapsed", true).endObject(); })
+            mapping(b -> b.startObject("metrics.service").field("type", "object").field("collapsed", true).endObject())
         );
         ParsedDocument doc = mapper.parse(source("""
             {
@@ -1971,7 +1971,33 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertDotsCollapsed(doc);
     }
 
-    // TODO add test with array of objects?
+    public void testDotsCollapsedArrayOfObjects() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(
+            mapping(b -> b.startObject("metrics.service").field("type", "object").field("collapsed", true).endObject())
+        );
+        ParsedDocument doc = mapper.parse(source("""
+            {
+              "metrics": {
+                "service": [
+                  {
+                    "time" : 10,
+                    "time.max" : 500,
+                    "time.min" : 1,
+                    "test.with.dots" : "value1"
+                  },
+                  {
+                    "time" : 5,
+                    "time.max" : 600,
+                    "time.min" : 3,
+                    "test.with.dots" : "value2"
+                  }
+                ],
+                "object.inner.field": "value"
+              }
+            }
+            """));
+        assertDotsCollapsed(doc);
+    }
 
     private static void assertDotsCollapsed(ParsedDocument doc) {
         Mapping mappingsUpdate = doc.dynamicMappingsUpdate();

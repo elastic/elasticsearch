@@ -373,7 +373,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 }
                 break;
             case DECIDERS_NO:
-                explainAllocationsAndDiagnoseDeciders(actions, shardRouting, state);
+                actions.addAll(explainAllocationsAndDiagnoseDeciders(shardRouting, state));
                 break;
             default:
                 break;
@@ -384,11 +384,11 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
     /**
      * For a shard that is unassigned due to a DECIDERS_NO result, this will explain the allocation and attempt to generate
      * user actions that should allow the shard to be assigned.
-     * @param actions A list to collect user actions in
      * @param shardRouting The shard routing that is unassigned with a last status of DECIDERS_NO
      * @param state Current cluster state
+     * @return a list of actions for the user to take
      */
-    private void explainAllocationsAndDiagnoseDeciders(List<UserAction.Definition> actions, ShardRouting shardRouting, ClusterState state) {
+    private List<UserAction.Definition> explainAllocationsAndDiagnoseDeciders(ShardRouting shardRouting, ClusterState state) {
         LOGGER.trace("Diagnosing shard [{}]", shardRouting.shardId());
         RoutingAllocation allocation = new RoutingAllocation(
             allocationService.getAllocationDeciders(),
@@ -424,32 +424,35 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 );
             }
             List<NodeAllocationResult> nodeAllocationResults = allocateDecision.getNodeDecisions();
-            diagnoseAllocationResults(actions, shardRouting, state, nodeAllocationResults);
+            return diagnoseAllocationResults(shardRouting, state, nodeAllocationResults);
+        } else {
+            return Collections.emptyList();
         }
     }
 
     /**
      * Generates a list of user actions to take for an unassigned shard by inspecting a list of NodeAllocationResults for
      * well known problems.
-     * @param actions A list to collect the user actions in.
      * @param shardRouting The unassigned shard.
      * @param state Current cluster state.
      * @param nodeAllocationResults A list of results for each node in the cluster from the allocation explain api
+     * @return A list of user actions to take.
      */
-    void diagnoseAllocationResults(
-        List<UserAction.Definition> actions,
+    List<UserAction.Definition> diagnoseAllocationResults(
         ShardRouting shardRouting,
         ClusterState state,
         List<NodeAllocationResult> nodeAllocationResults
     ) {
         IndexMetadata index = state.metadata().index(shardRouting.index());
+        List<UserAction.Definition> actions = new ArrayList<>();
         if (index != null) {
-            checkIsAllocationDisabled(actions, index, nodeAllocationResults);
-            checkDataTierRelatedIssues(actions, index, nodeAllocationResults, state);
+            actions.addAll(checkIsAllocationDisabled(index, nodeAllocationResults));
+            actions.addAll(checkDataTierRelatedIssues(index, nodeAllocationResults, state));
         }
         if (actions.isEmpty()) {
             actions.add(ACTION_CHECK_ALLOCATION_EXPLAIN_API);
         }
+        return actions;
     }
 
     /**
@@ -467,14 +470,12 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
 
     /**
      * Generates a user action if a shard cannot be allocated anywhere because allocation is disabled for that shard
-     * @param actions Any user actions generated from this method will be added to this list.
+     * @param indexMetadata from the index shard being diagnosed
      * @param nodeAllocationResults allocation decision results for all nodes in the cluster.
+     * @result A list of user actions to take.
      */
-    void checkIsAllocationDisabled(
-        List<UserAction.Definition> actions,
-        IndexMetadata indexMetadata,
-        List<NodeAllocationResult> nodeAllocationResults
-    ) {
+    List<UserAction.Definition> checkIsAllocationDisabled(IndexMetadata indexMetadata, List<NodeAllocationResult> nodeAllocationResults) {
+        List<UserAction.Definition> actions = new ArrayList<>();
         if (nodeAllocationResults.stream().allMatch(hasDeciderResult(EnableAllocationDecider.NAME, Decision.Type.NO))) {
             // Check the routing settings for index
             Settings indexSettings = indexMetadata.getSettings();
@@ -492,20 +493,22 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 actions.add(ACTION_ENABLE_CLUSTER_ROUTING_ALLOCATION);
             }
         }
+        return actions;
     }
 
     /**
      * Generates user actions for common problems that keep a shard from allocating to nodes in a data tier.
-     * @param actions Any user actions generated from this method will be added to this list.
      * @param indexMetadata Index metadata for the shard being diagnosed.
      * @param nodeAllocationResults allocation decision results for all nodes in the cluster.
+     * @param clusterState the current cluster state.
+     * @return a list of user actions to take.
      */
-    void checkDataTierRelatedIssues(
-        List<UserAction.Definition> actions,
+    List<UserAction.Definition> checkDataTierRelatedIssues(
         IndexMetadata indexMetadata,
         List<NodeAllocationResult> nodeAllocationResults,
         ClusterState clusterState
     ) {
+        List<UserAction.Definition> actions = new ArrayList<>();
         if (indexMetadata.getTierPreference().size() > 0) {
             List<NodeAllocationResult> dataTierAllocationResults = nodeAllocationResults.stream()
                 .filter(hasDeciderResult(DATA_TIER_ALLOCATION_DECIDER_NAME, Decision.Type.YES))
@@ -641,6 +644,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                 }
             }
         }
+        return actions;
     }
 
     private class ShardAllocationStatus {

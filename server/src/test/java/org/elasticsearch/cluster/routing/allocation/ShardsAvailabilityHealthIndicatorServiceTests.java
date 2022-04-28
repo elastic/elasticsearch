@@ -566,9 +566,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
 
         // Get the list of user actions that are generated for this unassigned index shard
         ShardRouting shardRouting = clusterState.routingTable().index(indexMetadata.getIndex()).shard(0).primaryShard();
-        List<UserAction.Definition> actions = new ArrayList<>();
-        service.diagnoseAllocationResults(
-            actions,
+        List<UserAction.Definition> actions = service.diagnoseAllocationResults(
             shardRouting,
             clusterState,
             List.of(
@@ -605,9 +603,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService();
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<UserAction.Definition> actions = new ArrayList<>();
-        service.checkIsAllocationDisabled(
-            actions,
+        List<UserAction.Definition> actions = service.checkIsAllocationDisabled(
             indexMetadata,
             List.of(
                 new NodeAllocationResult(
@@ -639,9 +635,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<UserAction.Definition> actions = new ArrayList<>();
-        service.checkIsAllocationDisabled(
-            actions,
+        List<UserAction.Definition> actions = service.checkIsAllocationDisabled(
             indexMetadata,
             List.of(
                 new NodeAllocationResult(
@@ -678,9 +672,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<UserAction.Definition> actions = new ArrayList<>();
-        service.checkIsAllocationDisabled(
-            actions,
+        List<UserAction.Definition> actions = service.checkIsAllocationDisabled(
             indexMetadata,
             List.of(
                 new NodeAllocationResult(
@@ -713,9 +705,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService();
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<UserAction.Definition> actions = new ArrayList<>();
-        service.checkDataTierRelatedIssues(
-            actions,
+        List<UserAction.Definition> actions = service.checkDataTierRelatedIssues(
             indexMetadata,
             List.of(
                 // Shard is not allowed due to data tier filter
@@ -774,9 +764,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService();
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<UserAction.Definition> actions = new ArrayList<>();
-        service.checkDataTierRelatedIssues(
-            actions,
+        List<UserAction.Definition> actions = service.checkDataTierRelatedIssues(
             indexMetadata,
             List.of(
                 new NodeAllocationResult(
@@ -841,9 +829,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<UserAction.Definition> actions = new ArrayList<>();
-        service.checkDataTierRelatedIssues(
-            actions,
+        List<UserAction.Definition> actions = service.checkDataTierRelatedIssues(
             indexMetadata,
             List.of(
                 new NodeAllocationResult(
@@ -903,9 +889,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService();
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<UserAction.Definition> actions = new ArrayList<>();
-        service.checkDataTierRelatedIssues(
-            actions,
+        List<UserAction.Definition> actions = service.checkDataTierRelatedIssues(
             indexMetadata,
             List.of(
                 new NodeAllocationResult(
@@ -970,9 +954,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<UserAction.Definition> actions = new ArrayList<>();
-        service.checkDataTierRelatedIssues(
-            actions,
+        List<UserAction.Definition> actions = service.checkDataTierRelatedIssues(
             indexMetadata,
             List.of(
                 new NodeAllocationResult(
@@ -1007,9 +989,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService();
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<UserAction.Definition> actions = new ArrayList<>();
-        service.checkDataTierRelatedIssues(
-            actions,
+        List<UserAction.Definition> actions = service.checkDataTierRelatedIssues(
             indexMetadata,
             List.of(
                 // Shard is allowed on data tier, but disallowed because of allocation filters
@@ -1045,9 +1025,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService();
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<UserAction.Definition> actions = new ArrayList<>();
-        service.checkDataTierRelatedIssues(
-            actions,
+        List<UserAction.Definition> actions = service.checkDataTierRelatedIssues(
             indexMetadata,
             List.of(
                 // Shard is allowed on data tier, but disallowed because of allocation filters
@@ -1082,9 +1060,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService();
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<UserAction.Definition> actions = new ArrayList<>();
-        service.checkDataTierRelatedIssues(
-            actions,
+        List<UserAction.Definition> actions = service.checkDataTierRelatedIssues(
             indexMetadata,
             List.of(
                 // Shard is allowed on data tier, but disallowed because of allocation filters
@@ -1119,9 +1095,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService();
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<UserAction.Definition> actions = new ArrayList<>();
-        service.checkDataTierRelatedIssues(
-            actions,
+        List<UserAction.Definition> actions = service.checkDataTierRelatedIssues(
             indexMetadata,
             List.of(
                 // Shard is allowed on data tier, but disallowed because node is already hosting a copy of it.
@@ -1161,9 +1135,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createAllocationHealthIndicatorService();
 
         // Get the list of user actions that are generated for this unassigned index shard
-        List<UserAction.Definition> actions = new ArrayList<>();
-        service.checkDataTierRelatedIssues(
-            actions,
+        List<UserAction.Definition> actions = service.checkDataTierRelatedIssues(
             indexMetadata,
             List.of(
                 // Shard is allowed on data tier, but disallowed because node is already hosting a copy of it.

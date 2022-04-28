@@ -86,7 +86,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
 
     private boolean verbose = DEFAULT_VERBOSE_MODE;
 
-    private boolean indices = true;
+    private boolean includeIndexNames = true;
 
     public GetSnapshotsRequest() {}
 
@@ -135,7 +135,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
                 fromSortValue = in.readOptionalString();
             }
             if (in.getVersion().onOrAfter(INDICES_FLAG_VERSION)) {
-                indices = in.readBoolean();
+                includeIndexNames = in.readBoolean();
             }
         }
     }
@@ -192,7 +192,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             throw new IllegalArgumentException("can't use after-value in snapshot request with node version [" + out.getVersion() + "]");
         }
         if (out.getVersion().onOrAfter(INDICES_FLAG_VERSION)) {
-            out.writeBoolean(indices);
+            out.writeBoolean(includeIndexNames);
         }
     }
 
@@ -334,13 +334,13 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
         return this;
     }
 
-    public GetSnapshotsRequest indices(boolean indices) {
-        this.indices = indices;
+    public GetSnapshotsRequest includeIndexNames(boolean indices) {
+        this.includeIndexNames = indices;
         return this;
     }
 
-    public boolean indices() {
-        return indices;
+    public boolean includeIndexNames() {
+        return includeIndexNames;
     }
 
     public After after() {

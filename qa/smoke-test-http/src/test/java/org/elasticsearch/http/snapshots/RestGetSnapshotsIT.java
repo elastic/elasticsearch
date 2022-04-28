@@ -90,45 +90,45 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
     }
 
     private void doTestSortOrder(String repoName, Collection<String> allSnapshotNames, SortOrder order) throws IOException {
-        final boolean includeIndices = randomBoolean();
+        final boolean includeIndexNames = randomBoolean();
         final List<SnapshotInfo> defaultSorting = clusterAdmin().prepareGetSnapshots(repoName)
             .setOrder(order)
-            .setIndices(includeIndices)
+            .setIndices(includeIndexNames)
             .get()
             .getSnapshots();
         assertSnapshotListSorted(defaultSorting, null, order);
         assertSnapshotListSorted(
-            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.NAME, order, includeIndices),
+            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.NAME, order, includeIndexNames),
             GetSnapshotsRequest.SortBy.NAME,
             order
         );
         assertSnapshotListSorted(
-            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.DURATION, order, includeIndices),
+            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.DURATION, order, includeIndexNames),
             GetSnapshotsRequest.SortBy.DURATION,
             order
         );
         assertSnapshotListSorted(
-            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.INDICES, order, includeIndices),
+            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.INDICES, order, includeIndexNames),
             GetSnapshotsRequest.SortBy.INDICES,
             order
         );
         assertSnapshotListSorted(
-            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.START_TIME, order, includeIndices),
+            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.START_TIME, order, includeIndexNames),
             GetSnapshotsRequest.SortBy.START_TIME,
             order
         );
         assertSnapshotListSorted(
-            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.SHARDS, order, includeIndices),
+            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.SHARDS, order, includeIndexNames),
             GetSnapshotsRequest.SortBy.SHARDS,
             order
         );
         assertSnapshotListSorted(
-            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.FAILED_SHARDS, order, includeIndices),
+            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.FAILED_SHARDS, order, includeIndexNames),
             GetSnapshotsRequest.SortBy.FAILED_SHARDS,
             order
         );
         assertSnapshotListSorted(
-            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.REPOSITORY, order, includeIndices),
+            allSnapshotsSorted(allSnapshotNames, repoName, GetSnapshotsRequest.SortBy.REPOSITORY, order, includeIndexNames),
             GetSnapshotsRequest.SortBy.REPOSITORY,
             order
         );
@@ -148,14 +148,14 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
 
     private void doTestPagination(String repoName, List<String> names, GetSnapshotsRequest.SortBy sort, SortOrder order)
         throws IOException {
-        final boolean includeIndices = randomBoolean();
-        final List<SnapshotInfo> allSnapshotsSorted = allSnapshotsSorted(names, repoName, sort, order, includeIndices);
-        final GetSnapshotsResponse batch1 = sortedWithLimit(repoName, sort, null, 2, order, includeIndices);
+        final boolean includeIndexNames = randomBoolean();
+        final List<SnapshotInfo> allSnapshotsSorted = allSnapshotsSorted(names, repoName, sort, order, includeIndexNames);
+        final GetSnapshotsResponse batch1 = sortedWithLimit(repoName, sort, null, 2, order, includeIndexNames);
         assertEquals(allSnapshotsSorted.subList(0, 2), batch1.getSnapshots());
-        final GetSnapshotsResponse batch2 = sortedWithLimit(repoName, sort, batch1.next(), 2, order, includeIndices);
+        final GetSnapshotsResponse batch2 = sortedWithLimit(repoName, sort, batch1.next(), 2, order, includeIndexNames);
         assertEquals(allSnapshotsSorted.subList(2, 4), batch2.getSnapshots());
         final int lastBatch = names.size() - batch1.getSnapshots().size() - batch2.getSnapshots().size();
-        final GetSnapshotsResponse batch3 = sortedWithLimit(repoName, sort, batch2.next(), lastBatch, order, includeIndices);
+        final GetSnapshotsResponse batch3 = sortedWithLimit(repoName, sort, batch2.next(), lastBatch, order, includeIndexNames);
         assertEquals(
             batch3.getSnapshots(),
             allSnapshotsSorted.subList(batch1.getSnapshots().size() + batch2.getSnapshots().size(), names.size())
@@ -166,7 +166,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
             batch2.next(),
             GetSnapshotsRequest.NO_LIMIT,
             order,
-            includeIndices
+            includeIndexNames
         );
         assertNull(batch3NoLimit.next());
         assertEquals(batch3.getSnapshots(), batch3NoLimit.getSnapshots());
@@ -176,7 +176,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
             batch2.next(),
             lastBatch + randomIntBetween(1, 100),
             order,
-            includeIndices
+            includeIndexNames
         );
         assertEquals(batch3.getSnapshots(), batch3LargeLimit.getSnapshots());
         assertNull(batch3LargeLimit.next());
@@ -370,11 +370,11 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
     private static void assertStablePagination(String repoName, Collection<String> allSnapshotNames, GetSnapshotsRequest.SortBy sort)
         throws IOException {
         final SortOrder order = randomFrom(SortOrder.values());
-        final boolean includeIndices = sort == GetSnapshotsRequest.SortBy.INDICES || randomBoolean();
-        final List<SnapshotInfo> allSorted = allSnapshotsSorted(allSnapshotNames, repoName, sort, order, includeIndices);
+        final boolean includeIndexNames = sort == GetSnapshotsRequest.SortBy.INDICES || randomBoolean();
+        final List<SnapshotInfo> allSorted = allSnapshotsSorted(allSnapshotNames, repoName, sort, order, includeIndexNames);
 
         for (int i = 1; i <= allSnapshotNames.size(); i++) {
-            final List<SnapshotInfo> subsetSorted = sortedWithLimit(repoName, sort, null, i, order, includeIndices).getSnapshots();
+            final List<SnapshotInfo> subsetSorted = sortedWithLimit(repoName, sort, null, i, order, includeIndexNames).getSnapshots();
             assertEquals(subsetSorted, allSorted.subList(0, i));
         }
 
@@ -387,9 +387,16 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
                     GetSnapshotsRequest.After.from(after, sort).asQueryParam(),
                     i,
                     order,
-                    includeIndices
+                    includeIndexNames
                 );
-                final GetSnapshotsResponse getSnapshotsResponseNumeric = sortedWithLimit(repoName, sort, j + 1, i, order, includeIndices);
+                final GetSnapshotsResponse getSnapshotsResponseNumeric = sortedWithLimit(
+                    repoName,
+                    sort,
+                    j + 1,
+                    i,
+                    order,
+                    includeIndexNames
+                );
                 final List<SnapshotInfo> subsetSorted = getSnapshotsResponse.getSnapshots();
                 assertEquals(subsetSorted, getSnapshotsResponseNumeric.getSnapshots());
                 assertEquals(subsetSorted, allSorted.subList(j + 1, j + i + 1));

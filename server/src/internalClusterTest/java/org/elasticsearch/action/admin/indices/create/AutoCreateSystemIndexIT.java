@@ -71,6 +71,12 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
 
         GetIndexResponse response = client().admin().indices().prepareGetIndex().addIndices(PRIMARY_INDEX_NAME).get();
         assertThat(response.indices().length, is(1));
+        assertThat(response.aliases().size(), is(1));
+        assertThat(response.aliases().get(PRIMARY_INDEX_NAME).size(), is(1));
+        assertThat(
+            response.aliases().get(PRIMARY_INDEX_NAME).get(0),
+            equalTo(AliasMetadata.builder(INDEX_NAME).isHidden(true).writeIndex(true).build())
+        );
     }
 
     public void testAutoCreatePrimaryIndexFromAlias() throws Exception {
@@ -79,6 +85,12 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
 
         GetIndexResponse response = client().admin().indices().prepareGetIndex().addIndices(PRIMARY_INDEX_NAME).get();
         assertThat(response.indices().length, is(1));
+        assertThat(response.aliases().size(), is(1));
+        assertThat(response.aliases().get(PRIMARY_INDEX_NAME).size(), is(1));
+        assertThat(
+            response.aliases().get(PRIMARY_INDEX_NAME).get(0),
+            equalTo(AliasMetadata.builder(INDEX_NAME).isHidden(true).writeIndex(true).build())
+        );
     }
 
     public void testAutoCreateNonPrimaryIndex() throws Exception {
@@ -87,6 +99,9 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
 
         GetIndexResponse response = client().admin().indices().prepareGetIndex().addIndices(INDEX_NAME + "-2").get();
         assertThat(response.indices().length, is(1));
+        assertThat(response.aliases().size(), is(1));
+        assertThat(response.aliases().get(INDEX_NAME + "-2").size(), is(1));
+        assertThat(response.aliases().get(INDEX_NAME + "-2").get(0), equalTo(AliasMetadata.builder(INDEX_NAME).isHidden(true).build()));
     }
 
     public void testAutoCreateSystemIndicesAllowsWriteToAlias() throws Exception {
@@ -152,7 +167,7 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
 
         assertTrue(indexExists(nonPrimaryIndex));
 
-        assertAliasesHidden(nonPrimaryIndex, Set.of(".test-index-legacy-alias"));
+        assertAliasesHidden(nonPrimaryIndex, Set.of(".test-index", ".test-index-legacy-alias"));
 
         assertAcked(client().admin().indices().prepareDeleteTemplate("*").get());
     }
@@ -186,7 +201,7 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
 
         assertTrue(indexExists(nonPrimaryIndex));
 
-        assertAliasesHidden(nonPrimaryIndex, Set.of(".test-index-composable-alias"));
+        assertAliasesHidden(nonPrimaryIndex, Set.of(".test-index", ".test-index-composable-alias"));
 
         assertAcked(
             client().execute(
@@ -203,7 +218,7 @@ public class AutoCreateSystemIndexIT extends ESIntegTestCase {
             .get();
 
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
-        assertThat(getAliasesResponse.getAliases().get(nonPrimaryIndex).size(), equalTo(1));
+        assertThat(getAliasesResponse.getAliases().get(nonPrimaryIndex).size(), equalTo(2));
         assertThat(
             getAliasesResponse.getAliases().get(nonPrimaryIndex).stream().map(AliasMetadata::alias).collect(Collectors.toSet()),
             equalTo(aliasNames)

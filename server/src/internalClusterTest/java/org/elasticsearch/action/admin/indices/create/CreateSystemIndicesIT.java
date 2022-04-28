@@ -54,6 +54,8 @@ import static org.elasticsearch.indices.TestSystemIndexDescriptor.PRIMARY_INDEX_
 import static org.elasticsearch.test.XContentTestUtils.convertToXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class CreateSystemIndicesIT extends ESIntegTestCase {
@@ -116,7 +118,11 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
             .actionGet();
 
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
-        assertThat(getAliasesResponse.getAliases().get(nonPrimarySystemIndex).size(), equalTo(0));
+        assertThat(getAliasesResponse.getAliases().get(nonPrimarySystemIndex).size(), equalTo(1));
+        assertThat(
+            getAliasesResponse.getAliases().get(nonPrimarySystemIndex).get(0),
+            equalTo(AliasMetadata.builder(INDEX_NAME).isHidden(true).build())
+        );
     }
 
     /**
@@ -244,7 +250,7 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
             }
         };
         for (int i = 0; i < count; i++) {
-            client.bulk(new BulkRequest().add(new IndexRequest(PRIMARY_INDEX_NAME).source(Map.of("foo", "bar"))), listener);
+            client.bulk(new BulkRequest().add(new IndexRequest(INDEX_NAME).source(Map.of("foo", "bar"))), listener);
         }
         assertTrue(latch.await(30L, TimeUnit.SECONDS));
     }
@@ -261,6 +267,7 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
         assertThat(getAliasesResponse.getAliases().size(), equalTo(1));
         assertThat(getAliasesResponse.getAliases().get(concreteIndex).size(), equalTo(1));
         assertThat(getAliasesResponse.getAliases().get(concreteIndex).get(0).isHidden(), equalTo(true));
+        assertThat(getAliasesResponse.getAliases().get(concreteIndex).get(0).writeIndex(), equalTo(true));
     }
 
     private void assertHasAliases(Set<String> aliasNames) throws InterruptedException, java.util.concurrent.ExecutionException {
@@ -275,8 +282,14 @@ public class CreateSystemIndicesIT extends ESIntegTestCase {
             getAliasesResponse.getAliases().get(PRIMARY_INDEX_NAME).stream().map(AliasMetadata::alias).collect(Collectors.toSet()),
             equalTo(aliasNames)
         );
-        assertThat(getAliasesResponse.getAliases().get(PRIMARY_INDEX_NAME).get(0).isHidden(), equalTo(true));
-        assertThat(getAliasesResponse.getAliases().get(PRIMARY_INDEX_NAME).get(1).isHidden(), equalTo(true));
+        for (AliasMetadata aliasMetadata : getAliasesResponse.getAliases().get(PRIMARY_INDEX_NAME)) {
+            assertThat(aliasMetadata.isHidden(), equalTo(true));
+            if (aliasMetadata.alias().equals(INDEX_NAME)) {
+                assertThat(aliasMetadata.writeIndex(), is(true));
+            } else {
+                assertThat(aliasMetadata.writeIndex(), is(nullValue()));
+            }
+        }
     }
 
     /**

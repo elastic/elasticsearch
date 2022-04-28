@@ -162,7 +162,7 @@ final class RequestDispatcher {
         final Map<String, List<ShardId>> nodeToSelectedShards = new HashMap<>();
         assert pendingRequests.get() == 0 : "pending requests = " + pendingRequests;
         groups.values().removeIf(g -> g.completed.get());
-        final Set<Group> visited = Collections.newSetFromMap(new HashMap<>());
+        final Set<Group> visited = new HashSet<>();
         for (Group group : groups.values()) {
             if (visited.add(group)) {
                 final List<ShardRouting> selectedShards = group.nextTarget(withIndexFilter);

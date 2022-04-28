@@ -16,6 +16,7 @@ import org.elasticsearch.action.admin.cluster.coordination.MasterHistoryAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectionProfile;
 import org.elasticsearch.transport.Transport;
@@ -80,7 +81,7 @@ public class MasterHistoryService {
      * @param node The node whose view of the master history we want to fetch
      */
     public void requestRemoteMasterHistory(DiscoveryNode node) {
-        long startTime = System.currentTimeMillis();
+        long startTime = System.nanoTime();
         transportService.openConnection(
             node,
             ConnectionProfile.buildDefaultConnectionProfile(clusterService.getSettings()),
@@ -96,8 +97,12 @@ public class MasterHistoryService {
 
                             @Override
                             public void onResponse(MasterHistoryAction.Response response) {
-                                long endTime = System.currentTimeMillis();
-                                logger.trace("Received history from {} in {} ms", node, (endTime - startTime));
+                                long endTime = System.nanoTime();
+                                logger.trace(
+                                    "Received history from {} in {} ms",
+                                    node,
+                                    TimeValue.timeValueNanos(endTime - startTime).getMillis()
+                                );
                                 nodeToHistoryMap.put(node, response.getMasterHistory());
                             }
 

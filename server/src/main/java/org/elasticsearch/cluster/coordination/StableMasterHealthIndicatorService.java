@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
@@ -41,17 +40,11 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     public static final String NAME = "stable_master";
 
     private final ClusterService clusterService;
-    private final DiscoveryModule discoveryModule;
     private final MasterHistoryService masterHistoryService;
     private static final Logger logger = LogManager.getLogger(StableMasterHealthIndicatorService.class);
 
-    public StableMasterHealthIndicatorService(
-        ClusterService clusterService,
-        DiscoveryModule discoveryModule,
-        MasterHistoryService masterHistoryService
-    ) {
+    public StableMasterHealthIndicatorService(ClusterService clusterService, MasterHistoryService masterHistoryService) {
         this.clusterService = clusterService;
-        this.discoveryModule = discoveryModule;
         this.masterHistoryService = masterHistoryService;
         clusterService.addListener(this);
     }
@@ -75,19 +68,39 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         MasterHistory localMasterHistory = masterHistoryService.getLocalMasterHistory();
         if (hasSeenMasterInLast30Seconds()) {
             long masterChanges = getNumberOfMasterChanges(localMasterHistory);
-            logger.trace("Have seen a master in the last 30 seconds");
-            if (localMasterHistory.hasSameMasterGoneNullNTimes(4)) {
+            logger.trace("Have seen a master in the last 30 seconds: {}", localMasterHistory.getMostRecentNonNullMaster());
+            if (masterChanges > 3 && localMasterHistory.hasSameMasterGoneNullNTimes(4) == false) {
+                logger.trace("Have seen {} master changes in the last 30 minutes", masterChanges);
+                stableMasterStatus = HealthStatus.YELLOW;
+                summary = String.format(Locale.ROOT, "The master has changed %d times in the last 30 minutes", masterChanges);
+                impacts.add(
+                    new HealthIndicatorImpact(
+                        3,
+                        "The cluster currently has a master node, but having multiple master node changes in a short time is an indicator "
+                            + "that the cluster is at risk of of not being able to create, delete, or rebalance indices",
+                        List.of(ImpactArea.INGEST)
+                    )
+                );
+                if (includeDetails) {
+                    List<DiscoveryNode> mastersInLast30Minutes = localMasterHistory.getImmutableView();
+                    details.put("current_master", new DiscoveryNodeXContentObject(localMasterHistory.getCurrentMaster()));
+                    details.put("recent_masters", mastersInLast30Minutes.stream().map(DiscoveryNodeXContentObject::new).toList());
+                }
+            } else if (localMasterHistory.hasSameMasterGoneNullNTimes(4)) {
                 DiscoveryNode master = localMasterHistory.getMostRecentNonNullMaster();
                 logger.trace("One master has gone null 4 or more times recently: " + master);
                 boolean localNodeIsMaster = clusterService.localNode().equals(master);
-                List<DiscoveryNode> remoteHistory = localNodeIsMaster
-                    ? localMasterHistory.getImmutableView()
-                    : masterHistoryService.getRemoteMasterHistory(master);
-                if (remoteHistory == null || MasterHistory.hasSameMasterGoneNullNTimes(remoteHistory, 4)) {
-                    if (remoteHistory == null) {
-                        logger.trace(String.format(Locale.ROOT, "Unable to get master history from %s", master));
+                final List<DiscoveryNode> remoteHistory;
+                if (localNodeIsMaster) {
+                    remoteHistory = null; // We don't need to fetch the remote master's history if we are that remote master
+                } else {
+                    remoteHistory = masterHistoryService.getRemoteMasterHistory(master);
+                }
+                if (localNodeIsMaster || remoteHistory == null || getNumberOfMasterChanges(remoteHistory) > 3) {
+                    if (localNodeIsMaster == false && remoteHistory == null) {
+                        logger.trace("Unable to get master history from {}}", master);
                     } else {
-                        logger.trace(String.format(Locale.ROOT, "The master node %s thinks it is unstable", master));
+                        logger.trace("The master node {} thinks it is unstable", master);
                     }
                     stableMasterStatus = HealthStatus.YELLOW;
                     summary = String.format(
@@ -106,32 +119,9 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                         details.put("current_master", new DiscoveryNodeXContentObject(localMasterHistory.getCurrentMaster()));
                     }
                 } else {
-                    logger.trace(
-                        String.format(
-                            Locale.ROOT,
-                            "This node thinks the master is unstable, but the master node %s thinks it is stable",
-                            master
-                        )
-                    );
+                    logger.trace("This node thinks the master is unstable, but the master node {} thinks it is stable", master);
                     stableMasterStatus = HealthStatus.GREEN;
                     summary = "The cluster has a stable master node";
-                }
-            } else if (masterChanges > 3) {
-                logger.trace("Have seen {} master changes in the last 30 minutes", masterChanges);
-                stableMasterStatus = HealthStatus.YELLOW;
-                summary = String.format(Locale.ROOT, "The master has changed %d times in the last 30 minutes", masterChanges);
-                impacts.add(
-                    new HealthIndicatorImpact(
-                        3,
-                        "The cluster currently has a master node, but having multiple master node changes in a short time is an indicator "
-                            + "that the cluster is at risk of of not being able to create, delete, or rebalance indices",
-                        List.of(ImpactArea.INGEST)
-                    )
-                );
-                if (includeDetails) {
-                    List<DiscoveryNode> mastersInLast30Minutes = localMasterHistory.getImmutableView();
-                    details.put("current_master", new DiscoveryNodeXContentObject(localMasterHistory.getCurrentMaster()));
-                    details.put("recent_masters", mastersInLast30Minutes.stream().map(DiscoveryNodeXContentObject::new).toList());
                 }
             } else {
                 logger.trace("The cluster has a stable master node");
@@ -139,7 +129,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                 summary = "The cluster has a stable master node";
             }
         } else {
-            stableMasterStatus = HealthStatus.GREEN;
+            stableMasterStatus = HealthStatus.RED;
             summary = "Placeholder summary";
         }
 
@@ -151,11 +141,15 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         );
     }
 
-    private long getNumberOfMasterChanges(MasterHistory localMasterHistory) {
+    long getNumberOfMasterChanges(MasterHistory localMasterHistory) {
+        return getNumberOfMasterChanges(localMasterHistory.getImmutableView());
+    }
+
+    private long getNumberOfMasterChanges(List<DiscoveryNode> masterHistory) {
         /*
          * We want to count all of the transitions to non-null master nodes after the first non-null master node.
          */
-        return localMasterHistory.getImmutableView().stream().filter(Objects::nonNull).count() - 1;
+        return Math.max(0, masterHistory.stream().filter(Objects::nonNull).count() - 1);
     }
 
     private boolean hasSeenMasterInLast30Seconds() {

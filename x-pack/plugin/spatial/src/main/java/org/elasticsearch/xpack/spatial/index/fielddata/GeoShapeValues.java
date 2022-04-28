@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.spatial.index.fielddata;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
@@ -105,6 +106,15 @@ public abstract class GeoShapeValues {
 
         public BoundingBox boundingBox() {
             return boundingBox;
+        }
+
+        public GeoPoint labelPosition() throws IOException {
+            double x = CoordinateEncoder.GEO.decodeX(reader.getCentroidX());
+            double y = CoordinateEncoder.GEO.decodeY(reader.getCentroidY());
+            GeoPoint centroid = new GeoPoint(y, x);
+            LabelPositionVisitor visitor = new LabelPositionVisitor(centroid, CoordinateEncoder.GEO);
+            reader.visit(visitor);
+            return visitor.labelPosition();
         }
 
         public GeoRelation relate(Rectangle rectangle) throws IOException {

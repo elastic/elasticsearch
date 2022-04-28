@@ -12,7 +12,10 @@ import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.common.geo.Orientation;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Line;
 import org.elasticsearch.geometry.LinearRing;
+import org.elasticsearch.geometry.MultiPoint;
+import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -32,6 +35,7 @@ import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -160,15 +164,50 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
                 return true;
             }
         }, () -> GeometryTestUtils.randomGeometry(false));
-        doTestGeometry(geometry);
+        doTestGeometry(geometry, null);
+        //TODO this failed sometimes, eg. with random seed=11715FCF8E38A3B7, F2B60810A53B2CCC, B3EF41D2CA5B914F
     }
 
     public void testPolygonDateline() throws Exception {
         Geometry geometry = new Polygon(new LinearRing(new double[] { 170, 190, 190, 170, 170 }, new double[] { -5, -5, 5, 5, -5 }));
-        doTestGeometry(geometry);
+        doTestGeometry(geometry, GeoTestUtils.geoShapeValue(new Point(180, 0)));
     }
 
-    private void doTestGeometry(Geometry geometry) throws IOException {
+    private MultiPoint pointsFromLine(Line line) {
+        ArrayList<Point> points = new ArrayList<>();
+        for (int i = 0; i < line.length(); i++) {
+            double x = line.getX(i);
+            double y = line.getY(i);
+            points.add(new Point(x, y));
+        }
+        return new MultiPoint(points);
+    }
+
+    public void testEvenLineString() throws Exception {
+        Line line = new Line(new double[] { -5, -1, 0, 1, 5 }, new double[] { 0, 0, 0, 0, 0 });
+        doTestGeometry(line, GeoTestUtils.geoShapeValue(new Point(-0.5, 0)));
+        doTestGeometry(pointsFromLine(line), GeoTestUtils.geoShapeValue(new Point(0, 0)));
+    }
+
+    public void testOddLineString() throws Exception {
+        Line line = new Line(new double[] { -5, -1, 1, 5 }, new double[] { 0, 0, 0, 0 });
+        doTestGeometry(line, GeoTestUtils.geoShapeValue(new Point(0, 0)));
+        doTestGeometry(pointsFromLine(line), GeoTestUtils.geoShapeValue(new Point(-1, 0)));
+    }
+
+    public void testUnbalancedEvenLineString() throws Exception {
+        Line line = new Line(new double[] { -5, -4, -3, -2, -1, 0, 5 }, new double[] { 0, 0, 0, 0, 0, 0, 0 });
+        doTestGeometry(line, GeoTestUtils.geoShapeValue(new Point(-2.5, 0)));
+        doTestGeometry(pointsFromLine(line), GeoTestUtils.geoShapeValue(new Point(-2, 0)));
+    }
+
+    public void testUnbalancedOddLineString() throws Exception {
+        Line line = new Line(new double[] { -5, -4, -3, -2, -1, 5 }, new double[] { 0, 0, 0, 0, 0, 0 });
+        doTestGeometry(line, GeoTestUtils.geoShapeValue(new Point(-2.5, 0)));
+        doTestGeometry(pointsFromLine(line), GeoTestUtils.geoShapeValue(new Point(-3, 0)));
+    }
+
+    private void doTestGeometry(Geometry geometry, GeoShapeValues.GeoShapeValue expectedLabelPosition) throws IOException {
         client().prepareIndex("test")
             .setId("1")
             .setSource(
@@ -195,9 +234,12 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
         assertThat(fields.get("lon").getValue(), equalTo(value.lon()));
         assertThat(fields.get("height").getValue(), equalTo(value.boundingBox().maxY() - value.boundingBox().minY()));
         assertThat(fields.get("width").getValue(), equalTo(value.boundingBox().maxX() - value.boundingBox().minX()));
-        // TODO: get geometry label values for test, currently passing only because label is at centroid, which will change
-        assertThat(fields.get("label_lat").getValue(), equalTo(value.lat()));
-        assertThat(fields.get("label_lon").getValue(), equalTo(value.lon()));
+        if (expectedLabelPosition == null) {
+            // Use the centroid as the label position unless the test specifies otherwise
+            expectedLabelPosition = value;
+        }
+        assertEquals("Unexpected latitude for label position,", expectedLabelPosition.lat(), fields.get("label_lat").getValue(), 0.0000001);
+        assertEquals("Unexpected longitude for label position,", expectedLabelPosition.lon(), fields.get("label_lon").getValue(), 0.0000001);
     }
 
     public void testNullShape() throws Exception {

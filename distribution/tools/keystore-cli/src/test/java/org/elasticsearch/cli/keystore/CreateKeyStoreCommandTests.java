@@ -95,12 +95,15 @@ public class CreateKeyStoreCommandTests extends KeyStoreCommandTestCase {
         execute();
         assertArrayEquals(content, Files.readAllBytes(keystoreFile));
 
-        terminal.addTextInput("y"); // overwrite
+        terminal.reset();
         // Sometimes (rarely) test with explicit empty password
         final boolean withPassword = password.length() > 0 || rarely();
         if (withPassword) {
             terminal.addSecretInput(password);
             terminal.addSecretInput(password);
+        }
+        terminal.addTextInput("y"); // overwrite
+        if (withPassword) {
             execute(randomFrom("-p", "--password"));
         } else {
             execute();

@@ -10,13 +10,14 @@ package org.elasticsearch.cli;
 
 import org.elasticsearch.core.Nullable;
 
-import java.io.BufferedReader;
 import java.io.Console;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.io.Reader;
+import java.nio.charset.Charset;
 import java.util.Arrays;
 import java.util.Locale;
 
@@ -32,7 +33,7 @@ import java.util.Locale;
 */
 public abstract class Terminal {
 
-    /** Writer to standard error - not supplied by the {@link Console} API, so we share with subclasses */
+    // Writer to standard error - not supplied by the {@link Console} API, so we share with subclasses
     private static final PrintWriter ERROR_WRITER = newErrorWriter();
 
     /** The default terminal implementation, which will be a console if available, or stdout/stderr if not. */
@@ -50,67 +51,83 @@ public abstract class Terminal {
         VERBOSE /* printed only when cli is passed verbose option */
     }
 
-    /** The current verbosity for the terminal, defaulting to {@link Verbosity#NORMAL}. */
+    private final Reader reader;
+    private final PrintWriter outWriter;
+    private final PrintWriter errWriter;
     private Verbosity currentVerbosity = Verbosity.NORMAL;
 
-    private final BufferedReader reader;
-
-    private final PrintWriter outWriter;
-
-    private final PrintWriter errWriter;
-
-    /** The newline used when calling println. */
-    private final String lineSeparator;
-
-    protected Terminal(Reader reader, PrintWriter outWriter, PrintWriter errWriter, String lineSeparator) {
-        this.reader = reader == null ? null : new BufferedReader(reader);
+    /**
+     * Constructs a terminal instance.
+     *
+     * @param reader A character-based reader over the input of this terminal
+     * @param outWriter A character-based writer for the output of this terminal
+     * @param errWriter A character-based writer for the error stream of this terminal
+     */
+    protected Terminal(Reader reader, PrintWriter outWriter, PrintWriter errWriter) {
+        this.reader = reader;
         this.outWriter = outWriter;
         this.errWriter = errWriter;
-        this.lineSeparator = lineSeparator;
     }
 
-    /** Sets the verbosity of the terminal. */
+    /**
+     * Sets the verbosity of the terminal.
+     *
+     * <p> Defaults to {@link Verbosity#NORMAL}.
+     */
     public void setVerbosity(Verbosity verbosity) {
         this.currentVerbosity = verbosity;
     }
 
+    private char[] read(String prompt) {
+        errWriter.print(prompt); // prompts should go to standard error to avoid mixing with list output
+        final char[] line = readLineToCharArray(reader);
+        if (line == null) {
+            throw new IllegalStateException("unable to read from standard input; is standard input open and a tty attached?");
+        }
+        return line;
+    }
+
     /** Reads clear text from the terminal input. See {@link Console#readLine()}. */
     public String readText(String prompt) {
-        errWriter.print(prompt); // prompts should go to standard error to avoid mixing with list output
-        try {
-            final String line = reader.readLine();
-            if (line == null) {
-                throw new IllegalStateException("unable to read from standard input; is standard input open and a tty attached?");
-            }
-            return line;
-        } catch (IOException ioe) {
-            throw new RuntimeException(ioe);
-        }
+        return new String(read(prompt));
     }
 
     /** Reads password text from the terminal input. See {@link Console#readPassword()}}. */
     public char[] readSecret(String prompt) {
-        return readText(prompt).toCharArray();
-    }
-
-    /** Returns the separate used for a new line when writing to either output or error writers. */
-    public String getLineSeparator() {
-        return lineSeparator;
+        return read(prompt);
     }
 
     /** Returns a Writer which can be used to write to the terminal directly using standard output. */
-    public PrintWriter getWriter() {
+    public final PrintWriter getWriter() {
         return outWriter;
     }
 
     /** Returns a Writer which can be used to write to the terminal directly using standard error. */
-    public PrintWriter getErrorWriter() {
+    public final PrintWriter getErrorWriter() {
         return errWriter;
     }
 
-    /** Returns an OutputStream for writing bytes directly, or null if not supported */
+    /**
+     * Returns an InputStream which can be used to read from the terminal directly using standard input.
+     *
+     * <p> May return {@code null} if this Terminal is not capable of binary input.
+     * This corresponds with the underlying stream of bytes read by {@link #reader}.
+     */
     @Nullable
-    public abstract OutputStream getOutputStream();
+    public InputStream getInputStream() {
+        return null;
+    }
+
+    /**
+     * Returns an OutputStream which can be used to write to the terminal directly using standard output.
+     *
+     * <p> May return {@code null} if this Terminal is not capable of binary output.
+     * This corresponds with the underlying stream of bytes written to by {@link #getWriter()}.
+      */
+    @Nullable
+    public OutputStream getOutputStream() {
+        return null;
+    }
 
     /** Prints a line to the terminal at {@link Verbosity#NORMAL} verbosity level. */
     public final void println(CharSequence msg) {
@@ -119,26 +136,33 @@ public abstract class Terminal {
 
     /** Prints a line to the terminal at {@code verbosity} level. */
     public final void println(Verbosity verbosity, CharSequence msg) {
-        print(verbosity, msg + lineSeparator);
+        print(verbosity, outWriter, msg, true);
     }
 
     /** Prints message to the terminal's standard output at {@code verbosity} level, without a newline. */
     public final void print(Verbosity verbosity, String msg) {
-        print(verbosity, msg, false);
+        print(verbosity, outWriter, msg, false);
     }
 
-    /** Prints message to the terminal at {@code verbosity} level, without a newline. */
-    protected void print(Verbosity verbosity, String msg, boolean isError) {
+    /**
+     * Prints message to the terminal at {@code verbosity} level.
+     *
+     * Subclasses may override if the writers are not implemented.
+     */
+    protected void print(Verbosity verbosity, PrintWriter writer, CharSequence msg, boolean newline) {
         if (isPrintable(verbosity)) {
-            PrintWriter writer = isError ? getErrorWriter() : getWriter();
-            writer.print(msg);
+            if (newline) {
+                writer.println(msg);
+            } else {
+                writer.print(msg);
+            }
             writer.flush();
         }
     }
 
     /** Prints a line to the terminal's standard error at {@link Verbosity#NORMAL} verbosity level, without a newline. */
     public final void errorPrint(Verbosity verbosity, String msg) {
-        print(verbosity, msg, true);
+        print(verbosity, errWriter, msg, false);
     }
 
     /** Prints a line to the terminal's standard error at {@link Verbosity#NORMAL} verbosity level. */
@@ -148,7 +172,7 @@ public abstract class Terminal {
 
     /** Prints a line to the terminal's standard error at {@code verbosity} level. */
     public final void errorPrintln(Verbosity verbosity, String msg) {
-        errorPrint(verbosity, msg + lineSeparator);
+        print(verbosity, errWriter, msg, true);
     }
 
     /** Checks if is enough {@code verbosity} level to be printed */
@@ -201,6 +225,9 @@ public abstract class Terminal {
                 }
                 buf[len++] = nextChar;
             }
+            if (len == 0 && next == -1) {
+                return null;
+            }
 
             if (len > 0 && len < buf.length && buf[len - 1] == '\r') {
                 len--;
@@ -214,7 +241,10 @@ public abstract class Terminal {
         }
     }
 
-    public void flush() {
+    /**
+     * Flush the outputs of this terminal.
+     */
+    public final void flush() {
         outWriter.flush();
         errWriter.flush();
     }
@@ -234,16 +264,11 @@ public abstract class Terminal {
         private static final Console CONSOLE = System.console();
 
         ConsoleTerminal() {
-            super(CONSOLE.reader(), CONSOLE.writer(), ERROR_WRITER, System.lineSeparator());
+            super(CONSOLE.reader(), CONSOLE.writer(), ERROR_WRITER);
         }
 
         static boolean isSupported() {
             return CONSOLE != null;
-        }
-
-        @Override
-        public OutputStream getOutputStream() {
-            return null;
         }
 
         @Override
@@ -258,26 +283,27 @@ public abstract class Terminal {
     }
 
     /** visible for testing */
+    @SuppressForbidden(reason = "Access streams for construction")
     static class SystemTerminal extends Terminal {
-
         SystemTerminal() {
-            super(newReader(), newWriter(), ERROR_WRITER, System.lineSeparator());
+            super(
+                // TODO: InputStreamReader can advance stdin past what it decodes. We need a way to buffer this and put it back
+                // at the end of each character based read, so that switching to using getInputStream() returns binary data
+                // right after the last character based input (newline)
+                new InputStreamReader(System.in, Charset.defaultCharset()),
+                new PrintWriter(System.out),
+                ERROR_WRITER
+            );
         }
 
-        @SuppressForbidden(reason = "Writing to System.out")
+        @Override
+        public InputStream getInputStream() {
+            return System.in;
+        }
+
         @Override
         public OutputStream getOutputStream() {
             return System.out;
-        }
-
-        @SuppressForbidden(reason = "Reader for System.in")
-        private static Reader newReader() {
-            return new InputStreamReader(System.in);
-        }
-
-        @SuppressForbidden(reason = "Writer for System.out")
-        private static PrintWriter newWriter() {
-            return new PrintWriter(System.out);
         }
     }
 }

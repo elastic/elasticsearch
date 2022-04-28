@@ -41,14 +41,14 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.internal.io.IOUtils;
-import org.elasticsearch.core.internal.net.NetUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.http.AbstractHttpServerTransport;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpHandlingSettings;
 import org.elasticsearch.http.HttpReadTimeoutException;
 import org.elasticsearch.http.HttpServerChannel;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.netty4.NetUtils;
 import org.elasticsearch.transport.netty4.Netty4Utils;
 import org.elasticsearch.transport.netty4.Netty4WriteThrottlingHandler;
 import org.elasticsearch.transport.netty4.NettyAllocator;
@@ -304,7 +304,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         protected void initChannel(Channel ch) throws Exception {
             Netty4HttpChannel nettyHttpChannel = new Netty4HttpChannel(ch);
             ch.attr(HTTP_CHANNEL_KEY).set(nettyHttpChannel);
-            ch.pipeline().addLast("chunked_writer", new Netty4WriteThrottlingHandler());
+            ch.pipeline().addLast("chunked_writer", new Netty4WriteThrottlingHandler(transport.getThreadPool().getThreadContext()));
             ch.pipeline().addLast("byte_buf_sizer", NettyByteBufSizer.INSTANCE);
             ch.pipeline().addLast("read_timeout", new ReadTimeoutHandler(transport.readTimeoutMillis, TimeUnit.MILLISECONDS));
             final HttpRequestDecoder decoder = new HttpRequestDecoder(

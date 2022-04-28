@@ -12,7 +12,6 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.SearchOperationListener;
-import org.elasticsearch.logging.bootstrap.LogMessageUtil;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.ToXContent;
@@ -23,6 +22,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public final class SearchSlowLog implements SearchOperationListener {
@@ -157,6 +157,15 @@ public final class SearchSlowLog implements SearchOperationListener {
         }
     }
 
+    public static String asJsonArray(Stream<String> stream) {
+        return "[" + stream.map(SearchSlowLog::inQuotes).collect(Collectors.joining(", ")) + "]";
+    }
+
+    public static String inQuotes(String s) {
+        if (s == null) return inQuotes("");
+        return "\"" + s + "\"";
+    }
+
     static final class SearchSlowLogMessage {
 
         // TODO PG cleanup
@@ -177,7 +186,7 @@ public final class SearchSlowLog implements SearchOperationListener {
             }
             messageFields.put(
                 "elasticsearch.slowlog.stats",
-                escapeJson(LogMessageUtil.asJsonArray(context.groupStats() != null ? context.groupStats().stream() : Stream.empty()))
+                escapeJson(asJsonArray(context.groupStats() != null ? context.groupStats().stream() : Stream.empty()))
             );
             messageFields.put("elasticsearch.slowlog.search_type", context.searchType());
             messageFields.put("elasticsearch.slowlog.total_shards", context.numberOfShards());

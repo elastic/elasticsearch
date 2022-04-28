@@ -47,7 +47,7 @@ public final class LoggerImpl implements org.elasticsearch.logging.Logger {
 
     @Override
     public void log(Level level, Supplier<?> msgSupplier, Throwable thrown) {
-        log4jLogger.log(log4jLevel(level), msgSupplier.get(), thrown);
+        log4jLogger.log(log4jLevel(level), msgSupplier, thrown); // TODO PG this should be used later..
     }
 
     public Level getLevel() {

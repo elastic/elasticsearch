@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.logging.bootstrap;
+package org.elasticsearch.bootstrap.plugins;
 
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.logging.Level;
@@ -16,7 +16,7 @@ import org.elasticsearch.logging.Logger;
 import java.io.OutputStream;
 import java.io.PrintWriter;
 
-// TODO PG move to server?
+// TODO PG move to server or logging lib?
 public final class LoggerTerminal extends Terminal {
     private final Logger logger;
 

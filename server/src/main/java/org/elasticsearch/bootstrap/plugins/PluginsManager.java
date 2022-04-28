@@ -10,7 +10,6 @@ package org.elasticsearch.bootstrap.plugins;
 
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.logging.bootstrap.LoggerTerminal;
 import org.elasticsearch.plugins.PluginsSynchronizer;
 
 import java.io.IOException;

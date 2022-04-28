@@ -29,6 +29,29 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Stream;
 
+/**
+ * Map Reducer that implements the eclat algorithm, see
+ *
+ * Zaki et.al. 1997 New Algorithms for Fast Discovery of Association Rules KDD'97, 283-296
+ * Christian Borgelt 2003 Efficient Implementations of Apriori and Eclat FIMI 2003
+ *
+ * Eclat is a successor of the well known apriori algorithm, in contrast to apriori eclat
+ * mines for item sets depth first instead of breath first. The main advantage is the lower
+ * memory requirements. Depth-first only requires state with a small footprint in contrast to
+ * a depth first approach which has to remember tons of sets in parallel.
+ *
+ * The implementation contains several adjustments and enhancements:
+ *
+ *  - top-N retrieval via the `size` parameter, this has a significant influence on runtime
+ *  - multi field support, the classic apriori has only a bag of items of the same kind
+ *  - mapping and merging results per shard
+ *
+ * Algorithmic differences:
+ *
+ *  - pruning/rewriting of items/transaction prior mining
+ *  - a fixed size bitvector to speed up traversal for known branches (C. Borgelt uses a similar technique)
+ *  - adaptive pruning based on a changing minimum support (for top-N retrieval)
+ */
 public class EclatMapReducer implements MapReducer {
     private static final Logger logger = LogManager.getLogger(EclatMapReducer.class);
 
@@ -36,8 +59,8 @@ public class EclatMapReducer implements MapReducer {
     public static final String NAME = "frequent_items-eclat-" + VERSION;
 
     // cache for marking transactions visited, memory usage: ((BITSET_CACHE_TRAVERSAL_DEPTH -2) * BITSET_CACHE_NUMBER_OF_TRANSACTIONS) / 8
-    private static final int MAX_BITSET_CACHE_NUMBER_OF_TRANSACTIONS = 65536; // 256;
-    private static final int BITSET_CACHE_TRAVERSAL_DEPTH = 20; // 12;
+    private static final int MAX_BITSET_CACHE_NUMBER_OF_TRANSACTIONS = 65536;
+    private static final int BITSET_CACHE_TRAVERSAL_DEPTH = 20;
 
     private final String aggregationWritableName;
 
@@ -46,8 +69,8 @@ public class EclatMapReducer implements MapReducer {
     private final int size;
 
     private Iterable<FrequentItemSetCollector.FrequentItemSet> frequentSets = null;
-
     private TransactionStore transactionStore;
+    private long eclatRuntimeNanos = 0;
 
     public EclatMapReducer(String aggregationWritableName, double minimumSupport, int minimumSetSize, int size) {
         this.aggregationWritableName = aggregationWritableName;
@@ -142,6 +165,14 @@ public class EclatMapReducer implements MapReducer {
 
         if (params != null && params.paramAsBoolean(SearchProfileResults.PROFILE_FIELD, false)) {
             builder.startObject("profile");
+
+            // some useful data
+            builder.field("total_items", transactionStore.getTotalItemCount());
+            builder.field("total_transactions", transactionStore.getTotalTransactionCount());
+            builder.field("unique_items", transactionStore.getUniqueItemsCount());
+            builder.field("eclat_runtime_ms", TimeUnit.NANOSECONDS.toMillis(this.eclatRuntimeNanos));
+
+            // items
             builder.startArray("items");
 
             TopItemIds topIds = null;
@@ -156,7 +187,6 @@ public class EclatMapReducer implements MapReducer {
                     builder.field(CommonFields.DOC_COUNT.getPreferredName(), transactionStore.getItemCount(id));
                     builder.endObject();
                 }
-
             } finally {
                 Releasables.close(topIds);
             }
@@ -171,7 +201,7 @@ public class EclatMapReducer implements MapReducer {
         final long relativeStartNanos = System.nanoTime();
         final long totalTransactionCount = transactionStore.getTotalTransactionCount();
 
-        TopItemIds topIds = null;
+        ItemSetTraverser topItemSetTraverser = null;
         TopTransactionIds topTransactionIds = null;
         long minCount = (long) (totalTransactionCount * minimumSupport);
         FrequentItemSetCollector collector = new FrequentItemSetCollector(transactionStore, size, minCount);
@@ -183,38 +213,31 @@ public class EclatMapReducer implements MapReducer {
         BitSet transactionSkipList = new FixedBitSet((BITSET_CACHE_TRAVERSAL_DEPTH - 1) * cacheNumberOfTransactions);
 
         try {
-            // top items
-            topIds = transactionStore.getTopItemIds();
-
-            // top transactions
+            // get the releasables
             topTransactionIds = transactionStore.getTopTransactionIds();
+            topItemSetTraverser = transactionStore.getTopItemIdTraverser();
 
             long previousOccurences = 0;
             long occurences = 0;
             int depth = 0;
             int transactionNumber = 0;
 
-            logger.info(
+            logger.trace(
                 "total transaction count {}, min count: {}, total items: {}",
                 totalTransactionCount,
                 minCount,
                 transactionStore.getTotalItemCount()
             );
-            logger.info("start iteration has {} items", topIds.size());
 
-            // TODO: who owns topIds?
-            ItemSetTraverser it = new ItemSetTraverser(topIds);
-
-            // DEBUG, to be removed
-            long oldMinCount = 0;
-            while (it.next()) {
+            long previousMinCount = 0;
+            while (topItemSetTraverser.next()) {
                 // remember count only if we move down the tree, not up
-                previousOccurences = it.getDepth() > depth ? occurences : 0;
-                depth = it.getDepth();
+                previousOccurences = topItemSetTraverser.getDepth() > depth ? occurences : 0;
+                depth = topItemSetTraverser.getDepth();
 
                 // at the 1st level, we can take the count directly from the transaction store
                 if (depth == 1) {
-                    occurences = transactionStore.getItemCount(it.getItemId());
+                    occurences = transactionStore.getItemCount(topItemSetTraverser.getItemId());
 
                     // till a certain depth store results in a cache matrix
                 } else if (depth < BITSET_CACHE_TRAVERSAL_DEPTH) {
@@ -243,7 +266,7 @@ public class EclatMapReducer implements MapReducer {
 
                         long transactionCount = transactionStore.getTransactionCount(transactionId);
 
-                        if (transactionStore.transactionContainAllIds(it.getItemSet(), transactionId)) {
+                        if (transactionStore.transactionContainAllIds(topItemSetTraverser.getItemSet(), transactionId)) {
                             occurences += transactionCount;
                         } else if (transactionNumber < cacheNumberOfTransactions) {
                             // put this transaction to the skip list
@@ -254,7 +277,6 @@ public class EclatMapReducer implements MapReducer {
                         maxReachableTransactionCount -= transactionCount;
                         // exit early if min support can't be reached
                         if (maxReachableTransactionCount + occurences < minCount) {
-                            // logger.info("quit early {} {}", countDown, occurences);
                             break;
                         }
 
@@ -285,7 +307,7 @@ public class EclatMapReducer implements MapReducer {
 
                         long transactionCount = transactionStore.getTransactionCount(transactionId);
 
-                        if (transactionStore.transactionContainAllIds(it.getItemSet(), transactionId)) {
+                        if (transactionStore.transactionContainAllIds(topItemSetTraverser.getItemSet(), transactionId)) {
                             occurences += transactionCount;
                         }
 
@@ -299,37 +321,35 @@ public class EclatMapReducer implements MapReducer {
                         transactionNumber++;
                     }
                 }
-                // logger.info("current item set: {}, occ: {}", Strings.collectionToDelimitedString(it.getItemSet(), ","), occurences);
 
+                // stop exploring the current branch if we fall below minCount
                 if (occurences < minCount) {
-                    it.prune();
-                    // logger.info("prune");
-                    if (previousOccurences > minCount && it.getItemSet().size() >= minimumSetSize) {
-                        minCount = collector.add(it.getItemSet(), previousOccurences);
+                    topItemSetTraverser.prune();
+                    if (previousOccurences > minCount && topItemSetTraverser.getItemSet().size() >= minimumSetSize) {
+                        minCount = collector.add(topItemSetTraverser.getItemSet(), previousOccurences);
                     }
                     continue;
                 }
 
                 // if the previous set has a higher count, add it to closed sets
-                if (it.getItemSet().size() > minimumSetSize && occurences < previousOccurences) {
+                if (topItemSetTraverser.getItemSet().size() > minimumSetSize && occurences < previousOccurences) {
                     // add the set without the last item
-                    minCount = collector.add(it.getItemSet().subList(0, depth - 1), previousOccurences);
+                    minCount = collector.add(topItemSetTraverser.getItemSet().subList(0, depth - 1), previousOccurences);
                 }
 
                 // if we reached a leaf, we can not extend the itemset further and return the result
-                if (it.hasNext() == false && it.getItemSet().size() >= minimumSetSize) {
-                    minCount = collector.add(it.getItemSet(), occurences);
+                if (topItemSetTraverser.hasNext() == false && topItemSetTraverser.getItemSet().size() >= minimumSetSize) {
+                    minCount = collector.add(topItemSetTraverser.getItemSet(), occurences);
                 }
 
-                // DEBUG: to be removed
-                if (oldMinCount != minCount) {
-                    oldMinCount = minCount;
-                    logger.info("min count is now {}", minCount);
+                if (previousMinCount != minCount) {
+                    previousMinCount = minCount;
+                    logger.trace("adjusting min count to {}", minCount);
                 }
             }
 
         } finally {
-            Releasables.close(topIds, topTransactionIds);
+            Releasables.close(topItemSetTraverser, topTransactionIds);
         }
 
         // the collector queue is implemented as heap and its iterator returns an unordered set,
@@ -341,10 +361,8 @@ public class EclatMapReducer implements MapReducer {
         this.frequentSets = Arrays.asList(topFrequentItems);
 
         // TODO: we could get rid of the transactions at this point, but we still need the items
-
         final long relativeEndNanos = System.nanoTime();
-
-        logger.info("eclat runtime {} ms", TimeUnit.NANOSECONDS.toMillis(relativeEndNanos - relativeStartNanos));
+        eclatRuntimeNanos = relativeEndNanos - relativeStartNanos;
     }
 
 }

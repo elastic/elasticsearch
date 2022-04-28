@@ -24,7 +24,7 @@ import java.util.Stack;
  *
  * With other words: this traverser is only useful if order does not matter ("bag-of-words model").
  */
-public class ItemSetTraverser implements Releasable {
+class ItemSetTraverser implements Releasable {
 
     private final TransactionStore.TopItemIds topItemIds;
 
@@ -34,7 +34,7 @@ public class ItemSetTraverser implements Releasable {
 
     private Stack<Long> itemIdStack = new Stack<>();
 
-    public ItemSetTraverser(TransactionStore.TopItemIds topItemIds) {
+    ItemSetTraverser(TransactionStore.TopItemIds topItemIds) {
         this.topItemIds = topItemIds;
 
         // push the first iterator

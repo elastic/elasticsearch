@@ -676,6 +676,10 @@ public final class TransactionStore implements Writeable, Releasable {
         return new TopItemIds(sortedIds);
     }
 
+    public ItemSetTraverser getTopItemIdTraverser() {
+        return new ItemSetTraverser(getTopItemIds());
+    }
+
     /**
      * Returns a sorted collection of transaction ids
      *

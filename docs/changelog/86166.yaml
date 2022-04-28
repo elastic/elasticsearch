@@ -4,3 +4,18 @@ area: Mapping
 type: feature
 issues:
  - 63530
+highlight:
+  title: Add support for dots in field names for metrics usecases
+  body: "This PR adds support for a new mapping parameter to the configuration of\n\
+    the object mapper (root as well as individual fields), that makes it\npossible\
+    \ to store metrics data where it's common to have fields with\ndots in their names\
+    \ in the following format:\n\n```\n{\n  \"metrics.time\" : 10,\n  \"metrics.time.min\"\
+    \ : 1,\n  \"metrics.time.max\" : 500\n}\n```\n\nInstead of expanding dotted paths\
+    \ the their corresponding object\nstructure, objects can be configured to preserve\
+    \ dots in field names, in\nwhich case they can only hold leaf sub-fields and no\
+    \ further objects.\n\nThe mapping parameter is called `collapsed` and the following\
+    \ example\nshows how it can be configured in the mappings:\n\n```\n{\n  \"mappings\"\
+    \ : {\n    \"properties\" : {\n      \"metrics\" : {\n        \"type\" : \"object\"\
+    , \n        \"collapsed\" : true\n      }\n    }\n  }\n}\n```\n\nNOTE: naming\
+    \ yet to be finalized\n\nCloses #63530"
+  notable: true

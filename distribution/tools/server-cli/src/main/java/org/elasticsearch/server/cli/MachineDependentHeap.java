@@ -8,9 +8,8 @@
 
 package org.elasticsearch.server.cli;
 
-import org.yaml.snakeyaml.Yaml;
-import org.yaml.snakeyaml.constructor.SafeConstructor;
-import org.yaml.snakeyaml.error.YAMLException;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.yaml.YamlXContent;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -86,16 +85,16 @@ public final class MachineDependentHeap {
 
         @SuppressWarnings("unchecked")
         public static MachineNodeRole parse(InputStream config) {
-            Yaml yaml = new Yaml(new SafeConstructor());
             Map<String, Object> root;
             try {
-                root = yaml.load(config);
-            } catch (YAMLException | ClassCastException ex) {
+                var parser = YamlXContent.yamlXContent.createParser(XContentParserConfiguration.EMPTY, config);
+                root = parser.map();
+            } catch (IOException | ClassCastException ex) {
                 // Strangely formatted config, so just return defaults and let startup settings validation catch the problem
                 return MachineNodeRole.UNKNOWN;
             }
 
-            if (root != null) {
+            if (root.isEmpty() == false) {
                 Map<String, Object> map = flatten(root, null);
                 List<String> roles = null;
                 try {

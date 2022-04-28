@@ -81,9 +81,6 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     private final boolean replicated;
     private final boolean system;
     private final boolean allowCustomRouting;
-    // This boolean field is for keeping track of whether a data stream is a tsdb data stream.
-    // This will be set to true if at the time of creation the template of the data stream had `index.routing_value` index setting and
-    // mapping with keyword fields with time_series_dimension enabled.
     private final IndexMode indexMode;
 
     public DataStream(
@@ -271,26 +268,26 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * Performs a rollover on a {@code DataStream} instance and returns a new instance containing
      * the updated list of backing indices and incremented generation.
      *
-     * @param writeIndex            new write index
-     * @param generation            new generation
-     * @param isTsdbTemplate the index mode as is defined in the template that created this data stream
+     * @param writeIndex    new write index
+     * @param generation    new generation
+     * @param timeSeries    whether the template that created this data stream is in time series mode
      *
      * @return new {@code DataStream} instance with the rollover operation applied
      */
-    public DataStream rollover(Index writeIndex, long generation, boolean isTsdbTemplate) {
+    public DataStream rollover(Index writeIndex, long generation, boolean timeSeries) {
         ensureNotReplicated();
 
-        return unsafeRollover(writeIndex, generation, isTsdbTemplate);
+        return unsafeRollover(writeIndex, generation, timeSeries);
     }
 
     /**
      * Like {@link #rollover(Index, long, boolean)}, but does no validation, use with care only.
      */
-    public DataStream unsafeRollover(Index writeIndex, long generation, boolean isTsdbTemplate) {
+    public DataStream unsafeRollover(Index writeIndex, long generation, boolean timeSeries) {
         IndexMode indexMode = this.indexMode;
         // This allows for migrating a data stream to be a tsdb data stream:
         // (only if index_mode=null|standard then allow it to be set to time_series)
-        if ((indexMode == null || indexMode == IndexMode.STANDARD) && isTsdbTemplate) {
+        if ((indexMode == null || indexMode == IndexMode.STANDARD) && timeSeries) {
             indexMode = IndexMode.TIME_SERIES;
         }
 

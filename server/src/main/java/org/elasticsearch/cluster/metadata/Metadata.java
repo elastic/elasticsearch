@@ -896,7 +896,7 @@ public class Metadata extends AbstractCollection<IndexMetadata> implements Diffa
             .orElse(Collections.emptyMap());
     }
 
-    public boolean isTsdbTemplate(ComposableIndexTemplate indexTemplate) {
+    public boolean isTimeSeriesTemplate(ComposableIndexTemplate indexTemplate) {
         var template = indexTemplate.template();
         if (indexTemplate.getDataStreamTemplate() == null || template == null) {
             return false;

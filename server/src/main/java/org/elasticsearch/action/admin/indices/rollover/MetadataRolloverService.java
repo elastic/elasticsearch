@@ -279,7 +279,7 @@ public class MetadataRolloverService {
             createIndexClusterStateRequest,
             silent,
             (builder, indexMetadata) -> builder.put(
-                ds.rollover(indexMetadata.getIndex(), newGeneration, metadata.isTsdbTemplate(templateV2))
+                ds.rollover(indexMetadata.getIndex(), newGeneration, metadata.isTimeSeriesTemplate(templateV2))
             )
         );
 

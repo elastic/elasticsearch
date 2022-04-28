@@ -638,7 +638,7 @@ public class MetadataIndexTemplateService {
                 provider.getAdditionalIndexSettings(
                     "validate-index-name",
                     indexTemplate.getDataStreamTemplate() != null ? "validate-data-stream-name" : null,
-                    indexTemplate.getDataStreamTemplate() != null && metadata.isTsdbTemplate(indexTemplate),
+                    indexTemplate.getDataStreamTemplate() != null && metadata.isTimeSeriesTemplate(indexTemplate),
                     currentState.getMetadata(),
                     now,
                     finalTemplate.map(Template::settings).orElse(Settings.EMPTY)
@@ -758,7 +758,7 @@ public class MetadataIndexTemplateService {
             }
             var matchingTemplate = findV2Template(updatedMetadata, dataStream.getName(), false);
             if (templateName.equals(matchingTemplate)) {
-                if (currentMetadata.isTsdbTemplate(newTemplate) == false) {
+                if (currentMetadata.isTimeSeriesTemplate(newTemplate) == false) {
                     if (dataStreamsWithNonTsdbTemplate == null) {
                         dataStreamsWithNonTsdbTemplate = new HashSet<>();
                     }

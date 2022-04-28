@@ -235,7 +235,7 @@ public class DataTier {
         public Settings getAdditionalIndexSettings(
             String indexName,
             String dataStreamName,
-            boolean isTsdbTemplate,
+            boolean timeSeries,
             Metadata metadata,
             Instant resolvedAt,
             Settings allSettings

@@ -1064,17 +1064,16 @@ public class RequestDispatcherTests extends ESAllocationTestCase {
                 }
             }
         }
-        // indices without mapping hash
-        {
-            int oldIndices = randomIntBetween(includeGroupMappingHash ? 0 : 1, 5);
-            for (int i = 0; i < oldIndices; i++) {
-                final String index = "index_" + i;
-                final Settings.Builder settings = Settings.builder()
-                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(minNumberOfShards, 10))
-                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(minNumberOfReplicas, 3))
-                    .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.minimumIndexCompatibilityVersion());
-                metadataBuilder.put(IndexMetadata.builder(index).settings(settings));
-            }
+        // indices with different mappings
+        int oldIndices = randomIntBetween(includeGroupMappingHash ? 0 : 1, 5);
+        for (int i = 0; i < oldIndices; i++) {
+            final String index = "index_" + i;
+            MappingMetadata mapping = new MappingMetadata(MapperService.SINGLE_MAPPING_NAME, Map.of("mapping", index));
+            final Settings.Builder settings = Settings.builder()
+                .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(minNumberOfShards, 10))
+                .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, between(minNumberOfReplicas, 3))
+                .put(IndexMetadata.SETTING_VERSION_CREATED, Version.CURRENT.minimumIndexCompatibilityVersion());
+            metadataBuilder.put(IndexMetadata.builder(index).putMapping(mapping).settings(settings));
         }
 
         Metadata metadata = metadataBuilder.build();

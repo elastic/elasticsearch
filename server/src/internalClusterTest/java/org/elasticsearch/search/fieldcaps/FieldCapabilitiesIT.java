@@ -64,6 +64,7 @@ import java.util.stream.IntStream;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.array;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -369,10 +370,10 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertThat(response.get().get("some_dimension").get("keyword").nonDimensionIndices(), array(equalTo("new_index")));
     }
 
-    public void testFailures() throws InterruptedException {
+    public void testFailures() {
         // in addition to the existing "old_index" and "new_index", create two where the test query throws an error on rewrite
-        assertAcked(prepareCreate("index1-error"));
-        assertAcked(prepareCreate("index2-error"));
+        assertAcked(prepareCreate("index1-error").setMapping("my_field", "type=text"));
+        assertAcked(prepareCreate("index2-error").setMapping("my_field", "type=text"));
         ensureGreen("index1-error", "index2-error");
         FieldCapabilitiesResponse response = client().prepareFieldCaps()
             .setFields("*")
@@ -614,6 +615,51 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
             assertThat(response.getField("field1"), aMapWithSize(2));
             assertThat(response.getField("field1"), hasKey("long"));
             assertThat(response.getField("field1"), hasKey("long"));
+        } finally {
+            for (String node : internalCluster().getNodeNames()) {
+                MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
+                transportService.clearAllRules();
+            }
+        }
+    }
+
+    public void testEmptyIndices() {
+        List<String> indices = IntStream.rangeClosed(1, randomIntBetween(1, 10)).mapToObj(n -> "empty_index_" + n).toList();
+        for (String index : indices) {
+            assertAcked(client().admin().indices().prepareCreate(index));
+        }
+        try {
+            final AtomicInteger receivedRequests = new AtomicInteger();
+            for (String node : internalCluster().getNodeNames()) {
+                MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
+                transportService.addRequestHandlingBehavior(
+                    TransportFieldCapabilitiesAction.ACTION_NODE_NAME,
+                    (handler, request, channel, task) -> {
+                        receivedRequests.incrementAndGet();
+                        handler.messageReceived(request, channel, task);
+                    }
+                );
+            }
+            // Without filter
+            {
+                FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
+                request.indices("empty_index_*");
+                request.fields("*");
+                final FieldCapabilitiesResponse response = client().execute(FieldCapabilitiesAction.INSTANCE, request).actionGet();
+                assertThat(response.getIndices(), arrayContainingInAnyOrder(indices.toArray()));
+                assertThat(response.get(), anEmptyMap());
+            }
+            // With filter
+            {
+                FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
+                request.indices("empty_index_*");
+                request.fields("*");
+                request.indexFilter(QueryBuilders.rangeQuery("timestamp").gte("2020-01-01"));
+                final FieldCapabilitiesResponse response = client().execute(FieldCapabilitiesAction.INSTANCE, request).actionGet();
+                assertThat(response.getIndices(), emptyArray());
+                assertThat(response.get(), anEmptyMap());
+            }
+            assertThat(receivedRequests.get(), equalTo(0));
         } finally {
             for (String node : internalCluster().getNodeNames()) {
                 MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);

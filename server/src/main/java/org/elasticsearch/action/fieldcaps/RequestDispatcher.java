@@ -35,10 +35,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.IdentityHashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -94,7 +94,27 @@ final class RequestDispatcher {
         this.onIndexResponse = onIndexResponse;
         this.onIndexFailure = onIndexFailure;
         this.onComplete = new RunOnce(onComplete);
-        final List<Group> groups = groupIndicesByMappingHash(clusterService, clusterState, withIndexFilter, indices);
+        final Map<String, List<String>> mappingHashToIndices = new HashMap<>();
+        final List<Group> groups = new ArrayList<>(indices.length);
+        for (String index : indices) {
+            final IndexMetadata indexMetadata = clusterState.metadata().index(index);
+            if (indexMetadata == null || indexMetadata.mapping() == null) {
+                if (withIndexFilter == false) {
+                    onIndexResponse.accept(new FieldCapabilitiesIndexResponse(index, null, Map.of(), true));
+                }
+            } else if (withIndexFilter) {
+                final GroupShardsIterator<ShardIterator> shardIts = clusterService.operationRouting()
+                    .searchShards(clusterState, new String[] { index }, null, null);
+                groups.add(new Group(List.of(index), indexMetadata.mapping().getSha256(), shardIts));
+            } else {
+                mappingHashToIndices.computeIfAbsent(indexMetadata.mapping().getSha256(), k -> new ArrayList<>()).add(index);
+            }
+        }
+        for (Map.Entry<String, List<String>> e : mappingHashToIndices.entrySet()) {
+            final GroupShardsIterator<ShardIterator> shardIts = clusterService.operationRouting()
+                .searchShards(clusterState, e.getValue().toArray(String[]::new), null, null);
+            groups.add(new Group(e.getValue(), e.getKey(), shardIts));
+        }
         for (Group group : groups) {
             if (group.nodeToShards.isEmpty()) {
                 for (String index : group.indices) {
@@ -207,13 +227,9 @@ final class RequestDispatcher {
         for (FieldCapabilitiesIndexResponse indexResponse : nodeResponse.getIndexResponses()) {
             if (indexResponse.canMatch()) {
                 final Group group = groups.remove(indexResponse.getIndexName());
-                if (group == null) {
-                    continue;
-                }
-                if (group.completed.compareAndSet(false, true)) {
-                    final String mappingHash = group.mappingHash != null ? group.mappingHash : indexResponse.getIndexMappingHash();
+                if (group != null && group.completed.compareAndSet(false, true)) {
                     for (String index : group.indices) {
-                        onIndexResponse.accept(new FieldCapabilitiesIndexResponse(index, mappingHash, indexResponse.get(), true));
+                        onIndexResponse.accept(new FieldCapabilitiesIndexResponse(index, group.mappingHash, indexResponse.get(), true));
                     }
                 }
             }
@@ -243,35 +259,6 @@ final class RequestDispatcher {
         afterRequestsCompleted();
     }
 
-    private List<Group> groupIndicesByMappingHash(
-        ClusterService clusterService,
-        ClusterState clusterState,
-        boolean withIndexFilter,
-        String[] indices
-    ) {
-        final Map<String, List<String>> withMappingHashes = new HashMap<>();
-        final List<Group> groups = new ArrayList<>();
-        for (String index : indices) {
-            final IndexMetadata indexMetadata = clusterState.metadata().index(index);
-            if (withIndexFilter == false
-                && indexMetadata != null
-                && indexMetadata.mapping() != null
-                && indexMetadata.mapping().getSha256() != null) {
-                withMappingHashes.computeIfAbsent(indexMetadata.mapping().getSha256(), k -> new ArrayList<>()).add(index);
-            } else {
-                final GroupShardsIterator<ShardIterator> shardIts = clusterService.operationRouting()
-                    .searchShards(clusterState, new String[] { index }, null, null);
-                groups.add(new Group(List.of(index), null, shardIts));
-            }
-        }
-        for (Map.Entry<String, List<String>> e : withMappingHashes.entrySet()) {
-            final GroupShardsIterator<ShardIterator> shardIts = clusterService.operationRouting()
-                .searchShards(clusterState, e.getValue().toArray(String[]::new), null, null);
-            groups.add(new Group(e.getValue(), e.getKey(), shardIts));
-        }
-        return groups;
-    }
-
     /**
      * A group of indices that have the same mapping hash
      */
@@ -285,7 +272,7 @@ final class RequestDispatcher {
 
         Group(List<String> indices, String mappingHash, GroupShardsIterator<ShardIterator> shardIts) {
             this.indices = indices;
-            this.mappingHash = mappingHash;
+            this.mappingHash = Objects.requireNonNull(mappingHash);
             for (ShardIterator shardIt : shardIts) {
                 for (ShardRouting shard : shardIt) {
                     nodeToShards.computeIfAbsent(shard.currentNodeId(), node -> new ArrayList<>()).add(shard);

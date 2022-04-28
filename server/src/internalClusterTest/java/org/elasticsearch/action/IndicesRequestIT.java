@@ -157,7 +157,7 @@ public class IndicesRequestIT extends ESIntegTestCase {
             indices.add("test" + i);
         }
         for (String index : indices) {
-            assertAcked(prepareCreate(index).addAlias(new Alias(index + "-alias")));
+            assertAcked(prepareCreate(index).setMapping("my_field", "type=text").addAlias(new Alias(index + "-alias")));
         }
         ensureGreen();
     }

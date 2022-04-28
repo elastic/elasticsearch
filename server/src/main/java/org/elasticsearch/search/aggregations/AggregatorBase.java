@@ -110,32 +110,15 @@ public abstract class AggregatorBase extends Aggregator {
      * doc values.  Generally, this means that the query has no filters or scripts, the aggregation is
      * top level, and the underlying field is indexed, and the index is sorted in the right order.
      *
+     * Also, using the pointReader is acceptable if within a sampling context and all other requirements are satisfied.
+     * But, this means that the numbers gathered from the point reader must not be scaled when gathered within a sampling context.
+     *
      * If those conditions aren't met, return <code>null</code> to indicate a point reader cannot
      * be used in this case.
      *
      * @param config The config for the values source metric.
      */
     public final Function<byte[], Number> pointReaderIfAvailable(ValuesSourceConfig config) {
-        if (topLevelQuery() != null && topLevelQuery().getClass() != MatchAllDocsQuery.class) {
-            return null;
-        }
-        if (parent != null) {
-            return null;
-        }
-        return config.getPointReaderOrNull();
-    }
-
-    /**
-     * The same as {@link AggregatorBase#pointReaderIfAvailable(ValuesSourceConfig)} but allows the point reader
-     * within sampling contexts. The sampler will do its best to skip reading documents and allow aggs to calculate via the point reader.
-     *
-     * This is fine as long as scaling isn't required as combining sampled and non-sampled shards could introduce bias
-     * if scaling is not handled carefully
-     *
-     * @param config The config for the values source metric
-     * @return the point reader
-     */
-    public final Function<byte[], Number> pointReaderIfAvailableAndSamplingScalingNotRequired(ValuesSourceConfig config) {
         if (topLevelQuery() != null && topLevelQuery().getClass() != MatchAllDocsQuery.class) {
             return null;
         }

@@ -14,11 +14,9 @@ import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.N
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
 
 public class PreserveOneAllocationTests extends ESTestCase {
 

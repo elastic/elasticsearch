@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Model;
 import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.Node;
 import org.ojalgo.optimisation.ExpressionsBasedModel;

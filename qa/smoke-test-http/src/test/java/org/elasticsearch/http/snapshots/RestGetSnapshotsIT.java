@@ -93,7 +93,7 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         final boolean includeIndexNames = randomBoolean();
         final List<SnapshotInfo> defaultSorting = clusterAdmin().prepareGetSnapshots(repoName)
             .setOrder(order)
-            .setIndices(includeIndexNames)
+            .setIncludeIndexNames(includeIndexNames)
             .get()
             .getSnapshots();
         assertSnapshotListSorted(defaultSorting, null, order);

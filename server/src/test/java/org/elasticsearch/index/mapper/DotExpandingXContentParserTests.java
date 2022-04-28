@@ -28,10 +28,7 @@ public class DotExpandingXContentParserTests extends ESTestCase {
 
         XContentParser expectedParser = createParser(JsonXContent.jsonXContent, dotsExpanded);
         expectedParser.allowDuplicateKeys(true);
-        XContentParser actualParser = DotExpandingXContentParser.expandDots(
-            createParser(JsonXContent.jsonXContent, withDots),
-            () -> false
-        );
+        XContentParser actualParser = DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, withDots), () -> false);
         XContentParser.Token currentToken;
         while ((currentToken = actualParser.nextToken()) != null) {
             assertEquals(currentToken, expectedParser.nextToken());

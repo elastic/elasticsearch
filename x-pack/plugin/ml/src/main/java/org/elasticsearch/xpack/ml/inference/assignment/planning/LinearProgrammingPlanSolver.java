@@ -124,12 +124,12 @@ class LinearProgrammingPlanSolver {
         Map<Tuple<Model, Node>, Double> weights = new HashMap<>();
         AssignmentPlan.Builder assignmentPlan = AssignmentPlan.builder(nodes, models);
 
-        for (Model m : models.stream().sorted(Comparator.comparingDouble(this::dsafModelOrder)).toList()) {
+        for (Model m : models.stream().sorted(Comparator.comparingDouble(this::descendingSizeAnyFitsModelOrder)).toList()) {
             double lastW;
             do {
                 lastW = w;
                 List<Node> orderedNodes = nodes.stream()
-                    .sorted(Comparator.comparingDouble(n -> dsafNodeOrder(n, m, assignmentPlan)))
+                    .sorted(Comparator.comparingDouble(n -> descendingSizeAnyFitsNodeOrder(n, m, assignmentPlan)))
                     .toList();
                 for (Node n : orderedNodes) {
                     int allocations = Math.min(
@@ -161,11 +161,11 @@ class LinearProgrammingPlanSolver {
         return Tuple.tuple(weights, binPackingPlan);
     }
 
-    private double dsafModelOrder(Model m) {
+    private double descendingSizeAnyFitsModelOrder(Model m) {
         return (m.currentAllocationByNodeId().isEmpty() ? 1 : 2) * -normalizedMemoryPerModel.get(m) * m.threadsPerAllocation();
     }
 
-    private double dsafNodeOrder(Node n, Model m, AssignmentPlan.Builder assignmentPlan) {
+    private double descendingSizeAnyFitsNodeOrder(Node n, Model m, AssignmentPlan.Builder assignmentPlan) {
         return (m.currentAllocationByNodeId().containsKey(n.id()) ? 0 : 1) + (assignmentPlan.getRemainingCores(n) >= assignmentPlan
             .getRemainingThreads(m) ? 0 : 1) + (0.01 * distance(assignmentPlan.getRemainingCores(n), assignmentPlan.getRemainingThreads(m)))
             - (0.01 * assignmentPlan.getRemainingMemory(n));

@@ -307,24 +307,31 @@ public class Authentication implements ToXContentObject {
         }
         final String[] allRoleNames = ArrayUtils.concat(getUser().roles(), anonymousUser.roles());
 
-        return new Authentication(
-            new RunAsUser(
+        final User user;
+        if (getUser()instanceof RunAsUser runAsUser) {
+            user = new RunAsUser(
                 new User(
-                    getUser().principal(),
+                    runAsUser.principal(),
                     allRoleNames,
-                    getUser().fullName(),
-                    getUser().email(),
-                    getUser().metadata(),
-                    getUser().enabled()
+                    runAsUser.fullName(),
+                    runAsUser.email(),
+                    runAsUser.metadata(),
+                    runAsUser.enabled()
                 ),
-                getUser().authenticatedUser()
-            ),
-            getAuthenticatedBy(),
-            getLookedUpBy(),
-            getVersion(),
-            getAuthenticationType(),
-            getMetadata()
-        );
+                runAsUser.authenticatingUser
+            );
+        } else {
+            user = new User(
+                getUser().principal(),
+                allRoleNames,
+                getUser().fullName(),
+                getUser().email(),
+                getUser().metadata(),
+                getUser().enabled()
+            );
+        }
+
+        return new Authentication(user, getAuthenticatedBy(), getLookedUpBy(), getVersion(), getAuthenticationType(), getMetadata());
     }
 
     /**

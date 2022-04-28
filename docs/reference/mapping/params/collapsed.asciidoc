@@ -1,7 +1,7 @@
 [[collapsed]]
 === `collapsed`
 
-When indexing a document or updating mappings, Elasticsearch accepts field that contain dots in their names.
+When indexing a document or updating mappings, Elasticsearch accepts fields that contain dots in their names.
 which get expanded to their corresponding object structure. For instance, the  field `metrics.time.max`
 is mapped as a `max` leaf field with a parent `time` object, belonging to its parent `metrics` object.
 

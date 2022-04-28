@@ -48,6 +48,7 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.UserRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTests;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
@@ -182,7 +183,6 @@ public class RBACEngineTests extends ESTestCase {
     }
 
     public void testSameUserPermissionDoesNotAllowOtherActions() {
-        final User user = mock(User.class);
         final TransportRequest request = mock(TransportRequest.class);
         final String action = randomFrom(
             PutUserAction.NAME,
@@ -192,17 +192,10 @@ public class RBACEngineTests extends ESTestCase {
             ClusterStatsAction.NAME,
             GetLicenseAction.NAME
         );
-        final Authentication authentication = mock(Authentication.class);
-        final Authentication.RealmRef authenticatedBy = mock(Authentication.RealmRef.class);
-        final boolean runAs = randomBoolean();
-        when(authentication.getUser()).thenReturn(user);
-        when(user.authenticatedUser()).thenReturn(runAs ? new User("authUser") : user);
-        when(user.isRunAs()).thenReturn(runAs);
-        when(authentication.getAuthenticatedBy()).thenReturn(authenticatedBy);
-        when(authenticatedBy.getType()).thenReturn(randomAlphaOfLengthBetween(4, 12));
+        final Authentication authentication = AuthenticationTestHelper.builder().build();
 
         assertFalse(RBACEngine.checkSameUserPermissions(action, request, authentication));
-        verifyNoMoreInteractions(user, request, authentication);
+        verifyNoMoreInteractions(request);
     }
 
     public void testSameUserPermissionRunAsChecksAuthenticatedBy() {

@@ -222,6 +222,10 @@ class ServerCli extends EnvironmentAwareCommand {
         builder.environment().putAll(envVars);
         builder.redirectOutput(ProcessBuilder.Redirect.INHERIT);
 
+        return startProcess(builder);
+    }
+
+    Process startProcess(ProcessBuilder builder) {
         return builder.start();
     }
 }

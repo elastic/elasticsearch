@@ -90,6 +90,12 @@ The following parameters are accepted by `object` fields:
     Whether the JSON value given for the object field should be
     parsed and indexed (`true`, default) or completely ignored (`false`).
 
+<<collapsed,`collapsed`>>::
+
+    Whether sub-fields with dots in their names should be treated as leaves (`true`),
+    or their prefix should be expanded to their corresponding object structure (`false`, default).
+    A collapsed object can only ever hold leaf sub-fields and does not support further objects.
+
 <<properties,`properties`>>::
 
     The fields within the object, which can be of any

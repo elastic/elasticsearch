@@ -114,6 +114,15 @@ created the data stream:
   - match: { $body.$backing_index.settings.index.time_series.start_time: '2021-04-28T00:00:00Z' }
   - match: { $body.$backing_index.settings.index.time_series.end_time: '2021-04-29T00:00:00Z' }
 
+  - do:
+      cat.indices:
+        index: k8s
+        h: index
+
+  - match:
+      $body: |
+        /^\.ds-k8s-\d{4}\.\d{2}\.\d{2}-000001\n$/
+
 ---
 fetch the tsid:
   - skip:

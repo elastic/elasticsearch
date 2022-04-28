@@ -20,11 +20,12 @@ import java.util.Map;
 public abstract class CommandTestCase extends ESTestCase {
 
     /** The terminal that execute uses. */
-    protected final MockTerminal terminal = new MockTerminal();
+    protected final MockTerminal terminal = MockTerminal.create();
 
     @Before
     public void resetTerminal() {
         terminal.reset();
+        terminal.setSupportsBinary(false);
         terminal.setVerbosity(Terminal.Verbosity.NORMAL);
     }
 

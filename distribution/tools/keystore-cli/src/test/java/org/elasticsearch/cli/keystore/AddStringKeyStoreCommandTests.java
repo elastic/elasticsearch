@@ -105,8 +105,8 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
     public void testOverwritePromptExplicitYes() throws Exception {
         String password = "keystorepassword";
         createKeystore(password, "foo", "bar");
-        terminal.addTextInput("y");
         terminal.addSecretInput(password);
+        terminal.addTextInput("y");
         terminal.addSecretInput("newvalue");
         execute("foo");
         assertSecureString("foo", "newvalue", password);

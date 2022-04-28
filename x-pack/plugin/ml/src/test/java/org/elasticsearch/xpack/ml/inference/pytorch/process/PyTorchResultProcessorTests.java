@@ -50,25 +50,24 @@ public class PyTorchResultProcessorTests extends ESTestCase {
         var threadSettings = new ThreadSettings(1, 1, "b");
         var errorResult = new ErrorResult("c", "a bad thing has happened");
 
-        var inferenceListener = new AssertingResultListener(
-            r -> assertEquals(inferenceResult, r.inferenceResult())
-        );
-        var threadSettingsListener = new AssertingResultListener(
-            r -> assertEquals(threadSettings, r.threadSettings())
-        );
-        var errorListener = new AssertingResultListener(
-            r -> assertEquals(errorResult, r.errorResult())
-        );
+        var inferenceListener = new AssertingResultListener(r -> assertEquals(inferenceResult, r.inferenceResult()));
+        var threadSettingsListener = new AssertingResultListener(r -> assertEquals(threadSettings, r.threadSettings()));
+        var errorListener = new AssertingResultListener(r -> assertEquals(errorResult, r.errorResult()));
 
         var processor = new PyTorchResultProcessor("foo", s -> {});
         processor.registerRequest("a", inferenceListener);
         processor.registerRequest("b", threadSettingsListener);
         processor.registerRequest("c", errorListener);
 
-        processor.process(mockNativeProcess(List.of(new PyTorchResult(inferenceResult, null, null),
-            new PyTorchResult(null, threadSettings, null),
-            new PyTorchResult(null, null, errorResult)
-        ).iterator()));
+        processor.process(
+            mockNativeProcess(
+                List.of(
+                    new PyTorchResult(inferenceResult, null, null),
+                    new PyTorchResult(null, threadSettings, null),
+                    new PyTorchResult(null, null, errorResult)
+                ).iterator()
+            )
+        );
 
         assertTrue(inferenceListener.hasResponse);
         assertTrue(threadSettingsListener.hasResponse);

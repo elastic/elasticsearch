@@ -278,8 +278,7 @@ public class TextFieldMapper extends FieldMapper {
             this.analyzers = new TextParams.Analyzers(
                 indexAnalyzers,
                 m -> ((TextFieldMapper) m).indexAnalyzer,
-                m -> (((TextFieldMapper) m).positionIncrementGap),
-                indexCreatedVersion
+                m -> (((TextFieldMapper) m).positionIncrementGap)
             );
         }
 
@@ -456,10 +455,8 @@ public class TextFieldMapper extends FieldMapper {
 
     private static final Version MINIMUM_COMPATIBILITY_VERSION = Version.fromString("5.0.0");
 
-    public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers()),
-        MINIMUM_COMPATIBILITY_VERSION
-    );
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers()),
+        MINIMUM_COMPATIBILITY_VERSION);
 
     private static class PhraseWrappedAnalyzer extends AnalyzerWrapper {
 

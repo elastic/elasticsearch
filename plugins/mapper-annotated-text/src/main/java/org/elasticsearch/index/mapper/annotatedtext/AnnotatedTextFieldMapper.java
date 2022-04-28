@@ -21,7 +21,6 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.Version;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
@@ -87,16 +86,12 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        private final Version indexCreatedVersion;
-
-        public Builder(String name, Version indexCreatedVersion, IndexAnalyzers indexAnalyzers) {
+        public Builder(String name, IndexAnalyzers indexAnalyzers) {
             super(name);
-            this.indexCreatedVersion = indexCreatedVersion;
             this.analyzers = new TextParams.Analyzers(
                 indexAnalyzers,
                 m -> builder(m).analyzers.getIndexAnalyzer(),
-                m -> builder(m).analyzers.positionIncrementGap.getValue(),
-                indexCreatedVersion
+                m -> builder(m).analyzers.positionIncrementGap.getValue()
             );
         }
 
@@ -150,7 +145,7 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
         }
     }
 
-    public static TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers()));
+    public static TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getIndexAnalyzers()));
 
     /**
      * Parses markdown-like syntax into plain text and AnnotationTokens with offsets for
@@ -524,6 +519,6 @@ public class AnnotatedTextFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), builder.indexCreatedVersion, builder.analyzers.indexAnalyzers).init(this);
+        return new Builder(simpleName(), builder.analyzers.indexAnalyzers).init(this);
     }
 }

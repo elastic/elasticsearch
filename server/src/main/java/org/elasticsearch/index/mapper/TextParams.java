@@ -10,7 +10,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
-import org.elasticsearch.Version;
 import org.elasticsearch.index.analysis.AnalysisMode;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -39,17 +38,9 @@ public final class TextParams {
         public Analyzers(
             IndexAnalyzers indexAnalyzers,
             Function<FieldMapper, NamedAnalyzer> analyzerInitFunction,
-            Function<FieldMapper, Integer> positionGapInitFunction,
-            Version indexCreatedVersion
+            Function<FieldMapper, Integer> positionGapInitFunction
         ) {
-
-            this.indexAnalyzer = Parameter.analyzerParam(
-                "analyzer",
-                indexCreatedVersion.isLegacyIndexVersion(),
-                analyzerInitFunction,
-                indexAnalyzers::getDefaultIndexAnalyzer,
-                indexCreatedVersion
-            )
+            this.indexAnalyzer = Parameter.analyzerParam("analyzer", false, analyzerInitFunction, indexAnalyzers::getDefaultIndexAnalyzer)
                 .setSerializerCheck(
                     (id, ic, a) -> id
                         || ic
@@ -69,8 +60,7 @@ public final class TextParams {
                         }
                     }
                     return indexAnalyzer.get();
-                },
-                indexCreatedVersion
+                }
             )
                 .setSerializerCheck((id, ic, a) -> id || ic || Objects.equals(a, getSearchQuoteAnalyzer()) == false)
                 .addValidator(a -> a.checkAllowedInMode(AnalysisMode.SEARCH_TIME));
@@ -86,8 +76,7 @@ public final class TextParams {
                         }
                     }
                     return searchAnalyzer.get();
-                },
-                indexCreatedVersion
+                }
             ).addValidator(a -> a.checkAllowedInMode(AnalysisMode.SEARCH_TIME));
             this.positionIncrementGap = Parameter.intParam(
                 "position_increment_gap",

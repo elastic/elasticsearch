@@ -35,7 +35,6 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -93,7 +92,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
         public static final int MAX_SHINGLE_SIZE = 3;
     }
 
-    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.indexVersionCreated(), c.getIndexAnalyzers()));
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, c.getIndexAnalyzers()));
 
     private static Builder builder(FieldMapper in) {
         return ((SearchAsYouTypeFieldMapper) in).builder;
@@ -142,16 +141,12 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
 
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        private final Version indexCreatedVersion;
-
-        public Builder(String name, Version indexCreatedVersion, IndexAnalyzers indexAnalyzers) {
+        public Builder(String name, IndexAnalyzers indexAnalyzers) {
             super(name);
-            this.indexCreatedVersion = indexCreatedVersion;
             this.analyzers = new TextParams.Analyzers(
                 indexAnalyzers,
                 m -> builder(m).analyzers.getIndexAnalyzer(),
-                m -> builder(m).analyzers.positionIncrementGap.getValue(),
-                indexCreatedVersion
+                m -> builder(m).analyzers.positionIncrementGap.getValue()
             );
         }
 
@@ -707,7 +702,7 @@ public class SearchAsYouTypeFieldMapper extends FieldMapper {
     }
 
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), builder.indexCreatedVersion, builder.analyzers.indexAnalyzers).init(this);
+        return new Builder(simpleName(), builder.analyzers.indexAnalyzers).init(this);
     }
 
     public static String getShingleFieldName(String parentField, int shingleSize) {

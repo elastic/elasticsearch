@@ -19,12 +19,14 @@ import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.xpack.searchablesnapshots.BaseSearchableSnapshotsIntegTestCase;
+import org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 import org.elasticsearch.xpack.shutdown.DeleteShutdownNodeAction;
 import org.elasticsearch.xpack.shutdown.PutShutdownNodeAction;
 import org.elasticsearch.xpack.shutdown.ShutdownPlugin;
 import org.hamcrest.Matchers;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
@@ -32,10 +34,11 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, minNumDataNodes = 2)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, minNumDataNodes = 2, numDataNodes = 2)
 public class SearchableSnapshotShutdownIntegTests extends BaseSearchableSnapshotsIntegTestCase {
 
     @Override
@@ -44,8 +47,11 @@ public class SearchableSnapshotShutdownIntegTests extends BaseSearchableSnapshot
     }
 
     public void testAllocationDisabledDuringShutdown() throws Exception {
-        final String restoredIndexName = setupMountedIndex();
-        final Set<String> indexNodes = internalCluster().nodesInclude(restoredIndexName);
+        final List<String> restoredIndexNames = setupMountedIndices();
+        final String[] restoredIndexNamesArray = restoredIndexNames.toArray(String[]::new);
+        final Set<String> indexNodes = restoredIndexNames.stream()
+            .flatMap(index -> internalCluster().nodesInclude(index).stream())
+            .collect(Collectors.toSet());
         final ClusterState state = client().admin().cluster().prepareState().clear().setRoutingTable(true).setNodes(true).get().getState();
         final Map<String, String> nodeNameToId = state.getNodes()
             .stream()
@@ -54,13 +60,14 @@ public class SearchableSnapshotShutdownIntegTests extends BaseSearchableSnapshot
         for (String indexNode : indexNodes) {
             final String indexNodeId = nodeNameToId.get(indexNode);
             putShutdown(indexNodeId);
-            final int shards = (int) state.routingTable()
-                .allShards(restoredIndexName)
-                .stream()
+            final int shards = (int) StreamSupport.stream(state.routingTable().allShards(restoredIndexNamesArray).spliterator(), false)
                 .filter(s -> indexNodeId.equals(s.currentNodeId()))
                 .count();
             assert shards > 0;
 
+            assertExecutorIsIdle(SearchableSnapshots.CACHE_FETCH_ASYNC_THREAD_POOL_NAME);
+            assertExecutorIsIdle(SearchableSnapshots.CACHE_PREWARMING_THREAD_POOL_NAME);
+            waitForBlobCacheFillsToComplete();
             final CacheService cacheService = internalCluster().getInstance(CacheService.class, indexNode);
             cacheService.synchronizeCache();
 
@@ -71,7 +78,7 @@ public class SearchableSnapshotShutdownIntegTests extends BaseSearchableSnapshot
                     assertBusy(() -> {
                         ClusterHealthResponse response = client().admin()
                             .cluster()
-                            .health(Requests.clusterHealthRequest(restoredIndexName))
+                            .health(Requests.clusterHealthRequest(restoredIndexNamesArray))
                             .actionGet();
                         assertThat(response.getUnassignedShards(), Matchers.equalTo(shards));
                     });
@@ -84,19 +91,24 @@ public class SearchableSnapshotShutdownIntegTests extends BaseSearchableSnapshot
             }
         }
 
-        ensureGreen(restoredIndexName);
+        ensureGreen(restoredIndexNamesArray);
     }
 
-    private String setupMountedIndex() throws Exception {
-        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createAndPopulateIndex(indexName, Settings.builder());
+    private List<String> setupMountedIndices() throws Exception {
+        int count = between(1, 10);
+        List<String> restoredIndices = new ArrayList<>();
+        for (int i = 0; i < count; ++i) {
+            final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+            createAndPopulateIndex(indexName, Settings.builder());
 
-        final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-        createRepository(repositoryName, "mock");
+            final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+            createRepository(repositoryName, "mock");
 
-        final SnapshotId snapshotId = createSnapshot(repositoryName, "snapshot-1", List.of(indexName)).snapshotId();
-        assertAcked(client().admin().indices().prepareDelete(indexName));
-        return mountSnapshot(repositoryName, snapshotId.getName(), indexName, Settings.EMPTY);
+            final SnapshotId snapshotId = createSnapshot(repositoryName, "snapshot-1", List.of(indexName)).snapshotId();
+            assertAcked(client().admin().indices().prepareDelete(indexName));
+            restoredIndices.add(mountSnapshot(repositoryName, snapshotId.getName(), indexName, Settings.EMPTY));
+        }
+        return restoredIndices;
     }
 
     private void putShutdown(String nodeToRestartId) throws InterruptedException, ExecutionException {
@@ -112,5 +124,11 @@ public class SearchableSnapshotShutdownIntegTests extends BaseSearchableSnapshot
 
     private void removeShutdown(String node) throws ExecutionException, InterruptedException {
         assertTrue(client().execute(DeleteShutdownNodeAction.INSTANCE, new DeleteShutdownNodeAction.Request(node)).get().isAcknowledged());
+    }
+
+    @Override
+    protected int numberOfShards() {
+        // use 1 shard per index and instead use multiple indices to have multiple shards.
+        return 1;
     }
 }

@@ -14,25 +14,25 @@ import org.elasticsearch.xpack.ml.inference.assignment.planning.AssignmentPlan.N
 import java.util.List;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
-public class PreserveOneAllocationTests extends ESTestCase {
+public class PreserveAllAllocationsTests extends ESTestCase {
 
     public void testGivenNoPreviousAssignments() {
         Node node1 = new Node("n_1", 100, 4);
         Node node2 = new Node("n_2", 100, 4);
         Model model1 = new Model("m_1", 30, 2, 1, Map.of());
         Model model2 = new Model("m_2", 30, 2, 4, Map.of());
-        PreserveOneAllocation preserveOneAllocation = new PreserveOneAllocation(List.of(node1, node2), List.of(model1, model2));
+        PreserveAllAllocations preserveAllAllocations = new PreserveAllAllocations(List.of(node1, node2), List.of(model1, model2));
 
-        List<Node> nodesPreservingAllocations = preserveOneAllocation.nodesPreservingAllocations();
+        List<Node> nodesPreservingAllocations = preserveAllAllocations.nodesPreservingAllocations();
         assertThat(nodesPreservingAllocations, contains(node1, node2));
 
-        List<Model> modelsPreservingAllocations = preserveOneAllocation.modelsPreservingAllocations();
+        List<Model> modelsPreservingAllocations = preserveAllAllocations.modelsPreservingAllocations();
         assertThat(modelsPreservingAllocations, contains(model1, model2));
     }
 
@@ -41,9 +41,9 @@ public class PreserveOneAllocationTests extends ESTestCase {
         Node node2 = new Node("n_2", 100, 8);
         Model model1 = new Model("m_1", 30, 2, 1, Map.of("n_1", 1));
         Model model2 = new Model("m_2", 50, 6, 4, Map.of("n_1", 1, "n_2", 2));
-        PreserveOneAllocation preserveOneAllocation = new PreserveOneAllocation(List.of(node1, node2), List.of(model1, model2));
+        PreserveAllAllocations preserveAllAllocations = new PreserveAllAllocations(List.of(node1, node2), List.of(model1, model2));
 
-        List<Node> nodesPreservingAllocations = preserveOneAllocation.nodesPreservingAllocations();
+        List<Node> nodesPreservingAllocations = preserveAllAllocations.nodesPreservingAllocations();
         assertThat(nodesPreservingAllocations, hasSize(2));
 
         assertThat(nodesPreservingAllocations.get(0).id(), equalTo("n_1"));
@@ -52,9 +52,9 @@ public class PreserveOneAllocationTests extends ESTestCase {
 
         assertThat(nodesPreservingAllocations.get(1).id(), equalTo("n_2"));
         assertThat(nodesPreservingAllocations.get(1).availableMemoryBytes(), equalTo(50L));
-        assertThat(nodesPreservingAllocations.get(1).cores(), equalTo(4));
+        assertThat(nodesPreservingAllocations.get(1).cores(), equalTo(0));
 
-        List<Model> modelsPreservingAllocations = preserveOneAllocation.modelsPreservingAllocations();
+        List<Model> modelsPreservingAllocations = preserveAllAllocations.modelsPreservingAllocations();
         assertThat(modelsPreservingAllocations, hasSize(2));
 
         assertThat(modelsPreservingAllocations.get(0).id(), equalTo("m_1"));
@@ -65,18 +65,17 @@ public class PreserveOneAllocationTests extends ESTestCase {
 
         assertThat(modelsPreservingAllocations.get(1).id(), equalTo("m_2"));
         assertThat(modelsPreservingAllocations.get(1).memoryBytes(), equalTo(50L));
-        assertThat(modelsPreservingAllocations.get(1).allocations(), equalTo(4));
+        assertThat(modelsPreservingAllocations.get(1).allocations(), equalTo(3));
         assertThat(modelsPreservingAllocations.get(1).threadsPerAllocation(), equalTo(4));
-        assertThat(modelsPreservingAllocations.get(1).currentAllocationByNodeId(), equalTo(Map.of("n_1", 0, "n_2", 1)));
+        assertThat(modelsPreservingAllocations.get(1).currentAllocationByNodeId(), equalTo(Map.of("n_1", 0, "n_2", 0)));
 
         AssignmentPlan plan = AssignmentPlan.builder(List.of(node1, node2), List.of(model1, model2))
             .assignModelToNode(model1, node1, 2)
-            .assignModelToNode(model2, node2, 1)
             .build();
         assertThat(plan.assignments(model1), equalTo(Map.of(node1, 2)));
-        assertThat(plan.assignments(model2), equalTo(Map.of(node2, 1)));
+        assertThat(plan.assignments(model2), is(nullValue()));
 
-        plan = preserveOneAllocation.mergePreservedAllocations(plan);
+        plan = preserveAllAllocations.mergePreservedAllocations(plan);
 
         assertThat(plan.assignments(model1), equalTo(Map.of(node1, 3)));
         assertThat(plan.assignments(model2), equalTo(Map.of(node1, 1, node2, 2)));

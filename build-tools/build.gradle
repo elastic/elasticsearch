@@ -111,8 +111,8 @@ dependencies {
     api 'org.apache.commons:commons-compress:1.21'
     api 'org.apache.ant:ant:1.10.8'
     api 'commons-io:commons-io:2.2'
-    implementation 'org.ow2.asm:asm-tree:9.2'
-    implementation 'org.ow2.asm:asm:9.2'
+    implementation 'org.ow2.asm:asm-tree:9.3'
+    implementation 'org.ow2.asm:asm:9.3'
 
     testFixturesApi "junit:junit:${versions.getProperty('junit')}"
     testFixturesApi "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.getProperty('randomizedrunner')}"
@@ -122,6 +122,7 @@ dependencies {
     testFixturesApi platform("org.spockframework:spock-bom:2.0-groovy-3.0")
     testFixturesApi("org.spockframework:spock-core") {
         exclude module: "groovy"
+        exclude module: "asm"
     }
 
     integTestImplementation("org.spockframework:spock-junit4") {

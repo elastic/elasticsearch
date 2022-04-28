@@ -67,6 +67,7 @@ import java.util.stream.Stream;
  * ## Pruning
  *
  * - prune removes all items that do not meet the support criteria and rewrites/drops transactions, this can significantly free memory
+ * - TODO: pruning is only used after merging all stores from all shards, it could be beneficial to prune already on the shard level
  *
  * ## Top Items/Transactions
  *
@@ -195,9 +196,6 @@ public final class TransactionStore implements Writeable, Releasable {
     private static final int INITIAL_TRANSACTION_CAPACITY = PageCacheRecycler.LONG_PAGE_SIZE;
     private static final int CAPACITY_INCREMENT = PageCacheRecycler.LONG_PAGE_SIZE;
 
-    // TODO: remove?? how many unique items to consider before pruning
-    private static final long UNIQUE_ITEMS_PRUNE_BOUNDARY = 30;
-
     private final BigArrays bigArrays;
 
     // data holders
@@ -298,7 +296,6 @@ public final class TransactionStore implements Writeable, Releasable {
                 writeString(scratchItemBytesRefBuilder, fieldValue.toString());
 
                 long id = items.add(scratchItemBytesRefBuilder.get());
-                // logger.info("added item with id {}", id);
 
                 // for existing keys add returns -1 - curId;
                 if (id < 0) {
@@ -306,7 +303,7 @@ public final class TransactionStore implements Writeable, Releasable {
                 }
 
                 if (id >= itemCounts.size()) {
-                    logger.info("Resizing itemCounts");
+                    logger.trace("Resizing array for item counts");
                     itemCounts = bigArrays.resize(itemCounts, itemCounts.size() + CAPACITY_INCREMENT);
                 }
 
@@ -377,17 +374,14 @@ public final class TransactionStore implements Writeable, Releasable {
         int pos = 0;
         while (scratchBytesRefDataInput.eof() == false) {
             long item = scratchBytesRefDataInput.readVLong();
+
+            // we can do a linear scan, because we sorted the ids in the transaction in prune, see [ITEM-BOW]
             if (item == ids.get(pos)) {
                 pos++;
                 if (ids.size() == pos) {
                     return true;
                 }
             }
-
-            // transactions are sorted by id, a match is not possible if the id in the transaction is already above
-            // if (item > ids.get(pos)) {
-            // return false;
-            // }
         }
 
         return false;
@@ -411,6 +405,11 @@ public final class TransactionStore implements Writeable, Releasable {
         return totalItemCount;
     }
 
+    /**
+     * Get the total number of transactions
+     *
+     * @return total count of transactions
+     */
     public long getTotalTransactionCount() {
         return totalTransactionCount;
     }
@@ -418,7 +417,11 @@ public final class TransactionStore implements Writeable, Releasable {
     /**
      * Destructively merges the other transaction store into this transaction store.
      *
-     * @param other
+     * TODO: we merge transaction stores, but technically we don't need the full store including the
+     *       hashtables. Those hashtables are currently re-created after sending them to the coordinator,
+     *       we can save some cycles if we only deserialize the data part and merge just that.
+     *
+     * @param other the other transaction store
      */
     public void mergeAndClose(TransactionStore other) {
         if (items.size() == 0) {
@@ -447,7 +450,6 @@ public final class TransactionStore implements Writeable, Releasable {
                 if (newId < 0) {
                     newId = -1 * (newId + 1);
                 } else if (newId >= itemCounts.size()) {
-                    logger.info("Resizing itemCounts");
                     itemCounts = bigArrays.resize(itemCounts, itemCounts.size() + CAPACITY_INCREMENT);
                 }
 
@@ -475,7 +477,6 @@ public final class TransactionStore implements Writeable, Releasable {
                     writeSignedVLong(scratchTransactionBytesRefBuilder, other.itemCounts.get(item));
                 }
                 long newId = transactions.add(scratchTransactionBytesRefBuilder.get());
-                // logger.info("added transaction with id {}", id);
                 if (newId < 0) {
                     newId = -1 * (newId + 1);
                 } else if (newId >= transactionCounts.size()) {
@@ -491,24 +492,23 @@ public final class TransactionStore implements Writeable, Releasable {
         other.close();
     }
 
-    // TODO: this prunes _AND_ rearranges transactions for faster lookup
-    // that's why shortcuts are disabled for now!
+    /**
+     * Prune transactions and items according to the given min count
+     *
+     * Prune rewrites the internal data structures by getting rid of items which are
+     * below the given minSupport.
+     *
+     * Currently this is only used after merging all shard stores.
+     *
+     * TODO: explore wheter we could prune per shard based on a heuristic
+     *
+     * @param minSupport the minimum support an item must have to be kept
+     */
     public void prune(double minSupport) {
-
-        // skip pruning if the number of unique items is low
-        /*if (getUniqueItemsCount() < UNIQUE_ITEMS_PRUNE_BOUNDARY) {
-            return;
-        }*/
 
         long minCount = (long) (minSupport * totalTransactionCount);
 
-        logger.info("prune items and transactions, using min count: {}", minCount);
-
-        // even a minCount of 1 is considered to cut a lot of items
-        // TODO: collect statistics during data collection to make a smarter decision
-        /*if (minCount < 2) {
-            return;
-        }*/
+        logger.trace("prune items and transactions, using min count: {}", minCount);
 
         BytesRefHash prunedItems = null;
         LongArray prunedItemCounts = null;
@@ -530,7 +530,6 @@ public final class TransactionStore implements Writeable, Releasable {
                         long newId = prunedItems.add(scratchBytesRef);
                         assert newId >= 0 : "found illegal duplicate bytesRef";
                         if (newId >= prunedItemCounts.size()) {
-                            logger.info("Resizing prunedItemCounts");
                             prunedItemCounts = bigArrays.resize(prunedItemCounts, prunedItemCounts.size() + CAPACITY_INCREMENT);
                         }
                         prunedItemCounts.set(newId, count);
@@ -544,10 +543,9 @@ public final class TransactionStore implements Writeable, Releasable {
                 }
             }
 
-            // TODO: change to debug
-            logger.info("Pruned items, before: {}, after: {}", items.size(), prunedItems.size());
+            logger.trace("Pruned items, before: {}, after: {}", items.size(), prunedItems.size());
 
-            // step2 prune transactions, TODO: can we use a better factor after item pruning?
+            // step 2 prune transactions
             prunedTransactions = new BytesRefHash(transactions.capacity() >> 3, bigArrays);
             prunedTransactionCounts = bigArrays.newLongArray(transactions.capacity() >> 3, true);
             List<Long> itemBuffer = new ArrayList<>();
@@ -571,13 +569,8 @@ public final class TransactionStore implements Writeable, Releasable {
 
                     // if we did not add any item a transaction might be empty and can be dropped
                     if (itemBuffer.size() > 0) {
-                        // sort the items backwards by id count
+                        // sort the items backwards by item count, that way we can use a linear scan later [ITEM-BOW]
                         Collections.sort(itemBuffer, Comparator.comparingLong(prunedItemCounts::get).reversed());
-
-                        /*logger.info(
-                            "sorted transaction {}",
-                            Strings.collectionToDelimitedString(itemBuffer, ",")
-                        );*/
 
                         scratchTransactionBytesRefBuilder.clear();
                         itemBuffer.forEach(l -> writeSignedVLong(scratchTransactionBytesRefBuilder, l));
@@ -590,7 +583,6 @@ public final class TransactionStore implements Writeable, Releasable {
                             newId = -1 * (newId + 1);
                         } else {
                             if (newId >= prunedTransactionCounts.size()) {
-                                logger.info("Resizing prunedTransactionCounts");
                                 prunedTransactionCounts = bigArrays.resize(
                                     prunedTransactionCounts,
                                     prunedTransactionCounts.size() + CAPACITY_INCREMENT
@@ -603,16 +595,15 @@ public final class TransactionStore implements Writeable, Releasable {
                 }
             }
 
-            logger.info("Pruned transactions, before: {}, after: {}", transactions.size(), prunedTransactions.size());
+            if (logger.isTraceEnabled()) {
+                logger.trace("Pruned transactions, before: {}, after: {}", transactions.size(), prunedTransactions.size());
 
-            // TODO: change to debug
-            if (logger.isInfoEnabled()) {
                 long bytesBeforePruning = items.ramBytesUsed() + itemCounts.ramBytesUsed() + transactions.ramBytesUsed() + transactionCounts
                     .ramBytesUsed();
                 long bytesAfterPruning = prunedItems.ramBytesUsed() + prunedItemCounts.ramBytesUsed() + prunedTransactions.ramBytesUsed()
                     + prunedTransactionCounts.ramBytesUsed();
 
-                logger.info(
+                logger.trace(
                     "Pruned item and transactions, memory reclaimed: {}, size of transaction store after pruning: {}",
                     RamUsageEstimator.humanReadableUnits(bytesBeforePruning - bytesAfterPruning),
                     RamUsageEstimator.humanReadableUnits(bytesAfterPruning)
@@ -633,9 +624,6 @@ public final class TransactionStore implements Writeable, Releasable {
             prunedTransactions = null;
             transactionCounts = prunedTransactionCounts;
             prunedTransactionCounts = null;
-        } catch (Exception e) {
-            // NORELEASE get the stack trace in the logs
-            logger.error("exception during pruning", e);
         } finally {
             Releasables.close(prunedItems, prunedItemCounts, prunedTransactions, prunedTransactionCounts);
         }
@@ -657,7 +645,7 @@ public final class TransactionStore implements Writeable, Releasable {
      * @return TopItemIds object
      */
     public TopItemIds getTopItemIds(long n) {
-        // TODO: heap based and wasteful, this should instead use some lucene magic
+        // TODO: heap based and wasteful, this should instead use some lucene magic if possible
         List<Tuple<Long, Long>> idsHelperBuffer = new ArrayList<>();
         for (long i = 0; i < itemCounts.size(); ++i) {
             long count = itemCounts.get(i);
@@ -676,6 +664,11 @@ public final class TransactionStore implements Writeable, Releasable {
         return new TopItemIds(sortedIds);
     }
 
+    /**
+     * Get a traverser object to traverse top items
+     *
+     * @return a top item traverser
+     */
     public ItemSetTraverser getTopItemIdTraverser() {
         return new ItemSetTraverser(getTopItemIds());
     }
@@ -743,13 +736,14 @@ public final class TransactionStore implements Writeable, Releasable {
     }
 
     private static void writeString(BytesRefBuilder builder, String s) {
+        // TODO: expensive way, refactor
         final BytesRef utf8Result = new BytesRef(s);
         writeVInt(builder, utf8Result.length);
         builder.append(utf8Result.bytes, utf8Result.offset, utf8Result.length);
     }
 
     /**
-     * helper method to write signed vlongs, inspired by lucene dataoutput
+     * helper methods to write signed vlongs, inspired by lucene dataoutput
      *
      * TODO: candidate for re-factoring
      */

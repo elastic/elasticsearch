@@ -26,6 +26,7 @@ public class User implements ToXContentObject {
 
     private final String username;
     private final String[] roles;
+    @Deprecated
     private final User authenticatedUser;
     private final Map<String, Object> metadata;
     private final boolean enabled;
@@ -69,7 +70,9 @@ public class User implements ToXContentObject {
         this.fullName = fullName;
         this.email = email;
         this.enabled = enabled;
-        assert (authenticatedUser == null || authenticatedUser.isRunAs() == false) : "the authenticated user should not be a run_as user";
+        // TODO: this whole constructor is to be removed
+        assert authenticatedUser == null || authenticatedUser.authenticatedUser == null
+            : "the authenticated user should not be a run_as user";
         this.authenticatedUser = authenticatedUser;
     }
 
@@ -126,15 +129,6 @@ public class User implements ToXContentObject {
     @Deprecated
     public User authenticatedUser() {
         return authenticatedUser == null ? this : authenticatedUser;
-    }
-
-    /**
-     * @deprecated Use {@link Authentication#isRunAs()}.
-     * Return true if this user was not the originally authenticated user, false otherwise.
-     * */
-    @Deprecated
-    public boolean isRunAs() {
-        return authenticatedUser != null;
     }
 
     @Override

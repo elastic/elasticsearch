@@ -12,7 +12,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.security.authc.Authentication;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -26,8 +25,6 @@ public class User implements ToXContentObject {
 
     private final String username;
     private final String[] roles;
-    @Deprecated
-    private final User authenticatedUser;
     private final Map<String, Object> metadata;
     private final boolean enabled;
 
@@ -40,40 +37,13 @@ public class User implements ToXContentObject {
         this(username, roles, null, null, Map.of(), true);
     }
 
-    @Deprecated
-    public User(String username, String[] roles, User authenticatedUser) {
-        this(username, roles, null, null, Map.of(), true, authenticatedUser);
-    }
-
-    @Deprecated
-    public User(User user, User authenticatedUser) {
-        this(user.principal(), user.roles(), user.fullName(), user.email(), user.metadata(), user.enabled(), authenticatedUser);
-    }
-
     public User(String username, String[] roles, String fullName, String email, Map<String, Object> metadata, boolean enabled) {
-        this(username, roles, fullName, email, metadata, enabled, null);
-    }
-
-    @Deprecated
-    private User(
-        String username,
-        String[] roles,
-        String fullName,
-        String email,
-        Map<String, Object> metadata,
-        boolean enabled,
-        User authenticatedUser
-    ) {
         this.username = Objects.requireNonNull(username);
         this.roles = roles == null ? Strings.EMPTY_ARRAY : roles;
         this.metadata = metadata == null ? Map.of() : metadata;
         this.fullName = fullName;
         this.email = email;
         this.enabled = enabled;
-        // TODO: this whole constructor is to be removed
-        assert authenticatedUser == null || authenticatedUser.authenticatedUser == null
-            : "the authenticated user should not be a run_as user";
-        this.authenticatedUser = authenticatedUser;
     }
 
     /**
@@ -121,16 +91,6 @@ public class User implements ToXContentObject {
         return enabled;
     }
 
-    /**
-     * @deprecated Use {@link Authentication#getAuthenticatingSubject()}.
-     * @return The user that was originally authenticated.
-     * This may be the user itself, or a different user which used runAs.
-     */
-    @Deprecated
-    public User authenticatedUser() {
-        return authenticatedUser == null ? this : authenticatedUser;
-    }
-
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
@@ -142,9 +102,6 @@ public class User implements ToXContentObject {
         sb.append(metadata);
         if (enabled == false) {
             sb.append(",(disabled)");
-        }
-        if (authenticatedUser != null) {
-            sb.append(",authenticatedUser=[").append(authenticatedUser.toString()).append("]");
         }
         sb.append("]");
         return sb.toString();
@@ -161,16 +118,13 @@ public class User implements ToXContentObject {
         // Probably incorrect - comparing Object[] arrays with Arrays.equals
         if (Arrays.equals(roles, user.roles) == false) return false;
         if (metadata.equals(user.metadata) == false) return false;
-        return Objects.equals(authenticatedUser, user.authenticatedUser)
-            && Objects.equals(fullName, user.fullName)
-            && Objects.equals(email, user.email);
+        return Objects.equals(fullName, user.fullName) && Objects.equals(email, user.email);
     }
 
     @Override
     public int hashCode() {
         int result = username.hashCode();
         result = 31 * result + Arrays.hashCode(roles);
-        result = 31 * result + (authenticatedUser != null ? authenticatedUser.hashCode() : 0);
         result = 31 * result + metadata.hashCode();
         result = 31 * result + (fullName != null ? fullName.hashCode() : 0);
         result = 31 * result + (email != null ? email.hashCode() : 0);
@@ -205,7 +159,7 @@ public class User implements ToXContentObject {
             || AsyncSearchUser.NAME.equals(username);
     }
 
-    /** Write just the given {@link User}, but not the inner {@link #authenticatedUser}. */
+    /** Write the given {@link User} */
     public static void writeUser(User user, StreamOutput output) throws IOException {
         output.writeBoolean(false); // not a system user
         output.writeString(user.username);

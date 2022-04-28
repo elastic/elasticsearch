@@ -196,7 +196,6 @@ public class TransportAuthenticateActionTests extends ESTestCase {
             final Authentication auth = responseRef.get().authentication();
             final User authUser = auth.getUser();
             assertThat(authUser.roles(), emptyArray());
-            assertThat(authUser.authenticatedUser(), sameInstance(user.authenticatedUser()));
             assertThat(auth.getAuthenticatedBy(), sameInstance(auth.getAuthenticatedBy()));
             assertThat(auth.getLookedUpBy(), sameInstance(auth.getLookedUpBy()));
             assertThat(auth.getVersion(), sameInstance(auth.getVersion()));

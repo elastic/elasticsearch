@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Assertions;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -899,7 +900,38 @@ public class Authentication implements ToXContentObject {
                 effectiveUser.metadata(),
                 effectiveUser.enabled()
             );
-            this.authenticatingUser = authenticatingUser;
+            this.authenticatingUser = Objects.requireNonNull(authenticatingUser);
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            if (false == super.equals(o)) return false;
+            RunAsUser runAsUser = (RunAsUser) o;
+            return authenticatingUser.equals(runAsUser.authenticatingUser);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(super.hashCode(), authenticatingUser);
+        }
+
+        @Override
+        public String toString() {
+            StringBuilder sb = new StringBuilder();
+            sb.append("RunAsUser[username=").append(principal());
+            sb.append(",roles=[").append(Strings.arrayToCommaDelimitedString(roles())).append("]");
+            sb.append(",fullName=").append(fullName());
+            sb.append(",email=").append(email());
+            sb.append(",metadata=");
+            sb.append(metadata());
+            if (enabled() == false) {
+                sb.append(",(disabled)");
+            }
+            sb.append(",authenticatingUser=[").append(authenticatingUser.toString()).append("]");
+            sb.append("]");
+            return sb.toString();
         }
     }
 

@@ -128,13 +128,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         final Settings.Builder settingsBuilder = Settings.builder().put(settings);
         // filter by username
         final List<String> filteredUsernames = randomNonEmptyListOfFilteredNames();
-        final List<User> filteredUsers = filteredUsernames.stream().map(u -> {
-            if (randomBoolean()) {
-                return new User(u);
-            } else {
-                return new User(new User(u), new User(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 4)));
-            }
-        }).collect(Collectors.toList());
+        final List<User> filteredUsers = filteredUsernames.stream().map(u -> { return new User(u); }).collect(Collectors.toList());
         settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters.userPolicy.users", filteredUsernames);
         // filter by realms
         final List<String> filteredRealms = randomNonEmptyListOfFilteredNames();
@@ -166,9 +160,6 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
                 )
         );
         final User unfilteredUser = mock(User.class);
-        if (randomBoolean()) {
-            when(unfilteredUser.authenticatedUser()).thenReturn(new User(randomFrom(filteredUsernames)));
-        }
         // null user field does NOT match
         assertFalse(
             "Does not match the user filter predicate because of null username.",
@@ -313,13 +304,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         final Settings.Builder settingsBuilder = Settings.builder().put(settings);
         // filter by username
         final List<String> filteredUsernames = randomNonEmptyListOfFilteredNames();
-        final List<User> filteredUsers = filteredUsernames.stream().map(u -> {
-            if (randomBoolean()) {
-                return new User(u);
-            } else {
-                return new User(new User(u), new User(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 4)));
-            }
-        }).collect(Collectors.toList());
+        final List<User> filteredUsers = filteredUsernames.stream().map(u -> { return new User(u); }).collect(Collectors.toList());
         settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters.completeFilterPolicy.users", filteredUsernames);
         // filter by realms
         final List<String> filteredRealms = randomNonEmptyListOfFilteredNames();
@@ -354,14 +339,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
                 )
         );
         final User unfilteredUser;
-        if (randomBoolean()) {
-            unfilteredUser = new User(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 8));
-        } else {
-            unfilteredUser = new User(
-                new User(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 8)),
-                new User(randomFrom(filteredUsers).principal())
-            );
-        }
+        unfilteredUser = new User(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 8));
         // one field does not match or is empty
         assertFalse(
             "Does not match the filter predicate because of the user.",
@@ -515,13 +493,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         final Settings.Builder settingsBuilder = Settings.builder().put(settings);
         // filter by username
         final List<String> filteredUsernames = randomNonEmptyListOfFilteredNames();
-        final List<User> filteredUsers = filteredUsernames.stream().map(u -> {
-            if (randomBoolean()) {
-                return new User(u);
-            } else {
-                return new User(new User(u), new User(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 4)));
-            }
-        }).collect(Collectors.toList());
+        final List<User> filteredUsers = filteredUsernames.stream().map(u -> { return new User(u); }).collect(Collectors.toList());
         filteredUsernames.add(""); // filter by missing user name
         settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters.completeFilterPolicy.users", filteredUsernames);
         // filter by realms
@@ -563,14 +535,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
                 )
         );
         final User unfilteredUser;
-        if (randomBoolean()) {
-            unfilteredUser = new User(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 8));
-        } else {
-            unfilteredUser = new User(
-                new User(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 8)),
-                new User(randomFrom(filteredUsers).principal())
-            );
-        }
+        unfilteredUser = new User(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 8));
         // one field does not match or is empty
         assertFalse(
             "Does not match the filter predicate because of the user.",
@@ -757,13 +722,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters.firstPolicy.roles", filteredRoles);
         // second policy: users and indices filters
         final List<String> filteredUsernames = randomNonEmptyListOfFilteredNames();
-        final List<User> filteredUsers = filteredUsernames.stream().map(u -> {
-            if (randomBoolean()) {
-                return new User(u);
-            } else {
-                return new User(new User(u), new User(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 4)));
-            }
-        }).collect(Collectors.toList());
+        final List<User> filteredUsers = filteredUsernames.stream().map(u -> { return new User(u); }).collect(Collectors.toList());
         settingsBuilder.putList("xpack.security.audit.logfile.events.ignore_filters.secondPolicy.users", filteredUsernames);
         // filter by indices
         final List<String> filteredIndices = randomNonEmptyListOfFilteredNames();
@@ -772,14 +731,7 @@ public class LoggingAuditTrailFilterTests extends ESTestCase {
         final LoggingAuditTrail auditTrail = new LoggingAuditTrail(settingsBuilder.build(), clusterService, logger, threadContext);
 
         final User unfilteredUser;
-        if (randomBoolean()) {
-            unfilteredUser = new User(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 8));
-        } else {
-            unfilteredUser = new User(
-                new User(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 8)),
-                new User(randomFrom(filteredUsers).principal())
-            );
-        }
+        unfilteredUser = new User(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 8));
         final List<String> someRolesDoNotMatch = new ArrayList<>(randomSubsetOf(randomIntBetween(0, filteredRoles.size()), filteredRoles));
         for (int i = 0; i < randomIntBetween(1, 8); i++) {
             someRolesDoNotMatch.add(UNFILTER_MARKER + randomAlphaOfLengthBetween(1, 8));

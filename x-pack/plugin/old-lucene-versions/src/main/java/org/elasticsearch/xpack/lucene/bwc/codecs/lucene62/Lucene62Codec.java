@@ -27,10 +27,13 @@ import org.apache.lucene.codecs.CompoundFormat;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.FieldInfosFormat;
 import org.apache.lucene.codecs.LiveDocsFormat;
+import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.SegmentInfoFormat;
 import org.apache.lucene.codecs.StoredFieldsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.elasticsearch.xpack.lucene.bwc.codecs.BWCCodec;
+import org.elasticsearch.xpack.lucene.bwc.codecs.LegacyAdaptingPerFieldPostingsFormat;
+import org.elasticsearch.xpack.lucene.bwc.codecs.lucene50.BWCLucene50PostingsFormat;
 import org.elasticsearch.xpack.lucene.bwc.codecs.lucene54.Lucene54DocValuesFormat;
 
 import java.util.Objects;
@@ -52,6 +55,16 @@ public class Lucene62Codec extends BWCCodec {
         @Override
         public DocValuesFormat getDocValuesFormatForField(String field) {
             return defaultDocValuesFormat;
+        }
+    };
+    private final PostingsFormat postingsFormat = new LegacyAdaptingPerFieldPostingsFormat() {
+        @Override
+        protected PostingsFormat getPostingsFormat(String formatName) {
+            if (formatName.equals("Lucene50")) {
+                return new BWCLucene50PostingsFormat();
+            } else {
+                return super.getPostingsFormat(formatName);
+            }
         }
     };
 
@@ -92,5 +105,10 @@ public class Lucene62Codec extends BWCCodec {
     @Override
     public DocValuesFormat docValuesFormat() {
         return docValuesFormat;
+    }
+
+    @Override
+    public PostingsFormat postingsFormat() {
+        return postingsFormat;
     }
 }

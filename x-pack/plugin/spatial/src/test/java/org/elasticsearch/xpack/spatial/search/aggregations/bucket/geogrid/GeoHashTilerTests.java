@@ -11,6 +11,7 @@ import org.elasticsearch.common.geo.GeoBoundingBox;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashBoundedPredicate;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoRelation;
 import org.elasticsearch.xpack.spatial.index.fielddata.GeoShapeValues;
 
@@ -117,16 +118,8 @@ public class GeoHashTilerTests extends GeoGridTilerTestCase {
         if (bbox == null) {
             return true;
         }
-        final Rectangle rectangle = Geohash.toBoundingBox(hash);
-        // touching hashes are excluded
-        if (bbox.top() > rectangle.getMinY() && bbox.bottom() < rectangle.getMaxY()) {
-            if (bbox.left() > bbox.right()) {
-                return bbox.left() < rectangle.getMaxX() || bbox.right() > rectangle.getMinX();
-            } else {
-                return bbox.left() < rectangle.getMaxX() && bbox.right() > rectangle.getMinX();
-            }
-        }
-        return false;
+        GeoHashBoundedPredicate predicate = new GeoHashBoundedPredicate(hash.length(), bbox);
+        return predicate.validHash(hash);
     }
 
     public void testGeoHash() throws Exception {

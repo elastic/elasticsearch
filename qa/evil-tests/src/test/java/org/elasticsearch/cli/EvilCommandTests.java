@@ -24,7 +24,7 @@ public class EvilCommandTests extends ESTestCase {
     public void testCommandShutdownHook() throws Exception {
         final AtomicBoolean closed = new AtomicBoolean();
         final boolean shouldThrow = randomBoolean();
-        final Command command = new Command("test-command-shutdown-hook", () -> {}) {
+        final Command command = new Command("test-command-shutdown-hook") {
             @Override
             protected void execute(Terminal terminal, OptionSet options) throws Exception {
 
@@ -38,7 +38,7 @@ public class EvilCommandTests extends ESTestCase {
                 }
             }
         };
-        final MockTerminal terminal = new MockTerminal();
+        final MockTerminal terminal = MockTerminal.create();
         command.main(new String[0], terminal);
         assertNotNull(command.getShutdownHookThread());
         // successful removal here asserts that the runtime hook was installed in Command#main

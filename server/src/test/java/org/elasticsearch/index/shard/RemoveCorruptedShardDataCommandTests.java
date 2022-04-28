@@ -186,7 +186,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         indexDocs(indexShard, true);
 
         final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
-        final MockTerminal t = new MockTerminal();
+        final MockTerminal t = MockTerminal.create();
         final OptionParser parser = command.getParser();
 
         // Try running it before the shard is closed, it should flip out because it can't acquire the lock
@@ -230,7 +230,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         }
 
         final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
-        final MockTerminal t = new MockTerminal();
+        final MockTerminal t = MockTerminal.create();
         final OptionParser parser = command.getParser();
 
         // run command with dry-run
@@ -295,7 +295,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         closeShard(corruptedShard, false); // translog is corrupted already - do not check consistency
 
         final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
-        final MockTerminal t = new MockTerminal();
+        final MockTerminal t = MockTerminal.create();
         final OptionParser parser = command.getParser();
 
         final OptionSet options = parser.parse("-d", translogPath.toString());
@@ -350,7 +350,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         TestTranslog.corruptRandomTranslogFile(logger, random(), translogPath);
 
         final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
-        final MockTerminal t = new MockTerminal();
+        final MockTerminal t = MockTerminal.create();
         final OptionParser parser = command.getParser();
 
         final OptionSet options = parser.parse("-d", translogPath.toString());
@@ -428,7 +428,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         closeShards(indexShard);
 
         final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
-        final MockTerminal t = new MockTerminal();
+        final MockTerminal t = MockTerminal.create();
         final OptionParser parser = command.getParser();
 
         final OptionSet options = parser.parse("-d", translogPath.toString());
@@ -446,7 +446,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         closeShards(indexShard);
 
         final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
-        final MockTerminal t = new MockTerminal();
+        final MockTerminal t = MockTerminal.create();
         final OptionParser parser = command.getParser();
 
         final OptionSet options = parser.parse("-d", translogPath.toString(), "--" + TRUNCATE_CLEAN_TRANSLOG_FLAG);
@@ -472,7 +472,7 @@ public class RemoveCorruptedShardDataCommandTests extends IndexShardTestCase {
         closeShards(corruptedShard);
 
         final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
-        final MockTerminal t = new MockTerminal();
+        final MockTerminal t = MockTerminal.create();
         final OptionParser parser = command.getParser();
 
         final OptionSet options = parser.parse("-d", translogPath.toString());

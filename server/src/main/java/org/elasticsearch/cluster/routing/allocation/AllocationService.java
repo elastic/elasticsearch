@@ -11,6 +11,8 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
@@ -257,7 +259,7 @@ public class AllocationService {
             allocator.applyFailedShards(failedShards, allocation);
         }
 
-        reroute(allocation);
+        reroute(allocation, ActionListener.noop());
         String failedShardsAsString = firstListElementsToCommaDelimitedString(
             failedShards,
             s -> s.routingEntry().shardId().toString(),
@@ -456,7 +458,7 @@ public class AllocationService {
         allocation.ignoreDisable(false);
         // the assumption is that commands will move / act on shards (or fail through exceptions)
         // so, there will always be shard "movements", so no need to check on reroute
-        reroute(allocation);
+        reroute(allocation, ActionListener.noop());
         return new CommandsResult(explanations, buildResultAndLogHealthChange(clusterState, allocation, "reroute commands"));
     }
 
@@ -471,6 +473,10 @@ public class AllocationService {
      * @return an updated cluster state, or the same instance that was passed as an argument if no changes were made.
      */
     public ClusterState reroute(ClusterState clusterState, String reason) {
+        return reroute(clusterState, reason, ActionListener.noop());
+    }
+
+    public ClusterState reroute(ClusterState clusterState, String reason, ActionListener<ActionResponse.Empty> listener) {
         ClusterState fixedClusterState = adaptAutoExpandReplicas(clusterState);
 
         RoutingNodes routingNodes = getMutableRoutingNodes(fixedClusterState);
@@ -482,7 +488,7 @@ public class AllocationService {
             snapshotsInfoService.snapshotShardSizes(),
             currentNanoTime()
         );
-        reroute(allocation);
+        reroute(allocation, listener);
         if (fixedClusterState == clusterState && allocation.routingNodesChanged() == false) {
             return clusterState;
         }
@@ -516,7 +522,7 @@ public class AllocationService {
         return false;
     }
 
-    private void reroute(RoutingAllocation allocation) {
+    private void reroute(RoutingAllocation allocation, ActionListener<ActionResponse.Empty> listener) {
         assert hasDeadNodes(allocation) == false : "dead nodes should be explicitly cleaned up. See disassociateDeadNodes";
         assert AutoExpandReplicas.getAutoExpandReplicaChanges(allocation.metadata(), () -> allocation).isEmpty()
             : "auto-expand replicas out of sync with number of nodes in the cluster";
@@ -525,7 +531,7 @@ public class AllocationService {
         removeDelayMarkers(allocation);
 
         allocateExistingUnassignedShards(allocation);  // try to allocate existing shard copies first
-        shardsAllocator.allocate(allocation);
+        shardsAllocator.allocate(allocation, listener);
         assert RoutingNodes.assertShardStats(allocation.routingNodes());
     }
 

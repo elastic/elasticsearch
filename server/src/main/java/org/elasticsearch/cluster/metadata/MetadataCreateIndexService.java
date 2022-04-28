@@ -15,6 +15,7 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
@@ -292,7 +293,7 @@ public class MetadataCreateIndexService {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    return applyCreateIndexRequest(currentState, request, false);
+                    return applyCreateIndexRequest(currentState, request, false, null, ActionListener.noop());
                 }
 
                 @Override
@@ -331,7 +332,8 @@ public class MetadataCreateIndexService {
         ClusterState currentState,
         CreateIndexClusterStateUpdateRequest request,
         boolean silent,
-        BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer
+        BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer,
+        ActionListener<ActionResponse.Empty> listener
     ) throws Exception {
 
         normalizeRequestSetting(request);
@@ -392,14 +394,14 @@ public class MetadataCreateIndexService {
                     );
                 }
 
-                return applyCreateIndexRequestWithV1Templates(currentState, request, silent, v1Templates, metadataTransformer);
+                return applyCreateIndexRequestWithV1Templates(currentState, request, silent, v1Templates, metadataTransformer, listener);
             }
         }
     }
 
     public ClusterState applyCreateIndexRequest(ClusterState currentState, CreateIndexClusterStateUpdateRequest request, boolean silent)
         throws Exception {
-        return applyCreateIndexRequest(currentState, request, silent, null);
+        return applyCreateIndexRequest(currentState, request, silent, null, ActionListener.noop());
     }
 
     /**
@@ -428,6 +430,32 @@ public class MetadataCreateIndexService {
         final Function<IndexService, List<AliasMetadata>> aliasSupplier,
         final List<String> templatesApplied,
         final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer
+    ) throws Exception {
+        return applyCreateIndexWithTemporaryService(
+            currentState,
+            request,
+            silent,
+            sourceMetadata,
+            temporaryIndexMeta,
+            mappings,
+            aliasSupplier,
+            templatesApplied,
+            metadataTransformer,
+            ActionListener.noop()
+        );
+    }
+
+    private ClusterState applyCreateIndexWithTemporaryService(
+        final ClusterState currentState,
+        final CreateIndexClusterStateUpdateRequest request,
+        final boolean silent,
+        final IndexMetadata sourceMetadata,
+        final IndexMetadata temporaryIndexMeta,
+        final List<CompressedXContent> mappings,
+        final Function<IndexService, List<AliasMetadata>> aliasSupplier,
+        final List<String> templatesApplied,
+        final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer,
+        final ActionListener<ActionResponse.Empty> listener
     ) throws Exception {
         // create the index here (on the master) to validate it can be created, as well as adding the mapping
         return indicesService.<ClusterState, Exception>withTempIndexService(temporaryIndexMeta, indexService -> {
@@ -467,10 +495,12 @@ public class MetadataCreateIndexService {
             );
 
             indexService.getIndexEventListener().beforeIndexAddedToCluster(indexMetadata.getIndex(), indexMetadata.getSettings());
-            BiFunction<ClusterState, String, ClusterState> rerouteFunction = request.performReroute()
-                ? allocationService::reroute
-                : (cs, reason) -> cs;
-            return clusterStateCreateIndex(currentState, request.blocks(), indexMetadata, rerouteFunction, metadataTransformer);
+
+            ClusterState updated = clusterStateCreateIndex(currentState, request.blocks(), indexMetadata, metadataTransformer);
+            if (request.performReroute()) {
+                updated = allocationService.reroute(updated, "index [" + indexMetadata.getIndex().getName() + "] created", listener);
+            }
+            return updated;
         });
     }
 
@@ -510,7 +540,8 @@ public class MetadataCreateIndexService {
         final CreateIndexClusterStateUpdateRequest request,
         final boolean silent,
         final List<IndexTemplateMetadata> templates,
-        final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer
+        final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer,
+        final ActionListener<ActionResponse.Empty> listener
     ) throws Exception {
         logger.debug(
             "applying create index request using legacy templates {}",
@@ -563,7 +594,8 @@ public class MetadataCreateIndexService {
                 systemIndices::isSystemName
             ),
             templates.stream().map(IndexTemplateMetadata::getName).collect(toList()),
-            metadataTransformer
+            metadataTransformer,
+            listener
         );
     }
 
@@ -1119,7 +1151,6 @@ public class MetadataCreateIndexService {
         ClusterState currentState,
         Set<ClusterBlock> clusterBlocks,
         IndexMetadata indexMetadata,
-        BiFunction<ClusterState, String, ClusterState> rerouteRoutingTable,
         BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer
     ) {
         Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(indexMetadata, false);
@@ -1136,8 +1167,7 @@ public class MetadataCreateIndexService {
 
         RoutingTable.Builder routingTableBuilder = RoutingTable.builder(updatedState.routingTable())
             .addAsNew(updatedState.metadata().index(indexName));
-        updatedState = ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build();
-        return rerouteRoutingTable.apply(updatedState, "index [" + indexName + "] created");
+        return ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build();
     }
 
     static IndexMetadata buildIndexMetadata(

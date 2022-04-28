@@ -8,6 +8,9 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionResponse.Empty;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.MoveDecision;
@@ -32,6 +35,20 @@ public interface ShardsAllocator {
      * @param allocation current node allocation
      */
     void allocate(RoutingAllocation allocation);
+
+    /**
+     * Allocates shards to nodes in the cluster. An implementation of this method should:
+     * - assign unassigned shards
+     * - relocate shards that cannot stay on a node anymore
+     * - relocate shards to find a good shard balance in the cluster
+     *
+     * @param allocation current node allocation
+     * @param listener listener to be executed once async allocation is completed
+     */
+    default void allocate(RoutingAllocation allocation, ActionListener<Empty> listener) {
+        allocate(allocation);
+        listener.onResponse(Empty.INSTANCE);
+    }
 
     /**
      * Returns the decision for where a shard should reside in the cluster.  If the shard is unassigned,

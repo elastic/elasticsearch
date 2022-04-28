@@ -158,8 +158,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
                 + "]";
         builder.put(V_EMPTY_ID, V_EMPTY);
         builderByString.put(V_EMPTY.toString(), V_EMPTY);
-        idToVersion = Collections.unmodifiableMap(builder);
-        stringToVersion = Collections.unmodifiableMap(builderByString);
+        idToVersion = Map.copyOf(builder);
+        stringToVersion = Map.copyOf(builderByString);
     }
 
     public static Version readVersion(StreamInput in) throws IOException {

@@ -88,11 +88,9 @@ public class GeoPointScriptFieldDistanceFeatureQueryTests extends AbstractScript
                     searchLookup,
                     ctx
                 ) {
-                    final GeoPoint point = new GeoPoint();
-
                     @Override
                     public void execute() {
-                        GeoUtils.parseGeoPoint(searchLookup.source().get("location"), point, true);
+                        GeoPoint point = GeoUtils.parseGeoPoint(searchLookup.source().get("location"), true);
                         emit(point.lat(), point.lon());
                     }
                 };

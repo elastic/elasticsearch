@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
@@ -653,6 +654,91 @@ public class DataStreamTests extends AbstractSerializingTestCase<DataStream> {
                         + "]"
                 )
             );
+        }
+        {
+            Instant currentTime = Instant.now().truncatedTo(ChronoUnit.MILLIS);
+
+            // These ranges are on the edge of each other temporal boundaries.
+            Instant start1 = currentTime.minus(6, ChronoUnit.HOURS);
+            Instant end1 = currentTime.minus(2, ChronoUnit.HOURS);
+            Instant start2 = currentTime.minus(2, ChronoUnit.HOURS);
+            Instant end2 = currentTime.plus(2, ChronoUnit.HOURS);
+
+            String dataStreamName = "logs_my-app_prod";
+            var clusterState = DataStreamTestHelper.getClusterStateWithDataStream(
+                dataStreamName,
+                List.of(Tuple.tuple(start1, end1), Tuple.tuple(start2, end2))
+            );
+            DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
+
+            {
+                // IndexMetadata not found case:
+                var e = expectThrows(IllegalStateException.class, () -> dataStream.validate((index) -> null));
+                assertThat(
+                    e.getMessage(),
+                    equalTo(
+                        "index ["
+                            + DataStream.getDefaultBackingIndexName(dataStreamName, 1, start1.toEpochMilli())
+                            + "] is not found in the index metadata supplier"
+                    )
+                );
+            }
+
+            {
+                // index is not time_series index:
+                dataStream.validate(
+                    (index) -> IndexMetadata.builder(index)
+                        .settings(
+                            Settings.builder()
+                                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                                .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+                                .build()
+                        )
+                        .build()
+                );
+            }
+
+            {
+                // invalid IndexMetadata result
+                Instant start3 = currentTime.minus(6, ChronoUnit.HOURS);
+                Instant end3 = currentTime.plus(2, ChronoUnit.HOURS);
+                var e = expectThrows(
+                    IllegalArgumentException.class,
+                    () -> dataStream.validate(
+                        (index) -> IndexMetadata.builder(index)
+                            .settings(
+                                Settings.builder()
+                                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
+                                    .put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), Version.CURRENT)
+                                    .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), start3.toEpochMilli())
+                                    .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), end3.toEpochMilli())
+                                    .build()
+                            )
+                            .build()
+                    )
+                );
+                var formatter = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
+                assertThat(
+                    e.getMessage(),
+                    equalTo(
+                        "backing index ["
+                            + DataStream.getDefaultBackingIndexName(dataStreamName, 1, start1.toEpochMilli())
+                            + "] with range ["
+                            + formatter.format(start3)
+                            + " TO "
+                            + formatter.format(end3)
+                            + "] is overlapping with backing index ["
+                            + DataStream.getDefaultBackingIndexName(dataStreamName, 2, start2.toEpochMilli())
+                            + "] with range ["
+                            + formatter.format(start3)
+                            + " TO "
+                            + formatter.format(end3)
+                            + "]"
+                    )
+                );
+            }
         }
     }
 

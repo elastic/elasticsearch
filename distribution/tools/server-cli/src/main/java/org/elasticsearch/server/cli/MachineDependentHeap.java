@@ -8,7 +8,8 @@
 
 package org.elasticsearch.server.cli;
 
-import org.elasticsearch.cli.UserException;
+import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
 
@@ -19,7 +20,6 @@ import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
@@ -55,7 +55,7 @@ public final class MachineDependentHeap {
      * @return final heap options, or an empty collection if user provided heap options are to be used
      * @throws IOException if unable to load elasticsearch.yml
      */
-    public List<String> determineHeapSettings(Path configDir, List<String> userDefinedJvmOptions) throws UserException, IOException {
+    public List<String> determineHeapSettings(Path configDir, List<String> userDefinedJvmOptions) throws IOException, InterruptedException {
         // TODO: this could be more efficient, to only parse final options once
         final Map<String, JvmOption> finalJvmOptions = JvmOption.findFinalOptions(userDefinedJvmOptions);
         if (isMaxHeapSpecified(finalJvmOptions) || isMinHeapSpecified(finalJvmOptions) || isInitialHeapSpecified(finalJvmOptions)) {
@@ -86,28 +86,23 @@ public final class MachineDependentHeap {
 
         @SuppressWarnings("unchecked")
         public static MachineNodeRole parse(InputStream config) {
-
-            Map<String, Object> root;
+            final Settings settings;
             try {
                 var parser = YamlXContent.yamlXContent.createParser(XContentParserConfiguration.EMPTY, config);
-                root = parser.map();
-            } catch (IOException | ClassCastException ex) {
+                if (parser.currentToken() == null && parser.nextToken() == null) {
+                    settings = null;
+                } else {
+                    settings = Settings.fromXContent(parser);
+                }
+            } catch (IOException | ParsingException ex) {
                 // Strangely formatted config, so just return defaults and let startup settings validation catch the problem
                 return MachineNodeRole.UNKNOWN;
             }
 
-            if (root.isEmpty() == false) {
-                Map<String, Object> map = flatten(root, null);
-                List<String> roles = null;
-                try {
-                    if (map.containsKey("node.roles")) {
-                        roles = (List<String>) map.get("node.roles");
-                    }
-                } catch (ClassCastException ex) {
-                    return MachineNodeRole.UNKNOWN;
-                }
+            if (settings != null && settings.isEmpty() == false) {
+                List<String> roles = settings.getAsList("node.roles");
 
-                if (roles == null || roles.isEmpty()) {
+                if (roles.isEmpty()) {
                     // If roles are missing or empty (coordinating node) assume defaults and consider this a data node
                     return MachineNodeRole.DATA;
                 } else if (containsOnly(roles, "master")) {
@@ -120,33 +115,6 @@ public final class MachineDependentHeap {
             } else { // if the config is completely empty, then assume defaults and consider this a data node
                 return MachineNodeRole.DATA;
             }
-        }
-
-        /**
-         * Flattens a nested configuration structure. This creates a consistent way of referencing settings from a config file that uses
-         * a mix of object and flat setting notation. The returned map is a single-level deep structure of dot-notation property names
-         * to values.
-         *
-         * <p>No attempt is made to deterministically deal with duplicate settings, nor are they explicitly disallowed.
-         *
-         * @param config nested configuration map
-         * @param parentPath parent node path or {@code null} if parsing the root node
-         * @return flattened configuration map
-         */
-        @SuppressWarnings("unchecked")
-        private static Map<String, Object> flatten(Map<String, Object> config, String parentPath) {
-            Map<String, Object> flatMap = new HashMap<>();
-            String prefix = parentPath != null ? parentPath + "." : "";
-
-            for (Map.Entry<String, Object> entry : config.entrySet()) {
-                if (entry.getValue() instanceof Map) {
-                    flatMap.putAll(flatten((Map<String, Object>) entry.getValue(), prefix + entry.getKey()));
-                } else {
-                    flatMap.put(prefix + entry.getKey(), entry.getValue());
-                }
-            }
-
-            return flatMap;
         }
 
         @SuppressWarnings("unchecked")

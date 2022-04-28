@@ -16,7 +16,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
-import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -62,7 +61,8 @@ final class JvmOptionsParser {
 
     }
 
-    static List<String> determineOptions(Path configDir, Path pluginsDir, Path tmpDir, String envOptions) throws UserException {
+    static List<String> determineOptions(Path configDir, Path pluginsDir, Path tmpDir, String envOptions) throws InterruptedException,
+        IOException, UserException {
         final JvmOptionsParser parser = new JvmOptionsParser();
 
         final Map<String, String> substitutions = new HashMap<>();
@@ -71,8 +71,6 @@ final class JvmOptionsParser {
 
         try {
             return parser.jvmOptions(configDir, pluginsDir, envOptions, substitutions);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
         } catch (final JvmOptionsFileParserException e) {
             final String errorMessage = String.format(
                 Locale.ROOT,
@@ -101,7 +99,7 @@ final class JvmOptionsParser {
     }
 
     private List<String> jvmOptions(final Path config, Path plugins, final String esJavaOpts, final Map<String, String> substitutions)
-        throws UserException, IOException, JvmOptionsFileParserException {
+        throws UserException, IOException, InterruptedException, JvmOptionsFileParserException {
 
         final List<String> jvmOptions = readJvmOptionsFiles(config);
 

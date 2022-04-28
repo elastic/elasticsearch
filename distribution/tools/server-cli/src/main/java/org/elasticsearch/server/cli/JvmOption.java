@@ -8,9 +8,6 @@
 
 package org.elasticsearch.server.cli;
 
-import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.UserException;
-
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -78,14 +75,15 @@ class JvmOption {
     /**
      * Determine the options present when invoking a JVM with the given user defined options.
      */
-    public static Map<String, JvmOption> findFinalOptions(final List<String> userDefinedJvmOptions) throws UserException, IOException {
+    public static Map<String, JvmOption> findFinalOptions(final List<String> userDefinedJvmOptions) throws InterruptedException,
+        IOException {
         return flagsFinal(userDefinedJvmOptions).stream()
             .map(OPTION::matcher)
             .filter(Matcher::matches)
             .collect(Collectors.toUnmodifiableMap(m -> m.group("flag"), m -> new JvmOption(m.group("value"), m.group("origin"))));
     }
 
-    private static List<String> flagsFinal(final List<String> userDefinedJvmOptions) throws UserException, IOException {
+    private static List<String> flagsFinal(final List<String> userDefinedJvmOptions) throws InterruptedException, IOException {
         /*
          * To deduce the final set of JVM options that Elasticsearch is going to start with, we start a separate Java process with the JVM
          * options that we would pass on the command line. For this Java process we will add two additional flags, -XX:+PrintFlagsFinal and
@@ -103,12 +101,7 @@ class JvmOption {
         final Process process = new ProcessBuilder().command(command).start();
         final List<String> output = readLinesFromInputStream(process.getInputStream());
         final List<String> error = readLinesFromInputStream(process.getErrorStream());
-        final int status;
-        try {
-            status = process.waitFor();
-        } catch (InterruptedException e) {
-            throw new UserException(ExitCodes.CODE_ERROR, "Interrupted while waiting for jvm options determiner");
-        }
+        final int status = process.waitFor();
         if (status != 0) {
             final String message = String.format(
                 Locale.ROOT,

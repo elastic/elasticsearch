@@ -90,7 +90,12 @@ class ServerCli extends EnvironmentAwareCommand {
         // determine process environment and arguments
         Map<String, String> envVars = new HashMap<>(this.envVars);
         Path tempDir = TempDirectory.setup(envVars);
-        List<String> jvmOptions = JvmOptionsParser.determineOptions(env.configFile(), env.pluginsFile(), tempDir, envVars.get("ES_JAVA_OPTS"));
+        List<String> jvmOptions = JvmOptionsParser.determineOptions(
+            env.configFile(),
+            env.pluginsFile(),
+            tempDir,
+            envVars.get("ES_JAVA_OPTS")
+        );
         // jvmOptions.add("-Des.path.conf=" + env.configFile());
         jvmOptions.add("-Des.distribution.type=" + sysprops.get("es.distribution.type"));
         var args = createArgs(options, keystorePassword, env);

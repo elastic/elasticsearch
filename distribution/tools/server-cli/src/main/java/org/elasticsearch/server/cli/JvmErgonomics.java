@@ -8,8 +8,6 @@
 
 package org.elasticsearch.server.cli;
 
-import org.elasticsearch.cli.UserException;
-
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -33,7 +31,7 @@ final class JvmErgonomics {
      * @param userDefinedJvmOptions A list of JVM options that have been defined by the user.
      * @return A list of additional JVM options to set.
      */
-    static List<String> choose(final List<String> userDefinedJvmOptions) throws UserException, IOException {
+    static List<String> choose(final List<String> userDefinedJvmOptions) throws InterruptedException, IOException {
         final List<String> ergonomicChoices = new ArrayList<>();
         final Map<String, JvmOption> finalJvmOptions = JvmOption.findFinalOptions(userDefinedJvmOptions);
         final long heapSize = JvmOption.extractMaxHeapSize(finalJvmOptions);

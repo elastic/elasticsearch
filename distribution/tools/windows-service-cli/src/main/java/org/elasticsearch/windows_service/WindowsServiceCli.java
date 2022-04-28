@@ -51,8 +51,11 @@ class WindowsServiceCli extends MultiCommand {
             addArg(args, "--JvmMx", "64m");
             addArg(args, "--JvmOptions", getJvmOptions());
             addArg(args, "--PidFile", "%s.pid".formatted(serviceId));
-            addArg(args, "--DisplayName",
-                env.getOrDefault("SERVICE_DISPLAY_NAME", "Elasticsearch %s (%s)".formatted(Version.CURRENT, serviceId)));
+            addArg(
+                args,
+                "--DisplayName",
+                env.getOrDefault("SERVICE_DISPLAY_NAME", "Elasticsearch %s (%s)".formatted(Version.CURRENT, serviceId))
+            );
             addArg(
                 args,
                 "--Description",

@@ -18,10 +18,24 @@ import org.elasticsearch.core.PathUtils;
 import java.io.IOException;
 import java.nio.file.Path;
 
-public record ServerArgs(boolean daemonize, boolean quiet, Path pidFile, SecureString keystorePassword, Settings nodeSettings, Path configDir) implements Writeable {
+public record ServerArgs(
+    boolean daemonize,
+    boolean quiet,
+    Path pidFile,
+    SecureString keystorePassword,
+    Settings nodeSettings,
+    Path configDir
+) implements Writeable {
 
     public ServerArgs(StreamInput in) throws IOException {
-        this(in.readBoolean(), in.readBoolean(), readPidFile(in), in.readSecureString(), Settings.readSettingsFromStream(in), PathUtils.get(in.readString()));
+        this(
+            in.readBoolean(),
+            in.readBoolean(),
+            readPidFile(in),
+            in.readSecureString(),
+            Settings.readSettingsFromStream(in),
+            PathUtils.get(in.readString())
+        );
     }
 
     private static Path readPidFile(StreamInput in) throws IOException {

@@ -22,7 +22,7 @@ import org.bouncycastle.util.io.pem.PemObjectGenerator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.ExitCodes;
-import org.elasticsearch.cli.SuppressForbidden;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.Strings;

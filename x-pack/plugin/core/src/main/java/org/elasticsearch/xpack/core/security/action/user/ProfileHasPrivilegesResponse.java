@@ -15,6 +15,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Objects;
 
 public class ProfileHasPrivilegesResponse extends ActionResponse implements ToXContentObject {
 
@@ -29,12 +30,8 @@ public class ProfileHasPrivilegesResponse extends ActionResponse implements ToXC
 
     public ProfileHasPrivilegesResponse(String[] hasPrivilegeUids, String[] errorUids) {
         super();
-        this.hasPrivilegeUids = hasPrivilegeUids;
-        this.errorUids = errorUids;
-    }
-
-    public ProfileHasPrivilegesResponse() {
-        this(new String[0], new String[0]);
+        this.hasPrivilegeUids = Objects.requireNonNull(hasPrivilegeUids);
+        this.errorUids = Objects.requireNonNull(errorUids);
     }
 
     public String[] hasPrivilegeUids() {
@@ -77,7 +74,7 @@ public class ProfileHasPrivilegesResponse extends ActionResponse implements ToXC
             + "{"
             + "has_privilege_uids="
             + Arrays.toString(hasPrivilegeUids)
-            + ", failure_uids="
+            + ", error_uids="
             + Arrays.toString(errorUids)
             + "}";
     }

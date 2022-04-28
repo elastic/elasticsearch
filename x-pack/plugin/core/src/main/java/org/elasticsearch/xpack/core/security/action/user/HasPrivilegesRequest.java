@@ -44,7 +44,7 @@ public class HasPrivilegesRequest extends ActionRequest implements UserRequest {
 
     @Override
     public ActionRequestValidationException validate() {
-        return validateActionRequestPrivileges(null, clusterPrivileges, indexPrivileges, applicationPrivileges);
+        return validatePrivilegesToCheck(null, clusterPrivileges, indexPrivileges, applicationPrivileges);
     }
 
     /**
@@ -102,7 +102,7 @@ public class HasPrivilegesRequest extends ActionRequest implements UserRequest {
         out.writeArray(ApplicationResourcePrivileges::write, applicationPrivileges);
     }
 
-    public static ActionRequestValidationException validateActionRequestPrivileges(
+    public static ActionRequestValidationException validatePrivilegesToCheck(
         ActionRequestValidationException validationException,
         String[] clusterPrivileges,
         IndicesPrivileges[] indexPrivileges,

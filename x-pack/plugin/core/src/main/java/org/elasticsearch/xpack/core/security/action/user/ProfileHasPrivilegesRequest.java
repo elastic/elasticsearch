@@ -29,7 +29,7 @@ public class ProfileHasPrivilegesRequest extends ActionRequest {
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<ProfileHasPrivilegesRequest, Void> PARSER = new ConstructingObjectParser<>(
-        ProfileHasPrivilegesAction.NAME,
+        "profile_has_privileges_request",
         false,
         arg -> new ProfileHasPrivilegesRequest((List<String>) arg[0], (RoleDescriptor) arg[1])
     );
@@ -37,7 +37,7 @@ public class ProfileHasPrivilegesRequest extends ActionRequest {
         PARSER.declareStringArray(constructorArg(), Fields.UIDS);
         PARSER.declareField(
             constructorArg(),
-            parser -> RoleDescriptor.parsePrivilegesCheck(ProfileHasPrivilegesAction.NAME, parser),
+            parser -> RoleDescriptor.parsePrivilegesCheck("profile_has_privileges_request", parser),
             Fields.PRIVILEGES,
             ObjectParser.ValueType.OBJECT
         );
@@ -90,7 +90,7 @@ public class ProfileHasPrivilegesRequest extends ActionRequest {
         } else if (uids.isEmpty()) {
             validationException = addValidationError("profile uids list must not be empty", validationException);
         }
-        return HasPrivilegesRequest.validateActionRequestPrivileges(
+        return HasPrivilegesRequest.validatePrivilegesToCheck(
             validationException,
             clusterPrivileges,
             indexPrivileges,

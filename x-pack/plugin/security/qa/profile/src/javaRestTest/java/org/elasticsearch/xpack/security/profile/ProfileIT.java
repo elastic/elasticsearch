@@ -26,10 +26,10 @@ import java.util.Set;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.is;
 
 public class ProfileIT extends ESRestTestCase {
 
@@ -113,7 +113,7 @@ public class ProfileIT extends ESRestTestCase {
         assertOK(profileHasPrivilegesResponse);
         Map<String, Object> profileHasPrivilegesResponseMap = responseAsMap(profileHasPrivilegesResponse);
         assertThat(profileHasPrivilegesResponseMap.keySet(), containsInAnyOrder("has_privilege_uids", "error_uids"));
-        assertThat(((List<String>) profileHasPrivilegesResponseMap.get("error_uids")).isEmpty(), is(true));
+        assertThat(((List<String>) profileHasPrivilegesResponseMap.get("error_uids")), empty());
         assertThat(((List<String>) profileHasPrivilegesResponseMap.get("has_privilege_uids")), contains(profileUid));
     }
 

@@ -46,7 +46,8 @@ public class SqlQueryRequestBuilder extends ActionRequestBuilder<SqlQueryRequest
             Protocol.INDEX_INCLUDE_FROZEN,
             Protocol.DEFAULT_WAIT_FOR_COMPLETION_TIMEOUT,
             Protocol.DEFAULT_KEEP_ON_COMPLETION,
-            Protocol.DEFAULT_KEEP_ALIVE
+            Protocol.DEFAULT_KEEP_ALIVE,
+            Protocol.ALLOW_PARTIAL_SEARCH_RESULTS
         );
     }
 
@@ -69,7 +70,8 @@ public class SqlQueryRequestBuilder extends ActionRequestBuilder<SqlQueryRequest
         boolean indexIncludeFrozen,
         TimeValue waitForCompletionTimeout,
         boolean keepOnCompletion,
-        TimeValue keepAlive
+        TimeValue keepAlive,
+        boolean allowPartialSearchResults
     ) {
         super(
             client,
@@ -91,7 +93,8 @@ public class SqlQueryRequestBuilder extends ActionRequestBuilder<SqlQueryRequest
                 indexIncludeFrozen,
                 waitForCompletionTimeout,
                 keepOnCompletion,
-                keepAlive
+                keepAlive,
+                allowPartialSearchResults
             )
         );
     }
@@ -178,6 +181,11 @@ public class SqlQueryRequestBuilder extends ActionRequestBuilder<SqlQueryRequest
 
     public SqlQueryRequestBuilder keepAlive(TimeValue keepAlive) {
         request.keepAlive(keepAlive);
+        return this;
+    }
+
+    public SqlQueryRequestBuilder allowPartialSearchResults(boolean allowPartialSearchResults) {
+        request.allowPartialSearchResults(allowPartialSearchResults);
         return this;
     }
 }

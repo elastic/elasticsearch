@@ -111,6 +111,8 @@ dependencies {
     api 'org.apache.commons:commons-compress:1.21'
     api 'org.apache.ant:ant:1.10.8'
     api 'commons-io:commons-io:2.2'
+    implementation 'org.ow2.asm:asm-tree:9.2'
+    implementation 'org.ow2.asm:asm:9.2'
 
     testFixturesApi "junit:junit:${versions.getProperty('junit')}"
     testFixturesApi "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.getProperty('randomizedrunner')}"

@@ -772,7 +772,7 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .indices(".logs-osquery_manager.actions-*")
                     .privileges("auto_configure", "read", "write")
                     .build(),
-                // For ILM policy for APM & Endpoint packages that have delete action
+                // For ILM policy for APM, Endpoint, & Synthetics packages that have delete action
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
                         ".logs-endpoint.diagnostic.collection-*",
@@ -781,7 +781,13 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                         "metrics-apm-*",
                         "metrics-apm.*-*",
                         "traces-apm-*",
-                        "traces-apm.*-*"
+                        "traces-apm.*-*",
+                        "synthetics-http-*",
+                        "synthetics-icmp-*",
+                        "synthetics-tcp-*",
+                        "synthetics-browser-*",
+                        "synthetics-browser.network-*",
+                        "synthetics-browser.screenshot-*"
                     )
                     .privileges(DeleteIndexAction.NAME)
                     .build(),

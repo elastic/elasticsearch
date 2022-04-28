@@ -229,13 +229,26 @@ public abstract class StreamOutput extends OutputStream {
             return;
         }
         byte[] buffer = scratch.get();
-        int index = 0;
+        int index = putMultiByteVInt(buffer, i, 0);
+        writeBytes(buffer, 0, index);
+    }
+
+    private static int putVInt(byte[] buffer, int i, int off) {
+        if (Integer.numberOfLeadingZeros(i) >= 25) {
+            buffer[off] = (byte) i;
+            return 1;
+        }
+        return putMultiByteVInt(buffer, i, off);
+    }
+
+    private static int putMultiByteVInt(byte[] buffer, int i, int off) {
+        int index = off;
         do {
             buffer[index++] = ((byte) ((i & 0x7f) | 0x80));
             i >>>= 7;
         } while ((i & ~0x7F) != 0);
-        buffer[index++] = ((byte) i);
-        writeBytes(buffer, 0, index);
+        buffer[index++] = (byte) i;
+        return index - off;
     }
 
     /**
@@ -316,8 +329,10 @@ public abstract class StreamOutput extends OutputStream {
         if (str == null) {
             writeBoolean(false);
         } else {
-            writeBoolean(true);
-            writeString(str);
+            byte[] buffer = scratch.get();
+            // put the true byte into the buffer instead of writing it outright to do fewer flushes
+            buffer[0] = ONE;
+            writeString(str, buffer, 1);
         }
     }
 
@@ -388,10 +403,21 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     public void writeString(String str) throws IOException {
+        writeString(str, scratch.get(), 0);
+    }
+
+    /**
+     * Write string as well as possibly the beginning of the given {@code buffer}. The given {@code buffer} will also be used when encoding
+     * the given string.
+     *
+     * @param str string to write
+     * @param buffer buffer that may hold some bytes to write
+     * @param off how many bytes in {code buffer} to write
+     * @throws IOException on failure
+     */
+    private void writeString(String str, byte[] buffer, int off) throws IOException {
         final int charCount = str.length();
-        byte[] buffer = scratch.get();
-        int offset = 0;
-        writeVInt(charCount);
+        int offset = off + putVInt(buffer, charCount, off);
         for (int i = 0; i < charCount; i++) {
             final int c = str.charAt(i);
             if (c <= 0x007F) {
@@ -441,9 +467,9 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
-    private static byte ZERO = 0;
-    private static byte ONE = 1;
-    private static byte TWO = 2;
+    private static final byte ZERO = 0;
+    private static final byte ONE = 1;
+    private static final byte TWO = 2;
 
     /**
      * Writes a boolean.
@@ -756,8 +782,10 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     public void writeGenericString(String value) throws IOException {
-        writeByte((byte) 0);
-        writeString(value);
+        byte[] buffer = scratch.get();
+        // put the 0 type identifier byte into the buffer instead of writing it outright to do fewer flushes
+        buffer[0] = 0;
+        writeString(value, buffer, 1);
     }
 
     public void writeGenericNull() throws IOException {

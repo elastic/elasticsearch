@@ -10,18 +10,12 @@ package org.elasticsearch.xpack.security.rest.action.user;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.XPackLicenseState;
-import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.RestResponse;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.rest.action.RestBuilderListener;
-import org.elasticsearch.xcontent.ToXContent;
-import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesRequest;
-import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesResponse;
 import org.elasticsearch.xpack.security.rest.action.SecurityBaseRestHandler;
 
 import java.io.IOException;
@@ -56,13 +50,7 @@ public class RestProfileHasPrivilegesAction extends SecurityBaseRestHandler {
     protected RestChannelConsumer innerPrepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         try (XContentParser parser = restRequest.contentOrSourceParamParser()) {
             ProfileHasPrivilegesRequest request = ProfileHasPrivilegesRequest.PARSER.parse(parser, null);
-            return channel -> client.execute(ProfileHasPrivilegesAction.INSTANCE, request, new RestBuilderListener<>(channel) {
-                @Override
-                public RestResponse buildResponse(ProfileHasPrivilegesResponse response, XContentBuilder builder) throws Exception {
-                    response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-                    return new BytesRestResponse(RestStatus.OK, builder);
-                }
-            });
+            return channel -> client.execute(ProfileHasPrivilegesAction.INSTANCE, request, new RestToXContentListener<>(channel));
         }
     }
 }

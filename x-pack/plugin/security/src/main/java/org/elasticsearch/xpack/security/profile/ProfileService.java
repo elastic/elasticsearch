@@ -70,7 +70,6 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
@@ -119,11 +118,8 @@ public class ProfileService {
                 docsAndException -> docsAndException != null
                     ? new MultiProfileSubjectResponse(
                         docsAndException.v1()
-                            .entrySet()
                             .stream()
-                            .collect(
-                                Collectors.toMap(Map.Entry::getKey, profileIdAndDoc -> profileIdAndDoc.getValue().doc.user().toSubject())
-                            ),
+                            .collect(Collectors.toMap(profileDoc -> profileDoc.uid(), profileDoc -> profileDoc.user().toSubject())),
                         docsAndException.v2()
                     )
                     : new MultiProfileSubjectResponse(Map.of(), List.of())
@@ -329,49 +325,45 @@ public class ProfileService {
         });
     }
 
-    private void getVersionedDocuments(
-        Collection<String> uids,
-        ActionListener<Tuple<Map<String, VersionedDocument>, List<String>>> listener
-    ) {
+    private void getVersionedDocuments(Collection<String> uids, ActionListener<Tuple<List<ProfileDocument>, List<String>>> listener) {
         if (uids.isEmpty()) {
-            listener.onResponse(new Tuple<>(Map.of(), List.of()));
+            listener.onResponse(new Tuple<>(List.of(), List.of()));
             return;
         }
         tryFreezeAndCheckIndex(listener).ifPresent(frozenProfileIndex -> {
-            new OriginSettingClient(client, SECURITY_PROFILE_ORIGIN).prepareMultiGet()
-                .addIds(frozenProfileIndex.aliasName(), uids.stream().map(ProfileService::uidToDocId).toArray(String[]::new))
-                .execute(ActionListener.wrap(multiGetResponse -> {
-                    Map<String, VersionedDocument> retrievedDocs = new HashMap<>(multiGetResponse.getResponses().length);
-                    List<String> failures = new ArrayList<>(0);
-                    Exception loggedException = null;
-                    for (MultiGetItemResponse itemResponse : multiGetResponse.getResponses()) {
-                        if (itemResponse.isFailed() && itemResponse.getFailure() != null) {
-                            failures.add(docIdToUid(itemResponse.getFailure().getId()));
-                            if (logger.isDebugEnabled() && itemResponse.getFailure().getFailure() != null) {
-                                loggedException = ExceptionsHelper.useOrSuppress(loggedException, itemResponse.getFailure().getFailure());
+            frozenProfileIndex.checkIndexVersionThenExecute(
+                listener::onFailure,
+                () -> new OriginSettingClient(client, SECURITY_PROFILE_ORIGIN).prepareMultiGet()
+                    .addIds(frozenProfileIndex.aliasName(), uids.stream().map(ProfileService::uidToDocId).toArray(String[]::new))
+                    .execute(ActionListener.wrap(multiGetResponse -> {
+                        List<ProfileDocument> retrievedDocs = new ArrayList<>(multiGetResponse.getResponses().length);
+                        List<String> failures = new ArrayList<>(0);
+                        Exception loggedException = null;
+                        for (MultiGetItemResponse itemResponse : multiGetResponse.getResponses()) {
+                            if (itemResponse.isFailed() && itemResponse.getFailure() != null) {
+                                failures.add(docIdToUid(itemResponse.getFailure().getId()));
+                                if (logger.isDebugEnabled() && itemResponse.getFailure().getFailure() != null) {
+                                    loggedException = ExceptionsHelper.useOrSuppress(
+                                        loggedException,
+                                        itemResponse.getFailure().getFailure()
+                                    );
+                                }
+                            } else if (false == itemResponse.isFailed() && itemResponse.getResponse() != null) {
+                                if (itemResponse.getResponse().isExists()) {
+                                    retrievedDocs.add(buildProfileDocument(itemResponse.getResponse().getSourceAsBytesRef()));
+                                } else if (logger.isDebugEnabled()) {
+                                    logger.debug("Profile [{}] not found", docIdToUid(itemResponse.getResponse().getId()));
+                                }
+                            } else {
+                                logger.error("Inconsistent get item response [{}] [{}]", itemResponse.getIndex(), itemResponse.getId());
                             }
-                        } else if (false == itemResponse.isFailed() && itemResponse.getResponse() != null) {
-                            if (itemResponse.getResponse().isExists()) {
-                                retrievedDocs.put(
-                                    docIdToUid(itemResponse.getResponse().getId()),
-                                    new VersionedDocument(
-                                        buildProfileDocument(itemResponse.getResponse().getSourceAsBytesRef()),
-                                        itemResponse.getResponse().getPrimaryTerm(),
-                                        itemResponse.getResponse().getSeqNo()
-                                    )
-                                );
-                            } else if (logger.isDebugEnabled()) {
-                                logger.debug("Profile [{}] not found", docIdToUid(itemResponse.getResponse().getId()));
-                            }
-                        } else {
-                            logger.error("Inconsistent get item response [{}] [{}]", itemResponse.getIndex(), itemResponse.getId());
                         }
-                    }
-                    if (loggedException != null) {
-                        logger.debug(new ParameterizedMessage("Failed to retrieve profiles {}", failures), loggedException);
-                    }
-                    listener.onResponse(new Tuple<>(retrievedDocs, failures));
-                }, listener::onFailure));
+                        if (loggedException != null) {
+                            logger.debug(new ParameterizedMessage("Failed to retrieve profiles {}", failures), loggedException);
+                        }
+                        listener.onResponse(new Tuple<>(retrievedDocs, failures));
+                    }, listener::onFailure))
+            );
         });
     }
 

@@ -62,7 +62,7 @@ final class JvmOptionsParser {
 
     }
 
-    static List<String> determine(Path configDir, Path pluginsDir, Path tmpDir, String envOptions) throws UserException {
+    static List<String> determineOptions(Path configDir, Path pluginsDir, Path tmpDir, String envOptions) throws UserException {
         final JvmOptionsParser parser = new JvmOptionsParser();
 
         final Map<String, String> substitutions = new HashMap<>();

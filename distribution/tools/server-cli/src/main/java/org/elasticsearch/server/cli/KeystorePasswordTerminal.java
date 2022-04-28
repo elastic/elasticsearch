@@ -19,23 +19,23 @@ class KeystorePasswordTerminal extends Terminal {
     private final Terminal delegate;
 
     protected KeystorePasswordTerminal(Terminal delegate, SecureString password) {
-        super(newPasswordReader(password), delegate.getWriter(), delegate.getErrorWriter(), delegate.getLineSeparator());
+        super(newPasswordReader(password), delegate.getWriter(), delegate.getErrorWriter());
         this.delegate = delegate;
     }
 
     private static Reader newPasswordReader(final SecureString password) {
         return new Reader() {
-            int ndx = 0;
+            int pos = 0;
 
             @Override
             public int read(char[] cbuf, int off, int len) {
-                int charsLeft = password.length() - ndx;
+                int charsLeft = password.length() - pos;
                 if (charsLeft == 0) {
                     return -1;
                 }
                 int toCopy = Math.min(charsLeft, len);
-                System.arraycopy(password.getChars(), ndx, cbuf, off, toCopy);
-                ndx += toCopy;
+                System.arraycopy(password.getChars(), pos, cbuf, off, toCopy);
+                pos += toCopy;
                 return toCopy;
             }
 

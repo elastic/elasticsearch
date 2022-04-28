@@ -418,7 +418,7 @@ final class Bootstrap {
     private static Runnable getSysErrorCloser() {
         final PrintStream err = System.err;
         return () -> {
-            err.println('\21');
+            err.println(BootstrapInfo.SERVER_READY_MARKER);
             err.close();
         };
     }

@@ -24,8 +24,8 @@ import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
@@ -41,6 +41,9 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+
+import static org.elasticsearch.bootstrap.BootstrapInfo.SERVER_READY_MARKER;
+import static org.elasticsearch.bootstrap.BootstrapInfo.USER_EXCEPTION_MARKER;
 
 class ServerCli extends EnvironmentAwareCommand {
     private final OptionSpecBuilder versionOption;
@@ -77,98 +80,56 @@ class ServerCli extends EnvironmentAwareCommand {
             return;
         }
 
-        final boolean daemonize = options.has(daemonizeOption);
-        final Path pidFile = pidfileOption.value(options);
-        final boolean quiet = options.has(quietOption);
-
-        Map<String, String> envVars = new HashMap<>(System.getenv());
-        Path tempDir = TempDirectory.initialize(envVars);
+        // setup security
         final SecureString keystorePassword = getKeystorePassword(env.configFile(), terminal);
         autoConfigureSecurity(terminal, options, keystorePassword);
-
         // reload settings since auto security might have changed them
+        // TODO: don't recreate if security settings were not changed
         env = createEnv(options);
-        // TODO: add keystore password to server args
-        ServerArgs serverArgs = new ServerArgs(daemonize, pidFile, env.settings(), env.configFile());
 
-        List<String> jvmOptions = JvmOptionsParser.determine(env.configFile(), env.pluginsFile(), tempDir, envVars.get("ES_JAVA_OPTS"));
+        // determine process environment and arguments
+        Map<String, String> envVars = new HashMap<>(this.envVars);
+        Path tempDir = TempDirectory.setup(envVars);
+        List<String> jvmOptions = JvmOptionsParser.determineOptions(env.configFile(), env.pluginsFile(), tempDir, envVars.get("ES_JAVA_OPTS"));
         // jvmOptions.add("-Des.path.conf=" + env.configFile());
-        jvmOptions.add("-Des.distribution.type=" + System.getProperty("es.distribution.type"));
+        jvmOptions.add("-Des.distribution.type=" + sysprops.get("es.distribution.type"));
+        var args = createArgs(options, keystorePassword, env);
 
-        Path esHome = PathUtils.get(System.getProperty("es.path.home"));
-        Path javaHome = PathUtils.get(System.getProperty("java.home"));
-        List<String> command = new ArrayList<>();
-        // TODO: fix this so it works on windows
-        command.add(javaHome.resolve("bin").resolve("java").toString());
-        command.addAll(jvmOptions);
-        command.add("-cp");
-        command.add(esHome.resolve("lib").resolve("*").toString());
-        command.add("org.elasticsearch.bootstrap.Elasticsearch");
-        System.out.println("command: " + command);
-
-        ProcessBuilder builder = new ProcessBuilder(command);
-        builder.environment().putAll(envVars);
-        builder.redirectOutput(ProcessBuilder.Redirect.INHERIT);
-
-        try {
-            final Process process = builder.start();
-            try (var out = new OutputStreamStreamOutput(process.getOutputStream())) {
-                serverArgs.writeTo(out);
+        final Process process = createProcess(jvmOptions, envVars);
+        try (var out = new OutputStreamStreamOutput(process.getOutputStream())) {
+            args.writeTo(out);
+        }
+        String userExceptionMsg = null;
+        boolean ready = false;
+        InputStream err = process.getErrorStream();
+        BufferedReader reader = new BufferedReader(new InputStreamReader(err));
+        String line;
+        while ((line = reader.readLine()) != null) {
+            if (line.isEmpty() == false && line.charAt(0) == USER_EXCEPTION_MARKER) {
+                userExceptionMsg = line.substring(1);
+                break;
+            } else if (line.isEmpty() == false && line.charAt(0) == SERVER_READY_MARKER) {
+                ready = true;
+                // The server closes stderr right after this message, but for some unknown reason
+                // the pipe closing does not close this end of the pipe, so we must explicitly
+                // break out of this loop, or we will block forever on the next read.
+                break;
+            } else {
+                terminal.getErrorWriter().println(line);
             }
-            String userExceptionMsg = null;
-            boolean ready = false;
-            InputStream err = process.getErrorStream();
-            BufferedReader reader = new BufferedReader(new InputStreamReader(err));
-            try {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    if (line.isEmpty() == false && line.charAt(0) == '\24') {
-                        userExceptionMsg = line.substring(1);
-                    } else if (line.isEmpty() == false && line.charAt(0) == '\21') {
-                        ready = true;
-                        // The server closes stderr right after this message, but for some unknown reason
-                        // the pipe closing does not close this end of the pipe, so we must explicitly
-                        // break out of this loop, or we will block forever on the next read.
-                        break;
-                    } else {
-                        terminal.getErrorWriter().println(line);
-                    }
-                }
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-
-            if (ready && daemonize) {
-                closeStreams(process);
-                return;
-            }
-
-            int code = process.waitFor();
-            terminal.flush();
-            System.out.println("exited: " + code);
-            if (code != ExitCodes.OK) {
-                throw new UserException(code, userExceptionMsg);
-            }
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        } catch (InterruptedException e) {
-            throw new UserException(ExitCodes.IO_ERROR, "Interrupted while waiting for Elasticsearch process");
         }
 
-        // TODO: add ctrl-c handler so we can wait for subprocess
-        // TODO: check the java.io.tmpdir
-        // a misconfigured java.io.tmpdir can cause hard-to-diagnose problems later, so reject it immediately
-        /*try {
-            env.validateTmpFile();
-        } catch (IOException e) {
-            throw new UserException(ExitCodes.CONFIG, e.getMessage());
+        if (ready && args.daemonize()) {
+            closeStreams(process);
+            return;
         }
 
-        try {
-            init(daemonize, pidFile, quiet, env);
-        } catch (NodeValidationException e) {
-            throw new UserException(ExitCodes.CONFIG, e.getMessage());
-        }*/
+        int code = process.waitFor();
+        terminal.flush();
+        System.out.println("exited: " + code);
+        if (code != ExitCodes.OK) {
+            throw new UserException(code, userExceptionMsg);
+        }
     }
 
     private void closeStreams(Process process) throws IOException {
@@ -231,5 +192,31 @@ class ServerCli extends EnvironmentAwareCommand {
                     throw new UserException(ret, "Auto security enrollment failed");
             }
         }
+    }
+
+    private ServerArgs createArgs(OptionSet options, SecureString keystorePassword, Environment env) {
+        final boolean daemonize = options.has(daemonizeOption);
+        final boolean quiet = options.has(quietOption);
+        final Path pidFile = pidfileOption.value(options);
+
+        return new ServerArgs(daemonize, quiet, pidFile, keystorePassword, env.settings(), env.configFile());
+    }
+
+    private Process createProcess(List<String> jvmOptions, Map<String, String> envVars) throws IOException {
+        Path esHome = PathUtils.get("");
+        Path javaHome = PathUtils.get(sysprops.get("java.home"));
+        List<String> command = new ArrayList<>();
+        boolean isWindows = sysprops.get("os.name").startsWith("Windows");
+        command.add(javaHome.resolve("bin").resolve("java" + (isWindows ? ".exe" : "")).toString());
+        command.addAll(jvmOptions);
+        command.add("-cp");
+        command.add(esHome.resolve("lib").resolve("*").toString());
+        command.add("org.elasticsearch.bootstrap.Elasticsearch");
+
+        var builder = new ProcessBuilder(command);
+        builder.environment().putAll(envVars);
+        builder.redirectOutput(ProcessBuilder.Redirect.INHERIT);
+
+        return builder.start();
     }
 }

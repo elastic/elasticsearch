@@ -63,6 +63,12 @@ public final class BootstrapInfo {
      */
     public static final String UNTRUSTED_CODEBASE = "/untrusted";
 
+    // TODO: document
+    public static final char USER_EXCEPTION_MARKER = '\24';
+
+    // TODO: document
+    public static final char SERVER_READY_MARKER = '\21';
+
     // create a view of sysprops map that does not allow modifications
     // this must be done this way (e.g. versus an actual typed map), because
     // some test methods still change properties, so whitelisted changes must

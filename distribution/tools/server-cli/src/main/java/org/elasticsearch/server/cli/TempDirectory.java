@@ -13,6 +13,7 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -26,19 +27,29 @@ import java.util.Map;
 final class TempDirectory {
 
     /**
-     * Ensures the environment map has ES_TMPDIR and LIBFFI_TMPDIR.
+     * Ensures the environment map has {@code ES_TMPDIR} and {@code LIBFFI_TMPDIR}.
+     *
+     * @param env the current environment variables that will be passed to Elasticsearch
+     * @return the temporary directory
      */
-    public static Path initialize(Map<String, String> env) throws UserException {
+    public static Path setup(Map<String, String> env) throws UserException {
         final Path path;
         String existingTempDir = env.remove("ES_TMPDIR");
         if (existingTempDir != null) {
             path = Paths.get(existingTempDir);
+            if (Files.exists(path) == false) {
+                throw new UserException(ExitCodes.CONFIG, "Temporary directory [" + path + "] does not exist or is not accessible");
+            }
+            if (Files.isDirectory(path) == false) {
+                throw new UserException(ExitCodes.CONFIG, "Temporary directory [" + path + "] is not a directory");
+            }
         } else {
             try {
                 if (System.getProperty("os.name").startsWith("Windows")) {
                     /*
-                     * On Windows, we avoid creating a unique temporary directory per invocation lest we pollute the temporary directory. On other
-                     * operating systems, temporary directories will be cleaned automatically via various mechanisms (e.g., systemd, or restarts).
+                     * On Windows, we avoid creating a unique temporary directory per invocation lest
+                     * we pollute the temporary directory. On other operating systems, temporary directories
+                     * will be cleaned automatically via various mechanisms (e.g., systemd, or restarts).
                      */
                     path = Paths.get(System.getProperty("java.io.tmpdir"), "elasticsearch");
                     Files.createDirectories(path);
@@ -46,9 +57,7 @@ final class TempDirectory {
                     path = createTempDirectory("elasticsearch-");
                 }
             } catch (IOException e) {
-                // TODO: don't mask this exception, should we just propagate or try to summarize? in shell-land we would have printed it and
-                // exited
-                throw new UserException(ExitCodes.CONFIG, "Could not create temporary directory");
+                throw new UncheckedIOException(e);
             }
         }
 

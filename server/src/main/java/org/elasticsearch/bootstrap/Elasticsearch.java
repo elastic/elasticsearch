@@ -22,6 +22,8 @@ import java.nio.file.Path;
 import java.security.Permission;
 import java.security.Security;
 
+import static org.elasticsearch.bootstrap.BootstrapInfo.USER_EXCEPTION_MARKER;
+
 /**
  * This class starts elasticsearch.
  */
@@ -65,11 +67,11 @@ class Elasticsearch {
             );
         } catch (NodeValidationException e) {
             exitCode = ExitCodes.CONFIG;
-            err.print('\24');
+            err.print(USER_EXCEPTION_MARKER);
             err.println(e.getMessage());
         } catch (UserException e) {
             exitCode = e.exitCode;
-            err.print('\24');
+            err.print(USER_EXCEPTION_MARKER);
             err.println(e.getMessage());
         } catch (Exception e) {
             exitCode = 1; // mimic JDK exit code on exception

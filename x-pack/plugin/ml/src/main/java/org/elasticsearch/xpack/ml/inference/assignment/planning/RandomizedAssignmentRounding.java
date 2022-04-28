@@ -224,12 +224,16 @@ class RandomizedAssignmentRounding {
                     for (Node n : nodes) {
                         Tuple<Model, Node> index = Tuple.tuple(m, n);
                         if (isSoftAssignment(m, n)) {
-                            softAssignments.put(index, 0.0);
-                            softAllocations.put(index, 0.0);
+                            unassign(index);
                         }
                     }
                 }
             }
+        }
+
+        private void unassign(Tuple<Model, Node> assignment) {
+            softAssignments.put(assignment, 0.0);
+            softAllocations.put(assignment, 0.0);
         }
 
         private List<Tuple<Model, Node>> createSoftAssignmentQueue() {
@@ -271,8 +275,7 @@ class RandomizedAssignmentRounding {
                     || m.threadsPerAllocation() > resourceTracker.remainingNodeCores.get(n)
                     || roundedAllocations == 0
                     || random.nextDouble() > softAssignments.get(assignment)) {
-                    softAssignments.put(assignment, 0.0);
-                    softAllocations.put(assignment, 0.0);
+                    unassign(assignment);
                     assignUnderSubscribedNodes(Set.of(n));
                 } else {
                     roundedAllocations = Math.min(roundedAllocations, resourceTracker.remainingNodeCores.get(n) / m.threadsPerAllocation());
@@ -287,8 +290,7 @@ class RandomizedAssignmentRounding {
             for (Model m : models) {
                 Tuple<Model, Node> assignment = Tuple.tuple(m, n);
                 if (softAssignments.get(assignment) < 1.0 && m.memoryBytes() > resourceTracker.remainingNodeMemory.get(n)) {
-                    softAssignments.put(assignment, 0.0);
-                    softAllocations.put(assignment, 0.0);
+                    unassign(assignment);
                 }
             }
         }

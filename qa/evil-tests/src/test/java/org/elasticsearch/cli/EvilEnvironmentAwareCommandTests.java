@@ -45,7 +45,7 @@ public class EvilEnvironmentAwareCommandTests extends ESTestCase {
         final TestEnvironmentAwareCommand command = new TestEnvironmentAwareCommand("test");
         final UserException e = expectThrows(
             UserException.class,
-            () -> command.mainWithoutErrorHandling(new String[0], new MockTerminal())
+            () -> command.mainWithoutErrorHandling(new String[0], MockTerminal.create())
         );
         assertThat(e, hasToString(containsString("the system property [es.path.conf] must be set")));
     }

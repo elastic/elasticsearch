@@ -183,7 +183,11 @@ public class ClientYamlTestExecutionContext {
         Map<String, String> headers,
         NodeSelector nodeSelector
     ) throws IOException {
-        return clientYamlTestClient.callApi(apiName, params, entity, headers, nodeSelector);
+        return clientYamlTestClient(apiName).callApi(apiName, params, entity, headers, nodeSelector);
+    }
+
+    protected ClientYamlTestClient clientYamlTestClient(String apiName) {
+        return clientYamlTestClient;
     }
 
     /**

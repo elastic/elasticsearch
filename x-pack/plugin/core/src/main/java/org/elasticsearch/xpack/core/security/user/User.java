@@ -39,10 +39,12 @@ public class User implements ToXContentObject {
         this(username, roles, null, null, Map.of(), true);
     }
 
+    @Deprecated
     public User(String username, String[] roles, User authenticatedUser) {
         this(username, roles, null, null, Map.of(), true, authenticatedUser);
     }
 
+    @Deprecated
     public User(User user, User authenticatedUser) {
         this(user.principal(), user.roles(), user.fullName(), user.email(), user.metadata(), user.enabled(), authenticatedUser);
     }
@@ -51,6 +53,7 @@ public class User implements ToXContentObject {
         this(username, roles, fullName, email, metadata, enabled, null);
     }
 
+    @Deprecated
     private User(
         String username,
         String[] roles,

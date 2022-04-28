@@ -100,8 +100,8 @@ public class Authentication implements ToXContentObject {
         this.version = version;
         this.type = type;
         this.metadata = metadata;
-        if (user.isRunAs()) {
-            authenticatingSubject = new Subject(user.authenticatedUser(), authenticatedBy, version, metadata);
+        if (user instanceof RunAsUser runAsUser) {
+            authenticatingSubject = new Subject(runAsUser.authenticatingUser, authenticatedBy, version, metadata);
             // The lookup user for run-as currently doesn't have authentication metadata associated with them because
             // lookupUser only returns the User object. The lookup user for authorization delegation does have
             // authentication metadata, but the realm does not expose this difference between authenticatingUser and
@@ -125,8 +125,8 @@ public class Authentication implements ToXContentObject {
         this.version = in.getVersion();
         type = AuthenticationType.values()[in.readVInt()];
         metadata = in.readMap();
-        if (user.isRunAs()) {
-            authenticatingSubject = new Subject(user.authenticatedUser(), authenticatedBy, version, metadata);
+        if (user instanceof RunAsUser runAsUser) {
+            authenticatingSubject = new Subject(runAsUser.authenticatingUser, authenticatedBy, version, metadata);
             // The lookup user for run-as currently doesn't have authentication metadata associated with them because
             // lookupUser only returns the User object. The lookup user for authorization delegation does have
             // authentication metadata, but the realm does not expose this difference between authenticatingUser and
@@ -245,8 +245,8 @@ public class Authentication implements ToXContentObject {
      */
     public Authentication runAs(User runAs, @Nullable RealmRef lookupRealmRef) {
         Objects.requireNonNull(runAs);
-        assert false == runAs.isRunAs();
-        assert false == getUser().isRunAs();
+        assert false == runAs instanceof RunAsUser;
+        assert false == getUser() instanceof RunAsUser;
         assert AuthenticationType.REALM == getAuthenticationType() || AuthenticationType.API_KEY == getAuthenticationType();
         return new Authentication(
             new RunAsUser(runAs, getUser()),
@@ -750,7 +750,7 @@ public class Authentication implements ToXContentObject {
 
     public static Authentication newServiceAccountAuthentication(User serviceAccountUser, String nodeName, Map<String, Object> metadata) {
         // TODO make the service account user a separate class/interface
-        assert false == serviceAccountUser.isRunAs();
+        assert false == serviceAccountUser instanceof RunAsUser;
         final Authentication.RealmRef authenticatedBy = newServiceAccountRealmRef(nodeName);
         Authentication authentication = new Authentication(
             serviceAccountUser,
@@ -766,7 +766,7 @@ public class Authentication implements ToXContentObject {
 
     public static Authentication newRealmAuthentication(User user, RealmRef realmRef) {
         // TODO make the type system ensure that this is not a run-as user
-        assert false == user.isRunAs();
+        assert false == user instanceof RunAsUser;
         Authentication authentication = new Authentication(user, realmRef, null, Version.CURRENT, AuthenticationType.REALM, Map.of());
         assert false == authentication.isServiceAccount();
         assert false == authentication.isApiKey();
@@ -778,7 +778,7 @@ public class Authentication implements ToXContentObject {
     public static Authentication newApiKeyAuthentication(AuthenticationResult<User> authResult, String nodeName) {
         assert authResult.isAuthenticated() : "API Key authn result must be successful";
         final User apiKeyUser = authResult.getValue();
-        assert false == apiKeyUser.isRunAs();
+        assert false == apiKeyUser instanceof RunAsUser;
         assert apiKeyUser.roles().length == 0 : "The user associated to an API key authentication must have no role";
         final Authentication.RealmRef authenticatedBy = newApiKeyRealmRef(nodeName);
         Authentication authentication = new Authentication(

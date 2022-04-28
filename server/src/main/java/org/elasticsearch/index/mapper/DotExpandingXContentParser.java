@@ -269,7 +269,7 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
     @Override
     public String currentName() throws IOException {
         if (state == State.PARSING_ORIGINAL_CONTENT) {
-            // assert expandedTokens == subPaths.length * 2 - 1;
+            assert expandedTokens == subPaths.length * 2 - 1;
             // whenever we are parsing some inner object/array we can easily delegate to the inner parser
             // e.g. field.with.dots: { obj:{ parsing here } }
             if (innerLevel > 0) {

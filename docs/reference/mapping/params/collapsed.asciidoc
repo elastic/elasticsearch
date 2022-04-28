@@ -11,10 +11,10 @@ A document holding a value for both `metrics.time.max` and `metrics.time` gets r
 would need to be a leaf field to hold a value as well as an object to hold the `max` sub-field.
 
 The `collapsed` setting, which can be applied only to the top-level mapping definition and
-to <<object,`object`>> fields, makes it possible to store metrics where field names contain dots and share
+to <<object,`object`>> fields, makes it possible to store documents where field names contain dots and share
 common prefixes. From the example above, if the object container `metrics` is collapsed, it can hold values
 for both `time` and `time.max` directly without the need for any intermediate object, as dots in field
-names are preserved.
+names are preserved. Collapsed objects can only ever hold leaf sub-fields and do not support further objects.
 
 [source,console]
 --------------------------------------------------
@@ -52,18 +52,23 @@ GET my-index-000001/_mapping
 [source,console-result]
 --------------------------------------------------
 {
-  "metrics" : {
-    "type" : "object",
-    "collapsed" : true,
-    "properties" : {
-      "time" : {
-        "type" : "long"
-      },
-      "time.min" : { <4>
-        "type" : "long"
-      },
-      "time.max" : {
-        "type" : "long"
+  "my-index-000001" : {
+    "mappings" : {
+      "properties" : {
+        "metrics" : {
+          "collapsed" : true,
+          "properties" : {
+            "time" : {
+              "type" : "long"
+            },
+            "time.min" : { <4>
+              "type" : "long"
+            },
+            "time.max" : {
+              "type" : "long"
+            }
+          }
+        }
       }
     }
   }

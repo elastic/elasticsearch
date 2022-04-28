@@ -62,7 +62,7 @@ class Elasticsearch {
             elasticsearch.init(
                 serverArgs.daemonize(),
                 serverArgs.pidFile(),
-                false,
+                serverArgs.quiet(),
                 new Environment(serverArgs.nodeSettings(), serverArgs.configDir())
             );
         } catch (NodeValidationException e) {

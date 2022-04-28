@@ -439,8 +439,9 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             b.endObject();
         })));
         assertEquals(
-            "Failed to parse mapping: Object [_doc] has subobjects set to false hence it does not support inner object " +
-                "[metrics.service.time]", exception.getMessage()
+            "Failed to parse mapping: Object [_doc] has subobjects set to false hence it does not support inner object "
+                + "[metrics.service.time]",
+            exception.getMessage()
         );
     }
 

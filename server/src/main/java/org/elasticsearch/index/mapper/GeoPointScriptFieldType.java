@@ -8,31 +8,34 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.geo.LatLonGeometry;
 import org.apache.lucene.geo.Point;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.GeometryFormatterFactory;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.fielddata.GeoPointScriptFieldData;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.script.AbstractLongFieldScript;
 import org.elasticsearch.script.CompositeFieldScript;
 import org.elasticsearch.script.GeoPointFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.field.GeoPointDocValuesField;
-import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.lookup.SearchLookup;
+import org.elasticsearch.search.lookup.SourceLookup;
 import org.elasticsearch.search.runtime.GeoPointScriptFieldDistanceFeatureQuery;
 import org.elasticsearch.search.runtime.GeoPointScriptFieldExistsQuery;
 import org.elasticsearch.search.runtime.GeoPointScriptFieldGeoShapeQuery;
 
 import java.io.IOException;
 import java.time.ZoneId;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -132,7 +135,7 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
         double pivotDouble = DistanceUnit.DEFAULT.parse(pivot, DistanceUnit.DEFAULT);
         return new GeoPointScriptFieldDistanceFeatureQuery(
             script,
-            leafFactory(context)::newInstance,
+            valuesEncodedAsLong(context),
             name(),
             originGeoPoint.lat(),
             originGeoPoint.lon(),
@@ -140,26 +143,55 @@ public final class GeoPointScriptFieldType extends AbstractScriptFieldType<GeoPo
         );
     }
 
+    private Function<LeafReaderContext, AbstractLongFieldScript> valuesEncodedAsLong(SearchExecutionContext context) {
+        GeoPointFieldScript.LeafFactory leafFactory = leafFactory(context);
+        return ctx -> {
+            GeoPointFieldScript script = leafFactory.newInstance(ctx);
+            return new AbstractLongFieldScript(name(), Map.of(), context.lookup(), ctx) {
+                @Override
+                protected void emitFromObject(Object v) {
+                    throw new UnsupportedOperationException();
+                }
+
+                @Override
+                public void execute() {
+                    script.execute();
+                    for (int i = 0; i < script.count(); i++) {
+                        int latitudeEncoded = GeoEncodingUtils.encodeLatitude(script.lats()[i]);
+                        int longitudeEncoded = GeoEncodingUtils.encodeLongitude(script.lons()[i]);
+                        emit((((long) latitudeEncoded) << 32) | (longitudeEncoded & 0xFFFFFFFFL));
+                    }
+                }
+            };
+        };
+    }
+
     @Override
-    public DocValueFormat docValueFormat(String format, ZoneId timeZone) {
+    public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+        GeoPointFieldScript.LeafFactory leafFactory = leafFactory(context.lookup());
         Function<List<GeoPoint>, List<Object>> formatter = GeoPointFieldMapper.GeoPointFieldType.GEO_FORMATTER_FACTORY.getFormatter(
             format != null ? format : GeometryFormatterFactory.GEOJSON,
             p -> new org.elasticsearch.geometry.Point(p.getLon(), p.getLat())
         );
-        return new DocValueFormat() {
+        return new ValueFetcher() {
+            private GeoPointFieldScript script;
+
             @Override
-            public String getWriteableName() {
-                throw new UnsupportedOperationException();
+            public void setNextReader(LeafReaderContext context) {
+                script = leafFactory.newInstance(context);
             }
 
             @Override
-            public void writeTo(StreamOutput out) throws IOException {
-                throw new UnsupportedOperationException();
-            }
-
-            @Override
-            public Object format(GeoPoint value) {
-                return formatter.apply(List.of(value)).get(0);
+            public List<Object> fetchValues(SourceLookup lookup, List<Object> ignoredValues) throws IOException {
+                script.runForDoc(lookup.docId());
+                if (script.count() == 0) {
+                    return List.of();
+                }
+                List<GeoPoint> points = new ArrayList<>(script.count());
+                for (int i = 0; i < script.count(); i++) {
+                    points.add(new GeoPoint(script.lats()[i], script.lons()[i]));
+                }
+                return formatter.apply(points);
             }
         };
     }

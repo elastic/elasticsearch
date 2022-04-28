@@ -133,7 +133,7 @@ public class GeoPointFieldMapper extends AbstractPointGeometryFieldMapper<GeoPoi
                 ? null
                 : (lookup, ctx, doc, consumer) -> factory.newFactory(name, script.get().getParams(), lookup)
                     .newInstance(ctx)
-                    .runGeoPointForDoc(doc, consumer);
+                    .runForDoc(doc, consumer);
         }
 
         @Override

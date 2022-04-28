@@ -177,7 +177,7 @@ public class FollowersChecker {
         fastResponseState = new FastResponseState(term, mode);
     }
 
-    private void handleFollowerCheck(FollowerCheckRequest request, ActionListener<Empty> listener) throws IOException {
+    private void handleFollowerCheck(FollowerCheckRequest request, ActionListener<Empty> listener) {
         final StatusInfo statusInfo = nodeHealthService.getHealth();
         if (statusInfo.getStatus() == UNHEALTHY) {
             final String message = "handleFollowerCheck: node is unhealthy ["

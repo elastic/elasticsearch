@@ -1078,7 +1078,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             }"""), Strings.toString(parsedDoc2.dynamicMappingsUpdate()));
     }
 
-    private MapperService createDynamicTemplateCollapsedObject() throws IOException {
+    private MapperService createDynamicTemplateNoSubobjects() throws IOException {
         return createMapperService(topMapping(b -> {
             b.startArray("dynamic_templates");
             {
@@ -1109,7 +1109,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
     }
 
     public void testSubobjectsFalseFlatPaths() throws IOException {
-        MapperService mapperService = createDynamicTemplateCollapsedObject();
+        MapperService mapperService = createDynamicTemplateNoSubobjects();
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
             b.field("foo.metric.count", 10);
             b.field("foo.bar.baz", 10);
@@ -1121,7 +1121,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
     }
 
     public void testSubobjectsFalseStructuredPaths() throws IOException {
-        MapperService mapperService = createDynamicTemplateCollapsedObject();
+        MapperService mapperService = createDynamicTemplateNoSubobjects();
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
             b.startObject("foo");
             {
@@ -1143,7 +1143,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
     }
 
     public void testSubobjectsFalseArrayOfObjects() throws IOException {
-        MapperService mapperService = createDynamicTemplateCollapsedObject();
+        MapperService mapperService = createDynamicTemplateNoSubobjects();
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
             b.startObject("foo");
             {

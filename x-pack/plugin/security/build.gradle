@@ -14,7 +14,6 @@ esplugin {
 archivesBaseName = 'x-pack-security'
 
 dependencies {
-  compileOnly project(':libs:elasticsearch-cli')
   compileOnly project(path: xpackModule('core'))
   api project(path: ':modules:transport-netty4')
 

@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.security.authc.esnative.tool;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
-
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
@@ -54,7 +52,6 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
 import javax.net.ssl.SSLException;
 
 import static org.elasticsearch.test.CheckedFunctionUtils.anyCheckedFunction;
@@ -553,7 +550,6 @@ public class SetupPasswordToolTests extends CommandTestCase {
         }
     }
 
-    @Seed(value = "54D51131AC3ECE31")
     public void testInteractiveSetup() throws Exception {
         resetSecretsAndKeyStore("Y");
 

@@ -135,9 +135,9 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
         Map<Node, List<Tuple<Model, Integer>>> nodeToModel = new HashMap<>();
         for (Model m : assignments.keySet()) {
             for (Node n : assignments.get(m).keySet()) {
-                List<Tuple<Model, Integer>> threadsPerModel = nodeToModel.containsKey(n) ? nodeToModel.get(n) : new ArrayList<>();
-                threadsPerModel.add(Tuple.tuple(m, assignments.get(m).get(n)));
-                nodeToModel.put(n, threadsPerModel);
+                List<Tuple<Model, Integer>> allocationsPerModel = nodeToModel.containsKey(n) ? nodeToModel.get(n) : new ArrayList<>();
+                allocationsPerModel.add(Tuple.tuple(m, assignments.get(m).get(n)));
+                nodeToModel.put(n, allocationsPerModel);
             }
         }
 
@@ -147,23 +147,23 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
             Node n = nodes.get(i);
             msg.append(n);
             msg.append(" ->");
-            for (Tuple<Model, Integer> modelThreads : nodeToModel.get(n)
+            for (Tuple<Model, Integer> modelAllocations : nodeToModel.get(n)
                 .stream()
                 .sorted(Comparator.comparing(x -> x.v1().id()))
                 .collect(Collectors.toList())) {
-                if (modelThreads.v2() > 0) {
+                if (modelAllocations.v2() > 0) {
                     msg.append(" ");
-                    msg.append(modelThreads.v1().id());
+                    msg.append(modelAllocations.v1().id());
                     msg.append(" (mem = ");
-                    msg.append(ByteSizeValue.ofBytes(modelThreads.v1().memoryBytes()));
+                    msg.append(ByteSizeValue.ofBytes(modelAllocations.v1().memoryBytes()));
                     msg.append(")");
                     msg.append(" (allocations = ");
-                    msg.append(modelThreads.v2());
+                    msg.append(modelAllocations.v2());
                     msg.append("/");
-                    msg.append(modelThreads.v1().allocations());
+                    msg.append(modelAllocations.v1().allocations());
                     msg.append(")");
                     msg.append(" (threads_per_allocation = ");
-                    msg.append(modelThreads.v1().threadsPerAllocation());
+                    msg.append(modelAllocations.v1().threadsPerAllocation());
                     msg.append(")");
                 }
             }

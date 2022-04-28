@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.versionfield;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.script.BytesRefProducer;
-import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -17,7 +17,7 @@ import java.io.IOException;
 /**
  * Script value class.
  */
-public class Version implements ToXContent, BytesRefProducer, Comparable<Version> {
+public class Version implements ToXContentFragment, BytesRefProducer, Comparable<Version> {
     protected String version;
     protected BytesRef bytes;
 
@@ -39,11 +39,6 @@ public class Version implements ToXContent, BytesRefProducer, Comparable<Version
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.value(toString());
-    }
-
-    @Override
-    public boolean isFragment() {
-        return false;
     }
 
     @Override

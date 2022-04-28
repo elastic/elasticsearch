@@ -9,7 +9,7 @@
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -62,7 +62,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     }
 
     @Override
-    public void allocate(RoutingAllocation allocation, ActionListener<ActionResponse.Empty> listener) {
+    public void allocate(RoutingAllocation allocation, ActionListener<AcknowledgedResponse> listener) {
         assert MasterService.isMasterUpdateThread() || Thread.currentThread().getName().startsWith("TEST-")
             : Thread.currentThread().getName();
         // assert allocation.debugDecision() == false; set to true when called via the reroute API
@@ -70,7 +70,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
         // TODO must also capture any shards that the existing-shards allocators have allocated this pass, not just the ignored ones
 
-        //TODO pass the listener to the input
+        // TODO pass the listener to the input
         desiredBalanceComputation.onNewInput(
             new DesiredBalanceInput(allocation.immutableClone(), new ArrayList<>(allocation.routingNodes().unassigned().ignored()))
         );

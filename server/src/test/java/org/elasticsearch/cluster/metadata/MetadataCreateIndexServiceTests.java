@@ -983,10 +983,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             .build();
 
         assertThat(
-            expectThrows(
-                IllegalStateException.class,
-                () -> clusterStateCreateIndex(currentClusterState, Set.of(), newIndex, null)
-            ).getMessage(),
+            expectThrows(IllegalStateException.class, () -> clusterStateCreateIndex(currentClusterState, Set.of(), newIndex, null))
+                .getMessage(),
             startsWith("alias [alias1] has more than one write index [")
         );
     }

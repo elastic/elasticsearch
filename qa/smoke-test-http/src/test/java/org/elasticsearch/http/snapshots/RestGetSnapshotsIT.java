@@ -41,7 +41,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase.assertSnapshotListSorted;
 import static org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase.matchAllPattern;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
@@ -420,7 +419,6 @@ public class RestGetSnapshotsIT extends AbstractSnapshotRestTestCase {
         if (includeIndices == false) {
             for (SnapshotInfo snapshotInfo : snapshotInfos) {
                 assertThat(snapshotInfo.indices(), empty());
-                assertThat(snapshotInfo.indexSnapshotDetails(), anEmptyMap());
             }
         }
         assertEquals(snapshotInfos.size(), allSnapshotNames.size());

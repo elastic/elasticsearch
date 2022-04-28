@@ -11,22 +11,16 @@ package org.elasticsearch.core.internal.provider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 
-import java.lang.module.ModuleDescriptor;
 import java.net.URL;
 import java.net.URLClassLoader;
-import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
-import java.util.function.Supplier;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.core.internal.provider.EmbeddedImplClassLoader.basePrefix;
-import static org.elasticsearch.test.hamcrest.ModuleDescriptorMatchers.exportsOf;
-import static org.elasticsearch.test.hamcrest.ModuleDescriptorMatchers.opensOf;
-import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
 
 public class EmbeddedImplClassLoaderTests extends ESTestCase {
 
@@ -42,156 +36,93 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         );
     }
 
-    public void testLoadAsModuleEmbeddedJar() throws Exception {
-        // test scenario setup, compile source, create jar file, and parent loader
-        Map<String, CharSequence> sources = Map.of(
-            "module-info",
-            "module x.foo.impl { exports p; opens q; provides java.util.function.Supplier with p.FooSupplier; }",
-            "p.FooSupplier",
-            "package p; public class FooSupplier implements java.util.function.Supplier<String> {\n"
-                + "        @Override public String get() { return \"Hello from FooSupplier!\"; } }",
-            "q.Bar",
-            "package q; public class Bar { }"
-        );
-        var classToBytes = InMemoryJavaCompiler.compile(sources);
-        Path topLevelDir = createTempDir();
+    public void testLoadWithMultiReleaseDisabled() throws Exception {
+        // expect root FooBar to be loaded each time
 
-        Map<String, byte[]> jarEntries = Map.of(
-            "IMPL-JARS/x-foo/LISTING.TXT",
-            "x-foo-impl.jar".getBytes(UTF_8),
-            "IMPL-JARS/x-foo/x-foo-impl.jar/module-info.class",
-            classToBytes.get("module-info"),
-            "IMPL-JARS/x-foo/x-foo-impl.jar/p/FooSupplier.class",
-            classToBytes.get("p.FooSupplier"),
-            "IMPL-JARS/x-foo/x-foo-impl.jar/q/Bar.class",
-            classToBytes.get("q.Bar"),
-            "IMPL-JARS/x-foo/x-foo-impl.jar/r/R.class",
-            "<empty>".getBytes(UTF_8)
-        );
-        Path outerJar = topLevelDir.resolve("x-foo-impl.jar");
-        JarUtils.createJarFile(topLevelDir.resolve("x-foo-impl.jar"), jarEntries);
-        URLClassLoader parent = URLClassLoader.newInstance(
-            new URL[] { outerJar.toUri().toURL() },
-            EmbeddedImplClassLoaderTests.class.getClassLoader()
-        );
+        Object foobar = newFooBar(0, false);
+        assertThat(foobar.toString(), equalTo("FooBar " + 0));
 
-        // test scenario
-        ProviderLocator<Supplier<String>> locator = new ProviderLocator(
-            this.getClass().getModule(),
-            "x-foo",
-            Supplier.class,
-            parent,
-            "x.foo.impl",
-            Set.of(),
-            true
-        );
-        Supplier<String> impl = locator.get();
-        String msg = impl.get();
-        assertThat(msg, equalTo("Hello from FooSupplier!"));
+        foobar = newFooBar(9, false);
+        assertThat(foobar.toString(), equalTo("FooBar " + 0));
 
-        Class<?> imlpClass = impl.getClass();
-        assertThat(imlpClass.getName(), equalTo("p.FooSupplier"));
+        foobar = newFooBar(11, false);
+        assertThat(foobar.toString(), equalTo("FooBar " + 0));
 
-        Module implMod = imlpClass.getModule();
-        assertThat(implMod.getName(), equalTo("x.foo.impl"));
-
-        ModuleDescriptor md = implMod.getDescriptor();
-        assertThat(md.isAutomatic(), equalTo(false));
-        assertThat(md.name(), equalTo("x.foo.impl"));
-        assertThat(md.exports(), containsInAnyOrder(exportsOf("p")));
-        assertThat(md.opens(), containsInAnyOrder(opensOf("q")));
-        assertThat(md.packages(), containsInAnyOrder(equalTo("p"), equalTo("q"), equalTo("r")));
+        foobar = newFooBar(17, false);
+        assertThat(foobar.toString(), equalTo("FooBar " + 0));
     }
 
-    // variant of testLoadAsModuleEmbeddedJar, but as a non-module
-    public void testLoadAsNonModuleEmbeddedJar() throws Exception {
-        // test scenario setup, compile source, create jar file, and parent loader
-        Map<String, CharSequence> sources = Map.of("p.FooSupplier", """
+    public void testLoadMegaVersionWithMultiReleaseEnabled() throws Exception {
+        // expect root FooBar to be loaded each time
+
+        assumeTrue("JDK version not less than 10_000", Runtime.version().feature() < 10_000);
+        Object foobar = newFooBar(10_000, true);
+        assertThat(foobar.toString(), equalTo("FooBar " + 0));
+
+        foobar = newFooBar(10_001, true);
+        assertThat(foobar.toString(), equalTo("FooBar " + 0));
+
+        foobar = newFooBar(100_000, true);
+        assertThat(foobar.toString(), equalTo("FooBar " + 0));
+    }
+
+    public void testLoadWithMultiReleaseEnabled9() throws Exception {
+        assumeTrue("JDK version not greater than or equal to 9", Runtime.version().feature() >= 9);
+        Object foobar = newFooBar(9, true);
+        // expect 9 version of FooBar to be loaded
+        assertThat(foobar.toString(), equalTo("FooBar " + 9));
+    }
+
+    public void testLoadWithMultiReleaseEnabled11() throws Exception {
+        assumeTrue("JDK version not greater than or equal to 11", Runtime.version().feature() >= 11);
+        Object foobar = newFooBar(11, true);
+        // expect 11 version of FooBar to be loaded
+        assertThat(foobar.toString(), equalTo("FooBar " + 11));
+    }
+
+    public void testLoadWithMultiReleaseEnabled17() throws Exception {
+        assumeTrue("JDK version not greater than or equal to 17", Runtime.version().feature() >= 17);
+        Object foobar = newFooBar(17, true);
+        // expect 11 version of FooBar to be loaded
+        assertThat(foobar.toString(), equalTo("FooBar " + 17));
+    }
+
+    // Creates a FooBar class that reports the given version in its toString
+    static byte[] classBytesForVersion(int version) {
+        return InMemoryJavaCompiler.compile("p.FooBar", String.format(Locale.ENGLISH, """
             package p;
-            public class FooSupplier implements java.util.function.Supplier<String> {
-              @Override public String get() {
-                return "Hello from FooSupplier - non-modular!";
-              }
+            public class FooBar {
+                @Override public String toString() {
+                    return "FooBar %d";
+                }
             }
-            """);
-        var classToBytes = InMemoryJavaCompiler.compile(sources);
+            """, version));
+    }
+
+    static Object newFooBar(int version, boolean enableMulti) throws Exception {
         Path topLevelDir = createTempDir();
 
-        Map<String, byte[]> jarEntries = Map.of(
-            "IMPL-JARS/x-foo/LISTING.TXT",
-            "x-foo-nm-impl.jar".getBytes(UTF_8),
-            "META-INF/services/java.util.function.Supplier",
-            "p.FooSupplier".getBytes(UTF_8),
-            "IMPL-JARS/x-foo/x-foo-nm-impl.jar/p/FooSupplier.class",
-            classToBytes.get("p.FooSupplier")
-        );
-        Path outerJar = topLevelDir.resolve("x-foo-nm-impl.jar");
-        JarUtils.createJarFile(topLevelDir.resolve("x-foo-nm-impl.jar"), jarEntries);
+        Map<String, byte[]> jarEntries = new HashMap<>();
+        jarEntries.put("IMPL-JARS/x-foo/LISTING.TXT", "x-foo-impl.jar".getBytes(UTF_8));
+        jarEntries.put("IMPL-JARS/x-foo/x-foo-impl.jar/p/FooBar.class", classBytesForVersion(0)); // root version is always 0
+        if (enableMulti) {
+            // enable multi-release in the manifest
+            jarEntries.put("IMPL-JARS/x-foo/x-foo-impl.jar/META-INF/MANIFEST.MF", "Multi-Release: true\n".getBytes(UTF_8));
+            jarEntries.put(
+                "IMPL-JARS/x-foo/x-foo-impl.jar/META-INF/versions/" + version + "/p/FooBar.class",
+                classBytesForVersion(version)
+            );
+        }
+
+        Path outerJar = topLevelDir.resolve("impl.jar");
+        JarUtils.createJarFile(outerJar, jarEntries);
         URLClassLoader parent = URLClassLoader.newInstance(
             new URL[] { outerJar.toUri().toURL() },
             EmbeddedImplClassLoaderTests.class.getClassLoader()
         );
 
-        // test scenario
-        ProviderLocator<Supplier<String>> locator = new ProviderLocator(
-            this.getClass().getModule(),
-            "x-foo",
-            Supplier.class,
-            parent,
-            "",
-            Set.of(),
-            false
-        );
-        Supplier<String> impl = locator.get();
-        String msg = impl.get();
-        assertThat(msg, equalTo("Hello from FooSupplier - non-modular!"));
-        assertThat(impl.getClass().getName(), equalTo("p.FooSupplier"));
-        assertThat(impl.getClass().getModule().isNamed(), is(false));
+        EmbeddedImplClassLoader loader = EmbeddedImplClassLoader.getInstance(parent, "x-foo");
+        Class<?> c = loader.loadClass("p.FooBar");
+        return c.getConstructor().newInstance();
     }
-
-    // variant of testLoadAsModuleEmbeddedJar, but exploded file paths
-    public void testLoadAsNonModuleExplodedPath() throws Exception {
-        // test scenario setup, compile source, create jar file, and parent loader
-        Map<String, CharSequence> sources = Map.of("pb.BarSupplier", """
-            package pb;
-            public class BarSupplier implements java.util.function.Supplier<String> {
-              @Override public String get() {
-                return "Hello from BarSupplier - exploded non-modular!";
-              }
-            }
-            """);
-        var classToBytes = InMemoryJavaCompiler.compile(sources);
-        Path topLevelDir = createTempDir();
-
-        Path yBar = Files.createDirectories(topLevelDir.resolve("IMPL-JARS").resolve("y-bar"));
-        Files.writeString(yBar.resolve("LISTING.TXT"), "y-bar-nm-impl.jar");
-        Path barRoot = Files.createDirectories(yBar.resolve("y-bar-nm-impl.jar"));
-        Path sr = Files.createDirectories(barRoot.resolve("META-INF").resolve("services"));
-        Files.writeString(sr.resolve("java.util.function.Supplier"), "pb.BarSupplier");
-        Path pb = Files.createDirectories(barRoot.resolve("pb"));
-        Files.write(pb.resolve("BarSupplier.class"), classToBytes.get("pb.BarSupplier"));
-
-        URLClassLoader parent = URLClassLoader.newInstance(
-            new URL[] { topLevelDir.toUri().toURL() },
-            EmbeddedImplClassLoaderTests.class.getClassLoader()
-        );
-
-        // test scenario
-        ProviderLocator<Supplier<String>> locator = new ProviderLocator(
-            this.getClass().getModule(),
-            "y-bar",
-            Supplier.class,
-            parent,
-            "",
-            Set.of(),
-            false
-        );
-        Supplier<String> impl = locator.get();
-        String msg = impl.get();
-        assertThat(msg, equalTo("Hello from BarSupplier - exploded non-modular!"));
-        assertThat(impl.getClass().getName(), equalTo("pb.BarSupplier"));
-        assertThat(impl.getClass().getModule().isNamed(), is(false));
-    }
-
-    // todo, test MRJAR
 }

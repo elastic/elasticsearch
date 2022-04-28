@@ -83,7 +83,8 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
     private final ClassLoader parent;
 
     static EmbeddedImplClassLoader getInstance(ClassLoader parent, String providerName) {
-        return new EmbeddedImplClassLoader(parent, getProviderPrefixes(parent, providerName));
+        PrivilegedAction<EmbeddedImplClassLoader> pa = () -> new EmbeddedImplClassLoader(parent, getProviderPrefixes(parent, providerName));
+        return AccessController.doPrivileged(pa);
     }
 
     private EmbeddedImplClassLoader(ClassLoader parent, Map<String, CodeSource> prefixToCodeBase) {
@@ -297,10 +298,7 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
     private static List<String> getVersionPrefixes(ClassLoader parent, String jarPrefix) throws IOException {
         List<String> versions = new ArrayList<>();
         for (int v = RUNTIME_VERSION_FEATURE; v >= BASE_VERSION_FEATURE; v--) {
-            URL url = parent.getResource(jarPrefix + "/" + MRJAR_VERSION_PREFIX + v);
-            if (url != null) {
-                versions.add(jarPrefix + "/" + MRJAR_VERSION_PREFIX + v);
-            }
+            versions.add(jarPrefix + "/" + MRJAR_VERSION_PREFIX + v);
         }
         return versions;
     }

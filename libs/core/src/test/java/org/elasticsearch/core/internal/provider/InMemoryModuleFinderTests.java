@@ -129,7 +129,7 @@ public class InMemoryModuleFinderTests extends ESTestCase {
             "/a/b/m.jar/q/Bar.class",
             classToBytes.get("q.Bar")
         );
-        if (version >= 8) { // locate a bad module-info in the root, to ensure accessed
+        if (version >= 8) { // locate a bad module-info in the root, to ensure not accessed
             var additional = Map.of(
                 "/a/b/m.jar/module-info.class",
                 "bad".getBytes(UTF_8)  //

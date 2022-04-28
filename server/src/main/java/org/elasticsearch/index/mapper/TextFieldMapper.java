@@ -50,7 +50,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
-import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.analysis.AnalyzerScope;
 import org.elasticsearch.index.analysis.IndexAnalyzers;
@@ -331,7 +330,7 @@ public class TextFieldMapper extends FieldMapper {
             );
         }
 
-        private TextFieldType buildFieldType(FieldType fieldType, MapperBuilderContext context, Version indexCreatedVersion) {
+        private TextFieldType buildFieldType(FieldType fieldType, MapperBuilderContext context) {
             NamedAnalyzer searchAnalyzer = analyzers.getSearchAnalyzer();
             NamedAnalyzer searchQuoteAnalyzer = analyzers.getSearchQuoteAnalyzer();
             if (analyzers.positionIncrementGap.isConfigured()) {
@@ -342,12 +341,7 @@ public class TextFieldMapper extends FieldMapper {
                 }
             }
             TextSearchInfo tsi = new TextSearchInfo(fieldType, similarity.getValue(), searchAnalyzer, searchQuoteAnalyzer);
-            TextFieldType ft;
-            if (indexCreatedVersion.isLegacyIndexVersion()) {
-                ft = new ConstantScoreTextFieldType(context.buildFullName(name), index.getValue(), store.getValue(), tsi, meta.getValue());
-            } else {
-                ft = new TextFieldType(context.buildFullName(name), index.getValue(), store.getValue(), tsi, meta.getValue());
-            }
+            TextFieldType ft = new TextFieldType(context.buildFullName(name), index.getValue(), store.getValue(), tsi, meta.getValue());
             ft.eagerGlobalOrdinals = eagerGlobalOrdinals.getValue();
             if (fieldData.getValue()) {
                 ft.setFielddata(true, freqFilter.getValue());
@@ -437,7 +431,7 @@ public class TextFieldMapper extends FieldMapper {
         @Override
         public TextFieldMapper build(MapperBuilderContext context) {
             FieldType fieldType = TextParams.buildFieldType(index, store, indexOptions, norms, termVectors);
-            TextFieldType tft = buildFieldType(fieldType, context, indexCreatedVersion);
+            TextFieldType tft = buildFieldType(fieldType, context);
             SubFieldInfo phraseFieldInfo = buildPhraseInfo(fieldType, tft);
             SubFieldInfo prefixFieldInfo = buildPrefixInfo(context, fieldType, tft);
             MultiFields multiFields = multiFieldsBuilder.build(this, context);
@@ -905,58 +899,6 @@ public class TextFieldMapper extends FieldMapper {
                     n
                 )
             );
-        }
-
-    }
-
-    public static class ConstantScoreTextFieldType extends TextFieldType {
-
-        public ConstantScoreTextFieldType(String name, boolean indexed, boolean stored, TextSearchInfo tsi, Map<String, String> meta) {
-            super(name, indexed, stored, tsi, meta);
-        }
-
-        @Override
-        public Query termQuery(Object value, SearchExecutionContext context) {
-            // Disable scoring
-            return new ConstantScoreQuery(super.termQuery(value, context));
-        }
-
-        @Override
-        public Query fuzzyQuery(
-            Object value,
-            Fuzziness fuzziness,
-            int prefixLength,
-            int maxExpansions,
-            boolean transpositions,
-            SearchExecutionContext context
-        ) {
-            // Disable scoring
-            return new ConstantScoreQuery(super.fuzzyQuery(value, fuzziness, prefixLength, maxExpansions, transpositions, context));
-        }
-
-        @Override
-        public Query phraseQuery(TokenStream stream, int slop, boolean enablePosIncrements, SearchExecutionContext queryShardContext)
-            throws IOException {
-            // Disable scoring
-            return new ConstantScoreQuery(super.phraseQuery(stream, slop, enablePosIncrements, queryShardContext));
-        }
-
-        @Override
-        public Query multiPhraseQuery(
-            TokenStream stream,
-            int slop,
-            boolean enablePositionIncrements,
-            SearchExecutionContext queryShardContext
-        ) throws IOException {
-            // Disable scoring
-            return new ConstantScoreQuery(super.multiPhraseQuery(stream, slop, enablePositionIncrements, queryShardContext));
-        }
-
-        @Override
-        public Query phrasePrefixQuery(TokenStream stream, int slop, int maxExpansions, SearchExecutionContext queryShardContext)
-            throws IOException {
-            // Disable scoring
-            return new ConstantScoreQuery(super.phrasePrefixQuery(stream, slop, maxExpansions, queryShardContext));
         }
 
     }

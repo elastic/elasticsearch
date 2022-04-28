@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.coordination.CoordinationMetadata.VotingConfigu
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.service.BatchSummary;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.compress.Compressor;
 import org.elasticsearch.common.compress.CompressorFactory;
@@ -99,7 +100,9 @@ public class PublicationTransportHandlerTests extends ESTestCase {
 
         final ElasticsearchException e = expectThrows(
             ElasticsearchException.class,
-            () -> handler.newPublicationContext(new ClusterStatePublicationEvent("test", clusterState, unserializableClusterState, 0L, 0L))
+            () -> handler.newPublicationContext(
+                new ClusterStatePublicationEvent(new BatchSummary("test"), clusterState, unserializableClusterState, 0L, 0L)
+            )
         );
         assertNotNull(e.getCause());
         assertThat(e.getCause(), instanceOf(IOException.class));
@@ -273,7 +276,7 @@ public class PublicationTransportHandlerTests extends ESTestCase {
             final PublicationTransportHandler.PublicationContext context;
             try {
                 context = handler.newPublicationContext(
-                    new ClusterStatePublicationEvent("test", prevClusterState, nextClusterState, 0L, 0L)
+                    new ClusterStatePublicationEvent(new BatchSummary("test"), prevClusterState, nextClusterState, 0L, 0L)
                 );
             } catch (ElasticsearchException e) {
                 assertTrue(simulateFailures);

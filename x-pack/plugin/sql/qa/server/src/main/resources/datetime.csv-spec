@@ -136,13 +136,13 @@ SELECT ISO_DAY_OF_WEEK(birth_date) AS d, SUM(salary) s FROM test_emp GROUP BY d 
 
       d:i      |      s:l
 ---------------+---------------
-7              |386466
-6              |643304
-5              |653130
-4              |740669
-3              |655169
-2              |888011
-1              |428067
+7              |386466       
+6              |643304       
+5              |653130       
+4              |740669       
+3              |655169       
+2              |888011       
+1              |428067       
 null           |430039
 ;
 
@@ -150,25 +150,25 @@ isoWeekOfYear
 schema::birth_date:ts|iso_week:i|week:i
 SELECT birth_date, IW(birth_date) iso_week, WEEK(birth_date) week FROM test_emp WHERE IW(birth_date) < 8 AND week >2 ORDER BY iso_week;
 
-       birth_date       |   iso_week    |     week
+       birth_date       |   iso_week    |     week      
 ------------------------+---------------+---------------
-1955-01-21T00:00:00.000Z|3              |4
-1953-01-23T00:00:00.000Z|4              |4
-1958-01-21T00:00:00.000Z|4              |4
-1959-01-27T00:00:00.000Z|5              |5
-1956-02-12T00:00:00.000Z|6              |7
-1953-02-08T00:00:00.000Z|6              |7
-1960-02-20T00:00:00.000Z|7              |8
+1955-01-21T00:00:00.000Z|3              |4              
+1953-01-23T00:00:00.000Z|4              |4              
+1958-01-21T00:00:00.000Z|4              |4              
+1959-01-27T00:00:00.000Z|5              |5              
+1956-02-12T00:00:00.000Z|6              |7              
+1953-02-08T00:00:00.000Z|6              |7              
+1960-02-20T00:00:00.000Z|7              |8              
 ;
 
 isoWeekOfYearFilterEquality
-SELECT ISO_WEEK_OF_YEAR(CONCAT(CONCAT('2021-01-22T14:26:06.', (salary % 2)::text), 'Z')::datetime) AS iso_week
+SELECT ISO_WEEK_OF_YEAR(CONCAT(CONCAT('2021-01-22T14:26:06.', (salary % 2)::text), 'Z')::datetime) AS iso_week 
 FROM test_emp WHERE iso_week = 3 LIMIT 2;
 
-   iso_week:i
+   iso_week:i  
 ---------------
-3
-3
+3              
+3              
 ;
 
 weekOfYearVsIsoWeekOfYearEdgeCases
@@ -194,13 +194,13 @@ SELECT WEEK(birth_date) week, birth_date FROM test_emp WHERE WEEK(birth_date) > 
 ;
 
 minuteOfDayFilterEquality
-SELECT MINUTE_OF_DAY(CONCAT(CONCAT('2021-01-22T14:26:06.', (salary % 2)::text), 'Z')::datetime) AS min_of_day
+SELECT MINUTE_OF_DAY(CONCAT(CONCAT('2021-01-22T14:26:06.', (salary % 2)::text), 'Z')::datetime) AS min_of_day 
 FROM test_emp WHERE min_of_day = 866 LIMIT 2;
 
-  min_of_day:i
+  min_of_day:i 
 ---------------
-866
-866
+866            
+866            
 ;
 
 selectAddWithDateTime
@@ -664,22 +664,22 @@ TO_CHAR('11:22:33.123456789Z'::time, 'HH24:MI:SS.FF2') AS df_time;
 
 selectToCharWithField
 schema::birth_date:ts|gender:s|df_birth_date1:s|df_birth_date2:s|emp_no:i
-SELECT birth_date, gender, TO_CHAR(birth_date, 'MM/DD/YYYY') AS df_birth_date1,
+SELECT birth_date, gender, TO_CHAR(birth_date, 'MM/DD/YYYY') AS df_birth_date1, 
 TO_CHAR(birth_date, CONCAT(gender, 'MDD')) AS df_birth_date2, emp_no FROM test_emp WHERE emp_no BETWEEN 10047 AND 10057 ORDER BY emp_no;
 
-       birth_date       |    gender     |df_birth_date1 |df_birth_date2 |    emp_no
+       birth_date       |    gender     |df_birth_date1 |df_birth_date2 |    emp_no     
 ------------------------+---------------+---------------+---------------+---------------
-null                    |M              |null           |null           |10047
-null                    |M              |null           |null           |10048
-null                    |F              |null           |null           |10049
-1958-05-21T00:00:00.000Z|M              |05/21/1958     |0521           |10050
-1953-07-28T00:00:00.000Z|M              |07/28/1953     |0728           |10051
-1961-02-26T00:00:00.000Z|M              |02/26/1961     |0226           |10052
-1954-09-13T00:00:00.000Z|F              |09/13/1954     |13             |10053
-1957-04-04T00:00:00.000Z|M              |04/04/1957     |0404           |10054
-1956-06-06T00:00:00.000Z|M              |06/06/1956     |0606           |10055
-1961-09-01T00:00:00.000Z|F              |09/01/1961     |1              |10056
-1954-05-30T00:00:00.000Z|F              |05/30/1954     |30             |10057
+null                    |M              |null           |null           |10047          
+null                    |M              |null           |null           |10048          
+null                    |F              |null           |null           |10049          
+1958-05-21T00:00:00.000Z|M              |05/21/1958     |0521           |10050          
+1953-07-28T00:00:00.000Z|M              |07/28/1953     |0728           |10051          
+1961-02-26T00:00:00.000Z|M              |02/26/1961     |0226           |10052          
+1954-09-13T00:00:00.000Z|F              |09/13/1954     |13             |10053          
+1957-04-04T00:00:00.000Z|M              |04/04/1957     |0404           |10054          
+1956-06-06T00:00:00.000Z|M              |06/06/1956     |0606           |10055          
+1961-09-01T00:00:00.000Z|F              |09/01/1961     |1              |10056          
+1954-05-30T00:00:00.000Z|F              |05/30/1954     |30             |10057          
 ;
 
 toCharWhere
@@ -687,18 +687,18 @@ schema::birth_date:ts|df_birth_date:s|emp_no:i
 SELECT birth_date, TO_CHAR(birth_date, 'MM') AS df_birth_date, emp_no FROM test_emp
 WHERE TO_CHAR(birth_date, 'MM')::integer > 10 ORDER BY emp_no LIMIT 10;
 
-       birth_date       | df_birth_date |    emp_no
+       birth_date       | df_birth_date |    emp_no     
 ------------------------+---------------+---------------
-1959-12-03T00:00:00.000Z|12             |10003
-1953-11-07T00:00:00.000Z|11             |10011
-1952-12-24T00:00:00.000Z|12             |10020
-1963-11-26T00:00:00.000Z|11             |10028
-1956-12-13T00:00:00.000Z|12             |10029
-1956-11-14T00:00:00.000Z|11             |10033
-1962-12-29T00:00:00.000Z|12             |10034
-1961-11-02T00:00:00.000Z|11             |10062
-1952-11-13T00:00:00.000Z|11             |10066
-1962-11-26T00:00:00.000Z|11             |10068
+1959-12-03T00:00:00.000Z|12             |10003          
+1953-11-07T00:00:00.000Z|11             |10011          
+1952-12-24T00:00:00.000Z|12             |10020          
+1963-11-26T00:00:00.000Z|11             |10028          
+1956-12-13T00:00:00.000Z|12             |10029          
+1956-11-14T00:00:00.000Z|11             |10033          
+1962-12-29T00:00:00.000Z|12             |10034          
+1961-11-02T00:00:00.000Z|11             |10062          
+1952-11-13T00:00:00.000Z|11             |10066          
+1962-11-26T00:00:00.000Z|11             |10068          
 ;
 
 toCharOrderBy
@@ -1292,9 +1292,9 @@ HAVING FORMAT(MAX(birth_date), 'dd')::integer > 20  ORDER BY 1 DESC;
 castedDateTimeWithGroupBy1
 SELECT CONVERT(birth_date, DOUBLE) AS date FROM test_emp GROUP BY date ORDER BY date LIMIT 10;
 
-    date:d
+    date:d      
 ---------------
-null
+null           
 -5.631552E11
 -5.586624E11
 -5.56416E11
@@ -1326,19 +1326,19 @@ SELECT CAST(hire_date AS LONG) AS date FROM test_emp GROUP BY date ORDER BY date
 dateTimeAggByIsoDayOfWeekWithFilter
 SELECT IDOW(birth_date) day, DAY_NAME(birth_date) dayname, COUNT(*) c FROM test_emp WHERE IDOW(birth_date) < 6 GROUP BY day, dayname ORDER BY day desc;
 
-    day:i      |   dayname:s   |     c:l
+    day:i      |   dayname:s   |     c:l       
 ---------------+---------------+---------------
-5              |Friday         |12
-4              |Thursday       |15
-3              |Wednesday      |14
-2              |Tuesday        |18
-1              |Monday         |8
+5              |Friday         |12             
+4              |Thursday       |15             
+3              |Wednesday      |14             
+2              |Tuesday        |18             
+1              |Monday         |8              
 ;
 
 dateTimeAggByIsoDayOfWeek
 SELECT IDOW(birth_date) day, DAY_NAME(birth_date) dayname, COUNT(*) c FROM test_emp GROUP BY day, dayname ORDER BY day desc;
 
-    day:i      |   dayname:s   |     c:l
+    day:i      |   dayname:s   |     c:l       
 ---------------+---------------+---------------
 7              |Sunday         |10
 6              |Saturday       |13
@@ -1353,152 +1353,152 @@ null           |null           |10
 dateTimeAggByIsoWeekOfYear
 SELECT IW(birth_date) iso_week, WEEK(birth_date) week FROM test_emp WHERE IW(birth_date) < 20 GROUP BY iso_week, week ORDER BY iso_week;
 
-   iso_week:i  |     week:i
+   iso_week:i  |     week:i    
 ---------------+---------------
-2              |2
-3              |4
-4              |4
-5              |5
-6              |7
-7              |8
-8              |8
-8              |9
-9              |9
-10             |11
-12             |12
-14             |14
-15             |15
-15             |16
-16             |16
-17             |17
-17             |18
-18             |18
+2              |2              
+3              |4              
+4              |4              
+5              |5              
+6              |7              
+7              |8              
+8              |8              
+8              |9              
+9              |9              
+10             |11             
+12             |12             
+14             |14             
+15             |15             
+15             |16             
+16             |16             
+17             |17             
+17             |18             
+18             |18             
 ;
 
 dateTimeAggByYear
 SELECT YEAR(birth_date) AS d, CAST(SUM(emp_no) AS INT) s FROM "test_emp" GROUP BY YEAR(birth_date) ORDER BY YEAR(birth_date) LIMIT 13;
 
 d:i                  | s:i
-null                 |100445
-1952                 |80425
-1953                 |110398
-1954                 |80447
-1955                 |40240
-1956                 |50230
-1957                 |40235
-1958                 |70225
-1959                 |90436
-1960                 |80412
-1961                 |80513
-1962                 |60361
-1963                 |70324
-;
+null                 |100445         
+1952                 |80425          
+1953                 |110398         
+1954                 |80447          
+1955                 |40240          
+1956                 |50230          
+1957                 |40235          
+1958                 |70225          
+1959                 |90436          
+1960                 |80412          
+1961                 |80513          
+1962                 |60361          
+1963                 |70324    
+;                   
 
 dateTimeAggByMonth
 SELECT MONTH(birth_date) AS d, COUNT(*) AS c, CAST(SUM(emp_no) AS INT) s FROM "test_emp" GROUP BY MONTH(birth_date) ORDER BY MONTH(birth_date) DESC;
 
 d:i                  | c:l                  | s:i
 12                   |7                     |70325
-11                   |8                     |80439
-10                   |9                     |90517
-9                    |10                    |100561
-8                    |6                     |60290
-7                    |9                     |90392
-6                    |7                     |70267
-5                    |10                    |100573
-4                    |8                     |80401
-3                    |2                     |20164
-2                    |8                     |80388
-1                    |6                     |60288
-null                 |10                    |100445
+11                   |8                     |80439          
+10                   |9                     |90517          
+9                    |10                    |100561         
+8                    |6                     |60290          
+7                    |9                     |90392          
+6                    |7                     |70267          
+5                    |10                    |100573         
+4                    |8                     |80401          
+3                    |2                     |20164          
+2                    |8                     |80388          
+1                    |6                     |60288          
+null                 |10                    |100445  
 ;
 
 dateTimeAggByDayOfMonth
 SELECT DAY_OF_MONTH(birth_date) AS d, COUNT(*) AS c, CAST(SUM(emp_no) AS INT) s FROM "test_emp" GROUP BY DAY_OF_MONTH(birth_date) ORDER BY DAY_OF_MONTH(birth_date) DESC;
 
 d:i                  | c:l                  | s:i
-31                   |1                     |10025
-30                   |2                     |20147
-29                   |2                     |20057
-28                   |2                     |20125
-27                   |2                     |20128
-26                   |3                     |30148
-25                   |5                     |50443
-24                   |1                     |10020
-23                   |6                     |60367
-22                   |1                     |10037
-21                   |5                     |50315
-20                   |4                     |40135
-19                   |7                     |70256
-18                   |2                     |20169
-17                   |1                     |10081
-16                   |1                     |10096
-15                   |2                     |20132
-14                   |3                     |30128
-13                   |4                     |40224
-12                   |1                     |10014
-11                   |1                     |10093
-10                   |2                     |20063
-9                    |3                     |30189
-8                    |2                     |20057
-7                    |5                     |50240
-6                    |4                     |40204
-5                    |2                     |20103
-4                    |3                     |30157
-3                    |4                     |40204
-2                    |4                     |40081
-1                    |5                     |50167
-null                 |10                    |100445
+31                   |1                     |10025          
+30                   |2                     |20147          
+29                   |2                     |20057          
+28                   |2                     |20125          
+27                   |2                     |20128          
+26                   |3                     |30148          
+25                   |5                     |50443          
+24                   |1                     |10020          
+23                   |6                     |60367          
+22                   |1                     |10037          
+21                   |5                     |50315          
+20                   |4                     |40135          
+19                   |7                     |70256          
+18                   |2                     |20169          
+17                   |1                     |10081          
+16                   |1                     |10096          
+15                   |2                     |20132          
+14                   |3                     |30128          
+13                   |4                     |40224          
+12                   |1                     |10014          
+11                   |1                     |10093          
+10                   |2                     |20063          
+9                    |3                     |30189          
+8                    |2                     |20057          
+7                    |5                     |50240          
+6                    |4                     |40204          
+5                    |2                     |20103          
+4                    |3                     |30157          
+3                    |4                     |40204          
+2                    |4                     |40081          
+1                    |5                     |50167          
+null                 |10                    |100445 
 ;
 
 weekOfYearGroupBy
 SELECT WEEK(birth_date) week, COUNT(*) c FROM test_emp WHERE MOD(WEEK(birth_date), 4) = 0 GROUP BY week ORDER BY WEEK(birth_date);
 
-    week:i     |     c:l
+    week:i     |     c:l       
 ---------------+---------------
-4              |3
-8              |2
-12             |1
-16             |3
-20             |1
-24             |2
-28             |3
-32             |1
-36             |3
-40             |4
-44             |2
-48             |2
-52             |3
+4              |3              
+8              |2              
+12             |1              
+16             |3              
+20             |1              
+24             |2              
+28             |3              
+32             |1              
+36             |3              
+40             |4              
+44             |2              
+48             |2              
+52             |3              
 ;
 
 currentTimestampKeywordWithDivision
 SELECT YEAR(CURRENT_TIMESTAMP) / 1000 AS result;
 
-    result
+    result     
 ---------------
-2
+2    
 ;
 
 currentTimestampFunctionNoArgsWithDivision
 SELECT YEAR(CURRENT_TIMESTAMP()) / 1000 AS result;
 
-    result
+    result     
 ---------------
-2
+2    
 ;
 
 currentTimestampFunctionPrecisionWithDivision
 SELECT YEAR(CURRENT_TIMESTAMP(2)) / 1000 AS result;
 
-    result
+    result     
 ---------------
-2
+2    
 ;
 
 nowWithDivision
 SELECT YEAR(NOW()) / 1000 AS result;
 
-    result
+    result     
 ---------------
 2
 ;
@@ -1506,7 +1506,7 @@ SELECT YEAR(NOW()) / 1000 AS result;
 nowIntervalSubstraction
 SELECT YEAR(NOW() - INTERVAL 2 YEARS) / 1000 AS result;
 
-    result
+    result     
 ---------------
 2
 ;
@@ -1514,52 +1514,52 @@ SELECT YEAR(NOW() - INTERVAL 2 YEARS) / 1000 AS result;
 dateAndIntervalPaginated
 SELECT YEAR(birth_date - INTERVAL 2 YEARS) / 1000 AS result FROM test_emp ORDER BY birth_date LIMIT 10;
 
-    result
+    result     
 ---------------
-1
-1
-1
-1
-1
-1
-1
-1
-1
+1              
+1              
+1              
+1              
+1              
+1              
+1              
+1              
+1              
 1
 ;
 
 currentTimestampFilter
-SELECT first_name FROM test_emp WHERE hire_date > NOW() - INTERVAL 100 YEARS ORDER BY first_name ASC LIMIT 10;
+SELECT first_name FROM test_emp WHERE hire_date > NOW() - INTERVAL 100 YEARS ORDER BY first_name ASC LIMIT 10; 
 
-  first_name
+  first_name   
 ---------------
-Alejandro
-Amabile
-Anneke
-Anoosh
-Arumugam
-Basil
-Berhard
-Berni
-Bezalel
-Bojan
+Alejandro      
+Amabile        
+Anneke         
+Anoosh         
+Arumugam       
+Basil          
+Berhard        
+Berni          
+Bezalel        
+Bojan      
 ;
 
 currentTimestampFilterScript
 SELECT first_name FROM test_emp WHERE YEAR(hire_date) - YEAR(NOW()) / 1000 > 10 ORDER BY first_name ASC LIMIT 10;
 
-  first_name
+  first_name   
 ---------------
-Alejandro
-Amabile
-Anneke
-Anoosh
-Arumugam
-Basil
-Berhard
-Berni
-Bezalel
-Bojan
+Alejandro      
+Amabile        
+Anneke         
+Anoosh         
+Arumugam       
+Basil          
+Berhard        
+Berni          
+Bezalel        
+Bojan  
 
 ;
 

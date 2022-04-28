@@ -180,6 +180,7 @@ public class DateTimeFormatProcessorTests extends AbstractSqlWireSerializingTest
         assertEquals("G : Q", new Format(Source.EMPTY, dateTime, l("G : Q"), zoneId).makePipe().asProcessor().process(null));
         assertEquals("AD", new Format(Source.EMPTY, dateTime, l("g"), zoneId).makePipe().asProcessor().process(null));
         assertEquals("2019-09-04", new Format(Source.EMPTY, dateTime, l("yyyy-MM-dd"), zoneId).makePipe().asProcessor().process(null));
+        assertEquals("YYYY-09-04", new Format(Source.EMPTY, dateTime, l("YYYY-MM-dd"), zoneId).makePipe().asProcessor().process(null));
         assertEquals(
             "2019-09-04 Wed",
             new Format(Source.EMPTY, dateTime, l("yyyy-MM-dd ddd"), zoneId).makePipe().asProcessor().process(null)
@@ -316,8 +317,51 @@ public class DateTimeFormatProcessorTests extends AbstractSqlWireSerializingTest
         );
 
         assertEquals("''", new Format(Source.EMPTY, dateTime, l("\"''\""), zoneId).makePipe().asProcessor().process(null));
-
         assertEquals("\\", new Format(Source.EMPTY, dateTime, l("\"\\\""), zoneId).makePipe().asProcessor().process(null));
+    }
 
+    public void testAllowedCharactersIn() {
+        ZoneId zoneId = ZoneId.of("Etc/GMT-10");
+        Literal dateTime = l(dateTime(2019, 9, 3, 18, 10, 37, 123456789));
+
+        assertEquals("DGTYZ", new Format(Source.EMPTY, dateTime, l("DGTYZ"), zoneId).makePipe().asProcessor().process(null));
+
+        assertEquals(
+            "DGTYZ 4ADAM2019+10",
+            new Format(Source.EMPTY, dateTime, l("DGTYZ dgtyz"), zoneId).makePipe().asProcessor().process(null)
+        );
+
+        assertEquals(
+            "abceijklnopqruwxABCDEGIJLNOPQRSTUVWXYZ",
+            new Format(Source.EMPTY, dateTime, l("abceijklnopqruwxABCDEGIJLNOPQRSTUVWXYZ"), zoneId).makePipe().asProcessor().process(null)
+        );
+
+        assertEquals(
+            ";.,?{}[]()!@#$%^&*",
+            new Format(Source.EMPTY, dateTime, l(";.,?{}[]()!@#$%^&*"), zoneId).makePipe().asProcessor().process(null)
+        );
+    }
+
+    public void testMsToJavaPattern() {
+        assertEquals("", DateTimeFormatProcessor.Formatter.msToJavaPattern(""));
+        assertEquals(
+            "dd/mm/yyyy hh:mm:ssss S S G h H v a y X",
+            DateTimeFormatProcessor.Formatter.msToJavaPattern("dd/mm/yyyy hh:mm:ssss f F g h H K t y z")
+        );
+        assertEquals(
+            "'abceijklnopqruwxABCDEGIJLNOPQRSTUVWXYZ'",
+            DateTimeFormatProcessor.Formatter.msToJavaPattern("abceijklnopqruwxABCDEGIJLNOPQRSTUVWXYZ")
+        );
+        assertEquals("a", DateTimeFormatProcessor.Formatter.msToJavaPattern("t"));
+        assertEquals("a", DateTimeFormatProcessor.Formatter.msToJavaPattern("tt"));
+        assertEquals("eee", DateTimeFormatProcessor.Formatter.msToJavaPattern("ddd"));
+        assertEquals("eeee", DateTimeFormatProcessor.Formatter.msToJavaPattern("dddd"));
+        assertEquals("vGSSX", DateTimeFormatProcessor.Formatter.msToJavaPattern("KgfFz"));
+        assertEquals("'foo'", DateTimeFormatProcessor.Formatter.msToJavaPattern("\"foo\""));
+        assertEquals("'foo'", DateTimeFormatProcessor.Formatter.msToJavaPattern("'foo'"));
+        assertEquals("'foo'", DateTimeFormatProcessor.Formatter.msToJavaPattern("\\f\\o\\o"));
+        assertEquals("'foo'", DateTimeFormatProcessor.Formatter.msToJavaPattern("\\f\"oo\""));
+        assertEquals("'foobar'", DateTimeFormatProcessor.Formatter.msToJavaPattern("'foo'\"bar\""));
+        assertEquals("'abce' 'abce'", DateTimeFormatProcessor.Formatter.msToJavaPattern("abce abce"));
     }
 }

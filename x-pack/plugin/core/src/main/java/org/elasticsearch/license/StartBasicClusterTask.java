@@ -33,7 +33,7 @@ public class StartBasicClusterTask extends ClusterStateUpdateTask {
     private final String description;
     private final ActionListener<PostStartBasicResponse> listener;
     private final Clock clock;
-    private AtomicReference<Map<String, String[]>> ackMessages = new AtomicReference<>(Collections.emptyMap());
+    private final AtomicReference<Map<String, String[]>> ackMessages = new AtomicReference<>(Collections.emptyMap());
 
     StartBasicClusterTask(
         Logger logger,
@@ -61,7 +61,7 @@ public class StartBasicClusterTask extends ClusterStateUpdateTask {
             listener.onResponse(
                 new PostStartBasicResponse(PostStartBasicResponse.Status.NEED_ACKNOWLEDGEMENT, acknowledgeMessages, ACKNOWLEDGEMENT_HEADER)
             );
-        } else if (oldLicense != null && License.LicenseType.isBasic(oldLicense.type())) {
+        } else if (shouldGenerateNewBasicLicense(oldLicense) == false) {
             listener.onResponse(new PostStartBasicResponse(PostStartBasicResponse.Status.ALREADY_USING_BASIC));
         } else {
             listener.onResponse(new PostStartBasicResponse(PostStartBasicResponse.Status.GENERATED_BASIC));

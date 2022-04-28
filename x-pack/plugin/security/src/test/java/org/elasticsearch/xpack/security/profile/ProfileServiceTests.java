@@ -258,7 +258,7 @@ public class ProfileServiceTests extends ESTestCase {
                     responses.add(new MultiGetItemResponse(missingResponse, null));
                 } else {
                     String source = getSampleProfileDocumentSource(
-                        item.id(),
+                        item.id().substring("profile_".length()),
                         "foo_username_" + item.id().substring("profile_".length()),
                         List.of("foo_role_" + item.id().substring("profile_".length())),
                         Instant.now().toEpochMilli()

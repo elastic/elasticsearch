@@ -28,13 +28,31 @@ import java.util.Map;
  * The seconds formatter is provided by {@link #SECONDS_FORMATTER}.
  * The milliseconds formatter is provided by {@link #MILLIS_FORMATTER}.
  * <p>
- * Both formatters support fractional time, up to nanosecond precision. Values must be positive numbers.
+ * Both formatters support fractional time, up to nanosecond precision.
  */
 class EpochTime {
 
-    private static final ValueRange LONG_POSITIVE_RANGE = ValueRange.of(0, Long.MAX_VALUE);
+    private static final ValueRange POSITIVE_LONG_INTEGER_RANGE = ValueRange.of(0, Long.MAX_VALUE);
 
-    private static final EpochField SECONDS = new EpochField(ChronoUnit.SECONDS, ChronoUnit.FOREVER, LONG_POSITIVE_RANGE) {
+    // TemporalField is only present in the presence of a negative (potentially fractional) timestamp.
+    private static final long NEGATIVE_SIGN_PLACEHOLDER = -1;
+    private static final EpochField NEGATIVE_SIGN_FIELD = new EpochField(
+        ChronoUnit.FOREVER,
+        ChronoUnit.FOREVER,
+        ValueRange.of(NEGATIVE_SIGN_PLACEHOLDER, NEGATIVE_SIGN_PLACEHOLDER)
+    ) {
+        @Override
+        public boolean isSupportedBy(TemporalAccessor temporal) {
+            return temporal.isSupported(ChronoField.INSTANT_SECONDS) && temporal.getLong(ChronoField.INSTANT_SECONDS) < 0;
+        }
+
+        @Override
+        public long getFrom(TemporalAccessor temporal) {
+            return NEGATIVE_SIGN_PLACEHOLDER;
+        }
+    };
+
+    private static final EpochField UNSIGNED_SECONDS = new EpochField(ChronoUnit.SECONDS, ChronoUnit.FOREVER, POSITIVE_LONG_INTEGER_RANGE) {
         @Override
         public boolean isSupportedBy(TemporalAccessor temporal) {
             return temporal.isSupported(ChronoField.INSTANT_SECONDS);
@@ -42,7 +60,22 @@ class EpochTime {
 
         @Override
         public long getFrom(TemporalAccessor temporal) {
-            return temporal.getLong(ChronoField.INSTANT_SECONDS);
+            long seconds = temporal.getLong(ChronoField.INSTANT_SECONDS);
+            if (seconds >= 0) {
+                return seconds;
+            } else {
+                long nanos = temporal.getLong(ChronoField.NANO_OF_SECOND);
+                if (nanos != 0) {
+                    // Fractional negative timestamp.
+                    // This increases the seconds magnitude by 1 in the formatted value due to a rounding error when
+                    // the nanos value is not evenly converted into a seconds value. Java 8's date-time API represents
+                    // values as a negative seconds value + a positive nanos value. However, in this case there is
+                    // precision loss. Thus, to account for this precision loss, we must use a seconds value that is
+                    // rounded towards the epoch (i.e. to a higher magnitude).
+                    seconds += 1;
+                }
+                return -seconds; // positive for formatting; sign handled by NEGATIVE_SIGN_FIELD
+            }
         }
 
         @Override
@@ -51,9 +84,21 @@ class EpochTime {
             TemporalAccessor partialTemporal,
             ResolverStyle resolverStyle
         ) {
+            Long isNegative = fieldValues.remove(NEGATIVE_SIGN_FIELD);
             long seconds = fieldValues.remove(this);
-            fieldValues.put(ChronoField.INSTANT_SECONDS, seconds);
             Long nanos = fieldValues.remove(NANOS_OF_SECOND);
+            if (isNegative != null) {
+                seconds = -seconds;
+                if (nanos != null) {
+                    // nanos must be positive. B/c the timestamp is represented by the
+                    // (seconds, nanos) tuple, seconds moves 1s toward negative-infinity
+                    // and nanos moves 1s toward positive-infinity
+                    seconds -= 1;
+                    nanos = 1_000_000_000 - nanos;
+                }
+            }
+
+            fieldValues.put(ChronoField.INSTANT_SECONDS, seconds);
             if (nanos != null) {
                 fieldValues.put(ChronoField.NANO_OF_SECOND, nanos);
             }
@@ -69,19 +114,40 @@ class EpochTime {
 
         @Override
         public long getFrom(TemporalAccessor temporal) {
-            return temporal.getLong(ChronoField.NANO_OF_SECOND);
+            if (temporal.getLong(ChronoField.INSTANT_SECONDS) < 0) {
+                return (1_000_000_000 - temporal.getLong(ChronoField.NANO_OF_SECOND)) % 1_000_000_000;
+            } else {
+                return temporal.getLong(ChronoField.NANO_OF_SECOND);
+            }
         }
     };
 
-    private static final EpochField MILLIS = new EpochField(ChronoUnit.MILLIS, ChronoUnit.FOREVER, LONG_POSITIVE_RANGE) {
+    private static final EpochField UNSIGNED_MILLIS = new EpochField(ChronoUnit.MILLIS, ChronoUnit.FOREVER, POSITIVE_LONG_INTEGER_RANGE) {
         @Override
         public boolean isSupportedBy(TemporalAccessor temporal) {
-            return temporal.isSupported(ChronoField.INSTANT_SECONDS) && temporal.isSupported(ChronoField.MILLI_OF_SECOND);
+            return temporal.isSupported(ChronoField.INSTANT_SECONDS)
+                && (temporal.isSupported(ChronoField.NANO_OF_SECOND) || temporal.isSupported(ChronoField.MILLI_OF_SECOND));
         }
 
         @Override
         public long getFrom(TemporalAccessor temporal) {
-            return temporal.getLong(ChronoField.INSTANT_SECONDS) * 1_000 + temporal.getLong(ChronoField.MILLI_OF_SECOND);
+            long millis = temporal.getLong(ChronoField.INSTANT_SECONDS) * 1_000;
+            if (millis >= 0 || temporal.isSupported(ChronoField.NANO_OF_SECOND) == false) {
+                return millis + temporal.getLong(ChronoField.MILLI_OF_SECOND);
+            } else {
+                long nanos = temporal.getLong(ChronoField.NANO_OF_SECOND);
+                if (nanos % 1_000_000 != 0) {
+                    // Fractional negative timestamp.
+                    // This increases the millis magnitude by 1 in the formatted value due to a rounding error when
+                    // the nanos value is not evenly converted into a millis value. Java 8's date-time API represents
+                    // values as a negative seconds value + a positive nanos value. However, in this case there is
+                    // precision loss when converting the nanos to millis. Thus, to account for this precision loss,
+                    // we must use a millis value that is rounded towards the epoch (i.e. to a higher magnitude).
+                    millis += 1;
+                }
+                millis += (nanos / 1_000_000);
+                return -millis; // positive for formatting; sign handled by NEGATIVE_SIGN_FIELD
+            }
         }
 
         @Override
@@ -90,13 +156,38 @@ class EpochTime {
             TemporalAccessor partialTemporal,
             ResolverStyle resolverStyle
         ) {
-            long secondsAndMillis = fieldValues.remove(this);
-            long seconds = secondsAndMillis / 1_000;
-            long nanos = secondsAndMillis % 1000 * 1_000_000;
+            Long isNegative = fieldValues.remove(NEGATIVE_SIGN_FIELD);
             Long nanosOfMilli = fieldValues.remove(NANOS_OF_MILLI);
-            if (nanosOfMilli != null) {
-                nanos += nanosOfMilli;
+            long secondsAndMillis = fieldValues.remove(this);
+
+            long seconds;
+            long nanos;
+            if (isNegative != null) {
+                secondsAndMillis = -secondsAndMillis;
+                seconds = secondsAndMillis / 1_000;
+                nanos = secondsAndMillis % 1000 * 1_000_000;
+                // `secondsAndMillis < 0` implies negative timestamp; so `nanos < 0`
+                if (nanosOfMilli != null) {
+                    // aggregate fractional part of the input; subtract b/c `nanos < 0`
+                    nanos -= nanosOfMilli;
+                }
+                if (nanos != 0) {
+                    // nanos must be positive. B/c the timestamp is represented by the
+                    // (seconds, nanos) tuple, seconds moves 1s toward negative-infinity
+                    // and nanos moves 1s toward positive-infinity
+                    seconds -= 1;
+                    nanos = 1_000_000_000 + nanos;
+                }
+            } else {
+                seconds = secondsAndMillis / 1_000;
+                nanos = secondsAndMillis % 1000 * 1_000_000;
+
+                if (nanosOfMilli != null) {
+                    // aggregate fractional part of the input
+                    nanos += nanosOfMilli;
+                }
             }
+
             fieldValues.put(ChronoField.INSTANT_SECONDS, seconds);
             fieldValues.put(ChronoField.NANO_OF_SECOND, nanos);
             // if there is already a milli of second, we need to overwrite it
@@ -117,29 +208,41 @@ class EpochTime {
 
         @Override
         public long getFrom(TemporalAccessor temporal) {
-            return temporal.getLong(ChronoField.NANO_OF_SECOND) % 1_000_000;
+            if (temporal.getLong(ChronoField.INSTANT_SECONDS) < 0) {
+                return (1_000_000_000 - temporal.getLong(ChronoField.NANO_OF_SECOND)) % 1_000_000;
+            } else {
+                return temporal.getLong(ChronoField.NANO_OF_SECOND) % 1_000_000;
+            }
         }
     };
 
     // this supports seconds without any fraction
-    private static final DateTimeFormatter SECONDS_FORMATTER1 = new DateTimeFormatterBuilder().appendValue(SECONDS, 1, 19, SignStyle.NORMAL)
+    private static final DateTimeFormatter SECONDS_FORMATTER1 = new DateTimeFormatterBuilder().optionalStart()
+        .appendText(NEGATIVE_SIGN_FIELD, Map.of(-1L, "-")) // field is only created in the presence of a '-' char.
+        .optionalEnd()
+        .appendValue(UNSIGNED_SECONDS, 1, 19, SignStyle.NOT_NEGATIVE)
         .optionalStart() // optional is used so isSupported will be called when printing
         .appendFraction(NANOS_OF_SECOND, 0, 9, true)
         .optionalEnd()
         .toFormatter(Locale.ROOT);
 
     // this supports seconds ending in dot
-    private static final DateTimeFormatter SECONDS_FORMATTER2 = new DateTimeFormatterBuilder().appendValue(SECONDS, 1, 19, SignStyle.NORMAL)
+    private static final DateTimeFormatter SECONDS_FORMATTER2 = new DateTimeFormatterBuilder().optionalStart()
+        .appendText(NEGATIVE_SIGN_FIELD, Map.of(-1L, "-")) // field is only created in the presence of a '-' char.
+        .optionalEnd()
+        .appendValue(UNSIGNED_SECONDS, 1, 19, SignStyle.NOT_NEGATIVE)
         .appendLiteral('.')
         .toFormatter(Locale.ROOT);
 
-    // this supports milliseconds without any fraction
-    private static final DateTimeFormatter MILLISECONDS_FORMATTER1 = new DateTimeFormatterBuilder().appendValue(
-        MILLIS,
-        1,
-        19,
-        SignStyle.NORMAL
-    ).optionalStart().appendFraction(NANOS_OF_MILLI, 0, 6, true).optionalEnd().toFormatter(Locale.ROOT);
+    // this supports milliseconds
+    public static final DateTimeFormatter MILLISECONDS_FORMATTER1 = new DateTimeFormatterBuilder().optionalStart()
+        .appendText(NEGATIVE_SIGN_FIELD, Map.of(-1L, "-")) // field is only created in the presence of a '-' char.
+        .optionalEnd()
+        .appendValue(UNSIGNED_MILLIS, 1, 19, SignStyle.NOT_NEGATIVE)
+        .optionalStart()
+        .appendFraction(NANOS_OF_MILLI, 0, 6, true)
+        .optionalEnd()
+        .toFormatter(Locale.ROOT);
 
     // this supports milliseconds ending in dot
     private static final DateTimeFormatter MILLISECONDS_FORMATTER2 = new DateTimeFormatterBuilder().append(MILLISECONDS_FORMATTER1)

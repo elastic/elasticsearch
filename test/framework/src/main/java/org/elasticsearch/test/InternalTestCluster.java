@@ -59,10 +59,10 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLockObtainFailedException;
@@ -1054,7 +1054,7 @@ public final class InternalTestCluster extends TestCluster {
                 node.close();
                 try {
                     if (node.awaitClose(10, TimeUnit.SECONDS) == false) {
-                        throw new IOException("Node didn't close within 10 seconds.");
+                        throw new AssertionError("Node didn't close within 10 seconds.");
                     }
                 } catch (InterruptedException e) {
                     throw new AssertionError("Interruption while waiting for the node to close", e);

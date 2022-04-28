@@ -26,9 +26,9 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Booleans;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -147,7 +147,7 @@ public final class Settings implements ToXContentFragment {
         return map;
     }
 
-    private void processSetting(Map<String, Object> map, String prefix, String setting, Object value) {
+    private static void processSetting(Map<String, Object> map, String prefix, String setting, Object value) {
         int prefixLength = setting.indexOf('.');
         if (prefixLength == -1) {
             @SuppressWarnings("unchecked")
@@ -182,7 +182,7 @@ public final class Settings implements ToXContentFragment {
         }
     }
 
-    private Object convertMapsToArrays(Map<String, Object> map) {
+    private static Object convertMapsToArrays(Map<String, Object> map) {
         if (map.isEmpty()) {
             return map;
         }
@@ -440,7 +440,8 @@ public final class Settings implements ToXContentFragment {
                 final List<String> valuesAsList = (List<String>) valueFromPrefix;
                 return valuesAsList;
             } else if (commaDelimited) {
-                String[] strings = Strings.splitStringByCommaToArray(get(key));
+                String value = get(key);
+                String[] strings = Strings.splitStringByCommaToArray(value);
                 if (strings.length > 0) {
                     for (String string : strings) {
                         result.add(string.trim());
@@ -651,7 +652,7 @@ public final class Settings implements ToXContentFragment {
     }
 
     @SuppressWarnings("unchecked")
-    private void toXContentFlat(XContentBuilder builder, Settings settings) throws IOException {
+    private static void toXContentFlat(XContentBuilder builder, Settings settings) throws IOException {
         for (Map.Entry<String, Object> entry : settings.getAsStructuredMap().entrySet()) {
             final Object value = entry.getValue();
             final String key = entry.getKey();
@@ -752,7 +753,7 @@ public final class Settings implements ToXContentFragment {
                     validateValue(key, parser.text(), parser, allowNullValues);
                     builder.put(key, parser.booleanValue());
                 } else {
-                    XContentParserUtils.throwUnknownToken(parser.currentToken(), parser.getTokenLocation());
+                    XContentParserUtils.throwUnknownToken(parser.currentToken(), parser);
                 }
         }
     }
@@ -1210,19 +1211,10 @@ public final class Settings implements ToXContentFragment {
          * another setting already set on this builder.
          */
         public Builder replacePropertyPlaceholders() {
-            return replacePropertyPlaceholders(System::getenv);
-        }
-
-        // visible for testing
-        Builder replacePropertyPlaceholders(Function<String, String> getenv) {
             PropertyPlaceholder propertyPlaceholder = new PropertyPlaceholder("${", "}", false);
             PropertyPlaceholder.PlaceholderResolver placeholderResolver = new PropertyPlaceholder.PlaceholderResolver() {
                 @Override
                 public String resolvePlaceholder(String placeholderName) {
-                    final String value = getenv.apply(placeholderName);
-                    if (value != null) {
-                        return value;
-                    }
                     return Settings.toString(map.get(placeholderName));
                 }
 

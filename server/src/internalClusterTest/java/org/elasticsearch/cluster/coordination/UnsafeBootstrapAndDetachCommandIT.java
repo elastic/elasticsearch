@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class UnsafeBootstrapAndDetachCommandIT extends ESIntegTestCase {
 
     private MockTerminal executeCommand(ElasticsearchNodeCommand command, Environment environment, boolean abort) throws Exception {
-        final MockTerminal terminal = new MockTerminal();
+        final MockTerminal terminal = MockTerminal.create();
         final OptionSet options = command.getParser().parse();
         final String input;
 

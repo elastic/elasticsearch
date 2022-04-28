@@ -63,14 +63,12 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         private final Parameter<List<String>> includes = Parameter.stringArrayParam(
             "includes",
             false,
-            m -> Arrays.asList(toType(m).includes),
-            Collections.emptyList()
+            m -> Arrays.asList(toType(m).includes)
         );
         private final Parameter<List<String>> excludes = Parameter.stringArrayParam(
             "excludes",
             false,
-            m -> Arrays.asList(toType(m).excludes),
-            Collections.emptyList()
+            m -> Arrays.asList(toType(m).excludes)
         );
 
         public Builder() {

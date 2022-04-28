@@ -19,7 +19,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.internal.io.IOUtils;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
@@ -146,8 +146,8 @@ public abstract class IdentityProviderIntegTestCase extends ESIntegTestCase {
         Settings.Builder builder = Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
             .put(XPackSettings.SECURITY_ENABLED.getKey(), true)
-            .put(NetworkModule.TRANSPORT_TYPE_KEY, randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO)
-            .put(NetworkModule.HTTP_TYPE_KEY, randomBoolean() ? SecurityField.NAME4 : SecurityField.NIO)
+            .put(NetworkModule.TRANSPORT_TYPE_KEY, SecurityField.NAME4)
+            .put(NetworkModule.HTTP_TYPE_KEY, SecurityField.NAME4)
             .put("xpack.idp.enabled", true)
             .put(IDP_ENTITY_ID.getKey(), "urn:elastic:cloud:idp")
             .put(IDP_SSO_REDIRECT_ENDPOINT.getKey(), "https://idp.org/sso/redirect")

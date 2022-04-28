@@ -359,7 +359,7 @@ public class ApiKeyService {
     /**
      * package-private for testing
      */
-    XContentBuilder newDocument(
+    static XContentBuilder newDocument(
         char[] apiKeyHashChars,
         String name,
         Authentication authentication,
@@ -588,7 +588,7 @@ public class ApiKeyService {
     // We do not replace assigned roles because they are created explicitly by users.
     // Before #82049, it is possible to specify a role descriptor for API keys that is identical to the builtin superuser role
     // (including the _reserved metadata field).
-    private List<RoleDescriptor> maybeReplaceSuperuserRoleDescriptor(String apiKeyId, List<RoleDescriptor> roleDescriptors) {
+    private static List<RoleDescriptor> maybeReplaceSuperuserRoleDescriptor(String apiKeyId, List<RoleDescriptor> roleDescriptors) {
         // Scan through all the roles because superuser can be one of the roles that a user has. Unlike building the Role object,
         // capturing role descriptors does not preempt for superuser.
         return roleDescriptors.stream().map(rd -> {
@@ -707,7 +707,7 @@ public class ApiKeyService {
     }
 
     // package-private for testing
-    void validateApiKeyExpiration(
+    static void validateApiKeyExpiration(
         ApiKeyDoc apiKeyDoc,
         ApiKeyCredentials credentials,
         Clock clock,
@@ -791,7 +791,7 @@ public class ApiKeyService {
         }));
     }
 
-    private Instant getApiKeyExpiration(Instant now, CreateApiKeyRequest request) {
+    private static Instant getApiKeyExpiration(Instant now, CreateApiKeyRequest request) {
         if (request.getExpiration() != null) {
             return now.plusSeconds(request.getExpiration().getSeconds());
         } else {
@@ -1140,7 +1140,7 @@ public class ApiKeyService {
     /**
      * Logs an exception concerning a specific api key at TRACE level (if enabled)
      */
-    private <E extends Throwable> E traceLog(String action, String identifier, E exception) {
+    private static <E extends Throwable> E traceLog(String action, String identifier, E exception) {
         if (logger.isTraceEnabled()) {
             if (exception instanceof final ElasticsearchException esEx) {
                 final Object detail = esEx.getHeader("error_description");
@@ -1159,7 +1159,7 @@ public class ApiKeyService {
     /**
      * Logs an exception at TRACE level (if enabled)
      */
-    private <E extends Throwable> E traceLog(String action, E exception) {
+    private static <E extends Throwable> E traceLog(String action, E exception) {
         if (logger.isTraceEnabled()) {
             if (exception instanceof final ElasticsearchException esEx) {
                 final Object detail = esEx.getHeader("error_description");
@@ -1439,11 +1439,10 @@ public class ApiKeyService {
             builder.declareString(constructorArg(), new ParseField("api_key_hash"));
             builder.declareStringOrNull(optionalConstructorArg(), new ParseField("name"));
             builder.declareInt(constructorArg(), new ParseField("version"));
-            ObjectParserHelper<ApiKeyDoc, Void> parserHelper = new ObjectParserHelper<>();
-            parserHelper.declareRawObject(builder, constructorArg(), new ParseField("role_descriptors"));
-            parserHelper.declareRawObject(builder, constructorArg(), new ParseField("limited_by_role_descriptors"));
+            ObjectParserHelper.declareRawObject(builder, constructorArg(), new ParseField("role_descriptors"));
+            ObjectParserHelper.declareRawObject(builder, constructorArg(), new ParseField("limited_by_role_descriptors"));
             builder.declareObject(constructorArg(), (p, c) -> p.map(), new ParseField("creator"));
-            parserHelper.declareRawObjectOrNull(builder, optionalConstructorArg(), new ParseField("metadata_flattened"));
+            ObjectParserHelper.declareRawObjectOrNull(builder, optionalConstructorArg(), new ParseField("metadata_flattened"));
             PARSER = builder.build();
         }
 

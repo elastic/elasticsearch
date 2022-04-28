@@ -29,9 +29,7 @@ import org.elasticsearch.common.inject.spi.InjectionPoint;
 class ConstructorInjectorStore {
     private final InjectorImpl injector;
 
-    private final FailableCache<TypeLiteral<?>, ConstructorInjector<?>> cache = new FailableCache<
-        TypeLiteral<?>,
-        ConstructorInjector<?>>() {
+    private final FailableCache<TypeLiteral<?>, ConstructorInjector<?>> cache = new FailableCache<>() {
         @Override
         protected ConstructorInjector<?> create(TypeLiteral<?> type, Errors errors) throws ErrorsException {
             return createConstructor(type, errors);
@@ -71,11 +69,6 @@ class ConstructorInjectorStore {
 
         errors.throwIfNewErrors(numErrorsBefore);
 
-        return new ConstructorInjector<>(
-            membersInjector.getInjectionPoints(),
-            factory.create(),
-            constructorParameterInjectors,
-            membersInjector
-        );
+        return new ConstructorInjector<>(factory.create(), constructorParameterInjectors, membersInjector);
     }
 }

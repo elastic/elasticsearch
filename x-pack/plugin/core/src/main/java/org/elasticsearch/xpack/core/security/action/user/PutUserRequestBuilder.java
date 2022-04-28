@@ -220,7 +220,7 @@ public class PutUserRequestBuilder extends ActionRequestBuilder<PutUserRequest, 
         }
     }
 
-    private ValidationException validationException(String abc) {
+    private static ValidationException validationException(String abc) {
         ValidationException validationException = new ValidationException();
         validationException.addValidationError(abc);
         return validationException;

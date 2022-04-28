@@ -17,7 +17,6 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MapperService;
@@ -235,14 +234,7 @@ public class IndexTemplateMetadata implements SimpleDiffable<IndexTemplateMetada
 
     public static class Builder {
 
-        private static final Set<String> VALID_FIELDS = Sets.newHashSet(
-            "order",
-            "mappings",
-            "settings",
-            "index_patterns",
-            "aliases",
-            "version"
-        );
+        private static final Set<String> VALID_FIELDS = Set.of("order", "mappings", "settings", "index_patterns", "aliases", "version");
 
         private String name;
 

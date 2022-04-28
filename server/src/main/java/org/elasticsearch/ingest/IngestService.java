@@ -29,8 +29,8 @@ import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.metadata.DataStream.TimestampField;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -284,17 +284,17 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * Deletes the pipeline specified by id in the request.
      */
     public void delete(DeletePipelineRequest request, ActionListener<AcknowledgedResponse> listener) {
-        clusterService.submitStateUpdateTask("delete-pipeline-" + request.getId(), new AckedClusterStateUpdateTask(request, listener) {
+        submitUnbatchedTask("delete-pipeline-" + request.getId(), new AckedClusterStateUpdateTask(request, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 return innerDelete(request, currentState);
             }
-        }, newExecutor());
+        });
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     static ClusterState innerDelete(DeletePipelineRequest request, ClusterState currentState) {
@@ -442,12 +442,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             }
 
             validatePipeline(ingestInfos, request.getId(), config);
-            clusterService.submitStateUpdateTask("put-pipeline-" + request.getId(), new AckedClusterStateUpdateTask(request, listener) {
+            submitUnbatchedTask("put-pipeline-" + request.getId(), new AckedClusterStateUpdateTask(request, listener) {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return innerPut(request, currentState);
                 }
-            }, newExecutor());
+            });
         }, listener::onFailure));
     }
 
@@ -877,9 +877,19 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                     mergedDynamicTemplates.putAll(map);
                     indexRequest.setDynamicTemplates(mergedDynamicTemplates);
                 }
+                postIngest(ingestDocument, indexRequest);
+
                 handler.accept(null);
             }
         });
+    }
+
+    private void postIngest(IngestDocument ingestDocument, IndexRequest indexRequest) {
+        // cache timestamp from ingest source map
+        Object rawTimestamp = ingestDocument.getSourceAndMetadata().get(TimestampField.FIXED_TIMESTAMP_FIELD);
+        if (rawTimestamp != null && indexRequest.getRawTimestamp() == null) {
+            indexRequest.setRawTimestamp(rawTimestamp);
+        }
     }
 
     @Override

@@ -14,6 +14,7 @@ import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -22,6 +23,9 @@ import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.metrics.Avg;
 import org.elasticsearch.search.aggregations.metrics.Max;
 import org.elasticsearch.search.aggregations.metrics.Min;
+import org.hamcrest.Description;
+import org.hamcrest.Matcher;
+import org.hamcrest.TypeSafeMatcher;
 
 import java.io.IOException;
 import java.util.List;
@@ -35,6 +39,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notANumber;
 
 public class RandomSamplerAggregatorTests extends AggregatorTestCase {
 
@@ -57,9 +63,11 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
                 RandomSamplerAggregatorTests::writeTestDocs,
                 (InternalRandomSampler result) -> {
                     counts[integer.get()] = result.getDocCount();
-                    Avg agg = result.getAggregations().get("avg");
-                    assertTrue(Double.isNaN(agg.getValue()) == false && Double.isFinite(agg.getValue()));
-                    avgs[integer.get()] = agg.getValue();
+                    if (result.getDocCount() > 0) {
+                        Avg agg = result.getAggregations().get("avg");
+                        assertThat(Strings.toString(result), agg.getValue(), allOf(not(notANumber()), IsFinite.isFinite()));
+                        avgs[integer.get()] = agg.getValue();
+                    }
                 },
                 longField(NUMERIC_FIELD_NAME)
             );
@@ -106,7 +114,7 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
             (InternalRandomSampler result) -> {
                 Min min = result.getAggregations().get("min");
                 Max max = result.getAggregations().get("max");
-                assertThat(min.getValue(), equalTo((double) TRUE_MIN));
+                assertThat(min.value(), equalTo((double) TRUE_MIN));
                 assertThat(max.value(), equalTo((double) TRUE_MAX));
             },
             longField(RANDOM_NUMERIC_FIELD_NAME)
@@ -147,6 +155,22 @@ public class RandomSamplerAggregatorTests extends AggregatorTestCase {
                     )
                 )
             );
+        }
+    }
+
+    private static class IsFinite extends TypeSafeMatcher<Double> {
+        public static Matcher<Double> isFinite() {
+            return new IsFinite();
+        }
+
+        @Override
+        protected boolean matchesSafely(Double item) {
+            return Double.isFinite(item);
+        }
+
+        @Override
+        public void describeTo(Description description) {
+            description.appendText("a finite double value");
         }
     }
 

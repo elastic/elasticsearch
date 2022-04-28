@@ -7,11 +7,10 @@
  */
 package org.elasticsearch.common.lucene.search.function;
 
-import com.carrotsearch.hppc.BitMixer;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.util.StringHelper;
+import org.apache.lucene.util.hppc.BitMixer;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
@@ -38,7 +37,7 @@ public class RandomScoreFunction extends ScoreFunction {
     public RandomScoreFunction(int seed, int salt, IndexFieldData<?> uidFieldData) {
         super(CombineFunction.MULTIPLY);
         this.originalSeed = seed;
-        this.saltedSeed = BitMixer.mix(seed, salt);
+        this.saltedSeed = BitMixer.mix(seed ^ salt);
         this.fieldData = uidFieldData;
     }
 
@@ -59,7 +58,7 @@ public class RandomScoreFunction extends ScoreFunction {
             public double score(int docId, float subQueryScore) throws IOException {
                 int hash;
                 if (values == null) {
-                    hash = BitMixer.mix(ctx.docBase + docId, saltedSeed);
+                    hash = BitMixer.mix((ctx.docBase + docId) ^ saltedSeed);
                 } else if (values.advanceExact(docId)) {
                     hash = StringHelper.murmurhash3_x86_32(values.nextValue(), saltedSeed);
                 } else {

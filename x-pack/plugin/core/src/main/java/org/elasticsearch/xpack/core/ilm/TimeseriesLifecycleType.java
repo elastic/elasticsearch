@@ -102,7 +102,7 @@ public class TimeseriesLifecycleType implements LifecycleType {
         VALID_FROZEN_ACTIONS
     );
 
-    static final Set<String> HOT_ACTIONS_THAT_REQUIRE_ROLLOVER = Sets.newHashSet(
+    static final Set<String> HOT_ACTIONS_THAT_REQUIRE_ROLLOVER = Set.of(
         ReadOnlyAction.NAME,
         ShrinkAction.NAME,
         ForceMergeAction.NAME,

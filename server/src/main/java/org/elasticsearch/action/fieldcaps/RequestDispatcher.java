@@ -47,7 +47,13 @@ import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 /**
- * Dispatches child field-caps requests to old/new data nodes in the local cluster that have shards of the requesting indices.
+ * {@link RequestDispatcher} partitions shard-level field-caps requests to node-level requests and sends them in round basis.
+ * For simplicity, the next round only starts when all outstanding node-level requests have completed and some of them failed.
+ * - For field-caps requests without index-filter, the dispatcher sends only one shard-level request for all indices that have
+ * the same mapping in each round as the result can be shared between them.
+ * - For field-caps requests with index-filter, the dispatcher sends every shard-level request (one per shard-id) of an index in
+ * each round because: (1) the result can't be shared with other indices when they don't match the index-filter; (2) we want to
+ * avoid execute many rounds for indices that have many shards and most of them don't match the index-filter.
  */
 final class RequestDispatcher {
     static final Logger LOGGER = LogManager.getLogger(RequestDispatcher.class);
@@ -99,6 +105,7 @@ final class RequestDispatcher {
         for (String index : indices) {
             final IndexMetadata indexMetadata = clusterState.metadata().index(index);
             if (indexMetadata == null || indexMetadata.mapping() == null) {
+                // this index has no mappings at all (happens after it is created without predefined mappings)
                 if (withIndexFilter == false) {
                     onIndexResponse.accept(new FieldCapabilitiesIndexResponse(index, null, Map.of(), true));
                 }
@@ -214,7 +221,7 @@ final class RequestDispatcher {
         );
     }
 
-    private void afterRequestsCompleted() {
+    private void afterRequestCompleted() {
         if (pendingRequests.decrementAndGet() == 0) {
             // Here we only retry after all pending requests have responded to avoid exploding network requests
             // when the cluster is unstable or overloaded as an eager retry approach can add more load to the cluster.
@@ -246,7 +253,7 @@ final class RequestDispatcher {
                 group.setFailure(e.getKey(), e.getValue());
             }
         }
-        afterRequestsCompleted();
+        afterRequestCompleted();
     }
 
     private void onRequestFailure(List<ShardId> shardIds, Exception e) {
@@ -256,7 +263,7 @@ final class RequestDispatcher {
                 group.setFailure(shardId, e);
             }
         }
-        afterRequestsCompleted();
+        afterRequestCompleted();
     }
 
     /**

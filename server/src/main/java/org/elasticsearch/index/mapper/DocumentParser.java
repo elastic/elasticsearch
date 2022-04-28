@@ -446,12 +446,12 @@ public final class DocumentParser {
         if (objectMapper != null) {
             context.path().add(currentFieldName);
             if (objectMapper instanceof ObjectMapper objMapper) {
-                if (objMapper.isCollapsed()) {
-                    context.path().setWithinCollapsedPath(true);
+                if (objMapper.subobjects() == false) {
+                    context.path().setWithinLeafObject(true);
                 }
             }
             parseObjectOrField(context, objectMapper);
-            context.path().setWithinCollapsedPath(false);
+            context.path().setWithinLeafObject(false);
             context.path().remove();
         } else {
             parseObjectDynamic(context, mapper, currentFieldName);
@@ -481,12 +481,12 @@ public final class DocumentParser {
             }
             context.path().add(currentFieldName);
             if (dynamicObjectMapper instanceof ObjectMapper objectMapper) {
-                if (objectMapper.isCollapsed()) {
-                    context.path().setWithinCollapsedPath(true);
+                if (objectMapper.subobjects() == false) {
+                    context.path().setWithinLeafObject(true);
                 }
             }
             parseObjectOrField(context, dynamicObjectMapper);
-            context.path().setWithinCollapsedPath(false);
+            context.path().setWithinLeafObject(false);
             context.path().remove();
         }
     }
@@ -827,10 +827,10 @@ public final class DocumentParser {
             XContentParser parser
         ) throws IOException {
             super(mappingLookup, indexSettings, indexAnalyzers, parserContext, source);
-            if (mappingLookup.getMapping().getRoot().isCollapsed()) {
-                this.parser = parser;
+            if (mappingLookup.getMapping().getRoot().subobjects()) {
+                this.parser = DotExpandingXContentParser.expandDots(parser, this.path::isWithinLeafObject);
             } else {
-                this.parser = DotExpandingXContentParser.expandDots(parser, this.path::isWithinCollapsedPath);
+                this.parser = parser;
             }
             this.document = new LuceneDocument();
             this.documents.add(document);

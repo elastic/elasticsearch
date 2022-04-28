@@ -36,11 +36,11 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
 
     private static final class WrappingParser extends FilterXContentParser {
 
-        private final BooleanSupplier isWithinCollapsedPath;
+        private final BooleanSupplier isWithinLeafObject;
         final Deque<XContentParser> parsers = new ArrayDeque<>();
 
-        WrappingParser(XContentParser in, BooleanSupplier isWithinCollapsedPath) throws IOException {
-            this.isWithinCollapsedPath = isWithinCollapsedPath;
+        WrappingParser(XContentParser in, BooleanSupplier isWithinLeafObject) throws IOException {
+            this.isWithinLeafObject = isWithinLeafObject;
             parsers.push(in);
             if (in.currentToken() == Token.FIELD_NAME) {
                 expandDots();
@@ -64,9 +64,10 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
         }
 
         private void expandDots() throws IOException {
-            // this handles fields that belong to collapsed objects, where the document contains the object which holds the flat fields
-            // e.g. { "metrics.service": { "time.max" : 10 } } with service being collapsed
-            if (isWithinCollapsedPath.getAsBoolean()) {
+            // this handles fields that belong to objects that can't hold subobjects, where the document specifies
+            // the object holding the flat fields
+            // e.g. { "metrics.service": { "time.max" : 10 } } with service having subobjects set to false
+            if (isWithinLeafObject.getAsBoolean()) {
                 return;
             }
             String field = delegate().currentName();
@@ -84,12 +85,12 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
             XContentLocation location = delegate().getTokenLocation();
             Token token = delegate().nextToken();
             if (token == Token.START_OBJECT || token == Token.START_ARRAY) {
-                parsers.push(new DotExpandingXContentParser(new XContentSubParser(delegate()), subpaths, location, isWithinCollapsedPath));
+                parsers.push(new DotExpandingXContentParser(new XContentSubParser(delegate()), subpaths, location, isWithinLeafObject));
             } else if (token == Token.END_OBJECT || token == Token.END_ARRAY) {
                 throw new IllegalStateException("Expecting START_OBJECT or START_ARRAY or VALUE but got [" + token + "]");
             } else {
                 parsers.push(
-                    new DotExpandingXContentParser(new SingletonValueXContentParser(delegate()), subpaths, location, isWithinCollapsedPath)
+                    new DotExpandingXContentParser(new SingletonValueXContentParser(delegate()), subpaths, location, isWithinLeafObject)
                 );
             }
         }
@@ -162,8 +163,8 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
      * @param in    the parser to wrap
      * @return  the wrapped XContentParser
      */
-    static XContentParser expandDots(XContentParser in, BooleanSupplier isWithinCollapsedPath) throws IOException {
-        return new WrappingParser(in, isWithinCollapsedPath);
+    static XContentParser expandDots(XContentParser in, BooleanSupplier isWithinLeafObject) throws IOException {
+        return new WrappingParser(in, isWithinLeafObject);
     }
 
     private enum State {
@@ -172,7 +173,7 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
         ENDING_EXPANDED_OBJECT
     }
 
-    private final BooleanSupplier isWithinCollapsedPath;
+    private final BooleanSupplier isWithinLeafObject;
 
     private String[] subPaths;
     private XContentLocation currentLocation;
@@ -184,12 +185,12 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
         XContentParser subparser,
         String[] subPaths,
         XContentLocation startLocation,
-        BooleanSupplier isWithinCollapsedPath
+        BooleanSupplier isWithinLeafObject
     ) {
         super(subparser);
         this.subPaths = subPaths;
         this.currentLocation = startLocation;
-        this.isWithinCollapsedPath = isWithinCollapsedPath;
+        this.isWithinLeafObject = isWithinLeafObject;
     }
 
     @Override
@@ -208,9 +209,9 @@ class DotExpandingXContentParser extends FilterXContentParserWrapper {
             // The expansion consists of adding pairs of START_OBJECT and FIELD_NAME tokens
             if (expandedTokens % 2 == 0) {
                 int currentIndex = expandedTokens / 2;
-                // if there's more than one element left to expand and the parent is collapsed, we rewrite the array
+                // if there's more than one element left to expand and the parent can't hold subobjects, we replace the array
                 // e.g. metrics.service.time.max -> ["metrics", "service", "time.max"]
-                if (currentIndex < subPaths.length - 1 && isWithinCollapsedPath.getAsBoolean()) {
+                if (currentIndex < subPaths.length - 1 && isWithinLeafObject.getAsBoolean()) {
                     String[] newSubPaths = new String[currentIndex + 1];
                     StringBuilder collapsedPath = new StringBuilder();
                     for (int i = 0; i < subPaths.length; i++) {

@@ -156,7 +156,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         ObjectMapper objectMapper = mapper.mappers().objectMappers().get("object");
         assertNotNull(objectMapper);
         assertFalse(objectMapper.isEnabled());
-        assertFalse(objectMapper.isCollapsed());
+        assertTrue(objectMapper.subobjects());
 
         // Setting 'enabled' to true is allowed, and updates the mapping.
         update = Strings.toString(
@@ -166,7 +166,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 .startObject("object")
                 .field("type", "object")
                 .field("enabled", true)
-                .field("collapsed", true)
+                .field("subobjects", false)
                 .endObject()
                 .endObject()
                 .endObject()
@@ -176,7 +176,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         objectMapper = mapper.mappers().objectMappers().get("object");
         assertNotNull(objectMapper);
         assertTrue(objectMapper.isEnabled());
-        assertTrue(objectMapper.isCollapsed());
+        assertFalse(objectMapper.subobjects());
     }
 
     public void testFieldReplacementForIndexTemplates() throws IOException {
@@ -350,11 +350,11 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         assertThat(service.fieldType("name"), instanceOf(PlaceHolderFieldMapper.PlaceHolderFieldType.class));
     }
 
-    public void testCollapsedObject() throws Exception {
+    public void testSubobjectsFalse() throws Exception {
         MapperService mapperService = createMapperService(mapping(b -> {
             b.startObject("metrics.service");
             {
-                b.field("collapsed", true);
+                b.field("subobjects", false);
                 b.startObject("properties");
                 {
                     b.startObject("time");
@@ -372,11 +372,11 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         assertNotNull(mapperService.fieldType("metrics.service.time.max"));
     }
 
-    public void testCollapsedObjectWithInnerObject() {
+    public void testSubobjectsFalseWithInnerObject() {
         MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(mapping(b -> {
             b.startObject("metrics.service");
             {
-                b.field("collapsed", true);
+                b.field("subobjects", false);
                 b.startObject("properties");
                 {
                     b.startObject("time");
@@ -396,14 +396,14 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             b.endObject();
         })));
         assertEquals(
-            "Failed to parse mapping: Object [service] is collapsed and does not support inner object [time]",
+            "Failed to parse mapping: Object [service] has subobjects set to false hence it does not support inner object [time]",
             exception.getMessage()
         );
     }
 
-    public void testCollapsedRoot() throws Exception {
+    public void testSubobjectsFalseRoot() throws Exception {
         MapperService mapperService = createMapperService(topMapping(b -> {
-            b.field("collapsed", true);
+            b.field("subobjects", false);
             b.startObject("properties");
             {
                 b.startObject("metrics.service.time");
@@ -419,9 +419,9 @@ public class ObjectMapperTests extends MapperServiceTestCase {
         assertNotNull(mapperService.fieldType("metrics.service.time.max"));
     }
 
-    public void testCollapsedRootWithInnerObject() {
+    public void testSubobjectsFalseRootWithInnerObject() {
         MapperParsingException exception = expectThrows(MapperParsingException.class, () -> createMapperService(topMapping(b -> {
-            b.field("collapsed", true);
+            b.field("subobjects", false);
             b.startObject("properties");
             {
                 b.startObject("metrics.service.time");
@@ -439,38 +439,38 @@ public class ObjectMapperTests extends MapperServiceTestCase {
             b.endObject();
         })));
         assertEquals(
-            "Failed to parse mapping: Object [_doc] is collapsed and does not support inner object [metrics.service.time]",
+            "Failed to parse mapping: Object [_doc] has subobjects set to false hence it does not support inner object [metrics.service.time]",
             exception.getMessage()
         );
     }
 
-    public void testCollapsedCannotBeUpdated() throws IOException {
+    public void testSubobjectsCannotBeUpdated() throws IOException {
         MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "object")));
         DocumentMapper mapper = mapperService.documentMapper();
         assertNull(mapper.mapping().getRoot().dynamic());
         Mapping mergeWith = mapperService.parseMapping("_doc", new CompressedXContent(BytesReference.bytes(fieldMapping(b -> {
             b.field("type", "object");
-            b.field("collapsed", "true");
+            b.field("subobjects", "false");
         }))));
         MapperException exception = expectThrows(
             MapperException.class,
             () -> mapper.mapping().merge(mergeWith, MergeReason.MAPPING_UPDATE)
         );
-        assertEquals("the [collapsed] parameter can't be updated for the object mapping [field]", exception.getMessage());
+        assertEquals("the [subobjects] parameter can't be updated for the object mapping [field]", exception.getMessage());
     }
 
-    public void testCollapsedCannotBeUpdatedOnRoot() throws IOException {
-        MapperService mapperService = createMapperService(topMapping(b -> b.field("collapsed", true)));
+    public void testSubobjectsCannotBeUpdatedOnRoot() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> b.field("subobjects", false)));
         DocumentMapper mapper = mapperService.documentMapper();
         assertNull(mapper.mapping().getRoot().dynamic());
         Mapping mergeWith = mapperService.parseMapping(
             "_doc",
-            new CompressedXContent(BytesReference.bytes(topMapping(b -> { b.field("collapsed", false); })))
+            new CompressedXContent(BytesReference.bytes(topMapping(b -> { b.field("subobjects", true); })))
         );
         MapperException exception = expectThrows(
             MapperException.class,
             () -> mapper.mapping().merge(mergeWith, MergeReason.MAPPING_UPDATE)
         );
-        assertEquals("the [collapsed] parameter can't be updated for the object mapping [_doc]", exception.getMessage());
+        assertEquals("the [subobjects] parameter can't be updated for the object mapping [_doc]", exception.getMessage());
     }
 }

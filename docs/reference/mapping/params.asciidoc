@@ -10,7 +10,6 @@ The following mapping parameters are common to some or all field data types:
 * <<analyzer,`analyzer`>>
 * <<coerce,`coerce`>>
 * <<copy-to,`copy_to`>>
-* <<collapsed,`collapsed`>>
 * <<doc-values,`doc_values`>>
 * <<dynamic,`dynamic`>>
 * <<eager-global-ordinals,`eager_global_ordinals`>>
@@ -32,6 +31,7 @@ The following mapping parameters are common to some or all field data types:
 * <<properties,`properties`>>
 * <<search-analyzer,`search_analyzer`>>
 * <<similarity,`similarity`>>
+* <<subobjects,`subobjects`>>
 * <<mapping-store,`store`>>
 * <<term-vector,`term_vector`>>
 
@@ -41,8 +41,6 @@ include::params/analyzer.asciidoc[]
 include::params/coerce.asciidoc[]
 
 include::params/copy-to.asciidoc[]
-
-include::params/collapsed.asciidoc[]
 
 include::params/doc-values.asciidoc[]
 
@@ -85,5 +83,7 @@ include::params/search-analyzer.asciidoc[]
 include::params/similarity.asciidoc[]
 
 include::params/store.asciidoc[]
+
+include::params/subobjects.asciidoc[]
 
 include::params/term-vector.asciidoc[]

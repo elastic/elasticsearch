@@ -63,7 +63,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
     public static class Builder extends Mapper.Builder {
 
         protected Explicit<Boolean> enabled = Explicit.IMPLICIT_TRUE;
-        protected Explicit<Boolean> collapsed = Explicit.IMPLICIT_FALSE;
+        protected Explicit<Boolean> subobjects = Explicit.IMPLICIT_TRUE;
         protected Dynamic dynamic;
         protected final List<Mapper.Builder> mappersBuilders = new ArrayList<>();
 
@@ -76,8 +76,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
             return this;
         }
 
-        public Builder collapsed(boolean collapsed) {
-            this.collapsed = Explicit.explicitBoolean(collapsed);
+        public Builder subobjects(boolean subobjects) {
+            this.subobjects = Explicit.explicitBoolean(subobjects);
             return this;
         }
 
@@ -114,9 +114,9 @@ public class ObjectMapper extends Mapper implements Cloneable {
          * @param context   the DocumentParserContext in which the mapper has been built
          */
         public void addDynamic(String name, String prefix, Mapper mapper, DocumentParserContext context) {
-            // If the mapper to add has no dots, or the current object mapper is collapsed,
+            // If the mapper to add has no dots, or the current object mapper has subobjects set to false,
             // we just add it as it is for sure a leaf mapper
-            if (name.contains(".") == false || collapsed.value()) {
+            if (name.contains(".") == false || subobjects.value() == false) {
                 add(name, mapper);
             }
             // otherwise we strip off the first object path of the mapper name, load or create
@@ -156,11 +156,11 @@ public class ObjectMapper extends Mapper implements Cloneable {
             Map<String, Mapper> mappers = new HashMap<>();
             for (Mapper.Builder builder : mappersBuilders) {
                 Mapper mapper = builder.build(mapperBuilderContext);
-                if (collapsed.value() && mapper instanceof ObjectMapper) {
+                if (subobjects.value() == false && mapper instanceof ObjectMapper) {
                     throw new IllegalArgumentException(
                         "Object ["
                             + context.buildFullName(name)
-                            + "] is collapsed and does not support inner object ["
+                            + "] has subobjects set to false hence it does not support inner object ["
                             + mapper.simpleName()
                             + "]"
                     );
@@ -176,7 +176,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
 
         @Override
         public ObjectMapper build(MapperBuilderContext context) {
-            return new ObjectMapper(name, context.buildFullName(name), enabled, collapsed, dynamic, buildMappers(false, context));
+            return new ObjectMapper(name, context.buildFullName(name), enabled, subobjects, dynamic, buildMappers(false, context));
         }
     }
 
@@ -223,8 +223,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
             } else if (fieldName.equals("enabled")) {
                 builder.enabled(XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".enabled"));
                 return true;
-            } else if (fieldName.equals("collapsed")) {
-                builder.collapsed(XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".collapsed"));
+            } else if (fieldName.equals("subobjects")) {
+                builder.subobjects(XContentMapValues.nodeBooleanValue(fieldNode, fieldName + ".subobjects"));
                 return true;
             } else if (fieldName.equals("properties")) {
                 if (fieldNode instanceof Collection && ((Collection) fieldNode).isEmpty()) {
@@ -281,9 +281,13 @@ public class ObjectMapper extends Mapper implements Cloneable {
                         }
                     }
 
-                    if (objBuilder.collapsed.value() && type.equals(ObjectMapper.CONTENT_TYPE)) {
+                    if (objBuilder.subobjects.value() == false && type.equals(ObjectMapper.CONTENT_TYPE)) {
                         throw new MapperException(
-                            "Object [" + objBuilder.name() + "] is collapsed and does not support inner object [" + fieldName + "]"
+                            "Object ["
+                                + objBuilder.name()
+                                + "] has subobjects set to false hence it does not support inner object ["
+                                + fieldName
+                                + "]"
                         );
                     }
                     Mapper.TypeParser typeParser = parserContext.typeParser(type);
@@ -291,7 +295,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
                         throw new MapperParsingException("No handler for type [" + type + "] declared on field [" + fieldName + "]");
                     }
                     Mapper.Builder fieldBuilder;
-                    if (objBuilder.collapsed.value()) {
+                    if (objBuilder.subobjects.value() == false) {
                         fieldBuilder = typeParser.parse(fieldName, propNode, parserContext);
                     } else {
                         String[] fieldNameParts = fieldName.split("\\.");
@@ -323,7 +327,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
     private final String fullPath;
 
     protected Explicit<Boolean> enabled;
-    protected Explicit<Boolean> collapsed;
+    protected Explicit<Boolean> subobjects;
     protected volatile Dynamic dynamic;
 
     protected Map<String, Mapper> mappers;
@@ -332,7 +336,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         String name,
         String fullPath,
         Explicit<Boolean> enabled,
-        Explicit<Boolean> collapsed,
+        Explicit<Boolean> subobjects,
         Dynamic dynamic,
         Map<String, Mapper> mappers
     ) {
@@ -342,7 +346,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
         }
         this.fullPath = fullPath;
         this.enabled = enabled;
-        this.collapsed = collapsed;
+        this.subobjects = subobjects;
         this.dynamic = dynamic;
         if (mappers == null) {
             this.mappers = Map.of();
@@ -369,7 +373,7 @@ public class ObjectMapper extends Mapper implements Cloneable {
     public ObjectMapper.Builder newBuilder(Version indexVersionCreated) {
         ObjectMapper.Builder builder = new ObjectMapper.Builder(simpleName());
         builder.enabled = this.enabled;
-        builder.collapsed = this.collapsed;
+        builder.subobjects = this.subobjects;
         builder.dynamic = this.dynamic;
         return builder;
     }
@@ -409,8 +413,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
         return dynamic;
     }
 
-    public final boolean isCollapsed() {
-        return collapsed.value();
+    public final boolean subobjects() {
+        return subobjects.value();
     }
 
     @Override
@@ -453,11 +457,11 @@ public class ObjectMapper extends Mapper implements Cloneable {
             }
         }
 
-        if (mergeWith.collapsed.explicit()) {
+        if (mergeWith.subobjects.explicit()) {
             if (reason == MergeReason.INDEX_TEMPLATE) {
-                this.collapsed = mergeWith.collapsed;
-            } else if (isCollapsed() != mergeWith.isCollapsed()) {
-                throw new MapperException("the [collapsed] parameter can't be updated for the object mapping [" + name() + "]");
+                this.subobjects = mergeWith.subobjects;
+            } else if (subobjects != mergeWith.subobjects) {
+                throw new MapperException("the [subobjects] parameter can't be updated for the object mapping [" + name() + "]");
             }
         }
 
@@ -514,8 +518,8 @@ public class ObjectMapper extends Mapper implements Cloneable {
         if (isEnabled() != Defaults.ENABLED) {
             builder.field("enabled", enabled.value());
         }
-        if (isCollapsed() != false) {
-            builder.field("collapsed", collapsed.value());
+        if (subobjects() == false) {
+            builder.field("subobjects", subobjects.value());
         }
         if (custom != null) {
             custom.toXContent(builder, params);

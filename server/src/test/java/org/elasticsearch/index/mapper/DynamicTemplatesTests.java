@@ -1088,7 +1088,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
                     {
                         b.field("match_mapping_type", "object");
                         b.field("match", "metric");
-                        b.startObject("mapping").field("type", "object").field("collapsed", true).endObject();
+                        b.startObject("mapping").field("type", "object").field("subobjects", false).endObject();
                     }
                     b.endObject();
                 }
@@ -1098,7 +1098,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         }));
     }
 
-    private static void assertCollapsedObjects(MapperService mapperService) {
+    private static void assertNoSubobjects(MapperService mapperService) {
         assertThat(mapperService.fieldType("foo.bar.baz").typeName(), equalTo("long"));
         assertNotNull(mapperService.mappingLookup().objectMappers().get("foo.bar"));
         assertThat(mapperService.fieldType("foo.metric.count").typeName(), equalTo("long"));
@@ -1108,7 +1108,7 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
         assertNull(mapperService.mappingLookup().objectMappers().get("foo.metric.count"));
     }
 
-    public void testCollapsedObjectsFlatPaths() throws IOException {
+    public void testSubobjectsFalseFlatPaths() throws IOException {
         MapperService mapperService = createDynamicTemplateCollapsedObject();
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
             b.field("foo.metric.count", 10);
@@ -1117,10 +1117,10 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             b.field("foo.metric.count.max", 15);
         }));
         merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
-        assertCollapsedObjects(mapperService);
+        assertNoSubobjects(mapperService);
     }
 
-    public void testCollapsedObjectsStructuredPaths() throws IOException {
+    public void testSubobjectsFalseStructuredPaths() throws IOException {
         MapperService mapperService = createDynamicTemplateCollapsedObject();
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
             b.startObject("foo");
@@ -1139,10 +1139,10 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             b.endObject();
         }));
         merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
-        assertCollapsedObjects(mapperService);
+        assertNoSubobjects(mapperService);
     }
 
-    public void testCollapsedObjectsArrayOfObjects() throws IOException {
+    public void testSubobjectsFalseArrayOfObjects() throws IOException {
         MapperService mapperService = createDynamicTemplateCollapsedObject();
         ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
             b.startObject("foo");
@@ -1172,6 +1172,6 @@ public class DynamicTemplatesTests extends MapperServiceTestCase {
             b.endObject();
         }));
         merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
-        assertCollapsedObjects(mapperService);
+        assertNoSubobjects(mapperService);
     }
 }

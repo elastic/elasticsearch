@@ -1,5 +1,5 @@
-[[collapsed]]
-=== `collapsed`
+[[subobjects]]
+=== `subobjects`
 
 When indexing a document or updating mappings, Elasticsearch accepts fields that contain dots in their names.
 which get expanded to their corresponding object structure. For instance, the  field `metrics.time.max`
@@ -10,11 +10,11 @@ where for instance a field `metrics.time` holds a value too, which is common whe
 A document holding a value for both `metrics.time.max` and `metrics.time` gets rejected given that `time`
 would need to be a leaf field to hold a value as well as an object to hold the `max` sub-field.
 
-The `collapsed` setting, which can be applied only to the top-level mapping definition and
-to <<object,`object`>> fields, makes it possible to store documents where field names contain dots and share
-common prefixes. From the example above, if the object container `metrics` is collapsed, it can hold values
-for both `time` and `time.max` directly without the need for any intermediate object, as dots in field
-names are preserved. Collapsed objects can only ever hold leaf sub-fields and do not support further objects.
+The `subobjects` setting, which can be applied only to the top-level mapping definition and
+to <<object,`object`>> fields, disables the ability for an object to hold further subobjects and makes it possible
+to store documents where field names contain dots and share common prefixes. From the example above, if the object
+container `metrics` has `subobjects` set to `false`, it can hold values for both `time` and `time.max` directly
+without the need for any intermediate object, as dots in field names are preserved.
 
 [source,console]
 --------------------------------------------------
@@ -24,7 +24,7 @@ PUT my-index-000001
     "properties": {
       "metrics": {
         "type":  "object",
-        "collapsed": true <1>
+        "subobjects": false <1>
       }
     }
   }
@@ -56,7 +56,7 @@ GET my-index-000001/_mapping
     "mappings" : {
       "properties" : {
         "metrics" : {
-          "collapsed" : true,
+          "subobjects" : false,
           "properties" : {
             "time" : {
               "type" : "long"
@@ -75,12 +75,12 @@ GET my-index-000001/_mapping
 }
 --------------------------------------------------
 
-<1> The `metrics` field is collapsed.
+<1> The `metrics` field cannot hold other objects.
 <2> Sample document holding flat paths
-<3> Sample document holding an object (mapped as collapsed) and its leaf sub-fields
+<3> Sample document holding an object (configured to not hold subobjects) and its leaf sub-fields
 <4> The resulting mapping where dots in field names were preserved
 
-The entire mapping may be collapsed as well, in which case the document can
+The entire mapping may be configured to not support subobjects as well, in which case the document can
 only ever hold leaf sub-fields:
 
 [source,console]
@@ -88,7 +88,7 @@ only ever hold leaf sub-fields:
 PUT my-index-000001
 {
   "mappings": {
-    "collapsed": true <1>
+    "subobjects": false <1>
   }
 }
 
@@ -101,7 +101,7 @@ PUT my-index-000001/_doc/metric_1
 
 --------------------------------------------------
 
-<1> The entire mapping is collapsed.
+<1> The entire mapping is configured to not support objects.
 <2> The document does not support objects
 
-The `collapsed` setting for existing fields and the top-level mapping definition cannot be updated.
+The `subobjects` setting for existing fields and the top-level mapping definition cannot be updated.

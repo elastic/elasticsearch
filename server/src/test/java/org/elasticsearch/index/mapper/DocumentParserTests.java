@@ -1842,9 +1842,9 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertThat(err.getCause().getMessage(), containsString("field name cannot contain only dots"));
     }
 
-    public void testCollapsedObjectWithInnerObject() throws Exception {
+    public void testSubobjectsFalseWithInnerObject() throws Exception {
         DocumentMapper mapper = createDocumentMapper(
-            mapping(b -> b.startObject("metrics.service").field("type", "object").field("collapsed", true).endObject())
+            mapping(b -> b.startObject("metrics.service").field("type", "object").field("subobjects", false).endObject())
         );
         IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> mapper.parse(source("""
             {
@@ -1857,12 +1857,15 @@ public class DocumentParserTests extends MapperServiceTestCase {
               }
             }
             """)));
-        assertEquals("Object [metrics.service] is collapsed and does not support inner object [time]", err.getMessage());
+        assertEquals(
+            "Object [metrics.service] has subobjects set to false hence it does not support inner object [time]",
+            err.getMessage()
+        );
     }
 
-    public void testCollapsedObjectWithInnerDottedObject() throws Exception {
+    public void testSubobjectsFalseWithInnerDottedObject() throws Exception {
         DocumentMapper mapper = createDocumentMapper(
-            mapping(b -> b.startObject("metrics.service").field("type", "object").field("collapsed", true).endObject())
+            mapping(b -> b.startObject("metrics.service").field("type", "object").field("subobjects", false).endObject())
         );
         IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> mapper.parse(source("""
             {
@@ -1875,11 +1878,14 @@ public class DocumentParserTests extends MapperServiceTestCase {
               }
             }
             """)));
-        assertEquals("Object [metrics.service] is collapsed and does not support inner object [test.with.dots]", err.getMessage());
+        assertEquals(
+            "Object [metrics.service] has subobjects set to false hence it does not support inner object [test.with.dots]",
+            err.getMessage()
+        );
     }
 
-    public void testCollapsedRootWithInnerObject() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("collapsed", true)));
+    public void testSubobjectsFalseRootWithInnerObject() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("subobjects", false)));
         IllegalArgumentException err = expectThrows(IllegalArgumentException.class, () -> mapper.parse(source("""
             {
               "metrics": {
@@ -1889,11 +1895,11 @@ public class DocumentParserTests extends MapperServiceTestCase {
               }
             }
             """)));
-        assertEquals("Object [_doc] is collapsed and does not support inner object [metrics]", err.getMessage());
+        assertEquals("Object [_doc] has subobjects set to false hence it does not support inner object [metrics]", err.getMessage());
     }
 
-    public void testCollapsedRoot() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("collapsed", true)));
+    public void testSubobjectsFalseRoot() throws Exception {
+        DocumentMapper mapper = createDocumentMapper(topMapping(b -> b.field("subobjects", false)));
         ParsedDocument doc = mapper.parse(source("""
             {
               "metrics.service.time" : 10,
@@ -1915,9 +1921,9 @@ public class DocumentParserTests extends MapperServiceTestCase {
         assertNotNull(doc.rootDoc().getFields("metrics.service.test.with.dots"));
     }
 
-    public void testDotsCollapsedStructuredPath() throws Exception {
+    public void testSubobjectsFalseStructuredPath() throws Exception {
         DocumentMapper mapper = createDocumentMapper(
-            mapping(b -> b.startObject("metrics.service").field("type", "object").field("collapsed", true).endObject())
+            mapping(b -> b.startObject("metrics.service").field("type", "object").field("subobjects", false).endObject())
         );
         ParsedDocument doc = mapper.parse(source("""
             {
@@ -1932,12 +1938,12 @@ public class DocumentParserTests extends MapperServiceTestCase {
               }
             }
             """));
-        assertDotsCollapsed(doc);
+        assertNoSubobjects(doc);
     }
 
-    public void testDotsCollapsedFlatPaths() throws Exception {
+    public void testSubobjectsFalseFlatPaths() throws Exception {
         DocumentMapper mapper = createDocumentMapper(
-            mapping(b -> b.startObject("metrics.service").field("type", "object").field("collapsed", true).endObject())
+            mapping(b -> b.startObject("metrics.service").field("type", "object").field("subobjects", false).endObject())
         );
         ParsedDocument doc = mapper.parse(source("""
             {
@@ -1948,12 +1954,12 @@ public class DocumentParserTests extends MapperServiceTestCase {
               "metrics.object.inner.field" : "value"
             }
             """));
-        assertDotsCollapsed(doc);
+        assertNoSubobjects(doc);
     }
 
-    public void testDotsCollapsedMixedPaths() throws Exception {
+    public void testSubobjectsFalseMixedPaths() throws Exception {
         DocumentMapper mapper = createDocumentMapper(
-            mapping(b -> b.startObject("metrics.service").field("type", "object").field("collapsed", true).endObject())
+            mapping(b -> b.startObject("metrics.service").field("type", "object").field("subobjects", false).endObject())
         );
         ParsedDocument doc = mapper.parse(source("""
             {
@@ -1968,12 +1974,12 @@ public class DocumentParserTests extends MapperServiceTestCase {
               "metrics.service.test.with.dots" : "value"
             }
             """));
-        assertDotsCollapsed(doc);
+        assertNoSubobjects(doc);
     }
 
-    public void testDotsCollapsedArrayOfObjects() throws Exception {
+    public void testSubobjectsFalseArrayOfObjects() throws Exception {
         DocumentMapper mapper = createDocumentMapper(
-            mapping(b -> b.startObject("metrics.service").field("type", "object").field("collapsed", true).endObject())
+            mapping(b -> b.startObject("metrics.service").field("type", "object").field("subobjects", false).endObject())
         );
         ParsedDocument doc = mapper.parse(source("""
             {
@@ -1996,10 +2002,10 @@ public class DocumentParserTests extends MapperServiceTestCase {
               }
             }
             """));
-        assertDotsCollapsed(doc);
+        assertNoSubobjects(doc);
     }
 
-    private static void assertDotsCollapsed(ParsedDocument doc) {
+    private static void assertNoSubobjects(ParsedDocument doc) {
         Mapping mappingsUpdate = doc.dynamicMappingsUpdate();
         assertNotNull(mappingsUpdate);
         Mapper metrics = mappingsUpdate.getRoot().mappers.get("metrics");

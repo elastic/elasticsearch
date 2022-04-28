@@ -114,7 +114,7 @@ public class DotExpandingXContentParserTests extends ESTestCase {
     public void testDotsCollapsingFlatPaths() throws IOException {
         ContentPath contentPath = new ContentPath();
         XContentParser parser = DotExpandingXContentParser.expandDots(createParser(JsonXContent.jsonXContent, """
-            {"metrics.service.time": 10, "metrics.service.time.max": 500, "metrics.foo": "value"}"""), contentPath::isWithinCollapsedPath);
+            {"metrics.service.time": 10, "metrics.service.time.max": 500, "metrics.foo": "value"}"""), contentPath::isWithinLeafObject);
         parser.nextToken();
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals("metrics", parser.currentName());
@@ -122,7 +122,7 @@ public class DotExpandingXContentParserTests extends ESTestCase {
         assertEquals(XContentParser.Token.START_OBJECT, parser.currentToken());
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals("service", parser.currentName());
-        contentPath.setWithinCollapsedPath(true);
+        contentPath.setWithinLeafObject(true);
         assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
         assertEquals(XContentParser.Token.START_OBJECT, parser.currentToken());
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
@@ -132,7 +132,7 @@ public class DotExpandingXContentParserTests extends ESTestCase {
         assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
         assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
         assertEquals("service", parser.currentName());
-        contentPath.setWithinCollapsedPath(false);
+        contentPath.setWithinLeafObject(false);
         assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
         assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
         assertEquals("metrics", parser.currentName());
@@ -142,7 +142,7 @@ public class DotExpandingXContentParserTests extends ESTestCase {
         assertEquals(XContentParser.Token.START_OBJECT, parser.currentToken());
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals("service", parser.currentName());
-        contentPath.setWithinCollapsedPath(true);
+        contentPath.setWithinLeafObject(true);
         assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
         assertEquals(XContentParser.Token.START_OBJECT, parser.currentToken());
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
@@ -152,7 +152,7 @@ public class DotExpandingXContentParserTests extends ESTestCase {
         assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
         assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
         assertEquals("service", parser.currentName());
-        contentPath.setWithinCollapsedPath(false);
+        contentPath.setWithinLeafObject(false);
         assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
         assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
         assertEquals("metrics", parser.currentName());
@@ -184,7 +184,7 @@ public class DotExpandingXContentParserTests extends ESTestCase {
                 },
                 "foo" : "value"
               }
-            }"""), contentPath::isWithinCollapsedPath);
+            }"""), contentPath::isWithinLeafObject);
         parser.nextToken();
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals("metrics", parser.currentName());
@@ -192,7 +192,7 @@ public class DotExpandingXContentParserTests extends ESTestCase {
         assertEquals(XContentParser.Token.START_OBJECT, parser.currentToken());
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals("service", parser.currentName());
-        contentPath.setWithinCollapsedPath(true);
+        contentPath.setWithinLeafObject(true);
         assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
         assertEquals(XContentParser.Token.START_OBJECT, parser.currentToken());
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
@@ -206,7 +206,7 @@ public class DotExpandingXContentParserTests extends ESTestCase {
         assertEquals(XContentParser.Token.END_OBJECT, parser.nextToken());
         assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
         assertEquals("service", parser.currentName());
-        contentPath.setWithinCollapsedPath(false);
+        contentPath.setWithinLeafObject(false);
         assertEquals(XContentParser.Token.FIELD_NAME, parser.nextToken());
         assertEquals("foo", parser.currentName());
         assertEquals(XContentParser.Token.VALUE_STRING, parser.nextToken());

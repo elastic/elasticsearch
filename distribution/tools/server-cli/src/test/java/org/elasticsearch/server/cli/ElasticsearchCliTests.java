@@ -16,7 +16,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.hamcrest.Matcher;
-import org.junit.Assert;
 import org.junit.Before;
 
 import java.nio.file.Path;
@@ -39,17 +38,17 @@ public class ElasticsearchCliTests extends CommandTestCase {
     private void assertOkWithOutput(Matcher<String> matcher, String... args) throws Exception {
         terminal.reset();
         int status = executeMain(args);
-        Assert.assertThat(status, equalTo(ExitCodes.OK));
-        Assert.assertThat(terminal.getErrorOutput(), emptyString());
-        Assert.assertThat(terminal.getOutput(), matcher);
+        assertThat(status, equalTo(ExitCodes.OK));
+        assertThat(terminal.getErrorOutput(), emptyString());
+        assertThat(terminal.getOutput(), matcher);
     }
 
     private void assertUsage(Matcher<String> matcher, String... args) throws Exception {
         terminal.reset();
         initCallback = FAIL_INIT;
         int status = executeMain(args);
-        Assert.assertThat(status, equalTo(ExitCodes.USAGE));
-        Assert.assertThat(terminal.getErrorOutput(), matcher);
+        assertThat(status, equalTo(ExitCodes.USAGE));
+        assertThat(terminal.getErrorOutput(), matcher);
     }
 
     private void assertMutuallyExclusiveOptions(String... args) throws Exception {
@@ -95,7 +94,7 @@ public class ElasticsearchCliTests extends CommandTestCase {
         Path tmpDir = createTempDir();
         Path pidFileArg = tmpDir.resolve("pid");
         assertUsage(containsString("Option p/pidfile requires an argument"), "-p");
-        initCallback = (daemonize, pidFile, quiet, env) -> { Assert.assertThat(pidFile.toString(), equalTo(pidFileArg.toString())); };
+        initCallback = (daemonize, pidFile, quiet, env) -> { assertThat(pidFile.toString(), equalTo(pidFileArg.toString())); };
         terminal.reset();
         assertOk("-p", pidFileArg.toString());
         terminal.reset();
@@ -104,7 +103,7 @@ public class ElasticsearchCliTests extends CommandTestCase {
 
     public void testDaemonize() throws Exception {
         AtomicBoolean expectDaemonize = new AtomicBoolean(true);
-        initCallback = (d, p, q, e) -> Assert.assertThat(d, equalTo(expectDaemonize.get()));
+        initCallback = (d, p, q, e) -> assertThat(d, equalTo(expectDaemonize.get()));
         assertOk("-d");
         assertOk("--daemonize");
         expectDaemonize.set(false);
@@ -113,7 +112,7 @@ public class ElasticsearchCliTests extends CommandTestCase {
 
     public void testQuiet() throws Exception {
         AtomicBoolean expectQuiet = new AtomicBoolean(true);
-        initCallback = (d, p, q, e) -> Assert.assertThat(q, equalTo(expectQuiet.get()));
+        initCallback = (d, p, q, e) -> assertThat(q, equalTo(expectQuiet.get()));
         assertOk("-q");
         assertOk("--quiet");
         expectQuiet.set(false);
@@ -123,8 +122,8 @@ public class ElasticsearchCliTests extends CommandTestCase {
     public void testElasticsearchSettings() throws Exception {
         initCallback = (d, p, q, e) -> {
             Settings settings = e.settings();
-            Assert.assertThat(settings.get("foo"), equalTo("bar"));
-            Assert.assertThat(settings.get("baz"), equalTo("qux"));
+            assertThat(settings.get("foo"), equalTo("bar"));
+            assertThat(settings.get("baz"), equalTo("qux"));
         };
         assertOk("-Efoo=bar", "-E", "baz=qux");
     }
@@ -146,8 +145,8 @@ public class ElasticsearchCliTests extends CommandTestCase {
         expectedHomeDir.set(homeDir.toString());
         initCallback = (d, p, q, e) -> {
             Settings settings = e.settings();
-            Assert.assertThat(settings.get("path.home"), equalTo(expectedHomeDir.get()));
-            Assert.assertThat(settings.keySet(), hasItem("path.logs")); // added by env initialization
+            assertThat(settings.get("path.home"), equalTo(expectedHomeDir.get()));
+            assertThat(settings.keySet(), hasItem("path.logs")); // added by env initialization
         };
         assertOk();
         homeDir = null;
@@ -162,7 +161,7 @@ public class ElasticsearchCliTests extends CommandTestCase {
 
     Path homeDir;
     InitMethod initCallback;
-    final InitMethod FAIL_INIT = (d, p, q, e) -> Assert.fail("Did not expect to run init");
+    final InitMethod FAIL_INIT = (d, p, q, e) -> fail("Did not expect to run init");
 
     @Before
     public void resetCommand() {

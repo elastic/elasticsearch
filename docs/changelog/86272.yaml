@@ -1,0 +1,6 @@
+pr: 86272
+summary: Consistent response for start basic license
+area: License
+type: bug
+issues:
+ - 86244

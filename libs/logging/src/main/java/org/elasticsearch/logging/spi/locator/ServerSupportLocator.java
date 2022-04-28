@@ -6,7 +6,7 @@
  * Side Public License, v 1.
  */
 
-package org.elasticsearch.logging.locator;
+package org.elasticsearch.logging.spi.locator;
 
 import org.elasticsearch.logging.spi.ServerSupport;
 

@@ -8,7 +8,7 @@
 
 package org.elasticsearch.logging.spi;
 
-import org.elasticsearch.logging.locator.LoggingSupportLocator;
+import org.elasticsearch.logging.spi.locator.LoggingSupportLocator;
 
 public interface LoggingSupportProvider {
 

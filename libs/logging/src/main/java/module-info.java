@@ -25,6 +25,7 @@ module org.elasticsearch.logging {
     exports org.elasticsearch.logging.spi;
     exports org.elasticsearch.logging.message;
     exports org.elasticsearch.logging.format;
+    exports org.elasticsearch.logging.spi.locator;
 
     uses LoggingSupportProvider;
     uses ServerSupport;

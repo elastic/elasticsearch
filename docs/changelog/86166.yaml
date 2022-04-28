@@ -1,0 +1,5 @@
+pr: 86166
+summary: Add support for dots in field names for metrics usecases
+area: Mapping
+type: feature
+issues: []

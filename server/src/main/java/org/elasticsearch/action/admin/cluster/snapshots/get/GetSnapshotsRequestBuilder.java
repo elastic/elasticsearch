@@ -142,4 +142,10 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
         return this;
     }
 
+    public GetSnapshotsRequestBuilder setIndices(boolean indices) {
+        request.indices(indices);
+        return this;
+
+    }
+
 }

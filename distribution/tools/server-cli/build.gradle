@@ -10,14 +10,14 @@ import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
 apply plugin: 'elasticsearch.build'
 
 dependencies {
-  implementation "org.yaml:snakeyaml:${versions.snakeyaml}"
-  testImplementation "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  testImplementation "junit:junit:${versions.junit}"
-  testImplementation "org.hamcrest:hamcrest:${versions.hamcrest}"
+  compileOnly project(":server")
+  compileOnly project(":libs:elasticsearch-cli")
+
+  testImplementation project(":test:framework")
 }
 
 tasks.withType(CheckForbiddenApis).configureEach {
-  replaceSignatureFiles 'jdk-signatures', 'snakeyaml-signatures'
+  replaceSignatureFiles 'jdk-signatures'
 }
 
 tasks.named("testingConventions").configure {

@@ -30,11 +30,13 @@ import java.io.PipedOutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 
+import static org.apache.lucene.tests.util.LuceneTestCase.createTempDir;
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.endsWith;
@@ -118,7 +120,7 @@ public class EmbeddedCli implements Closeable {
                  * support Elasticsearch's Terminal abstraction.
                  */
                 Terminal terminal = MockTerminal.create();
-                int exitCode = cli.main(args.toArray(new String[0]), terminal, ProcessInfo.fromSystem());
+                int exitCode = cli.main(args.toArray(new String[0]), terminal, new ProcessInfo(Map.of(), Map.of(), createTempDir()));
                 returnCode.set(exitCode);
                 logger.info("cli exited with code [{}]", exitCode);
             } catch (Exception e) {

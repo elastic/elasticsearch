@@ -83,7 +83,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                 );
                 if (includeDetails) {
                     List<DiscoveryNode> mastersInLast30Minutes = localMasterHistory.getImmutableView();
-                    details.put("current_master", new DiscoveryNodeXContentObject(localMasterHistory.getCurrentMaster()));
+                    details.put("current_master", new DiscoveryNodeXContentObject(localMasterHistory.getMostRecentMaster()));
                     details.put("recent_masters", mastersInLast30Minutes.stream().map(DiscoveryNodeXContentObject::new).toList());
                 }
             } else if (localMasterHistory.hasSameMasterGoneNullNTimes(4)) {
@@ -116,7 +116,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
                         )
                     );
                     if (includeDetails) {
-                        details.put("current_master", new DiscoveryNodeXContentObject(localMasterHistory.getCurrentMaster()));
+                        details.put("current_master", new DiscoveryNodeXContentObject(localMasterHistory.getMostRecentMaster()));
                     }
                 } else {
                     logger.trace("This node thinks the master is unstable, but the master node {} thinks it is stable", master);

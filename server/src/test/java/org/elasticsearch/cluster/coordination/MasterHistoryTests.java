@@ -52,19 +52,19 @@ public class MasterHistoryTests extends ESTestCase {
         ThreadPool threadPool = mock(ThreadPool.class);
         when(threadPool.relativeTimeInMillis()).thenReturn(System.currentTimeMillis());
         MasterHistory masterHistory = new MasterHistory(threadPool, clusterService);
-        assertNull(masterHistory.getCurrentMaster());
+        assertNull(masterHistory.getMostRecentMaster());
         masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, nullMasterClusterState));
-        assertNull(masterHistory.getCurrentMaster());
+        assertNull(masterHistory.getMostRecentMaster());
         masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
-        assertThat(masterHistory.getCurrentMaster(), equalTo(node1MasterClusterState.nodes().getMasterNode()));
+        assertThat(masterHistory.getMostRecentMaster(), equalTo(node1MasterClusterState.nodes().getMasterNode()));
         masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node2MasterClusterState, node1MasterClusterState));
-        assertThat(masterHistory.getCurrentMaster(), equalTo(node2MasterClusterState.nodes().getMasterNode()));
+        assertThat(masterHistory.getMostRecentMaster(), equalTo(node2MasterClusterState.nodes().getMasterNode()));
         masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node3MasterClusterState, node2MasterClusterState));
-        assertThat(masterHistory.getCurrentMaster(), equalTo(node3MasterClusterState.nodes().getMasterNode()));
+        assertThat(masterHistory.getMostRecentMaster(), equalTo(node3MasterClusterState.nodes().getMasterNode()));
         masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, node3MasterClusterState));
-        assertThat(masterHistory.getCurrentMaster(), equalTo(node1MasterClusterState.nodes().getMasterNode()));
+        assertThat(masterHistory.getMostRecentMaster(), equalTo(node1MasterClusterState.nodes().getMasterNode()));
         masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
-        assertNull(masterHistory.getCurrentMaster());
+        assertNull(masterHistory.getMostRecentMaster());
         assertThat(masterHistory.getMostRecentNonNullMaster(), equalTo(node1MasterClusterState.nodes().getMasterNode()));
         assertThat(masterHistory.getDistinctMastersSeen().size(), equalTo(3));
     }
@@ -104,10 +104,10 @@ public class MasterHistoryTests extends ESTestCase {
         masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
         masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node2MasterClusterState, node1MasterClusterState));
         masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node3MasterClusterState, node2MasterClusterState));
-        assertThat(masterHistory.getCurrentMaster(), equalTo(node3MasterClusterState.nodes().getMasterNode()));
+        assertThat(masterHistory.getMostRecentMaster(), equalTo(node3MasterClusterState.nodes().getMasterNode()));
         assertThat(masterHistory.getDistinctMastersSeen().size(), equalTo(3));
         masterHistory.nowSupplier = System::currentTimeMillis;
-        assertThat(masterHistory.getCurrentMaster(), equalTo(node3MasterClusterState.nodes().getMasterNode()));
+        assertThat(masterHistory.getMostRecentMaster(), equalTo(node3MasterClusterState.nodes().getMasterNode()));
         assertThat(masterHistory.getDistinctMastersSeen().size(), equalTo(1));
         assertTrue(masterHistory.hasSeenMasterInLastNSeconds(5));
     }

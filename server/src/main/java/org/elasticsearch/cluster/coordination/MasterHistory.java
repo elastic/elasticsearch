@@ -17,6 +17,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
@@ -46,8 +47,7 @@ public class MasterHistory implements ClusterStateListener {
         if (currentMaster == null || currentMaster.equals(previousMaster) == false || masterHistory.isEmpty()) {
             List<TimeAndMaster> newMasterHistory = new ArrayList<>(masterHistory);
             newMasterHistory.add(new TimeAndMaster(nowSupplier.get(), currentMaster));
-            removeOldMasterHistory(newMasterHistory);
-            masterHistory = newMasterHistory;
+            masterHistory = removeOldMasterHistory(newMasterHistory);
         }
     }
 
@@ -55,7 +55,7 @@ public class MasterHistory implements ClusterStateListener {
      * Returns the node that has been most recently seen as the master
      * @return The node that has been most recently seen as the master, which could be null if no master exists
      */
-    public @Nullable DiscoveryNode getCurrentMaster() {
+    public @Nullable DiscoveryNode getMostRecentMaster() {
         List<TimeAndMaster> masterHistoryCopy = getMasterHistoryForLast30Minutes(masterHistory);
         return masterHistoryCopy.isEmpty() ? null : masterHistoryCopy.get(masterHistoryCopy.size() - 1).master;
     }
@@ -67,15 +67,13 @@ public class MasterHistory implements ClusterStateListener {
      */
     public @Nullable DiscoveryNode getMostRecentNonNullMaster() {
         List<TimeAndMaster> masterHistoryCopy = getMasterHistoryForLast30Minutes(masterHistory);
-        DiscoveryNode mostRecentNonNullMaster = null;
-        for (int i = masterHistoryCopy.size() - 1; i >= 0; i--) {
-            TimeAndMaster timeAndMaster = masterHistoryCopy.get(i);
+        Collections.reverse(masterHistoryCopy);
+        for (TimeAndMaster timeAndMaster : masterHistoryCopy) {
             if (timeAndMaster.master != null) {
-                mostRecentNonNullMaster = timeAndMaster.master;
-                break;
+                return timeAndMaster.master;
             }
         }
-        return mostRecentNonNullMaster;
+        return null;
     }
 
     /**
@@ -86,10 +84,7 @@ public class MasterHistory implements ClusterStateListener {
      */
     public boolean hasSameMasterGoneNullNTimes(int n) {
         List<TimeAndMaster> masterHistoryCopy = getMasterHistoryForLast30Minutes(masterHistory);
-        return hasSameMasterGoneNullNTimes(
-            masterHistoryCopy.stream().map(timeAndMaster -> timeAndMaster.master).collect(Collectors.toList()),
-            n
-        );
+        return hasSameMasterGoneNullNTimes(masterHistoryCopy.stream().map(timeAndMaster -> timeAndMaster.master).toList(), n);
     }
 
     /**
@@ -139,8 +134,10 @@ public class MasterHistory implements ClusterStateListener {
         long now = nowSupplier.get();
         TimeValue nSeconds = new TimeValue(n, TimeUnit.SECONDS);
         long nSecondsAgo = now - nSeconds.getMillis();
-        return getCurrentMaster() != null
-            || masterHistoryCopy.stream().anyMatch(timeAndMaster -> timeAndMaster.time > nSecondsAgo && timeAndMaster.master != null);
+        return getMostRecentMaster() != null
+            || masterHistoryCopy.stream()
+                .filter(timeAndMaster -> timeAndMaster.master != null)
+                .anyMatch(timeAndMaster -> timeAndMaster.time > nSecondsAgo);
     }
 
     /*
@@ -155,8 +152,9 @@ public class MasterHistory implements ClusterStateListener {
         TimeValue thirtyMinutes = new TimeValue(30, TimeUnit.MINUTES);
         long thirtyMinutesAgo = now - thirtyMinutes.getMillis();
         TimeAndMaster mostRecent = history.isEmpty() ? null : history.get(history.size() - 1);
-        List<TimeAndMaster> filteredHistory =
-            history.stream().filter(timeAndMaster -> timeAndMaster.time > thirtyMinutesAgo).collect(Collectors.toList());
+        List<TimeAndMaster> filteredHistory = history.stream()
+            .filter(timeAndMaster -> timeAndMaster.time > thirtyMinutesAgo)
+            .collect(Collectors.toList());
         if (filteredHistory.isEmpty() && mostRecent != null) { // The most recent entry was more than 30 minutes ago
             filteredHistory.add(mostRecent);
         }
@@ -164,21 +162,26 @@ public class MasterHistory implements ClusterStateListener {
     }
 
     /**
-     * Clears out anything from masterHistory that is from more than 30 minutes before now (but leaves the newest entry in even if it is
-     * more than 30 minutes old). Rather than being scheduled, this method is called whenever the cluster state changes.
+     * Returns a new MasterHistory with nothing from more than 30 minutes before now (but leaves the newest entry in even if it is
+     * more than 30 minutes old).
      */
-    private void removeOldMasterHistory(List<TimeAndMaster> newMasterHistory) {
-        if (newMasterHistory.size() < 2) {
-            return;
+    private List<TimeAndMaster> removeOldMasterHistory(List<TimeAndMaster> possiblyOldMasterHistory) {
+        if (possiblyOldMasterHistory.size() < 2) {
+            return new ArrayList<>(possiblyOldMasterHistory);
         }
         long now = nowSupplier.get();
         TimeValue thirtyMinutes = new TimeValue(30, TimeUnit.MINUTES);
         long thirtyMinutesAgo = now - thirtyMinutes.getMillis();
-        TimeAndMaster mostRecent = newMasterHistory.isEmpty() ? null : newMasterHistory.get(newMasterHistory.size() - 1);
-        newMasterHistory.removeIf(timeAndMaster -> timeAndMaster.time < thirtyMinutesAgo);
+        TimeAndMaster mostRecent = possiblyOldMasterHistory.isEmpty()
+            ? null
+            : possiblyOldMasterHistory.get(possiblyOldMasterHistory.size() - 1);
+        List<TimeAndMaster> newMasterHistory = possiblyOldMasterHistory.stream()
+            .filter(timeAndMaster -> timeAndMaster.time >= thirtyMinutesAgo)
+            .collect(Collectors.toList());
         if (newMasterHistory.isEmpty() && mostRecent != null) { // The most recent entry was more than 30 minutes ago
             newMasterHistory.add(mostRecent);
         }
+        return newMasterHistory;
     }
 
     /**
@@ -190,30 +193,5 @@ public class MasterHistory implements ClusterStateListener {
         return masterHistoryCopy.stream().map(timeAndMaster -> timeAndMaster.master).toList();
     }
 
-    private static class TimeAndMaster {
-        private final long time;
-        private final DiscoveryNode master;
-
-        TimeAndMaster(long time, DiscoveryNode master) {
-            this.time = time;
-            this.master = master;
-        }
-
-        @Override
-        public boolean equals(Object other) {
-            if (this == other) return true;
-            if (other instanceof TimeAndMaster == false) {
-                return false;
-            }
-            TimeAndMaster otherTimeAndMaster = (TimeAndMaster) other;
-            return time == otherTimeAndMaster.time
-                && ((master == null && otherTimeAndMaster.master == null) || (master != null && master.equals(otherTimeAndMaster.master)));
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(time, master);
-        }
-
-    }
+    private record TimeAndMaster(long time, DiscoveryNode master) {}
 }

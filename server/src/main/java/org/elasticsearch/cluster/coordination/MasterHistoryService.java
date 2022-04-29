@@ -97,6 +97,7 @@ public class MasterHistoryService {
 
                             @Override
                             public void onResponse(MasterHistoryAction.Response response) {
+                                connection.close();
                                 long endTime = System.nanoTime();
                                 logger.trace(
                                     "Received history from {} in {} ms",
@@ -108,6 +109,7 @@ public class MasterHistoryService {
 
                             @Override
                             public void onFailure(Exception e) {
+                                connection.close();
                                 logger.error("Exception in master history request to master node", e);
                             }
                         }, MasterHistoryAction.Response::new)

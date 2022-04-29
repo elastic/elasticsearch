@@ -14,15 +14,13 @@ setup:
         refresh: true
         body:
           - '{"index": {"_index": "test_index", "_id": "u1"}}'
-          - '{"location": "34.5, 60.5"}'
+          - '{"location": "45.0, 45.0"}'
           - '{"index": {"_index": "test_index", "_id": "u2"}}'
-          - '{"location": {"lat" : -34.5 , "lon" : 60.5}}'
+          - '{"location": {"lat" : -45.0 , "lon" : 45.0}}'
           - '{"index": {"_index": "test_index", "_id": "u3"}}'
-          - '{"location": [-60.5, 34.5]}'
+          - '{"location": [-45.0, 45.0]}'
           - '{"index": {"_index": "test_index", "_id": "u4"}}'
-          - '{"location": "POINT(-60.5, -34.5)"}'
-          - '{"index": {"_index": "test_index", "_id": "u5"}}'
-          - '{"location": {"type" : "Point", "coordinates" : [45, 45]}}'
+          - '{"location": "POINT(-45.0 -45.0)"}'
 ---
 "bounding box explicit":
   - do:

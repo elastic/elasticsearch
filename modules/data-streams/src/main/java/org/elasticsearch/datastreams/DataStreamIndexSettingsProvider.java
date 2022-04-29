@@ -30,7 +30,7 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
     public Settings getAdditionalIndexSettings(
         String indexName,
         String dataStreamName,
-        IndexMode templateIndexMode,
+        boolean timeSeries,
         Metadata metadata,
         Instant resolvedAt,
         Settings allSettings
@@ -42,14 +42,16 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
             // so checking that index_mode==null|standard and templateIndexMode == TIME_SERIES
             boolean migrating = dataStream != null
                 && (dataStream.getIndexMode() == null || dataStream.getIndexMode() == IndexMode.STANDARD)
-                && templateIndexMode == IndexMode.TIME_SERIES;
+                && timeSeries;
             IndexMode indexMode;
             if (migrating) {
                 indexMode = IndexMode.TIME_SERIES;
             } else if (dataStream != null) {
                 indexMode = dataStream.getIndexMode();
+            } else if (timeSeries) {
+                indexMode = IndexMode.TIME_SERIES;
             } else {
-                indexMode = templateIndexMode;
+                indexMode = null;
             }
             if (indexMode != null) {
                 Settings.Builder builder = Settings.builder();

@@ -17,6 +17,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -25,7 +26,6 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class AssignmentPlannerTests extends ESTestCase {
@@ -34,14 +34,14 @@ public class AssignmentPlannerTests extends ESTestCase {
         List<Node> nodes = List.of(new Node("n_1", 100, 4));
         Model model = new Model("m_1", 101, 4, 1, Map.of());
         AssignmentPlan plan = new AssignmentPlanner(nodes, List.of(model)).computePlan();
-        assertThat(plan.assignments(model), is(nullValue()));
+        assertThat(plan.assignments(model).isEmpty(), is(true));
     }
 
     public void testModelWithThreadsPerAllocationNotFittingOnAnyNode() {
         List<Node> nodes = List.of(new Node("n_1", 100, 4), new Node("n_2", 100, 5));
         Model model = new Model("m_1", 1, 1, 6, Map.of());
         AssignmentPlan plan = new AssignmentPlanner(nodes, List.of(model)).computePlan();
-        assertThat(plan.assignments(model), is(nullValue()));
+        assertThat(plan.assignments(model).isEmpty(), is(true));
     }
 
     public void testSingleModelThatFitsFullyOnSingleNode() {
@@ -72,7 +72,7 @@ public class AssignmentPlannerTests extends ESTestCase {
 
         AssignmentPlan plan = new AssignmentPlanner(List.of(node1, node2), List.of(model)).computePlan();
 
-        Map<Node, Integer> assignments = plan.assignments(model);
+        Map<Node, Integer> assignments = plan.assignments(model).get();
         if (assignments.get(node1) > 0) {
             assertThat(assignments.get(node1), equalTo(4));
         } else {
@@ -86,8 +86,8 @@ public class AssignmentPlannerTests extends ESTestCase {
         {
             Node node = new Node("n_1", 100, 4);
             AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node), List.of(model)).computePlan();
-            Map<Node, Integer> assignments = assignmentPlan.assignments(model);
-            assertThat(assignments, is(notNullValue()));
+            assertThat(assignmentPlan.assignments(model).isPresent(), is(true));
+            Map<Node, Integer> assignments = assignmentPlan.assignments(model).get();
             assertThat(assignments.get(node), equalTo(4));
         }
         // Two nodes
@@ -95,8 +95,8 @@ public class AssignmentPlannerTests extends ESTestCase {
             Node node1 = new Node("n_1", 100, 4);
             Node node2 = new Node("n_2", 100, 2);
             AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node1, node2), List.of(model)).computePlan();
-            Map<Node, Integer> assignments = assignmentPlan.assignments(model);
-            assertThat(assignments, is(notNullValue()));
+            assertThat(assignmentPlan.assignments(model).isPresent(), is(true));
+            Map<Node, Integer> assignments = assignmentPlan.assignments(model).get();
             assertThat(assignments.get(node1), equalTo(4));
             assertThat(assignments.get(node2), equalTo(2));
         }
@@ -106,8 +106,8 @@ public class AssignmentPlannerTests extends ESTestCase {
             Node node2 = new Node("n_2", 100, 2);
             Node node3 = new Node("n_3", 100, 3);
             AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node1, node2, node3), List.of(model)).computePlan();
-            Map<Node, Integer> assignments = assignmentPlan.assignments(model);
-            assertThat(assignments, is(notNullValue()));
+            assertThat(assignmentPlan.assignments(model).isPresent(), is(true));
+            Map<Node, Integer> assignments = assignmentPlan.assignments(model).get();
             assertThat(assignments.get(node1), equalTo(4));
             assertThat(assignments.get(node2), equalTo(2));
             assertThat(assignments.get(node3), equalTo(3));
@@ -128,24 +128,24 @@ public class AssignmentPlannerTests extends ESTestCase {
             .computePlan();
 
         {
-            Map<Node, Integer> assignments = plan.assignments(model1);
-            assertThat(assignments, is(notNullValue()));
+            assertThat(plan.assignments(model1).isPresent(), is(true));
+            Map<Node, Integer> assignments = plan.assignments(model1).get();
             assertThat(assignments.get(node1), equalTo(1));
             assertThat(assignments.get(node2), equalTo(1));
             assertThat(assignments.get(node3), is(nullValue()));
             assertThat(assignments.get(node4), is(nullValue()));
         }
         {
-            Map<Node, Integer> assignments = plan.assignments(model2);
-            assertThat(assignments, is(notNullValue()));
+            assertThat(plan.assignments(model2).isPresent(), is(true));
+            Map<Node, Integer> assignments = plan.assignments(model2).get();
             assertThat(assignments.get(node1), equalTo(1));
             assertThat(assignments.get(node2), equalTo(1));
             assertThat(assignments.get(node3), is(nullValue()));
             assertThat(assignments.get(node4), is(nullValue()));
         }
         {
-            Map<Node, Integer> assignments = plan.assignments(model3);
-            assertThat(assignments, is(notNullValue()));
+            assertThat(plan.assignments(model3).isPresent(), is(true));
+            Map<Node, Integer> assignments = plan.assignments(model3).get();
             assertThat(assignments.get(node1), is(nullValue()));
             assertThat(assignments.get(node2), is(nullValue()));
             // Will either be on node 3 or 4
@@ -155,8 +155,8 @@ public class AssignmentPlannerTests extends ESTestCase {
             assertThat(assignments.get(otherNode), is(nullValue()));
         }
         {
-            Map<Node, Integer> assignments = plan.assignments(model4);
-            assertThat(assignments, is(notNullValue()));
+            assertThat(plan.assignments(model4).isPresent(), is(true));
+            Map<Node, Integer> assignments = plan.assignments(model4).get();
             assertThat(assignments.get(node1), is(nullValue()));
             assertThat(assignments.get(node2), is(nullValue()));
             // Will either be on node 3 or 4
@@ -173,8 +173,8 @@ public class AssignmentPlannerTests extends ESTestCase {
         {
             Node node = new Node("n_1", 100, 4);
             AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node), List.of(model)).computePlan();
-            Map<Node, Integer> assignments = assignmentPlan.assignments(model);
-            assertThat(assignments, is(notNullValue()));
+            assertThat(assignmentPlan.assignments(model).isPresent(), is(true));
+            Map<Node, Integer> assignments = assignmentPlan.assignments(model).get();
             assertThat(assignments.get(node), equalTo(1));
         }
         // Two nodes
@@ -182,8 +182,8 @@ public class AssignmentPlannerTests extends ESTestCase {
             Node node1 = new Node("n_1", 100, 4);
             Node node2 = new Node("n_2", 100, 8);
             AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node1, node2), List.of(model)).computePlan();
-            Map<Node, Integer> assignments = assignmentPlan.assignments(model);
-            assertThat(assignments, is(notNullValue()));
+            assertThat(assignmentPlan.assignments(model).isPresent(), is(true));
+            Map<Node, Integer> assignments = assignmentPlan.assignments(model).get();
             assertThat(assignments.get(node1), equalTo(1));
             assertThat(assignments.get(node2), equalTo(2));
         }
@@ -193,8 +193,8 @@ public class AssignmentPlannerTests extends ESTestCase {
             Node node2 = new Node("n_2", 100, 7);
             Node node3 = new Node("n_3", 100, 15);
             AssignmentPlan assignmentPlan = new AssignmentPlanner(List.of(node1, node2, node3), List.of(model)).computePlan();
-            Map<Node, Integer> assignments = assignmentPlan.assignments(model);
-            assertThat(assignments, is(notNullValue()));
+            assertThat(assignmentPlan.assignments(model).isPresent(), is(true));
+            Map<Node, Integer> assignments = assignmentPlan.assignments(model).get();
             assertThat(assignments.get(node1), equalTo(1));
             assertThat(assignments.get(node2), equalTo(2));
             assertThat(assignments.get(node3), equalTo(5));
@@ -206,8 +206,8 @@ public class AssignmentPlannerTests extends ESTestCase {
         Model model = new Model("m_1", 30, 4, 1, Map.of("n_1", 4));
         AssignmentPlan plan = new AssignmentPlanner(List.of(node), List.of(model)).computePlan();
 
-        assertThat(plan.assignments(model), equalTo(Map.of(node, 4)));
-        assertThat(plan.assignments(model), is(notNullValue()));
+        assertThat(plan.assignments(model).isPresent(), is(true));
+        assertThat(plan.assignments(model).get(), equalTo(Map.of(node, 4)));
     }
 
     public void testFullCoreUtilization_GivenModelsWithSingleThreadPerAllocation() {
@@ -238,10 +238,8 @@ public class AssignmentPlannerTests extends ESTestCase {
 
         int usedCores = 0;
         for (Model m : models) {
-            Map<Node, Integer> assignments = assignmentPlan.assignments(m);
-            if (assignments != null) {
-                usedCores += assignmentPlan.assignments(m).values().stream().mapToInt(Integer::intValue).sum();
-            }
+            Map<Node, Integer> assignments = assignmentPlan.assignments(m).orElse(Map.of());
+            usedCores += assignments.values().stream().mapToInt(Integer::intValue).sum();
         }
         assertThat(usedCores, equalTo(64));
 
@@ -328,10 +326,10 @@ public class AssignmentPlannerTests extends ESTestCase {
 
         List<Model> previousModelsPlusNew = new ArrayList<>(models.size() + 1);
         for (Model m : models) {
-            Map<Node, Integer> assignments = originalPlan.assignments(m);
-            Map<String, Integer> previousAssignments = assignments == null
-                ? Map.of()
-                : assignments.entrySet().stream().collect(Collectors.toMap(e -> e.getKey().id(), Map.Entry::getValue));
+            Map<Node, Integer> assignments = originalPlan.assignments(m).orElse(Map.of());
+            Map<String, Integer> previousAssignments = assignments.entrySet()
+                .stream()
+                .collect(Collectors.toMap(e -> e.getKey().id(), Map.Entry::getValue));
             previousModelsPlusNew.add(new Model(m.id(), m.memoryBytes(), m.allocations(), m.threadsPerAllocation(), previousAssignments));
         }
         previousModelsPlusNew.add(randomModel("new"));
@@ -342,10 +340,10 @@ public class AssignmentPlannerTests extends ESTestCase {
     }
 
     private static void assertModelFullyAssignedToNode(AssignmentPlan plan, Model m, Node n) {
-        Map<Node, Integer> assignments = plan.assignments(m);
-        assertThat(assignments, is(notNullValue()));
-        assertThat(assignments.size(), equalTo(1));
-        assertThat(assignments.get(n), equalTo(m.allocations()));
+        Optional<Map<Node, Integer>> assignments = plan.assignments(m);
+        assertThat(assignments.isPresent(), is(true));
+        assertThat(assignments.get().size(), equalTo(1));
+        assertThat(assignments.get().get(n), equalTo(m.allocations()));
     }
 
     private List<Node> randomNodes(int scale) {
@@ -385,8 +383,7 @@ public class AssignmentPlannerTests extends ESTestCase {
 
     private static void assertPreviousAssignmentsAreSatisfied(List<Model> models, AssignmentPlan assignmentPlan) {
         for (Model m : models.stream().filter(m -> m.currentAllocationByNodeId().isEmpty() == false).toList()) {
-            Map<Node, Integer> assignments = assignmentPlan.assignments(m);
-            assertThat(assignments, is(notNullValue()));
+            Map<Node, Integer> assignments = assignmentPlan.assignments(m).get();
             Set<String> assignedNodeIds = new HashSet<>();
             int allocations = 0;
             for (Map.Entry<Node, Integer> e : assignments.entrySet()) {
@@ -421,11 +418,9 @@ public class AssignmentPlannerTests extends ESTestCase {
         int usedCores = 0;
         int assignedAllocations = 0;
         for (Model m : models) {
-            if (assignmentPlan.assignments(m) != null) {
-                for (Map.Entry<Node, Integer> assignment : assignmentPlan.assignments(m).entrySet()) {
-                    assignedAllocations += assignment.getValue();
-                    usedCores += assignment.getValue() * m.threadsPerAllocation();
-                }
+            for (Map.Entry<Node, Integer> assignment : assignmentPlan.assignments(m).orElse(Map.of()).entrySet()) {
+                assignedAllocations += assignment.getValue();
+                usedCores += assignment.getValue() * m.threadsPerAllocation();
             }
         }
         return new Quality(

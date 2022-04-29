@@ -64,11 +64,9 @@ abstract class AbstractPreserveAllocations {
     AssignmentPlan mergePreservedAllocations(AssignmentPlan assignmentPlan) {
         final Map<Tuple<String, String>, Integer> assignmentsByModelNodeIdPair = new HashMap<>();
         for (Model m : assignmentPlan.models()) {
-            Map<Node, Integer> assignments = assignmentPlan.assignments(m);
-            if (assignments != null) {
-                for (Map.Entry<Node, Integer> nodeAssignment : assignments.entrySet()) {
-                    assignmentsByModelNodeIdPair.put(Tuple.tuple(m.id(), nodeAssignment.getKey().id()), nodeAssignment.getValue());
-                }
+            Map<Node, Integer> assignments = assignmentPlan.assignments(m).orElse(Map.of());
+            for (Map.Entry<Node, Integer> nodeAssignment : assignments.entrySet()) {
+                assignmentsByModelNodeIdPair.put(Tuple.tuple(m.id(), nodeAssignment.getKey().id()), nodeAssignment.getValue());
             }
         }
 

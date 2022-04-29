@@ -71,12 +71,12 @@ public class PreserveOneAllocationTests extends ESTestCase {
             .assignModelToNode(model1, node1, 2)
             .assignModelToNode(model2, node2, 1)
             .build();
-        assertThat(plan.assignments(model1), equalTo(Map.of(node1, 2)));
-        assertThat(plan.assignments(model2), equalTo(Map.of(node2, 1)));
+        assertThat(plan.assignments(model1).get(), equalTo(Map.of(node1, 2)));
+        assertThat(plan.assignments(model2).get(), equalTo(Map.of(node2, 1)));
 
         plan = preserveOneAllocation.mergePreservedAllocations(plan);
 
-        assertThat(plan.assignments(model1), equalTo(Map.of(node1, 3)));
-        assertThat(plan.assignments(model2), equalTo(Map.of(node1, 1, node2, 2)));
+        assertThat(plan.assignments(model1).get(), equalTo(Map.of(node1, 3)));
+        assertThat(plan.assignments(model2).get(), equalTo(Map.of(node1, 1, node2, 2)));
     }
 }

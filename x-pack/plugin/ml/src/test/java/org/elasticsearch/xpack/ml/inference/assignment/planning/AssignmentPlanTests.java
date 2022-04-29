@@ -58,7 +58,7 @@ public class AssignmentPlanTests extends ESTestCase {
 
         assertThat(plan.models(), contains(m));
         assertThat(plan.satisfiesPreviousAssignments(), is(true));
-        assertThat(plan.assignments(m), equalTo(Map.of(n, 1)));
+        assertThat(plan.assignments(m).get(), equalTo(Map.of(n, 1)));
     }
 
     public void testAssignModelToNode_GivenNewPlanSatisfiesPreviousAssignment() {
@@ -78,7 +78,7 @@ public class AssignmentPlanTests extends ESTestCase {
 
         assertThat(plan.models(), contains(m));
         assertThat(plan.satisfiesPreviousAssignments(), is(true));
-        assertThat(plan.assignments(m), equalTo(Map.of(n, 1)));
+        assertThat(plan.assignments(m).get(), equalTo(Map.of(n, 1)));
     }
 
     public void testAssignModelToNode_GivenNewPlanDoesNotSatisfyPreviousAssignment() {
@@ -98,7 +98,7 @@ public class AssignmentPlanTests extends ESTestCase {
 
         assertThat(plan.models(), contains(m));
         assertThat(plan.satisfiesPreviousAssignments(), is(false));
-        assertThat(plan.assignments(m), equalTo(Map.of(n, 1)));
+        assertThat(plan.assignments(m).get(), equalTo(Map.of(n, 1)));
     }
 
     public void testAssignModelToNode_GivenPreviouslyUnassignedModelDoesNotFit() {
@@ -121,7 +121,7 @@ public class AssignmentPlanTests extends ESTestCase {
 
         assertThat(plan.models(), contains(m));
         assertThat(plan.satisfiesPreviousAssignments(), is(true));
-        assertThat(plan.assignments(m), equalTo(Map.of(n, 2)));
+        assertThat(plan.assignments(m).get(), equalTo(Map.of(n, 2)));
     }
 
     public void testAssignModelToNode_GivenNotEnoughCores_AndSingleThreadPerAllocation() {

@@ -82,11 +82,11 @@ public class AssignmentPlanner {
         long totalUsedMem = 0;
         for (Model m : models) {
             totalAllocationsRequired += m.allocations();
-            if (assignmentPlan.assignments(m) != null) {
-                int allocations = assignmentPlan.assignments(m).values().stream().mapToInt(Integer::intValue).sum();
+            if (assignmentPlan.assignments(m).isPresent()) {
+                int allocations = assignmentPlan.assignments(m).get().values().stream().mapToInt(Integer::intValue).sum();
                 totalAllocationsAssigned += allocations;
                 totalCoresUsed += allocations * m.threadsPerAllocation();
-                totalUsedMem += m.memoryBytes() * assignmentPlan.assignments(m).values().size();
+                totalUsedMem += m.memoryBytes() * assignmentPlan.assignments(m).get().values().size();
             }
         }
         StringBuilder msg = new StringBuilder("Overall Stats: ");

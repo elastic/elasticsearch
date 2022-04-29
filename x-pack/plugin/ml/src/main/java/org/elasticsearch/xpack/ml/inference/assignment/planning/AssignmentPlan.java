@@ -18,6 +18,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -81,12 +82,11 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
      * is a {@link Map<Node, Integer>} where the value is the number
      * of allocations for each node.
      * @param model the model for which assignments are returned
-     * @return the model assignments per node
+     * @return the model assignments per node. The Optional will be empty if the model has no assignments.
      */
-    @Nullable
-    public Map<Node, Integer> assignments(Model model) {
+    public Optional<Map<Node, Integer>> assignments(Model model) {
         Map<Node, Integer> modelAssignments = assignments.get(model);
-        return (modelAssignments == null || modelAssignments.isEmpty()) ? null : modelAssignments;
+        return (modelAssignments == null || modelAssignments.isEmpty()) ? Optional.empty() : Optional.of(modelAssignments);
     }
 
     @Override

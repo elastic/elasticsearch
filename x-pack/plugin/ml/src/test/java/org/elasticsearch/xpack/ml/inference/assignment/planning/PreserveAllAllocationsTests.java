@@ -18,7 +18,6 @@ import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
 
 public class PreserveAllAllocationsTests extends ESTestCase {
 
@@ -72,12 +71,12 @@ public class PreserveAllAllocationsTests extends ESTestCase {
         AssignmentPlan plan = AssignmentPlan.builder(List.of(node1, node2), List.of(model1, model2))
             .assignModelToNode(model1, node1, 2)
             .build();
-        assertThat(plan.assignments(model1), equalTo(Map.of(node1, 2)));
-        assertThat(plan.assignments(model2), is(nullValue()));
+        assertThat(plan.assignments(model1).get(), equalTo(Map.of(node1, 2)));
+        assertThat(plan.assignments(model2).isEmpty(), is(true));
 
         plan = preserveAllAllocations.mergePreservedAllocations(plan);
 
-        assertThat(plan.assignments(model1), equalTo(Map.of(node1, 3)));
-        assertThat(plan.assignments(model2), equalTo(Map.of(node1, 1, node2, 2)));
+        assertThat(plan.assignments(model1).get(), equalTo(Map.of(node1, 3)));
+        assertThat(plan.assignments(model2).get(), equalTo(Map.of(node1, 1, node2, 2)));
     }
 }

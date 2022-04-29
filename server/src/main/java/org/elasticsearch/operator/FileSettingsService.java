@@ -20,6 +20,7 @@ import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.env.Environment;
 
 import java.io.IOException;
+import java.nio.file.ClosedWatchServiceException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardWatchEventKinds;
@@ -148,7 +149,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                     }
                     key.reset();
                 }
-            } catch (InterruptedException | IOException e) {
+            } catch (InterruptedException | IOException | ClosedWatchServiceException e) {
                 logger.error("Encountered I/O error watching " + path, e);
             } finally {
                 watcherThreadLatch.countDown();

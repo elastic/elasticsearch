@@ -181,9 +181,6 @@ public class InMemoryJavaCompiler {
     // -- security manager related stuff, to facilitate asserting permissions during compilation
     // (since the JDK compiler checks a number of permissions)
 
-    // forces static init to run
-    public static void init() {}
-
     @SuppressWarnings("removal")
     private static AccessControlContext getContext() {
         ProtectionDomain[] pda = new ProtectionDomain[] { privilegedCall(org.elasticsearch.secure_sm.SecureSM.class::getProtectionDomain) };

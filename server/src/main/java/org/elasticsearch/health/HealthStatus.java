@@ -18,7 +18,6 @@ import java.util.stream.Stream;
 
 public enum HealthStatus implements Writeable {
     GREEN((byte) 0),
-
     UNKNOWN((byte) 1),
     YELLOW((byte) 2),
     RED((byte) 3);

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.apm;
 
+import org.elasticsearch.Assertions;
 import org.elasticsearch.common.settings.Setting;
 
 import java.security.AccessController;
@@ -228,31 +229,35 @@ abstract class APMAgentSettings {
 
     static final String SETTING_PREFIX = "xpack.apm.tracing.";
 
-    static final Setting.AffixSetting<String> APM_AGENT_SETTINGS = Setting.prefixKeySetting(
-        SETTING_PREFIX + "agent.",
-        (qualifiedKey) -> {
-            final String[] parts = qualifiedKey.split("\\.");
-            final String key = parts[parts.length - 1];
-            final String defaultValue = APM_AGENT_DEFAULT_SETTINGS.getOrDefault(key, "");
-            return new Setting<>(qualifiedKey, defaultValue, (value) -> {
-                if (AGENT_KEYS.contains(key) == false) {
-                    throw new IllegalArgumentException("Unknown APM configuration key: [" + qualifiedKey + "]");
-                }
-                if (STATIC_AGENT_KEYS.contains(key)) {
-                    throw new IllegalArgumentException(
-                        "Cannot set ["
-                            + qualifiedKey
-                            + "] as it is not a dynamic setting - configure it via [config/elasticapm.properties] instead"
-                    );
-                }
-                if (PROHIBITED_AGENT_KEYS.contains(key)) {
-                    throw new IllegalArgumentException("Configuring [" + qualifiedKey + "] is prohibited with Elasticsearch");
-                }
-
+    static final Setting.AffixSetting<String> APM_AGENT_SETTINGS = Setting.prefixKeySetting(SETTING_PREFIX + "agent.", (qualifiedKey) -> {
+        final String[] parts = qualifiedKey.split("\\.");
+        final String key = parts[parts.length - 1];
+        final String defaultValue = APM_AGENT_DEFAULT_SETTINGS.getOrDefault(key, "");
+        return new Setting<>(qualifiedKey, defaultValue, (value) -> {
+            // The `Setting` constructor asserts that a setting's parser doesn't return null when called with the default
+            // value. This makes less sense for prefix settings, but is particularly problematic here since we validate
+            // the setting name and reject unknown keys. Thus, if assertions are enabled, we have to tolerate the "_na_" key,
+            // which comes from `Setting#prefixKeySetting()`.
+            if (Assertions.ENABLED && qualifiedKey.equals("_na_")) {
                 return value;
-            }, Setting.Property.NodeScope, Setting.Property.OperatorDynamic);
-        }
-    );
+            }
+            if (AGENT_KEYS.contains(key) == false) {
+                throw new IllegalArgumentException("Unknown APM configuration key: [" + qualifiedKey + "]");
+            }
+            if (STATIC_AGENT_KEYS.contains(key)) {
+                throw new IllegalArgumentException(
+                    "Cannot set ["
+                        + qualifiedKey
+                        + "] as it is not a dynamic setting - configure it via [config/elasticapm.properties] instead"
+                );
+            }
+            if (PROHIBITED_AGENT_KEYS.contains(key)) {
+                throw new IllegalArgumentException("Configuring [" + qualifiedKey + "] is prohibited with Elasticsearch");
+            }
+
+            return value;
+        }, Setting.Property.NodeScope, Setting.Property.OperatorDynamic);
+    });
 
     static final Setting<List<String>> APM_TRACING_NAMES_INCLUDE_SETTING = Setting.listSetting(
         SETTING_PREFIX + "names.include",

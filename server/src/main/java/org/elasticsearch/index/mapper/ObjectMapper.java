@@ -171,6 +171,12 @@ public class ObjectMapper extends Mapper implements Cloneable {
     }
 
     public static class TypeParser implements Mapper.TypeParser {
+
+        @Override
+        public boolean supportsVersion(Version indexCreatedVersion) {
+            return true;
+        }
+
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
             throws MapperParsingException {

@@ -142,7 +142,7 @@ public class InstallPluginActionTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         pluginDir = createPluginDir(temp);
-        terminal = new MockTerminal();
+        terminal = MockTerminal.create();
         env = createEnv(temp);
         skipJarHellAction = new InstallPluginAction(terminal, null, false) {
             @Override
@@ -793,7 +793,7 @@ public class InstallPluginActionTests extends ESTestCase {
     }
 
     public void testOfficialPluginsHelpSortedAndMissingObviouslyWrongPlugins() throws Exception {
-        MockTerminal mockTerminal = new MockTerminal();
+        MockTerminal mockTerminal = MockTerminal.create();
         new MockInstallPluginCommand().main(new String[] { "--help" }, mockTerminal);
         try (BufferedReader reader = new BufferedReader(new StringReader(mockTerminal.getOutput()))) {
             String line = reader.readLine();
@@ -818,27 +818,10 @@ public class InstallPluginActionTests extends ESTestCase {
     }
 
     public void testInstallXPack() throws IOException {
-        runInstallXPackTest(Build.Flavor.DEFAULT, UserException.class, "this distribution of Elasticsearch contains X-Pack by default");
-        runInstallXPackTest(
-            Build.Flavor.OSS,
-            UserException.class,
-            "X-Pack is not available with the oss distribution; to use X-Pack features use the default distribution"
-        );
-        runInstallXPackTest(Build.Flavor.UNKNOWN, IllegalStateException.class, "your distribution is broken");
-    }
-
-    private <T extends Exception> void runInstallXPackTest(final Build.Flavor flavor, final Class<T> clazz, final String expectedMessage)
-        throws IOException {
-
         final Environment environment = createEnv(temp).v2();
-        final InstallPluginAction flavorAction = new InstallPluginAction(terminal, environment, false) {
-            @Override
-            Build.Flavor buildFlavor() {
-                return flavor;
-            }
-        };
-        final T exception = expectThrows(clazz, () -> flavorAction.execute(List.of(new PluginDescriptor("x-pack"))));
-        assertThat(exception.getMessage(), containsString(expectedMessage));
+        final InstallPluginAction installAction = new InstallPluginAction(terminal, environment, false);
+        var e = expectThrows(UserException.class, () -> installAction.execute(List.of(new PluginDescriptor("x-pack"))));
+        assertThat(e.getMessage(), containsString("this distribution of Elasticsearch contains X-Pack by default"));
     }
 
     public void testInstallMisspelledOfficialPlugins() {

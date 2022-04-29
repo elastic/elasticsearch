@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.sql.execution.search;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -43,13 +44,22 @@ public class SearchHitCursor implements Cursor {
     private final BitSet mask;
     private final int limit;
     private final boolean includeFrozen;
+    private final boolean allowPartialSearchResults;
 
-    SearchHitCursor(SearchSourceBuilder nextQuery, List<HitExtractor> exts, BitSet mask, int remainingLimit, boolean includeFrozen) {
+    SearchHitCursor(
+        SearchSourceBuilder nextQuery,
+        List<HitExtractor> exts,
+        BitSet mask,
+        int remainingLimit,
+        boolean includeFrozen,
+        boolean allowPartialSearchResults
+    ) {
         this.nextQuery = nextQuery;
         this.extractors = exts;
         this.mask = mask;
         this.limit = remainingLimit;
         this.includeFrozen = includeFrozen;
+        this.allowPartialSearchResults = allowPartialSearchResults;
     }
 
     public SearchHitCursor(StreamInput in) throws IOException {
@@ -59,6 +69,7 @@ public class SearchHitCursor implements Cursor {
         extractors = in.readNamedWriteableList(HitExtractor.class);
         mask = BitSet.valueOf(in.readByteArray());
         includeFrozen = in.readBoolean();
+        allowPartialSearchResults = in.getVersion().onOrAfter(Version.V_8_3_0) && in.readBoolean();
     }
 
     @Override
@@ -69,6 +80,9 @@ public class SearchHitCursor implements Cursor {
         out.writeNamedWriteableList(extractors);
         out.writeByteArray(mask.toByteArray());
         out.writeBoolean(includeFrozen);
+        if (out.getVersion().onOrAfter(Version.V_8_3_0)) {
+            out.writeBoolean(allowPartialSearchResults);
+        }
     }
 
     @Override
@@ -96,18 +110,30 @@ public class SearchHitCursor implements Cursor {
         return includeFrozen;
     }
 
+    boolean allowPartialSearchResults() {
+        return allowPartialSearchResults;
+    }
+
     @Override
     public void nextPage(SqlConfiguration cfg, Client client, ActionListener<Page> listener) {
         if (log.isTraceEnabled()) {
             log.trace("About to execute search hit query {}", StringUtils.toString(nextQuery));
         }
 
-        SearchRequest request = prepareRequest(nextQuery, cfg.requestTimeout(), includeFrozen);
+        SearchRequest request = prepareRequest(nextQuery, cfg, includeFrozen);
 
         client.search(
             request,
             ActionListener.wrap(
-                (SearchResponse response) -> handle(client, response, request.source(), makeRowSet(response), listener, includeFrozen),
+                (SearchResponse response) -> handle(
+                    client,
+                    response,
+                    request.source(),
+                    makeRowSet(response),
+                    listener,
+                    includeFrozen,
+                    allowPartialSearchResults
+                ),
                 listener::onFailure
             )
         );
@@ -123,7 +149,8 @@ public class SearchHitCursor implements Cursor {
         SearchSourceBuilder source,
         Supplier<SearchHitRowSet> makeRowSet,
         ActionListener<Page> listener,
-        boolean includeFrozen
+        boolean includeFrozen,
+        boolean allowPartialSearchResults
     ) {
 
         if (log.isTraceEnabled()) {
@@ -148,7 +175,8 @@ public class SearchHitCursor implements Cursor {
                 rowSet.extractors(),
                 rowSet.mask(),
                 rowSet.getRemainingLimit(),
-                includeFrozen
+                includeFrozen,
+                allowPartialSearchResults
             );
             listener.onResponse(new Page(rowSet, nextCursor));
         }
@@ -167,7 +195,7 @@ public class SearchHitCursor implements Cursor {
 
     @Override
     public int hashCode() {
-        return Objects.hash(nextQuery, extractors, limit, mask, includeFrozen);
+        return Objects.hash(nextQuery, extractors, limit, mask, includeFrozen, allowPartialSearchResults);
     }
 
     @Override
@@ -179,6 +207,7 @@ public class SearchHitCursor implements Cursor {
         return Objects.equals(nextQuery, other.nextQuery)
             && Objects.equals(extractors, other.extractors)
             && Objects.equals(limit, other.limit)
-            && Objects.equals(includeFrozen, other.includeFrozen);
+            && Objects.equals(includeFrozen, other.includeFrozen)
+            && Objects.equals(allowPartialSearchResults, other.allowPartialSearchResults);
     }
 }

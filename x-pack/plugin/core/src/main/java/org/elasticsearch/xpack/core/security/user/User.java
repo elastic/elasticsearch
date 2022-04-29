@@ -228,13 +228,18 @@ public class User implements ToXContentObject {
     }
 
     public static boolean isInternal(User user) {
-        return SystemUser.is(user) || XPackUser.is(user) || XPackSecurityUser.is(user) || AsyncSearchUser.is(user);
+        return SystemUser.is(user)
+            || XPackUser.is(user)
+            || XPackSecurityUser.is(user)
+            || SecurityProfileUser.is(user)
+            || AsyncSearchUser.is(user);
     }
 
     public static boolean isInternalUsername(String username) {
         return SystemUser.NAME.equals(username)
             || XPackUser.NAME.equals(username)
             || XPackSecurityUser.NAME.equals(username)
+            || SecurityProfileUser.NAME.equals(username)
             || AsyncSearchUser.NAME.equals(username);
     }
 

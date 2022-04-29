@@ -50,7 +50,7 @@ public class InferTrainedModelDeploymentAction extends ActionType<InferTrainedMo
     /**
      * Request for inference against the deployment.
      *
-     * The task gets routed to a node that indicates its local model allocation is started
+     * The task gets routed to a node that indicates its local model assignment is started
      *
      * For indicating timeout, the caller should call `setInferenceTimeout` and not the base class `setTimeout` method
      */

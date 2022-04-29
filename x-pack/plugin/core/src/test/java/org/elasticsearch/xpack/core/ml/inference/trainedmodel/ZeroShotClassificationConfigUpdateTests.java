@@ -27,6 +27,22 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ZeroShotClassificationConfigUpdateTests extends AbstractNlpConfigUpdateTestCase<ZeroShotClassificationConfigUpdate> {
 
+    public static ZeroShotClassificationConfigUpdate randomUpdate() {
+        return new ZeroShotClassificationConfigUpdate(
+            randomBoolean() ? null : randomList(1, 5, () -> randomAlphaOfLength(10)),
+            randomBoolean() ? null : randomBoolean(),
+            randomBoolean() ? null : randomAlphaOfLength(5),
+            randomBoolean() ? null : new BertTokenizationUpdate(randomFrom(Tokenization.Truncate.values()), null)
+        );
+    }
+
+    public static ZeroShotClassificationConfigUpdate mutateForVersion(ZeroShotClassificationConfigUpdate instance, Version version) {
+        if (version.before(Version.V_8_1_0)) {
+            return new ZeroShotClassificationConfigUpdate(instance.getLabels(), instance.getMultiLabel(), instance.getResultsField(), null);
+        }
+        return instance;
+    }
+
     @Override
     protected boolean supportsUnknownFields() {
         return false;
@@ -49,10 +65,7 @@ public class ZeroShotClassificationConfigUpdateTests extends AbstractNlpConfigUp
 
     @Override
     protected ZeroShotClassificationConfigUpdate mutateInstanceForVersion(ZeroShotClassificationConfigUpdate instance, Version version) {
-        if (version.before(Version.V_8_1_0)) {
-            return new ZeroShotClassificationConfigUpdate(instance.getLabels(), instance.getMultiLabel(), instance.getResultsField(), null);
-        }
-        return instance;
+        return mutateForVersion(instance, version);
     }
 
     @Override
@@ -197,12 +210,7 @@ public class ZeroShotClassificationConfigUpdateTests extends AbstractNlpConfigUp
     }
 
     public static ZeroShotClassificationConfigUpdate createRandom() {
-        return new ZeroShotClassificationConfigUpdate(
-            randomBoolean() ? null : randomList(1, 5, () -> randomAlphaOfLength(10)),
-            randomBoolean() ? null : randomBoolean(),
-            randomBoolean() ? null : randomAlphaOfLength(5),
-            randomBoolean() ? null : new BertTokenizationUpdate(randomFrom(Tokenization.Truncate.values()), null)
-        );
+        return randomUpdate();
     }
 
     @Override

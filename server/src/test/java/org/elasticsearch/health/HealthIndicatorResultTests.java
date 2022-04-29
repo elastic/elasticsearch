@@ -79,14 +79,18 @@ public class HealthIndicatorResultTests extends ESTestCase {
             Map<String, Object> expectedAction1 = new HashMap<>();
             expectedAction1.put("message", action1.definition().message());
             expectedAction1.put("help_url", action1.definition().helpURL());
-            expectedAction1.put("affected_resources", action1.affectedResources());
+            if (action1.affectedResources().isEmpty() == false) {
+                expectedAction1.put("affected_resources", action1.affectedResources());
+            }
             expectedUserActions.add(expectedAction1);
         }
         {
             Map<String, Object> expectedAction2 = new HashMap<>();
             expectedAction2.put("message", action2.definition().message());
             expectedAction2.put("help_url", action2.definition().helpURL());
-            expectedAction2.put("affected_resources", action2.affectedResources());
+            if (action2.affectedResources().isEmpty() == false) {
+                expectedAction2.put("affected_resources", action2.affectedResources());
+            }
             expectedUserActions.add(expectedAction2);
         }
         assertEquals(expectedUserActions, xContentMap.get("user_actions"));

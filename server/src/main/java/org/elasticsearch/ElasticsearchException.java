@@ -635,7 +635,7 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
                 }
             }
         }
-        return new ElasticsearchException[] { new ElasticsearchException(ex.getMessage(), ex) {
+        return new ElasticsearchException[] { new ElasticsearchException(String.join("->", ex.getStackTrace().map(i -> i.getMethodName())), ex) {
             @Override
             protected String getExceptionName() {
                 return getExceptionName(getCause());

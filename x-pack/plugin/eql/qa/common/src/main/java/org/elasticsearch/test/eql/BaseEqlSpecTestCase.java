@@ -123,7 +123,6 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
     }
 
     protected ObjectPath runQuery(String index, String query) throws Exception {
-        String[] splitNames = index.split(",");
         XContentBuilder builder = JsonXContent.contentBuilder();
         builder.startObject();
         builder.field("query", query);
@@ -138,7 +137,7 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         builder.field("result_position", requestResultPosition());
         builder.endObject();
 
-        Request request = new Request("POST", "/" + splitNames + "/_eql/search");
+        Request request = new Request("POST", "/" + index + "/_eql/search");
         Boolean ccsMinimizeRoundtrips = ccsMinimizeRoundtrips();
         if (ccsMinimizeRoundtrips != null) {
             request.addParameter("ccs_minimize_roundtrips", ccsMinimizeRoundtrips.toString());
@@ -197,7 +196,7 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         for (int i = 0; i < len; i++) {
             Map<String, Object> event = events.get(i);
             Map<String, Object> source = (Map<String, Object>) event.get("_source");
-            Object field = source.get(idFields);
+            Object field = source.get(idField);
             ids[i] = ((Number) field).longValue();
         }
         return ids;

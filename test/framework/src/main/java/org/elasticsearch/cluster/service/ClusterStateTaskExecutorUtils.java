@@ -128,5 +128,10 @@ public class ClusterStateTaskExecutorUtils {
             assert task instanceof ClusterStateAckListener == false;
             this.succeeded = true;
         }
+
+        @Override
+        public String toString() {
+            return "TestTaskContext[" + task + "]";
+        }
     }
 }

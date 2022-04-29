@@ -21,6 +21,7 @@ import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.ImpactArea;
 import org.elasticsearch.health.SimpleHealthIndicatorDetails;
+import org.elasticsearch.health.UserAction;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -65,6 +66,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         String summary;
         Map<String, Object> details = new HashMap<>();
         Collection<HealthIndicatorImpact> impacts = new ArrayList<>();
+        List<UserAction> userActions = new ArrayList<>();
         MasterHistory localMasterHistory = masterHistoryService.getLocalMasterHistory();
         if (hasSeenMasterInLast30Seconds()) {
             long masterChanges = getNumberOfMasterChanges(localMasterHistory);
@@ -137,7 +139,8 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
             stableMasterStatus,
             summary,
             includeDetails ? new SimpleHealthIndicatorDetails(details) : HealthIndicatorDetails.EMPTY,
-            impacts
+            impacts,
+            userActions
         );
     }
 

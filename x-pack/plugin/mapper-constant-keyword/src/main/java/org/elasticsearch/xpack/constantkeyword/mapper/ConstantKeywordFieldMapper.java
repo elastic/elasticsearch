@@ -163,7 +163,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             if (searchAfter != null) {
                 if (searchAfter.compareTo(value) >= 0) {
                     // The constant value is before the searchAfter value so must be ignored
-                    return null;
+                    return TermsEnum.EMPTY;
                 }
             }
             return new SimpleTermCountEnum(value);

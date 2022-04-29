@@ -1,0 +1,5 @@
+pr: 86292
+summary: Add option to define a `geo_bounding_box` query using a geohash or a geotile
+area: Geo
+type: enhancement
+issues: []

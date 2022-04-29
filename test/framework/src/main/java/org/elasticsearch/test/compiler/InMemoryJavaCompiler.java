@@ -17,7 +17,6 @@ import java.security.AccessController;
 import java.security.DomainCombiner;
 import java.security.PrivilegedAction;
 import java.security.ProtectionDomain;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
@@ -169,13 +168,11 @@ public class InMemoryJavaCompiler {
     }
 
     private static CompilationTask getCompilationTask(List<InMemoryJavaFileObject> files, String... options) {
-        List<String> opts = Arrays.stream(options).toList();
-        return getCompiler().getTask(null, new FileManagerWrapper(files), null, opts, null, files);
+        return getCompiler().getTask(null, new FileManagerWrapper(files), null, List.of(options), null, files);
     }
 
     private static CompilationTask getCompilationTask(InMemoryJavaFileObject file, String... options) {
-        List<String> opts = Arrays.stream(options).toList();
-        return getCompiler().getTask(null, new FileManagerWrapper(file), null, opts, null, List.of(file));
+        return getCompiler().getTask(null, new FileManagerWrapper(file), null, List.of(options), null, List.of(file));
     }
 
     // -- security manager related stuff, to facilitate asserting permissions during compilation

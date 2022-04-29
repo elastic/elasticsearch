@@ -70,10 +70,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
         // TODO must also capture any shards that the existing-shards allocators have allocated this pass, not just the ignored ones
 
-        // TODO pass the listener to the input
         desiredBalanceComputation.onNewInput(
             new DesiredBalanceInput(allocation.immutableClone(), new ArrayList<>(allocation.routingNodes().unassigned().ignored()))
         );
+        listener.onResponse(AcknowledgedResponse.TRUE);// TODO listener need to be passed to the above call
 
         // TODO possibly add a bounded wait for the computation to complete?
         // Otherwise we will have to do a second cluster state update straight away.

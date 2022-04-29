@@ -95,7 +95,7 @@ Indicates that {es} should use the `RS256` or `HS256` signature algorithms to
 verify the signature of the JWT from the JWT issuer.
 
 `pkc_jwkset_path`::
-The file path to a JSON Web Key (JWK) set containing the public key material
+The file path to a JSON Web Key Set (JWKS) containing the public key material
 that the JWT realm uses to verify JWT signatures. If a path is provided,
 then it is resolved relative to the {es} configuration directory.
 
@@ -118,7 +118,7 @@ SHA-256 algorithm `HS256` in the example:
 ----
 bin/elasticsearch-keystore add-file xpack.security.authc.realms.jwt.jwt1.hmac_jwkset <path> <1>
 ----
-<1> Path to a JWK Set, which is a resource for a set of JSON-encoded secret keys.
+<1> Path to a JWKS, which is a resource for a set of JSON-encoded secret keys.
 The file can be removed after the contents are loaded into the {es} keystore setting.
 +
 [NOTE]

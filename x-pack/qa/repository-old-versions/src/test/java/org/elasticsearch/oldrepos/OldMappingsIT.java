@@ -116,6 +116,7 @@ public class OldMappingsIT extends ESRestTestCase {
                 .field("agent", "agent2 agent2")
                 .endObject()
                 .endObject()
+                .field("completion", "some_value")
                 .endObject();
             doc2.setJsonEntity(Strings.toString(bodyDoc2));
             assertOK(oldEs.performRequest(doc2));
@@ -251,6 +252,30 @@ public class OldMappingsIT extends ESRestTestCase {
         Map<String, Object> hit = (Map<String, Object>) hits.get(0);
         assertThat(hit, hasKey("_score"));
         assertEquals(1.0d, (double) hit.get("_score"), 0.01d);
+    }
+
+    public void testSearchFieldsOnPlaceholderField() throws IOException {
+        Request search = new Request("POST", "/" + "filebeat" + "/_search");
+        XContentBuilder query = XContentBuilder.builder(XContentType.JSON.xContent())
+            .startObject()
+            .startObject("query")
+            .startObject("match")
+            .startObject("apache2.access.url")
+            .field("query", "myurl2")
+            .endObject()
+            .endObject()
+            .endObject()
+            .startArray("fields")
+            .value("completion")
+            .endArray()
+            .endObject();
+        search.setJsonEntity(Strings.toString(query));
+        Map<String, Object> response = entityAsMap(client().performRequest(search));
+        List<?> hits = (List<?>) (XContentMapValues.extractValue("hits.hits", response));
+        assertThat(hits, hasSize(1));
+        logger.info(hits);
+        Map<?, ?> fields = (Map<?, ?>) (XContentMapValues.extractValue("fields", (Map<?, ?>) hits.get(0)));
+        assertEquals(List.of("some_value"), fields.get("completion"));
     }
 
 }

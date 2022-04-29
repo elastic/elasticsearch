@@ -234,10 +234,7 @@
         },
         "tags": {
           "description": "User provided tags for the Elastic Agent",
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+          "type": "keyword"
         }
       }
     }

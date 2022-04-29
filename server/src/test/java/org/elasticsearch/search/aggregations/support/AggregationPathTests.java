@@ -18,13 +18,13 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class AggregationPathTests extends ESTestCase {
     public void testInvalidPaths() {
-        assertInvalidPath("[foo]");
-        assertInvalidPath("foo[bar");
-        assertInvalidPath("foo[");
-        assertInvalidPath("foo[]");
-        assertInvalidPath("foo[bar]baz");
-        assertInvalidPath(".foo");
-        assertInvalidPath("foo.");
+        assertInvalidPath("[foo]", "brackets at the beginning of the token expression");
+        assertInvalidPath("foo[bar", "open brackets without closing at the token expression");
+        assertInvalidPath("foo[", "open bracket at the end of the token expression");
+        assertInvalidPath("foo[]", "empty brackets in the token expression");
+        assertInvalidPath("foo[bar]baz", "brackets not enclosing at the end of the token expression");
+        assertInvalidPath(".foo", "dot separator at the beginning of the token expression");
+        assertInvalidPath("foo.", "dot separator at the end of the token expression");
     }
 
     public void testValidPaths() {
@@ -39,8 +39,8 @@ public class AggregationPathTests extends ESTestCase {
         assertValidPath("foo.bar>baz[qux]", tokens().add("foo.bar").addKey("baz", "qux"));
     }
 
-    private void assertInvalidPath(String path) {
-        expectThrows(AggregationExecutionException.class, () -> AggregationPath.parse(path));
+    private AggregationExecutionException assertInvalidPath(String path, String _unused) {
+        return expectThrows(AggregationExecutionException.class, () -> AggregationPath.parse(path));
     }
 
     private void assertValidPath(String path, Tokens tokenz) {

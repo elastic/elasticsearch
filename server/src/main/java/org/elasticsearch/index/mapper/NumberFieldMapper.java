@@ -369,12 +369,8 @@ public class NumberFieldMapper extends FieldMapper {
 
             private static void validateParsed(float value) {
                 if (Float.isFinite(HalfFloatPoint.sortableShortToHalfFloat(HalfFloatPoint.halfFloatToSortableShort(value))) == false) {
-                    throwOnInfiniteHalfFloat(value);
+                    throw new IllegalArgumentException("[half_float] supports only finite values, but got [" + value + "]");
                 }
-            }
-
-            private static void throwOnInfiniteHalfFloat(float value) {
-                throw new IllegalArgumentException("[half_float] supports only finite values, but got [" + value + "]");
             }
         },
         FLOAT("float", NumericType.FLOAT) {
@@ -498,12 +494,8 @@ public class NumberFieldMapper extends FieldMapper {
 
             private static void validateParsed(float value) {
                 if (Float.isFinite(value) == false) {
-                    throwOnInfiniteFloat(value);
+                    throw new IllegalArgumentException("[float] supports only finite values, but got [" + value + "]");
                 }
-            }
-
-            private static void throwOnInfiniteFloat(float value) {
-                throw new IllegalArgumentException("[float] supports only finite values, but got [" + value + "]");
             }
         },
         DOUBLE("double", NumericType.DOUBLE) {
@@ -605,12 +597,8 @@ public class NumberFieldMapper extends FieldMapper {
 
             private static void validateParsed(double value) {
                 if (Double.isFinite(value) == false) {
-                    throwOnInfiniteDouble(value);
+                    throw new IllegalArgumentException("[double] supports only finite values, but got [" + value + "]");
                 }
-            }
-
-            private static void throwOnInfiniteDouble(double value) {
-                throw new IllegalArgumentException("[double] supports only finite values, but got [" + value + "]");
             }
         },
         BYTE("byte", NumericType.BYTE) {
@@ -1477,19 +1465,15 @@ public class NumberFieldMapper extends FieldMapper {
         try {
             value = value(context.parser(), type, nullValue, coerce());
         } catch (IllegalArgumentException e) {
-            handleIllegalArgumentException(context, e);
-            return;
+            if (ignoreMalformed.value() && context.parser().currentToken().isValue()) {
+                context.addIgnoredField(mappedFieldType.name());
+                return;
+            } else {
+                throw e;
+            }
         }
         if (value != null) {
             indexValue(context, value);
-        }
-    }
-
-    private void handleIllegalArgumentException(DocumentParserContext context, IllegalArgumentException e) {
-        if (ignoreMalformed.value() == false || context.parser().currentToken().isValue() == false) {
-            throw e;
-        } else {
-            context.addIgnoredField(mappedFieldType.name());
         }
     }
 

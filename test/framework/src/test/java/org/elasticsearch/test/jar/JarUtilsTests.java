@@ -22,7 +22,7 @@ import java.util.jar.Manifest;
 import java.util.stream.Collectors;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
-import static org.elasticsearch.test.jar.JarUtils.createJar;
+import static org.elasticsearch.test.jar.JarUtils.createJarWithEntries;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -45,7 +45,7 @@ public class JarUtilsTests extends ESTestCase {
             "Multi-Release: true\n".getBytes(UTF_8)
         );
         Path jar = dir.resolve("foo.jar");
-        createJar(jar, jarEntries);
+        JarUtils.createJarWithEntries(jar, jarEntries);
 
         try (JarFile jarFile = new JarFile(jar.toFile())) {
             Map<String, byte[]> entries = jarFile.stream().collect(Collectors.toMap(JarEntry::getName, e -> entryContents(e, jarFile)));

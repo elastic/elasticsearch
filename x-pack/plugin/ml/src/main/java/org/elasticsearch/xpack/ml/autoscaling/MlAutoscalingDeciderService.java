@@ -32,14 +32,14 @@ import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartDataFrameAnalyticsAction;
 import org.elasticsearch.xpack.core.ml.action.StartDatafeedAction.DatafeedParams;
 import org.elasticsearch.xpack.core.ml.dataframe.DataFrameAnalyticsState;
-import org.elasticsearch.xpack.core.ml.inference.allocation.AllocationState;
-import org.elasticsearch.xpack.core.ml.inference.allocation.TrainedModelAllocation;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
+import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.JobState;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeState;
 import org.elasticsearch.xpack.core.ml.job.snapshot.upgrade.SnapshotUpgradeTaskParams;
 import org.elasticsearch.xpack.ml.MachineLearning;
-import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMetadata;
+import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.ml.job.NodeLoad;
 import org.elasticsearch.xpack.ml.job.NodeLoadDetector;
 import org.elasticsearch.xpack.ml.process.MlMemoryTracker;
@@ -354,7 +354,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         Collection<PersistentTask<?>> anomalyDetectionTasks = anomalyDetectionTasks(tasks);
         Collection<PersistentTask<?>> snapshotUpgradeTasks = snapshotUpgradeTasks(tasks);
         Collection<PersistentTask<?>> dataframeAnalyticsTasks = dataframeAnalyticsTasks(tasks);
-        Map<String, TrainedModelAllocation> modelAllocations = TrainedModelAllocationMetadata.fromState(clusterState).modelAllocations();
+        Map<String, TrainedModelAssignment> modelAssignments = TrainedModelAssignmentMetadata.fromState(clusterState).modelAssignments();
         final List<String> waitingAnomalyJobs = anomalyDetectionTasks.stream()
             .filter(t -> AWAITING_LAZY_ASSIGNMENT.equals(t.getAssignment()))
             .map(t -> ((OpenJobAction.JobParams) t.getParams()).getJobId())
@@ -367,10 +367,10 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
             .filter(t -> AWAITING_LAZY_ASSIGNMENT.equals(t.getAssignment()))
             .map(t -> ((StartDataFrameAnalyticsAction.TaskParams) t.getParams()).getId())
             .collect(Collectors.toList());
-        final List<String> waitingAllocatedModels = modelAllocations.entrySet()
+        final List<String> waitingAllocatedModels = modelAssignments.entrySet()
             .stream()
             // TODO: Eventually care about those that are STARTED but not FULLY_ALLOCATED
-            .filter(e -> e.getValue().getAllocationState().equals(AllocationState.STARTING) && e.getValue().getNodeRoutingTable().isEmpty())
+            .filter(e -> e.getValue().getAssignmentState().equals(AssignmentState.STARTING) && e.getValue().getNodeRoutingTable().isEmpty())
             .map(Map.Entry::getKey)
             .collect(Collectors.toList());
 
@@ -406,7 +406,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         // We don't need to check anything as there are no tasks
         // This is a quick path to downscale.
         // simply return `0` for scale down if delay is satisfied
-        if (anomalyDetectionTasks.isEmpty() && dataframeAnalyticsTasks.isEmpty() && modelAllocations.isEmpty()) {
+        if (anomalyDetectionTasks.isEmpty() && dataframeAnalyticsTasks.isEmpty() && modelAssignments.isEmpty()) {
             long msLeftToScale = msLeftToDownScale(configuration);
             if (msLeftToScale > 0) {
                 return new AutoscalingDeciderResult(
@@ -552,18 +552,18 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
         );
         largestJobOrModel = Math.max(
             largestJobOrModel,
-            modelAllocations.values().stream().mapToLong(t -> t.getTaskParams().estimateMemoryUsageBytes()).max().orElse(0L)
+            modelAssignments.values().stream().mapToLong(t -> t.getTaskParams().estimateMemoryUsageBytes()).max().orElse(0L)
         );
 
         // This is an exceptionally weird state
         // Our view of the memory is stale or we have tasks where the required job memory is 0, which should be impossible
-        if (largestJobOrModel == 0L && (dataframeAnalyticsTasks.size() + anomalyDetectionTasks.size() + modelAllocations.size() > 0)) {
+        if (largestJobOrModel == 0L && (dataframeAnalyticsTasks.size() + anomalyDetectionTasks.size() + modelAssignments.size() > 0)) {
             logger.warn(
                 "The calculated minimum required node size was unexpectedly [0] as there are "
-                    + "[{}] anomaly job tasks, [{}] data frame analytics tasks and [{}] model allocations",
+                    + "[{}] anomaly job tasks, [{}] data frame analytics tasks and [{}] model assignments",
                 anomalyDetectionTasks.size(),
                 dataframeAnalyticsTasks.size(),
-                modelAllocations.size()
+                modelAssignments.size()
             );
             return noScaleResultOrRefresh(
                 reasonBuilder,
@@ -824,7 +824,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
                     reasonBuilder.setRequiredCapacity(requiredCapacity)
                         .setSimpleReason(
                             "requesting scale up as number of jobs in queues exceeded configured limit "
-                                + "or there is at least one trained model waiting for allocation "
+                                + "or there is at least one trained model waiting for assignment "
                                 + "and current capacity is not large enough for waiting jobs or models"
                         )
                         .build()
@@ -987,7 +987,7 @@ public class MlAutoscalingDeciderService implements AutoscalingDeciderService, L
     }
 
     private Long getAllocatedModelRequirement(String modelId) {
-        return mlMemoryTracker.getTrainedModelAllocationMemoryRequirement(modelId);
+        return mlMemoryTracker.getTrainedModelAssignmentMemoryRequirement(modelId);
     }
 
     private Long getAnalyticsMemoryRequirement(PersistentTask<?> task) {

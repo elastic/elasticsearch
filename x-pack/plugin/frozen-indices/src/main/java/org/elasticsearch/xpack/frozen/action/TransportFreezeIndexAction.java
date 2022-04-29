@@ -19,7 +19,6 @@ import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -142,7 +141,7 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
         final FreezeRequest request,
         final ActionListener<FreezeResponse> listener
     ) {
-        clusterService.submitStateUpdateTask(
+        submitUnbatchedTask(
             "toggle-frozen-settings",
             new AckedClusterStateUpdateTask(Priority.URGENT, request, listener.delegateFailure((delegate, acknowledgedResponse) -> {
                 OpenIndexClusterStateUpdateRequest updateRequest = new OpenIndexClusterStateUpdateRequest().ackTimeout(request.timeout())
@@ -210,8 +209,7 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
                     }
                     return ClusterState.builder(currentState).blocks(blocks).metadata(builder).build();
                 }
-            },
-            newExecutor()
+            }
         );
     }
 
@@ -222,7 +220,7 @@ public final class TransportFreezeIndexAction extends TransportMasterNodeAction<
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(@SuppressWarnings("SameParameterValue") String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 }

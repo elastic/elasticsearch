@@ -211,7 +211,7 @@ public class InternalEngine extends Engine {
             mergeScheduler = scheduler = new EngineMergeScheduler(
                 engineConfig.getShardId(),
                 engineConfig.getIndexSettings(),
-                engineConfig.getThreadPool()::relativeTimeInNanos
+                engineConfig.getThreadPool()::rawRelativeTimeInNanos
             );
             throttle = new IndexThrottle();
             try {
@@ -266,7 +266,7 @@ public class InternalEngine extends Engine {
             }
             this.lastRefreshedCheckpointListener = new LastRefreshedCheckpointListener(localCheckpointTracker.getProcessedCheckpoint());
             this.internalReaderManager.addListener(lastRefreshedCheckpointListener);
-            this.totalRefreshTimeTracker = new TotalRefreshTimeTracker(engineConfig.getThreadPool()::relativeTimeInNanos);
+            this.totalRefreshTimeTracker = new TotalRefreshTimeTracker(engineConfig.getThreadPool()::rawRelativeTimeInNanos);
             this.internalReaderManager.addListener(totalRefreshTimeTracker);
             maxSeqNoOfUpdatesOrDeletes = new AtomicLong(SequenceNumbers.max(localCheckpointTracker.getMaxSeqNo(), translog.getMaxSeqNo()));
             if (localCheckpointTracker.getPersistedCheckpoint() < localCheckpointTracker.getMaxSeqNo()) {
@@ -282,7 +282,7 @@ public class InternalEngine extends Engine {
             }
             completionStatsCache = new CompletionStatsCache(() -> acquireSearcher("completion_stats"));
             this.externalReaderManager.addListener(completionStatsCache);
-            this.relativeTimeInNanosSupplier = engineConfig.getThreadPool()::relativeTimeInNanos;
+            this.relativeTimeInNanosSupplier = engineConfig.getThreadPool()::rawRelativeTimeInNanos;
             success = true;
         } finally {
             if (success == false) {

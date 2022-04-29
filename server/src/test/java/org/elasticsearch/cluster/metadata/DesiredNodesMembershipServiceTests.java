@@ -38,7 +38,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
 
 public class DesiredNodesMembershipServiceTests extends DesiredNodesTestCase {
     private TestThreadPool threadPool;
@@ -61,7 +60,7 @@ public class DesiredNodesMembershipServiceTests extends DesiredNodesTestCase {
         clusterService.close();
     }
 
-    public void testSimpleTracking() {
+    public void testDesiredNodeIsConsideredAsMemberOnceSeen() {
         final var tracker = DesiredNodesMembershipService.create(clusterService);
 
         applyClusterState("add new nodes", this::withNewNodes);
@@ -86,87 +85,51 @@ public class DesiredNodesMembershipServiceTests extends DesiredNodesTestCase {
 
         applyClusterState("remove some nodes", state -> ClusterState.builder(state).nodes(discoveryNodes).build());
 
-        assertThat(tracker.isMember(leavingDesiredNode), is(equalTo(false)));
-    }
-
-    public void testFlappyNode() {
-        final var tracker = DesiredNodesMembershipService.create(clusterService);
-
-        applyClusterState("add new nodes", this::withNewNodes);
-        applyClusterState("add desired nodes", this::desiredNodesWithAllClusterNodes);
-
-        final var desiredNodes = DesiredNodes.latestFromClusterState(clusterService.state());
-        final var clusterState = clusterService.state();
-        final var leavingNode = randomValueOtherThan(clusterState.nodes().getMasterNode(), () -> randomFrom(clusterState.nodes()));
-        final var discoveryNodes = DiscoveryNodes.builder(clusterState.nodes()).remove(leavingNode);
-        final var leavingDesiredNode = desiredNodes.find(leavingNode.getExternalId());
-
-        applyClusterState("remove some nodes", state -> ClusterState.builder(state).nodes(discoveryNodes).build());
-
-        assertThat(tracker.isMember(leavingDesiredNode), is(equalTo(false)));
-
-        applyClusterState(
-            "Add node back",
-            state -> ClusterState.builder(state)
-                .nodes(DiscoveryNodes.builder(state.nodes()).add(newNode(leavingDesiredNode.externalId())))
-                .build()
-        );
-
+        // As long as the node remains in the DesiredNodes we consider it as member
         assertThat(tracker.isMember(leavingDesiredNode), is(equalTo(true)));
     }
 
-    public void testNodeLeavesAndJoinsWithNewHistoryId() {
+    public void testMembershipIsUpdatedAfterDesiredNodesAreUpdated() {
         final var tracker = DesiredNodesMembershipService.create(clusterService);
 
         applyClusterState("add new nodes", this::withNewNodes);
+
+        assertThat(DesiredNodesMetadata.fromClusterState(clusterService.state()), is(equalTo(DesiredNodesMetadata.EMPTY)));
+        assertThat(tracker.trackedMembers(), is(equalTo(0)));
+
         applyClusterState("add desired nodes", this::desiredNodesWithAllClusterNodes);
 
+        assertThat(tracker.trackedMembers(), is(greaterThan(0)));
+
         final var desiredNodes = DesiredNodes.latestFromClusterState(clusterService.state());
-        final var clusterState = clusterService.state();
-        final var leavingNode = randomValueOtherThan(clusterState.nodes().getMasterNode(), () -> randomFrom(clusterState.nodes()));
-        final var discoveryNodes = DiscoveryNodes.builder(clusterState.nodes()).remove(leavingNode);
-        final var leavingDesiredNode = desiredNodes.find(leavingNode.getExternalId());
+        assertThat(desiredNodes.nodes(), is(not(empty())));
+        for (var desiredNode : desiredNodes) {
+            assertThat(tracker.isMember(desiredNode), is(equalTo(true)));
+        }
 
-        applyClusterState("remove some nodes", state -> ClusterState.builder(state).nodes(discoveryNodes).build());
+        final var removedDesiredNodes = randomSubsetOf(randomInt(desiredNodes.nodes().size() - 1), desiredNodes.nodes());
+        final var survivingDesiredNodes = new ArrayList<>(desiredNodes.nodes());
+        survivingDesiredNodes.removeAll(removedDesiredNodes);
 
-        assertThat(tracker.isMember(leavingDesiredNode), is(equalTo(false)));
-
-        final var desiredNodesWithNewHistoryId = new DesiredNodes(UUIDs.randomBase64UUID(), 1, desiredNodes.nodes());
+        final var updatedDesiredNodes = new DesiredNodes(desiredNodes.historyID(), desiredNodes.version() + 1, survivingDesiredNodes);
 
         applyClusterState(
-            "Add node back and a new desired nodes",
+            "Update desired nodes",
             state -> ClusterState.builder(state)
-                .nodes(DiscoveryNodes.builder(clusterState.nodes()))
                 .metadata(
                     Metadata.builder(state.metadata())
-                        .putCustom(DesiredNodesMetadata.TYPE, new DesiredNodesMetadata(desiredNodesWithNewHistoryId))
+                        .putCustom(DesiredNodesMetadata.TYPE, new DesiredNodesMetadata(updatedDesiredNodes))
                         .build()
                 )
                 .build()
         );
 
-        for (DesiredNode desiredNode : desiredNodesWithNewHistoryId) {
-            assertThat(tracker.isMember(desiredNode), is(equalTo(true)));
-        }
-    }
-
-    public void testMasterDemotionClearsMembers() {
-        final var tracker = DesiredNodesMembershipService.create(clusterService);
-        assertThat(tracker.trackedMembers(), is(equalTo(0)));
-
-        applyClusterState("add desired nodes node", this::desiredNodesWithAllClusterNodes);
-
-        final var desiredNodes = DesiredNodes.latestFromClusterState(clusterService.state());
-        for (DesiredNode desiredNode : desiredNodes) {
-            assertThat(tracker.isMember(desiredNode), is(equalTo(true)));
+        for (DesiredNode survivingDesiredNode : survivingDesiredNodes) {
+            assertThat(tracker.isMember(survivingDesiredNode), is(equalTo(true)));
         }
 
-        applyClusterState("demote master node", this::demoteMasterNode);
-
-        assertThat(tracker.trackedMembers(), is(equalTo(0)));
-
-        for (DesiredNode desiredNode : desiredNodes) {
-            assertThat(tracker.isMember(desiredNode), is(equalTo(false)));
+        for (DesiredNode removedDesiredNode : removedDesiredNodes) {
+            assertThat(tracker.isMember(removedDesiredNode), is(equalTo(false)));
         }
     }
 
@@ -237,21 +200,6 @@ public class DesiredNodesMembershipServiceTests extends DesiredNodesTestCase {
                     )
                     .build()
             )
-            .build();
-    }
-
-    private ClusterState demoteMasterNode(final ClusterState currentState) {
-        final DiscoveryNode node = new DiscoveryNode(
-            "other",
-            ESTestCase.buildNewFakeTransportAddress(),
-            Collections.emptyMap(),
-            DiscoveryNodeRole.roles(),
-            Version.CURRENT
-        );
-        assertThat(currentState.nodes().get(node.getId()), nullValue());
-
-        return ClusterState.builder(currentState)
-            .nodes(DiscoveryNodes.builder(currentState.nodes()).add(node).masterNodeId(node.getId()))
             .build();
     }
 

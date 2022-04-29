@@ -32,50 +32,38 @@ public class DesiredNodesMembershipService implements ClusterStateListener {
 
     @Override
     public synchronized void clusterChanged(ClusterChangedEvent event) {
-        if (event.localNodeMaster()) {
-            final var clusterState = event.state();
-            final var desiredNodes = DesiredNodes.latestFromClusterState(clusterState);
-            if (desiredNodes == null) {
-                return;
+        final var clusterState = event.state();
+        final var desiredNodes = DesiredNodes.latestFromClusterState(clusterState);
+        if (desiredNodes == null) {
+            return;
+        }
+
+        if (event.nodesChanged()) {
+            final var nodesDelta = event.nodesDelta();
+
+            for (DiscoveryNode addedNode : nodesDelta.addedNodes()) {
+                final var desiredNode = desiredNodes.find(addedNode.getExternalId());
+                if (desiredNode != null) {
+                    members.add(desiredNode);
+                }
+            }
+        } else if (event.changedCustomMetadataSet().contains(DesiredNodesMetadata.TYPE)) {
+            if (desiredNodes.historyID().equals(latestHistoryId) == false) {
+                members.clear();
+            }
+            latestHistoryId = desiredNodes.historyID();
+
+            final Set<DesiredNode> removedDesiredNodes = new HashSet<>(members);
+            desiredNodes.nodes().forEach(removedDesiredNodes::remove);
+
+            for (DiscoveryNode node : clusterState.nodes()) {
+                final var desiredNode = desiredNodes.find(node.getExternalId());
+                if (desiredNode != null) {
+                    members.add(desiredNode);
+                }
             }
 
-            if (event.nodesChanged()) {
-                final var nodesDelta = event.nodesDelta();
-
-                for (DiscoveryNode addedNode : nodesDelta.addedNodes()) {
-                    final var desiredNode = desiredNodes.find(addedNode.getExternalId());
-                    if (desiredNode != null) {
-                        members.add(desiredNode);
-                    }
-                }
-
-                for (DiscoveryNode removedNode : nodesDelta.removedNodes()) {
-                    final var desiredNode = desiredNodes.find(removedNode.getExternalId());
-                    if (desiredNode != null) {
-                        members.remove(desiredNode);
-                    }
-                }
-            } else if (event.changedCustomMetadataSet().contains(DesiredNodesMetadata.TYPE)) {
-                if (desiredNodes.historyID().equals(latestHistoryId) == false) {
-                    members.clear();
-                }
-                latestHistoryId = desiredNodes.historyID();
-
-                final Set<DesiredNode> unknownDesiredNodes = new HashSet<>(members);
-                for (DiscoveryNode node : clusterState.nodes()) {
-                    final var desiredNode = desiredNodes.find(node.getExternalId());
-                    if (desiredNode != null) {
-                        members.add(desiredNode);
-                        unknownDesiredNodes.remove(desiredNode);
-                    }
-                }
-
-                members.removeAll(unknownDesiredNodes);
-            }
-        } else if (event.previousState().nodes().isLocalNodeElectedMaster()) {
-            members.clear();
-        } else {
-            assert members.isEmpty();
+            members.removeAll(removedDesiredNodes);
         }
     }
 

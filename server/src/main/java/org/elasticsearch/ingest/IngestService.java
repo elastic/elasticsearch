@@ -857,6 +857,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                 } catch (IllegalArgumentException ex) {
                     totalMetrics.ingestFailed();
                     handler.accept(ex);
+                    return;
                 }
                 Map<IngestDocument.Metadata, Object> metadataMap = ingestDocument.extractMetadata();
 

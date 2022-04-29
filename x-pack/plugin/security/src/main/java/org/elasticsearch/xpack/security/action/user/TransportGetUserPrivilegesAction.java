@@ -48,6 +48,6 @@ public class TransportGetUserPrivilegesAction extends HandledTransportAction<Get
             return;
         }
 
-        authorizationService.retrieveUserPrivileges(subject, listener);
+        authorizationService.retrieveUserPrivileges(subject, securityContext.getAuthorizationInfoFromContext(), listener);
     }
 }

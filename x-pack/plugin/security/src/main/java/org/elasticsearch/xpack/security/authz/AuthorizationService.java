@@ -190,20 +190,14 @@ public class AuthorizationService {
         );
     }
 
-    public void retrieveUserPrivileges(Subject subject, ActionListener<GetUserPrivilegesResponse> listener) {
+    public void retrieveUserPrivileges(
+        Subject subject,
+        AuthorizationInfo authorizationInfo,
+        ActionListener<GetUserPrivilegesResponse> listener
+    ) {
         final AuthorizationEngine authorizationEngine = getAuthorizationEngineForSubject(subject);
-        authorizationEngine.resolveAuthorizationInfo(
-            subject,
-            wrapPreservingContext(
-                listener.delegateFailure(
-                    (delegateListener, authorizationInfo) -> authorizationEngine.getUserPrivileges(
-                        authorizationInfo,
-                        wrapPreservingContext(listener, threadContext)
-                    )
-                ),
-                threadContext
-            )
-        );
+        // TODO the AuthorizationInfo is associated to the Subject; the argument is redundant and a possible source of conflict
+        authorizationEngine.getUserPrivileges(authorizationInfo, wrapPreservingContext(listener, threadContext));
     }
 
     /**

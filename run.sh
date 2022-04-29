@@ -35,11 +35,15 @@ fi
 #   2. Set the server URL
 #   3. Set the secret token
 perl -p -i -e " s|enabled: false|enabled: true| ; s|# server_url.*|server_url: $SERVER_URL| ; s|# secret_token.*|secret_token: $SECRET_TOKEN|" config/elasticapm.properties
+# perl -p -i -e " s|log_level: error|log_level: debug| " config/elasticapm.properties
 
-
+# Require a debugger on 5007 in order to run:
 # export ES_JAVA_OPTS="-agentlib:jdwp=transport=dt_socket,server=n,suspend=y,address=*:5007 "
+
+# Just run but expose a debugging server on 5007
 # export ES_JAVA_OPTS="-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5007 "
 
+# Hardcore security manager debugging
 # export ES_JAVA_OPTS="-Djava.security.debug=failure"
 # export ES_JAVA_OPTS="-Djava.security.debug=access,failure"
 

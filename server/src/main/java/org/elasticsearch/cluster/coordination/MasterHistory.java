@@ -155,11 +155,12 @@ public class MasterHistory implements ClusterStateListener {
         TimeValue thirtyMinutes = new TimeValue(30, TimeUnit.MINUTES);
         long thirtyMinutesAgo = now - thirtyMinutes.getMillis();
         TimeAndMaster mostRecent = history.isEmpty() ? null : history.get(history.size() - 1);
-        history = history.stream().filter(timeAndMaster -> timeAndMaster.time > thirtyMinutesAgo).collect(Collectors.toList());
-        if (history.isEmpty() && mostRecent != null) { // The most recent entry was more than 30 minutes ago
-            history.add(mostRecent);
+        List<TimeAndMaster> filteredHistory =
+            history.stream().filter(timeAndMaster -> timeAndMaster.time > thirtyMinutesAgo).collect(Collectors.toList());
+        if (filteredHistory.isEmpty() && mostRecent != null) { // The most recent entry was more than 30 minutes ago
+            filteredHistory.add(mostRecent);
         }
-        return history;
+        return filteredHistory;
     }
 
     /**

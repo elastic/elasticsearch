@@ -24,7 +24,7 @@ import java.util.List;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class MasterHistoryTransportActionTests extends ESTestCase {
+public class TransportMasterHistoryActionTests extends ESTestCase {
     public void testDoExecute() {
         TransportService transportService = mock(TransportService.class);
         ActionFilters actionFilters = mock(ActionFilters.class);
@@ -34,7 +34,7 @@ public class MasterHistoryTransportActionTests extends ESTestCase {
         when(threadPool.relativeTimeInMillis()).thenReturn(System.currentTimeMillis());
         MasterHistory masterHistory = new MasterHistory(threadPool, clusterService);
         when(masterHistoryService.getLocalMasterHistory()).thenReturn(masterHistory);
-        MasterHistoryTransportAction action = new MasterHistoryTransportAction(transportService, actionFilters, masterHistoryService);
+        TransportMasterHistoryAction action = new TransportMasterHistoryAction(transportService, actionFilters, masterHistoryService);
         final List<List<DiscoveryNode>> result = new ArrayList<>();
         ActionListener<MasterHistoryAction.Response> listener = new ActionListener<>() {
             @Override

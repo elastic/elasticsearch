@@ -19,11 +19,11 @@ import org.elasticsearch.transport.TransportService;
 /**
  * This transport action fetches the MasterHistory from a remote node.
  */
-public class MasterHistoryTransportAction extends HandledTransportAction<MasterHistoryAction.Request, MasterHistoryAction.Response> {
+public class TransportMasterHistoryAction extends HandledTransportAction<MasterHistoryAction.Request, MasterHistoryAction.Response> {
     private final MasterHistoryService masterHistoryService;
 
     @Inject
-    public MasterHistoryTransportAction(
+    public TransportMasterHistoryAction(
         TransportService transportService,
         ActionFilters actionFilters,
         MasterHistoryService masterHistoryService

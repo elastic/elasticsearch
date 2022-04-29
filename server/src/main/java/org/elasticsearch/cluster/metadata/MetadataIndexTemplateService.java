@@ -19,7 +19,6 @@ import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -142,12 +141,12 @@ public class MetadataIndexTemplateService {
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private void submitUnbatchedTask(String source, ClusterStateUpdateTask task) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 
     public void removeTemplates(final RemoveRequest request, final RemoveListener listener) {
-        clusterService.submitStateUpdateTask(
+        submitUnbatchedTask(
             "remove-index-template [" + request.name + "]",
             new ClusterStateUpdateTask(Priority.URGENT, request.masterTimeout) {
 
@@ -185,8 +184,7 @@ public class MetadataIndexTemplateService {
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 }
-            },
-            newExecutor()
+            }
         );
     }
 
@@ -202,7 +200,7 @@ public class MetadataIndexTemplateService {
         final ComponentTemplate template,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        clusterService.submitStateUpdateTask(
+        submitUnbatchedTask(
             "create-component-template [" + name + "], cause [" + cause + "]",
             new ClusterStateUpdateTask(Priority.URGENT, masterTimeout) {
 
@@ -220,8 +218,7 @@ public class MetadataIndexTemplateService {
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 }
-            },
-            newExecutor()
+            }
         );
     }
 
@@ -374,7 +371,7 @@ public class MetadataIndexTemplateService {
         final ActionListener<AcknowledgedResponse> listener
     ) {
         validateNotInUse(state.metadata(), names);
-        clusterService.submitStateUpdateTask(
+        submitUnbatchedTask(
             "remove-component-template [" + String.join(",", names) + "]",
             new ClusterStateUpdateTask(Priority.URGENT, masterTimeout) {
 
@@ -392,8 +389,7 @@ public class MetadataIndexTemplateService {
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 }
-            },
-            newExecutor()
+            }
         );
     }
 
@@ -491,7 +487,7 @@ public class MetadataIndexTemplateService {
         final ActionListener<AcknowledgedResponse> listener
     ) {
         validateV2TemplateRequest(clusterService.state().metadata(), name, template);
-        clusterService.submitStateUpdateTask(
+        submitUnbatchedTask(
             "create-index-template-v2 [" + name + "], cause [" + cause + "]",
             new ClusterStateUpdateTask(Priority.URGENT, masterTimeout) {
 
@@ -509,8 +505,7 @@ public class MetadataIndexTemplateService {
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 }
-            },
-            newExecutor()
+            }
         );
     }
 
@@ -635,6 +630,7 @@ public class MetadataIndexTemplateService {
         var finalTemplate = Optional.ofNullable(indexTemplate.template());
         var finalSettings = Settings.builder();
         final var now = Instant.now();
+        final var metadata = currentState.getMetadata();
 
         // First apply settings sourced from index setting providers:
         for (var provider : indexSettingProviders) {
@@ -642,7 +638,7 @@ public class MetadataIndexTemplateService {
                 provider.getAdditionalIndexSettings(
                     "validate-index-name",
                     indexTemplate.getDataStreamTemplate() != null ? "validate-data-stream-name" : null,
-                    indexTemplate.getDataStreamTemplate() != null ? indexTemplate.getDataStreamTemplate().getIndexMode() : null,
+                    indexTemplate.getDataStreamTemplate() != null && metadata.isTimeSeriesTemplate(indexTemplate),
                     currentState.getMetadata(),
                     now,
                     finalTemplate.map(Template::settings).orElse(Settings.EMPTY)
@@ -748,6 +744,7 @@ public class MetadataIndexTemplateService {
         String templateName,
         ComposableIndexTemplate newTemplate
     ) {
+        Metadata currentMetadata = state.getMetadata();
         Metadata updatedMetadata = null;
         Set<String> dataStreamsWithNonTsdbTemplate = null;
 
@@ -761,7 +758,7 @@ public class MetadataIndexTemplateService {
             }
             var matchingTemplate = findV2Template(updatedMetadata, dataStream.getName(), false);
             if (templateName.equals(matchingTemplate)) {
-                if (newTemplate.getDataStreamTemplate().getIndexMode() != IndexMode.TIME_SERIES) {
+                if (currentMetadata.isTimeSeriesTemplate(newTemplate) == false) {
                     if (dataStreamsWithNonTsdbTemplate == null) {
                         dataStreamsWithNonTsdbTemplate = new HashSet<>();
                     }
@@ -771,6 +768,8 @@ public class MetadataIndexTemplateService {
         }
 
         if (dataStreamsWithNonTsdbTemplate != null) {
+            var settings = MetadataIndexTemplateService.resolveSettings(newTemplate, currentMetadata.componentTemplates());
+            var routingPaths = IndexMetadata.INDEX_ROUTING_PATH.get(settings);
             throw new IllegalArgumentException(
                 "composable template ["
                     + templateName
@@ -779,9 +778,9 @@ public class MetadataIndexTemplateService {
                     + ", priority ["
                     + newTemplate.priority()
                     + "]"
-                    + ", index_mode ["
-                    + newTemplate.getDataStreamTemplate().getIndexMode()
-                    + "] "
+                    + ", index.routing_path "
+                    + routingPaths
+                    + " "
                     + "would cause tsdb data streams "
                     + dataStreamsWithNonTsdbTemplate
                     + " to no longer match a data stream template with a time_series index_mode"
@@ -881,7 +880,7 @@ public class MetadataIndexTemplateService {
         final TimeValue masterTimeout,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        clusterService.submitStateUpdateTask(
+        submitUnbatchedTask(
             "remove-index-template-v2 [" + String.join(",", names) + "]",
             new ClusterStateUpdateTask(Priority.URGENT, masterTimeout) {
 
@@ -899,8 +898,7 @@ public class MetadataIndexTemplateService {
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     listener.onResponse(AcknowledgedResponse.TRUE);
                 }
-            },
-            newExecutor()
+            }
         );
     }
 
@@ -1015,7 +1013,7 @@ public class MetadataIndexTemplateService {
 
         final IndexTemplateMetadata.Builder templateBuilder = IndexTemplateMetadata.builder(request.name);
 
-        clusterService.submitStateUpdateTask(
+        submitUnbatchedTask(
             "create-index-template [" + request.name + "], cause [" + request.cause + "]",
             new ClusterStateUpdateTask(Priority.URGENT, request.masterTimeout) {
 
@@ -1034,8 +1032,7 @@ public class MetadataIndexTemplateService {
                 public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
                     listener.onResponse(new PutResponse(true));
                 }
-            },
-            newExecutor()
+            }
         );
     }
 

@@ -11,6 +11,7 @@ import org.apache.logging.log4j.LogManager;
 import org.elasticsearch.Build;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.SslClientAuthenticationMode;
 import org.elasticsearch.common.ssl.SslVerificationMode;
 import org.elasticsearch.xpack.core.security.SecurityField;
@@ -183,42 +184,24 @@ public class XPackSettings {
     /*
      * Do not allow insecure hashing algorithms to be used for password hashing
      */
-    public static final Setting<String> PASSWORD_HASHING_ALGORITHM = new Setting<>(
-        new Setting.SimpleKey("xpack.security.authc.password_hashing.algorithm"),
+    public static final Setting<String> PASSWORD_HASHING_ALGORITHM = defaultHashingAlgorithmSetting(
+        "xpack.security.authc.password_hashing.algorithm",
         (s) -> {
             if (XPackSettings.FIPS_MODE_ENABLED.get(s)) {
                 return Hasher.PBKDF2_STRETCH.name();
             } else {
                 return Hasher.BCRYPT.name();
             }
-        },
-        Function.identity(),
-        v -> {
-            if (Hasher.getAvailableAlgoStoredHash().contains(v.toLowerCase(Locale.ROOT)) == false) {
-                throw new IllegalArgumentException(
-                    "Invalid algorithm: " + v + ". Valid values for password hashing are " + Hasher.getAvailableAlgoStoredHash().toString()
-                );
-            } else if (v.regionMatches(true, 0, "pbkdf2", 0, "pbkdf2".length())) {
-                try {
-                    SecretKeyFactory.getInstance("PBKDF2withHMACSHA512");
-                } catch (NoSuchAlgorithmException e) {
-                    throw new IllegalArgumentException(
-                        "Support for PBKDF2WithHMACSHA512 must be available in order to use any of the "
-                            + "PBKDF2 algorithms for the [xpack.security.authc.password_hashing.algorithm] setting.",
-                        e
-                    );
-                }
-            }
-        },
-        Property.NodeScope
+        }
     );
 
-    // TODO: This setting of hashing algorithm can share code with the one for password when pbkdf2_stretch is the default for both
-    public static final Setting<String> SERVICE_TOKEN_HASHING_ALGORITHM = new Setting<>(
-        new Setting.SimpleKey("xpack.security.authc.service_token_hashing.algorithm"),
-        (s) -> "PBKDF2_STRETCH",
-        Function.identity(),
-        v -> {
+    public static final Setting<String> SERVICE_TOKEN_HASHING_ALGORITHM = defaultHashingAlgorithmSetting(
+        "xpack.security.authc.service_token_hashing.algorithm",
+        (s) -> Hasher.PBKDF2_STRETCH.name()
+    );
+
+    private static Setting<String> defaultHashingAlgorithmSetting(String key, Function<Settings, String> defaultHashingAlgorithm) {
+        return new Setting<>(new Setting.SimpleKey(key), defaultHashingAlgorithm, Function.identity(), v -> {
             if (Hasher.getAvailableAlgoStoredHash().contains(v.toLowerCase(Locale.ROOT)) == false) {
                 throw new IllegalArgumentException(
                     "Invalid algorithm: " + v + ". Valid values for password hashing are " + Hasher.getAvailableAlgoStoredHash().toString()
@@ -228,15 +211,15 @@ public class XPackSettings {
                     SecretKeyFactory.getInstance("PBKDF2withHMACSHA512");
                 } catch (NoSuchAlgorithmException e) {
                     throw new IllegalArgumentException(
-                        "Support for PBKDF2WithHMACSHA512 must be available in order to use any of the "
-                            + "PBKDF2 algorithms for the [xpack.security.authc.service_token_hashing.algorithm] setting.",
+                        "Support for PBKDF2WithHMACSHA512 must be available in order to use any of the PBKDF2 algorithms for the ["
+                            + key
+                            + "] setting.",
                         e
                     );
                 }
             }
-        },
-        Property.NodeScope
-    );
+        }, Property.NodeScope);
+    }
 
     public static final List<String> DEFAULT_SUPPORTED_PROTOCOLS;
 

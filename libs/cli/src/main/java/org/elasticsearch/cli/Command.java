@@ -13,6 +13,8 @@ import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 
+import org.elasticsearch.core.SuppressForbidden;
+
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.PrintWriter;

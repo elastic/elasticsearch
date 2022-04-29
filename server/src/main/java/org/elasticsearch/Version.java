@@ -9,8 +9,6 @@
 package org.elasticsearch;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.ImmutableOpenIntMap;
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.RestApiVersion;
@@ -24,8 +22,10 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 
 public class Version implements Comparable<Version>, ToXContentFragment {
@@ -112,12 +112,12 @@ public class Version implements Comparable<Version>, ToXContentFragment {
     public static final Version V_8_3_0 = new Version(8_03_00_99, org.apache.lucene.util.Version.LUCENE_9_1_0);
     public static final Version CURRENT = V_8_3_0;
 
-    private static final ImmutableOpenIntMap<Version> idToVersion;
-    private static final ImmutableOpenMap<String, Version> stringToVersion;
+    private static final Map<Integer, Version> idToVersion;
+    private static final Map<String, Version> stringToVersion;
 
     static {
-        final ImmutableOpenIntMap.Builder<Version> builder = ImmutableOpenIntMap.builder();
-        final ImmutableOpenMap.Builder<String, Version> builderByString = ImmutableOpenMap.builder();
+        final Map<Integer, Version> builder = new HashMap<>();
+        final Map<String, Version> builderByString = new HashMap<>();
 
         for (final Field declaredField : Version.class.getFields()) {
             if (declaredField.getType().equals(Version.class)) {
@@ -158,8 +158,8 @@ public class Version implements Comparable<Version>, ToXContentFragment {
                 + "]";
         builder.put(V_EMPTY_ID, V_EMPTY);
         builderByString.put(V_EMPTY.toString(), V_EMPTY);
-        idToVersion = builder.build();
-        stringToVersion = builderByString.build();
+        idToVersion = Map.copyOf(builder);
+        stringToVersion = Map.copyOf(builderByString);
     }
 
     public static Version readVersion(StreamInput in) throws IOException {

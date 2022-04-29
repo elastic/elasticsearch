@@ -116,7 +116,7 @@ public class EmbeddedCli implements Closeable {
                  * trying to test our interaction with jLine which doesn't
                  * support Elasticsearch's Terminal abstraction.
                  */
-                Terminal terminal = new MockTerminal();
+                Terminal terminal = MockTerminal.create();
                 int exitCode = cli.main(args.toArray(new String[0]), terminal);
                 returnCode.set(exitCode);
                 logger.info("cli exited with code [{}]", exitCode);

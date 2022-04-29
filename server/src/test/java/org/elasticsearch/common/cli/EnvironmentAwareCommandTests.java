@@ -39,7 +39,7 @@ public class EnvironmentAwareCommandTests extends CommandTestCase {
     protected Command newCommand() {
         return new EnvironmentAwareCommand("test command") {
             @Override
-            protected void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) {
+            public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) {
                 if (callback != null) {
                     callback.accept(env);
                 }

@@ -581,7 +581,7 @@ class CertificateTool extends MultiCommand {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
+        public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
             terminal.println(INTRO_TEXT);
             terminal.println("");
             terminal.println("The 'csr' mode generates certificate signing requests that can be sent to");
@@ -671,7 +671,7 @@ class CertificateTool extends MultiCommand {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
+        public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
             terminal.println(INTRO_TEXT);
             terminal.println("");
             terminal.println("The 'cert' mode generates X.509 certificate and private keys.");
@@ -904,7 +904,7 @@ class CertificateTool extends MultiCommand {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
+        public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
             terminal.println(INTRO_TEXT);
             terminal.println("");
             terminal.println("The 'ca' mode generates a new 'certificate authority'");

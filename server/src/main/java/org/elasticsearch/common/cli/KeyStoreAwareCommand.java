@@ -69,5 +69,5 @@ public abstract class KeyStoreAwareCommand extends EnvironmentAwareCommand {
         }
     }
 
-    protected abstract void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception;
+    public abstract void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception;
 }

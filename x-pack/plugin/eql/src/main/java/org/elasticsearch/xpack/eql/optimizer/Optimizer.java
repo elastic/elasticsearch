@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.eql.plan.logical.Join;
 import org.elasticsearch.xpack.eql.plan.logical.KeyedFilter;
 import org.elasticsearch.xpack.eql.plan.logical.LimitWithOffset;
 import org.elasticsearch.xpack.eql.plan.logical.Sample;
-import org.elasticsearch.xpack.eql.plan.logical.Sequence;
 import org.elasticsearch.xpack.eql.plan.physical.LocalRelation;
 import org.elasticsearch.xpack.eql.session.Payload.Type;
 import org.elasticsearch.xpack.eql.util.MathUtils;
@@ -204,9 +203,6 @@ public class Optimizer extends RuleExecutor<LogicalPlan> {
     static class AddMandatoryJoinKeyFilter extends OptimizerRule<AbstractJoin> {
         @Override
         protected LogicalPlan rule(AbstractJoin join) {
-            if (join instanceof Sequence == false) {
-                return join;
-            }
             // collect all mandatory keys and add them as a filter
             boolean changed = false;
             List<KeyedFilter> filters = new ArrayList<>(join.queries());

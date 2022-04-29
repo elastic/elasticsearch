@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.ql.expression.EmptyAttribute;
 import org.elasticsearch.xpack.ql.expression.Expression;
 import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.Literal;
+import org.elasticsearch.xpack.ql.expression.NamedExpression;
 import org.elasticsearch.xpack.ql.expression.Order;
 import org.elasticsearch.xpack.ql.expression.Order.NullsPosition;
 import org.elasticsearch.xpack.ql.expression.Order.OrderDirection;
@@ -52,8 +53,11 @@ import org.elasticsearch.xpack.ql.util.CollectionUtils;
 import org.elasticsearch.xpack.ql.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.StringJoiner;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.emptyList;
@@ -398,11 +402,30 @@ public abstract class LogicalPlanBuilder extends ExpressionBuilder {
                 }
             }
 
+            queries.add(joinTerm);
             int numberOfQueries = queries.size();
             if (numberOfQueries > 5) {
-                throw new ParsingException(source(joinTermCtx), "Sample cannot contain more than 5 queries; found [{}]", numberOfQueries);
+                throw new ParsingException(source(joinTermCtx), "A sample cannot contain more than 5 queries, found [{}]", numberOfQueries);
             }
-            queries.add(joinTerm);
+
+            Set<String> uniqueKeyNames = new HashSet<>(keySize);
+            Set<String> duplicateKeyNames = new LinkedHashSet<>(1);
+            for (NamedExpression key : joinTerm.keys()) {
+                String name = Expressions.name(key);
+                if (uniqueKeyNames.contains(name)) {
+                    duplicateKeyNames.add(name);
+                } else {
+                    uniqueKeyNames.add(name);
+                }
+            }
+            if (duplicateKeyNames.size() > 0) {
+                Source src = source(joinTermCtx.by != null ? joinTermCtx.by : joinTermCtx);
+                StringJoiner duplicates = new StringJoiner(",");
+                for (String duplicate : duplicateKeyNames) {
+                    duplicates.add(duplicate);
+                }
+                throw new ParsingException(src, "Join keys must be used only once, found duplicates: [{}]", duplicates.toString());
+            }
         }
 
         if (queries.size() < 2) {

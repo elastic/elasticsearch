@@ -171,6 +171,8 @@ public class ExecutionManager {
                 BucketExtractor extractor = keyExtractors.get(j);
                 if (extractor instanceof CompositeKeyExtractor e) {
                     keyFields.add(e.key());
+                } else if (extractor instanceof ComputingExtractor ce) {
+                    keyFields.add(ce.hitName());
                 }
             }
 

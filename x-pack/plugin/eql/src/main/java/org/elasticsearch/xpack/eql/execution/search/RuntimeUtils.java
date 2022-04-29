@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.ComputingExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.HitExtractor;
+import org.elasticsearch.xpack.ql.expression.Expressions;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.HitExtractorInput;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.Pipe;
 import org.elasticsearch.xpack.ql.expression.gen.pipeline.ReferenceInput;
@@ -130,6 +131,10 @@ public final class RuntimeUtils {
     public static BucketExtractor createBucketExtractor(FieldExtraction ref) {
         if (ref instanceof CompositeAggRef aggRef) {
             return new CompositeKeyExtractor(aggRef.key(), false);
+        } else if (ref instanceof ComputedRef computedRef) {
+            Pipe proc = computedRef.processor();
+            String hitName = Expressions.name(proc.expression());
+            return new ComputingExtractor(proc.asProcessor(), hitName);
         }
         throw new EqlIllegalArgumentException("Unexpected value reference {}", ref.getClass());
     }

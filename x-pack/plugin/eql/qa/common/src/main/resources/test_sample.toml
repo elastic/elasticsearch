@@ -11,6 +11,17 @@ expected_event_ids  = [17,26,16,
 join_keys = ["doom","redhat",
              "farcry","win10"]
 
+[[queries]]
+name = "complexFilters"
+query = '''
+  sample by host
+    [any where uptime > 0 and host == "doom" and (uptime > 15 or bool == true)] by os
+    [any where port > 100 and ip == "10.0.0.5" or op_sys : "REDHAT"] by op_sys
+    [any where bool == true] by os
+'''
+expected_event_ids  = [17,26,16]
+join_keys = ["doom","redhat"]
+
 
 [[queries]]
 name = "anyRulesWithORFilters"
@@ -123,3 +134,119 @@ query = '''
 '''
 expected_event_ids  = []
 join_keys = []
+
+
+[[queries]]
+name = "optionalFieldAsKeyAndFirstFilter"
+query = '''
+  sample by ?x
+    [failure where ?x == null and id == 17]
+    [failure where id == 27]
+    [any where id == 37]
+'''
+expected_event_ids  = [17,27,37]
+join_keys = ["null"]
+
+
+[[queries]]
+name = "optionalFieldAsKeyAndSecondFilter"
+query = '''
+  sample by ?x
+    [any where id == 11]
+    [any where ?x == null]
+'''
+expected_event_ids  = [11,12]
+join_keys = ["null"]
+
+
+[[queries]]
+name = "optionalFieldAsQueryKeys"
+query = '''
+  sample by ?x
+    [success where id == 18] by ?y
+    [failure where id == 17] by ?z
+'''
+expected_event_ids  = [18,17]
+join_keys = ["null","null"]
+
+
+[[queries]]
+name = "optionalFieldAsKeyAndMultipleConditions"
+query = '''
+  sample by ?x, ?y
+    [failure where (?x == null or ?y == null) and id == 17]
+    [success where (?y == null and ?x == null) and id == 18]
+'''
+expected_event_ids  = [17,18]
+join_keys = ["null","null"]
+
+
+
+
+[[queries]]
+name = "optionalFieldAsQueryKeysOnly"
+query = '''
+  sample by host
+    [success where id == 38] by ?z
+    [success where ?x == ?y and id == 28] by ?y
+    [alert where id == 11] by ?x
+'''
+expected_event_ids  = [38,28,11]
+join_keys = ["doom","null"]
+
+
+# This one is noteworthy because "os" is present in two indices (sample1 and sample3) but it's missing in a third one (sample2), where
+# the corresponding field is named "op_sys".
+# The result shows join keys with "null" but also with non-null values.
+[[queries]]
+name = "allKeysOptional"
+query = '''
+  sample by ?host, ?os
+    [success where true]
+    [alert where true]
+'''
+expected_event_ids  = [29,24,
+                       28,21,
+                       18,11]
+join_keys = ["GTA","null",
+             "doom","null",
+             "doom","win10"]
+
+
+[[queries]]
+name = "oneKeyOptional_1"
+query = '''
+  sample by ?host, os
+    [success where true]
+    [alert where true]
+'''
+expected_event_ids  = [18,11]
+join_keys = ["doom","win10"]
+
+
+[[queries]]
+name = "oneKeyOptional_2"
+query = '''
+  sample by host, ?os
+    [success where true]
+    [alert where true and id == 21 or id == 24 or id == 11]
+'''
+expected_event_ids  = [29,24,
+                       28,21,
+                       18,11]
+join_keys = ["GTA","null",
+             "doom","null",
+             "doom","win10"]
+
+
+[[queries]]
+name = "noOptionalKeys"
+query = '''
+  sample by host, os
+    [success where true]
+    [alert where true]
+'''
+expected_event_ids  = [18,11]
+join_keys = ["doom","win10"]
+
+

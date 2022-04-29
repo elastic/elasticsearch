@@ -42,6 +42,9 @@ public class FieldExtractorRegistry {
             }
             return new CompositeAggRef(fa.name());
         }
+        if (expression instanceof OptionalMissingAttribute) {
+            return new ComputedRef(new ConstantInput(expression.source(), expression, null));
+        }
         throw new EqlIllegalArgumentException("Unsupported expression [{}]", expression);
     }
 

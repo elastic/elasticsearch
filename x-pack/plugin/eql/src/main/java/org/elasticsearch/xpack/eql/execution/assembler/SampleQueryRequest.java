@@ -26,6 +26,8 @@ import org.elasticsearch.xpack.eql.execution.sample.SampleIterator;
 import org.elasticsearch.xpack.eql.execution.search.Ordinal;
 import org.elasticsearch.xpack.eql.execution.search.QueryRequest;
 import org.elasticsearch.xpack.eql.execution.search.RuntimeUtils;
+import org.elasticsearch.xpack.eql.expression.OptionalMissingAttribute;
+import org.elasticsearch.xpack.eql.expression.OptionalResolvedAttribute;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.type.DataType;
 import org.elasticsearch.xpack.ql.type.DataTypes;
@@ -39,6 +41,7 @@ import java.util.Map;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 
 public class SampleQueryRequest implements QueryRequest {
@@ -99,30 +102,35 @@ public class SampleQueryRequest implements QueryRequest {
                 // the list of keys order is important because a key on one position corresponds to another key on the same
                 // position from another query. For example, [host, os] corresponds to [hostname, op_sys].
                 for (int i = 0; i < keys.size(); i++) {
+                    String key = keys.get(i);
                     // build a bool must for the key of this criterion, but using the value of the previous criterion results
                     Object value = bucket.get(previousCriterionKeys.get(i));
-                    if (value != null) {
+
+                    if (value != null || isOptionalAttribute(keyFields.get(i))) {
                         if (joinKeyBoolQuery == null) {
                             joinKeyBoolQuery = boolQuery();
                         }
-                        joinKeyBoolQuery.must(termQuery(keys.get(i), value));
-                    } else {
-                        /*
-                         * Joining on null values can generate technically valid results, but difficult o understand by users. For example,
-                         *
-                         * sample by host [any where bool == true] by os [any where uptime > 0] by os [any where port > 100] by op_sys
-                         *
-                         * If we would allow "null" values as valid join keys, it is possible to get a match on documents that do not
-                         * have a value for "op_sys" in some indices (but have a value on "os") and other documents that do not have a value
-                         * for "os" (but have a value in "op_sys").
-                         *
-                         * Result for the above query:
-                         * "join_keys": ["doom",null]
-                         * "events": [{"_index":"test2","_id": "6","host": "doom","port": 65123,"bool": true,"op_sys": "redhat"}
-                         *           {"_index": "test2","_id": "7","host": "doom","uptime": 15,"port": 1234,"bool": true,"op_sys": "redhat"}
-                         *           {"_index": "test1","_id": "1","host": "doom","uptime": 0,"port": 1234,"os": "win10"}]
-                         */
-                        // joinKeyBoolQuery.mustNot(existsQuery(keys.get(i)));
+                        if (value != null) {
+                            joinKeyBoolQuery.must(termQuery(key, value));
+                        } else {
+                            /*
+                             * Joining on null values can generate technically valid results, but difficult o understand by users.
+                             * For example,
+                             * sample by host [any where bool == true] by os [any where uptime > 0] by os [any where port > 100] by op_sys
+                             *
+                             * If we would allow "null" values as valid join keys, it is possible to get a match on documents that do not
+                             * have a value for "op_sys" in some indices (but have a value on "os") and other documents that do not have
+                             * a value for "os" (but have a value in "op_sys").
+                             *
+                             * Result for the above query:
+                             * "join_keys": ["doom",null]
+                             * "events":
+                             *    [{"_index":"test2","_id": "6","host": "doom","port": 65123,"bool": true,"op_sys": "redhat"}
+                             *    {"_index": "test2","_id": "7","host": "doom","uptime": 15,"port": 1234,"bool": true,"op_sys": "redhat"}
+                             *    {"_index": "test1","_id": "1","host": "doom","uptime": 0,"port": 1234,"os": "win10"}]
+                             */
+                            joinKeyBoolQuery.mustNot(existsQuery(key));
+                        }
                     }
                 }
 
@@ -151,12 +159,13 @@ public class SampleQueryRequest implements QueryRequest {
         } else {
             Object value;
             for (int i = 0; i < keys.size(); i++) {
+                String key = keys.get(i);
                 value = compositeKeyValues.get(i);
-                // if (value != null) {
-                newFilters.add(termQuery(keys.get(i), value));
-                // } else {
-                // newFilters.add(boolQuery().mustNot(existsQuery(keys.get(i))));
-                // }
+                if (value != null) {
+                    newFilters.add(termQuery(key, value));
+                } else if (isOptionalAttribute(keyFields.get(i))) {
+                    newFilters.add(boolQuery().mustNot(existsQuery(key)));
+                }
             }
         }
 
@@ -180,15 +189,21 @@ public class SampleQueryRequest implements QueryRequest {
         for (int i = 0; i < keys.size(); i++) {
             String key = keys.get(i);
             Attribute field = keyFields.get(i);
-            // compositeAggSources.add(new TermsValuesSourceBuilder(key).field(key).missingBucket(true));
-            /*
-             * Temporary workaround for https://github.com/elastic/elasticsearch/issues/85928
-             */
-            compositeAggSources.add(new TermsValuesSourceBuilder(key).field(key).userValuetypeHint(aggregationValueType(field.dataType())));
+            boolean isOptionalKey = isOptionalAttribute(field);
+            compositeAggSources.add(
+                new TermsValuesSourceBuilder(key).field(key)
+                    .missingBucket(isOptionalKey)
+                    // Temporary workaround for https://github.com/elastic/elasticsearch/issues/85928
+                    .userValuetypeHint(aggregationValueType(field.dataType()))
+            );
         }
         agg = new CompositeAggregationBuilder(COMPOSITE_AGG_NAME, compositeAggSources);
         agg.size(SampleIterator.MAX_PAGE_SIZE);
         searchSource.aggregation(agg);
+    }
+
+    private boolean isOptionalAttribute(Attribute a) {
+        return a instanceof OptionalMissingAttribute || a instanceof OptionalResolvedAttribute;
     }
 
     private ValueType aggregationValueType(DataType qlDataType) {

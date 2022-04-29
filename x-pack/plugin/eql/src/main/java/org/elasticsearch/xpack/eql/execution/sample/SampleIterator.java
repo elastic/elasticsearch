@@ -43,7 +43,7 @@ import static org.elasticsearch.xpack.eql.execution.search.RuntimeUtils.prepareR
 
 public class SampleIterator implements Executable {
 
-    public static final int MAX_PAGE_SIZE = 1; // for testing purposes it's set to such a low value
+    public static final int MAX_PAGE_SIZE = 1000;
     private final Logger log = LogManager.getLogger(SampleIterator.class);
 
     private final QueryClient client;

@@ -39,7 +39,7 @@ sequence
 
 sample
     : SAMPLE (by=joinKeys)?
-      joinTerm joinTerm+
+      joinTerm+
     ;
 
 join

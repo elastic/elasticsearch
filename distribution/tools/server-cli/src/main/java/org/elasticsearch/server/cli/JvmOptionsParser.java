@@ -63,7 +63,8 @@ final class JvmOptionsParser {
      * The main entry point. The exit code is 0 if the JVM options were successfully parsed, otherwise the exit code is 1. If an improperly
      * formatted line is discovered, the line is output to standard error.
      *
-     * @param args the args to the program which should consist of a single option, the path to ES_PATH_CONF
+     * @param args the args to the program which should consist of two options,
+     *             the path to ES_PATH_CONF, and the path to the plugins directory
      */
     public static void main(final String[] args) throws InterruptedException, IOException {
         if (args.length != 2) {

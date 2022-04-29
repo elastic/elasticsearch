@@ -76,10 +76,12 @@ public class Authentication implements ToXContentObject {
     private final Subject authenticatingSubject;
     private final Subject effectiveSubject;
 
+    // TODO: remove this constructor. all usages have been removed
     public Authentication(User user, RealmRef authenticatedBy, RealmRef lookedUpBy) {
         this(user, authenticatedBy, lookedUpBy, Version.CURRENT, AuthenticationType.REALM, Collections.emptyMap());
     }
 
+    // TODO: make this constructor private to favour dedicate methods for instantiation Authentication
     public Authentication(
         User user,
         RealmRef authenticatedBy,
@@ -773,6 +775,7 @@ public class Authentication implements ToXContentObject {
         assert authResult.isAuthenticated() : "API Key authn result must be successful";
         final User apiKeyUser = authResult.getValue();
         assert false == apiKeyUser.isRunAs();
+        assert apiKeyUser.roles().length == 0 : "The user associated to an API key authentication must have no role";
         final Authentication.RealmRef authenticatedBy = newApiKeyRealmRef(nodeName);
         Authentication authentication = new Authentication(
             apiKeyUser,

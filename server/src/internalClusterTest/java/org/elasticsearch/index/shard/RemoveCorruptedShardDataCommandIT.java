@@ -134,7 +134,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         logger.info("--> indexed {} docs", numDocs);
 
         final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
-        final MockTerminal terminal = new MockTerminal();
+        final MockTerminal terminal = MockTerminal.create();
         final OptionParser parser = command.getParser();
 
         final Settings nodePathSettings = internalCluster().dataPathSettings(node);
@@ -314,7 +314,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         indexRandom(false, false, false, Arrays.asList(builders));
 
         RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
-        MockTerminal terminal = new MockTerminal();
+        MockTerminal terminal = MockTerminal.create();
         OptionParser parser = command.getParser();
 
         if (randomBoolean() && numDocsToTruncate > 0) {
@@ -546,7 +546,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
 
         // check replica corruption
         final RemoveCorruptedShardDataCommand command = new RemoveCorruptedShardDataCommand();
-        final MockTerminal terminal = new MockTerminal();
+        final MockTerminal terminal = MockTerminal.create();
         final OptionParser parser = command.getParser();
 
         final Environment environment = TestEnvironment.newEnvironment(

@@ -349,7 +349,7 @@ public class IndicesWriteLoadStoreTests extends ESTestCase {
 
     public void testMaxBulkSizeIsConfigurable() throws Exception {
         final var maxBulkSize = ByteSizeValue.ofKb(randomIntBetween(10, 100));
-        final var averageDocumentSizeInBytes = getWriteLoadDistributionSerializedSize() + 100; // Add some overhead just in case...
+        final var averageDocumentSizeInBytes = getWriteLoadDistributionSerializedSize();
         final var maxDocumentsPerBulk = (int) Math.ceil((double) maxBulkSize.getBytes() / averageDocumentSizeInBytes);
 
         final var settings = Settings.builder().put(IndicesWriteLoadStore.MAX_BULK_SIZE_SETTING.getKey(), maxBulkSize).build();
@@ -370,7 +370,7 @@ public class IndicesWriteLoadStoreTests extends ESTestCase {
 
             indexRandomSamples(indicesWriteLoadStore, maxDocumentsPerBulk / 2);
 
-            // We're still below the threshold of 10kb
+            // We're still below the max bulk size threshold
             assertThat(receivedBulkRequestCount.get(), is(equalTo(0)));
 
             indexRandomSamples(indicesWriteLoadStore, maxDocumentsPerBulk);

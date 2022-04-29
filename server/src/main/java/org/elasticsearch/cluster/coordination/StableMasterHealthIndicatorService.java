@@ -36,6 +36,18 @@ import java.util.Objects;
 
 import static org.elasticsearch.health.ServerHealthComponents.CLUSTER_COORDINATION;
 
+/**
+ * This indicator reports the health of master stability.
+ * If we have had a master within the last 30 seconds, and that master has not changed more than 3 times in the last 30 minutes, then
+ * this will report GREEN.
+ * If we have had a master within the last 30 seconds, but that master has changed more than 3 times in the last 30 minutes (and that is
+ * confirmed by checking with the last-known master), then this will report YELLOW.
+ * If we have not had a master within the last 30 seconds, then this will will report RED with one exception. That exception is when:
+ * (1) no node is elected master, (2) this node is not master eligible, (3) some node is master eligible, (4) we ask a master-eligible node
+ * to run this indicator, and (5) it comes back with a result that is not RED.
+ * Since this indicator needs to be able to run when there is no master at all, it does not depend on the dedicated health node (which
+ * requires the existence of a master).
+ */
 public class StableMasterHealthIndicatorService implements HealthIndicatorService, ClusterStateListener {
 
     public static final String NAME = "stable_master";

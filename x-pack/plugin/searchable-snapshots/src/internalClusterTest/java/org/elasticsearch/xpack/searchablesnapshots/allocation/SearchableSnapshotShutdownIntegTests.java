@@ -46,6 +46,12 @@ public class SearchableSnapshotShutdownIntegTests extends BaseSearchableSnapshot
         return CollectionUtils.appendToCopy(super.nodePlugins(), ShutdownPlugin.class);
     }
 
+    @Override
+    protected int numberOfShards() {
+        // use 1 shard per index and instead use multiple indices to have multiple shards.
+        return 1;
+    }
+
     public void testAllocationDisabledDuringShutdown() throws Exception {
         final List<String> restoredIndexNames = setupMountedIndices();
         final String[] restoredIndexNamesArray = restoredIndexNames.toArray(String[]::new);
@@ -124,11 +130,5 @@ public class SearchableSnapshotShutdownIntegTests extends BaseSearchableSnapshot
 
     private void removeShutdown(String node) throws ExecutionException, InterruptedException {
         assertTrue(client().execute(DeleteShutdownNodeAction.INSTANCE, new DeleteShutdownNodeAction.Request(node)).get().isAcknowledged());
-    }
-
-    @Override
-    protected int numberOfShards() {
-        // use 1 shard per index and instead use multiple indices to have multiple shards.
-        return 1;
     }
 }

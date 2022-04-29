@@ -95,7 +95,7 @@ public class Realms implements Iterable<Realm> {
         this.allConfiguredRealms.forEach(r -> r.initialize(this.allConfiguredRealms, licenseState));
         assert this.allConfiguredRealms.get(0) == reservedRealm : "the first realm must be reserved realm";
 
-        recomputeActiveRealms();
+        this.activeRealms = calculateLicensedRealms(licenseState.copyCurrentLicenseState());
         licenseState.addListener(this::recomputeActiveRealms);
     }
 

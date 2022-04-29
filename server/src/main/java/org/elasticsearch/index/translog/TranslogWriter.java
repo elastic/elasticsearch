@@ -8,9 +8,6 @@
 
 package org.elasticsearch.index.translog;
 
-import com.carrotsearch.hppc.LongArrayList;
-import com.carrotsearch.hppc.procedures.LongProcedure;
-
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
@@ -37,7 +34,9 @@ import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -75,7 +74,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
     // lock order synchronized(syncLock) -> try(Releasable lock = writeLock.acquire()) -> synchronized(this)
     private final Object syncLock = new Object();
 
-    private LongArrayList nonFsyncedSequenceNumbers = new LongArrayList(64);
+    private List<Long> nonFsyncedSequenceNumbers = new ArrayList<>(64);
     private final int forceWriteThreshold;
     private volatile long bufferedBytes;
     private ReleasableBytesStreamOutput buffer;
@@ -456,7 +455,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                     // double checked locking - we don't want to fsync unless we have to and now that we have
                     // the lock we should check again since if this code is busy we might have fsynced enough already
                     final Checkpoint checkpointToSync;
-                    final LongArrayList flushedSequenceNumbers;
+                    final List<Long> flushedSequenceNumbers;
                     final ReleasableBytesReference toWrite;
                     try (ReleasableLock toClose = writeLock.acquire()) {
                         synchronized (this) {
@@ -467,7 +466,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                                 flushedSequenceNumbers = null;
                             } else {
                                 flushedSequenceNumbers = nonFsyncedSequenceNumbers;
-                                nonFsyncedSequenceNumbers = new LongArrayList(64);
+                                nonFsyncedSequenceNumbers = new ArrayList<>(64);
                             }
                         }
 
@@ -493,7 +492,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                         throw ex;
                     }
                     if (flushedSequenceNumbers != null) {
-                        flushedSequenceNumbers.forEach((LongProcedure) persistedSequenceNumberConsumer::accept);
+                        flushedSequenceNumbers.forEach(persistedSequenceNumberConsumer::accept);
                     }
                     assert lastSyncedCheckpoint.offset <= checkpointToSync.offset
                         : "illegal state: " + lastSyncedCheckpoint.offset + " <= " + checkpointToSync.offset;

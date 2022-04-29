@@ -40,6 +40,8 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
 
     private volatile long lastUpdatedTime = 0L;
 
+    private volatile boolean active = false;
+
     public static final Setting<String> OPERATOR_SETTINGS = Setting.simpleString(
         "readiness.port",
         "operatorSettings.json",
@@ -69,11 +71,17 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     }
 
     @Override
-    // We start the file watcher when we know we are master
-    protected void doStart() {}
+    protected void doStart() {
+        // We start the file watcher when we know we are master.
+        // We need this additional flag, since cluster state can change after we've shutdown the service
+        // causing the watcher to start again.
+        this.active = true;
+    }
 
     @Override
     protected void doStop() {
+        this.active = false;
+        logger.debug("Stopping file settings service");
         stopWatcher();
     }
 
@@ -100,39 +108,55 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     }
 
     synchronized void startWatcher() {
-        if (watching()) {
-            // already watching, nothing to do
+        if (watching() || active == false) {
+            // already watching or inactive, nothing to do
             return;
         }
 
+        logger.info("starting file settings watcher ...");
+
         Path path = operatorSettingsFile();
+        Path configDir = path.getParent();
+
+        if (Files.exists(configDir) == false) {
+            logger.warn("file based settings service disabled because config dir [{}] doesn't exist", configDir);
+            return;
+        }
+
         try {
             this.lastUpdatedTime = watchedFileTimestamp(path);
             if (lastUpdatedTime > 0L) {
                 processFileSettings(path);
             }
         } catch (IOException e) {
-            logger.warn("Encountered I/O exception trying to read file attributes for the file based settings", e);
+            logger.warn("encountered I/O exception trying to read file attributes for the file based settings", e);
         }
 
         try {
             this.watchService = PathUtils.getDefaultFileSystem().newWatchService();
-        } catch (IOException e) {
-            throw new IllegalStateException("Unable to launch a new watch service", e);
+            configDir.register(
+                watchService,
+                StandardWatchEventKinds.ENTRY_MODIFY,
+                StandardWatchEventKinds.ENTRY_CREATE,
+                StandardWatchEventKinds.ENTRY_DELETE
+            );
+        } catch (Exception e) {
+            if (watchService != null) {
+                try {
+                    this.watchService.close();
+                } catch (Exception ignore) {} finally {
+                    this.watchService = null;
+                }
+            }
+
+            throw new IllegalStateException("unable to launch a new watch service", e);
         }
+
         this.watcherThreadLatch = new CountDownLatch(1);
 
         new Thread(() -> {
             try {
-                path.getParent()
-                    .register(
-                        watchService,
-                        StandardWatchEventKinds.ENTRY_MODIFY,
-                        StandardWatchEventKinds.ENTRY_CREATE,
-                        StandardWatchEventKinds.ENTRY_DELETE
-                    );
-
-                logger.info("File settings service up and running...");
+                logger.info("file settings service up and running [tid={}]", Thread.currentThread().getId());
 
                 WatchKey key;
                 while ((key = watchService.take()) != null) {
@@ -145,12 +169,12 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                             processFileSettings(path);
                         }
                     } catch (IOException e) {
-                        logger.warn("Unable to read file attributes of " + path, e);
+                        logger.warn("unable to read file attributes of " + path, e);
                     }
                     key.reset();
                 }
-            } catch (InterruptedException | IOException | ClosedWatchServiceException e) {
-                logger.error("Encountered I/O error watching " + path, e);
+            } catch (InterruptedException | ClosedWatchServiceException e) {
+                logger.debug("encountered exception watching. Shutting down watcher thread.", e);
             } finally {
                 watcherThreadLatch.countDown();
             }
@@ -158,6 +182,7 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
     }
 
     synchronized void stopWatcher() {
+        logger.debug("stopping watcher ...");
         if (watching()) {
             try {
                 watchService.close();
@@ -168,11 +193,13 @@ public class FileSettingsService extends AbstractLifecycleComponent implements C
                 watchService = null;
                 logger.info("watcher service stopped");
             }
+        } else {
+            logger.debug("file settings service already stopped");
         }
     }
 
     void processFileSettings(Path path) {
         // TODO: implement me
-        logger.info("Settings file changed event");
+        logger.info("settings file changed event");
     }
 }

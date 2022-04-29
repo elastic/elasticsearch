@@ -11,14 +11,28 @@ perform instrumentation and tracing must use these abstractions.
 
 Separately, there is the [`apm-integration`](./x-pack/plugins/apm-integration/)
 module, which works with the OpenTelemetry API directly to record trace data.
+Underneath the OTel API, we use Elastic's [APM agent for Java][agent], which
+attaches at runtime to the Elasticsearch JVM and removes the need for
+Elasticsearch to hard-code the use of an SDK.
 
 ## How is tracing configured?
+
+   * The `xpack.apm.tracing.enabled` setting must be set to `true`
+   * The APM agent must be both enabled and configured with server credentials.
+     See below.
 
 We have a config file in [`config/elasticapm.properties`][config], which
 configures settings that are not dynamic, or should not be changed at runtime.
 Other settings can be configured at runtime by using the cluster settings API,
 and setting `xpack.apm.tracing.agent.<key>` with a string value, where `<key>`
-is the APM agent key that you want to configure.
+is the APM agent key that you want to configure. For example, to change the
+sampling rate:
+
+    curl -XPUT \
+      -H "Content-type: application/json" \
+      -u "$USERNAME:$PASSWORD" \
+      -d '{ "persistent": { "xpack.apm.tracing.agent.transaction_sample_rate": "0.75" } }' \
+      https://localhost:9200/_cluster/settings
 
 ### More details about configuration
 
@@ -31,20 +45,13 @@ the config file, and override them via system properties.
 Instead, static or sensitive config values are put in the config file, and
 dynamic settings are left entirely to the system properties. The Elasticsearch
 APM plugin has appropriate security access to set the APM-related system
-properties.
+properties. Calls to the ES settings REST API are translated into system
+property writes, which the agent later picks up and applies.
 
 ## Where is tracing data sent?
 
-You need to have an OpenTelemetry server running somewhere. For example, you can
+You need to have an APM server running somewhere. For example, you can
 create a deployment in Elastic Cloud with Elastic's APM integration.
-
-## How is tracing data sent?
-
-We use Elastic's APM agent for Java, which attaches at runtime to the
-Elasticsearch JVM, which removes the need for Elasticsearch to hard-code the use
-of an SDK. The agent is configured using a configuration file at
-"config/elasticapm.properties". By default, the agent is disabled, so it is
-present as a Java agent, but will do nothing.
 
 ## What do we trace?
 
@@ -123,3 +130,4 @@ explicitly opening a scope via the `Tracer`.
 [tracing]: ./server/src/main/java/org/elasticsearch/tracing/
 [config]: ./x-pack/plugin/apm-integration/src/main/config/elasticapm.properties
 [agent-config]: https://www.elastic.co/guide/en/apm/agent/java/master/configuration.html
+[agent]: https://www.elastic.co/guide/en/apm/agent/java/current/index.html

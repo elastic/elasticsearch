@@ -18,6 +18,9 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
+import java.util.Deque;
+import java.util.LinkedList;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
 /**
@@ -31,6 +34,11 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     private final DesiredBalanceService desiredBalanceService;
     private volatile boolean pendingReroute;
 
+    private record DesiredBalancesListener(long index, Runnable listener) {}
+
+    private final AtomicLong indexGenerator = new AtomicLong(0);
+    private final Deque<DesiredBalancesListener> pendingListeners = new LinkedList<>();
+
     public DesiredBalanceShardsAllocator(
         ShardsAllocator delegateAllocator,
         ThreadPool threadPool,
@@ -43,8 +51,25 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             protected void processInput(DesiredBalanceInput desiredBalanceInput) {
                 if (desiredBalanceService.updateDesiredBalanceAndReroute(desiredBalanceInput, this::isFresh)) {
                     pendingReroute = true;
-                    rerouteServiceSupplier.get()
-                        .reroute("desired balance changed", Priority.NORMAL, ActionListener.wrap(() -> pendingReroute = false));
+                    boolean isFreshInput = isFresh(desiredBalanceInput);
+                    rerouteServiceSupplier.get().reroute("desired balance changed", Priority.NORMAL, ActionListener.wrap(() -> {
+                        if (isFreshInput) {
+                            pendingReroute = false;
+                            triggerProcessedListeners(desiredBalanceInput.index());
+                        }
+                    }));
+                }
+            }
+
+            private void triggerProcessedListeners(long index) {
+                synchronized (pendingListeners) {
+                    while (true) {
+                        var trigger = pendingListeners.peekFirst();
+                        if (trigger == null || trigger.index > index) {
+                            break;
+                        }
+                        pendingListeners.pollFirst().listener.run();
+                    }
                 }
             }
 
@@ -64,8 +89,12 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
         // TODO must also capture any shards that the existing-shards allocators have allocated this pass, not just the ignored ones
 
+        var index = indexGenerator.incrementAndGet();
+        synchronized (pendingListeners) {
+            pendingListeners.addLast(new DesiredBalancesListener(index, () -> {/* TODO add async listener here */}));
+        }
         desiredBalanceComputation.onNewInput(
-            new DesiredBalanceInput(allocation.immutableClone(), new ArrayList<>(allocation.routingNodes().unassigned().ignored()))
+            new DesiredBalanceInput(index, allocation.immutableClone(), new ArrayList<>(allocation.routingNodes().unassigned().ignored()))
         );
 
         // TODO possibly add a bounded wait for the computation to complete?

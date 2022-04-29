@@ -87,7 +87,7 @@ public class RemovePluginActionTests extends ESTestCase {
 
     static MockTerminal removePlugin(List<String> pluginIds, Path home, boolean purge) throws Exception {
         Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", home).build());
-        MockTerminal terminal = new MockTerminal();
+        MockTerminal terminal = MockTerminal.create();
         final List<PluginDescriptor> plugins = pluginIds == null
             ? null
             : pluginIds.stream().map(PluginDescriptor::new).collect(Collectors.toList());
@@ -234,7 +234,7 @@ public class RemovePluginActionTests extends ESTestCase {
         assertEquals(ExitCodes.CONFIG, e.exitCode);
         assertEquals("plugin [fake] not found; run 'elasticsearch-plugin list' to get list of installed plugins", e.getMessage());
 
-        MockTerminal terminal = new MockTerminal();
+        MockTerminal terminal = MockTerminal.create();
 
         new MockRemovePluginCommand(env) {
             protected boolean addShutdownHook() {

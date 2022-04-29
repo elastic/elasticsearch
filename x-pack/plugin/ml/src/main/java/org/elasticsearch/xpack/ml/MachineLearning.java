@@ -92,7 +92,7 @@ import org.elasticsearch.xpack.core.ml.MlStatsIndex;
 import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.CancelJobModelSnapshotUpgradeAction;
 import org.elasticsearch.xpack.core.ml.action.CloseJobAction;
-import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAllocationAction;
+import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteCalendarEventAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteDataFrameAnalyticsAction;
@@ -104,7 +104,7 @@ import org.elasticsearch.xpack.core.ml.action.DeleteJobAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAction;
 import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAliasAction;
-import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAllocationAction;
+import org.elasticsearch.xpack.core.ml.action.DeleteTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.EstimateModelMemoryAction;
 import org.elasticsearch.xpack.core.ml.action.EvaluateDataFrameAction;
 import org.elasticsearch.xpack.core.ml.action.ExplainDataFrameAnalyticsAction;
@@ -170,7 +170,7 @@ import org.elasticsearch.xpack.core.ml.action.UpdateFilterAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateProcessAction;
-import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAllocationStateAction;
+import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelAssignmentStateAction;
 import org.elasticsearch.xpack.core.ml.action.UpgradeJobModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateDetectorAction;
 import org.elasticsearch.xpack.core.ml.action.ValidateJobConfigAction;
@@ -189,7 +189,7 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.core.template.TemplateUtils;
 import org.elasticsearch.xpack.ml.action.TransportCancelJobModelSnapshotUpgradeAction;
 import org.elasticsearch.xpack.ml.action.TransportCloseJobAction;
-import org.elasticsearch.xpack.ml.action.TransportCreateTrainedModelAllocationAction;
+import org.elasticsearch.xpack.ml.action.TransportCreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteCalendarAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteCalendarEventAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteDataFrameAnalyticsAction;
@@ -201,7 +201,7 @@ import org.elasticsearch.xpack.ml.action.TransportDeleteJobAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAction;
 import org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAliasAction;
-import org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAllocationAction;
+import org.elasticsearch.xpack.ml.action.TransportDeleteTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.ml.action.TransportEstimateModelMemoryAction;
 import org.elasticsearch.xpack.ml.action.TransportEvaluateDataFrameAction;
 import org.elasticsearch.xpack.ml.action.TransportExplainDataFrameAnalyticsAction;
@@ -267,7 +267,7 @@ import org.elasticsearch.xpack.ml.action.TransportUpdateFilterAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateJobAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportUpdateProcessAction;
-import org.elasticsearch.xpack.ml.action.TransportUpdateTrainedModelAllocationStateAction;
+import org.elasticsearch.xpack.ml.action.TransportUpdateTrainedModelAssignmentStateAction;
 import org.elasticsearch.xpack.ml.action.TransportUpgradeJobModelSnapshotAction;
 import org.elasticsearch.xpack.ml.action.TransportValidateDetectorAction;
 import org.elasticsearch.xpack.ml.action.TransportValidateJobConfigAction;
@@ -300,9 +300,9 @@ import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.MemoryUsageEstimationResult;
 import org.elasticsearch.xpack.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
-import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationClusterService;
-import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationMetadata;
-import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationService;
+import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentClusterService;
+import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentMetadata;
+import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentService;
 import org.elasticsearch.xpack.ml.inference.deployment.DeploymentManager;
 import org.elasticsearch.xpack.ml.inference.ingest.InferenceProcessor;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
@@ -660,7 +660,7 @@ public class MachineLearning extends Plugin
     private final SetOnce<ModelLoadingService> modelLoadingService = new SetOnce<>();
     private final SetOnce<MlAutoscalingDeciderService> mlAutoscalingDeciderService = new SetOnce<>();
     private final SetOnce<DeploymentManager> deploymentManager = new SetOnce<>();
-    private final SetOnce<TrainedModelAllocationClusterService> trainedModelAllocationClusterServiceSetOnce = new SetOnce<>();
+    private final SetOnce<TrainedModelAssignmentClusterService> trainedModelAllocationClusterServiceSetOnce = new SetOnce<>();
 
     public MachineLearning(Settings settings) {
         this.settings = settings;
@@ -1046,13 +1046,13 @@ public class MachineLearning extends Plugin
         nativeStorageProvider.cleanupLocalTmpStorageInCaseOfUncleanShutdown();
 
         // allocation service objects
-        final TrainedModelAllocationService trainedModelAllocationService = new TrainedModelAllocationService(
+        final TrainedModelAssignmentService trainedModelAssignmentService = new TrainedModelAssignmentService(
             client,
             clusterService,
             threadPool
         );
         trainedModelAllocationClusterServiceSetOnce.set(
-            new TrainedModelAllocationClusterService(settings, clusterService, new NodeLoadDetector(memoryTracker))
+            new TrainedModelAssignmentClusterService(settings, clusterService, new NodeLoadDetector(memoryTracker))
         );
 
         mlAutoscalingDeciderService.set(new MlAutoscalingDeciderService(memoryTracker, settings, clusterService));
@@ -1083,7 +1083,7 @@ public class MachineLearning extends Plugin
             nativeStorageProvider,
             modelLoadingService,
             trainedModelProvider,
-            trainedModelAllocationService,
+            trainedModelAssignmentService,
             trainedModelAllocationClusterServiceSetOnce.get(),
             deploymentManager.get()
         );
@@ -1315,11 +1315,11 @@ public class MachineLearning extends Plugin
             new ActionHandler<>(InferTrainedModelDeploymentAction.INSTANCE, TransportInferTrainedModelDeploymentAction.class),
             new ActionHandler<>(GetDeploymentStatsAction.INSTANCE, TransportGetDeploymentStatsAction.class),
             new ActionHandler<>(GetDatafeedRunningStateAction.INSTANCE, TransportGetDatafeedRunningStateAction.class),
-            new ActionHandler<>(CreateTrainedModelAllocationAction.INSTANCE, TransportCreateTrainedModelAllocationAction.class),
-            new ActionHandler<>(DeleteTrainedModelAllocationAction.INSTANCE, TransportDeleteTrainedModelAllocationAction.class),
+            new ActionHandler<>(CreateTrainedModelAssignmentAction.INSTANCE, TransportCreateTrainedModelAssignmentAction.class),
+            new ActionHandler<>(DeleteTrainedModelAssignmentAction.INSTANCE, TransportDeleteTrainedModelAssignmentAction.class),
             new ActionHandler<>(PutTrainedModelDefinitionPartAction.INSTANCE, TransportPutTrainedModelDefinitionPartAction.class),
             new ActionHandler<>(PutTrainedModelVocabularyAction.INSTANCE, TransportPutTrainedModelVocabularyAction.class),
-            new ActionHandler<>(UpdateTrainedModelAllocationStateAction.INSTANCE, TransportUpdateTrainedModelAllocationStateAction.class),
+            new ActionHandler<>(UpdateTrainedModelAssignmentStateAction.INSTANCE, TransportUpdateTrainedModelAssignmentStateAction.class),
             usageAction,
             infoAction
         );
@@ -1460,8 +1460,17 @@ public class MachineLearning extends Plugin
         namedXContent.add(
             new NamedXContentRegistry.Entry(
                 Metadata.Custom.class,
-                new ParseField(TrainedModelAllocationMetadata.NAME),
-                TrainedModelAllocationMetadata::fromXContent
+                new ParseField(TrainedModelAssignmentMetadata.NAME),
+                TrainedModelAssignmentMetadata::fromXContent
+            )
+        );
+        // This is so old cluster state can be read on a new node. We are not making it a deprecated parse field as the user
+        // has no control over this. So, simply read it without logging a deprecation warning
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(
+                Metadata.Custom.class,
+                new ParseField(TrainedModelAssignmentMetadata.DEPRECATED_NAME),
+                TrainedModelAssignmentMetadata::fromXContent
             )
         );
         namedXContent.addAll(new CorrelationNamedContentProvider().getNamedXContentParsers());
@@ -1480,15 +1489,29 @@ public class MachineLearning extends Plugin
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
                 Metadata.Custom.class,
-                TrainedModelAllocationMetadata.NAME,
-                TrainedModelAllocationMetadata::new
+                TrainedModelAssignmentMetadata.NAME,
+                TrainedModelAssignmentMetadata::fromStream
             )
         );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
                 NamedDiff.class,
-                TrainedModelAllocationMetadata.NAME,
-                TrainedModelAllocationMetadata::readDiffFrom
+                TrainedModelAssignmentMetadata.NAME,
+                TrainedModelAssignmentMetadata::readDiffFrom
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                Metadata.Custom.class,
+                TrainedModelAssignmentMetadata.DEPRECATED_NAME,
+                TrainedModelAssignmentMetadata::fromStreamOld
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                NamedDiff.class,
+                TrainedModelAssignmentMetadata.DEPRECATED_NAME,
+                TrainedModelAssignmentMetadata::readDiffFromOld
             )
         );
 
@@ -1850,7 +1873,7 @@ public class MachineLearning extends Plugin
                 stopDeploymentsListener.onResponse(AcknowledgedResponse.TRUE);
                 return;
             }
-            trainedModelAllocationClusterServiceSetOnce.get().removeAllModelAllocations(stopDeploymentsListener);
+            trainedModelAllocationClusterServiceSetOnce.get().removeAllModelAssignments(stopDeploymentsListener);
         }, unsetResetModeListener::onFailure);
 
         // validate no pipelines are using machine learning models

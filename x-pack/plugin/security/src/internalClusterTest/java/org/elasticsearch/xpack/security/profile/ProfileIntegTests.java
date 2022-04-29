@@ -11,9 +11,12 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
+import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.DocumentMissingException;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.profile.GetProfileAction;
 import org.elasticsearch.xpack.core.security.action.profile.GetProfileRequest;
@@ -28,8 +31,13 @@ import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataAct
 import org.elasticsearch.xpack.core.security.action.profile.UpdateProfileDataRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
+import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.user.User;
 
+import java.io.IOException;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -235,8 +243,9 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
         );
     }
 
-    public void testSuggestProfiles() {
-        final String nativeRacUserPasswordHash = new String(getFastStoredHashAlgoForTests().hash(NATIVE_RAC_USER_PASSWORD));
+    public void testSuggestProfilesWithName() {
+        final ProfileService profileService = getInstanceFromRandomNode(ProfileService.class);
+
         final Map<String, String> users = Map.of(
             "user_foo",
             "Very Curious User Foo",
@@ -248,14 +257,13 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
             "Super Anxious Admin Qux"
         );
         users.forEach((key, value) -> {
-            final PutUserRequest putUserRequest1 = new PutUserRequest();
-            putUserRequest1.username(key);
-            putUserRequest1.fullName(value);
-            putUserRequest1.email(key.substring(5) + "email@example.org");
-            putUserRequest1.roles("rac_role");
-            putUserRequest1.passwordHash(nativeRacUserPasswordHash.toCharArray());
-            assertThat(client().execute(PutUserAction.INSTANCE, putUserRequest1).actionGet().created(), is(true));
-            doActivateProfile(key, NATIVE_RAC_USER_PASSWORD);
+            final Authentication authentication = AuthenticationTestHelper.builder()
+                .realm()
+                .user(new User(key, new String[] { "rac_role" }, value, key.substring(5) + "email@example.org", Map.of(), true))
+                .build();
+            final PlainActionFuture<Profile> future = new PlainActionFuture<>();
+            profileService.activateProfile(authentication, future);
+            future.actionGet();
         });
 
         final SuggestProfilesResponse.ProfileHit[] profiles1 = doSuggest("");
@@ -284,6 +292,176 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
 
         final SuggestProfilesResponse.ProfileHit[] profiles7 = doSuggest("example.org");
         assertThat(extractUsernames(profiles7), equalTo(users.keySet()));
+
+        // Fuzzy match
+        final SuggestProfilesResponse.ProfileHit[] profiles8 = doSuggest("Kurious One");
+        assertThat(extractUsernames(profiles8), equalTo(Set.of("user_foo", "user_bar")));
+    }
+
+    public void testSuggestProfileWithData() {
+        final ProfileService profileService = getInstanceFromRandomNode(ProfileService.class);
+        final PlainActionFuture<Profile> future1 = new PlainActionFuture<>();
+        profileService.activateProfile(AuthenticationTestHelper.builder().realm().build(), future1);
+        final Profile profile = future1.actionGet();
+
+        final PlainActionFuture<AcknowledgedResponse> future2 = new PlainActionFuture<>();
+        profileService.updateProfileData(
+            new UpdateProfileDataRequest(
+                profile.uid(),
+                Map.of("spaces", "demo"),
+                Map.of("app1", Map.of("name", "app1", "status", "prod"), "app2", Map.of("name", "app2", "status", "dev")),
+                -1,
+                -1,
+                WriteRequest.RefreshPolicy.WAIT_UNTIL
+            ),
+            future2
+        );
+        assertThat(future2.actionGet().isAcknowledged(), is(true));
+
+        // No application data is requested
+        final SuggestProfilesResponse.ProfileHit[] profileHits1 = doSuggest("");
+        assertThat(profileHits1.length, equalTo(1));
+        final Profile profileResult1 = profileHits1[0].profile();
+        assertThat(profileResult1.uid(), equalTo(profile.uid()));
+        assertThat(profileResult1.labels(), equalTo(Map.of("spaces", "demo")));
+        assertThat(profileResult1.applicationData(), anEmptyMap());
+
+        // Request a single key of application data
+        final SuggestProfilesResponse.ProfileHit[] profileHits2 = doSuggest("", Set.of("app1"));
+        assertThat(profileHits2.length, equalTo(1));
+        final Profile profileResult2 = profileHits2[0].profile();
+        assertThat(profileResult2.uid(), equalTo(profile.uid()));
+        assertThat(profileResult2.labels(), equalTo(Map.of("spaces", "demo")));
+        assertThat(profileResult2.applicationData(), equalTo(Map.of("app1", Map.of("name", "app1", "status", "prod"))));
+
+        // Request multiple keys
+        final SuggestProfilesResponse.ProfileHit[] profileHits3 = doSuggest(
+            "",
+            randomFrom(Set.of("*"), Set.of("app*"), Set.of("app1", "app2"))
+        );
+        assertThat(profileHits3.length, equalTo(1));
+        final Profile profileResult3 = profileHits3[0].profile();
+        assertThat(profileResult3.uid(), equalTo(profile.uid()));
+        assertThat(profileResult3.labels(), equalTo(Map.of("spaces", "demo")));
+        assertThat(
+            profileResult3.applicationData(),
+            equalTo(Map.of("app1", Map.of("name", "app1", "status", "prod"), "app2", Map.of("name", "app2", "status", "dev")))
+        );
+    }
+
+    public void testSuggestProfilesWithHint() throws IOException {
+        final ProfileService profileService = getInstanceFromRandomNode(ProfileService.class);
+        final List<String> spaces = List.of("space1", "space2", "space3", "space4", "*");
+        final List<Profile> profiles = spaces.stream().map(space -> {
+            final PlainActionFuture<Profile> future1 = new PlainActionFuture<>();
+            final String lastName = randomAlphaOfLengthBetween(3, 8);
+            final Authentication authentication = AuthenticationTestHelper.builder()
+                .realm()
+                .user(
+                    new User(
+                        "user_" + lastName,
+                        new String[] { "rac_role" },
+                        "User " + lastName,
+                        "user_" + lastName + "@example.org",
+                        Map.of(),
+                        true
+                    )
+                )
+                .build();
+            profileService.activateProfile(authentication, future1);
+            final Profile profile = future1.actionGet();
+            final PlainActionFuture<AcknowledgedResponse> future2 = new PlainActionFuture<>();
+            profileService.updateProfileData(
+                new UpdateProfileDataRequest(
+                    profile.uid(),
+                    Map.of("kibana", Map.of("space", space)),
+                    Map.of(),
+                    -1,
+                    -1,
+                    WriteRequest.RefreshPolicy.WAIT_UNTIL
+                ),
+                future2
+            );
+            assertThat(future2.actionGet().isAcknowledged(), is(true));
+            final PlainActionFuture<Profile> future3 = new PlainActionFuture<>();
+            profileService.getProfile(profile.uid(), Set.of(), future3);
+            return future3.actionGet();
+        }).toList();
+
+        // Default order of last synchronized timestamp
+        final List<Profile> profileHits1 = Arrays.stream(doSuggest("")).map(SuggestProfilesResponse.ProfileHit::profile).toList();
+        assertThat(
+            profileHits1.stream().sorted(Comparator.comparingLong(Profile::lastSynchronized).reversed()).toList(),
+            equalTo(profileHits1)
+        );
+
+        // uid hint is a should clause which does not exclude records but ranks matching ones higher
+        final Profile hintedProfile2 = randomFrom(profiles);
+        final List<Profile> profileHits2 = Arrays.stream(
+            doSuggest(Set.of(), "user", new SuggestProfilesRequest.Hint(List.of(hintedProfile2.uid()), null))
+        ).map(SuggestProfilesResponse.ProfileHit::profile).toList();
+        assertThat(profileHits2.size(), equalTo(5));
+        // First record has the matching uid
+        assertThat(profileHits2.get(0).uid(), equalTo(hintedProfile2.uid()));
+        // Rest follows order of last synced
+        assertThat(
+            profileHits2.stream().skip(1).sorted(Comparator.comparingLong(Profile::lastSynchronized).reversed()).toList(),
+            equalTo(profileHits2.subList(1, profileHits2.size()))
+        );
+
+        // labels hint is also a should clause which does not exclude records but ranks matching ones higher
+        final Profile hintedProfile3 = randomFrom(profiles);
+        final String hintedSpace3 = ObjectPath.evaluate(hintedProfile3.labels(), "kibana.space");
+        final List<Profile> profileHits3 = Arrays.stream(
+            doSuggest(Set.of(), "user", new SuggestProfilesRequest.Hint(null, Map.of("kibana.space", hintedSpace3)))
+        ).map(SuggestProfilesResponse.ProfileHit::profile).toList();
+        assertThat(profileHits3.size(), equalTo(5));
+        // First record has the matching labels
+        assertThat(profileHits3.get(0).labels(), equalTo(Map.of("kibana", Map.of("space", hintedSpace3))));
+        assertThat(profileHits3.get(0).uid(), equalTo(hintedProfile3.uid()));
+        // Rest follows order of last synced
+        assertThat(
+            profileHits3.stream().skip(1).sorted(Comparator.comparingLong(Profile::lastSynchronized).reversed()).toList(),
+            equalTo(profileHits3.subList(1, profileHits3.size()))
+        );
+
+        // Both uid and labels hints
+        final List<Profile> hintedProfiles = randomSubsetOf(2, profiles);
+        final Profile hintedProfile4 = randomFrom(hintedProfiles);
+        final Object hintedSpace4 = ObjectPath.evaluate(hintedProfile4.labels(), "kibana.space");
+        final List<Profile> profileHits4 = Arrays.stream(
+            doSuggest(
+                Set.of(),
+                "user",
+                new SuggestProfilesRequest.Hint(hintedProfiles.stream().map(Profile::uid).toList(), Map.of("kibana.space", hintedSpace4))
+            )
+        ).map(SuggestProfilesResponse.ProfileHit::profile).toList();
+        assertThat(profileHits4.size(), equalTo(5));
+        // First record has both matching uid and labels
+        assertThat(profileHits4.get(0).labels(), equalTo(Map.of("kibana", Map.of("space", hintedSpace4))));
+        assertThat(profileHits4.get(0).uid(), equalTo(hintedProfile4.uid()));
+        // Second record has only matching uid
+        assertThat(
+            profileHits4.get(1).uid(),
+            equalTo(hintedProfiles.stream().filter(p -> false == p.equals(hintedProfile4)).findFirst().orElseThrow().uid())
+        );
+        // Rest follows order of last synced
+        assertThat(
+            profileHits4.stream().skip(2).sorted(Comparator.comparingLong(Profile::lastSynchronized).reversed()).toList(),
+            equalTo(profileHits4.subList(2, profileHits4.size()))
+        );
+
+        // A record will not be included if name does not match even when it has matching hint
+        final Profile hintedProfile5 = randomFrom(profiles);
+        final List<Profile> profileHits5 = Arrays.stream(
+            doSuggest(
+                Set.of(),
+                hintedProfile5.user().fullName().substring(5),
+                new SuggestProfilesRequest.Hint(profiles.stream().map(Profile::uid).toList(), Map.of("kibana.space", spaces))
+            )
+        ).map(SuggestProfilesResponse.ProfileHit::profile).toList();
+        assertThat(profileHits5.size(), equalTo(1));
+        assertThat(profileHits5.get(0).uid(), equalTo(hintedProfile5.uid()));
     }
 
     public void testProfileAPIsWhenIndexNotCreated() {
@@ -375,8 +553,16 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
         );
     }
 
-    private SuggestProfilesResponse.ProfileHit[] doSuggest(String query) {
-        final SuggestProfilesRequest suggestProfilesRequest = new SuggestProfilesRequest(Set.of(), query, 10);
+    private SuggestProfilesResponse.ProfileHit[] doSuggest(String name) {
+        return doSuggest(name, Set.of());
+    }
+
+    private SuggestProfilesResponse.ProfileHit[] doSuggest(String name, Set<String> dataKeys) {
+        return doSuggest(dataKeys, name, null);
+    }
+
+    private SuggestProfilesResponse.ProfileHit[] doSuggest(Set<String> dataKeys, String name, SuggestProfilesRequest.Hint hint) {
+        final SuggestProfilesRequest suggestProfilesRequest = new SuggestProfilesRequest(dataKeys, name, 10, hint);
         final SuggestProfilesResponse suggestProfilesResponse = client().execute(SuggestProfilesAction.INSTANCE, suggestProfilesRequest)
             .actionGet();
         assertThat(suggestProfilesResponse.getTotalHits().relation, is(TotalHits.Relation.EQUAL_TO));

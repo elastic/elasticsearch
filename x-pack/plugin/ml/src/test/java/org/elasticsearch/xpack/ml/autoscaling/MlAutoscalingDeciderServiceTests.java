@@ -117,7 +117,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
         when(mlMemoryTracker.asyncRefresh()).thenReturn(true);
         when(mlMemoryTracker.getAnomalyDetectorJobMemoryRequirement(any())).thenReturn(DEFAULT_JOB_SIZE);
         when(mlMemoryTracker.getDataFrameAnalyticsJobMemoryRequirement(any())).thenReturn(DEFAULT_JOB_SIZE);
-        when(mlMemoryTracker.getTrainedModelAllocationMemoryRequirement(any())).thenReturn(DEFAULT_JOB_SIZE);
+        when(mlMemoryTracker.getTrainedModelAssignmentMemoryRequirement(any())).thenReturn(DEFAULT_JOB_SIZE);
         nodeLoadDetector = mock(NodeLoadDetector.class);
         when(nodeLoadDetector.getMlMemoryTracker()).thenReturn(mlMemoryTracker);
         when(nodeLoadDetector.detectNodeLoad(any(), any(), anyInt(), anyInt(), anyBoolean())).thenReturn(
@@ -758,7 +758,7 @@ public class MlAutoscalingDeciderServiceTests extends ESTestCase {
     }
 
     public void testScaleUp_withWaitingModelAndAutoMemoryAndNoRoomInNodes() {
-        when(mlMemoryTracker.getTrainedModelAllocationMemoryRequirement(any())).thenReturn(ByteSizeValue.ofGb(2).getBytes());
+        when(mlMemoryTracker.getTrainedModelAssignmentMemoryRequirement(any())).thenReturn(ByteSizeValue.ofGb(2).getBytes());
         List<NodeLoad> fullyLoadedNode = Arrays.asList(
             NodeLoad.builder("any")
                 .setMaxMemory(ByteSizeValue.ofGb(1).getBytes())

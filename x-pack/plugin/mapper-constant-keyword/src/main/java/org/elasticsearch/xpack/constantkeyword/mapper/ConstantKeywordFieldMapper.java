@@ -151,16 +151,19 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
         @Override
         public TermsEnum getTerms(boolean caseInsensitive, String string, SearchExecutionContext queryShardContext, String searchAfter) {
+            if (value == null) {
+                return TermsEnum.EMPTY;
+            }
             boolean matches = caseInsensitive
                 ? value.toLowerCase(Locale.ROOT).startsWith(string.toLowerCase(Locale.ROOT))
                 : value.startsWith(string);
             if (matches == false) {
-                return null;
+                return TermsEnum.EMPTY;
             }
             if (searchAfter != null) {
                 if (searchAfter.compareTo(value) >= 0) {
                     // The constant value is before the searchAfter value so must be ignored
-                    return null;
+                    return TermsEnum.EMPTY;
                 }
             }
             return new SimpleTermCountEnum(value);

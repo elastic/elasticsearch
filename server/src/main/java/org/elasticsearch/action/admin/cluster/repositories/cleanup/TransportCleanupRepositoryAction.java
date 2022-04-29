@@ -16,7 +16,6 @@ import org.elasticsearch.action.StepListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.RepositoryCleanupInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
@@ -101,26 +100,22 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                 if (repositoryCleanupInProgress.hasCleanupInProgress() == false) {
                     return;
                 }
-                clusterService.submitStateUpdateTask(
-                    "clean up repository cleanup task after master failover",
-                    new ClusterStateUpdateTask() {
-                        @Override
-                        public ClusterState execute(ClusterState currentState) {
-                            return removeInProgressCleanup(currentState);
-                        }
+                submitUnbatchedTask(clusterService, "clean up repository cleanup task after master failover", new ClusterStateUpdateTask() {
+                    @Override
+                    public ClusterState execute(ClusterState currentState) {
+                        return removeInProgressCleanup(currentState);
+                    }
 
-                        @Override
-                        public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-                            logger.debug("Removed repository cleanup task [{}] from cluster state", repositoryCleanupInProgress);
-                        }
+                    @Override
+                    public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
+                        logger.debug("Removed repository cleanup task [{}] from cluster state", repositoryCleanupInProgress);
+                    }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            logger.warn("Failed to remove repository cleanup task [{}] from cluster state", repositoryCleanupInProgress);
-                        }
-                    },
-                    newExecutor()
-                );
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.warn("Failed to remove repository cleanup task [{}] from cluster state", repositoryCleanupInProgress);
+                    }
+                });
             }
         });
     }
@@ -164,7 +159,8 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
         repositoryDataListener.whenComplete(repositoryData -> {
             final long repositoryStateId = repositoryData.getGenId();
             logger.info("Running cleanup operations on repository [{}][{}]", repositoryName, repositoryStateId);
-            clusterService.submitStateUpdateTask(
+            submitUnbatchedTask(
+                clusterService,
                 "cleanup repository [" + repositoryName + "][" + repositoryStateId + ']',
                 new ClusterStateUpdateTask() {
 
@@ -256,7 +252,8 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                             listener.onFailure(failure);
                             return;
                         }
-                        clusterService.submitStateUpdateTask(
+                        submitUnbatchedTask(
+                            clusterService,
                             "remove repository cleanup task [" + repositoryName + "][" + repositoryStateId + ']',
                             new ClusterStateUpdateTask() {
                                 @Override
@@ -298,18 +295,20 @@ public final class TransportCleanupRepositoryAction extends TransportMasterNodeA
                                         listener.onFailure(failure);
                                     }
                                 }
-                            },
-                            newExecutor()
+                            }
                         );
                     }
-                },
-                newExecutor()
+                }
             );
         }, listener::onFailure);
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
-    private static <T extends ClusterStateUpdateTask> ClusterStateTaskExecutor<T> newExecutor() {
-        return ClusterStateTaskExecutor.unbatched();
+    private static void submitUnbatchedTask(
+        ClusterService clusterService,
+        @SuppressWarnings("SameParameterValue") String source,
+        ClusterStateUpdateTask task
+    ) {
+        clusterService.submitUnbatchedStateUpdateTask(source, task);
     }
 }

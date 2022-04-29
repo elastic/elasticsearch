@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.core.ml.inference.results.InferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
-import org.elasticsearch.xpack.ml.inference.allocation.TrainedModelAllocationNodeService;
+import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentNodeService;
 
 import java.util.Map;
 import java.util.Optional;
@@ -37,7 +37,7 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
     private static final Logger logger = LogManager.getLogger(TrainedModelDeploymentTask.class);
 
     private final TaskParams params;
-    private final TrainedModelAllocationNodeService trainedModelAllocationNodeService;
+    private final TrainedModelAssignmentNodeService trainedModelAssignmentNodeService;
     private volatile boolean stopped;
     private final SetOnce<String> stoppedReasonHolder = new SetOnce<>();
     private final SetOnce<InferenceConfig> inferenceConfigHolder = new SetOnce<>();
@@ -51,15 +51,15 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
         TaskId parentTask,
         Map<String, String> headers,
         TaskParams taskParams,
-        TrainedModelAllocationNodeService trainedModelAllocationNodeService,
+        TrainedModelAssignmentNodeService trainedModelAssignmentNodeService,
         XPackLicenseState licenseState,
         LicensedFeature.Persistent licensedFeature
     ) {
-        super(id, type, action, MlTasks.trainedModelAllocationTaskDescription(taskParams.getModelId()), parentTask, headers);
+        super(id, type, action, MlTasks.trainedModelAssignmentTaskDescription(taskParams.getModelId()), parentTask, headers);
         this.params = taskParams;
-        this.trainedModelAllocationNodeService = ExceptionsHelper.requireNonNull(
-            trainedModelAllocationNodeService,
-            "trainedModelAllocationNodeService"
+        this.trainedModelAssignmentNodeService = ExceptionsHelper.requireNonNull(
+            trainedModelAssignmentNodeService,
+            "trainedModelAssignmentNodeService"
         );
         this.licenseState = licenseState;
         this.licensedFeature = licensedFeature;
@@ -84,7 +84,7 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
     }
 
     public void stop(String reason, ActionListener<AcknowledgedResponse> listener) {
-        trainedModelAllocationNodeService.stopDeploymentAndNotify(this, reason, listener);
+        trainedModelAssignmentNodeService.stopDeploymentAndNotify(this, reason, listener);
     }
 
     public void markAsStopped(String reason) {
@@ -132,14 +132,14 @@ public class TrainedModelDeploymentTask extends CancellableTask implements Start
             );
             return;
         }
-        trainedModelAllocationNodeService.infer(this, update.apply(inferenceConfigHolder.get()), doc, timeout, listener);
+        trainedModelAssignmentNodeService.infer(this, update.apply(inferenceConfigHolder.get()), doc, timeout, listener);
     }
 
     public Optional<ModelStats> modelStats() {
-        return trainedModelAllocationNodeService.modelStats(this);
+        return trainedModelAssignmentNodeService.modelStats(this);
     }
 
     public void setFailed(String reason) {
-        trainedModelAllocationNodeService.failAllocation(this, reason);
+        trainedModelAssignmentNodeService.failAssignment(this, reason);
     }
 }

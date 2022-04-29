@@ -18,6 +18,7 @@ import org.elasticsearch.bootstrap.ServerArgs;
 import org.elasticsearch.cli.CliToolProvider;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
@@ -71,7 +72,7 @@ class ServerCli extends EnvironmentAwareCommand {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env) throws Exception {
+    protected void execute(Terminal terminal, OptionSet options, ProcessInfo processInfo, Environment env) throws Exception {
         if (options.nonOptionArguments().isEmpty() == false) {
             throw new UserException(ExitCodes.USAGE, "Positional arguments not allowed, found " + options.nonOptionArguments());
         }
@@ -82,13 +83,13 @@ class ServerCli extends EnvironmentAwareCommand {
 
         // setup security
         final SecureString keystorePassword = getKeystorePassword(env.configFile(), terminal);
-        autoConfigureSecurity(terminal, options, keystorePassword);
+        autoConfigureSecurity(terminal, options, keystorePassword, processInfo);
         // reload settings since auto security might have changed them
         // TODO: don't recreate if security settings were not changed
-        env = createEnv(options);
+        env = createEnv(options, processInfo);
 
         // determine process environment and arguments
-        Map<String, String> envVars = new HashMap<>(this.envVars);
+        Map<String, String> envVars = new HashMap<>(processInfo.envVars());
         Path tempDir = TempDirectory.setup(envVars);
         List<String> jvmOptions = JvmOptionsParser.determineOptions(
             env.configFile(),
@@ -179,12 +180,18 @@ class ServerCli extends EnvironmentAwareCommand {
         });
 
         String autoConfigLibs = "modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli";
-        Command autoConfigNode = CliToolProvider.load("auto-configure-node", autoConfigLibs).create();
+        Command cmd = CliToolProvider.load("auto-configure-node", autoConfigLibs).create();
+        assert cmd instanceof EnvironmentAwareCommand;
+        @SuppressWarnings("raw")
+        var autoConfigNode = (EnvironmentAwareCommand) cmd;
+        OptionSet newOptions = new Op()
+
+
         if (options.has(enrollmentTokenOption)) {
             final String enrollmentToken = enrollmentTokenOption.value(options);
             args.add("--enrollment-token");
             args.add(enrollmentToken);
-            int ret = autoConfigNode.main(args.toArray(new String[0]), autoConfigTerminal);
+            int ret = autoConfigNode.(args.toArray(new String[0]), autoConfigTerminal);
             if (ret != 0) {
                 throw new UserException(ret, "Auto security enrollment failed");
             }
@@ -225,7 +232,7 @@ class ServerCli extends EnvironmentAwareCommand {
         return startProcess(builder);
     }
 
-    Process startProcess(ProcessBuilder builder) {
+    protected Process startProcess(ProcessBuilder builder) throws IOException {
         return builder.start();
     }
 }

@@ -171,7 +171,7 @@ public class ElasticsearchCliTests extends CommandTestCase {
         return new ServerCli() {
 
             @Override
-            Process startProcess(ProcessBuilder processBuilder) {
+            protected Process startProcess(ProcessBuilder processBuilder) {
                 if (initCallback != null) {
                     initCallback.init(daemonize, pidFile, quiet, initialEnv);
                 }

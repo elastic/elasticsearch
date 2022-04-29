@@ -348,7 +348,7 @@ public class IndicesWriteLoadStoreTests extends ESTestCase {
     }
 
     public void testMaxBulkSizeIsConfigurable() throws Exception {
-        final var maxBulkSize = ByteSizeValue.ofMb(1); // ByteSizeValue.ofKb(randomIntBetween(10, 100));
+        final var maxBulkSize = ByteSizeValue.ofKb(randomIntBetween(10, 100));
         final var averageDocumentSizeInBytes = getWriteLoadDistributionSerializedSize() + 100; // Add some overhead just in case...
         final var maxDocumentsPerBulk = (int) Math.ceil((double) maxBulkSize.getBytes() / averageDocumentSizeInBytes);
 

@@ -25,6 +25,7 @@ import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.mapper.GeoShapeQueryable;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -139,13 +140,33 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
     }
 
     /**
-     * Adds points from a single geohash.
+     * Adds bounding box represented by the provided geohash.
+     * @param geohash The geohash for computing the bounding box.
+     * @deprecated use {@link #setCornersFromGeohash(String)} instead
+     */
+    @Deprecated
+    public GeoBoundingBoxQueryBuilder setCorners(final String geohash) {
+        return setCornersFromGeohash(geohash);
+    }
+
+    /**
+     * Adds bounding box represented by the provided geohash.
      * @param geohash The geohash for computing the bounding box.
      */
-    public GeoBoundingBoxQueryBuilder setCorners(final String geohash) {
+    public GeoBoundingBoxQueryBuilder setCornersFromGeohash(final String geohash) {
         // get the bounding box of the geohash and set topLeft and bottomRight
         Rectangle ghBBox = Geohash.toBoundingBox(geohash);
         return setCorners(new GeoPoint(ghBBox.getMaxY(), ghBBox.getMinX()), new GeoPoint(ghBBox.getMinY(), ghBBox.getMaxX()));
+    }
+
+    /**
+     * Adds bounding box represented by the provided geotile.
+     * @param geotile The geotile for computing the bounding box.
+     */
+    public GeoBoundingBoxQueryBuilder setCornersFromGeoTile(final String geotile) {
+        // get the bounding box of the geotile and set topLeft and bottomRight
+        Rectangle tile = GeoTileUtils.toBoundingBox(geotile);
+        return setCorners(new GeoPoint(tile.getMaxY(), tile.getMinX()), new GeoPoint(tile.getMinY(), tile.getMaxX()));
     }
 
     /**

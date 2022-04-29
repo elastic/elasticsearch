@@ -1,0 +1,114 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: test_index
+        body:
+          mappings:
+            properties:
+              location:
+                type: geo_point
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "test_index", "_id": "u1"}}'
+          - '{"location": "34.5, 60.5"}'
+          - '{"index": {"_index": "test_index", "_id": "u2"}}'
+          - '{"location": {"lat" : -34.5 , "lon" : 60.5}}'
+          - '{"index": {"_index": "test_index", "_id": "u3"}}'
+          - '{"location": [-60.5, 34.5]}'
+          - '{"index": {"_index": "test_index", "_id": "u4"}}'
+          - '{"location": "POINT(-60.5, -34.5)"}'
+          - '{"index": {"_index": "test_index", "_id": "u5"}}'
+          - '{"location": {"type" : "Point", "coordinates" : [0, 0]}}'
+---
+"bounding box explicit":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_index
+        body:
+          query:
+            geo_bounding_box:
+              location:
+                top_left: [-180, 90]
+                bottom_right: [0, 0]
+
+  - match: {hits.total: 2}
+
+---
+"bounding box explicit with lat lot":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_index
+        body:
+          query:
+            geo_bounding_box:
+              location:
+                top_left:
+                  lat: 90
+                  lon: -180
+                bottom_right:
+                   lat: 0
+                   lon: 0
+
+  - match: {hits.total: 2}
+
+---
+"bounding box wkt":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_index
+        body:
+          query:
+            geo_bounding_box:
+              location:
+                wkt: "BBOX (0, -180, 90, 0)"
+
+  - match: {hits.total: 2}
+
+---
+"bounding box geohash":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_index
+        body:
+          query:
+            geo_bounding_box:
+              location:
+                geohash: "s"
+
+  - match: {hits.total: 1}
+---
+"bounding box lat lon geohash":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_index
+        body:
+          query:
+            geo_bounding_box:
+              location:
+                top_left: "s"
+                bottom_right: "s"
+
+  - match: {hits.total: 1}
+
+---
+"bounding box geotile":
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_index
+        body:
+          query:
+            geo_bounding_box:
+              location:
+                geotile: "1/0/0"
+
+  - match: {hits.total: 2}

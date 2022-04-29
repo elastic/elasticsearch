@@ -14,8 +14,10 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.ShapeType;
+import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -37,6 +39,8 @@ public class GeoBoundingBox implements ToXContentFragment, Writeable {
     static final ParseField LEFT_FIELD = new ParseField("left");
     static final ParseField RIGHT_FIELD = new ParseField("right");
     static final ParseField WKT_FIELD = new ParseField("wkt");
+    static final ParseField GEOTILE_FIELD = new ParseField("geotile");
+    static final ParseField GEOHASH_FIELD = new ParseField("geohash");
     public static final ParseField BOUNDS_FIELD = new ParseField("bounds");
     public static final ParseField LAT_FIELD = new ParseField("lat");
     public static final ParseField LON_FIELD = new ParseField("lon");
@@ -174,6 +178,7 @@ public class GeoBoundingBox implements ToXContentFragment, Writeable {
         double right = Double.NaN;
 
         String currentFieldName;
+        ParseField envelopeType = null;
         Rectangle envelope = null;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -181,6 +186,7 @@ public class GeoBoundingBox implements ToXContentFragment, Writeable {
                 currentFieldName = parser.currentName();
                 parser.nextToken();
                 if (WKT_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    assertNull(envelopeType, WKT_FIELD);
                     try {
                         Geometry geometry = WellKnownText.fromWKT(StandardValidator.instance(true), true, parser.text());
                         if (ShapeType.ENVELOPE.equals(geometry.type()) == false) {
@@ -188,10 +194,19 @@ public class GeoBoundingBox implements ToXContentFragment, Writeable {
                                 "failed to parse WKT bounding box. [" + geometry.type() + "] found. expected [" + ShapeType.ENVELOPE + "]"
                             );
                         }
+                        envelopeType = WKT_FIELD;
                         envelope = (Rectangle) geometry;
                     } catch (ParseException | IllegalArgumentException e) {
                         throw new ElasticsearchParseException("failed to parse WKT bounding box", e);
                     }
+                } else if (GEOTILE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    assertNull(envelopeType, GEOTILE_FIELD);
+                    envelopeType = GEOTILE_FIELD;
+                    envelope = GeoTileUtils.toBoundingBox(parser.text());
+                } else if (GEOHASH_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                    assertNull(envelopeType, GEOHASH_FIELD);
+                    envelopeType = GEOHASH_FIELD;
+                    envelope = Geohash.toBoundingBox(parser.text());
                 } else if (TOP_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     top = parser.doubleValue();
                 } else if (BOTTOM_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
@@ -225,13 +240,15 @@ public class GeoBoundingBox implements ToXContentFragment, Writeable {
                 throw new ElasticsearchParseException("failed to parse bounding box. field name expected but [{}] found", token);
             }
         }
-        if (envelope != null) {
+        if (envelopeType != null) {
             if (Double.isNaN(top) == false
                 || Double.isNaN(bottom) == false
                 || Double.isNaN(left) == false
                 || Double.isNaN(right) == false) {
                 throw new ElasticsearchParseException(
-                    "failed to parse bounding box. Conflicting definition found " + "using well-known text and explicit corners."
+                    "failed to parse bounding box. Conflicting definition found using "
+                        + envelopeType.getPreferredName()
+                        + " and explicit corners."
                 );
             }
             GeoPoint topLeft = new GeoPoint(envelope.getMaxLat(), envelope.getMinLon());
@@ -241,6 +258,18 @@ public class GeoBoundingBox implements ToXContentFragment, Writeable {
         GeoPoint topLeft = new GeoPoint(top, left);
         GeoPoint bottomRight = new GeoPoint(bottom, right);
         return new GeoBoundingBox(topLeft, bottomRight);
+    }
+
+    private static void assertNull(ParseField parseField, ParseField newField) {
+        if (parseField != null) {
+            throw new ElasticsearchParseException(
+                "failed to parse bounding box. Conflicting definition found using "
+                    + parseField.getPreferredName()
+                    + " and "
+                    + newField.getPreferredName()
+                    + "."
+            );
+        }
     }
 
 }

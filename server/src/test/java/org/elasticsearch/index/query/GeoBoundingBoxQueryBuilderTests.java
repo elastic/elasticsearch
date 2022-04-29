@@ -23,6 +23,7 @@ import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
@@ -39,20 +40,22 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
     protected GeoBoundingBoxQueryBuilder doCreateTestQueryBuilder() {
         String fieldName = randomFrom(GEO_POINT_FIELD_NAME, GEO_POINT_ALIAS_FIELD_NAME, GEO_SHAPE_FIELD_NAME);
         GeoBoundingBoxQueryBuilder builder = new GeoBoundingBoxQueryBuilder(fieldName);
-        // make sure that minX != maxX and minY != maxY after geohash encoding
-        Rectangle box = randomValueOtherThanMany(
-            (r) -> Math.abs(r.getMaxX() - r.getMinX()) < 0.1 || Math.abs(r.getMaxY() - r.getMinY()) < 0.1,
-            GeometryTestUtils::randomRectangle
-        );
+        Rectangle box = GeometryTestUtils.randomRectangle();
 
         if (randomBoolean()) {
             // check the top-left/bottom-right combination of setters
-            int path = randomIntBetween(0, 2);
+            int path = randomIntBetween(0, 4);
             switch (path) {
                 case 0 -> builder.setCorners(new GeoPoint(box.getMaxY(), box.getMinX()), new GeoPoint(box.getMinY(), box.getMaxX()));
                 case 1 -> builder.setCorners(
                     Geohash.stringEncode(box.getMinX(), box.getMaxY()),
                     Geohash.stringEncode(box.getMaxX(), box.getMinY())
+                );
+                case 2 -> builder.setCornersFromGeohash(Geohash.stringEncode(box.getMinX(), box.getMaxY()));
+                case 3 -> builder.setCornersFromGeoTile(
+                    GeoTileUtils.stringEncode(
+                        GeoTileUtils.longEncode(box.getMinX(), box.getMaxY(), randomIntBetween(0, GeoTileUtils.MAX_ZOOM))
+                    )
                 );
                 default -> builder.setCorners(box.getMaxY(), box.getMinX(), box.getMinY(), box.getMaxX());
             }
@@ -498,22 +501,58 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         assertEquals(json, 1.0, parsed.boost(), 0.0001);
     }
 
-    public void testMalformedGeohashes() {
-        String jsonGeohashAndWkt = """
-            {
-              "geo_bounding_box" : {
-                "pin.location" : {
-                  "top_left" : [ -78.75, 45.0 ],
-                  "wkt" : "BBOX (-74.1, -71.12, 40.73, 40.01)"
-                },
-                "validation_method" : "STRICT",
-                "ignore_unmapped" : false,
-                "boost" : 1.0
-              }
-            }""";
+    public void testMalformedGeoBoundingBoxes() {
+        {
+            String jsonPointAndWkt = """
+                {
+                  "geo_bounding_box" : {
+                    "pin.location" : {
+                      "top_left" : [ -78.75, 45.0 ],
+                      "wkt" : "BBOX (-74.1, -71.12, 40.73, 40.01)"
+                    },
+                    "validation_method" : "STRICT",
+                    "ignore_unmapped" : false,
+                    "boost" : 1.0
+                  }
+                }""";
 
-        ElasticsearchParseException e1 = expectThrows(ElasticsearchParseException.class, () -> parseQuery(jsonGeohashAndWkt));
-        assertThat(e1.getMessage(), containsString("Conflicting definition found using well-known text and explicit corners."));
+            ElasticsearchParseException e1 = expectThrows(ElasticsearchParseException.class, () -> parseQuery(jsonPointAndWkt));
+            assertThat(e1.getMessage(), containsString("Conflicting definition found using wkt and explicit corners."));
+        }
+        {
+            String jsonPointAndGeoTile = """
+                {
+                  "geo_bounding_box" : {
+                    "pin.location" : {
+                      "top_left" : [ -78.75, 45.0 ],
+                      "geotile" : "0/0/0"
+                    },
+                    "validation_method" : "STRICT",
+                    "ignore_unmapped" : false,
+                    "boost" : 1.0
+                  }
+                }""";
+
+            ElasticsearchParseException e1 = expectThrows(ElasticsearchParseException.class, () -> parseQuery(jsonPointAndGeoTile));
+            assertThat(e1.getMessage(), containsString("Conflicting definition found using geotile and explicit corners."));
+        }
+        {
+            String jsonGeohashAndGeoTile = """
+                {
+                  "geo_bounding_box" : {
+                    "pin.location" : {
+                      "geohash" : "bc",
+                      "geotile" : "0/0/0"
+                    },
+                    "validation_method" : "STRICT",
+                    "ignore_unmapped" : false,
+                    "boost" : 1.0
+                  }
+                }""";
+
+            ElasticsearchParseException e1 = expectThrows(ElasticsearchParseException.class, () -> parseQuery(jsonGeohashAndGeoTile));
+            assertThat(e1.getMessage(), containsString("Conflicting definition found using geohash and geotile."));
+        }
     }
 
     public void testHonorsCoercion() throws IOException {

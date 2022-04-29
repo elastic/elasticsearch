@@ -22,6 +22,7 @@ import java.util.jar.Manifest;
 import java.util.stream.Collectors;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.elasticsearch.test.jar.JarUtils.createJar;
 import static org.elasticsearch.test.jar.JarUtils.createJarWithEntries;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
@@ -45,7 +46,7 @@ public class JarUtilsTests extends ESTestCase {
             "Multi-Release: true\n".getBytes(UTF_8)
         );
         Path jar = dir.resolve("foo.jar");
-        JarUtils.createJarWithEntries(jar, jarEntries);
+        createJarWithEntries(jar, jarEntries);
 
         try (JarFile jarFile = new JarFile(jar.toFile())) {
             Map<String, byte[]> entries = jarFile.stream().collect(Collectors.toMap(JarEntry::getName, e -> entryContents(e, jarFile)));
@@ -66,7 +67,7 @@ public class JarUtilsTests extends ESTestCase {
             Manifest-Version: 1.0
             Automatic-Module-Name: foo.bar
             """.getBytes(UTF_8)));
-        Path jarPath = JarUtils.createJar(
+        Path jarPath = createJar(
             dir,
             "impl.jar",
             manifest,
@@ -94,7 +95,7 @@ public class JarUtilsTests extends ESTestCase {
 
     public void testCreateJarNoManifest() throws IOException {
         Path dir = createTempDir();
-        Path jarPath = JarUtils.createJar(dir, "bar.jar", null, "q/Bar.class");
+        Path jarPath = createJar(dir, "bar.jar", null, "q/Bar.class");
         try (JarFile jarFile = new JarFile(jarPath.toFile())) {
             Set<String> entries = jarFile.stream().map(JarEntry::getName).collect(Collectors.toSet());
             assertThat(entries, containsInAnyOrder(is("q/Bar.class")));

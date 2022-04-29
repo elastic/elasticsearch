@@ -176,7 +176,7 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
             + "24.0475 59.94275,24.0465 59.94225,24.046 59.94225,24.04575 59.9425,24.04525 59.94225,24.04725 59.942"
             + "))";
         Geometry polygon = WellKnownText.fromWKT(GeographyValidator.instance(true), true, wkt);
-        doTestGeometry(polygon, GeoTestUtils.geoShapeValue(new Point(24.04725, 59.94224997237325)));
+        doTestGeometry(polygon, GeoTestUtils.geoShapeValue(new Point(24.047249956056476, 59.94224997237325)));
     }
 
     public void testPolygonDateline() throws Exception {

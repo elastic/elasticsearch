@@ -22,7 +22,7 @@ setup:
           - '{"index": {"_index": "test_index", "_id": "u4"}}'
           - '{"location": "POINT(-60.5, -34.5)"}'
           - '{"index": {"_index": "test_index", "_id": "u5"}}'
-          - '{"location": {"type" : "Point", "coordinates" : [0, 0]}}'
+          - '{"location": {"type" : "Point", "coordinates" : [45, 45]}}'
 ---
 "bounding box explicit":
   - do:
@@ -36,7 +36,7 @@ setup:
                 top_left: [-180, 90]
                 bottom_right: [0, 0]
 
-  - match: {hits.total: 2}
+  - match: {hits.total: 1}
 
 ---
 "bounding box explicit with lat lot":
@@ -55,7 +55,7 @@ setup:
                    lat: 0
                    lon: 0
 
-  - match: {hits.total: 2}
+  - match: {hits.total: 1}
 
 ---
 "bounding box wkt":
@@ -67,12 +67,15 @@ setup:
           query:
             geo_bounding_box:
               location:
-                wkt: "BBOX (0, -180, 90, 0)"
+                wkt: "BBOX (-180, 0, 90, 0)"
 
-  - match: {hits.total: 2}
+  - match: {hits.total: 1}
 
 ---
 "bounding box geohash":
+  - skip:
+      version: ' - 8.2.99'
+      reason: fetch profiling implemented in 8.3.0
   - do:
       search:
         rest_total_hits_as_int: true
@@ -84,6 +87,7 @@ setup:
                 geohash: "s"
 
   - match: {hits.total: 1}
+
 ---
 "bounding box lat lon geohash":
   - do:
@@ -101,6 +105,9 @@ setup:
 
 ---
 "bounding box geotile":
+  - skip:
+      version: ' - 8.2.99'
+      reason: fetch profiling implemented in 8.3.0
   - do:
       search:
         rest_total_hits_as_int: true
@@ -111,4 +118,4 @@ setup:
               location:
                 geotile: "1/0/0"
 
-  - match: {hits.total: 2}
+  - match: {hits.total: 1}

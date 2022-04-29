@@ -193,17 +193,20 @@ public class AssignmentPlan implements Comparable<AssignmentPlan> {
                 throw new IllegalArgumentException("there should be no duplicate models");
             }
 
-            assignments = new HashMap<>();
-            remainingNodeMemory = new HashMap<>();
-            remainingNodeCores = new HashMap<>();
-            remainingModelAllocations = new HashMap<>();
+            assignments = new HashMap<>(nodes.size() * models.size(), 1.0f);
+            remainingNodeMemory = new HashMap<>(nodes.size(), 1.0f);
+            remainingNodeCores = new HashMap<>(nodes.size(), 1.0f);
+            remainingModelAllocations = new HashMap<>(models.size(), 1.0f);
+
+            nodes.forEach(n -> {
+                remainingNodeMemory.put(n, n.availableMemoryBytes());
+                remainingNodeCores.put(n, n.cores());
+            });
 
             for (Model m : models) {
                 Map<Node, Integer> nodeAssignments = new HashMap<>();
                 for (Node n : nodes) {
                     nodeAssignments.put(n, 0);
-                    remainingNodeMemory.put(n, n.availableMemoryBytes());
-                    remainingNodeCores.put(n, n.cores());
                 }
                 assignments.put(m, nodeAssignments);
                 remainingModelAllocations.put(m, m.allocations());

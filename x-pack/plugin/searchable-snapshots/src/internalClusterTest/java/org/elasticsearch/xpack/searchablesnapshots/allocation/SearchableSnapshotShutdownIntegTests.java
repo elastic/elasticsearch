@@ -38,7 +38,7 @@ import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, minNumDataNodes = 2, numDataNodes = 2)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, minNumDataNodes = 2)
 public class SearchableSnapshotShutdownIntegTests extends BaseSearchableSnapshotsIntegTestCase {
 
     @Override

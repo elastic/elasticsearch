@@ -8,6 +8,8 @@
 
 package org.elasticsearch.cli;
 
+import org.elasticsearch.core.SuppressForbidden;
+
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.Map;

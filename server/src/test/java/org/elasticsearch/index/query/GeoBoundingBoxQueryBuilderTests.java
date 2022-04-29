@@ -179,6 +179,35 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         builder.setValidationMethod(GeoValidationMethod.STRICT).setCorners(top, right, bottom, left);
     }
 
+    public void testTopAndBottomCanBeEqual() {
+        GeoBoundingBoxQueryBuilder builder = createTestQueryBuilder();
+        double topBottom = builder.topLeft().getLat();
+        double left = builder.topLeft().getLon();
+        double right = builder.bottomRight().getLon();
+
+        builder.setValidationMethod(GeoValidationMethod.STRICT).setCorners(topBottom, left, topBottom, right);
+        builder.setValidationMethod(GeoValidationMethod.IGNORE_MALFORMED).setCorners(topBottom, left, topBottom, right);
+    }
+
+    public void testLeftAndRightCanBeEqual() {
+        GeoBoundingBoxQueryBuilder builder = createTestQueryBuilder();
+        double top = builder.topLeft().getLat();
+        double leftRight = builder.topLeft().getLon();
+        double bottom = builder.bottomRight().getLat();
+
+        builder.setValidationMethod(GeoValidationMethod.STRICT).setCorners(top, leftRight, bottom, leftRight);
+        builder.setValidationMethod(GeoValidationMethod.IGNORE_MALFORMED).setCorners(top, leftRight, bottom, leftRight);
+    }
+
+    public void testTopBottomAndLeftRightCanBeEqual() {
+        GeoBoundingBoxQueryBuilder builder = createTestQueryBuilder();
+        double topBottom = builder.topLeft().getLat();
+        double leftRight = builder.topLeft().getLon();
+
+        builder.setValidationMethod(GeoValidationMethod.STRICT).setCorners(topBottom, leftRight, topBottom, leftRight);
+        builder.setValidationMethod(GeoValidationMethod.IGNORE_MALFORMED).setCorners(topBottom, leftRight, topBottom, leftRight);
+    }
+
     public void testStrictnessDefault() {
         assertFalse(
             "Someone changed the default for coordinate validation - were the docs changed as well?",

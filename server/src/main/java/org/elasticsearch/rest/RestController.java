@@ -301,7 +301,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     @Override
     public void dispatchRequest(RestRequest request, RestChannel channel, ThreadContext threadContext) {
         threadContext.addResponseHeader(ELASTIC_PRODUCT_HTTP_HEADER, ELASTIC_PRODUCT_HTTP_HEADER_VALUE);
-        try (var ignored = threadContext.newTraceContext()) {
+        try {
             tryAllHandlers(request, channel, threadContext);
         } catch (Exception e) {
             try {

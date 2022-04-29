@@ -84,7 +84,7 @@ public class MasterHistory implements ClusterStateListener {
      */
     public boolean hasSameMasterGoneNullNTimes(int n) {
         List<TimeAndMaster> masterHistoryCopy = getMasterHistoryForLast30Minutes(masterHistory);
-        return hasSameMasterGoneNullNTimes(masterHistoryCopy.stream().map(timeAndMaster -> timeAndMaster.master).toList(), n);
+        return hasSameMasterGoneNullNTimes(masterHistoryCopy.stream().map(TimeAndMaster::master).toList(), n);
     }
 
     /**
@@ -111,7 +111,7 @@ public class MasterHistory implements ClusterStateListener {
     }
 
     private static Set<DiscoveryNode> getDistinctMastersSeen(List<DiscoveryNode> masters) {
-        return masters.stream().filter(Objects::nonNull).collect(Collectors.toSet());
+        return masters.stream().filter(Objects::nonNull).collect(Collectors.toUnmodifiableSet());
     }
 
     /**
@@ -120,7 +120,7 @@ public class MasterHistory implements ClusterStateListener {
      */
     public Set<DiscoveryNode> getDistinctMastersSeen() {
         List<TimeAndMaster> masterHistoryCopy = getMasterHistoryForLast30Minutes(masterHistory);
-        return masterHistoryCopy.stream().map(timeAndMaster -> timeAndMaster.master).filter(Objects::nonNull).collect(Collectors.toSet());
+        return masterHistoryCopy.stream().map(TimeAndMaster::master).filter(Objects::nonNull).collect(Collectors.toUnmodifiableSet());
     }
 
     /**
@@ -190,7 +190,7 @@ public class MasterHistory implements ClusterStateListener {
      */
     public List<DiscoveryNode> getImmutableView() {
         List<TimeAndMaster> masterHistoryCopy = getMasterHistoryForLast30Minutes(masterHistory);
-        return masterHistoryCopy.stream().map(timeAndMaster -> timeAndMaster.master).toList();
+        return masterHistoryCopy.stream().map(TimeAndMaster::master).toList();
     }
 
     private record TimeAndMaster(long time, DiscoveryNode master) {}

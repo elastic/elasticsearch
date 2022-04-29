@@ -88,7 +88,7 @@ public class EmbeddedModulePathTests extends ESTestCase {
             "<empty>".getBytes(UTF_8)
         );
         Path outerJar = topLevelDir.resolve("impl.jar");
-        JarUtils.createJar(topLevelDir.resolve("impl.jar"), jarEntries);
+        JarUtils.createJarWithEntries(topLevelDir.resolve("impl.jar"), jarEntries);
 
         try (FileSystem fileSystem = FileSystems.newFileSystem(outerJar, Map.of(), EmbeddedModulePathTests.class.getClassLoader())) {
             Path mRoot = fileSystem.getPath("/a/b/m.jar");
@@ -151,7 +151,7 @@ public class EmbeddedModulePathTests extends ESTestCase {
             d.e.f.FooImpl
             """.getBytes(UTF_8));
         Path outerJar = topLevelDir.resolve("impl.jar");
-        JarUtils.createJar(topLevelDir.resolve("impl.jar"), entries);
+        JarUtils.createJarWithEntries(topLevelDir.resolve("impl.jar"), entries);
 
         try (FileSystem zipFileSystem = FileSystems.newFileSystem(outerJar, Map.of(), EmbeddedModulePathTests.class.getClassLoader())) {
             Path jarRoot = zipFileSystem.getPath("/");

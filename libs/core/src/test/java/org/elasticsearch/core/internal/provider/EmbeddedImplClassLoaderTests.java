@@ -25,13 +25,20 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.stream.Stream;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.core.internal.provider.EmbeddedImplClassLoader.basePrefix;
 import static org.elasticsearch.core.internal.provider.EmbeddedImplClassLoader.rootURI;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.emptyCollectionOf;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class EmbeddedImplClassLoaderTests extends ESTestCase {
 
@@ -135,7 +142,7 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         }
 
         Path outerJar = topLevelDir.resolve("impl.jar");
-        JarUtils.createJar(outerJar, jarEntries);
+        JarUtils.createJarWithEntries(outerJar, jarEntries);
         URLClassLoader parent = URLClassLoader.newInstance(
             new URL[] { outerJar.toUri().toURL() },
             EmbeddedImplClassLoaderTests.class.getClassLoader()
@@ -171,5 +178,122 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         }
         assertThat(l, contains(is("hello"), is("world")));
         expectThrows(NoSuchElementException.class, () -> compoundEnumeration.nextElement());
+    }
+
+    public void testResourcesBasic() throws Exception {
+        Path topLevelDir = createTempDir();
+
+        Map<String, byte[]> jarEntries = new HashMap<>();
+        jarEntries.put("IMPL-JARS/res/LISTING.TXT", "res-impl.jar".getBytes(UTF_8));
+        jarEntries.put("IMPL-JARS/res/res-impl.jar/p/res.txt", "Hello World".getBytes(UTF_8));
+
+        Path outerJar = topLevelDir.resolve("impl.jar");
+        JarUtils.createJarWithEntries(outerJar, jarEntries);
+        URLClassLoader parent = URLClassLoader.newInstance(
+            new URL[] { outerJar.toUri().toURL() },
+            EmbeddedImplClassLoaderTests.class.getClassLoader()
+        );
+
+        EmbeddedImplClassLoader loader = EmbeddedImplClassLoader.getInstance(parent, "res");
+        URL url = loader.findResource("p/res.txt");
+        assertThat(url.toString(), endsWith("impl.jar!/IMPL-JARS/res/res-impl.jar/p/res.txt"));
+
+        var resources = loader.findResources("p/res.txt");
+        assertThat(Collections.list(resources), contains(hasToString(endsWith("impl.jar!/IMPL-JARS/res/res-impl.jar/p/res.txt"))));
+    }
+
+    public void testResourcesVersioned() throws Exception {
+        Path topLevelDir = createTempDir();
+
+        ClassLoader embedLoader, urlcLoader;
+        {   // load content with URLClassLoader
+            Map<String, byte[]> jarEntries = new HashMap<>();
+            jarEntries.put("META-INF/MANIFEST.MF", "Multi-Release: true\n".getBytes(UTF_8));
+            jarEntries.put("p/res.txt", "Hello World0".getBytes(UTF_8));
+            jarEntries.put("META-INF/versions/9/p/res.txt", "Hello World9".getBytes(UTF_8));
+            Path fooJar = topLevelDir.resolve("foo.jar");
+            JarUtils.createJarWithEntries(fooJar, jarEntries);
+            urlcLoader = URLClassLoader.newInstance(
+                new URL[] { fooJar.toUri().toURL() },
+                EmbeddedImplClassLoaderTests.class.getClassLoader()
+            );
+        }
+        {   // load EQUIVALENT content with EmbeddedImplClassLoader
+            Map<String, byte[]> jarEntries = new HashMap<>();
+            jarEntries.put("IMPL-JARS/res/LISTING.TXT", "res-impl.jar".getBytes(UTF_8));
+            jarEntries.put("IMPL-JARS/res/res-impl.jar/META-INF/MANIFEST.MF", "Multi-Release: true\n".getBytes(UTF_8));
+            jarEntries.put("IMPL-JARS/res/res-impl.jar/p/res.txt", "Hello World0".getBytes(UTF_8));
+            jarEntries.put("IMPL-JARS/res/res-impl.jar/META-INF/versions/9/p/res.txt", "Hello World9".getBytes(UTF_8));
+            Path outerJar = topLevelDir.resolve("impl.jar");
+            JarUtils.createJarWithEntries(outerJar, jarEntries);
+            URLClassLoader parent = URLClassLoader.newInstance(
+                new URL[] { outerJar.toUri().toURL() },
+                EmbeddedImplClassLoaderTests.class.getClassLoader()
+            );
+            embedLoader = EmbeddedImplClassLoader.getInstance(parent, "res");
+        }
+
+        // finding resources with the different loaders should give EQUIVALENT results
+
+        // getResource
+        URL url1 = urlcLoader.getResource("p/res.txt");
+        assertThat(url1.toString(), endsWith("!/META-INF/versions/9/p/res.txt"));
+        URL url2 = embedLoader.getResource("p/res.txt");
+        assertThat(url2.toString(), endsWith("impl.jar!/IMPL-JARS/res/res-impl.jar/META-INF/versions/9/p/res.txt"));
+        assertThat(suffix(url2), endsWith(suffix(url1)));
+
+        // findResources
+        var urls1 = Collections.list(urlcLoader.getResources("p/res.txt")).stream().map(URL::toString).toList();
+        var urls2 = Collections.list(embedLoader.getResources("p/res.txt")).stream().map(URL::toString).toList();
+        assertThat("urls1=%s, urls2=%s".formatted(urls1, urls2), urls2, hasSize(1));
+        assertThat(urls1.get(0), endsWith("!/META-INF/versions/9/p/res.txt"));
+        assertThat(urls2.get(0), endsWith("impl.jar!/IMPL-JARS/res/res-impl.jar/META-INF/versions/9/p/res.txt"));
+
+        // getResourceAsStream
+        assertThat(new String(embedLoader.getResourceAsStream("p/res.txt").readAllBytes(), UTF_8), is("Hello World9"));
+    }
+
+    private static String suffix(URL url) {
+        String urlStr = url.toString();
+        int idx = urlStr.indexOf("!/");
+        assert idx > 0;
+        return urlStr.substring(idx + 2);
+    }
+
+    static final Class<NullPointerException> NPE = NullPointerException.class;
+    static final Class<ClassNotFoundException> CNFE = ClassNotFoundException.class;
+
+    public void testIDontHaveIt() throws Exception {
+        Path topLevelDir = createTempDir();
+
+        ClassLoader embedLoader;
+        Map<String, byte[]> jarEntries = new HashMap<>();
+        jarEntries.put("IMPL-JARS/res/LISTING.TXT", "res-impl.jar".getBytes(UTF_8));
+        jarEntries.put("IMPL-JARS/res/res-impl.jar/p/res.txt", "Hello World0".getBytes(UTF_8));
+        Path outerJar = topLevelDir.resolve("impl.jar");
+        JarUtils.createJarWithEntries(outerJar, jarEntries);
+        URLClassLoader parent = URLClassLoader.newInstance(
+            new URL[] { outerJar.toUri().toURL() },
+            EmbeddedImplClassLoaderTests.class.getClassLoader()
+        );
+        embedLoader = EmbeddedImplClassLoader.getInstance(parent, "res");
+
+        Class<?> c = embedLoader.loadClass("java.lang.Object");
+        assertThat(c, is(java.lang.Object.class));
+        assertThat(c.getClassLoader(), not(equalTo(embedLoader)));
+
+        // not found
+        expectThrows(CNFE, () -> embedLoader.loadClass("a.b.c.Unknown"));
+        assertThat(embedLoader.getResource("a/b/c/Unknown.class"), nullValue());
+        assertThat(embedLoader.getResources("a/b/c/Unknown.class").hasMoreElements(), is(false));
+        assertThat(embedLoader.getResourceAsStream("a/b/c/Unknown.class"), nullValue());
+        assertThat(embedLoader.resources("a/b/c/Unknown.class").toList(), emptyCollectionOf(URL.class));
+
+        // nulls
+        expectThrows(NPE, () -> embedLoader.getResource(null));
+        expectThrows(NPE, () -> embedLoader.getResources(null));
+        expectThrows(NPE, () -> embedLoader.getResourceAsStream(null));
+        expectThrows(NPE, () -> embedLoader.resources(null));
+        expectThrows(NPE, () -> embedLoader.loadClass(null));
     }
 }

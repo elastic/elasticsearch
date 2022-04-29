@@ -26,7 +26,6 @@ import java.security.CodeSigner;
 import java.security.CodeSource;
 import java.security.PrivilegedAction;
 import java.security.SecureClassLoader;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.LinkedHashMap;
@@ -39,6 +38,7 @@ import java.util.function.Function;
 import java.util.jar.Manifest;
 
 import static java.util.jar.Attributes.Name.MULTI_RELEASE;
+import static java.util.stream.Collectors.toUnmodifiableMap;
 
 /**
  * A class loader that is responsible for loading implementation classes and resources embedded
@@ -57,7 +57,8 @@ import static java.util.jar.Attributes.Name.MULTI_RELEASE;
  * <p> The top-level classes and resources are typically loaded and located, respectively, by the
  * parent of an EmbeddedImplClassLoader loader. The embedded classes and resources, are located by
  * the parent loader as pure resources with a provider specific name prefix, and classes are defined
- * by the EmbeddedImplClassLoader. The list of prefixes is determined by reading the entries in the MANIFEST.TXT.
+ * by the EmbeddedImplClassLoader. The list of prefixes is determined by reading the entries in the
+ * MANIFEST.TXT.
  *
  * <p> For example, the structure of the archive named x-content:
  * <pre>
@@ -73,8 +74,10 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
     private static final String IMPL_PREFIX = "IMPL-JARS/";
     private static final String JAR_LISTING_FILE = "/LISTING.TXT";
 
+    record JarMeta(String prefix, boolean isMultiRelease) {}
+
     /** Ordered list of prefixes to use when loading classes and resources. */
-    private final List<String> prefixes;
+    private final List<JarMeta> jarMetas;
 
     /** A map of prefix to codebase, used to determine the code source when defining classes. */
     private final Map<String, CodeSource> prefixToCodeBase;
@@ -87,11 +90,13 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
         return AccessController.doPrivileged(pa);
     }
 
-    private EmbeddedImplClassLoader(ClassLoader parent, Map<String, CodeSource> prefixToCodeBase) {
+    private EmbeddedImplClassLoader(ClassLoader parent, Map<JarMeta, CodeSource> prefixToCodeBase) {
         super(null);
-        this.prefixes = prefixToCodeBase.keySet().stream().toList();
-        this.prefixToCodeBase = prefixToCodeBase;
+        this.jarMetas = prefixToCodeBase.keySet().stream().toList();
         this.parent = parent;
+        this.prefixToCodeBase = prefixToCodeBase.entrySet()
+            .stream()
+            .collect(toUnmodifiableMap(k -> k.getKey().prefix(), Map.Entry::getValue));
     }
 
     record Resource(InputStream inputStream, CodeSource codeSource) {}
@@ -99,7 +104,20 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
     /** Searches for the named resource. Iterates over all prefixes. */
     private Resource privilegedGetResourceOrNull(String name) {
         return AccessController.doPrivileged((PrivilegedAction<Resource>) () -> {
-            for (String prefix : prefixes) {
+            for (JarMeta jarMeta : jarMetas) {
+                final String prefix = jarMeta.prefix();
+                for (int v = RUNTIME_VERSION_FEATURE; v >= BASE_VERSION_FEATURE; v--) {
+                    URL url = parent.getResource(prefix + "/" + MRJAR_VERSION_PREFIX + v + "/" + name);
+                    if (url != null) {
+                        try {
+                            InputStream is = url.openStream();
+                            return new Resource(is, prefixToCodeBase.get(prefix));
+                        } catch (IOException e) {
+                            // silently ignore, same as ClassLoader
+                        }
+                    }
+                }
+                // try the root
                 URL url = parent.getResource(prefix + "/" + name);
                 if (url != null) {
                     try {
@@ -144,22 +162,71 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
     @Override
     protected URL findResource(String name) {
         Objects.requireNonNull(name);
-        URL url = prefixes.stream().map(p -> p + "/" + name).map(parent::getResource).filter(Objects::nonNull).findFirst().orElse(null);
-        if (url != null) {
-            return url;
+        for (JarMeta jarMeta : jarMetas) {
+            final String prefix = jarMeta.prefix();
+            URL url = findFirstResourceForPrefixOrNull(name, prefix);
+            if (url != null) {
+                return url;
+            }
         }
         return parent.getResource(name);
     }
 
+    URL findFirstResourceForPrefixOrNull(String name, String prefix) {
+        for (int v = RUNTIME_VERSION_FEATURE; v >= BASE_VERSION_FEATURE; v--) {
+            URL url = parent.getResource(prefix + "/" + MRJAR_VERSION_PREFIX + v + "/" + name);
+            if (url != null) {
+                return url;
+            }
+        }
+        // try the root
+        URL url = parent.getResource(prefix + "/" + name);
+        return url;
+    }
+
     @Override
     protected Enumeration<URL> findResources(String name) throws IOException {
-        final int size = prefixes.size();
+        Enumeration<URL> enum1 = new Enumeration<>() {
+            private int jarMetaIndex = 0;
+
+            private URL url = null;
+
+            private boolean next() {
+                if (url != null) {
+                    return true;
+                } else {
+                    while (jarMetaIndex < jarMetas.size()) {
+                        URL u = findFirstResourceForPrefixOrNull(name, jarMetas.get(0).prefix());
+                        jarMetaIndex++;
+                        if (u != null) {
+                            url = u;
+                            return true;
+                        }
+                    }
+                    return false;
+                }
+            }
+
+            @Override
+            public boolean hasMoreElements() {
+                return next();
+            }
+
+            @Override
+            public URL nextElement() {
+                if (next() == false) {
+                    throw new NoSuchElementException();
+                }
+                URL u = url;
+                url = null;
+                return u;
+            }
+        };
+
         @SuppressWarnings("unchecked")
-        Enumeration<URL>[] tmp = (Enumeration<URL>[]) new Enumeration<?>[size + 1];
-        for (int i = 0; i < size; i++) {
-            tmp[i] = parent.getResources(prefixes.get(i) + "/" + name);
-        }
-        tmp[size] = parent.getResources(name);
+        Enumeration<URL>[] tmp = (Enumeration<URL>[]) new Enumeration<?>[2];
+        tmp[0] = enum1;
+        tmp[1] = parent.getResources(name);
         return new CompoundEnumeration<>(tmp);
     }
 
@@ -242,7 +309,7 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
         }
     }
 
-    private static Map<String, CodeSource> getProviderPrefixes(ClassLoader parent, String providerName) {
+    private static Map<JarMeta, CodeSource> getProviderPrefixes(ClassLoader parent, String providerName) {
         String providerPrefix = IMPL_PREFIX + providerName;
         URL listingURL = parent.getResource(providerPrefix + JAR_LISTING_FILE);
         if (listingURL == null) {
@@ -254,16 +321,16 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
             BufferedReader reader = new BufferedReader(isr)
         ) {
             List<String> jars = reader.lines().toList();
-            Map<String, CodeSource> map = new LinkedHashMap<>(); // iteration order is significant
+            Map<JarMeta, CodeSource> map = new LinkedHashMap<>(); // iteration order is significant
             for (String jar : jars) {
-                String jarPrefix = providerPrefix + "/" + jar;
+                final String jarPrefix = providerPrefix + "/" + jar;
+                JarMeta jam;
                 if (isMultiRelease(parent, jarPrefix)) {
-                    List<String> versionPrefixes = getVersionPrefixes(parent, jarPrefix);
-                    for (String versionPrefix : versionPrefixes) {
-                        map.put(versionPrefix, codeSource(listingURL, jar));
-                    }
+                    jam = new JarMeta(jarPrefix, true);
+                } else {
+                    jam = new JarMeta(jarPrefix, false);
                 }
-                map.put(jarPrefix, codeSource(listingURL, jar));
+                map.put(jam, codeSource(listingURL, jar));
             }
             return Collections.unmodifiableMap(map);
         } catch (IOException e) {
@@ -293,14 +360,6 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
     }
 
     private static final String MRJAR_VERSION_PREFIX = "META-INF/versions/";
-
-    private static List<String> getVersionPrefixes(ClassLoader parent, String jarPrefix) throws IOException {
-        List<String> versions = new ArrayList<>();
-        for (int v = RUNTIME_VERSION_FEATURE; v >= BASE_VERSION_FEATURE; v--) {
-            versions.add(jarPrefix + "/" + MRJAR_VERSION_PREFIX + v);
-        }
-        return versions;
-    }
 
     private static String getParent(String uriString) {
         int index = uriString.lastIndexOf('/');

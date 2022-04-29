@@ -57,7 +57,7 @@ public final class JarUtils {
      * @param entries map of entries to add; jar entry name to byte contents
      * @throws IOException if an I/O error occurs
      */
-    public static void createJar(Path jarfile, Map<String, byte[]> entries) throws IOException {
+    public static void createJarWithEntries(Path jarfile, Map<String, byte[]> entries) throws IOException {
         try (OutputStream out = Files.newOutputStream(jarfile); JarOutputStream jos = new JarOutputStream(out)) {
             for (var entry : entries.entrySet()) {
                 String name = entry.getKey();

@@ -75,7 +75,7 @@ public class InMemoryModuleFinderTests extends ESTestCase {
             "<empty>".getBytes(UTF_8)
         );
         Path outerJar = topLevelDir.resolve("impl.jar");
-        JarUtils.createJar(topLevelDir.resolve("impl.jar"), entries);
+        JarUtils.createJarWithEntries(topLevelDir.resolve("impl.jar"), entries);
 
         try (FileSystem fileSystem = FileSystems.newFileSystem(outerJar, Map.of(), InMemoryModuleFinderTests.class.getClassLoader())) {
             Path fooRoot = fileSystem.getPath("/a/b/foo.jar");
@@ -139,7 +139,7 @@ public class InMemoryModuleFinderTests extends ESTestCase {
                 .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
         }
         Path outerJar = topLevelDir.resolve("impl.jar");
-        JarUtils.createJar(topLevelDir.resolve("impl.jar"), jarEntries);
+        JarUtils.createJarWithEntries(topLevelDir.resolve("impl.jar"), jarEntries);
 
         try (FileSystem fileSystem = FileSystems.newFileSystem(outerJar, Map.of(), InMemoryModuleFinderTests.class.getClassLoader())) {
             Path mRoot = fileSystem.getPath("/a/b/m.jar");

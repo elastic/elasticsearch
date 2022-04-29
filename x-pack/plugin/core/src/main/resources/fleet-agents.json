@@ -231,6 +231,13 @@
         "user_provided_metadata": {
           "type": "object",
           "enabled": false
+        },
+        "tags": {
+          "description": "User provided tags for the Elastic Agent",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       }
     }

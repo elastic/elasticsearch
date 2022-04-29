@@ -20,7 +20,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.AbstractCollection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -36,7 +35,7 @@ import java.util.stream.Collectors;
 import static java.lang.String.format;
 import static org.elasticsearch.node.Node.NODE_EXTERNAL_ID_SETTING;
 
-public class DesiredNodes extends AbstractCollection<DesiredNode> implements Writeable, ToXContentObject {
+public class DesiredNodes implements Writeable, ToXContentObject, Iterable<DesiredNode> {
 
     private static final ParseField HISTORY_ID_FIELD = new ParseField("history_id");
     private static final ParseField VERSION_FIELD = new ParseField("version");
@@ -165,11 +164,6 @@ public class DesiredNodes extends AbstractCollection<DesiredNode> implements Wri
     @Override
     public Iterator<DesiredNode> iterator() {
         return nodes.values().iterator();
-    }
-
-    @Override
-    public int size() {
-        return nodes.size();
     }
 
     @Nullable

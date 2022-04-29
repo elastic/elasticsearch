@@ -12,35 +12,20 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.cache.Cache;
-import org.elasticsearch.common.cache.CacheBuilder;
-import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.TimeValue;
 
 import java.util.HashSet;
 import java.util.Set;
 
-public class DesiredNodesMembershipTracker implements ClusterStateListener {
-
-    public static final Setting<TimeValue> LEFT_NODE_GRACE_PERIOD = Setting.timeSetting(
-        "desired_nodes.left_node_grace_period",
-        TimeValue.timeValueMinutes(15),
-        Setting.Property.NodeScope
-    );
-
+public class DesiredNodesMembershipService implements ClusterStateListener {
     private final Set<DesiredNode> members;
-    private final Cache<String, DesiredNode> quarantinedMembers;
     private String latestHistoryId = null;
 
-    DesiredNodesMembershipTracker(Settings settings) {
-        TimeValue leftNodeQuarantinePeriod = LEFT_NODE_GRACE_PERIOD.get(settings);
+    DesiredNodesMembershipService() {
         this.members = new HashSet<>();
-        this.quarantinedMembers = CacheBuilder.<String, DesiredNode>builder().setExpireAfterWrite(leftNodeQuarantinePeriod).build();
     }
 
-    public static DesiredNodesMembershipTracker create(Settings settings, ClusterService clusterService) {
-        var tracker = new DesiredNodesMembershipTracker(settings);
+    public static DesiredNodesMembershipService create(ClusterService clusterService) {
+        var tracker = new DesiredNodesMembershipService();
         clusterService.addListener(tracker);
         return tracker;
     }
@@ -60,18 +45,19 @@ public class DesiredNodesMembershipTracker implements ClusterStateListener {
                 for (DiscoveryNode addedNode : nodesDelta.addedNodes()) {
                     final var desiredNode = desiredNodes.find(addedNode.getExternalId());
                     if (desiredNode != null) {
-                        addAsMember(desiredNode);
+                        members.add(desiredNode);
                     }
                 }
 
                 for (DiscoveryNode removedNode : nodesDelta.removedNodes()) {
                     final var desiredNode = desiredNodes.find(removedNode.getExternalId());
-                    moveToQuarantineIfMember(desiredNode);
+                    if (desiredNode != null) {
+                        members.remove(desiredNode);
+                    }
                 }
             } else if (event.changedCustomMetadataSet().contains(DesiredNodesMetadata.TYPE)) {
                 if (desiredNodes.historyID().equals(latestHistoryId) == false) {
                     members.clear();
-                    quarantinedMembers.invalidateAll();
                 }
                 latestHistoryId = desiredNodes.historyID();
 
@@ -79,46 +65,26 @@ public class DesiredNodesMembershipTracker implements ClusterStateListener {
                 for (DiscoveryNode node : clusterState.nodes()) {
                     final var desiredNode = desiredNodes.find(node.getExternalId());
                     if (desiredNode != null) {
-                        addAsMember(desiredNode);
+                        members.add(desiredNode);
                         unknownDesiredNodes.remove(desiredNode);
                     }
                 }
 
-                for (DesiredNode unknownNode : unknownDesiredNodes) {
-                    moveToQuarantineIfMember(unknownNode);
-                }
+                members.removeAll(unknownDesiredNodes);
             }
         } else if (event.previousState().nodes().isLocalNodeElectedMaster()) {
             members.clear();
-            quarantinedMembers.invalidateAll();
         } else {
             assert members.isEmpty();
-            assert quarantinedMembers.count() == 0;
-        }
-    }
-
-    private void addAsMember(DesiredNode desiredNode) {
-        members.add(desiredNode);
-        quarantinedMembers.invalidate(desiredNode.externalId());
-    }
-
-    private void moveToQuarantineIfMember(DesiredNode desiredNode) {
-        if (desiredNode != null && members.remove(desiredNode)) {
-            quarantinedMembers.put(desiredNode.externalId(), desiredNode);
         }
     }
 
     public synchronized boolean isMember(DesiredNode desiredNode) {
-        return members.contains(desiredNode) || isQuarantined(desiredNode);
-    }
-
-    // visible for testing
-    synchronized boolean isQuarantined(DesiredNode desiredNode) {
-        return quarantinedMembers.get(desiredNode.externalId()) != null;
+        return members.contains(desiredNode);
     }
 
     // visible for testing
     synchronized int trackedMembers() {
-        return members.size() + quarantinedMembers.count();
+        return members.size();
     }
 }

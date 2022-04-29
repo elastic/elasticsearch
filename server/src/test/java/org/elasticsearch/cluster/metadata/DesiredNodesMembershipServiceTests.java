@@ -19,7 +19,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -41,7 +40,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
-public class DesiredNodesMembershipTrackerTests extends DesiredNodesTestCase {
+public class DesiredNodesMembershipServiceTests extends DesiredNodesTestCase {
     private TestThreadPool threadPool;
     private ClusterService clusterService;
 
@@ -62,11 +61,8 @@ public class DesiredNodesMembershipTrackerTests extends DesiredNodesTestCase {
         clusterService.close();
     }
 
-    public void testSimpleTracking() throws Exception {
-        final var tracker = DesiredNodesMembershipTracker.create(
-            Settings.builder().put(DesiredNodesMembershipTracker.LEFT_NODE_GRACE_PERIOD.getKey(), TimeValue.timeValueMillis(500)).build(),
-            clusterService
-        );
+    public void testSimpleTracking() {
+        final var tracker = DesiredNodesMembershipService.create(clusterService);
 
         applyClusterState("add new nodes", this::withNewNodes);
 
@@ -81,7 +77,6 @@ public class DesiredNodesMembershipTrackerTests extends DesiredNodesTestCase {
         assertThat(desiredNodes.nodes(), is(not(empty())));
         for (var desiredNode : desiredNodes) {
             assertThat(tracker.isMember(desiredNode), is(equalTo(true)));
-            assertThat(tracker.isQuarantined(desiredNode), is(equalTo(false)));
         }
 
         final var clusterState = clusterService.state();
@@ -91,15 +86,11 @@ public class DesiredNodesMembershipTrackerTests extends DesiredNodesTestCase {
 
         applyClusterState("remove some nodes", state -> ClusterState.builder(state).nodes(discoveryNodes).build());
 
-        assertThat(tracker.isMember(leavingDesiredNode), is(equalTo(true)));
-        assertThat(tracker.isQuarantined(leavingDesiredNode), is(equalTo(true)));
-
-        // After the grace period, the node is not considered a member
-        assertBusy(() -> assertThat(tracker.isMember(leavingDesiredNode), is(equalTo(false))));
+        assertThat(tracker.isMember(leavingDesiredNode), is(equalTo(false)));
     }
 
     public void testFlappyNode() {
-        final var tracker = DesiredNodesMembershipTracker.create(Settings.EMPTY, clusterService);
+        final var tracker = DesiredNodesMembershipService.create(clusterService);
 
         applyClusterState("add new nodes", this::withNewNodes);
         applyClusterState("add desired nodes", this::desiredNodesWithAllClusterNodes);
@@ -112,8 +103,7 @@ public class DesiredNodesMembershipTrackerTests extends DesiredNodesTestCase {
 
         applyClusterState("remove some nodes", state -> ClusterState.builder(state).nodes(discoveryNodes).build());
 
-        assertThat(tracker.isMember(leavingDesiredNode), is(equalTo(true)));
-        assertThat(tracker.isQuarantined(leavingDesiredNode), is(equalTo(true)));
+        assertThat(tracker.isMember(leavingDesiredNode), is(equalTo(false)));
 
         applyClusterState(
             "Add node back",
@@ -123,11 +113,10 @@ public class DesiredNodesMembershipTrackerTests extends DesiredNodesTestCase {
         );
 
         assertThat(tracker.isMember(leavingDesiredNode), is(equalTo(true)));
-        assertThat(tracker.isQuarantined(leavingDesiredNode), is(equalTo(false)));
     }
 
-    public void testQuarantinedNodesAreFreedAfterTheNodeReJoinsWithNewHistoryId() {
-        final var tracker = DesiredNodesMembershipTracker.create(Settings.EMPTY, clusterService);
+    public void testNodeLeavesAndJoinsWithNewHistoryId() {
+        final var tracker = DesiredNodesMembershipService.create(clusterService);
 
         applyClusterState("add new nodes", this::withNewNodes);
         applyClusterState("add desired nodes", this::desiredNodesWithAllClusterNodes);
@@ -140,8 +129,7 @@ public class DesiredNodesMembershipTrackerTests extends DesiredNodesTestCase {
 
         applyClusterState("remove some nodes", state -> ClusterState.builder(state).nodes(discoveryNodes).build());
 
-        assertThat(tracker.isMember(leavingDesiredNode), is(equalTo(true)));
-        assertThat(tracker.isQuarantined(leavingDesiredNode), is(equalTo(true)));
+        assertThat(tracker.isMember(leavingDesiredNode), is(equalTo(false)));
 
         final var desiredNodesWithNewHistoryId = new DesiredNodes(UUIDs.randomBase64UUID(), 1, desiredNodes.nodes());
 
@@ -159,12 +147,11 @@ public class DesiredNodesMembershipTrackerTests extends DesiredNodesTestCase {
 
         for (DesiredNode desiredNode : desiredNodesWithNewHistoryId) {
             assertThat(tracker.isMember(desiredNode), is(equalTo(true)));
-            assertThat(tracker.isQuarantined(desiredNode), is(equalTo(false)));
         }
     }
 
     public void testMasterDemotionClearsMembers() {
-        final var tracker = DesiredNodesMembershipTracker.create(Settings.EMPTY, clusterService);
+        final var tracker = DesiredNodesMembershipService.create(clusterService);
         assertThat(tracker.trackedMembers(), is(equalTo(0)));
 
         applyClusterState("add desired nodes node", this::desiredNodesWithAllClusterNodes);
@@ -172,7 +159,6 @@ public class DesiredNodesMembershipTrackerTests extends DesiredNodesTestCase {
         final var desiredNodes = DesiredNodes.latestFromClusterState(clusterService.state());
         for (DesiredNode desiredNode : desiredNodes) {
             assertThat(tracker.isMember(desiredNode), is(equalTo(true)));
-            assertThat(tracker.isQuarantined(desiredNode), is(equalTo(false)));
         }
 
         applyClusterState("demote master node", this::demoteMasterNode);
@@ -185,7 +171,7 @@ public class DesiredNodesMembershipTrackerTests extends DesiredNodesTestCase {
     }
 
     public void testMoveToNewHistoryIdClearsPreviousMembers() {
-        final var tracker = DesiredNodesMembershipTracker.create(Settings.EMPTY, clusterService);
+        final var tracker = DesiredNodesMembershipService.create(clusterService);
 
         applyClusterState("add a few nodes", this::withNewNodes);
 
@@ -198,7 +184,11 @@ public class DesiredNodesMembershipTrackerTests extends DesiredNodesTestCase {
         final var clusterState = clusterService.state();
         final var originalDesiredNodes = DesiredNodes.latestFromClusterState(clusterState);
 
-        final var desiredNodesWithNewHistoryId = new DesiredNodes(UUIDs.randomBase64UUID(), 1, randomSubsetOf(1, originalDesiredNodes));
+        final var desiredNodesWithNewHistoryId = new DesiredNodes(
+            UUIDs.randomBase64UUID(),
+            1,
+            randomSubsetOf(1, originalDesiredNodes.nodes())
+        );
 
         applyClusterState(
             "change desired nodes history id",
@@ -212,16 +202,14 @@ public class DesiredNodesMembershipTrackerTests extends DesiredNodesTestCase {
         );
 
         for (DesiredNode desiredNode : originalDesiredNodes) {
-            if (desiredNodesWithNewHistoryId.contains(desiredNode)) {
+            if (desiredNodesWithNewHistoryId.nodes().contains(desiredNode)) {
                 continue;
             }
             assertThat(tracker.isMember(desiredNode), is(equalTo(false)));
-            assertThat(tracker.isQuarantined(desiredNode), is(equalTo(false)));
         }
 
         for (DesiredNode desiredNode : desiredNodesWithNewHistoryId) {
             assertThat(tracker.isMember(desiredNode), is(equalTo(true)));
-            assertThat(tracker.isQuarantined(desiredNode), is(equalTo(false)));
         }
     }
 
@@ -294,7 +282,7 @@ public class DesiredNodesMembershipTrackerTests extends DesiredNodesTestCase {
     private DesiredNode newDesiredNode(String nodeName) {
         return new DesiredNode(
             Settings.builder().put(Node.NODE_NAME_SETTING.getKey(), nodeName).build(),
-            16,
+            randomIntBetween(1, 128),
             new ByteSizeValue(randomIntBetween(1, 64), ByteSizeUnit.GB),
             new ByteSizeValue(randomIntBetween(1, 64), ByteSizeUnit.GB),
             Version.CURRENT

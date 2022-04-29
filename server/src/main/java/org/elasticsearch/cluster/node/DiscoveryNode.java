@@ -38,7 +38,7 @@ import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
 public class DiscoveryNode implements Writeable, ToXContentFragment {
 
     static final String COORDINATING_ONLY = "coordinating_only";
-    public static final Version EXTERNAL_ID_VERSION = Version.CURRENT;
+    public static final Version EXTERNAL_ID_VERSION = Version.V_8_3_0;
 
     public static boolean hasRole(final Settings settings, final DiscoveryNodeRole role) {
         // this method can be called before the o.e.n.NodeRoleSettings.NODE_ROLES_SETTING is initialized

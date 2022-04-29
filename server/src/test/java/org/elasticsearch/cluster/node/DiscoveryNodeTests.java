@@ -207,7 +207,11 @@ public class DiscoveryNodeTests extends ESTestCase {
         assertThat(topLevelMap.toString(), detailsMap.remove("name"), equalTo("test-name"));
         assertThat(topLevelMap.toString(), detailsMap.remove("ephemeral_id"), equalTo("test-ephemeral-id"));
         assertThat(topLevelMap.toString(), detailsMap.remove("transport_address"), equalTo(transportAddress.toString()));
-        assertThat(topLevelMap.toString(), detailsMap.remove("external_id"), withExternalId ? equalTo("test-external-id") : equalTo(""));
+        assertThat(
+            topLevelMap.toString(),
+            detailsMap.remove("external_id"),
+            withExternalId ? equalTo("test-external-id") : equalTo("test-name")
+        );
 
         @SuppressWarnings("unchecked")
         final Map<String, Object> attributes = (Map<String, Object>) detailsMap.remove("attributes");

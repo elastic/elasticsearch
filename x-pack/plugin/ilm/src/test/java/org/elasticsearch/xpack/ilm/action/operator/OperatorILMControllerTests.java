@@ -142,7 +142,7 @@ public class OperatorILMControllerTests extends ESTestCase {
         controller.initHandlers(
             List.of(
                 new OperatorClusterUpdateSettingsAction(clusterSettings),
-                new OperatorPutLifecycleAction(xContentRegistry(), client, licenseState)
+                new OperatorLifecycleAction(xContentRegistry(), client, licenseState)
             )
         );
 

@@ -11,21 +11,26 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.operator.OperatorHandler;
+import org.elasticsearch.operator.TransformState;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ilm.action.PutLifecycleAction;
+import org.elasticsearch.xpack.ilm.action.TransportDeleteLifecycleAction;
 import org.elasticsearch.xpack.ilm.action.TransportPutLifecycleAction;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * TODO: Add docs
  */
-public class OperatorPutLifecycleAction implements OperatorHandler<PutLifecycleAction.Request> {
+public class OperatorLifecycleAction implements OperatorHandler<PutLifecycleAction.Request> {
 
     private final NamedXContentRegistry xContentRegistry;
     private final Client client;
@@ -33,7 +38,7 @@ public class OperatorPutLifecycleAction implements OperatorHandler<PutLifecycleA
 
     public static final String KEY = "ilm";
 
-    public OperatorPutLifecycleAction(NamedXContentRegistry xContentRegistry, Client client, XPackLicenseState licenseState) {
+    public OperatorLifecycleAction(NamedXContentRegistry xContentRegistry, Client client, XPackLicenseState licenseState) {
         this.xContentRegistry = xContentRegistry;
         this.client = client;
         this.licenseState = licenseState;
@@ -63,11 +68,13 @@ public class OperatorPutLifecycleAction implements OperatorHandler<PutLifecycleA
     }
 
     @Override
-    public ClusterState transform(Object source, ClusterState state) throws Exception {
+    public TransformState transform(Object source, TransformState prevState) throws Exception {
         var requests = prepare(source);
 
+        ClusterState state = prevState.state();
+
         for (var request : requests) {
-            TransportPutLifecycleAction.UpdateLifecycleTask task = new TransportPutLifecycleAction.UpdateLifecycleTask(
+            TransportPutLifecycleAction.UpdateLifecyclePolicyTask task = new TransportPutLifecycleAction.UpdateLifecyclePolicyTask(
                 request,
                 licenseState,
                 xContentRegistry,
@@ -76,6 +83,19 @@ public class OperatorPutLifecycleAction implements OperatorHandler<PutLifecycleA
 
             state = task.execute(state);
         }
-        return state;
+
+        Set<String> entities = requests.stream().map(r -> r.getPolicy().getName()).collect(Collectors.toSet());
+
+        Set<String> toDelete = new HashSet<>(prevState.keys());
+        toDelete.removeAll(entities);
+
+        for (var policyToDelete : toDelete) {
+            TransportDeleteLifecycleAction.DeleteLifecyclePolicyTask task = new TransportDeleteLifecycleAction.DeleteLifecyclePolicyTask(
+                policyToDelete
+            );
+            state = task.execute(state);
+        }
+
+        return new TransformState(state, entities);
     }
 }

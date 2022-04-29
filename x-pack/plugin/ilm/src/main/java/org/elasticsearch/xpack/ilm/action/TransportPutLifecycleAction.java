@@ -113,18 +113,18 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
 
         submitUnbatchedTask(
             "put-lifecycle-" + request.getPolicy().getName(),
-            new UpdateLifecycleTask(request, listener, licenseState, filteredHeaders, xContentRegistry, client)
+            new UpdateLifecyclePolicyTask(request, listener, licenseState, filteredHeaders, xContentRegistry, client)
         );
     }
 
-    public static class UpdateLifecycleTask extends AckedClusterStateUpdateTask {
+    public static class UpdateLifecyclePolicyTask extends AckedClusterStateUpdateTask {
         private final Request request;
         private final XPackLicenseState licenseState;
         private final Map<String, String> filteredHeaders;
         private final NamedXContentRegistry xContentRegistry;
         private final Client client;
 
-        public UpdateLifecycleTask(
+        public UpdateLifecyclePolicyTask(
             Request request,
             ActionListener<AcknowledgedResponse> listener,
             XPackLicenseState licenseState,
@@ -140,7 +140,12 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<Reque
             this.client = client;
         }
 
-        public UpdateLifecycleTask(Request request, XPackLicenseState licenseState, NamedXContentRegistry xContentRegistry, Client client) {
+        public UpdateLifecyclePolicyTask(
+            Request request,
+            XPackLicenseState licenseState,
+            NamedXContentRegistry xContentRegistry,
+            Client client
+        ) {
             this(request, null, licenseState, new HashMap<>(), xContentRegistry, client);
         }
 

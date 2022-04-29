@@ -14,8 +14,13 @@ import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.operator.OperatorHandler;
+import org.elasticsearch.operator.TransformState;
 
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.rest.action.admin.cluster.RestClusterUpdateSettingsAction.PERSISTENT;
 
@@ -38,26 +43,43 @@ public class OperatorClusterUpdateSettingsAction implements OperatorHandler<Clus
     }
 
     @SuppressWarnings("unchecked")
-    private ClusterUpdateSettingsRequest prepare(Object input) {
+    private ClusterUpdateSettingsRequest prepare(Object input, Set<String> previouslySet) {
         final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = Requests.clusterUpdateSettingsRequest();
 
         Map<String, ?> source = asMap(input);
+        Map<String, Object> persistentSettings = new HashMap<>();
+        Set<String> toDelete = new HashSet<>(previouslySet);
 
         if (source.containsKey(PERSISTENT)) {
-            clusterUpdateSettingsRequest.persistentSettings((Map<String, ?>) source.get(PERSISTENT));
+            ((Map<String, Object>) source.get(PERSISTENT)).forEach((k, v) -> {
+                persistentSettings.put(k, v);
+                toDelete.remove(k);
+            });
         }
 
+        toDelete.forEach(k -> persistentSettings.put(k, null));
+
+        clusterUpdateSettingsRequest.persistentSettings(persistentSettings);
         return clusterUpdateSettingsRequest;
     }
 
     @Override
-    public ClusterState transform(Object input, ClusterState state) {
-
-        ClusterUpdateSettingsRequest request = prepare(input);
+    public TransformState transform(Object input, TransformState prevState) {
+        ClusterUpdateSettingsRequest request = prepare(input, prevState.keys());
         validate(request);
+
+        ClusterState state = prevState.state();
 
         TransportClusterUpdateSettingsAction.ClusterUpdateSettingsTask updateSettingsTask =
             new TransportClusterUpdateSettingsAction.ClusterUpdateSettingsTask(clusterSettings, request);
-        return updateSettingsTask.execute(state);
+
+        state = updateSettingsTask.execute(state);
+        Set<String> currentKeys = request.persistentSettings()
+            .keySet()
+            .stream()
+            .filter(k -> request.persistentSettings().hasValue(k))
+            .collect(Collectors.toSet());
+
+        return new TransformState(state, currentKeys);
     }
 }

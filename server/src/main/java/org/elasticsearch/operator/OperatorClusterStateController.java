@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -47,7 +48,8 @@ public class OperatorClusterStateController {
         for (var handlerKey : orderedHandlers) {
             OperatorHandler<?> handler = handlers.get(handlerKey);
             try {
-                state = handler.transform(source.get(handlerKey), state);
+                // TODO: fetch and pass previous keys for handler to be able to delete
+                state = handler.transform(source.get(handlerKey), new TransformState(state, new HashSet<>())).state();
             } catch (Exception e) {
                 throw new IllegalStateException("Error processing state change request for: " + handler.key(), e);
             }

@@ -11,7 +11,6 @@ package org.elasticsearch.operator;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -32,7 +31,7 @@ public interface OperatorHandler<T extends MasterNodeRequest<?>> {
 
     String key();
 
-    ClusterState transform(Object source, ClusterState state) throws Exception;
+    TransformState transform(Object source, TransformState prevState) throws Exception;
 
     default Collection<String> dependencies() {
         return Collections.emptyList();

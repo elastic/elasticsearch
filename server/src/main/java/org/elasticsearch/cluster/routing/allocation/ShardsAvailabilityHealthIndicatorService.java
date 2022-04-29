@@ -33,6 +33,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocatio
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
@@ -532,104 +533,139 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
                     .collect(Collectors.toSet());
 
                 // Determine which tier this index would most prefer to live on
-                Optional<String> preferredTier = indexMetadata.getTierPreference()
+                String preferredTier = indexMetadata.getTierPreference()
                     .stream()
                     .filter(dataTierRolesAvailable::contains)
-                    .findFirst();
+                    .findFirst()
+                    .orElse(null);
 
-                // All tier nodes at shards limit?
-                if (dataTierAllocationResults.stream().allMatch(hasDeciderResult(ShardsLimitAllocationDecider.NAME, Decision.Type.NO))) {
-                    // We need the routing nodes for the tiers this index is allowed on to determine the offending shard limits
-                    List<RoutingNode> dataTierRoutingNodes = clusterState.getRoutingNodes()
-                        .stream()
-                        .filter(routingNode -> dataTierNodes.contains(routingNode.node()))
-                        .toList();
-
-                    // Determine which total_shards_per_node settings are present
-                    Integer clusterShardsPerNode = clusterService.getClusterSettings().get(CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING);
-                    Integer indexShardsPerNode = INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(indexMetadata.getSettings());
-                    assert (clusterShardsPerNode > 0 || indexShardsPerNode > 0) : "shards per node must exist if allocation decision is NO";
-
-                    // Determine which total_shards_per_node settings are keeping things from allocating
-                    boolean clusterShardsPerNodeShouldChange = false;
-                    if (clusterShardsPerNode > 0) {
-                        int minShardCountInTier = dataTierRoutingNodes.stream()
-                            .map(RoutingNode::numberOfOwningShards)
-                            .min(Integer::compareTo)
-                            .orElse(-1);
-                        clusterShardsPerNodeShouldChange = minShardCountInTier >= clusterShardsPerNode;
-                    }
-                    boolean indexShardsPerNodeShouldChange = false;
-                    if (indexShardsPerNode > 0) {
-                        int minShardCountInTier = dataTierRoutingNodes.stream()
-                            .map(routingNode -> routingNode.numberOfOwningShardsForIndex(indexMetadata.getIndex()))
-                            .min(Integer::compareTo)
-                            .orElse(-1);
-                        indexShardsPerNodeShouldChange = minShardCountInTier >= indexShardsPerNode;
-                    }
-
-                    // Add appropriate user action
-                    if (preferredTier.isPresent()) {
-                        // We cannot allocate the shard to the most preferred tier because a shard limit is reached.
-                        if (clusterShardsPerNodeShouldChange) {
-                            Optional.ofNullable(ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING_LOOKUP.get(preferredTier.get()))
-                                .ifPresent(actions::add);
-                        }
-                        if (indexShardsPerNodeShouldChange) {
-                            Optional.ofNullable(ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING_LOOKUP.get(preferredTier.get()))
-                                .ifPresent(actions::add);
-                        }
-                    } else {
-                        // We couldn't determine a desired tier. This is likely because there are no tiers in the cluster,
-                        // only `data` nodes. Give a generic ask for increasing the shard limit.
-                        if (clusterShardsPerNodeShouldChange) {
-                            actions.add(ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING);
-                        }
-                        if (indexShardsPerNodeShouldChange) {
-                            actions.add(ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING);
-                        }
-                    }
-                }
-
-                // Check if index has filter requirements on the old "data" attribute that might be keeping it from allocating.
-                if (dataTierAllocationResults.stream().allMatch(hasDeciderResult(FilterAllocationDecider.NAME, Decision.Type.NO))) {
-                    Map<String, List<String>> requireAttributes = INDEX_ROUTING_REQUIRE_GROUP_SETTING.getAsMap(indexMetadata.getSettings());
-                    List<String> requireDataAttributes = requireAttributes.get("data");
-                    DiscoveryNodeFilters requireFilter = requireDataAttributes == null
-                        ? null
-                        : DiscoveryNodeFilters.buildFromKeyValues(DiscoveryNodeFilters.OpType.AND, Map.of("data", requireDataAttributes));
-
-                    Map<String, List<String>> includeAttributes = INDEX_ROUTING_INCLUDE_GROUP_SETTING.getAsMap(indexMetadata.getSettings());
-                    List<String> includeDataAttributes = includeAttributes.get("data");
-                    DiscoveryNodeFilters includeFilter = includeDataAttributes == null
-                        ? null
-                        : DiscoveryNodeFilters.buildFromKeyValues(DiscoveryNodeFilters.OpType.OR, Map.of("data", includeDataAttributes));
-                    if (requireFilter != null || includeFilter != null) {
-                        // Check if the data tier nodes this shard is allowed on have data attributes that match
-                        if (requireFilter != null && dataTierNodes.stream().noneMatch(requireFilter::match)) {
-                            // No data tier nodes match the required data attribute
-                            actions.add(ACTION_MIGRATE_TIERS_AWAY_FROM_REQUIRE_DATA);
-                        }
-                        if (includeFilter != null && dataTierNodes.stream().noneMatch(includeFilter::match)) {
-                            // No data tier nodes match the included data attributes
-                            actions.add(ACTION_MIGRATE_TIERS_AWAY_FROM_INCLUDE_DATA);
-                        }
-                    }
-                }
-
-                // Not enough tier nodes to hold shards on different nodes?
-                if (dataTierAllocationResults.stream().allMatch(hasDeciderResult(SameShardAllocationDecider.NAME, Decision.Type.NO))) {
-                    if (preferredTier.isPresent()) {
-                        Optional.ofNullable(ACTION_INCREASE_TIER_CAPACITY_LOOKUP.get(preferredTier.get())).ifPresent(actions::add);
-                    } else {
-                        // We couldn't determine a desired tier. This is likely because there are no tiers in the cluster,
-                        // only `data` nodes. Give a generic ask for increasing the shard limit.
-                        actions.add(ACTION_INCREASE_NODE_CAPACITY);
-                    }
-                }
+                // Run checks for data tier specific problems
+                actions.addAll(
+                    checkDataTierAtShardLimit(indexMetadata, clusterState, dataTierAllocationResults, dataTierNodes, preferredTier)
+                );
+                actions.addAll(checkDataTierShouldMigrate(indexMetadata, dataTierAllocationResults, dataTierNodes));
+                checkNotEnoughNodesInDataTier(dataTierAllocationResults, preferredTier).ifPresent(actions::add);
             }
         }
         return actions;
+    }
+
+    private List<UserAction.Definition> checkDataTierAtShardLimit(
+        IndexMetadata indexMetadata,
+        ClusterState clusterState,
+        List<NodeAllocationResult> dataTierAllocationResults,
+        Set<DiscoveryNode> dataTierNodes,
+        @Nullable String preferredTier
+    ) {
+        // All tier nodes at shards limit?
+        if (dataTierAllocationResults.stream().allMatch(hasDeciderResult(ShardsLimitAllocationDecider.NAME, Decision.Type.NO))) {
+            List<UserAction.Definition> actions = new ArrayList<>();
+            // We need the routing nodes for the tiers this index is allowed on to determine the offending shard limits
+            List<RoutingNode> dataTierRoutingNodes = clusterState.getRoutingNodes()
+                .stream()
+                .filter(routingNode -> dataTierNodes.contains(routingNode.node()))
+                .toList();
+
+            // Determine which total_shards_per_node settings are present
+            Integer clusterShardsPerNode = clusterService.getClusterSettings().get(CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING);
+            Integer indexShardsPerNode = INDEX_TOTAL_SHARDS_PER_NODE_SETTING.get(indexMetadata.getSettings());
+            assert (clusterShardsPerNode > 0 || indexShardsPerNode > 0) : "shards per node must exist if allocation decision is NO";
+
+            // Determine which total_shards_per_node settings are keeping things from allocating
+            boolean clusterShardsPerNodeShouldChange = false;
+            if (clusterShardsPerNode > 0) {
+                int minShardCountInTier = dataTierRoutingNodes.stream()
+                    .map(RoutingNode::numberOfOwningShards)
+                    .min(Integer::compareTo)
+                    .orElse(-1);
+                clusterShardsPerNodeShouldChange = minShardCountInTier >= clusterShardsPerNode;
+            }
+            boolean indexShardsPerNodeShouldChange = false;
+            if (indexShardsPerNode > 0) {
+                int minShardCountInTier = dataTierRoutingNodes.stream()
+                    .map(routingNode -> routingNode.numberOfOwningShardsForIndex(indexMetadata.getIndex()))
+                    .min(Integer::compareTo)
+                    .orElse(-1);
+                indexShardsPerNodeShouldChange = minShardCountInTier >= indexShardsPerNode;
+            }
+
+            // Add appropriate user action
+            if (preferredTier != null) {
+                // We cannot allocate the shard to the most preferred tier because a shard limit is reached.
+                if (clusterShardsPerNodeShouldChange) {
+                    Optional.ofNullable(ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING_LOOKUP.get(preferredTier)).ifPresent(actions::add);
+                }
+                if (indexShardsPerNodeShouldChange) {
+                    Optional.ofNullable(ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING_LOOKUP.get(preferredTier)).ifPresent(actions::add);
+                }
+            } else {
+                // We couldn't determine a desired tier. This is likely because there are no tiers in the cluster,
+                // only `data` nodes. Give a generic ask for increasing the shard limit.
+                if (clusterShardsPerNodeShouldChange) {
+                    actions.add(ACTION_INCREASE_SHARD_LIMIT_CLUSTER_SETTING);
+                }
+                if (indexShardsPerNodeShouldChange) {
+                    actions.add(ACTION_INCREASE_SHARD_LIMIT_INDEX_SETTING);
+                }
+            }
+            return actions;
+        } else {
+            return Collections.emptyList();
+        }
+    }
+
+    private List<UserAction.Definition> checkDataTierShouldMigrate(
+        IndexMetadata indexMetadata,
+        List<NodeAllocationResult> dataTierAllocationResults,
+        Set<DiscoveryNode> dataTierNodes
+    ) {
+        // Check if index has filter requirements on the old "data" attribute that might be keeping it from allocating.
+        if (dataTierAllocationResults.stream().allMatch(hasDeciderResult(FilterAllocationDecider.NAME, Decision.Type.NO))) {
+            List<UserAction.Definition> actions = new ArrayList<>();
+            Map<String, List<String>> requireAttributes = INDEX_ROUTING_REQUIRE_GROUP_SETTING.getAsMap(indexMetadata.getSettings());
+            List<String> requireDataAttributes = requireAttributes.get("data");
+            DiscoveryNodeFilters requireFilter = requireDataAttributes == null
+                ? null
+                : DiscoveryNodeFilters.buildFromKeyValues(DiscoveryNodeFilters.OpType.AND, Map.of("data", requireDataAttributes));
+
+            Map<String, List<String>> includeAttributes = INDEX_ROUTING_INCLUDE_GROUP_SETTING.getAsMap(indexMetadata.getSettings());
+            List<String> includeDataAttributes = includeAttributes.get("data");
+            DiscoveryNodeFilters includeFilter = includeDataAttributes == null
+                ? null
+                : DiscoveryNodeFilters.buildFromKeyValues(DiscoveryNodeFilters.OpType.OR, Map.of("data", includeDataAttributes));
+            if (requireFilter != null || includeFilter != null) {
+                // Check if the data tier nodes this shard is allowed on have data attributes that match
+                if (requireFilter != null && dataTierNodes.stream().noneMatch(requireFilter::match)) {
+                    // No data tier nodes match the required data attribute
+                    actions.add(ACTION_MIGRATE_TIERS_AWAY_FROM_REQUIRE_DATA);
+                }
+                if (includeFilter != null && dataTierNodes.stream().noneMatch(includeFilter::match)) {
+                    // No data tier nodes match the included data attributes
+                    actions.add(ACTION_MIGRATE_TIERS_AWAY_FROM_INCLUDE_DATA);
+                }
+            }
+            return actions;
+        } else {
+            return Collections.emptyList();
+        }
+    }
+
+    private Optional<UserAction.Definition> checkNotEnoughNodesInDataTier(
+        List<NodeAllocationResult> dataTierAllocationResults,
+        @Nullable String preferredTier
+    ) {
+        // Not enough tier nodes to hold shards on different nodes?
+        if (dataTierAllocationResults.stream().allMatch(hasDeciderResult(SameShardAllocationDecider.NAME, Decision.Type.NO))) {
+            // We couldn't determine a desired tier. This is likely because there are no tiers in the cluster,
+            // only `data` nodes. Give a generic ask for increasing the shard limit.
+            if (preferredTier != null) {
+                return Optional.ofNullable(ACTION_INCREASE_TIER_CAPACITY_LOOKUP.get(preferredTier));
+            } else {
+                return Optional.of(ACTION_INCREASE_NODE_CAPACITY);
+            }
+        } else {
+            return Optional.empty();
+        }
     }
 
     private class ShardAllocationStatus {

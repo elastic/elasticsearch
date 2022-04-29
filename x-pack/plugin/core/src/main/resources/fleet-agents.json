@@ -231,6 +231,9 @@
         "user_provided_metadata": {
           "type": "object",
           "enabled": false
+        },
+        "tags": {
+          "type": "keyword"
         }
       }
     }

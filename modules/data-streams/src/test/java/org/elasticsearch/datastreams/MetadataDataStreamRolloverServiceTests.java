@@ -64,7 +64,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
         );
         ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
             .template(new Template(Settings.builder().put("index.routing_path", "uid").build(), null, null))
-            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, IndexMode.TIME_SERIES))
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
             .build();
         Metadata.Builder builder = Metadata.builder();
         builder.put("template", template);
@@ -162,7 +162,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
         );
         ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
             .template(new Template(Settings.builder().put("index.routing_path", "uid").build(), null, null))
-            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, IndexMode.TIME_SERIES))
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
             .build();
         Metadata.Builder builder = Metadata.builder();
         builder.put("template", template);
@@ -246,7 +246,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
         );
         ComposableIndexTemplate template = new ComposableIndexTemplate.Builder().indexPatterns(List.of(dataStream.getName() + "*"))
             .template(new Template(Settings.builder().put("index.routing_path", "uid").build(), null, null))
-            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, randomBoolean() ? IndexMode.STANDARD : null))
+            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
             .build();
         Metadata.Builder builder = Metadata.builder();
         builder.put("template", template);

@@ -142,7 +142,7 @@ public class InstallPluginActionTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         pluginDir = createPluginDir(temp);
-        terminal = new MockTerminal();
+        terminal = MockTerminal.create();
         env = createEnv(temp);
         skipJarHellAction = new InstallPluginAction(terminal, null, false) {
             @Override
@@ -793,7 +793,7 @@ public class InstallPluginActionTests extends ESTestCase {
     }
 
     public void testOfficialPluginsHelpSortedAndMissingObviouslyWrongPlugins() throws Exception {
-        MockTerminal mockTerminal = new MockTerminal();
+        MockTerminal mockTerminal = MockTerminal.create();
         new MockInstallPluginCommand().main(new String[] { "--help" }, mockTerminal);
         try (BufferedReader reader = new BufferedReader(new StringReader(mockTerminal.getOutput()))) {
             String line = reader.readLine();

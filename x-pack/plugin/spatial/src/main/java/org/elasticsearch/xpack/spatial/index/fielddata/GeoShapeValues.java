@@ -109,10 +109,7 @@ public abstract class GeoShapeValues {
         }
 
         public GeoPoint labelPosition() throws IOException {
-            double x = CoordinateEncoder.GEO.decodeX(reader.getCentroidX());
-            double y = CoordinateEncoder.GEO.decodeY(reader.getCentroidY());
-            GeoPoint centroid = new GeoPoint(y, x);
-            LabelPositionVisitor visitor = new LabelPositionVisitor(centroid, CoordinateEncoder.GEO);
+            LabelPositionVisitor visitor = new LabelPositionVisitor(CoordinateEncoder.GEO);
             reader.visit(visitor);
             return visitor.labelPosition();
         }

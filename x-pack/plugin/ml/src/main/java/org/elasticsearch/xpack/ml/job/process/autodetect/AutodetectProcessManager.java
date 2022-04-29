@@ -6,8 +6,6 @@
  */
 package org.elasticsearch.xpack.ml.job.process.autodetect;
 
-import joptsimple.internal.Strings;
-
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
@@ -27,9 +25,9 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.XContentElasticsearchExtension;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.internal.io.IOUtils;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.rest.RestStatus;
@@ -438,7 +436,7 @@ public class AutodetectProcessManager implements ClusterStateListener {
         if (filterIds.isEmpty()) {
             filtersListener.onResponse(null);
         } else {
-            GetFiltersAction.Request getFilterRequest = new GetFiltersAction.Request(Strings.join(filterIds, ","));
+            GetFiltersAction.Request getFilterRequest = new GetFiltersAction.Request(String.join(",", filterIds));
             getFilterRequest.setPageParams(new PageParams(0, filterIds.size()));
             executeAsyncWithOrigin(
                 client,

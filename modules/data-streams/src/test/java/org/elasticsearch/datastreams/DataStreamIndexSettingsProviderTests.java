@@ -39,7 +39,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Settings result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
-            IndexMode.TIME_SERIES,
+            true,
             metadata,
             now,
             settings
@@ -61,7 +61,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Settings result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
-            IndexMode.TIME_SERIES,
+            true,
             metadata,
             now,
             settings
@@ -89,7 +89,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         var result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
-            IndexMode.TIME_SERIES,
+            true,
             metadata,
             now,
             settings
@@ -139,7 +139,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
             () -> provider.getAdditionalIndexSettings(
                 DataStream.getDefaultBackingIndexName(dataStreamName, 1),
                 dataStreamName,
-                IndexMode.TIME_SERIES,
+                true,
                 metadata,
                 now,
                 settings
@@ -155,7 +155,7 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         );
     }
 
-    public void testGetAdditionalIndexSettingsIndexModeNotSpecified() {
+    public void testGetAdditionalIndexSettingsNonTsdbTemplate() {
         Metadata metadata = Metadata.EMPTY_METADATA;
         String dataStreamName = "logs-app1";
 
@@ -164,30 +164,12 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         Settings result = provider.getAdditionalIndexSettings(
             DataStream.getDefaultBackingIndexName(dataStreamName, 1),
             dataStreamName,
-            null,
+            false,
             metadata,
             Instant.ofEpochMilli(1L),
             settings
         );
         assertThat(result.size(), equalTo(0));
-    }
-
-    public void testGetAdditionalIndexSettingsIndexModeStandardSpecified() {
-        Metadata metadata = Metadata.EMPTY_METADATA;
-        String dataStreamName = "logs-app1";
-
-        Settings settings = Settings.EMPTY;
-        var provider = new DataStreamIndexSettingsProvider();
-        Settings result = provider.getAdditionalIndexSettings(
-            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
-            dataStreamName,
-            IndexMode.STANDARD,
-            metadata,
-            Instant.ofEpochMilli(1L),
-            settings
-        );
-        assertThat(result.size(), equalTo(1));
-        assertThat(result.get(IndexSettings.MODE.getKey()), equalTo(IndexMode.STANDARD.name().toLowerCase(Locale.ROOT)));
     }
 
 }

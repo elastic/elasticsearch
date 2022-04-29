@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.security.authc.esnative.tool;
 
 import org.elasticsearch.cli.MockTerminal;
-import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
@@ -42,7 +41,7 @@ public class ResetPasswordToolIT extends AbstractPasswordToolTestCase {
             status = resetPasswordTool.main(
                 new String[] { "-a", "-b", "-u", user },
                 mockTerminal,
-                new ProcessInfo(Map.of(), Map.of(), createTempDir())
+                getToolProcessInfo()
             );
             password = readPasswordFromOutput(mockTerminal.getOutput());
         } else {
@@ -53,7 +52,7 @@ public class ResetPasswordToolIT extends AbstractPasswordToolTestCase {
             status = resetPasswordTool.main(
                 new String[] { "-i", "-b", "-u", user },
                 mockTerminal,
-                new ProcessInfo(Map.of(), Map.of(), createTempDir())
+                getToolProcessInfo()
             );
         }
         logger.info("CLI TOOL OUTPUT:\n{}", mockTerminal.getOutput());
@@ -120,7 +119,7 @@ public class ResetPasswordToolIT extends AbstractPasswordToolTestCase {
             status = resetPasswordTool.main(
                 new String[] { "-a", "-b", "-u", nativeUser },
                 mockTerminal,
-                new ProcessInfo(Map.of(), Map.of(), createTempDir())
+                getToolProcessInfo()
             );
             password = readPasswordFromOutput(mockTerminal.getOutput());
         } else {
@@ -131,7 +130,7 @@ public class ResetPasswordToolIT extends AbstractPasswordToolTestCase {
             status = resetPasswordTool.main(
                 new String[] { "-i", "-b", "-u", nativeUser },
                 mockTerminal,
-                new ProcessInfo(Map.of(), Map.of(), createTempDir())
+                getToolProcessInfo()
             );
         }
         logger.info("CLI TOOL OUTPUT:\n{}", mockTerminal.getOutput());

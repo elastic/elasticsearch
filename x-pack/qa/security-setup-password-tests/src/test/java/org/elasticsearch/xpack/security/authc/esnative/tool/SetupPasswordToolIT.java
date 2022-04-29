@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.security.authc.esnative.tool;
 
 import org.elasticsearch.cli.MockTerminal;
-import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.WarningsHandler;
@@ -30,10 +29,10 @@ public class SetupPasswordToolIT extends AbstractPasswordToolTestCase {
         if (randomBoolean()) {
             mockTerminal.addTextInput("y"); // answer yes to continue prompt
             possiblyDecryptKeystore(mockTerminal);
-            status = tool.main(new String[] { "auto" }, mockTerminal, new ProcessInfo(Map.of(), Map.of(), createTempDir()));
+            status = tool.main(new String[] { "auto" }, mockTerminal, getToolProcessInfo());
         } else {
             possiblyDecryptKeystore(mockTerminal);
-            status = tool.main(new String[] { "auto", "--batch" }, mockTerminal, new ProcessInfo(Map.of(), Map.of(), createTempDir()));
+            status = tool.main(new String[] { "auto", "--batch" }, mockTerminal, getToolProcessInfo());
         }
         assertEquals(0, status);
         String output = mockTerminal.getOutput();

@@ -110,7 +110,7 @@ public class SearchableSnapshotShutdownIntegTests extends BaseSearchableSnapshot
             final String indexName = "index_" + i;
             createAndPopulateIndex(indexName, Settings.builder());
 
-            final SnapshotId snapshotId = createSnapshot(repositoryName, "snapshot-1", List.of(indexName)).snapshotId();
+            final SnapshotId snapshotId = createSnapshot(repositoryName, "snapshot-" + i, List.of(indexName)).snapshotId();
             assertAcked(client().admin().indices().prepareDelete(indexName));
             restoredIndices.add(mountSnapshot(repositoryName, snapshotId.getName(), indexName, Settings.EMPTY));
         }

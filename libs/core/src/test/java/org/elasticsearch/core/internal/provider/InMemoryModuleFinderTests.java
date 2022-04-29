@@ -10,6 +10,7 @@ package org.elasticsearch.core.internal.provider;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
+import org.elasticsearch.test.jar.JarUtils;
 
 import java.lang.module.ModuleDescriptor;
 import java.lang.module.ModuleDescriptor.Version;
@@ -74,7 +75,7 @@ public class InMemoryModuleFinderTests extends ESTestCase {
             "<empty>".getBytes(UTF_8)
         );
         Path outerJar = topLevelDir.resolve("impl.jar");
-        JarUtils.createJarFile(topLevelDir.resolve("impl.jar"), entries);
+        JarUtils.createJar(topLevelDir.resolve("impl.jar"), entries);
 
         try (FileSystem fileSystem = FileSystems.newFileSystem(outerJar, Map.of(), InMemoryModuleFinderTests.class.getClassLoader())) {
             Path fooRoot = fileSystem.getPath("/a/b/foo.jar");
@@ -138,7 +139,7 @@ public class InMemoryModuleFinderTests extends ESTestCase {
                 .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
         }
         Path outerJar = topLevelDir.resolve("impl.jar");
-        JarUtils.createJarFile(topLevelDir.resolve("impl.jar"), jarEntries);
+        JarUtils.createJar(topLevelDir.resolve("impl.jar"), jarEntries);
 
         try (FileSystem fileSystem = FileSystems.newFileSystem(outerJar, Map.of(), InMemoryModuleFinderTests.class.getClassLoader())) {
             Path mRoot = fileSystem.getPath("/a/b/m.jar");

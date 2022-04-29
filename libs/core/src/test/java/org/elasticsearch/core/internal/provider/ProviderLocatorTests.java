@@ -10,6 +10,7 @@ package org.elasticsearch.core.internal.provider;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
+import org.elasticsearch.test.jar.JarUtils;
 
 import java.lang.module.ModuleDescriptor;
 import java.net.URL;
@@ -104,7 +105,7 @@ public class ProviderLocatorTests extends ESTestCase {
         }
 
         Path outerJar = topLevelDir.resolve("impl.jar");
-        JarUtils.createJarFile(outerJar, jarEntries);
+        JarUtils.createJar(outerJar, jarEntries);
         URLClassLoader parent = URLClassLoader.newInstance(
             new URL[] { outerJar.toUri().toURL() },
             ProviderLocatorTests.class.getClassLoader()
@@ -162,7 +163,7 @@ public class ProviderLocatorTests extends ESTestCase {
             classToBytes.get("p.FooLongSupplier")
         );
         Path outerJar = topLevelDir.resolve("impl.jar");
-        JarUtils.createJarFile(outerJar, jarEntries);
+        JarUtils.createJar(outerJar, jarEntries);
         URLClassLoader parent = URLClassLoader.newInstance(
             new URL[] { outerJar.toUri().toURL() },
             ProviderLocatorTests.class.getClassLoader()

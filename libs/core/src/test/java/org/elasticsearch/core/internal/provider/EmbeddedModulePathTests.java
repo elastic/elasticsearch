@@ -11,6 +11,7 @@ package org.elasticsearch.core.internal.provider;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
+import org.elasticsearch.test.jar.JarUtils;
 
 import java.lang.module.InvalidModuleDescriptorException;
 import java.lang.module.ModuleDescriptor.Version;
@@ -87,7 +88,7 @@ public class EmbeddedModulePathTests extends ESTestCase {
             "<empty>".getBytes(UTF_8)
         );
         Path outerJar = topLevelDir.resolve("impl.jar");
-        JarUtils.createJarFile(topLevelDir.resolve("impl.jar"), jarEntries);
+        JarUtils.createJar(topLevelDir.resolve("impl.jar"), jarEntries);
 
         try (FileSystem fileSystem = FileSystems.newFileSystem(outerJar, Map.of(), EmbeddedModulePathTests.class.getClassLoader())) {
             Path mRoot = fileSystem.getPath("/a/b/m.jar");
@@ -130,7 +131,7 @@ public class EmbeddedModulePathTests extends ESTestCase {
     public void testScanBasic() throws Exception {
         Path topLevelDir = createTempDir();
         Path outerJar = topLevelDir.resolve("impl.jar");
-        JarUtils.makeJar(topLevelDir, "impl.jar", null, "module-info.class", "p/Foo.class", "q/Bar.class", "META-INF/services/a.b.c.Foo");
+        JarUtils.createJar(topLevelDir, "impl.jar", null, "module-info.class", "p/Foo.class", "q/Bar.class", "META-INF/services/a.b.c.Foo");
 
         try (FileSystem zipFileSystem = FileSystems.newFileSystem(outerJar, Map.of(), EmbeddedModulePathTests.class.getClassLoader())) {
             Path jarRoot = zipFileSystem.getPath("/");
@@ -150,7 +151,7 @@ public class EmbeddedModulePathTests extends ESTestCase {
             d.e.f.FooImpl
             """.getBytes(UTF_8));
         Path outerJar = topLevelDir.resolve("impl.jar");
-        JarUtils.createJarFile(topLevelDir.resolve("impl.jar"), entries);
+        JarUtils.createJar(topLevelDir.resolve("impl.jar"), entries);
 
         try (FileSystem zipFileSystem = FileSystems.newFileSystem(outerJar, Map.of(), EmbeddedModulePathTests.class.getClassLoader())) {
             Path jarRoot = zipFileSystem.getPath("/");

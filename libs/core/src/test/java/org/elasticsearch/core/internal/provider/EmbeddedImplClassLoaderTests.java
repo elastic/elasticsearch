@@ -11,6 +11,7 @@ package org.elasticsearch.core.internal.provider;
 import org.elasticsearch.core.internal.provider.EmbeddedImplClassLoader.CompoundEnumeration;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
+import org.elasticsearch.test.jar.JarUtils;
 
 import java.net.URI;
 import java.net.URL;
@@ -134,7 +135,7 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         }
 
         Path outerJar = topLevelDir.resolve("impl.jar");
-        JarUtils.createJarFile(outerJar, jarEntries);
+        JarUtils.createJar(outerJar, jarEntries);
         URLClassLoader parent = URLClassLoader.newInstance(
             new URL[] { outerJar.toUri().toURL() },
             EmbeddedImplClassLoaderTests.class.getClassLoader()

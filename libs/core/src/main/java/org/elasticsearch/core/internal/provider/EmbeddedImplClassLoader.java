@@ -98,22 +98,19 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
 
     /** Searches for the named resource. Iterates over all prefixes. */
     private Resource privilegedGetResourceOrNull(String name) {
-        return AccessController.doPrivileged(new PrivilegedAction<Resource>() {
-            @Override
-            public Resource run() {
-                for (String prefix : prefixes) {
-                    URL url = parent.getResource(prefix + "/" + name);
-                    if (url != null) {
-                        try {
-                            InputStream is = url.openStream();
-                            return new Resource(is, prefixToCodeBase.get(prefix));
-                        } catch (IOException e) {
-                            // silently ignore, same as ClassLoader
-                        }
+        return AccessController.doPrivileged((PrivilegedAction<Resource>) () -> {
+            for (String prefix : prefixes) {
+                URL url = parent.getResource(prefix + "/" + name);
+                if (url != null) {
+                    try {
+                        InputStream is = url.openStream();
+                        return new Resource(is, prefixToCodeBase.get(prefix));
+                    } catch (IOException e) {
+                        // silently ignore, same as ClassLoader
                     }
                 }
-                return null;
             }
+            return null;
         });
     }
 
@@ -226,16 +223,19 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
      * Depending on whether running from a jar (distribution), or an exploded archive (testing),
      * the given url will have one of two schemes, "file", or "jar:file". For example:
      *  distro- jar:file:/xxx/distro/lib/elasticsearch-x-content-8.2.0-SNAPSHOT.jar!/IMPL-JARS/x-content/xlib-2.10.4.jar
+     *  rootURI jar:file:/xxx/distro/lib/elasticsearch-x-content-8.2.0-SNAPSHOT.jar
+     *
      *  test  - file:/x/git/es_modules/libs/x-content/build/generated-resources/impl/IMPL-JARS/x-content/xlib-2.10.4.jar
+     *  rootURI file:/x/git/es_modules/libs/x-content/build/generated-resources/impl
      */
-    private static URI rootURI(URL url) {
+    static URI rootURI(URL url) {
         try {
-            URI embeddedJarURI = url.toURI();
-            if (embeddedJarURI.getScheme().equals("jar")) {
-                String s = embeddedJarURI.toString();
+            URI uri = url.toURI();
+            if (uri.getScheme().equals("jar")) {
+                String s = uri.toString();
                 return URI.create(s.substring(0, s.lastIndexOf("!/")));
             } else {
-                return URI.create(getParent(getParent(getParent(embeddedJarURI.toString()))));
+                return URI.create(getParent(getParent(getParent(uri.toString()))));
             }
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
@@ -254,7 +254,7 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
             BufferedReader reader = new BufferedReader(isr)
         ) {
             List<String> jars = reader.lines().toList();
-            Map<String, CodeSource> map = new LinkedHashMap<>();
+            Map<String, CodeSource> map = new LinkedHashMap<>(); // iteration order is significant
             for (String jar : jars) {
                 String jarPrefix = providerPrefix + "/" + jar;
                 if (isMultiRelease(parent, jarPrefix)) {
@@ -263,7 +263,6 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
                         map.put(versionPrefix, codeSource(listingURL, jar));
                     }
                 }
-                // TODO: LinkedHashMap, verify order, need to preserve order for versioned entries
                 map.put(jarPrefix, codeSource(listingURL, jar));
             }
             return Collections.unmodifiableMap(map);
@@ -311,7 +310,7 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
         return "/";
     }
 
-    private static final class CompoundEnumeration<E> implements Enumeration<E> {
+    static final class CompoundEnumeration<E> implements Enumeration<E> {
         private final Enumeration<E>[] enumerations;
         private int index;
 

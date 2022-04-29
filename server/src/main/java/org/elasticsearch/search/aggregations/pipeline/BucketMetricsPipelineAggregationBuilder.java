@@ -121,13 +121,12 @@ public abstract class BucketMetricsPipelineAggregationBuilder<AF extends BucketM
 
         // Dig through the aggregation tree to find the first aggregation specified by the path.
         // The path may have many single bucket aggs (with sub-aggs) or many multi-bucket aggs specified by bucket keys
-        while (aggBuilder.isPresent() && pathPos < path.size() && (
-        // is this a multi-bucket agg with a bucket key specified?
-        (aggBuilder.get().bucketCardinality() == AggregationBuilder.BucketCardinality.MANY
-            && AggregationPath.pathElementContainsBucketKey(currentAgg))
-            // Is this a single bucket agg with sub-aggs?
-            || (aggBuilder.get().bucketCardinality() != AggregationBuilder.BucketCardinality.MANY
-                && aggBuilder.get().getSubAggregations().isEmpty() == false))) {
+        while (aggBuilder.isPresent()
+            && pathPos < path.size()
+            && ((aggBuilder.get().bucketCardinality() == AggregationBuilder.BucketCardinality.MANY
+                && AggregationPath.pathElementContainsBucketKey(currentAgg))
+                || (aggBuilder.get().bucketCardinality() == AggregationBuilder.BucketCardinality.ONE
+                    && aggBuilder.get().getSubAggregations().isEmpty() == false))) {
             currentAgg = path.get(pathPos++);
             final String subAggName = currentAgg.name();
             aggBuilder = aggBuilder.get().getSubAggregations().stream().filter(b -> b.getName().equals(subAggName)).findAny();

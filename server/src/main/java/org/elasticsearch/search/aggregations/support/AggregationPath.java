@@ -57,6 +57,15 @@ public class AggregationPath {
 
     private static final String AGG_DELIM = ">";
 
+    /**
+     * Indicates if the current path element contains a bucket key.
+     *
+     * InternalMultiBucketAggregation#resolvePropertyFromPath supports resolving specific buckets and a bucket is indicated by
+     * wrapping a key element in quotations. Example `agg['foo']` would get the bucket `foo` in the agg.
+     *
+     * @param pathElement The path element to check
+     * @return Does the path element contain a bucket_key or not
+     */
     public static boolean pathElementContainsBucketKey(AggregationPath.PathElement pathElement) {
         return pathElement != null && pathElement.key() != null && pathElement.key().startsWith("'") && pathElement.key().endsWith("'");
     }

@@ -56,7 +56,7 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
                 Aggregation currentAgg = aggregation;
                 while (currElement < parsedPath.size() - 1) {
                     if (currentAgg == null) {
-                        throw new AggregationExecutionException(
+                        throw new IllegalArgumentException(
                             "bucket_path ["
                                 + bucketsPaths()[0]
                                 + "] expected aggregation with name ["

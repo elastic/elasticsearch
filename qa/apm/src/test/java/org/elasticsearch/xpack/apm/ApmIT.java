@@ -39,11 +39,11 @@ public class ApmIT extends ESRestTestCase {
 
         final Request request = new Request("PUT", "/_cluster/settings");
         request.setOptions(requestOptions);
+        // The default sample rate is lower, meaning the traces that want to record might be skipped.
         request.setJsonEntity("""
             { "persistent": { "xpack.apm.tracing.agent.transaction_sample_rate": "1.0" } }
             """);
-        final Response response = client().performRequest(request);
-        assertOK(response);
+        assertOK(client().performRequest(request));
     }
 
     /**
@@ -63,7 +63,6 @@ public class ApmIT extends ESRestTestCase {
 
     private void assertTracesExist() throws Exception {
         assertBusy(() -> {
-            logger.error("Looping...");
             final Request tracesSearchRequest = new Request("GET", "/traces-apm-default/_search");
             tracesSearchRequest.setJsonEntity("""
                 {
@@ -88,7 +87,8 @@ public class ApmIT extends ESRestTestCase {
     }
 
     /**
-     * We don't need to clean up the cluster, particularly as we have Kibana and APM server using ES.
+     * We don't need to clean up the cluster, particularly as we have Kibana and APM server using ES as well as our test, so declare
+     * that we need to preserve the cluster in order to prevent the usual cleanup logic from running (and inevitably failing).
      */
     @Override
     protected boolean preserveClusterUponCompletion() {

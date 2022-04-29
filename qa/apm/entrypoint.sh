@@ -8,18 +8,11 @@ set -eo pipefail
 
 cd /usr/share/elasticsearch/
 
-cat > config/elasticapm.properties <<EOF
-enabled: true
-service_version: $STACK_VERSION
-# ES does not use auto-instrumentation
-instrument: false
-# Required for OpenTelemetry support
-enable_experimental_instrumentations: true
-server_url: http://apmserver:8200
-secret_token:
-service_name: elasticsearch
-log_level: error
-log_file: _AGENT_HOME_/../../logs/apm.log
-EOF
+sed -i -e '
+  s|enabled: .*|enabled: true|
+  s|# server_url: .*|server_url: http://apmserver:8200|
+  s|# secret_token:.*|secret_token: |
+  s|metrics_interval:.*|metrics_interval: 1s|
+' config/elasticapm.properties
 
 exec /usr/local/bin/docker-entrypoint.sh

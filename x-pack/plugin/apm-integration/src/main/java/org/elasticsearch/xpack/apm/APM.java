@@ -56,6 +56,6 @@ public class APM extends Plugin implements NetworkPlugin {
 
     @Override
     public List<Setting<?>> getSettings() {
-        return List.of(APMTracer.APM_ENABLED_SETTING, APMTracer.APM_TRACING_NAMES_INCLUDE_SETTING);
+        return List.of(APMAgentSettings.APM_ENABLED_SETTING, APMAgentSettings.APM_TRACING_NAMES_INCLUDE_SETTING, APMAgentSettings.APM_AGENT_SETTINGS);
     }
 }

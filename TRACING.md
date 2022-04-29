@@ -12,6 +12,27 @@ perform instrumentation and tracing must use these abstractions.
 Separately, there is the [`apm-integration`](./x-pack/plugins/apm-integration/)
 module, which works with the OpenTelemetry API directly to record trace data.
 
+## How is tracing configured?
+
+We have a config file in [`config/elasticapm.properties`][config], which
+configures settings that are not dynamic, or should not be changed at runtime.
+Other settings can be configured at runtime by using the cluster settings API,
+and setting `xpack.apm.tracing.agent.<key>` with a string value, where `<key>`
+is the APM agent key that you want to configure.
+
+### More details about configuration
+
+The APM agent pulls configuration from [multiple sources][agent-config], with a
+hierarchy that means, for example, that options set in the config file cannot be
+overridden via system properties. This is a little unfortunate, since it means
+that Elasticsearch cannot ship with sensible defaults for dynamic settings in
+the config file, and override them via system properties.
+
+Instead, static or sensitive config values are put in the config file, and
+dynamic settings are left entirely to the system properties. The Elasticsearch
+APM plugin has appropriate security access to set the APM-related system
+properties.
+
 ## Where is tracing data sent?
 
 You need to have an OpenTelemetry server running somewhere. For example, you can
@@ -100,3 +121,5 @@ explicitly opening a scope via the `Tracer`.
 [thread-context]: ./server/src/main/java/org/elasticsearch/common/util/concurrent/ThreadContext.java).
 [w3c]: https://www.w3.org/TR/trace-context/
 [tracing]: ./server/src/main/java/org/elasticsearch/tracing/
+[config]: ./x-pack/plugin/apm-integration/src/main/config/elasticapm.properties
+[agent-config]: https://www.elastic.co/guide/en/apm/agent/java/master/configuration.html

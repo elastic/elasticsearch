@@ -54,7 +54,6 @@ services:
       - ES_JAVA_OPTS=-Xms1g -Xmx1g
       - indices.id_field_data.enabled=true
       - path.repo=/usr/share/elasticsearch/data/backups
-      - STACK_VERSION=${STACK_VERSION}
       - xpack.apm.tracing.enabled=true
       - xpack.license.self_generated.type=trial
       - xpack.monitoring.collection.enabled=true

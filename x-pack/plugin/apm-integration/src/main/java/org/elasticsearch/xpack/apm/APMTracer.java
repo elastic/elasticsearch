@@ -16,13 +16,11 @@ import io.opentelemetry.api.trace.Tracer;
 import io.opentelemetry.context.Context;
 import io.opentelemetry.context.propagation.TextMapGetter;
 
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -32,32 +30,19 @@ import org.elasticsearch.tracing.Traceable;
 
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.common.settings.Setting.Property.Dynamic;
-import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
+import static org.elasticsearch.xpack.apm.APMAgentSettings.APM_AGENT_DEFAULT_SETTINGS;
+import static org.elasticsearch.xpack.apm.APMAgentSettings.APM_AGENT_SETTINGS;
+import static org.elasticsearch.xpack.apm.APMAgentSettings.APM_ENABLED_SETTING;
+import static org.elasticsearch.xpack.apm.APMAgentSettings.APM_TRACING_NAMES_INCLUDE_SETTING;
+import static org.elasticsearch.xpack.apm.APMAgentSettings.SETTING_PREFIX;
 
 public class APMTracer extends AbstractLifecycleComponent implements org.elasticsearch.tracing.Tracer {
-
-    private static final Logger LOGGER = LogManager.getLogger(APMTracer.class);
-
-    private static final Set<String> TRACE_HEADERS = Set.of(Task.TRACE_PARENT_HTTP_HEADER, Task.TRACE_STATE);
-
-    static final Setting<Boolean> APM_ENABLED_SETTING = Setting.boolSetting("xpack.apm.tracing.enabled", false, Dynamic, NodeScope);
-    static final Setting<List<String>> APM_TRACING_NAMES_INCLUDE_SETTING = Setting.listSetting(
-        "xpack.apm.tracing.names.include",
-        Collections.emptyList(),
-        Function.identity(),
-        Dynamic,
-        NodeScope
-    );
 
     private record ContextWrapper(Context context) {
         Span span() {
@@ -86,16 +71,32 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         this.clusterService = Objects.requireNonNull(clusterService);
         this.enabled = APM_ENABLED_SETTING.get(settings);
         this.includeNames = APM_TRACING_NAMES_INCLUDE_SETTING.get(settings);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(APM_ENABLED_SETTING, this::setEnabled);
-        clusterService.getClusterSettings().addSettingsUpdateConsumer(APM_TRACING_NAMES_INCLUDE_SETTING, this::setIncludeNames);
-    }
 
-    public boolean isEnabled() {
-        return enabled;
+        // Apply default values for some system properties. Although we configure
+        // the settings in APM_AGENT_DEFAULT_SETTINGS to defer to the default values, they won't
+        // do anything if those settings are never configured.
+        APM_AGENT_DEFAULT_SETTINGS.keySet()
+            .forEach(
+                key -> APMAgentSettings.setAgentSetting(
+                    key,
+                    APM_AGENT_SETTINGS.getConcreteSetting(SETTING_PREFIX + "agent." + key).get(settings)
+                )
+            );
+
+        // Then apply values from the settings in the cluster state
+        APM_AGENT_SETTINGS.getAsMap(settings).forEach(APMAgentSettings::setAgentSetting);
+
+        final ClusterSettings clusterSettings = clusterService.getClusterSettings();
+        clusterSettings.addSettingsUpdateConsumer(APM_ENABLED_SETTING, this::setEnabled);
+        clusterSettings.addSettingsUpdateConsumer(APM_TRACING_NAMES_INCLUDE_SETTING, this::setIncludeNames);
+        clusterSettings.addAffixMapUpdateConsumer(APM_AGENT_SETTINGS, map -> map.forEach(APMAgentSettings::setAgentSetting), (x, y) -> {});
     }
 
     private void setEnabled(boolean enabled) {
         this.enabled = enabled;
+        // The agent records data other than spans, e.g. JVM metrics, so we toggle this setting in order to
+        // minimise its impact to a running Elasticsearch.
+        APMAgentSettings.setAgentSetting("recording", Boolean.toString(enabled));
         if (enabled) {
             createApmServices();
         } else {
@@ -120,9 +121,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     @Override
-    protected void doClose() {
-
-    }
+    protected void doClose() {}
 
     private void createApmServices() {
         assert this.enabled;
@@ -131,6 +130,7 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         this.services = AccessController.doPrivileged((PrivilegedAction<APMServices>) () -> {
             var openTelemetry = GlobalOpenTelemetry.get();
             var tracer = openTelemetry.getTracer("elasticsearch", Version.CURRENT.toString());
+
             return new APMServices(tracer, openTelemetry);
         });
     }
@@ -321,6 +321,6 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     }
 
     private static boolean isSupportedContextKey(String key) {
-        return TRACE_HEADERS.contains(key);
+        return Task.TRACE_PARENT_HTTP_HEADER.equals(key) || Task.TRACE_STATE.equals(key);
     }
 }

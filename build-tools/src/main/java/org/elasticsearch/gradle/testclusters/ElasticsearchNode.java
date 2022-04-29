@@ -65,11 +65,14 @@ import java.io.LineNumberReader;
 import java.io.UncheckedIOException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -1356,19 +1359,12 @@ public class ElasticsearchNode implements TestClusterConfiguration {
                 StandardOpenOption.CREATE
             );
 
-            final List<Path> configFiles;
-            try (Stream<Path> stream = Files.list(getDistroDir().resolve("config"))) {
-                configFiles = stream.collect(Collectors.toList());
-            }
-            logToProcessStdout("Copying additional config files from distro " + configFiles);
-            for (Path file : configFiles) {
-                Path dest = configFile.getParent().resolve(file.getFileName());
-                if (Files.exists(dest) == false) {
-                    Files.copy(file, dest);
-                }
-            }
+            final Path distConfigDir = getDistroDir().resolve("config");
+            final RecursiveCopyFileVisitor visitor = new RecursiveCopyFileVisitor(distConfigDir);
+            Files.walkFileTree(distConfigDir, visitor);
+            logToProcessStdout("Copied additional config files from distro: " + visitor.getCopiedFiles());
         } catch (IOException e) {
-            throw new UncheckedIOException("Could not write config file: " + configFile, e);
+            throw new UncheckedIOException("Could not write config file: " + e.getMessage(), e);
         }
 
         tweakJvmOptions(configFileRoot);
@@ -1684,6 +1680,39 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private static class LinkCreationException extends UncheckedIOException {
         LinkCreationException(String message, IOException cause) {
             super(message, cause);
+        }
+    }
+
+    private class RecursiveCopyFileVisitor extends SimpleFileVisitor<Path> {
+        private final Path sourceDir;
+        private final List<Path> copiedFiles;
+
+        RecursiveCopyFileVisitor(Path sourceDir) {
+            this.sourceDir = sourceDir;
+            this.copiedFiles = new ArrayList<>();
+        }
+
+        public List<Path> getCopiedFiles() {
+            return copiedFiles;
+        }
+
+        @Override
+        public FileVisitResult preVisitDirectory(Path sourceDir, BasicFileAttributes attrs) throws IOException {
+            final Path relativePath = this.sourceDir.relativize(sourceDir);
+            final Path destPath = configFile.getParent().resolve(relativePath);
+            if (Files.notExists(destPath)) {
+                Files.createDirectory(destPath);
+            }
+            return FileVisitResult.CONTINUE;
+        }
+
+        @Override
+        public FileVisitResult visitFile(Path sourcePath, BasicFileAttributes attrs) throws IOException {
+            final Path relativePath = sourceDir.relativize(sourcePath);
+            final Path destPath = configFile.getParent().resolve(relativePath);
+            Files.copy(sourcePath, destPath, StandardCopyOption.REPLACE_EXISTING);
+            copiedFiles.add(sourcePath);
+            return FileVisitResult.CONTINUE;
         }
     }
 }

@@ -9,13 +9,16 @@
 package org.elasticsearch.xpack.apm;
 
 import org.elasticsearch.client.Request;
+import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
@@ -25,33 +28,63 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.not;
 
+/**
+ * Tests around Elasticsearch's tracing support using APM.
+ */
 public class ApmIT extends ESRestTestCase {
+
+    @Before
+    public void configureTracing() throws IOException {
+        final RequestOptions requestOptions = RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE).build();
+
+        final Request request = new Request("PUT", "/_cluster/settings");
+        request.setOptions(requestOptions);
+        request.setJsonEntity("""
+            { "persistent": { "xpack.apm.tracing.agent.transaction_sample_rate": "1.0" } }
+            """);
+        final Response response = client().performRequest(request);
+        assertOK(response);
+    }
 
     /**
      * Check that if we send HTTP traffic to Elasticsearch, then traces are captured in APM server.
      */
     public void testCapturesTracesForHttpTraffic() throws Exception {
-        for (int i = 0; i < 20; i++) {
-            final Request nodesRequest = new Request("GET", "/_nodes/stats");
-            final Response nodesResponse = client().performRequest(nodesRequest);
-            assertOK(nodesResponse);
-        }
+        generateTraces();
 
+        checkTracesDataStream();
+
+        assertTracesExist();
+    }
+
+    private void checkTracesDataStream() throws IOException {
+        assertOK(client().performRequest(new Request("GET", "/_data_stream/traces-apm-default")));
+    }
+
+    private void assertTracesExist() throws Exception {
         assertBusy(() -> {
             logger.error("Looping...");
             final Request tracesSearchRequest = new Request("GET", "/traces-apm-default/_search");
             tracesSearchRequest.setJsonEntity("""
-              {
-                "query": {
-                   "match": { "transaction.name": "GET /_nodes/stats" }
-                }
-              }""");
+                {
+                  "query": {
+                     "match": { "transaction.name": "GET /_nodes/stats" }
+                  }
+                }""");
             final Response tracesSearchResponse = performRequestTolerantly(tracesSearchRequest);
             assertOK(tracesSearchResponse);
 
             final List<Map<String, Object>> documents = getDocuments(tracesSearchResponse);
             assertThat(documents, not(empty()));
         }, 1, TimeUnit.MINUTES);
+    }
+
+    private void generateTraces() throws IOException {
+        for (int i = 0; i < 20; i++) {
+            final Request nodesRequest = new Request("GET", "/_nodes/stats");
+            final Response nodesResponse = client().performRequest(nodesRequest);
+            assertOK(nodesResponse);
+        }
     }
 
     /**

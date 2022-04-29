@@ -233,7 +233,6 @@
           "enabled": false
         },
         "tags": {
-          "description": "User provided tags for the Elastic Agent",
           "type": "keyword"
         }
       }

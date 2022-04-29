@@ -78,7 +78,7 @@ public class IndicesWriteLoadStatsCollectorTests extends IndexShardTestCase {
     protected ThreadPool setUpThreadPool() {
         return new TestThreadPool(getClass().getName(), threadPoolSettings()) {
             @Override
-            public long relativeTimeInNanos() {
+            public long rawRelativeTimeInNanos() {
                 return timeSupplier.getAsLong();
             }
         };

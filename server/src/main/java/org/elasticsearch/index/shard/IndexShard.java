@@ -956,7 +956,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 isRetry,
                 ifSeqNo,
                 ifPrimaryTerm,
-                threadPool::relativeTimeInNanos
+                threadPool.rawRelativeTimeInNanos()
             );
             Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
             if (update != null) {
@@ -986,9 +986,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         boolean isRetry,
         long ifSeqNo,
         long ifPrimaryTerm,
-        LongSupplier relativeTimeInNanosSupplier
+        long startTime
     ) {
-        long startTime = relativeTimeInNanosSupplier.getAsLong();
         assert source.dynamicTemplates().isEmpty() || origin == Engine.Operation.Origin.PRIMARY
             : "dynamic_templates parameter can only be associated with primary operations";
         DocumentMapper documentMapper = mapperService.documentMapper();
@@ -1165,7 +1164,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             origin,
             ifSeqNo,
             ifPrimaryTerm,
-            threadPool.relativeTimeInNanos()
+            threadPool.rawRelativeTimeInNanos()
         );
         return delete(engine, delete);
     }

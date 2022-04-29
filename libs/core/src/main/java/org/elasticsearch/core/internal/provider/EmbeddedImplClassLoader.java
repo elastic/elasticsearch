@@ -76,13 +76,13 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
 
     record JarMeta(String prefix, boolean isMultiRelease) {}
 
-    /** Ordered list of prefixes to use when loading classes and resources. */
+    /** Ordered list of jar metadata (prefixes and code sources) to use when loading classes and resources. */
     private final List<JarMeta> jarMetas;
 
     /** A map of prefix to codebase, used to determine the code source when defining classes. */
     private final Map<String, CodeSource> prefixToCodeBase;
 
-    /** The loader used to find the class bytes. */
+    /** The loader used to find the class and resource bytes. */
     private final ClassLoader parent;
 
     static EmbeddedImplClassLoader getInstance(ClassLoader parent, String providerName) {
@@ -164,7 +164,7 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
         Objects.requireNonNull(name);
         for (JarMeta jarMeta : jarMetas) {
             final String prefix = jarMeta.prefix();
-            URL url = findFirstResourceForPrefixOrNull(name, prefix);
+            URL url = findVersionedResourceForPrefixOrNull(name, prefix);
             if (url != null) {
                 return url;
             }
@@ -172,7 +172,11 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
         return parent.getResource(name);
     }
 
-    URL findFirstResourceForPrefixOrNull(String name, String prefix) {
+    /**
+     * Searches for the named resource, returning its url or null if not found.
+     * Iterates over all multi-release versions, including the root, for the given jar prefix.
+     */
+    URL findVersionedResourceForPrefixOrNull(String name, String prefix) {
         for (int v = RUNTIME_VERSION_FEATURE; v >= BASE_VERSION_FEATURE; v--) {
             URL url = parent.getResource(prefix + "/" + MRJAR_VERSION_PREFIX + v + "/" + name);
             if (url != null) {
@@ -196,7 +200,7 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
                     return true;
                 } else {
                     while (jarMetaIndex < jarMetas.size()) {
-                        URL u = findFirstResourceForPrefixOrNull(name, jarMetas.get(0).prefix());
+                        URL u = findVersionedResourceForPrefixOrNull(name, jarMetas.get(0).prefix());
                         jarMetaIndex++;
                         if (u != null) {
                             url = u;

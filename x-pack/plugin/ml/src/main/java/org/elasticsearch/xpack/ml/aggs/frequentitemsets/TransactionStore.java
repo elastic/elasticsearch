@@ -498,9 +498,12 @@ public final class TransactionStore implements Writeable, Releasable {
      * Prune rewrites the internal data structures by getting rid of items which are
      * below the given minSupport.
      *
+     * Performance: In addition it re-arranges transactions in order to execute a
+     * contains operation as linear scan, see [ITEM-BOW].
+     *
      * Currently this is only used after merging all shard stores.
      *
-     * TODO: explore wheter we could prune per shard based on a heuristic
+     * TODO: explore whether we could prune per shard based on a heuristic
      *
      * @param minSupport the minimum support an item must have to be kept
      */

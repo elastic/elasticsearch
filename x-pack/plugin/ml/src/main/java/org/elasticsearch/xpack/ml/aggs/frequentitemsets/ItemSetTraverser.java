@@ -23,12 +23,16 @@ import java.util.Stack;
  * This traverser avoids those duplicates and only traverses [a, b, c] via a->b->c
  *
  * With other words: this traverser is only useful if order does not matter ("bag-of-words model").
+ *
+ * Note: In order to avoid churn, the traverser is reusing objects as much as it can,
+ *       see the comments containing the non-optimized code
  */
 class ItemSetTraverser implements Releasable {
 
     private final TransactionStore.TopItemIds topItemIds;
 
     // stack implementation: to avoid object churn this is not implemented as classical stack, but optimized for re-usage
+    // non-optimized: Stack<TransactionStore.TopItemIds.IdIterator> itemIterators = new Stack<>();
     private List<TransactionStore.TopItemIds.IdIterator> itemIterators = new ArrayList<>();
     private int stackPosition = 0;
 
@@ -43,6 +47,7 @@ class ItemSetTraverser implements Releasable {
 
     public boolean hasNext() {
         // check if we are already exhausted
+        // non-optimized: itemIterators.isEmpty()
         if (stackPosition == -1) {
             return false;
         }
@@ -51,6 +56,7 @@ class ItemSetTraverser implements Releasable {
 
     public boolean next() {
         // check if we are already exhausted
+        // non-optimized: itemIterators.isEmpty()
         if (stackPosition == -1) {
             return false;
         }
@@ -64,7 +70,9 @@ class ItemSetTraverser implements Releasable {
                 assert itemIdStack.contains(itemId) == false : "detected duplicate";
                 break;
             } else {
+                // non-optimized: itemIterators.pop();
                 --stackPosition;
+                // non-optimized: itemIterators.isEmpty()
                 if (stackPosition == -1) {
                     return false;
                 }
@@ -72,6 +80,8 @@ class ItemSetTraverser implements Releasable {
             }
         }
 
+        // push a new iterator on the stack
+        // non-optimized: itemIterators.add(topItemIds.iterator(itemIteratorStack.peek().getIndex()));
         if (itemIterators.size() == stackPosition + 1) {
             itemIterators.add(topItemIds.iterator(itemIterators.get(stackPosition).getIndex()));
         } else {
@@ -98,9 +108,12 @@ class ItemSetTraverser implements Releasable {
 
     public void prune() {
         // already empty
+        // non-optimized: itemIterators.isEmpty()
         if (stackPosition == -1) {
             return;
         }
+
+        // non-optimized: itemIterators.pop();
         --stackPosition;
 
         // the id stack has 1 item less

@@ -342,7 +342,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
                 );
                 return AllocateUnassignedDecision.yes(nodeWithHighestMatch.node(), null, nodeDecisions, true);
             }
-        } else if (isDelayedDueToShutdown(allocation, shardRouting)) {
+        } else if (isDelayedDueToNodeRestart(allocation, shardRouting)) {
             return ReplicaShardAllocator.delayedDecision(shardRouting, allocation, logger, nodeDecisions);
         }
 
@@ -350,7 +350,7 @@ public class SearchableSnapshotAllocator implements ExistingShardsAllocator {
         return AllocateUnassignedDecision.NOT_TAKEN;
     }
 
-    private boolean isDelayedDueToShutdown(RoutingAllocation allocation, ShardRouting shardRouting) {
+    private boolean isDelayedDueToNodeRestart(RoutingAllocation allocation, ShardRouting shardRouting) {
         if (shardRouting.unassignedInfo().isDelayed()) {
             String lastAllocatedNodeId = shardRouting.unassignedInfo().getLastAllocatedNodeId();
             if (lastAllocatedNodeId != null) {

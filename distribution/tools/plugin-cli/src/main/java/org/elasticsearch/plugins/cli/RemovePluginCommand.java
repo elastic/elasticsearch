@@ -34,7 +34,7 @@ class RemovePluginCommand extends EnvironmentAwareCommand {
     }
 
     @Override
-    protected void execute(final Terminal terminal, final OptionSet options, final Environment env, ProcessInfo processInfo)
+    public void execute(final Terminal terminal, final OptionSet options, final Environment env, ProcessInfo processInfo)
         throws Exception {
         SyncPluginsAction.ensureNoConfigFile(env);
 

@@ -151,6 +151,6 @@ public abstract class EnvironmentAwareCommand extends Command {
     }
 
     /** Execute the command with the initialized {@link Environment}. */
-    protected abstract void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception;
+    public abstract void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception;
 
 }

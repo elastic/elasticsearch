@@ -30,7 +30,7 @@ public class HasPasswordKeyStoreCommand extends KeyStoreAwareCommand {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
+    public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
         final Path configFile = env.configFile();
         final KeyStoreWrapper keyStore = KeyStoreWrapper.load(configFile);
 

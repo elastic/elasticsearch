@@ -26,7 +26,6 @@ import java.net.InetAddress;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
 import java.util.Collections;
 import java.util.List;
@@ -87,6 +86,6 @@ public abstract class AbstractPasswordToolTestCase extends ESRestTestCase {
 
     protected ProcessInfo getToolProcessInfo() {
         var sysprops = Map.of("es.path.conf", System.getProperty("es.path.conf"), "es.path.home", System.getProperty("es.path.home"));
-        return new ProcessInfo(sysprops, Map.of(), Paths.get(""));
+        return new ProcessInfo(sysprops, Map.of(), createTempDir());
     }
 }

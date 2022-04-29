@@ -189,63 +189,60 @@ public class TransportGetJobsStatsAction extends TransportTasksAction<
         };
 
         PersistentTasksCustomMetadata tasks = clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
-        for (int i = 0; i < closedJobIds.size(); i++) {
-            int slot = i;
-            String jobId = closedJobIds.get(i);
-            threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
-                .execute(
-                    () -> jobResultsProvider.getForecastStats(
-                        jobId,
-                        forecastStats -> threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
-                            .execute(
-                                () -> jobResultsProvider.getDataCountsModelSizeAndTimingStats(
-                                    jobId,
-                                    (dataCounts, modelSizeStats, timingStats) -> {
-                                        JobState jobState = MlTasks.getJobState(jobId, tasks);
-                                        PersistentTasksCustomMetadata.PersistentTask<?> pTask = MlTasks.getJobTask(jobId, tasks);
-                                        String assignmentExplanation = null;
-                                        if (pTask != null) {
-                                            assignmentExplanation = pTask.getAssignment().getExplanation();
+        threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(() -> {
+            for (int i = 0; i < closedJobIds.size(); i++) {
+                int slot = i;
+                String jobId = closedJobIds.get(i);
+                jobResultsProvider.getForecastStats(jobId, forecastStats -> {
+                    threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME)
+                        .execute(
+                            () -> jobResultsProvider.getDataCountsModelSizeAndTimingStats(
+                                jobId,
+                                (dataCounts, modelSizeStats, timingStats) -> {
+                                    JobState jobState = MlTasks.getJobState(jobId, tasks);
+                                    PersistentTasksCustomMetadata.PersistentTask<?> pTask = MlTasks.getJobTask(jobId, tasks);
+                                    String assignmentExplanation = null;
+                                    if (pTask != null) {
+                                        assignmentExplanation = pTask.getAssignment().getExplanation();
+                                    }
+                                    jobStats.set(
+                                        slot,
+                                        new JobStats(
+                                            jobId,
+                                            dataCounts,
+                                            modelSizeStats,
+                                            forecastStats,
+                                            jobState,
+                                            null,
+                                            assignmentExplanation,
+                                            null,
+                                            timingStats
+                                        )
+                                    );
+                                    if (counter.decrementAndGet() == 0) {
+                                        if (searchException.get() != null) {
+                                            // there was an error
+                                            listener.onFailure(searchException.get());
+                                            return;
                                         }
-                                        jobStats.set(
-                                            slot,
-                                            new JobStats(
-                                                jobId,
-                                                dataCounts,
-                                                modelSizeStats,
-                                                forecastStats,
-                                                jobState,
-                                                null,
-                                                assignmentExplanation,
-                                                null,
-                                                timingStats
+                                        List<JobStats> results = response.getResponse().results();
+                                        results.addAll(jobStats.asList());
+                                        Collections.sort(results, Comparator.comparing(GetJobsStatsAction.Response.JobStats::getJobId));
+                                        listener.onResponse(
+                                            new GetJobsStatsAction.Response(
+                                                response.getTaskFailures(),
+                                                response.getNodeFailures(),
+                                                new QueryPage<>(results, results.size(), Job.RESULTS_FIELD)
                                             )
                                         );
-                                        if (counter.decrementAndGet() == 0) {
-                                            if (searchException.get() != null) {
-                                                // there was an error
-                                                listener.onFailure(searchException.get());
-                                                return;
-                                            }
-                                            List<JobStats> results = response.getResponse().results();
-                                            results.addAll(jobStats.asList());
-                                            Collections.sort(results, Comparator.comparing(GetJobsStatsAction.Response.JobStats::getJobId));
-                                            listener.onResponse(
-                                                new GetJobsStatsAction.Response(
-                                                    response.getTaskFailures(),
-                                                    response.getNodeFailures(),
-                                                    new QueryPage<>(results, results.size(), Job.RESULTS_FIELD)
-                                                )
-                                            );
-                                        }
-                                    },
-                                    errorHandler
-                                )
-                            ),
-                        errorHandler
-                    )
-                );
-        }
+                                    }
+                                },
+                                errorHandler
+                            )
+                        );
+                }, errorHandler);
+            }
+        });
     }
 
     static TimeValue durationToTimeValue(Optional<Duration> duration) {

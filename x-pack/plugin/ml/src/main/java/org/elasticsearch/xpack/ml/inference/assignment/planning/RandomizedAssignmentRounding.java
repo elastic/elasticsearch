@@ -326,36 +326,35 @@ class RandomizedAssignmentRounding {
                 }
             }
 
-            for (Model m : models.stream().sorted(Comparator.comparingDouble(this::remainingModelOrder)).toList()) {
-                if (resourceTracker.remainingModelAllocations.get(m) > 0) {
-                    for (Node n : nodes.stream()
-                        .sorted(
-                            Comparator.comparingDouble(
-                                n -> remainingNodeOrder(
-                                    n,
-                                    m,
-                                    resourceTracker.remainingNodeCores.get(n),
-                                    resourceTracker.remainingNodeMemory.get(n),
-                                    resourceTracker.remainingModelAllocations.get(m)
-                                )
+            for (Model m : models.stream()
+                .filter(m -> resourceTracker.remainingModelAllocations.get(m) > 0)
+                .sorted(Comparator.comparingDouble(this::remainingModelOrder))
+                .toList()) {
+                for (Node n : nodes.stream()
+                    .filter(n -> resourceTracker.remainingNodeMemory.get(n) >= m.memoryBytes()
+                        && resourceTracker.remainingNodeCores.get(n) >= m.threadsPerAllocation()
+                        && resultAllocations.get(Tuple.tuple(m, n)) == 0)
+                    .sorted(
+                        Comparator.comparingDouble(
+                            n -> remainingNodeOrder(
+                                n,
+                                m,
+                                resourceTracker.remainingNodeCores.get(n),
+                                resourceTracker.remainingNodeMemory.get(n),
+                                resourceTracker.remainingModelAllocations.get(m)
                             )
                         )
-                        .toList()) {
+                    )
+                    .toList()) {
 
-                        Tuple<Model, Node> assignment = Tuple.tuple(m, n);
-                        if (resourceTracker.remainingNodeMemory.get(n) >= m.memoryBytes()
-                            && resourceTracker.remainingNodeCores.get(n) >= m.threadsPerAllocation()
-                            && resultAllocations.get(assignment) == 0) {
-                            int assigningAllocations = Math.min(
-                                resourceTracker.remainingNodeCores.get(n) / m.threadsPerAllocation(),
-                                resourceTracker.remainingModelAllocations.get(m)
-                            );
-                            resourceTracker.assign(m, n, assigningAllocations);
-                            resultAllocations.put(assignment, assigningAllocations);
-                            if (resourceTracker.remainingModelAllocations.get(m) == 0) {
-                                break;
-                            }
-                        }
+                    int assigningAllocations = Math.min(
+                        resourceTracker.remainingNodeCores.get(n) / m.threadsPerAllocation(),
+                        resourceTracker.remainingModelAllocations.get(m)
+                    );
+                    resourceTracker.assign(m, n, assigningAllocations);
+                    resultAllocations.put(Tuple.tuple(m, n), assigningAllocations);
+                    if (resourceTracker.remainingModelAllocations.get(m) == 0) {
+                        break;
                     }
                 }
             }

@@ -9,7 +9,6 @@
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -26,6 +25,18 @@ import java.util.function.Supplier;
  * steps towards the desired balance using the {@link DesiredBalanceReconciler}.
  */
 public class DesiredBalanceShardsAllocator implements ShardsAllocator {
+
+    public static final Runnable REMOVE_ME = new Runnable() {
+        @Override
+        public void run() {
+            // TODO this is a noop listener stub that need so be replaced with a real implementation eventually
+        }
+
+        @Override
+        public String toString() {
+            return "REMOVE_ME";
+        }
+    };
 
     private final ShardsAllocator delegateAllocator;
     private final ContinuousComputation<DesiredBalanceInput> desiredBalanceComputation;
@@ -62,7 +73,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     }
 
     @Override
-    public void allocate(RoutingAllocation allocation, ActionListener<AcknowledgedResponse> listener) {
+    public void allocate(RoutingAllocation allocation, Runnable listener) {
         assert MasterService.isMasterUpdateThread() || Thread.currentThread().getName().startsWith("TEST-")
             : Thread.currentThread().getName();
         // assert allocation.debugDecision() == false; set to true when called via the reroute API
@@ -73,7 +84,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         desiredBalanceComputation.onNewInput(
             new DesiredBalanceInput(allocation.immutableClone(), new ArrayList<>(allocation.routingNodes().unassigned().ignored()))
         );
-        listener.onResponse(AcknowledgedResponse.TRUE);// TODO listener need to be passed to the above call
+        listener.run();// TODO listener need to be passed to the above call
 
         // TODO possibly add a bounded wait for the computation to complete?
         // Otherwise we will have to do a second cluster state update straight away.

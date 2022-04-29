@@ -20,7 +20,6 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpda
 import org.elasticsearch.action.admin.indices.shrink.ResizeType;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.ActiveShardsObserver;
-import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.ShardsAcknowledgedResponse;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -37,6 +36,7 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
@@ -48,6 +48,7 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
@@ -288,15 +289,15 @@ public class MetadataCreateIndexService {
     private void onlyCreateIndex(final CreateIndexClusterStateUpdateRequest request, final ActionListener<AcknowledgedResponse> listener) {
         normalizeRequestSetting(request);
 
-        var groupedListener = new GroupedActionListener<AcknowledgedResponse>(listener.map(results -> results.iterator().next()), 2);
+        var future = new ListenableFuture<AcknowledgedResponse>();
 
         clusterService.submitStateUpdateTask(
             "create-index [" + request.index() + "], cause [" + request.cause() + "]",
-            new AckedClusterStateUpdateTask(Priority.URGENT, request, groupedListener) {
+            new AckedClusterStateUpdateTask(Priority.URGENT, request, future) {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    return applyCreateIndexRequest(currentState, request, false, null, groupedListener);
+                    return applyCreateIndexRequest(currentState, request, false, null, () -> { future.addListener(listener); });
                 }
 
                 @Override
@@ -336,7 +337,7 @@ public class MetadataCreateIndexService {
         CreateIndexClusterStateUpdateRequest request,
         boolean silent,
         BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer,
-        ActionListener<AcknowledgedResponse> listener
+        Runnable listener
     ) throws Exception {
 
         normalizeRequestSetting(request);
@@ -404,7 +405,7 @@ public class MetadataCreateIndexService {
 
     public ClusterState applyCreateIndexRequest(ClusterState currentState, CreateIndexClusterStateUpdateRequest request, boolean silent)
         throws Exception {
-        return applyCreateIndexRequest(currentState, request, silent, null, ActionListener.noop());
+        return applyCreateIndexRequest(currentState, request, silent, null, DesiredBalanceShardsAllocator.REMOVE_ME);
     }
 
     /**
@@ -444,7 +445,7 @@ public class MetadataCreateIndexService {
             aliasSupplier,
             templatesApplied,
             metadataTransformer,
-            ActionListener.noop()
+            DesiredBalanceShardsAllocator.REMOVE_ME
         );
     }
 
@@ -458,7 +459,7 @@ public class MetadataCreateIndexService {
         final Function<IndexService, List<AliasMetadata>> aliasSupplier,
         final List<String> templatesApplied,
         final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer,
-        final ActionListener<AcknowledgedResponse> listener
+        final Runnable listener
     ) throws Exception {
         // create the index here (on the master) to validate it can be created, as well as adding the mapping
         return indicesService.<ClusterState, Exception>withTempIndexService(temporaryIndexMeta, indexService -> {
@@ -544,7 +545,7 @@ public class MetadataCreateIndexService {
         final boolean silent,
         final List<IndexTemplateMetadata> templates,
         final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer,
-        final ActionListener<AcknowledgedResponse> listener
+        final Runnable listener
     ) throws Exception {
         logger.debug(
             "applying create index request using legacy templates {}",

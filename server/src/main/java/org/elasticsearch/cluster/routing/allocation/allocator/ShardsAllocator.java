@@ -8,8 +8,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.MoveDecision;
@@ -44,9 +42,9 @@ public interface ShardsAllocator {
      * @param allocation current node allocation
      * @param listener listener to be executed once async allocation is completed
      */
-    default void allocate(RoutingAllocation allocation, ActionListener<AcknowledgedResponse> listener) {
+    default void allocate(RoutingAllocation allocation, Runnable listener) {
         allocate(allocation);
-        listener.onResponse(AcknowledgedResponse.TRUE);
+        listener.run();
     }
 
     /**

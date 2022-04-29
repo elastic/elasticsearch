@@ -11,8 +11,6 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
@@ -31,6 +29,7 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -259,7 +258,7 @@ public class AllocationService {
             allocator.applyFailedShards(failedShards, allocation);
         }
 
-        reroute(allocation, ActionListener.noop());
+        reroute(allocation, DesiredBalanceShardsAllocator.REMOVE_ME);
         String failedShardsAsString = firstListElementsToCommaDelimitedString(
             failedShards,
             s -> s.routingEntry().shardId().toString(),
@@ -458,7 +457,7 @@ public class AllocationService {
         allocation.ignoreDisable(false);
         // the assumption is that commands will move / act on shards (or fail through exceptions)
         // so, there will always be shard "movements", so no need to check on reroute
-        reroute(allocation, ActionListener.noop());
+        reroute(allocation, DesiredBalanceShardsAllocator.REMOVE_ME);
         return new CommandsResult(explanations, buildResultAndLogHealthChange(clusterState, allocation, "reroute commands"));
     }
 
@@ -473,10 +472,10 @@ public class AllocationService {
      * @return an updated cluster state, or the same instance that was passed as an argument if no changes were made.
      */
     public ClusterState reroute(ClusterState clusterState, String reason) {
-        return reroute(clusterState, reason, ActionListener.noop());
+        return reroute(clusterState, reason, DesiredBalanceShardsAllocator.REMOVE_ME);
     }
 
-    public ClusterState reroute(ClusterState clusterState, String reason, ActionListener<AcknowledgedResponse> listener) {
+    public ClusterState reroute(ClusterState clusterState, String reason, Runnable listener) {
         ClusterState fixedClusterState = adaptAutoExpandReplicas(clusterState);
 
         RoutingNodes routingNodes = getMutableRoutingNodes(fixedClusterState);
@@ -522,7 +521,7 @@ public class AllocationService {
         return false;
     }
 
-    private void reroute(RoutingAllocation allocation, ActionListener<AcknowledgedResponse> listener) {
+    private void reroute(RoutingAllocation allocation, Runnable listener) {
         assert hasDeadNodes(allocation) == false : "dead nodes should be explicitly cleaned up. See disassociateDeadNodes";
         assert AutoExpandReplicas.getAutoExpandReplicaChanges(allocation.metadata(), () -> allocation).isEmpty()
             : "auto-expand replicas out of sync with number of nodes in the cluster";

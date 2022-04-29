@@ -97,12 +97,12 @@ public class SearchableSnapshotShutdownIntegTests extends BaseSearchableSnapshot
     private List<String> setupMountedIndices() throws Exception {
         int count = between(1, 10);
         List<String> restoredIndices = new ArrayList<>();
-        for (int i = 0; i < count; ++i) {
-            final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-            createAndPopulateIndex(indexName, Settings.builder());
+        final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createRepository(repositoryName, "mock");
 
-            final String repositoryName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
-            createRepository(repositoryName, "mock");
+        for (int i = 0; i < count; ++i) {
+            final String indexName = "index_" + i;
+            createAndPopulateIndex(indexName, Settings.builder());
 
             final SnapshotId snapshotId = createSnapshot(repositoryName, "snapshot-1", List.of(indexName)).snapshotId();
             assertAcked(client().admin().indices().prepareDelete(indexName));

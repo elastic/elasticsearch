@@ -46,19 +46,56 @@ public class InMemoryJavaCompilerTests extends ESTestCase {
     }
 
     public void testCompileModuleWithExports() {
-        Map<String, CharSequence> sources = Map.of(
-            "module-info",
-            "module foo { exports p; }",
-            "p.Foo",
-            "package p; public class Foo extends q.Bar { }",
-            "q.Bar",
-            "package q; public class Bar { }"
-        );
+        Map<String, CharSequence> sources = Map.of("module-info", """
+            module foo {
+              exports p;
+            }
+            """, "p.Foo", """
+            package p;
+            public class Foo implements java.util.function.Supplier<String> {
+              @Override public String get() {
+                return "Hello World!";
+              }
+            }
+            """);
+        var result = compile(sources);
+        assertThat(result, notNullValue());
+        assertThat(result, allOf(hasEntry(is("module-info"), notNullValue()), hasEntry(is("p.Foo"), notNullValue())));
+    }
+
+    public void testCompileModuleProvider() {
+        Map<String, CharSequence> sources = Map.of("module-info", """
+            module x.foo.impl {
+              exports p;
+              opens q;
+              provides java.util.function.IntSupplier with p.FooIntSupplier;
+            }
+            """, "p.FooIntSupplier", """
+            package p;
+            public class FooIntSupplier implements java.util.function.IntSupplier, q.MsgSupplier {
+              @Override public int getAsInt() {
+                return 12;
+              }
+              @Override public String msg() {
+                return "Hello from FooIntSupplier";
+              }
+            }
+            """, "q.MsgSupplier", """
+            package q;
+            public interface MsgSupplier {
+              String msg();
+            }
+            """);
+        var classToBytes = InMemoryJavaCompiler.compile(sources);
         var result = compile(sources);
         assertThat(result, notNullValue());
         assertThat(
             result,
-            allOf(hasEntry(is("module-info"), notNullValue()), hasEntry(is("p.Foo"), notNullValue()), hasEntry(is("q.Bar"), notNullValue()))
+            allOf(
+                hasEntry(is("module-info"), notNullValue()),
+                hasEntry(is("p.FooIntSupplier"), notNullValue()),
+                hasEntry(is("q.MsgSupplier"), notNullValue())
+            )
         );
     }
 

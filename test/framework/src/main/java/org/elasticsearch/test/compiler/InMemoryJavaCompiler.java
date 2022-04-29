@@ -34,7 +34,7 @@ import javax.tools.SimpleJavaFileObject;
 import javax.tools.ToolProvider;
 
 /**
- * An in-memory java source code compiler. InMemoryJavaCompiler can be used for compiling a source
+ * An in-memory java source code compiler. InMemoryJavaCompiler can be used for compiling source
  * code, represented as a CharSequence, to byte code, represented as a byte[].
  *
  * <p> The compiler will not use the file system at all, instead using a ByteArrayOutputStream for
@@ -43,11 +43,23 @@ import javax.tools.ToolProvider;
  * <p> Example:
  * <pre>{@code
  *     Map<String, CharSequence> sources = Map.of(
- *         "module-info", "module foo { exports p; }",
- *         "p.Foo", "package p; public class Foo extends q.Bar { }",
- *         "q.Bar", "package q; public class Bar { }"
+ *       "module-info",
+ *       """
+ *       module foo {
+ *         exports p;
+ *       }
+ *       """,
+ *       "p.Foo",
+ *       """
+ *       package p;
+ *       public class Foo implements java.util.function.Supplier<String> {
+ *        @Override public String get() {
+ *          return "Hello World!";
+ *         }
+ *       }
+ *       """
  *     );
- *     var result = compile(sources);
+ *     Map<String, byte[]> result = compile(sources);
  * }</pre>
  */
 public class InMemoryJavaCompiler {
@@ -98,13 +110,16 @@ public class InMemoryJavaCompiler {
 
         @Override
         public JavaFileObject getJavaFileForOutput(Location location, String className, Kind kind, FileObject sibling) throws IOException {
-            var file = files.stream().filter(f -> f.getClassName().endsWith(className)).findFirst().orElse(null);
-            if (file == null) {
-                throw new IOException(
-                    "Expected class with name " + className + ", in " + files.stream().map(InMemoryJavaFileObject::getClassName).toList()
-                );
-            }
-            return file;
+            return files.stream()
+                .filter(f -> f.getClassName().endsWith(className))
+                .findFirst()
+                .orElseThrow(newIOException(className, files));
+        }
+
+        static Supplier<IOException> newIOException(String className, List<InMemoryJavaFileObject> files) {
+            return () -> new IOException(
+                "Expected class with name " + className + ", in " + files.stream().map(InMemoryJavaFileObject::getClassName).toList()
+            );
         }
     }
 
@@ -112,7 +127,7 @@ public class InMemoryJavaCompiler {
      * Compiles the classes with the given names and source code.
      *
      * @param sources A map of class names to source code
-     * @param options Additional command line options
+     * @param options Additional command line options (optional)
      * @throws RuntimeException If the compilation did not succeed
      * @return A Map containing the resulting byte code from the compilation, one entry per class name
      */
@@ -133,7 +148,7 @@ public class InMemoryJavaCompiler {
      *
      * @param className The name of the class
      * @param sourceCode The source code for the class with name {@code className}
-     * @param options Additional command line options
+     * @param options Additional command line options (optional)
      * @throws RuntimeException If the compilation did not succeed
      * @return The resulting byte code from the compilation
      */

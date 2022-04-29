@@ -8,6 +8,7 @@
 
 package org.elasticsearch.core.internal.provider;
 
+import org.elasticsearch.core.internal.provider.EmbeddedImplClassLoader.CompoundEnumeration;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 
@@ -157,12 +158,15 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
     }
 
     public void testCompoundEnumeration() {
-        var enumerations = new Enumeration[] { Collections.enumeration(List.of("hello")), Collections.enumeration(List.of("world")) };
-        var compoundEnumeration = new EmbeddedImplClassLoader.CompoundEnumeration<>(enumerations);
+        @SuppressWarnings("unchecked")
+        var enumerations = (Enumeration<String>[]) new Enumeration<?>[] {
+            Collections.enumeration(List.of("hello")),
+            Collections.enumeration(List.of("world")) };
+        var compoundEnumeration = new CompoundEnumeration<>(enumerations);
 
         List<String> l = new ArrayList<>();
         while (compoundEnumeration.hasMoreElements()) {
-            l.add((String) compoundEnumeration.nextElement());
+            l.add(compoundEnumeration.nextElement());
         }
         assertThat(l, contains(is("hello"), is("world")));
         expectThrows(NoSuchElementException.class, () -> compoundEnumeration.nextElement());

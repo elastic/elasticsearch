@@ -86,8 +86,8 @@ class RandomizedAssignmentRounding {
     }
 
     private class AssignmentHolder {
-        private final Map<Tuple<Model, Node>, Double> softAssignments = new HashMap<>();
-        private final Map<Tuple<Model, Node>, Double> softAllocations = new HashMap<>();
+        private final Map<Tuple<Model, Node>, Double> assignments = new HashMap<>();
+        private final Map<Tuple<Model, Node>, Double> allocations = new HashMap<>();
         private final ResourceTracker resourceTracker;
 
         private AssignmentHolder() {
@@ -95,8 +95,8 @@ class RandomizedAssignmentRounding {
         }
 
         private AssignmentHolder(AssignmentHolder holder) {
-            softAssignments.putAll(holder.softAssignments);
-            softAllocations.putAll(holder.softAllocations);
+            assignments.putAll(holder.assignments);
+            allocations.putAll(holder.allocations);
             resourceTracker = new ResourceTracker(holder.resourceTracker);
         }
 
@@ -110,8 +110,8 @@ class RandomizedAssignmentRounding {
                     if (assignment == 1.0 && isInteger(allocations)) {
                         resourceTracker.assign(m, n, (int) Math.rint(allocations));
                     }
-                    softAssignments.put(index, assignment);
-                    softAllocations.put(index, allocations);
+                    assignments.put(index, assignment);
+                    this.allocations.put(index, allocations);
                 }
             }
         }
@@ -128,16 +128,16 @@ class RandomizedAssignmentRounding {
                 int maxTotalThreads = 0;
                 for (Model m : models) {
                     Tuple<Model, Node> assignment = Tuple.tuple(m, n);
-                    if (softAssignments.get(assignment) > 0) {
+                    if (assignments.get(assignment) > 0) {
                         totalModelMemory += m.memoryBytes();
-                        maxTotalThreads += (int) Math.ceil(softAllocations.get(assignment)) * m.threadsPerAllocation();
+                        maxTotalThreads += (int) Math.ceil(allocations.get(assignment)) * m.threadsPerAllocation();
                         assignedModels.add(m);
                     }
                 }
                 if (totalModelMemory <= n.availableMemoryBytes() && maxTotalThreads <= n.cores()) {
                     for (Model m : assignedModels) {
                         Tuple<Model, Node> assignment = Tuple.tuple(m, n);
-                        if (softAssignments.get(assignment) > 0 && softAssignments.get(assignment) < 1) {
+                        if (assignments.get(assignment) > 0 && assignments.get(assignment) < 1) {
                             assignModelToNode(m, n, allocationsToAssign(assignment));
                         }
                     }
@@ -147,19 +147,19 @@ class RandomizedAssignmentRounding {
         }
 
         private int allocationsToAssign(Tuple<Model, Node> assignment) {
-            if (isInteger(softAllocations.get(assignment))) {
+            if (isInteger(allocations.get(assignment))) {
                 // We round this separately because if we used ceil and the value was just about the
                 // integer value we'll use one additional allocation when we shouldn't.
-                return (int) Math.rint(softAllocations.get(assignment));
+                return (int) Math.rint(allocations.get(assignment));
             }
-            return (int) Math.ceil(softAllocations.get(assignment));
+            return (int) Math.ceil(allocations.get(assignment));
         }
 
         private void assignModelToNode(Model m, Node n, int allocations) {
             Tuple<Model, Node> assignment = Tuple.tuple(m, n);
             int assignedAllocations = Math.min(allocations, resourceTracker.remainingModelAllocations.get(m));
-            softAssignments.put(assignment, 1.0);
-            softAllocations.put(assignment, (double) assignedAllocations);
+            assignments.put(assignment, 1.0);
+            this.allocations.put(assignment, (double) assignedAllocations);
             resourceTracker.assign(m, n, assignedAllocations);
         }
 
@@ -167,8 +167,8 @@ class RandomizedAssignmentRounding {
             double quality = 0.0;
             for (Model m : models) {
                 Tuple<Model, Node> index = Tuple.tuple(m, n);
-                if (softAllocations.get(index) > 0) {
-                    quality += (1 + (m.currentAllocationByNodeId().containsKey(n.id()) ? 1 : 0)) * softAllocations.get(index) * m
+                if (allocations.get(index) > 0) {
+                    quality += (1 + (m.currentAllocationByNodeId().containsKey(n.id()) ? 1 : 0)) * allocations.get(index) * m
                         .threadsPerAllocation();
                 }
             }
@@ -187,7 +187,7 @@ class RandomizedAssignmentRounding {
             // We know the models on this node are definitely assigned thus we can also
             // assign any extra cores this node has to the models in descending size order.
             for (Model m : models.stream()
-                .filter(m -> softAssignments.get(Tuple.tuple(m, n)) == 1 && resourceTracker.remainingModelAllocations.get(m) > 0)
+                .filter(m -> assignments.get(Tuple.tuple(m, n)) == 1 && resourceTracker.remainingModelAllocations.get(m) > 0)
                 .sorted(Comparator.comparingDouble(this::remainingModelOrder))
                 .toList()) {
                 if (resourceTracker.remainingNodeCores.get(n) <= 0) {
@@ -197,7 +197,7 @@ class RandomizedAssignmentRounding {
                     resourceTracker.remainingNodeCores.get(n) / m.threadsPerAllocation(),
                     resourceTracker.remainingModelAllocations.get(m)
                 );
-                softAllocations.compute(Tuple.tuple(m, n), (k, v) -> v + extraAllocations);
+                allocations.compute(Tuple.tuple(m, n), (k, v) -> v + extraAllocations);
                 resourceTracker.assign(m, n, extraAllocations);
             }
 
@@ -214,7 +214,7 @@ class RandomizedAssignmentRounding {
 
         private boolean isSoftAssignment(Model m, Node n) {
             Tuple<Model, Node> index = Tuple.tuple(m, n);
-            return (softAssignments.get(index) > 0 && softAssignments.get(index) < 1) || isInteger(softAllocations.get(index)) == false;
+            return (assignments.get(index) > 0 && assignments.get(index) < 1) || isInteger(allocations.get(index)) == false;
         }
 
         private void zeroSoftAssignmentsOfSatisfiedModels() {
@@ -230,8 +230,8 @@ class RandomizedAssignmentRounding {
         }
 
         private void unassign(Tuple<Model, Node> assignment) {
-            softAssignments.put(assignment, 0.0);
-            softAllocations.put(assignment, 0.0);
+            assignments.put(assignment, 0.0);
+            allocations.put(assignment, 0.0);
         }
 
         private List<Tuple<Model, Node>> createSoftAssignmentQueue() {
@@ -249,11 +249,11 @@ class RandomizedAssignmentRounding {
         }
 
         private double assignmentDistanceFromZeroOrOneOrder(Tuple<Model, Node> assignment) {
-            return Math.min(softAssignments.get(assignment), 1 - softAssignments.get(assignment));
+            return Math.min(assignments.get(assignment), 1 - assignments.get(assignment));
         }
 
         private double assignmentMostRemainingThreadsOrder(Tuple<Model, Node> assignment) {
-            return -softAllocations.get(assignment) * assignment.v1().threadsPerAllocation();
+            return -allocations.get(assignment) * assignment.v1().threadsPerAllocation();
         }
 
         private void doRandomizedRounding(List<Tuple<Model, Node>> softAssignmentQueue) {
@@ -265,15 +265,15 @@ class RandomizedAssignmentRounding {
                 Model m = assignment.v1();
                 Node n = assignment.v2();
 
-                double roundUpProbability = softAllocations.get(assignment) - Math.floor(softAllocations.get(assignment));
+                double roundUpProbability = allocations.get(assignment) - Math.floor(allocations.get(assignment));
                 int roundedAllocations = random.nextDouble() < roundUpProbability
-                    ? (int) Math.ceil(softAllocations.get(assignment))
-                    : (int) Math.floor(softAllocations.get(assignment));
+                    ? (int) Math.ceil(allocations.get(assignment))
+                    : (int) Math.floor(allocations.get(assignment));
 
                 if (m.memoryBytes() > resourceTracker.remainingNodeMemory.get(n)
                     || m.threadsPerAllocation() > resourceTracker.remainingNodeCores.get(n)
                     || roundedAllocations == 0
-                    || random.nextDouble() > softAssignments.get(assignment)) {
+                    || random.nextDouble() > assignments.get(assignment)) {
                     unassign(assignment);
                     assignUnderSubscribedNodes(Set.of(n));
                 } else {
@@ -288,7 +288,7 @@ class RandomizedAssignmentRounding {
         private void unassignOversizedModels(Node n) {
             for (Model m : models) {
                 Tuple<Model, Node> assignment = Tuple.tuple(m, n);
-                if (softAssignments.get(assignment) < 1.0 && m.memoryBytes() > resourceTracker.remainingNodeMemory.get(n)) {
+                if (assignments.get(assignment) < 1.0 && m.memoryBytes() > resourceTracker.remainingNodeMemory.get(n)) {
                     unassign(assignment);
                 }
             }
@@ -318,7 +318,7 @@ class RandomizedAssignmentRounding {
             for (Model m : models) {
                 for (Node n : nodes) {
                     Tuple<Model, Node> assignment = Tuple.tuple(m, n);
-                    int allocations = (int) Math.floor(softAllocations.getOrDefault(assignment, 0.0));
+                    int allocations = (int) Math.floor(this.allocations.getOrDefault(assignment, 0.0));
                     resultAllocations.put(assignment, allocations);
                     if (allocations > 0) {
                         resourceTracker.assign(m, n, allocations);

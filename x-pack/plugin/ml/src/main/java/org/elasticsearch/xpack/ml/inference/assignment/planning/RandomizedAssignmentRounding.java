@@ -331,9 +331,11 @@ class RandomizedAssignmentRounding {
                 .sorted(Comparator.comparingDouble(this::remainingModelOrder))
                 .toList()) {
                 for (Node n : nodes.stream()
-                    .filter(n -> resourceTracker.remainingNodeMemory.get(n) >= m.memoryBytes()
-                        && resourceTracker.remainingNodeCores.get(n) >= m.threadsPerAllocation()
-                        && resultAllocations.get(Tuple.tuple(m, n)) == 0)
+                    .filter(
+                        n -> resourceTracker.remainingNodeMemory.get(n) >= m.memoryBytes()
+                            && resourceTracker.remainingNodeCores.get(n) >= m.threadsPerAllocation()
+                            && resultAllocations.get(Tuple.tuple(m, n)) == 0
+                    )
                     .sorted(
                         Comparator.comparingDouble(
                             n -> remainingNodeOrder(

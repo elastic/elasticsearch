@@ -150,6 +150,40 @@ public class AssignmentPlanTests extends ESTestCase {
         );
     }
 
+    public void testAssignModelToNode_GivenSameModelAssignedTwice() {
+        Node n = new Node("n_1", 100, 8);
+        Model m = new Model("m_1", 60, 4, 2, Map.of());
+
+        AssignmentPlan.Builder builder = AssignmentPlan.builder(List.of(n), List.of(m));
+
+        assertThat(builder.getRemainingCores(n), equalTo(8));
+        assertThat(builder.getRemainingMemory(n), equalTo(100L));
+        assertThat(builder.getRemainingAllocations(m), equalTo(4));
+        assertThat(builder.getRemainingThreads(m), equalTo(8));
+        assertThat(builder.canAssign(m, n, 1), is(true));
+
+        builder.assignModelToNode(m, n, 1);
+
+        assertThat(builder.getRemainingCores(n), equalTo(6));
+        assertThat(builder.getRemainingMemory(n), equalTo(40L));
+        assertThat(builder.getRemainingAllocations(m), equalTo(3));
+        assertThat(builder.getRemainingThreads(m), equalTo(6));
+        assertThat(builder.canAssign(m, n, 2), is(true));
+
+        builder.assignModelToNode(m, n, 2);
+
+        assertThat(builder.getRemainingCores(n), equalTo(2));
+        assertThat(builder.getRemainingMemory(n), equalTo(40L));
+        assertThat(builder.getRemainingAllocations(m), equalTo(1));
+        assertThat(builder.getRemainingThreads(m), equalTo(2));
+
+        AssignmentPlan plan = builder.build();
+
+        assertThat(plan.models(), contains(m));
+        assertThat(plan.satisfiesPreviousAssignments(), is(true));
+        assertThat(plan.assignments(m).get(), equalTo(Map.of(n, 3)));
+    }
+
     public void testCanAssign_GivenPreviouslyUnassignedModelDoesNotFit() {
         Node n = new Node("n_1", 100, 5);
         Model m = new Model("m_1", 101, 1, 1, Map.of());

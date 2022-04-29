@@ -28,12 +28,12 @@ import java.util.Set;
 
 /**
  * Solving allocation distribution using linear programming requires relaxing the allocation
- * and assignment variables. This means that even though in reality they take discreet integer
+ * and assignment variables. This means that even though in reality they take discrete integer
  * values, we allow the solver to provide solutions that are real numbers. This is a common
  * technique used in LP. A common way to convert the relaxed solution back in integer values
  * is to apply randomized rounding. This class performs randomized rounding expecting
  * double values for the number of allocations each model gets on each node, as well as a double
- * value in [0-1] for whether there is an assignment for each model to each node.
+ * value in [0, 1] for whether there is an assignment for each model to each node.
  */
 class RandomizedAssignmentRounding {
 
@@ -136,24 +136,23 @@ class RandomizedAssignmentRounding {
                 }
                 if (totalModelMemory <= n.availableMemoryBytes() && maxTotalThreads <= n.cores()) {
                     for (Model m : assignedModels) {
-                        Tuple<Model, Node> index = Tuple.tuple(m, n);
-
-                        int allocationsToAssign = 0;
-                        if (isInteger(softAllocations.get(index))) {
-                            // We round this separately because if we used ceil and the value was just about the
-                            // integer value we'll use one additional allocation when we shouldn't.
-                            allocationsToAssign = (int) Math.rint(softAllocations.get(index));
-                        } else if (maxTotalThreads <= n.cores()) {
-                            allocationsToAssign = (int) Math.ceil(softAllocations.get(index));
-                        }
-
-                        if (softAssignments.get(index) > 0 && softAssignments.get(index) < 1) {
-                            assignModelToNode(m, n, allocationsToAssign);
+                        Tuple<Model, Node> assignment = Tuple.tuple(m, n);
+                        if (softAssignments.get(assignment) > 0 && softAssignments.get(assignment) < 1) {
+                            assignModelToNode(m, n, allocationsToAssign(assignment));
                         }
                     }
                     assignExcessCores(n);
                 }
             }
+        }
+
+        private int allocationsToAssign(Tuple<Model, Node> assignment) {
+            if (isInteger(softAllocations.get(assignment))) {
+                // We round this separately because if we used ceil and the value was just about the
+                // integer value we'll use one additional allocation when we shouldn't.
+                return (int) Math.rint(softAllocations.get(assignment));
+            }
+            return (int) Math.ceil(softAllocations.get(assignment));
         }
 
         private void assignModelToNode(Model m, Node n, int allocations) {
@@ -222,9 +221,8 @@ class RandomizedAssignmentRounding {
             for (Model m : models) {
                 if (resourceTracker.remainingModelAllocations.get(m) <= 0) {
                     for (Node n : nodes) {
-                        Tuple<Model, Node> index = Tuple.tuple(m, n);
                         if (isSoftAssignment(m, n)) {
-                            unassign(index);
+                            unassign(Tuple.tuple(m, n));
                         }
                     }
                 }
@@ -260,7 +258,8 @@ class RandomizedAssignmentRounding {
 
         private void doRandomizedRounding(List<Tuple<Model, Node>> softAssignmentQueue) {
             for (Tuple<Model, Node> assignment : softAssignmentQueue) {
-                if (softAssignments.get(assignment) == 1 && isInteger(softAllocations.get(assignment))) {
+                // Other operations can snap assignments in the queue thus we check whether the assignment remains soft.
+                if (isSoftAssignment(assignment.v1(), assignment.v2()) == false) {
                     continue;
                 }
                 Model m = assignment.v1();
@@ -304,7 +303,7 @@ class RandomizedAssignmentRounding {
         }
 
         private Map<Tuple<Model, Node>, Integer> tryAssigningRemainingCores() {
-            // Eagerly assign allocations to models with larger size first on first node
+            // Eagerly assign allocations to models with larger size first on the first node
             // where the model fits.
             //
             // This is a trivial way to improve solution quality since increasing
@@ -387,18 +386,25 @@ class RandomizedAssignmentRounding {
     private static class ResourceTracker {
 
         final Set<Tuple<Model, Node>> assignments = new HashSet<>();
-        final Map<Node, Long> remainingNodeMemory = new HashMap<>();
-        final Map<Node, Integer> remainingNodeCores = new HashMap<>();
-        final Map<Model, Integer> remainingModelAllocations = new HashMap<>();
+        final Map<Node, Long> remainingNodeMemory;
+        final Map<Node, Integer> remainingNodeCores;
+        final Map<Model, Integer> remainingModelAllocations;
 
         ResourceTracker(Collection<Node> nodes, Collection<Model> models) {
+            remainingNodeMemory = new HashMap<>(nodes.size(), 1.0f);
+            remainingNodeCores = new HashMap<>(nodes.size(), 1.0f);
+            remainingModelAllocations = new HashMap<>(models.size(), 1.0f);
+
+            nodes.forEach(n -> {
+                remainingNodeMemory.put(n, n.availableMemoryBytes());
+                remainingNodeCores.put(n, n.cores());
+            });
+
             for (Model m : models) {
                 for (Node n : nodes) {
                     if (m.currentAllocationByNodeId().containsKey(n.id())) {
                         assignments.add(Tuple.tuple(m, n));
                     }
-                    remainingNodeMemory.put(n, n.availableMemoryBytes());
-                    remainingNodeCores.put(n, n.cores());
                 }
                 remainingModelAllocations.put(m, m.allocations());
             }
@@ -406,9 +412,9 @@ class RandomizedAssignmentRounding {
 
         ResourceTracker(ResourceTracker copy) {
             assignments.addAll(copy.assignments);
-            remainingNodeMemory.putAll(copy.remainingNodeMemory);
-            remainingNodeCores.putAll(copy.remainingNodeCores);
-            remainingModelAllocations.putAll(copy.remainingModelAllocations);
+            remainingNodeMemory = new HashMap<>(copy.remainingNodeMemory);
+            remainingNodeCores = new HashMap<>(copy.remainingNodeCores);
+            remainingModelAllocations = new HashMap<>(copy.remainingModelAllocations);
         }
 
         void assign(Model m, Node n, int allocations) {

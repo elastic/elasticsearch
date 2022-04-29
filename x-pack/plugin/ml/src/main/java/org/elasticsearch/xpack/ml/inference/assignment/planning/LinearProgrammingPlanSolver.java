@@ -63,15 +63,17 @@ class LinearProgrammingPlanSolver {
 
     LinearProgrammingPlanSolver(List<Node> nodes, List<Model> models) {
         this.nodes = nodes;
+        maxNodeCores = this.nodes.stream().map(Node::cores).max(Integer::compareTo).orElse(0);
 
-        // Filter out models that are not already assigned and do not fit on any node
         long maxNodeMemory = nodes.stream().map(Node::availableMemoryBytes).max(Long::compareTo).orElse(0L);
         this.models = models.stream()
+            // Filter out models that are not already assigned and do not fit on any node
             .filter(m -> m.currentAllocationByNodeId().isEmpty() == false || m.memoryBytes() <= maxNodeMemory)
+            // Also filter out models whose threads per allocation are more than the max node cores
+            .filter(m -> m.threadsPerAllocation() <= maxNodeCores)
             .toList();
 
-        maxNodeCores = this.nodes.stream().map(Node::cores).max(Integer::compareTo).orElse(0);
-        maxModelMemoryBytes = this.models.stream().map(Model::memoryBytes).max(Long::compareTo).orElse(0L);
+        maxModelMemoryBytes = this.models.stream().map(Model::memoryBytes).max(Long::compareTo).orElse(1L);
         normalizedMemoryPerNode = this.nodes.stream()
             .collect(Collectors.toMap(Function.identity(), n -> n.availableMemoryBytes() / (double) maxModelMemoryBytes));
         coresPerNode = this.nodes.stream().collect(Collectors.toMap(Function.identity(), Node::cores));
@@ -146,11 +148,10 @@ class LinearProgrammingPlanSolver {
             } while (lastW != w && assignmentPlan.getRemainingAllocations(m) > 0);
         }
 
+        final double finalW = w;
         for (Model m : models) {
             for (Node n : nodes) {
-                if (weights.containsKey(Tuple.tuple(m, n)) == false) {
-                    weights.put(Tuple.tuple(m, n), random.nextDouble(minWeight(m, n, w), maxWeight(m, n, w)));
-                }
+                weights.computeIfAbsent(Tuple.tuple(m, n), key -> random.nextDouble(minWeight(m, n, finalW), maxWeight(m, n, finalW)));
             }
         }
 
@@ -215,10 +216,17 @@ class LinearProgrammingPlanSolver {
         //
         // Now let us focus on the objective function.
         // First we would like to maximize the sum of a_i_j for all possible assignments.
-        // Furthermore, we weigh each possible assignment so that we prioritise: 1. larger models, 2. models already assigned.
+        // Furthermore, we assign a weight from bin packing to break ties in assigning models to nodes
+        // since this yields higher quality solutions.
         // Finally, we want to penalize solutions that use more memory.
         // We express the objective function as: maximize sum(a_i_j * w_i_j) - L1 * sum(m_i * y_i_j / t_i).
         // Note we divide the memory penalty term by t_i to maximize allocations, not threads.
+        //
+        // Both our a_i_j and y_i_j variables are integer variables. This means the problem is a mixed integer linear program (MILP).
+        // However, we don't want to solve a MILP because it is expensive and often leads to infeasible solutions. In addition,
+        // ojalgo's MILP functionality makes calls to forbidden APIs that we cannot grant permissions for.
+        // Thus, we relax our variables to be real numbers. After we obtain a solution we then apply randomized rounding in
+        // order to snap the variable values to an integer.
         //
         // Adding the y variables to the model results in memory complexity explosion. However, we can substitute y.
         // In particular, a_i_j * t_i <= N_j * y_i_j is an equality because the objective always increase if we decrease y_i_j.
@@ -229,8 +237,8 @@ class LinearProgrammingPlanSolver {
         // We want to choose L1 in such a way that we will always assign models to a node if there is capacity.
         // Since w_i_j can be equal to 1 and m_i <= 1, for each node it has to be that L1 * t_i / N_j < 1.
         // The max value for t_i is C, where C is the max number of cores across nodes. Thus, we can write L1 * C / N_j < 1.
-        // We define L1' so that L1' = L1 * C / N_j < 1. Solving for L1, we get L1 = L1' * N_j / C.
-        // Replacing L1 with L1' in the objective function we get: maximize sum(a_i_j * w_i_j) - L1' * sum(m_i * a_i_j / C).
+        // We define L1 so that L1 = L1' * C / N_j < 1. Solving for L1', we get L1' = L1 * N_j / C.
+        // Replacing L1' with L1 in the objective function we get: maximize sum(a_i_j * w_i_j) - L1 * sum(m_i * a_i_j / C).
 
         ExpressionsBasedModel model = new ExpressionsBasedModel(
             new Optimisation.Options().abort(new CalendarDateDuration(10, CalendarDateUnit.SECOND))

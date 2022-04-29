@@ -56,9 +56,8 @@ public class AssignmentPlanner {
     }
 
     private AssignmentPlan solveKeepingOneAllocationOnPreviousAssignments() {
-        // We do not want to ever completely unassign a model from a node.
-        // We want to keep at least one allocation where an assignment used to be
-        // in order to move allocations without having temporary impact on performance.
+        // We do not want to ever completely unassign a model from a node so we
+        // can move allocations without having temporary impact on performance.
         return solvePreservingPreviousAssignments(new PreserveOneAllocation(nodes, models));
     }
 

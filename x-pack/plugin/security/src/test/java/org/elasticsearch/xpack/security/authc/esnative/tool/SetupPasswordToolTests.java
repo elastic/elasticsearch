@@ -676,22 +676,12 @@ public class SetupPasswordToolTests extends CommandTestCase {
 
             @Override
             protected AutoSetup newAutoSetup() {
-                return new AutoSetup() {
-                    @Override
-                    protected Map<String, String> captureSystemProperties() {
-                        return mockSystemProperties(createTempDir());
-                    }
-                };
+                return new AutoSetup();
             }
 
             @Override
             protected InteractiveSetup newInteractiveSetup() {
-                return new InteractiveSetup() {
-                    @Override
-                    protected Map<String, String> captureSystemProperties() {
-                        return mockSystemProperties(createTempDir());
-                    }
-                };
+                return new InteractiveSetup();
             }
 
         };

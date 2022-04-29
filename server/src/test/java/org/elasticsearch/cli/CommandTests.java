@@ -38,7 +38,7 @@ public class CommandTests extends CommandTestCase {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options) throws Exception {
+        protected void execute(Terminal terminal, OptionSet options, ProcessInfo processInfo) throws Exception {
             if (exception != null) {
                 throw exception;
             }

@@ -12,6 +12,7 @@ import joptsimple.OptionSet;
 
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.env.Environment;
@@ -32,7 +33,7 @@ public class AddStringKeyStoreCommandTests extends KeyStoreCommandTestCase {
     protected Command newCommand() {
         return new AddStringKeyStoreCommand() {
             @Override
-            protected Environment createEnv(OptionSet options) throws UserException {
+            protected Environment createEnv(OptionSet options, ProcessInfo processInfo) throws UserException {
                 return env;
             }
 

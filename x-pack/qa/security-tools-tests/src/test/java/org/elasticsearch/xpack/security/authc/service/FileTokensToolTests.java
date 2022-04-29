@@ -14,6 +14,7 @@ import com.google.common.jimfs.Jimfs;
 
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.SecureString;
@@ -104,7 +105,7 @@ public class FileTokensToolTests extends CommandTestCase {
             protected CreateFileTokenCommand newCreateFileTokenCommand() {
                 return new CreateFileTokenCommand() {
                     @Override
-                    protected Environment createEnv(OptionSet options) throws UserException {
+                    protected Environment createEnv(OptionSet options, ProcessInfo processInfo) throws UserException {
                         return new Environment(FileTokensToolTests.this.settings, confDir);
                     }
                 };
@@ -114,7 +115,7 @@ public class FileTokensToolTests extends CommandTestCase {
             protected DeleteFileTokenCommand newDeleteFileTokenCommand() {
                 return new DeleteFileTokenCommand() {
                     @Override
-                    protected Environment createEnv(OptionSet options) throws UserException {
+                    protected Environment createEnv(OptionSet options, ProcessInfo processInfo) throws UserException {
                         return new Environment(FileTokensToolTests.this.settings, confDir);
                     }
                 };
@@ -124,7 +125,7 @@ public class FileTokensToolTests extends CommandTestCase {
             protected ListFileTokenCommand newListFileTokenCommand() {
                 return new ListFileTokenCommand() {
                     @Override
-                    protected Environment createEnv(OptionSet options) throws UserException {
+                    protected Environment createEnv(OptionSet options, ProcessInfo processInfo) throws UserException {
                         return new Environment(FileTokensToolTests.this.settings, confDir);
                     }
                 };

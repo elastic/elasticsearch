@@ -11,6 +11,7 @@ package org.elasticsearch.common.cli;
 import joptsimple.OptionSet;
 
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
@@ -68,5 +69,5 @@ public abstract class KeyStoreAwareCommand extends EnvironmentAwareCommand {
         }
     }
 
-    protected abstract void execute(Terminal terminal, OptionSet options, Environment env) throws Exception;
+    protected abstract void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception;
 }

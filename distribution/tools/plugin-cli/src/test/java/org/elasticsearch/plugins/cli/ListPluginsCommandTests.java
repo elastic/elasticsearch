@@ -14,6 +14,7 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -243,7 +244,7 @@ public class ListPluginsCommandTests extends CommandTestCase {
     protected Command newCommand() {
         return new ListPluginsCommand() {
             @Override
-            protected Environment createEnv(OptionSet options) {
+            protected Environment createEnv(OptionSet options, ProcessInfo processInfo) {
                 return env;
             }
 

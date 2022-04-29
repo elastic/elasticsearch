@@ -332,6 +332,7 @@ public class ClusterStatsMonitoringDocTests extends BaseMonitoringDocTestCase<Cl
             Version.CURRENT,
             "1.8",
             "_plugin_class",
+            null,
             Collections.emptyList(),
             false,
             PluginType.ISOLATED,

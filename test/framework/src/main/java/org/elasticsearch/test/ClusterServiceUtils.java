@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStatePublicationEvent;
-import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -76,7 +75,7 @@ public class ClusterServiceUtils {
 
     public static void setState(MasterService executor, ClusterState clusterState) {
         CountDownLatch latch = new CountDownLatch(1);
-        executor.submitStateUpdateTask("test setting state", new ClusterStateUpdateTask() {
+        executor.submitUnbatchedStateUpdateTask("test setting state", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 // make sure we increment versions as listener may depend on it for change
@@ -92,7 +91,7 @@ public class ClusterServiceUtils {
             public void onFailure(Exception e) {
                 fail("unexpected exception" + e);
             }
-        }, ClusterStateTaskExecutor.unbatched());
+        });
         try {
             latch.await();
         } catch (InterruptedException e) {

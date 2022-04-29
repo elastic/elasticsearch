@@ -86,7 +86,8 @@ public class NodeRoleParserTests extends LaunchersTestCase {
 
     public void testInvalidRoleSyntax() throws IOException {
         MachineDependentHeap.MachineNodeRole nodeRole = parseConfig(sb -> sb.append("node.roles: foo"));
-        assertThat(nodeRole, equalTo(UNKNOWN));
+        // roles we don't know about are considered data, but will fail validation when ES starts up
+        assertThat(nodeRole, equalTo(DATA));
     }
 
     private static MachineDependentHeap.MachineNodeRole parseConfig(Consumer<StringBuilder> action) throws IOException {

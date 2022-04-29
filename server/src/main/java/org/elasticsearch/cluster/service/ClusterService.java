@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.NodeConnectionsService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -25,6 +26,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -221,17 +223,18 @@ public class ClusterService extends AbstractLifecycleComponent {
     }
 
     /**
-     * Submits a cluster state update task
+     * Submits an unbatched cluster state update task. This method exists for legacy reasons but is deprecated and forbidden in new
+     * production code because unbatched tasks are a source of performance and stability bugs. You should instead implement your update
+     * logic in a dedicated {@link ClusterStateTaskExecutor} which is reused across multiple task instances. The task itself is typically
+     * just a collection of parameters consumed by the executor, together with any listeners to be notified when execution completes.
+     *
      * @param source     the source of the cluster state update task
      * @param updateTask the full context for the cluster state update
-     * @param executor   the executor to use for the submitted task.
      */
-    public <T extends ClusterStateTaskConfig & ClusterStateTaskListener> void submitStateUpdateTask(
-        String source,
-        T updateTask,
-        ClusterStateTaskExecutor<T> executor
-    ) {
-        submitStateUpdateTask(source, updateTask, updateTask, executor);
+    @Deprecated
+    @SuppressForbidden(reason = "this method is itself forbidden")
+    public void submitUnbatchedStateUpdateTask(String source, ClusterStateUpdateTask updateTask) {
+        masterService.submitUnbatchedStateUpdateTask(source, updateTask);
     }
 
     /**

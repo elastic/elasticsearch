@@ -221,7 +221,7 @@ public class MultiCommandTests extends CommandTestCase {
         multiCommand.subcommands.put("throw", new ErrorThrowingSubCommand());
         executeMain("throw", "--silent");
         assertThat(terminal.getOutput(), is(emptyString()));
-        assertThat(terminal.getErrorOutput(), equalTo("ERROR: Dummy error\n"));
+        assertThat(terminal.getErrorOutput(), equalTo("ERROR: Dummy error" + System.lineSeparator()));
     }
 
     public void testNullErrorMessageSuppressesErrorOutput() throws Exception {

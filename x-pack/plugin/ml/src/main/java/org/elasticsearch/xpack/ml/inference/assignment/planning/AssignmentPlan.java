@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.ml.inference.assignment.planning;
 
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 
 import java.util.ArrayList;

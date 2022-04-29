@@ -17,6 +17,7 @@ import org.elasticsearch.geometry.LinearRing;
 import org.elasticsearch.geometry.MultiPoint;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
+import org.elasticsearch.geometry.utils.GeographyValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.GeoShapeIndexer;
@@ -35,6 +36,7 @@ import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -167,6 +169,16 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
         doTestGeometry(geometry, null);
     }
 
+    public void testPolygonFromYamlTests() throws IOException, ParseException {
+        // This is the geometry used in the tests in 70_script_doc_values.yml, and is easier to test and debug here
+        String wkt = "POLYGON(("
+            + "24.04725 59.942,24.04825 59.94125,24.04875 59.94125,24.04875 59.94175,24.048 59.9425,"
+            + "24.0475 59.94275,24.0465 59.94225,24.046 59.94225,24.04575 59.9425,24.04525 59.94225,24.04725 59.942"
+            + "))";
+        Geometry polygon = WellKnownText.fromWKT(GeographyValidator.instance(true), true, wkt);
+        doTestGeometry(polygon, GeoTestUtils.geoShapeValue(new Point(24.04725, 59.94224997237325)));
+    }
+
     public void testPolygonDateline() throws Exception {
         Geometry geometry = new Polygon(new LinearRing(new double[] { 170, 190, 190, 170, 170 }, new double[] { -5, -5, 5, 5, -5 }));
         doTestGeometry(geometry, null);
@@ -204,6 +216,20 @@ public class GeoShapeScriptDocValuesIT extends ESSingleNodeTestCase {
         Line line = new Line(new double[] { -5, -4, -3, -2, -1, 5 }, new double[] { 0, 0, 0, 0, 0, 0 });
         doTestGeometry(line, GeoTestUtils.geoShapeValue(new Point(-2.5, 0)));
         doTestGeometry(pointsFromLine(line), GeoTestUtils.geoShapeValue(new Point(-3, 0)));
+    }
+
+    public void testVerticalLineString() throws Exception {
+        // Data with no x-range is not well sorted and odd choices occur for the first triangle tree node
+        Line line = new Line(new double[] { 0, 0, 0, 0, 0 }, new double[] { -5, -1, 0, 1, 5 });
+        doTestGeometry(line, GeoTestUtils.geoShapeValue(new Point(0, 3)));
+        doTestGeometry(pointsFromLine(line), GeoTestUtils.geoShapeValue(new Point(0, 1)));
+    }
+
+    public void testOffVerticalLineString() throws Exception {
+        // Even a very small x-range results in reasonable sorting for the label position
+        Line line = new Line(new double[] { -0.0005, -0.0001, 0, 0.0001, 0.0005 }, new double[] { -5, -1, 0, 1, 5 });
+        doTestGeometry(line, GeoTestUtils.geoShapeValue(new Point(-0.00005, -0.5)));
+        doTestGeometry(pointsFromLine(line), GeoTestUtils.geoShapeValue(new Point(0, 0)));
     }
 
     private void doTestGeometry(Geometry geometry, GeoShapeValues.GeoShapeValue expectedLabelPosition) throws IOException {

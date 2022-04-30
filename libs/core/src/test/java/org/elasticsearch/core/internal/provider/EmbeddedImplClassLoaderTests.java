@@ -8,6 +8,7 @@
 
 package org.elasticsearch.core.internal.provider;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.internal.provider.EmbeddedImplClassLoader.CompoundEnumeration;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
@@ -398,6 +399,7 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         assertThat(l, containsInAnyOrder("fooRes", "barRes", "bazRes"));
     }
 
+    @SuppressForbidden(reason = "file urls")
     static String urlToString(URL url) {
         try {
             return new String(url.openStream().readAllBytes(), UTF_8);

@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
+import org.elasticsearch.core.SuppressForbidden;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -34,13 +35,18 @@ public record ServerArgs(
             readPidFile(in),
             in.readSecureString(),
             Settings.readSettingsFromStream(in),
-            PathUtils.get(in.readString())
+            resolvePath(in.readString())
         );
     }
 
     private static Path readPidFile(StreamInput in) throws IOException {
         String pidFile = in.readOptionalString();
-        return pidFile == null ? null : PathUtils.get(pidFile);
+        return pidFile == null ? null : resolvePath(pidFile);
+    }
+
+    @SuppressForbidden(reason = "reading local path from stream")
+    private static Path resolvePath(String path) {
+        return PathUtils.get(path);
     }
 
     @Override

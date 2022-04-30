@@ -15,6 +15,7 @@ import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.SecureString;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.NodeValidationException;
 
@@ -53,13 +54,11 @@ class Elasticsearch {
         LogConfigurator.registerErrorListener();
 
         final Elasticsearch elasticsearch = new Elasticsearch();
-        PrintStream err = System.err;
+        PrintStream err = getStderr();
         int exitCode = 0;
         try {
             final var in = new InputStreamStreamInput(System.in);
             final ServerArgs serverArgs = new ServerArgs(in);
-            System.out.println("RUNNING ELASTICSEARCH");
-            System.out.println(serverArgs);
             elasticsearch.init(
                 serverArgs.daemonize(),
                 serverArgs.pidFile(),
@@ -88,10 +87,19 @@ class Elasticsearch {
         if (exitCode != ExitCodes.OK) {
             printLogsSuggestion(err);
             err.flush();
-            System.exit(exitCode);
+            exit(exitCode);
         }
     }
 
+    @SuppressForbidden(reason = "grab stderr for communication with server-cli")
+    private static PrintStream getStderr() {
+        return System.err;
+    }
+
+    @SuppressForbidden(reason = "main exit path")
+    private static void exit(int exitCode) {
+        System.exit(exitCode);
+    }
     /**
      * Prints a message directing the user to look at the logs. A message is only printed if
      * logging has been configured.

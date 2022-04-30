@@ -346,9 +346,7 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         sources.put("p.Foo", "package p; public class Foo extends q.Bar { }");
         sources.put("q.Bar", "package q; public class Bar extends r.Baz { }");
         sources.put("r.Baz", "package r; public class Baz { }");
-
         var classToBytes = InMemoryJavaCompiler.compile(sources);
-        Path topLevelDir = createTempDir();
 
         Map<String, byte[]> jarEntries = new HashMap<>();
         jarEntries.put("IMPL-JARS/blah/LISTING.TXT", "foo.jar\nbar.jar\nbaz.jar".getBytes(UTF_8));
@@ -358,6 +356,7 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         jarEntries.put("IMPL-JARS/blah/baz.jar/META-INF/MANIFEST.MF", "Multi-Release: true\n".getBytes(UTF_8));
         jarEntries.put("IMPL-JARS/blah/baz.jar/META-INF/versions/11/r/Baz.class", classToBytes.get("r.Baz"));
 
+        Path topLevelDir = createTempDir();
         Path outerJar = topLevelDir.resolve("impl.jar");
         JarUtils.createJarWithEntries(outerJar, jarEntries);
         URLClassLoader parent = URLClassLoader.newInstance(

@@ -19,6 +19,7 @@ import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -66,27 +67,19 @@ public class EmbeddedModulePathTests extends ESTestCase {
     }
 
     public void testExplicitModuleDescriptorForEmbeddedJar() throws Exception {
-        Map<String, CharSequence> sources = Map.of(
-            "module-info",
-            "module m { exports p;  opens q; }",
-            "p.Foo",
-            "package p; public class Foo extends q.Bar { }",
-            "q.Bar",
-            "package q; public class Bar { }"
-        );
+        Map<String, CharSequence> sources = new HashMap<>();
+        sources.put("module-info", "module m { exports p;  opens q; }");
+        sources.put("p.Foo", "package p; public class Foo extends q.Bar { }");
+        sources.put("q.Bar", "package q; public class Bar { }");
         var classToBytes = InMemoryJavaCompiler.compile(sources);
-        Path topLevelDir = createTempDir();
 
-        Map<String, byte[]> jarEntries = Map.of(
-            "/a/b/m.jar/module-info.class",
-            classToBytes.get("module-info"),
-            "/a/b/m.jar/p/Foo.class",
-            classToBytes.get("p.Foo"),
-            "/a/b/m.jar/q/Bar.class",
-            classToBytes.get("q.Bar"),
-            "/a/b/m.jar/r/R.class",
-            "<empty>".getBytes(UTF_8)
-        );
+        Map<String, byte[]> jarEntries = new HashMap<>();
+        jarEntries.put("/a/b/m.jar/module-info.class", classToBytes.get("module-info"));
+        jarEntries.put("/a/b/m.jar/p/Foo.class", classToBytes.get("p.Foo"));
+        jarEntries.put("/a/b/m.jar/q/Bar.class", classToBytes.get("q.Bar"));
+        jarEntries.put("/a/b/m.jar/r/R.class", "<empty>".getBytes(UTF_8));
+
+        Path topLevelDir = createTempDir();
         Path outerJar = topLevelDir.resolve("impl.jar");
         JarUtils.createJarWithEntries(topLevelDir.resolve("impl.jar"), jarEntries);
 

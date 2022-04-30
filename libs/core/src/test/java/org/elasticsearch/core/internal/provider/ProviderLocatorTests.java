@@ -17,12 +17,11 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.IntSupplier;
 import java.util.function.LongSupplier;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.test.hamcrest.ModuleDescriptorMatchers.exportsOf;
@@ -49,7 +48,7 @@ public class ProviderLocatorTests extends ESTestCase {
         testLoadAsModuleEmbeddedJarVersionSpecific(17); // META-INF/versions/17/module-info.class
     }
 
-    public void testLoadAsModuleEmbeddedJarVersionSpecific(int version) throws Exception {
+    void testLoadAsModuleEmbeddedJarVersionSpecific(int version) throws Exception {
         // test scenario setup, compile source, create jar file, and parent loader
         Map<String, CharSequence> sources = Map.of(
             "module-info",
@@ -70,40 +69,27 @@ public class ProviderLocatorTests extends ESTestCase {
             "package q; public class Bar { }"
         );
         var classToBytes = InMemoryJavaCompiler.compile(sources);
-        Path topLevelDir = createTempDir();
-        final String prefix = "IMPL-JARS/x-foo/x-foo-impl.jar";
 
+        final String prefix = "IMPL-JARS/x-foo/x-foo-impl.jar";
         String moduleInfoPath = prefix + "/module-info.class";
         if (version >= 8) {
             moduleInfoPath = prefix + "/META-INF/versions/" + version + "/module-info.class";
         }
 
-        Map<String, byte[]> jarEntries = Map.of(
-            "IMPL-JARS/x-foo/LISTING.TXT",
-            "x-foo-impl.jar".getBytes(UTF_8),
-            moduleInfoPath,
-            classToBytes.get("module-info"),
-            prefix + "/p/FooIntSupplier.class",
-            classToBytes.get("p.FooIntSupplier"),
-            prefix + "/q/Bar.class",
-            classToBytes.get("q.Bar"),
-            prefix + "/r/R.class",
-            "<empty>".getBytes(UTF_8)
-        );
-
+        Map<String, byte[]> jarEntries = new HashMap<>();
+        jarEntries.put("IMPL-JARS/x-foo/LISTING.TXT", bytes("x-foo-impl.jar"));
+        jarEntries.put(moduleInfoPath, classToBytes.get("module-info"));
+        jarEntries.put(prefix + "/p/FooIntSupplier.class", classToBytes.get("p.FooIntSupplier"));
+        jarEntries.put(prefix + "/q/Bar.class", classToBytes.get("q.Bar"));
+        jarEntries.put(prefix + "/r/R.class", bytes("<empty>"));
         if (version >= 8) {
-            var additional = Map.of(
-                // enable multi-release jar in the manifest
-                prefix + "/META-INF/MANIFEST.MF",
-                "Multi-Release: true\n".getBytes(UTF_8),
-                // locate a bad module-info in the root, to ensure not accessed
-                prefix + "/module-info.class",
-                "bad".getBytes(UTF_8)
-            );
-            jarEntries = Stream.concat(jarEntries.entrySet().stream(), additional.entrySet().stream())
-                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+            // enable multi-release jar in the manifest
+            jarEntries.put(prefix + "/META-INF/MANIFEST.MF", bytes("Multi-Release: true\n"));
+            // locate a bad module-info in the root, to ensure not accessed
+            jarEntries.put(prefix + "/module-info.class", bytes("bad"));
         }
 
+        Path topLevelDir = createTempDir();
         Path outerJar = topLevelDir.resolve("impl.jar");
         JarUtils.createJarWithEntries(outerJar, jarEntries);
         URLClassLoader parent = URLClassLoader.newInstance(
@@ -137,6 +123,10 @@ public class ProviderLocatorTests extends ESTestCase {
         assertThat(md.packages(), containsInAnyOrder(equalTo("p"), equalTo("q"), equalTo("r")));
     }
 
+    static byte[] bytes(String str) {
+        return str.getBytes(UTF_8);
+    }
+
     // variant of testLoadAsModuleEmbeddedJar, but as a non-module
     public void testLoadAsNonModuleEmbeddedJar() throws Exception {
         // test scenario setup, compile source, create jar file, and parent loader
@@ -152,16 +142,13 @@ public class ProviderLocatorTests extends ESTestCase {
             }
             """);
         var classToBytes = InMemoryJavaCompiler.compile(sources);
-        Path topLevelDir = createTempDir();
 
-        Map<String, byte[]> jarEntries = Map.of(
-            "IMPL-JARS/x-foo/LISTING.TXT",
-            "x-foo-nm-impl.jar".getBytes(UTF_8),
-            "IMPL-JARS/x-foo/x-foo-nm-impl.jar/META-INF/services/java.util.function.LongSupplier",
-            "p.FooLongSupplier".getBytes(UTF_8),
-            "IMPL-JARS/x-foo/x-foo-nm-impl.jar/p/FooLongSupplier.class",
-            classToBytes.get("p.FooLongSupplier")
-        );
+        Map<String, byte[]> jarEntries = new HashMap<>();
+        jarEntries.put("IMPL-JARS/x-foo/LISTING.TXT", bytes("x-foo-nm-impl.jar"));
+        jarEntries.put("IMPL-JARS/x-foo/x-foo-nm-impl.jar/META-INF/services/java.util.function.LongSupplier", bytes("p.FooLongSupplier"));
+        jarEntries.put("IMPL-JARS/x-foo/x-foo-nm-impl.jar/p/FooLongSupplier.class", classToBytes.get("p.FooLongSupplier"));
+
+        Path topLevelDir = createTempDir();
         Path outerJar = topLevelDir.resolve("impl.jar");
         JarUtils.createJarWithEntries(outerJar, jarEntries);
         URLClassLoader parent = URLClassLoader.newInstance(
@@ -201,8 +188,8 @@ public class ProviderLocatorTests extends ESTestCase {
             }
             """);
         var classToBytes = InMemoryJavaCompiler.compile(sources);
-        Path topLevelDir = createTempDir();
 
+        Path topLevelDir = createTempDir();
         Path yBar = Files.createDirectories(topLevelDir.resolve("IMPL-JARS").resolve("y-bar"));
         Files.writeString(yBar.resolve("LISTING.TXT"), "y-bar-nm-impl.jar");
         Path barRoot = Files.createDirectories(yBar.resolve("y-bar-nm-impl.jar"));

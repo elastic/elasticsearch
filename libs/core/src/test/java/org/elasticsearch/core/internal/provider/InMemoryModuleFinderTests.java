@@ -18,11 +18,10 @@ import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.test.hamcrest.ModuleDescriptorMatchers.exportsOf;
@@ -68,14 +67,12 @@ public class InMemoryModuleFinderTests extends ESTestCase {
      */
     public void testAutoModuleEmbeddedJar() throws Exception {
         Path topLevelDir = createTempDir();
-        Map<String, byte[]> entries = Map.of(
-            "/a/b/foo.jar/META-INF/MANIFEST.MF",
-            "Automatic-Module-Name: foo\n".getBytes(UTF_8),
-            "/a/b/foo.jar/p/Foo.class",
-            "<empty>".getBytes(UTF_8)
-        );
+        Map<String, String> entries = new HashMap<>();
+        entries.put("/a/b/foo.jar/META-INF/MANIFEST.MF", "Automatic-Module-Name: foo\n");
+        entries.put("/a/b/foo.jar/p/Foo.class", "<empty>");
+
         Path outerJar = topLevelDir.resolve("impl.jar");
-        JarUtils.createJarWithEntries(topLevelDir.resolve("impl.jar"), entries);
+        JarUtils.createJarWithEntries(topLevelDir.resolve("impl.jar"), entries, UTF_8);
 
         try (FileSystem fileSystem = FileSystems.newFileSystem(outerJar, Map.of(), InMemoryModuleFinderTests.class.getClassLoader())) {
             Path fooRoot = fileSystem.getPath("/a/b/foo.jar");
@@ -106,38 +103,26 @@ public class InMemoryModuleFinderTests extends ESTestCase {
     }
 
     private void testExplicitModuleEmbeddedJarVersionSpecific(int version) throws Exception {
-        Map<String, CharSequence> sources = Map.of(
-            "module-info",
-            "module m { exports p;  opens q; }",
-            "p.Foo",
-            "package p; public class Foo extends q.Bar { }",
-            "q.Bar",
-            "package q; public class Bar { }"
-        );
+        Map<String, CharSequence> sources = new HashMap<>();
+        sources.put("module-info", "module m { exports p;  opens q; }");
+        sources.put("p.Foo", "package p; public class Foo extends q.Bar { }");
+        sources.put("q.Bar", "package q; public class Bar { }");
         var classToBytes = InMemoryJavaCompiler.compile(sources);
-        Path topLevelDir = createTempDir();
 
         String moduleInfoPath = "/a/b/m.jar/module-info.class";
         if (version >= 8) {
             moduleInfoPath = "/a/b/m.jar/META-INF/versions/" + version + "/module-info.class";
         }
 
-        Map<String, byte[]> jarEntries = Map.of(
-            moduleInfoPath,
-            classToBytes.get("module-info"),
-            "/a/b/m.jar/p/Foo.class",
-            classToBytes.get("p.Foo"),
-            "/a/b/m.jar/q/Bar.class",
-            classToBytes.get("q.Bar")
-        );
+        Map<String, byte[]> jarEntries = new HashMap<>();
+        jarEntries.put(moduleInfoPath, classToBytes.get("module-info"));
+        jarEntries.put("/a/b/m.jar/p/Foo.class", classToBytes.get("p.Foo"));
+        jarEntries.put("/a/b/m.jar/q/Bar.class", classToBytes.get("q.Bar"));
         if (version >= 8) { // locate a bad module-info in the root, to ensure not accessed
-            var additional = Map.of(
-                "/a/b/m.jar/module-info.class",
-                "bad".getBytes(UTF_8)  //
-            );
-            jarEntries = Stream.concat(jarEntries.entrySet().stream(), additional.entrySet().stream())
-                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+            jarEntries.put("/a/b/m.jar/module-info.class", "bad".getBytes(UTF_8));
         }
+
+        Path topLevelDir = createTempDir();
         Path outerJar = topLevelDir.resolve("impl.jar");
         JarUtils.createJarWithEntries(topLevelDir.resolve("impl.jar"), jarEntries);
 
@@ -177,18 +162,13 @@ public class InMemoryModuleFinderTests extends ESTestCase {
     }
 
     public void testExplicitModuleExplodedPath() throws Exception {
-        Path topLevelDir = createTempDir();
-
-        Map<String, CharSequence> sources = Map.of(
-            "module-info",
-            "module m { exports p;  opens q; }",
-            "p.Foo",
-            "package p; public class Foo extends q.Bar { }",
-            "q.Bar",
-            "package q; public class Bar { }"
-        );
+        Map<String, CharSequence> sources = new HashMap<>();
+        sources.put("module-info", "module m { exports p;  opens q; }");
+        sources.put("p.Foo", "package p; public class Foo extends q.Bar { }");
+        sources.put("q.Bar", "package q; public class Bar { }");
         var classToBytes = InMemoryJavaCompiler.compile(sources);
 
+        Path topLevelDir = createTempDir();
         Path mRoot = topLevelDir.resolve("a").resolve("b").resolve("m.jar");
         Files.createDirectories(mRoot);
         Files.write(mRoot.resolve("module-info.class"), classToBytes.get("module-info"));

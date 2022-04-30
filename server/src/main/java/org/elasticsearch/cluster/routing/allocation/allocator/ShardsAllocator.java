@@ -8,6 +8,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.MoveDecision;
@@ -32,6 +33,12 @@ public interface ShardsAllocator {
      * @param allocation current node allocation
      */
     void allocate(RoutingAllocation allocation);
+
+
+    default void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
+        allocate(allocation);
+        listener.onResponse(null);
+    }
 
     /**
      * Returns the decision for where a shard should reside in the cluster.  If the shard is unassigned,

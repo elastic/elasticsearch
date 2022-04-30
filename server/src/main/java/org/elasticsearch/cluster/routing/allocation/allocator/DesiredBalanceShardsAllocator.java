@@ -9,6 +9,7 @@
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -34,7 +35,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     private final DesiredBalanceService desiredBalanceService;
     private volatile boolean pendingReroute;
 
-    private record DesiredBalancesListener(long index, Runnable listener) {}
+    private record DesiredBalancesListener(long index, ActionListener<Void> listener) {}
 
     private final AtomicLong indexGenerator = new AtomicLong(0);
     private final Deque<DesiredBalancesListener> pendingListeners = new LinkedList<>();
@@ -52,12 +53,22 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                 if (desiredBalanceService.updateDesiredBalanceAndReroute(desiredBalanceInput, this::isFresh)) {
                     pendingReroute = true;
                     boolean isFreshInput = isFresh(desiredBalanceInput);
-                    rerouteServiceSupplier.get().reroute("desired balance changed", Priority.NORMAL, ActionListener.wrap(() -> {
-                        if (isFreshInput) {
-                            pendingReroute = false;
-                            triggerProcessedListeners(desiredBalanceInput.index());
+                    var listener = new ActionListener<ClusterState>() {
+                        @Override
+                        public void onResponse(ClusterState clusterState) {
+                            if (isFreshInput) {
+                                pendingReroute = false;
+                                triggerProcessedListeners(desiredBalanceInput.index());
+                            }
                         }
-                    }));
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            //TODO check exception type?
+                            triggerAllListenersFailure(e);
+                        }
+                    };
+                    rerouteServiceSupplier.get().reroute("desired balance changed", Priority.NORMAL, listener);
                 }
             }
 
@@ -68,7 +79,16 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                         if (trigger == null || trigger.index > index) {
                             break;
                         }
-                        pendingListeners.pollFirst().listener.run();
+                        pendingListeners.pollFirst().listener.onResponse(null);
+                    }
+                }
+            }
+
+            private void triggerAllListenersFailure(Exception e) {
+                synchronized (pendingListeners) {
+                    DesiredBalancesListener listener;
+                    while ((listener = pendingListeners.pollLast()) != null) {
+                        listener.listener.onFailure(e);
                     }
                 }
             }
@@ -82,6 +102,11 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
     @Override
     public void allocate(RoutingAllocation allocation) {
+        allocate(allocation, ActionListener.noop());
+    }
+
+    @Override
+    public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
         assert MasterService.isMasterUpdateThread() || Thread.currentThread().getName().startsWith("TEST-")
             : Thread.currentThread().getName();
         // assert allocation.debugDecision() == false; set to true when called via the reroute API
@@ -91,7 +116,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
         var index = indexGenerator.incrementAndGet();
         synchronized (pendingListeners) {
-            pendingListeners.addLast(new DesiredBalancesListener(index, () -> {/* TODO add async listener here */}));
+            pendingListeners.addLast(new DesiredBalancesListener(index, listener));
         }
         desiredBalanceComputation.onNewInput(
             new DesiredBalanceInput(index, allocation.immutableClone(), new ArrayList<>(allocation.routingNodes().unassigned().ignored()))

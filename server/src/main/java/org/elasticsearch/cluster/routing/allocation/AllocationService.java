@@ -11,6 +11,7 @@ package org.elasticsearch.cluster.routing.allocation;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.logging.log4j.message.ParameterizedMessage;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.RestoreInProgress;
@@ -475,7 +476,7 @@ public class AllocationService {
         return reroute(clusterState, reason, DesiredBalanceShardsAllocator.REMOVE_ME);
     }
 
-    public ClusterState reroute(ClusterState clusterState, String reason, Runnable listener) {
+    public ClusterState reroute(ClusterState clusterState, String reason, ActionListener<Void> listener) {
         ClusterState fixedClusterState = adaptAutoExpandReplicas(clusterState);
 
         RoutingNodes routingNodes = getMutableRoutingNodes(fixedClusterState);
@@ -521,7 +522,7 @@ public class AllocationService {
         return false;
     }
 
-    private void reroute(RoutingAllocation allocation, Runnable listener) {
+    private void reroute(RoutingAllocation allocation, ActionListener<Void> listener) {
         assert hasDeadNodes(allocation) == false : "dead nodes should be explicitly cleaned up. See disassociateDeadNodes";
         assert AutoExpandReplicas.getAutoExpandReplicaChanges(allocation.metadata(), () -> allocation).isEmpty()
             : "auto-expand replicas out of sync with number of nodes in the cluster";

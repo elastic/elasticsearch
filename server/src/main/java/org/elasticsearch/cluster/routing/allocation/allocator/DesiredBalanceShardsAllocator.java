@@ -26,10 +26,16 @@ import java.util.function.Supplier;
  */
 public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
-    public static final Runnable REMOVE_ME = new Runnable() {
+    public static final ActionListener<Void> REMOVE_ME = new ActionListener<Void>() {
+
         @Override
-        public void run() {
+        public void onResponse(Void unused) {
             // TODO this is a noop listener stub that need so be replaced with a real implementation eventually
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+
         }
 
         @Override
@@ -73,7 +79,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     }
 
     @Override
-    public void allocate(RoutingAllocation allocation, Runnable listener) {
+    public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
         assert MasterService.isMasterUpdateThread() || Thread.currentThread().getName().startsWith("TEST-")
             : Thread.currentThread().getName();
         // assert allocation.debugDecision() == false; set to true when called via the reroute API
@@ -84,7 +90,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         desiredBalanceComputation.onNewInput(
             new DesiredBalanceInput(allocation.immutableClone(), new ArrayList<>(allocation.routingNodes().unassigned().ignored()))
         );
-        listener.run();// TODO listener need to be passed to the above call
+        listener.onResponse(null);// TODO listener need to be passed to the above call
 
         // TODO possibly add a bounded wait for the computation to complete?
         // Otherwise we will have to do a second cluster state update straight away.

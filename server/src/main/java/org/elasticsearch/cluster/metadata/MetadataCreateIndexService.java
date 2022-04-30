@@ -297,7 +297,17 @@ public class MetadataCreateIndexService {
 
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
-                    return applyCreateIndexRequest(currentState, request, false, null, () -> { future.addListener(listener); });
+                    return applyCreateIndexRequest(currentState, request, false, null, new ActionListener<>() {
+                        @Override
+                        public void onResponse(Void unused) {
+                            future.addListener(listener);
+                        }
+
+                        @Override
+                        public void onFailure(Exception e) {
+                            future.onFailure(e);
+                        }
+                    });
                 }
 
                 @Override
@@ -337,7 +347,7 @@ public class MetadataCreateIndexService {
         CreateIndexClusterStateUpdateRequest request,
         boolean silent,
         BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer,
-        Runnable listener
+        ActionListener<Void> listener
     ) throws Exception {
 
         normalizeRequestSetting(request);
@@ -424,30 +434,6 @@ public class MetadataCreateIndexService {
      *                            creates the index
      * @return a new cluster state with the index added
      */
-    private ClusterState applyCreateIndexWithTemporaryService(
-        final ClusterState currentState,
-        final CreateIndexClusterStateUpdateRequest request,
-        final boolean silent,
-        final IndexMetadata sourceMetadata,
-        final IndexMetadata temporaryIndexMeta,
-        final List<CompressedXContent> mappings,
-        final Function<IndexService, List<AliasMetadata>> aliasSupplier,
-        final List<String> templatesApplied,
-        final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer
-    ) throws Exception {
-        return applyCreateIndexWithTemporaryService(
-            currentState,
-            request,
-            silent,
-            sourceMetadata,
-            temporaryIndexMeta,
-            mappings,
-            aliasSupplier,
-            templatesApplied,
-            metadataTransformer,
-            DesiredBalanceShardsAllocator.REMOVE_ME
-        );
-    }
 
     private ClusterState applyCreateIndexWithTemporaryService(
         final ClusterState currentState,
@@ -459,7 +445,7 @@ public class MetadataCreateIndexService {
         final Function<IndexService, List<AliasMetadata>> aliasSupplier,
         final List<String> templatesApplied,
         final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer,
-        final Runnable listener
+        final ActionListener<Void> listener
     ) throws Exception {
         // create the index here (on the master) to validate it can be created, as well as adding the mapping
         return indicesService.<ClusterState, Exception>withTempIndexService(temporaryIndexMeta, indexService -> {
@@ -545,7 +531,7 @@ public class MetadataCreateIndexService {
         final boolean silent,
         final List<IndexTemplateMetadata> templates,
         final BiConsumer<Metadata.Builder, IndexMetadata> metadataTransformer,
-        final Runnable listener
+        final ActionListener<Void> listener
     ) throws Exception {
         logger.debug(
             "applying create index request using legacy templates {}",
@@ -665,7 +651,8 @@ public class MetadataCreateIndexService {
                 systemIndices::isSystemName
             ),
             Collections.singletonList(templateName),
-            metadataTransformer
+            metadataTransformer,
+            DesiredBalanceShardsAllocator.REMOVE_ME
         );
     }
 
@@ -721,7 +708,8 @@ public class MetadataCreateIndexService {
                 systemIndices::isSystemName
             ),
             List.of(),
-            metadataTransformer
+            metadataTransformer,
+            DesiredBalanceShardsAllocator.REMOVE_ME
         );
     }
 
@@ -815,7 +803,8 @@ public class MetadataCreateIndexService {
                 systemIndices::isSystemName
             ),
             List.of(),
-            metadataTransformer
+            metadataTransformer,
+            DesiredBalanceShardsAllocator.REMOVE_ME
         );
     }
 

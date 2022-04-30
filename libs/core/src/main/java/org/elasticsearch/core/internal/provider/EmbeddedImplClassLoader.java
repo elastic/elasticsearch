@@ -28,7 +28,7 @@ import java.security.PrivilegedAction;
 import java.security.SecureClassLoader;
 import java.util.Collections;
 import java.util.Enumeration;
-import java.util.LinkedHashMap;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -320,7 +320,7 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
             BufferedReader reader = new BufferedReader(isr)
         ) {
             List<String> jars = reader.lines().toList();
-            Map<JarMeta, CodeSource> map = new LinkedHashMap<>(); // iteration order is significant
+            Map<JarMeta, CodeSource> map = new HashMap<>();
             for (String jar : jars) {
                 final String jarPrefix = providerPrefix + "/" + jar;
                 JarMeta jam;

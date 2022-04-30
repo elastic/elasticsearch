@@ -36,7 +36,7 @@ public abstract class BaseKeyStoreCommand extends KeyStoreAwareCommand {
     }
 
     @Override
-    protected final void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
+    public final void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
         try {
             final Path configFile = env.configFile();
             keyStore = KeyStoreWrapper.load(configFile);

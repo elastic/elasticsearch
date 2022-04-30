@@ -44,7 +44,7 @@ class AutoConfigGenerateElasticPasswordHash extends KeyStoreAwareCommand {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
+    public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
         final Hasher hasher = Hasher.resolve(XPackSettings.PASSWORD_HASHING_ALGORITHM.get(env.settings()));
         try (
             SecureString elasticPassword = new SecureString(generatePassword(20));

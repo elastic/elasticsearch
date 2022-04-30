@@ -1,5 +1,5 @@
 pr: 86316
 summary: Make embedded class loader MRJAR aware
 area: Infra/Core
-type: enhancement
+type: bug
 issues: []

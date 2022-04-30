@@ -105,24 +105,11 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
     private Resource privilegedGetResourceOrNull(String name) {
         return AccessController.doPrivileged((PrivilegedAction<Resource>) () -> {
             for (JarMeta jarMeta : jarMetas) {
-                final String prefix = jarMeta.prefix();
-                for (int v = RUNTIME_VERSION_FEATURE; v >= BASE_VERSION_FEATURE; v--) {
-                    URL url = parent.getResource(prefix + "/" + MRJAR_VERSION_PREFIX + v + "/" + name);
-                    if (url != null) {
-                        try {
-                            InputStream is = url.openStream();
-                            return new Resource(is, prefixToCodeBase.get(prefix));
-                        } catch (IOException e) {
-                            // silently ignore, same as ClassLoader
-                        }
-                    }
-                }
-                // try the root
-                URL url = parent.getResource(prefix + "/" + name);
+                URL url = findResourceForPrefixOrNull(name, jarMeta);
                 if (url != null) {
                     try {
                         InputStream is = url.openStream();
-                        return new Resource(is, prefixToCodeBase.get(prefix));
+                        return new Resource(is, prefixToCodeBase.get(jarMeta.prefix()));
                     } catch (IOException e) {
                         // silently ignore, same as ClassLoader
                     }
@@ -163,8 +150,7 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
     protected URL findResource(String name) {
         Objects.requireNonNull(name);
         for (JarMeta jarMeta : jarMetas) {
-            final String prefix = jarMeta.prefix();
-            URL url = findVersionedResourceForPrefixOrNull(name, prefix);
+            URL url = findResourceForPrefixOrNull(name, jarMeta);
             if (url != null) {
                 return url;
             }
@@ -174,8 +160,19 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
 
     /**
      * Searches for the named resource, returning its url or null if not found.
-     * Iterates over all multi-release versions, including the root, for the given jar prefix.
+     * Iterates over all multi-release versions, then the root, for the given jar prefix.
      */
+    URL findResourceForPrefixOrNull(String name, JarMeta jarMeta) {
+        URL url;
+        if (jarMeta.isMultiRelease) {
+            url = findVersionedResourceForPrefixOrNull(name, jarMeta.prefix());
+            if (url != null) {
+                return url;
+            }
+        }
+        return parent.getResource(jarMeta.prefix() + "/" + name);
+    }
+
     URL findVersionedResourceForPrefixOrNull(String name, String prefix) {
         for (int v = RUNTIME_VERSION_FEATURE; v >= BASE_VERSION_FEATURE; v--) {
             URL url = parent.getResource(prefix + "/" + MRJAR_VERSION_PREFIX + v + "/" + name);
@@ -183,9 +180,7 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
                 return url;
             }
         }
-        // try the root
-        URL url = parent.getResource(prefix + "/" + name);
-        return url;
+        return null;
     }
 
     @Override
@@ -200,7 +195,7 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
                     return true;
                 } else {
                     while (jarMetaIndex < jarMetas.size()) {
-                        URL u = findVersionedResourceForPrefixOrNull(name, jarMetas.get(0).prefix());
+                        URL u = findResourceForPrefixOrNull(name, jarMetas.get(0));
                         jarMetaIndex++;
                         if (u != null) {
                             url = u;

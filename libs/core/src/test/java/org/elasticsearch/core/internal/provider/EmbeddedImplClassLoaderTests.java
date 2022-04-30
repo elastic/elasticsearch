@@ -18,6 +18,7 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -38,6 +39,7 @@ import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class EmbeddedImplClassLoaderTests extends ESTestCase {
 
@@ -53,7 +55,7 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         );
     }
 
-    public void testLoadWithMultiReleaseDisabled() throws Exception {
+    public void testLoadWithoutMultiReleaseDisabled() throws Exception {
         // expect root FooBar to be loaded each time
 
         Object foobar = newFooBar(false, 0);
@@ -130,15 +132,12 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         jarEntries.put("IMPL-JARS/x-foo/LISTING.TXT", "x-foo-impl.jar".getBytes(UTF_8));
         jarEntries.put("IMPL-JARS/x-foo/x-foo-impl.jar/p/FooBar.class", classBytesForVersion(0)); // root version is always 0
         if (enableMulti) {
-            // enable multi-release in the manifest
             jarEntries.put("IMPL-JARS/x-foo/x-foo-impl.jar/META-INF/MANIFEST.MF", "Multi-Release: true\n".getBytes(UTF_8));
-            for (int version : versions) {
-                jarEntries.put(
-                    "IMPL-JARS/x-foo/x-foo-impl.jar/META-INF/versions/" + version + "/p/FooBar.class",
-                    classBytesForVersion(version)
-                );
-            }
         }
+        Arrays.stream(versions)
+            .forEach(
+                v -> jarEntries.put("IMPL-JARS/x-foo/x-foo-impl.jar/META-INF/versions/" + v + "/p/FooBar.class", classBytesForVersion(v))
+            );
 
         Path outerJar = topLevelDir.resolve("impl.jar");
         JarUtils.createJarWithEntries(outerJar, jarEntries);
@@ -201,15 +200,44 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         assertThat(Collections.list(resources), contains(hasToString(endsWith("impl.jar!/IMPL-JARS/res/res-impl.jar/p/res.txt"))));
     }
 
-    public void testResourcesVersioned() throws Exception {
+    public void testResourcesWithoutMultiRelease() throws Exception {
+        assumeTrue("JDK version not greater than or equal to 17", Runtime.version().feature() >= 17);
+        testResourcesVersioned(false, 0, 9);
+        testResourcesVersioned(false, 0, 15);
+        testResourcesVersioned(false, 0, 17);
+        testResourcesVersioned(false, 0, 11, 10, 9, 8);
+    }
+
+    public void testResourcesVersioned9() throws Exception {
+        assumeTrue("JDK version not greater than or equal to 9", Runtime.version().feature() >= 9);
+        testResourcesVersioned(true, 9, 9);
+        testResourcesVersioned(true, 9, 9, 8);
+    }
+
+    public void testResourcesVersioned11() throws Exception {
+        assumeTrue("JDK version not greater than or equal to 11", Runtime.version().feature() >= 11);
+        testResourcesVersioned(true, 11, 11);
+        testResourcesVersioned(true, 11, 11, 10, 9, 8);
+    }
+
+    public void testResourcesVersioned17() throws Exception {
+        assumeTrue("JDK version not greater than or equal to 17", Runtime.version().feature() >= 17);
+        testResourcesVersioned(true, 17, 17);
+        testResourcesVersioned(true, 17, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8);
+    }
+
+    private void testResourcesVersioned(boolean enableMulti, int expectedVersion, int... versions) throws Exception {
         Path topLevelDir = createTempDir();
 
         ClassLoader embedLoader, urlcLoader;
         {   // load content with URLClassLoader
             Map<String, byte[]> jarEntries = new HashMap<>();
-            jarEntries.put("META-INF/MANIFEST.MF", "Multi-Release: true\n".getBytes(UTF_8));
             jarEntries.put("p/res.txt", "Hello World0".getBytes(UTF_8));
-            jarEntries.put("META-INF/versions/9/p/res.txt", "Hello World9".getBytes(UTF_8));
+            if (enableMulti) {
+                jarEntries.put("META-INF/MANIFEST.MF", "Multi-Release: true\n".getBytes(UTF_8));
+            }
+            Arrays.stream(versions)
+                .forEach(v -> jarEntries.put("META-INF/versions/" + v + "/p/res.txt", ("Hello World" + v).getBytes(UTF_8)));
             Path fooJar = topLevelDir.resolve("foo.jar");
             JarUtils.createJarWithEntries(fooJar, jarEntries);
             urlcLoader = URLClassLoader.newInstance(
@@ -220,9 +248,17 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         {   // load EQUIVALENT content with EmbeddedImplClassLoader
             Map<String, byte[]> jarEntries = new HashMap<>();
             jarEntries.put("IMPL-JARS/res/LISTING.TXT", "res-impl.jar".getBytes(UTF_8));
-            jarEntries.put("IMPL-JARS/res/res-impl.jar/META-INF/MANIFEST.MF", "Multi-Release: true\n".getBytes(UTF_8));
             jarEntries.put("IMPL-JARS/res/res-impl.jar/p/res.txt", "Hello World0".getBytes(UTF_8));
-            jarEntries.put("IMPL-JARS/res/res-impl.jar/META-INF/versions/9/p/res.txt", "Hello World9".getBytes(UTF_8));
+            if (enableMulti) {
+                jarEntries.put("IMPL-JARS/res/res-impl.jar/META-INF/MANIFEST.MF", "Multi-Release: true\n".getBytes(UTF_8));
+            }
+            Arrays.stream(versions)
+                .forEach(
+                    v -> jarEntries.put(
+                        "IMPL-JARS/res/res-impl.jar/META-INF/versions/" + v + "/p/res.txt",
+                        ("Hello World" + v).getBytes(UTF_8)
+                    )
+                );
             Path outerJar = topLevelDir.resolve("impl.jar");
             JarUtils.createJarWithEntries(outerJar, jarEntries);
             URLClassLoader parent = URLClassLoader.newInstance(
@@ -234,22 +270,27 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
 
         // finding resources with the different loaders should give EQUIVALENT results
 
+        String expectedURLSuffix = "p/res.txt";
+        if (enableMulti) {
+            expectedURLSuffix = "META-INF/versions/" + expectedVersion + "/p/res.txt";
+        }
+
         // getResource
         URL url1 = urlcLoader.getResource("p/res.txt");
-        assertThat(url1.toString(), endsWith("!/META-INF/versions/9/p/res.txt"));
+        assertThat(url1.toString(), endsWith("!/" + expectedURLSuffix));
         URL url2 = embedLoader.getResource("p/res.txt");
-        assertThat(url2.toString(), endsWith("impl.jar!/IMPL-JARS/res/res-impl.jar/META-INF/versions/9/p/res.txt"));
+        assertThat(url2.toString(), endsWith("impl.jar!/IMPL-JARS/res/res-impl.jar/" + expectedURLSuffix));
         assertThat(suffix(url2), endsWith(suffix(url1)));
 
         // findResources
         var urls1 = Collections.list(urlcLoader.getResources("p/res.txt")).stream().map(URL::toString).toList();
         var urls2 = Collections.list(embedLoader.getResources("p/res.txt")).stream().map(URL::toString).toList();
         assertThat("urls1=%s, urls2=%s".formatted(urls1, urls2), urls2, hasSize(1));
-        assertThat(urls1.get(0), endsWith("!/META-INF/versions/9/p/res.txt"));
-        assertThat(urls2.get(0), endsWith("impl.jar!/IMPL-JARS/res/res-impl.jar/META-INF/versions/9/p/res.txt"));
+        assertThat(urls1.get(0), endsWith("!/" + expectedURLSuffix));
+        assertThat(urls2.get(0), endsWith("impl.jar!/IMPL-JARS/res/res-impl.jar/" + expectedURLSuffix));
 
         // getResourceAsStream
-        assertThat(new String(embedLoader.getResourceAsStream("p/res.txt").readAllBytes(), UTF_8), is("Hello World9"));
+        assertThat(new String(embedLoader.getResourceAsStream("p/res.txt").readAllBytes(), UTF_8), is("Hello World" + expectedVersion));
     }
 
     private static String suffix(URL url) {
@@ -294,5 +335,37 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         expectThrows(NPE, () -> embedLoader.getResourceAsStream(null));
         expectThrows(NPE, () -> embedLoader.resources(null));
         expectThrows(NPE, () -> embedLoader.loadClass(null));
+    }
+
+    public void testWithJarDependencies() throws Exception {
+        Map<String, CharSequence> sources = new HashMap<>();
+        sources.put("p.Foo", "package p; public class Foo extends q.Bar { }");
+        sources.put("q.Bar", "package q; public class Bar extends r.Baz { }");
+        sources.put("r.Baz", "package r; public class Baz { }");
+
+        var classToBytes = InMemoryJavaCompiler.compile(sources);
+        Path topLevelDir = createTempDir();
+
+        Map<String, byte[]> jarEntries = new HashMap<>();
+        jarEntries.put("IMPL-JARS/blah/LISTING.TXT", "foo.jar\nbar.jar\nbaz.jar".getBytes(UTF_8));
+        jarEntries.put("IMPL-JARS/blah/foo.jar/p/Foo.class", classToBytes.get("p.Foo"));
+        jarEntries.put("IMPL-JARS/blah/bar.jar/META-INF/MANIFEST.MF", "Multi-Release: True\n".getBytes(UTF_8));
+        jarEntries.put("IMPL-JARS/blah/bar.jar/META-INF/versions/9/q/Bar.class", classToBytes.get("q.Bar"));
+        jarEntries.put("IMPL-JARS/blah/baz.jar/META-INF/MANIFEST.MF", "Multi-Release: true\n".getBytes(UTF_8));
+        jarEntries.put("IMPL-JARS/blah/baz.jar/META-INF/versions/11/r/Baz.class", classToBytes.get("r.Baz"));
+
+        Path outerJar = topLevelDir.resolve("impl.jar");
+        JarUtils.createJarWithEntries(outerJar, jarEntries);
+        URLClassLoader parent = URLClassLoader.newInstance(
+            new URL[] { outerJar.toUri().toURL() },
+            EmbeddedImplClassLoaderTests.class.getClassLoader()
+        );
+
+        EmbeddedImplClassLoader loader = EmbeddedImplClassLoader.getInstance(parent, "blah");
+        Class<?> c = loader.loadClass("p.Foo");
+        Object obj = c.getConstructor().newInstance();
+        assertThat(obj.toString(), startsWith("p.Foo"));
+        assertThat(c.getSuperclass().getName(), is("q.Bar"));
+        assertThat(c.getSuperclass().getSuperclass().getName(), is("r.Baz"));
     }
 }

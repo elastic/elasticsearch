@@ -11,6 +11,7 @@ package org.elasticsearch.test.jar;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
+import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -18,6 +19,8 @@ import java.util.Map;
 import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
+
+import static java.util.stream.Collectors.toUnmodifiableMap;
 
 public final class JarUtils {
 
@@ -67,6 +70,19 @@ public final class JarUtils {
                 jos.closeEntry();
             }
         }
+    }
+
+    /**
+     * Creates a jar file with the given entries.
+     *
+     * @param jarfile the jar file path
+     * @param entries map of entries to add; jar entry name to String contents
+     * @param charset the charset used to convert the entry values to bytes
+     * @throws IOException if an I/O error occurs
+     */
+    public static void createJarWithEntries(Path jarfile, Map<String, String> entries, Charset charset) throws IOException {
+        var map = entries.entrySet().stream().collect(toUnmodifiableMap(Map.Entry::getKey, v -> v.getValue().getBytes(charset)));
+        createJarWithEntries(jarfile, map);
     }
 
     @FunctionalInterface

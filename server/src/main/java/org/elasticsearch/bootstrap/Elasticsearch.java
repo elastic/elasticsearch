@@ -100,6 +100,7 @@ class Elasticsearch {
     private static void exit(int exitCode) {
         System.exit(exitCode);
     }
+
     /**
      * Prints a message directing the user to look at the logs. A message is only printed if
      * logging has been configured.

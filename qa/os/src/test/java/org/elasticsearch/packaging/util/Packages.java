@@ -330,7 +330,6 @@ public class Packages {
         public void clear() {
             final String script = "sudo journalctl --unit=elasticsearch.service --lines=0 --show-cursor -o cat | sed -e 's/-- cursor: //'";
             cursor = sh.run(script).stdout().trim();
-            assert cursor.isEmpty() == false;
         }
 
         /**
@@ -338,7 +337,11 @@ public class Packages {
          * @return Recent journald logs for the Elasticsearch service.
          */
         public Result getLogs() {
-            return sh.run("journalctl -u elasticsearch.service --after-cursor='" + this.cursor + "'");
+            String cmd = "journalctl -u elasticsearch.service";
+            if (cursor.isEmpty() == false) {
+                cmd += " --after-cursor='" + this.cursor + "'";
+            }
+            return sh.run(cmd);
         }
     }
 

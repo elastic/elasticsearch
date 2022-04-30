@@ -140,7 +140,7 @@ class ServerCli extends EnvironmentAwareCommand {
 
     private SecureString getKeystorePassword(Path configDir, Terminal terminal) {
         try {
-            KeyStoreWrapper keystore = KeyStoreWrapper.load(KeyStoreWrapper.keystorePath(configDir));
+            KeyStoreWrapper keystore = KeyStoreWrapper.load(configDir);
             if (keystore != null && keystore.hasPassword()) {
                 return new SecureString(terminal.readSecret(KeyStoreWrapper.PROMPT));
             } else {

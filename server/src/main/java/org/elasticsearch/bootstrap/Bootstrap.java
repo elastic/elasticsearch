@@ -25,6 +25,7 @@ import org.elasticsearch.common.inject.CreationException;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.network.IfConfig;
 import org.elasticsearch.common.settings.SecureSettings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.core.IOUtils;
@@ -287,15 +288,20 @@ final class Bootstrap {
     /**
      * This method is invoked by {@link Elasticsearch#main(String[])} to startup elasticsearch.
      */
-    static void init(final boolean foreground, final Path pidFile, final boolean quiet, final Environment initialEnv)
-        throws BootstrapException, NodeValidationException, UserException {
+    static void init(
+        final boolean foreground,
+        final Path pidFile,
+        final boolean quiet,
+        final Environment initialEnv,
+        SecureString keystorePassword
+    ) throws BootstrapException, NodeValidationException, UserException {
         // force the class initializer for BootstrapInfo to run before
         // the security manager is installed
         BootstrapInfo.init();
 
         INSTANCE = new Bootstrap();
 
-        final SecureSettings keystore = BootstrapUtil.loadSecureSettings(initialEnv);
+        final SecureSettings keystore = BootstrapUtil.loadSecureSettings(initialEnv, keystorePassword);
         final Environment environment = createEnvironment(pidFile, keystore, initialEnv.settings(), initialEnv.configFile());
 
         BootstrapInfo.setConsole(getConsole(environment));

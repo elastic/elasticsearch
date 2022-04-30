@@ -46,13 +46,9 @@ public class BootstrapUtil {
         return passphrase;
     }
 
-    public static SecureSettings loadSecureSettings(Environment initialEnv) throws BootstrapException {
-        return loadSecureSettings(initialEnv, System.in);
-    }
-
-    public static SecureSettings loadSecureSettings(Environment initialEnv, InputStream stdin) throws BootstrapException {
+    public static SecureSettings loadSecureSettings(Environment initialEnv, SecureString keystorePassword) throws BootstrapException {
         try {
-            return KeyStoreWrapper.bootstrap(initialEnv.configFile(), () -> readPassphrase(stdin));
+            return KeyStoreWrapper.bootstrap(initialEnv.configFile(), () -> keystorePassword);
         } catch (Exception e) {
             throw new BootstrapException(e);
         }

@@ -14,6 +14,7 @@ import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.NodeValidationException;
 
@@ -63,7 +64,8 @@ class Elasticsearch {
                 serverArgs.daemonize(),
                 serverArgs.pidFile(),
                 serverArgs.quiet(),
-                new Environment(serverArgs.nodeSettings(), serverArgs.configDir())
+                new Environment(serverArgs.nodeSettings(), serverArgs.configDir()),
+                serverArgs.keystorePassword()
             );
         } catch (NodeValidationException e) {
             exitCode = ExitCodes.CONFIG;
@@ -124,10 +126,10 @@ class Elasticsearch {
         }
     }
 
-    void init(final boolean daemonize, final Path pidFile, final boolean quiet, Environment initialEnv) throws NodeValidationException,
-        UserException {
+    void init(final boolean daemonize, final Path pidFile, final boolean quiet, Environment initialEnv, SecureString keystorePassword)
+        throws NodeValidationException, UserException {
         try {
-            Bootstrap.init(daemonize == false, pidFile, quiet, initialEnv);
+            Bootstrap.init(daemonize == false, pidFile, quiet, initialEnv, keystorePassword);
         } catch (BootstrapException | RuntimeException e) {
             // format exceptions to the console in a special way
             // to avoid 2MB stacktraces from guice, etc.

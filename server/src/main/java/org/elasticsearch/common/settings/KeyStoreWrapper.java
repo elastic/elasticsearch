@@ -204,6 +204,7 @@ public class KeyStoreWrapper implements SecureSettings {
         Arrays.fill(characters, (char) 0);
     }
 
+    // TODO: this doesn't need to be a supplier anymore
     public static KeyStoreWrapper bootstrap(Path configDir, CheckedSupplier<SecureString, Exception> passwordSupplier) throws Exception {
         KeyStoreWrapper keystore = KeyStoreWrapper.load(configDir);
 

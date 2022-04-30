@@ -54,17 +54,16 @@ public class BootstrapTests extends ESTestCase {
             assertTrue(seed.length() > 0);
             keyStoreWrapper.save(configPath, password);
         }
-        final InputStream in = password.length > 0
-            ? new ByteArrayInputStream(new String(password).getBytes(StandardCharsets.UTF_8))
-            : System.in;
+        SecureString keystorePassword = new SecureString(password);
         assertTrue(Files.exists(configPath.resolve("elasticsearch.keystore")));
-        try (SecureSettings secureSettings = BootstrapUtil.loadSecureSettings(env, in)) {
+        try (SecureSettings secureSettings = BootstrapUtil.loadSecureSettings(env, keystorePassword)) {
             SecureString seedAfterLoad = KeyStoreWrapper.SEED_SETTING.get(Settings.builder().setSecureSettings(secureSettings).build());
             assertEquals(seedAfterLoad.toString(), seed.toString());
             assertTrue(Files.exists(configPath.resolve("elasticsearch.keystore")));
         }
     }
 
+    // TODO: these tests aren't needed anymore, password reading is done in ServerCli
     public void testReadCharsFromStdin() throws Exception {
         assertPassphraseRead("hello", "hello");
         assertPassphraseRead("hello\n", "hello");

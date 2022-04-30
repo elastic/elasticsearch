@@ -33,7 +33,7 @@ public abstract class CommandTestCase extends ESTestCase {
     protected Path esHomeDir;
 
     @Before
-    public void resetTerminal() {
+    public void resetState() {
         terminal.reset();
         terminal.setSupportsBinary(false);
         terminal.setVerbosity(Terminal.Verbosity.NORMAL);

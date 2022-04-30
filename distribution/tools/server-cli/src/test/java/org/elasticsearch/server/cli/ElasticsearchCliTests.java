@@ -8,19 +8,36 @@
 
 package org.elasticsearch.server.cli;
 
+import joptsimple.OptionSet;
+
 import org.elasticsearch.Build;
+import org.elasticsearch.bootstrap.ServerArgs;
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.ProcessInfo;
+import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.common.cli.EnvironmentAwareCommand;
+import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.OutputStream;
+import java.io.PipedInputStream;
+import java.io.PipedOutputStream;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.CoreMatchers.containsString;
@@ -30,6 +47,17 @@ import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.hasItem;
 
 public class ElasticsearchCliTests extends CommandTestCase {
+
+    Path esConfigDir;
+
+    @Before
+    public void setupDummyInstallation() throws IOException {
+        sysprops.put("java.home", "/javahome");
+        esConfigDir = esHomeDir.resolve("config");
+        Files.createDirectories(esConfigDir);
+        Files.writeString(esConfigDir.resolve("jvm.options"), "");
+    }
+
     private void assertOk(String... args) throws Exception {
         assertOkWithOutput(emptyString(), args);
     }
@@ -44,7 +72,7 @@ public class ElasticsearchCliTests extends CommandTestCase {
 
     private void assertUsage(Matcher<String> matcher, String... args) throws Exception {
         terminal.reset();
-        initCallback = FAIL_INIT;
+        mainCallback = FAIL_MAIN;
         int status = executeMain(args);
         assertThat(status, equalTo(ExitCodes.USAGE));
         assertThat(terminal.getErrorOutput(), matcher);
@@ -93,7 +121,7 @@ public class ElasticsearchCliTests extends CommandTestCase {
         Path tmpDir = createTempDir();
         Path pidFileArg = tmpDir.resolve("pid");
         assertUsage(containsString("Option p/pidfile requires an argument"), "-p");
-        initCallback = (daemonize, pidFile, quiet, env) -> { assertThat(pidFile.toString(), equalTo(pidFileArg.toString())); };
+        mainCallback = (args, stdout, stderr, exitCode) -> { assertThat(args.pidFile().toString(), equalTo(pidFileArg.toString())); };
         terminal.reset();
         assertOk("-p", pidFileArg.toString());
         terminal.reset();
@@ -102,7 +130,7 @@ public class ElasticsearchCliTests extends CommandTestCase {
 
     public void testDaemonize() throws Exception {
         AtomicBoolean expectDaemonize = new AtomicBoolean(true);
-        initCallback = (d, p, q, e) -> assertThat(d, equalTo(expectDaemonize.get()));
+        mainCallback = (args, stdout, stderr, exitCode) -> assertThat(args.daemonize(), equalTo(expectDaemonize.get()));
         assertOk("-d");
         assertOk("--daemonize");
         expectDaemonize.set(false);
@@ -111,7 +139,7 @@ public class ElasticsearchCliTests extends CommandTestCase {
 
     public void testQuiet() throws Exception {
         AtomicBoolean expectQuiet = new AtomicBoolean(true);
-        initCallback = (d, p, q, e) -> assertThat(q, equalTo(expectQuiet.get()));
+        mainCallback = (args, stdout, stderr, exitCode) -> assertThat(args.quiet(), equalTo(expectQuiet.get()));
         assertOk("-q");
         assertOk("--quiet");
         expectQuiet.set(false);
@@ -119,8 +147,8 @@ public class ElasticsearchCliTests extends CommandTestCase {
     }
 
     public void testElasticsearchSettings() throws Exception {
-        initCallback = (d, p, q, e) -> {
-            Settings settings = e.settings();
+        mainCallback = (args, stdout, stderr, exitCode) -> {
+            Settings settings = args.nodeSettings();
             assertThat(settings.get("foo"), equalTo("bar"));
             assertThat(settings.get("baz"), equalTo("qux"));
         };
@@ -142,8 +170,8 @@ public class ElasticsearchCliTests extends CommandTestCase {
     public void testPathHome() throws Exception {
         AtomicReference<String> expectedHomeDir = new AtomicReference<>();
         expectedHomeDir.set(esHomeDir.toString());
-        initCallback = (d, p, q, e) -> {
-            Settings settings = e.settings();
+        mainCallback = (args, stdout, stderr, exitCode) -> {
+            Settings settings = args.nodeSettings();
             assertThat(settings.get("path.home"), equalTo(expectedHomeDir.get()));
             assertThat(settings.keySet(), hasItem("path.logs")); // added by env initialization
         };
@@ -154,16 +182,136 @@ public class ElasticsearchCliTests extends CommandTestCase {
         assertOk("-Epath.home=" + commandLineValue);
     }
 
-    interface InitMethod {
-        void init(boolean daemonize, Path pidFile, boolean quiet, Environment initialEnv);
+    interface MainMethod {
+        void main(ServerArgs args, OutputStream stdout, OutputStream stderr, AtomicInteger exitCode);
     }
 
-    InitMethod initCallback;
-    final InitMethod FAIL_INIT = (d, p, q, e) -> fail("Did not expect to run init");
+    MainMethod mainCallback;
+    final MainMethod FAIL_MAIN = (args, stdout, stderr, exitCode) -> fail("Did not expect to run init");
 
     @Before
     public void resetCommand() {
-        initCallback = null;
+        mainCallback = null;
+    }
+
+    private static class MockAutoConfigCli extends EnvironmentAwareCommand {
+        MockAutoConfigCli() {
+            super("mock auto config tool");
+        }
+
+        @Override
+        protected void execute(Terminal terminal, OptionSet options, ProcessInfo processInfo) throws Exception {
+            fail("Called wrong execute method, must call the one that takes already parsed env");
+        }
+
+        @Override
+        public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
+            // TODO: fake errors, check password from terminal, allow tests to make elasticsearch.yml change
+
+        }
+    }
+
+    // a "process" that just exits
+    private class NoopProcess extends Process {
+        private final OutputStream processStdin = OutputStream.nullOutputStream();
+        private final InputStream processStdout = InputStream.nullInputStream();
+        private final InputStream processStderr = InputStream.nullInputStream();
+
+        @Override
+        public OutputStream getOutputStream() {
+            return processStdin;
+        }
+
+        @Override
+        public InputStream getInputStream() {
+            return processStdout;
+        }
+
+        @Override
+        public InputStream getErrorStream() {
+            return processStderr;
+        }
+
+        @Override
+        public int waitFor() {
+            return 0;
+        }
+
+        @Override
+        public int exitValue() {
+            return 0;
+        }
+
+        @Override
+        public void destroy() {
+            fail("Tried to kill ES process");
+        }
+    }
+
+    // a "process" that is really another thread
+    private class MockElasticsearchProcess extends Process {
+        private final PipedOutputStream processStdin = new PipedOutputStream();
+        private final PipedInputStream processStdout = new PipedInputStream();
+        private final PipedInputStream processStderr = new PipedInputStream();
+        private final PipedInputStream stdin = new PipedInputStream();
+        private final PipedOutputStream stdout = new PipedOutputStream();
+        private final PipedOutputStream stderr = new PipedOutputStream();
+
+        private final AtomicInteger exitCode = new AtomicInteger();
+        private final AtomicReference<IOException> argsParsingException = new AtomicReference<>();
+        private final Thread thread = new Thread(() -> {
+            try (var in = new InputStreamStreamInput(stdin)) {
+                final ServerArgs serverArgs = new ServerArgs(in);
+                mainCallback.main(serverArgs, stdout, stderr, exitCode);
+            } catch (IOException e) {
+                argsParsingException.set(e);
+            }
+            IOUtils.closeWhileHandlingException(stdin, stdout, stderr);
+        }, "dummy elasticsearch");
+
+        MockElasticsearchProcess() throws IOException {
+            stdin.connect(processStdin);
+            stdout.connect(processStdout);
+            stderr.connect(processStderr);
+            thread.start();
+        }
+
+        @Override
+        public OutputStream getOutputStream() {
+            return processStdin;
+        }
+
+        @Override
+        public InputStream getInputStream() {
+            return processStdout;
+        }
+
+        @Override
+        public InputStream getErrorStream() {
+            return processStderr;
+        }
+
+        @Override
+        public int waitFor() throws InterruptedException {
+            thread.join();
+            if (argsParsingException.get() != null) {
+                throw new AssertionError("Reading server args failed", argsParsingException.get());
+            }
+            return exitCode.get();
+        }
+
+        @Override
+        public int exitValue() {
+            if (thread.isAlive()) {
+                throw new IllegalThreadStateException(); // match spec
+            }
+            return exitCode.get();
+        }
+
+        @Override
+        public void destroy() {
+            fail("Tried to kill ES process");
+        }
     }
 
     @Override
@@ -171,10 +319,19 @@ public class ElasticsearchCliTests extends CommandTestCase {
         return new ServerCli() {
 
             @Override
-            protected Process startProcess(ProcessBuilder processBuilder) {
-                if (initCallback != null) {
-                    initCallback.init(daemonize, pidFile, quiet, initialEnv);
-                }
+            protected List<String> getJvmOptions(Path configDir, Path pluginsDir, Path tmpDir, String envOptions) throws Exception {
+                return new ArrayList<>();
+            }
+
+            @Override
+            protected Process startProcess(ProcessBuilder processBuilder) throws IOException {
+                // TODO: validate processbuilder stuff
+                return new MockElasticsearchProcess();
+            }
+
+            @Override
+            protected Command loadTool(String toolname, String libs) {
+                return new MockAutoConfigCli();
             }
 
             @Override
@@ -183,4 +340,5 @@ public class ElasticsearchCliTests extends CommandTestCase {
             }
         };
     }
+
 }

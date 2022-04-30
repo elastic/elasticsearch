@@ -61,7 +61,7 @@ final class JvmOptionsParser {
 
     }
 
-    static List<String> determineOptions(Path configDir, Path pluginsDir, Path tmpDir, String envOptions) throws InterruptedException,
+    static List<String> determineJvmOptions(Path configDir, Path pluginsDir, Path tmpDir, String envOptions) throws InterruptedException,
         IOException, UserException {
         final JvmOptionsParser parser = new JvmOptionsParser();
 

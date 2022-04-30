@@ -8,6 +8,8 @@
 
 package org.elasticsearch.server.cli;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
+
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -27,6 +29,8 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
+// mocking the filesystem hides the jvm we need to execute to find jvm options
+@LuceneTestCase.SuppressFileSystems("*")
 public class JvmErgonomicsTests extends LaunchersTestCase {
 
     public void testExtractValidHeapSizeUsingXmx() throws Exception {

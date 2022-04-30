@@ -16,17 +16,14 @@ dependencies {
   testImplementation project(":test:framework")
 }
 
-tasks.withType(CheckForbiddenApis).configureEach {
-  replaceSignatureFiles 'jdk-signatures'
+tasks.named("test").configure {
+  systemProperty "tests.security.manager", "false"
 }
 
-tasks.named("testingConventions").configure {
-  naming.clear()
-  naming {
-    Tests {
-      baseClass 'org.elasticsearch.server.cli.LaunchersTestCase'
-    }
-  }
+tasks.named("testingConventions").configure { enabled = false }
+
+tasks.withType(CheckForbiddenApis).configureEach {
+  replaceSignatureFiles 'jdk-signatures'
 }
 
 ["javadoc", "loggerUsageCheck", "jarHell"].each { tsk ->

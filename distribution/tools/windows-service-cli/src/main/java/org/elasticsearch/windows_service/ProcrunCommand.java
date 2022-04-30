@@ -12,6 +12,7 @@ import joptsimple.OptionSet;
 
 import org.elasticsearch.cli.Command;
 import org.elasticsearch.cli.ExitCodes;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 
@@ -44,7 +45,7 @@ abstract class ProcrunCommand extends Command {
     }
 
     @Override
-    protected void execute(Terminal terminal, OptionSet options) throws Exception {
+    protected void execute(Terminal terminal, OptionSet options, ProcessInfo processInfo) throws Exception {
         Map<String, String> env = System.getenv();
         Path esHome = Paths.get("").toAbsolutePath(); // TODO: this should be passed through execute
         String serviceId = getServiceId(options, env);

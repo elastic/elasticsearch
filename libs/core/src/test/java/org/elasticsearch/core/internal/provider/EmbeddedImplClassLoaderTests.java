@@ -62,7 +62,7 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         );
     }
 
-    /**
+    /*
      * Tests that the root version of a class is loaded, when the multi-release attribute is absent.
      */
     public void testLoadWithoutMultiReleaseDisabled() throws Exception {
@@ -79,7 +79,7 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         assertThat(foobar.toString(), equalTo("FooBar " + 0));
     }
 
-    /**
+    /*
      * Tests that the root version of a class is loaded, when the multi-release attribute is present,
      * but the versioned entry is greater than the runtime version.
      */
@@ -95,7 +95,7 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         assertThat(foobar.toString(), equalTo("FooBar " + 0));
     }
 
-    /**
+    /*
      * Tests that the specific, 9, version of a class is loaded, when the multi-release attribute
      * is present and the versioned entry is less than or equal to the runtime version.
      */
@@ -109,7 +109,7 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         assertThat(foobar.toString(), equalTo("FooBar " + 9));
     }
 
-    /**
+    /*
      * Tests that the specific, 11, version of a class is loaded, when the multi-release attribute
      * is present and the versioned entry is less than or equal to the runtime version.
      */
@@ -123,7 +123,7 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         assertThat(foobar.toString(), equalTo("FooBar " + 11));
     }
 
-    /**
+    /*
      * Tests that the specific, 17, version of a class is loaded, when the multi-release attribute
      * is present and the versioned entry is less than or equal to the runtime version.
      */
@@ -137,7 +137,7 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         assertThat(foobar.toString(), equalTo("FooBar " + 17));
     }
 
-    /**
+    /*
      * Tests that the greatest specific version of a class is loaded, when the multi-release attribute
      * is present and the versioned entry is less than or equal to the runtime version.
      */
@@ -157,7 +157,7 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         assertThat(foobar.toString(), equalTo("FooBar " + 10));
     }
 
-    /** Creates a FooBar class that reports the given version in its toString. */
+    /* Creates a FooBar class that reports the given version in its toString. */
     static byte[] classBytesForVersion(int version) {
         return InMemoryJavaCompiler.compile("p.FooBar", String.format(Locale.ENGLISH, """
             package p;
@@ -169,7 +169,7 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
             """, version));
     }
 
-    /**
+    /*
      * Instantiates an instance of FooBar. First generates and compiles the code, then packages it,
      * and lastly loads the FooBar class with an embedded loader.
      *
@@ -226,7 +226,7 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         expectThrows(NoSuchElementException.class, () -> compoundEnumeration.nextElement());
     }
 
-    /** Basic test for resource loading. */
+    /* Basic test for resource loading. */
     public void testResourcesBasic() throws Exception {
         Path topLevelDir = createTempDir();
 
@@ -249,7 +249,7 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         assertThat(Collections.list(resources), contains(hasToString(endsWith("impl.jar!/IMPL-JARS/res/res-impl.jar/p/res.txt"))));
     }
 
-    /**
+    /*
      * Tests that the root version of a resource is located, when the multi-release attribute is absent.
      */
     public void testResourcesWithoutMultiRelease() throws Exception {
@@ -260,7 +260,7 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         testResourcesVersioned(false, 0, 11, 10, 9, 8);
     }
 
-    /**
+    /*
      * Tests that the specific, 9, version of a resource is located, when the multi-release attribute
      * is present and the versioned entry is less than or equal to the runtime version.
      */
@@ -270,7 +270,7 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         testResourcesVersioned(true, 9, 9, 8);
     }
 
-    /**
+    /*
      * Tests that the specific, 11, version of a resource is located, when the multi-release attribute
      * is present and the versioned entry is less than or equal to the runtime version.
      */
@@ -280,7 +280,7 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         testResourcesVersioned(true, 11, 11, 10, 9, 8);
     }
 
-    /**
+    /*
      * Tests that the specific, 17, version of a resource is located, when the multi-release attribute
      * is present and the versioned entry is less than or equal to the runtime version.
      */
@@ -294,12 +294,12 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         return str.getBytes(UTF_8);
     }
 
-    /**
+    /*
      * Tests that the expected version of a resource is located.
      *
-     * <p> A jar archive is created with a resource, and optionally additional version specific
-     * entries of said resource. Both a URLClassLoader and an embedded loader are created to locate
-     * the resource. The resource located by embedded loader is compared to that of the equivalent
+     * A jar archive is created with a resource, and optionally additional version specific entries
+     * of said resource. Both a URLClassLoader and an embedded loader are created to locate the
+     * resource. The resource located by embedded loader is compared to that of the equivalent
      * resource located by the URLClassLoader.
      *
      * @param enableMulti whether to set the multi-release attribute
@@ -377,7 +377,7 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
     static final Class<NullPointerException> NPE = NullPointerException.class;
     static final Class<ClassNotFoundException> CNFE = ClassNotFoundException.class;
 
-    /**
+    /*
      * Tests locating classes and resource not in the embedded loader.
      * As well as additional null checks.
      */
@@ -415,7 +415,7 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         expectThrows(NPE, () -> embedLoader.loadClass(null));
     }
 
-    /**
+    /*
      * Tests class loading with dependencies across multiple embedded jars.
      */
     public void testLoadWithJarDependencies() throws Exception {
@@ -449,7 +449,7 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         assertThat(c.getSuperclass().getSuperclass().getName(), is("r.Baz"));
     }
 
-    /**
+    /*
      * Tests resource lookup across multiple embedded jars.
      */
     public void testResourcesWithMultipleJars() throws Exception {

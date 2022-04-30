@@ -60,7 +60,7 @@ public class InMemoryModuleFinderTests extends ESTestCase {
         assertThat(barMref.location(), isPresent());
     }
 
-    /**
+    /*
      * Tests exploded jar embedded within an outer jar - how the distro is laid out,
      *   e.g. jar:file:///x/y/impl.jar!/a/b/foo.jar/META-INF/MANIFEST.MF
      *        jar:file:///x/y/impl.jar!/a/b/foo.jar/p/Foo.class
@@ -102,6 +102,12 @@ public class InMemoryModuleFinderTests extends ESTestCase {
         testExplicitModuleEmbeddedJarVersionSpecific(17); // META-INF/versions/11/module-info.class
     }
 
+    /*
+     * Tests that a module located at a specific versioned entry is correctly located. First
+     * generates and compiles the code, then packages it, and lastly locates with the finder.
+     *
+     * @param version the runtime version number of the module-info entry
+     */
     private void testExplicitModuleEmbeddedJarVersionSpecific(int version) throws Exception {
         Map<String, CharSequence> sources = new HashMap<>();
         sources.put("module-info", "module m { exports p;  opens q; }");
@@ -139,7 +145,7 @@ public class InMemoryModuleFinderTests extends ESTestCase {
         }
     }
 
-    /**
+    /*
      * Tests exploded jar layout on the file system - what we do when running unit tests,
      *   e.g.  file:///x/y/impl/a/b/foo.jar/META-INF/MANIFEST.MF
      *         file:///x/y/impl/a/b/foo.jar/p/Foo.class

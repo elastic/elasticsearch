@@ -32,22 +32,45 @@ import static org.hamcrest.Matchers.is;
 
 public class ProviderLocatorTests extends ESTestCase {
 
+    /*
+     * Tests that a modular provider is retrievable from an embedded jar implementation, with a
+     * module-info in the root.
+     */
     public void testExplicitModuleEmbeddedJar() throws Exception {
         testLoadAsModuleEmbeddedJarVersionSpecific(-1); // versionless - module-info in the root
     }
 
+    /*
+     * Tests that a modular provider is retrievable from an embedded jar implementation, with a
+     * version specific, 9, module-info entry.
+     */
     public void testLoadAsModuleEmbeddedJar9() throws Exception {
         testLoadAsModuleEmbeddedJarVersionSpecific(9); // META-INF/versions/9/module-info.class
     }
 
+    /*
+     * Tests that a modular provider is retrievable from an embedded jar implementation, with a
+     * version specific, 11, module-info entry.
+     */
     public void testLoadAsModuleEmbeddedJar11() throws Exception {
         testLoadAsModuleEmbeddedJarVersionSpecific(11); // META-INF/versions/11/module-info.class
     }
 
+    /*
+     * Tests that a modular provider is retrievable from an embedded jar implementation, with a
+     * version specific, 17, module-info entry.
+     */
     public void testLoadAsModuleEmbeddedJar17() throws Exception {
         testLoadAsModuleEmbeddedJarVersionSpecific(17); // META-INF/versions/17/module-info.class
     }
 
+    /*
+     * Tests that a modular provider is located and retrievable from an embedded jar implementation.
+     * First generates and compiles the code, then packages it, and lastly gets the provider
+     * implementation.
+     *
+     * @param version the runtime version number of the module-info entry
+     */
     void testLoadAsModuleEmbeddedJarVersionSpecific(int version) throws Exception {
         // test scenario setup, compile source, create jar file, and parent loader
         Map<String, CharSequence> sources = Map.of(
@@ -127,7 +150,7 @@ public class ProviderLocatorTests extends ESTestCase {
         return str.getBytes(UTF_8);
     }
 
-    // variant of testLoadAsModuleEmbeddedJar, but as a non-module
+    /* Variant of testLoadAsModuleEmbeddedJar, but as a non-module. */
     public void testLoadAsNonModuleEmbeddedJar() throws Exception {
         // test scenario setup, compile source, create jar file, and parent loader
         Map<String, CharSequence> sources = Map.of("p.FooLongSupplier", """
@@ -173,7 +196,7 @@ public class ProviderLocatorTests extends ESTestCase {
         assertThat(impl.getClass().getModule().isNamed(), is(false));
     }
 
-    // variant of testLoadAsModuleEmbeddedJar, but exploded file paths
+    /* Variant of testLoadAsModuleEmbeddedJar, but exploded file paths. */
     public void testLoadAsNonModuleExplodedPath() throws Exception {
         // test scenario setup, compile source, create jar file, and parent loader
         Map<String, CharSequence> sources = Map.of("pb.BarIntSupplier", """

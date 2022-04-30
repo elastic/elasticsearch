@@ -195,7 +195,7 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
                     return true;
                 } else {
                     while (jarMetaIndex < jarMetas.size()) {
-                        URL u = findResourceForPrefixOrNull(name, jarMetas.get(0));
+                        URL u = findResourceForPrefixOrNull(name, jarMetas.get(jarMetaIndex));
                         jarMetaIndex++;
                         if (u != null) {
                             url = u;

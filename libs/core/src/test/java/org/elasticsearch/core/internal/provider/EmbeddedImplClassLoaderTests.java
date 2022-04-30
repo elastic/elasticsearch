@@ -13,6 +13,8 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.net.URI;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -31,6 +33,7 @@ import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.core.internal.provider.EmbeddedImplClassLoader.basePrefix;
 import static org.elasticsearch.core.internal.provider.EmbeddedImplClassLoader.rootURI;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -337,7 +340,7 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         expectThrows(NPE, () -> embedLoader.loadClass(null));
     }
 
-    public void testWithJarDependencies() throws Exception {
+    public void testLoadWithJarDependencies() throws Exception {
         Map<String, CharSequence> sources = new HashMap<>();
         sources.put("p.Foo", "package p; public class Foo extends q.Bar { }");
         sources.put("q.Bar", "package q; public class Bar extends r.Baz { }");
@@ -367,5 +370,39 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         assertThat(obj.toString(), startsWith("p.Foo"));
         assertThat(c.getSuperclass().getName(), is("q.Bar"));
         assertThat(c.getSuperclass().getSuperclass().getName(), is("r.Baz"));
+    }
+
+    public void testResourcesWithMultipleJars() throws Exception {
+        Path topLevelDir = createTempDir();
+
+        Map<String, String> jarEntries = new HashMap<>();
+        jarEntries.put("IMPL-JARS/blah/LISTING.TXT", "foo.jar\nbar.jar\nbaz.jar");
+        jarEntries.put("IMPL-JARS/blah/foo.jar/res.txt", "fooRes");
+        jarEntries.put("IMPL-JARS/blah/bar.jar/META-INF/MANIFEST.MF", "Multi-Release: TRUE\n");
+        jarEntries.put("IMPL-JARS/blah/bar.jar/META-INF/versions/9/res.txt", "barRes");
+        jarEntries.put("IMPL-JARS/blah/baz.jar/META-INF/MANIFEST.MF", "Multi-Release: trUE\n");
+        jarEntries.put("IMPL-JARS/blah/baz.jar/META-INF/versions/11/res.txt", "bazRes");
+
+        Path outerJar = topLevelDir.resolve("impl.jar");
+        JarUtils.createJarWithEntries(outerJar, jarEntries, UTF_8);
+        URLClassLoader parent = URLClassLoader.newInstance(
+            new URL[] { outerJar.toUri().toURL() },
+            EmbeddedImplClassLoaderTests.class.getClassLoader()
+        );
+
+        EmbeddedImplClassLoader loader = EmbeddedImplClassLoader.getInstance(parent, "blah");
+        var res = Collections.list(loader.getResources("res.txt"));
+
+        assertThat(res, hasSize(3));
+        List<String> l = res.stream().map(EmbeddedImplClassLoaderTests::urlToString).toList();
+        assertThat(l, containsInAnyOrder("fooRes", "barRes", "bazRes"));
+    }
+
+    static String urlToString(URL url) {
+        try {
+            return new String(url.openStream().readAllBytes(), UTF_8);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 }

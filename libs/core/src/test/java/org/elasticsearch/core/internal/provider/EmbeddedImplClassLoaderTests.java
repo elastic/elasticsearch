@@ -21,7 +21,6 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
@@ -31,6 +30,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static java.util.Arrays.stream;
 import static org.elasticsearch.core.internal.provider.EmbeddedImplClassLoader.basePrefix;
 import static org.elasticsearch.core.internal.provider.EmbeddedImplClassLoader.rootURI;
 import static org.hamcrest.Matchers.contains;
@@ -48,7 +48,10 @@ import static org.hamcrest.Matchers.startsWith;
 public class EmbeddedImplClassLoaderTests extends ESTestCase {
 
     public void testBasePrefix() {
-        assertThat(basePrefix("IMPL-JARS/x-content/jackson-core-2.13.2.jar"), equalTo("IMPL-JARS/x-content/jackson-core-2.13.2.jar"));
+        assertThat(
+            basePrefix("IMPL-JARS/x-content/jackson-core-2.13.2-SNAPSHOT.jar"),
+            equalTo("IMPL-JARS/x-content/jackson-core-2.13.2-SNAPSHOT.jar")
+        );
         assertThat(
             basePrefix("IMPL-JARS/x-content/jackson-core-2.13.2.jar/META-INF/versions/9"),
             equalTo("IMPL-JARS/x-content/jackson-core-2.13.2.jar")
@@ -59,9 +62,10 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         );
     }
 
+    /**
+     * Tests that the root version of a class is loaded, when the multi-release attribute is absent.
+     */
     public void testLoadWithoutMultiReleaseDisabled() throws Exception {
-        // expect root FooBar to be loaded each time
-
         Object foobar = newFooBar(false, 0);
         assertThat(foobar.toString(), equalTo("FooBar " + 0));
 
@@ -75,9 +79,11 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         assertThat(foobar.toString(), equalTo("FooBar " + 0));
     }
 
+    /**
+     * Tests that the root version of a class is loaded, when the multi-release attribute is present,
+     * but the versioned entry is greater than the runtime version.
+     */
     public void testLoadMegaVersionWithMultiReleaseEnabled() throws Exception {
-        // expect root FooBar to be loaded each time
-
         assumeTrue("JDK version not less than 10_000", Runtime.version().feature() < 10_000);
         Object foobar = newFooBar(true, 10_000);
         assertThat(foobar.toString(), equalTo("FooBar " + 0));
@@ -89,35 +95,69 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         assertThat(foobar.toString(), equalTo("FooBar " + 0));
     }
 
+    /**
+     * Tests that the specific, 9, version of a class is loaded, when the multi-release attribute
+     * is present and the versioned entry is less than or equal to the runtime version.
+     */
     public void testLoadWithMultiReleaseEnabled9() throws Exception {
         assumeTrue("JDK version not greater than or equal to 9", Runtime.version().feature() >= 9);
         Object foobar = newFooBar(true, 9);
         // expect 9 version of FooBar to be loaded
         assertThat(foobar.toString(), equalTo("FooBar " + 9));
+
+        foobar = newFooBar(true, 9, 8);
+        assertThat(foobar.toString(), equalTo("FooBar " + 9));
     }
 
+    /**
+     * Tests that the specific, 11, version of a class is loaded, when the multi-release attribute
+     * is present and the versioned entry is less than or equal to the runtime version.
+     */
     public void testLoadWithMultiReleaseEnabled11() throws Exception {
         assumeTrue("JDK version not greater than or equal to 11", Runtime.version().feature() >= 11);
         Object foobar = newFooBar(true, 11);
         // expect 11 version of FooBar to be loaded
         assertThat(foobar.toString(), equalTo("FooBar " + 11));
+
+        foobar = newFooBar(true, 11, 10, 9, 8);
+        assertThat(foobar.toString(), equalTo("FooBar " + 11));
     }
 
+    /**
+     * Tests that the specific, 17, version of a class is loaded, when the multi-release attribute
+     * is present and the versioned entry is less than or equal to the runtime version.
+     */
     public void testLoadWithMultiReleaseEnabled17() throws Exception {
         assumeTrue("JDK version not greater than or equal to 17", Runtime.version().feature() >= 17);
         Object foobar = newFooBar(true, 17);
         // expect 17 version of FooBar to be loaded
         assertThat(foobar.toString(), equalTo("FooBar " + 17));
-    }
 
-    public void testLoadWithMultiReleaseEnabledALL() throws Exception {
-        assumeTrue("JDK version not greater than or equal to 17", Runtime.version().feature() >= 17);
-        Object foobar = newFooBar(true, 17, 16, 15, 14, 13, 12, 10, 9);
-        // expect 17 version of FooBar to be loaded
+        foobar = newFooBar(true, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8);
         assertThat(foobar.toString(), equalTo("FooBar " + 17));
     }
 
-    // Creates a FooBar class that reports the given version in its toString
+    /**
+     * Tests that the greatest specific version of a class is loaded, when the multi-release attribute
+     * is present and the versioned entry is less than or equal to the runtime version.
+     */
+    public void testLoadWithMultiReleaseEnabledALL() throws Exception {
+        assumeTrue("JDK version not greater than or equal to 17", Runtime.version().feature() >= 17);
+
+        Object foobar = newFooBar(true, 16, 13, 11, 9);
+        // expect 16 version of FooBar to be loaded
+        assertThat(foobar.toString(), equalTo("FooBar " + 16));
+
+        foobar = newFooBar(true, 13, 12, 11, 10, 9, 8);
+        // expect 13 version of FooBar to be loaded
+        assertThat(foobar.toString(), equalTo("FooBar " + 13));
+
+        foobar = newFooBar(true, 10, 9, 8);
+        // expect 10 version of FooBar to be loaded
+        assertThat(foobar.toString(), equalTo("FooBar " + 10));
+    }
+
+    /** Creates a FooBar class that reports the given version in its toString. */
     static byte[] classBytesForVersion(int version) {
         return InMemoryJavaCompiler.compile("p.FooBar", String.format(Locale.ENGLISH, """
             package p;
@@ -129,20 +169,24 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
             """, version));
     }
 
-    static Object newFooBar(boolean enableMulti, int... versions) throws Exception {
-        Path topLevelDir = createTempDir();
-
+    /**
+     * Instantiates an instance of FooBar. First generates and compiles the code, then packages it,
+     * and lastly loads the FooBar class with an embedded loader.
+     *
+     * @param enableMulti whether to set the multi-release attribute
+     * @param versions the runtime version number of the entries to create in the jar
+     */
+    private static Object newFooBar(boolean enableMulti, int... versions) throws Exception {
+        String prefix = "IMPL-JARS/x-foo/x-foo-impl.jar/";
         Map<String, byte[]> jarEntries = new HashMap<>();
-        jarEntries.put("IMPL-JARS/x-foo/LISTING.TXT", "x-foo-impl.jar".getBytes(UTF_8));
-        jarEntries.put("IMPL-JARS/x-foo/x-foo-impl.jar/p/FooBar.class", classBytesForVersion(0)); // root version is always 0
+        jarEntries.put("IMPL-JARS/x-foo/LISTING.TXT", bytes("x-foo-impl.jar"));
+        jarEntries.put(prefix + "p/FooBar.class", classBytesForVersion(0)); // root version is always 0
         if (enableMulti) {
-            jarEntries.put("IMPL-JARS/x-foo/x-foo-impl.jar/META-INF/MANIFEST.MF", "Multi-Release: true\n".getBytes(UTF_8));
+            jarEntries.put(prefix + "META-INF/MANIFEST.MF", bytes("Multi-Release: true\n"));
         }
-        Arrays.stream(versions)
-            .forEach(
-                v -> jarEntries.put("IMPL-JARS/x-foo/x-foo-impl.jar/META-INF/versions/" + v + "/p/FooBar.class", classBytesForVersion(v))
-            );
+        stream(versions).forEach(v -> jarEntries.put(prefix + "META-INF/versions/" + v + "/p/FooBar.class", classBytesForVersion(v)));
 
+        Path topLevelDir = createTempDir();
         Path outerJar = topLevelDir.resolve("impl.jar");
         JarUtils.createJarWithEntries(outerJar, jarEntries);
         URLClassLoader parent = URLClassLoader.newInstance(
@@ -182,6 +226,7 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         expectThrows(NoSuchElementException.class, () -> compoundEnumeration.nextElement());
     }
 
+    /** Basic test for resource loading. */
     public void testResourcesBasic() throws Exception {
         Path topLevelDir = createTempDir();
 
@@ -204,6 +249,9 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         assertThat(Collections.list(resources), contains(hasToString(endsWith("impl.jar!/IMPL-JARS/res/res-impl.jar/p/res.txt"))));
     }
 
+    /**
+     * Tests that the root version of a resource is located, when the multi-release attribute is absent.
+     */
     public void testResourcesWithoutMultiRelease() throws Exception {
         assumeTrue("JDK version not greater than or equal to 17", Runtime.version().feature() >= 17);
         testResourcesVersioned(false, 0, 9);
@@ -212,36 +260,63 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         testResourcesVersioned(false, 0, 11, 10, 9, 8);
     }
 
+    /**
+     * Tests that the specific, 9, version of a resource is located, when the multi-release attribute
+     * is present and the versioned entry is less than or equal to the runtime version.
+     */
     public void testResourcesVersioned9() throws Exception {
         assumeTrue("JDK version not greater than or equal to 9", Runtime.version().feature() >= 9);
         testResourcesVersioned(true, 9, 9);
         testResourcesVersioned(true, 9, 9, 8);
     }
 
+    /**
+     * Tests that the specific, 11, version of a resource is located, when the multi-release attribute
+     * is present and the versioned entry is less than or equal to the runtime version.
+     */
     public void testResourcesVersioned11() throws Exception {
         assumeTrue("JDK version not greater than or equal to 11", Runtime.version().feature() >= 11);
         testResourcesVersioned(true, 11, 11);
         testResourcesVersioned(true, 11, 11, 10, 9, 8);
     }
 
+    /**
+     * Tests that the specific, 17, version of a resource is located, when the multi-release attribute
+     * is present and the versioned entry is less than or equal to the runtime version.
+     */
     public void testResourcesVersioned17() throws Exception {
         assumeTrue("JDK version not greater than or equal to 17", Runtime.version().feature() >= 17);
         testResourcesVersioned(true, 17, 17);
         testResourcesVersioned(true, 17, 17, 16, 15, 14, 13, 12, 11, 10, 9, 8);
     }
 
+    static byte[] bytes(String str) {
+        return str.getBytes(UTF_8);
+    }
+
+    /**
+     * Tests that the expected version of a resource is located.
+     *
+     * <p> A jar archive is created with a resource, and optionally additional version specific
+     * entries of said resource. Both a URLClassLoader and an embedded loader are created to locate
+     * the resource. The resource located by embedded loader is compared to that of the equivalent
+     * resource located by the URLClassLoader.
+     *
+     * @param enableMulti whether to set the multi-release attribute
+     * @param expectedVersion the expected resource version to locate
+     * @param versions the runtime version number of the entries to create in the jar
+     */
     private void testResourcesVersioned(boolean enableMulti, int expectedVersion, int... versions) throws Exception {
         Path topLevelDir = createTempDir();
 
         ClassLoader embedLoader, urlcLoader;
         {   // load content with URLClassLoader
             Map<String, byte[]> jarEntries = new HashMap<>();
-            jarEntries.put("p/res.txt", "Hello World0".getBytes(UTF_8));
+            jarEntries.put("p/res.txt", bytes("Hello World0"));
             if (enableMulti) {
-                jarEntries.put("META-INF/MANIFEST.MF", "Multi-Release: true\n".getBytes(UTF_8));
+                jarEntries.put("META-INF/MANIFEST.MF", bytes("Multi-Release: true\n"));
             }
-            Arrays.stream(versions)
-                .forEach(v -> jarEntries.put("META-INF/versions/" + v + "/p/res.txt", ("Hello World" + v).getBytes(UTF_8)));
+            stream(versions).forEach(v -> jarEntries.put("META-INF/versions/" + v + "/p/res.txt", bytes("Hello World" + v)));
             Path fooJar = topLevelDir.resolve("foo.jar");
             JarUtils.createJarWithEntries(fooJar, jarEntries);
             urlcLoader = URLClassLoader.newInstance(
@@ -250,19 +325,14 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
             );
         }
         {   // load EQUIVALENT content with EmbeddedImplClassLoader
+            String prefix = "IMPL-JARS/res/res-impl.jar/";
             Map<String, byte[]> jarEntries = new HashMap<>();
-            jarEntries.put("IMPL-JARS/res/LISTING.TXT", "res-impl.jar".getBytes(UTF_8));
-            jarEntries.put("IMPL-JARS/res/res-impl.jar/p/res.txt", "Hello World0".getBytes(UTF_8));
+            jarEntries.put("IMPL-JARS/res/LISTING.TXT", bytes("res-impl.jar"));
+            jarEntries.put(prefix + "p/res.txt", bytes("Hello World0"));
             if (enableMulti) {
-                jarEntries.put("IMPL-JARS/res/res-impl.jar/META-INF/MANIFEST.MF", "Multi-Release: true\n".getBytes(UTF_8));
+                jarEntries.put(prefix + "META-INF/MANIFEST.MF", bytes("Multi-Release: true\n"));
             }
-            Arrays.stream(versions)
-                .forEach(
-                    v -> jarEntries.put(
-                        "IMPL-JARS/res/res-impl.jar/META-INF/versions/" + v + "/p/res.txt",
-                        ("Hello World" + v).getBytes(UTF_8)
-                    )
-                );
+            stream(versions).forEach(v -> jarEntries.put(prefix + "META-INF/versions/" + v + "/p/res.txt", bytes(("Hello World" + v))));
             Path outerJar = topLevelDir.resolve("impl.jar");
             JarUtils.createJarWithEntries(outerJar, jarEntries);
             URLClassLoader parent = URLClassLoader.newInstance(
@@ -286,7 +356,7 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         assertThat(url2.toString(), endsWith("impl.jar!/IMPL-JARS/res/res-impl.jar/" + expectedURLSuffix));
         assertThat(suffix(url2), endsWith(suffix(url1)));
 
-        // findResources
+        // getResources
         var urls1 = Collections.list(urlcLoader.getResources("p/res.txt")).stream().map(URL::toString).toList();
         var urls2 = Collections.list(embedLoader.getResources("p/res.txt")).stream().map(URL::toString).toList();
         assertThat("urls1=%s, urls2=%s".formatted(urls1, urls2), urls2, hasSize(1));
@@ -307,6 +377,10 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
     static final Class<NullPointerException> NPE = NullPointerException.class;
     static final Class<ClassNotFoundException> CNFE = ClassNotFoundException.class;
 
+    /**
+     * Tests locating classes and resource not in the embedded loader.
+     * As well as additional null checks.
+     */
     public void testIDontHaveIt() throws Exception {
         Path topLevelDir = createTempDir();
 
@@ -341,6 +415,9 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         expectThrows(NPE, () -> embedLoader.loadClass(null));
     }
 
+    /**
+     * Tests class loading with dependencies across multiple embedded jars.
+     */
     public void testLoadWithJarDependencies() throws Exception {
         Map<String, CharSequence> sources = new HashMap<>();
         sources.put("p.Foo", "package p; public class Foo extends q.Bar { }");
@@ -372,6 +449,9 @@ public class EmbeddedImplClassLoaderTests extends ESTestCase {
         assertThat(c.getSuperclass().getSuperclass().getName(), is("r.Baz"));
     }
 
+    /**
+     * Tests resource lookup across multiple embedded jars.
+     */
     public void testResourcesWithMultipleJars() throws Exception {
         Path topLevelDir = createTempDir();
 

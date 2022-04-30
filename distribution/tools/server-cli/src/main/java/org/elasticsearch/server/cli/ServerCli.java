@@ -87,10 +87,11 @@ class ServerCli extends EnvironmentAwareCommand {
         // setup security
         final SecureString keystorePassword = getKeystorePassword(env.configFile(), terminal);
         var autoConfigTerminal = new KeystorePasswordTerminal(terminal, keystorePassword);
-        runAutoConfigTool(autoConfigTerminal, options, processInfo, env);
-        // reload settings since auto security might have changed them
-        // TODO: don't recreate if security settings were not changed
-        env = createEnv(options, processInfo);
+        boolean changed = runAutoConfigTool(autoConfigTerminal, options, processInfo, env);
+        if (changed) {
+            // reload settings since auto security changed them
+            env = createEnv(options, processInfo);
+        }
 
         // start Elasticsearch
         final Process process = createProcess(processInfo, env);
@@ -151,7 +152,7 @@ class ServerCli extends EnvironmentAwareCommand {
         }
     }
 
-    private void runAutoConfigTool(Terminal terminal, OptionSet options, ProcessInfo processInfo, Environment env) throws Exception {
+    private boolean runAutoConfigTool(Terminal terminal, OptionSet options, ProcessInfo processInfo, Environment env) throws Exception {
         String autoConfigLibs = "modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli";
         Command cmd = loadTool("auto-configure-node", autoConfigLibs);
         assert cmd instanceof EnvironmentAwareCommand;
@@ -162,14 +163,16 @@ class ServerCli extends EnvironmentAwareCommand {
             autoConfigNode.execute(terminal, options, env, processInfo);
         } catch (UserException e) {
             if (options.has(enrollmentTokenOption) == false) {
-                // if we don't have an enrollment token then these exit codes are "ok"
+                // these exit codes cover the cases where auto-conf cannot run but the node should NOT be prevented from starting as usual
+                // eg the node is restarted, is already configured in an incompatible way, or the file system permissions do not allow it
                 switch (e.exitCode) {
                     case ExitCodes.CANT_CREATE, ExitCodes.CONFIG, ExitCodes.NOOP:
-                        return;
+                        return false;
                 }
             }
             throw e;
         }
+        return true;
     }
 
     private ServerArgs createArgs(OptionSet options, SecureString keystorePassword, Environment env) {

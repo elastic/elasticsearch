@@ -187,10 +187,13 @@ public class ElasticsearchCliTests extends CommandTestCase {
     }
 
     public void testMultipleEnrollmentTokens() throws Exception {
-        assertUsage(containsString("Multiple --enrollment-token parameters are not allowed"), "--enrollment-token",
+        assertUsage(
+            containsString("Multiple --enrollment-token parameters are not allowed"),
+            "--enrollment-token",
             "some-token",
             "--enrollment-token",
-            "some-other-token");
+            "some-other-token"
+        );
     }
 
     interface MainMethod {

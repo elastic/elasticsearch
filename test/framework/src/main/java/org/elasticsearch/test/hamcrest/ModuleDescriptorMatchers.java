@@ -17,6 +17,7 @@ import java.lang.module.ModuleDescriptor.Opens;
 import java.lang.module.ModuleDescriptor.Provides;
 import java.lang.module.ModuleDescriptor.Requires;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 public class ModuleDescriptorMatchers {
@@ -24,15 +25,19 @@ public class ModuleDescriptorMatchers {
     private ModuleDescriptorMatchers() {}
 
     public static Matcher<Exports> exportsOf(String pkg) {
-        return new ExportsMatcher(pkg, Set.of(), Set.of());
+        return new ExportsMatcher(pkg, Set.of());
     }
 
     public static Matcher<Exports> exportsOf(String pkg, Set<String> targets) {
-        return new ExportsMatcher(pkg, targets, Set.of());
+        return new ExportsMatcher(pkg, targets);
     }
 
-    public static Matcher<Opens> opensOf(String mn) {
-        return new OpensSourceMatcher(mn);
+    public static Matcher<Opens> opensOf(String pkg) {
+        return new OpensMatcher(pkg, Set.of());
+    }
+
+    public static Matcher<Opens> opensOf(String pkg, Set<String> targets) {
+        return new OpensMatcher(pkg, targets);
     }
 
     public static Matcher<Requires> requiresOf(String mn) {
@@ -43,38 +48,61 @@ public class ModuleDescriptorMatchers {
         return new ProvidesMatcher(service, provides);
     }
 
+    /**
+     * Matcher that matches the <i>source</i> and <i>targets</i> of a {@code Requires}.
+     * The matcher is agnostic of the {@code Requires} modifiers.
+     */
     static class ExportsMatcher extends TypeSafeMatcher<Exports> {
 
         private final String source;
         private final Set<String> targets;
-        private final Set<Exports.Modifier> modifiers;
 
-        ExportsMatcher(String source, Set<String> targets, Set<Exports.Modifier> modifiers) {
+        ExportsMatcher(String source, Set<String> targets) {
             this.source = source;
             this.targets = Set.copyOf(targets);
-            this.modifiers = Set.copyOf(modifiers);
         }
 
         @Override
         protected boolean matchesSafely(final Exports item) {
-            return item != null && item.source().equals(source) && item.targets().equals(targets) && item.modifiers().equals(modifiers);
+            return item != null && Objects.equals(item.source(), source) && Objects.equals(item.targets(), targets);
         }
 
         @Override
         public void describeTo(final Description description) {
-            description.appendText("Export, source=%s, targets=%s, modifiers=%s".formatted(source, targets, modifiers));
+            description.appendText("Exports[%s]".formatted(exportsToString(source, targets)));
         }
 
         @Override
         protected void describeMismatchSafely(final Exports item, final Description mismatchDescription) {
+            describeTo(mismatchDescription);
             if (item == null) {
                 mismatchDescription.appendText("was null");
             } else {
-                mismatchDescription.appendText(item.toString());
+                mismatchDescription.appendText(", actual Exports[%s]".formatted(exportsToString(item)));
+            }
+        }
+
+        private static String exportsToString(String source, Set<String> targets) {
+            if (targets.isEmpty()) {
+                return source;
+            } else {
+                return source + " to " + targets;
+            }
+        }
+
+        private static String exportsToString(Exports exports) {
+            if (exports.targets().isEmpty()) {
+                return exports.source();
+            } else {
+                return exports.source() + " to " + exports.targets();
             }
         }
     }
 
+    /**
+     * Matcher that matches the <i>name</i> of a {@code Requires}.
+     * The matcher is agnostic of other {@code Requires} state, like the modifiers.
+     */
     static class RequiresNameMatcher extends TypeSafeMatcher<Requires> {
 
         private final String mn;
@@ -85,7 +113,7 @@ public class ModuleDescriptorMatchers {
 
         @Override
         protected boolean matchesSafely(final Requires item) {
-            return item != null && item.name().equals(mn);
+            return item != null && Objects.equals(item.name(), mn);
         }
 
         @Override
@@ -95,42 +123,69 @@ public class ModuleDescriptorMatchers {
 
         @Override
         protected void describeMismatchSafely(final Requires item, final Description mismatchDescription) {
+            describeTo(mismatchDescription);
             if (item == null) {
                 mismatchDescription.appendText("was null");
             } else {
-                mismatchDescription.appendText(item.name());
+                mismatchDescription.appendText(", actual Requires with name " + item);
             }
         }
     }
 
-    static class OpensSourceMatcher extends TypeSafeMatcher<Opens> {
+    /**
+     * Matcher that matches the <i>source</i> and <i>targets</i> of an {@code Opens}.
+     * The matcher is agnostic of the modifiers.
+     */
+    static class OpensMatcher extends TypeSafeMatcher<Opens> {
 
-        private final String pkg;
+        private final String source;
+        private final Set<String> targets;
 
-        OpensSourceMatcher(String pkg) {
-            this.pkg = pkg;
+        OpensMatcher(String source, Set<String> targets) {
+            this.source = source;
+            this.targets = Set.copyOf(targets);
         }
 
         @Override
         protected boolean matchesSafely(final Opens item) {
-            return item != null && item.source().equals(pkg);
+            return item != null && Objects.equals(item.source(), source) && Objects.equals(item.targets(), targets);
         }
 
         @Override
         public void describeTo(final Description description) {
-            description.appendText("Opens with name " + pkg);
+            description.appendText("Opens[%s]".formatted(opensToString(source, targets)));
         }
 
         @Override
         protected void describeMismatchSafely(final Opens item, final Description mismatchDescription) {
+            describeTo(mismatchDescription);
             if (item == null) {
                 mismatchDescription.appendText("was null");
             } else {
-                mismatchDescription.appendText(item.source());
+                mismatchDescription.appendText(", actual Opens[%s]".formatted(opensToString(item)));
+            }
+        }
+
+        private static String opensToString(String source, Set<String> targets) {
+            if (targets.isEmpty()) {
+                return source;
+            } else {
+                return source + " to " + targets;
+            }
+        }
+
+        private static String opensToString(Opens opens) {
+            if (opens.targets().isEmpty()) {
+                return opens.source();
+            } else {
+                return opens.source() + " to " + opens.targets();
             }
         }
     }
 
+    /**
+     * Matcher that matches the <i>service</i> and <i>providers</i> of a {@code Provides}.
+     */
     static class ProvidesMatcher extends TypeSafeMatcher<Provides> {
 
         private final String service;
@@ -148,16 +203,21 @@ public class ModuleDescriptorMatchers {
 
         @Override
         public void describeTo(final Description description) {
-            description.appendText("Provides, service=%s, providers=%s".formatted(service, providers));
+            description.appendText("Provides[%s]".formatted(providesToString(service, providers)));
         }
 
         @Override
         protected void describeMismatchSafely(final Provides item, final Description mismatchDescription) {
+            describeTo(mismatchDescription);
             if (item == null) {
                 mismatchDescription.appendText("was null");
             } else {
-                mismatchDescription.appendText(item.toString());
+                mismatchDescription.appendText(", actual Provides[%s]".formatted(item));
             }
+        }
+
+        private static String providesToString(String service, List<String> provides) {
+            return service + " with " + provides;
         }
     }
 }

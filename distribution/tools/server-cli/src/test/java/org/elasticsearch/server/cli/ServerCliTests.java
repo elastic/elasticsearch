@@ -46,7 +46,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.hasItem;
 
-public class ElasticsearchCliTests extends CommandTestCase {
+public class ServerCliTests extends CommandTestCase {
 
     Path esConfigDir;
 

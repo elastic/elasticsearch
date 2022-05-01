@@ -8,6 +8,7 @@
 source "`dirname "$0"`"/elasticsearch-env
 
 CLI_JAR=$(ls "$ES_HOME"/bin/elasticsearch-sql-cli-*.jar)
+
 exec \
   "$JAVA" \
   -jar "$CLI_JAR" \

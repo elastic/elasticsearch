@@ -8,8 +8,7 @@
 
 package org.elasticsearch.server.cli;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
-
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -29,8 +28,6 @@ import static org.junit.Assert.assertThat;
 import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
-// mocking the filesystem hides the jvm we need to execute to find jvm options
-@LuceneTestCase.SuppressFileSystems("*")
 public class JvmErgonomicsTests extends LaunchersTestCase {
 
     public void testExtractValidHeapSizeUsingXmx() throws Exception {
@@ -48,7 +45,7 @@ public class JvmErgonomicsTests extends LaunchersTestCase {
         assertThat(JvmOption.extractMaxHeapSize(JvmOption.findFinalOptions(Collections.emptyList())), greaterThan(0L));
     }
 
-    public void testHeapSizeInvalid() throws Exception {
+    public void testHeapSizeInvalid() throws InterruptedException, IOException {
         try {
             JvmOption.extractMaxHeapSize(JvmOption.findFinalOptions(Collections.singletonList("-Xmx2Z")));
             fail("expected starting java to fail");

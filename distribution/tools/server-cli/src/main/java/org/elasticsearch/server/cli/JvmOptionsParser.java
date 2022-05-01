@@ -99,7 +99,7 @@ final class JvmOptionsParser {
     }
 
     private List<String> jvmOptions(final Path config, Path plugins, final String esJavaOpts, final Map<String, String> substitutions)
-        throws IOException, InterruptedException, JvmOptionsFileParserException {
+        throws InterruptedException, IOException, JvmOptionsFileParserException {
 
         final List<String> jvmOptions = readJvmOptionsFiles(config);
 

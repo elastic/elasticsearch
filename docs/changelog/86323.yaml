@@ -1,0 +1,5 @@
+pr: 86323
+summary: Speed up merging field-caps responses from single mapping
+area: Search
+type: enhancement
+issues: []

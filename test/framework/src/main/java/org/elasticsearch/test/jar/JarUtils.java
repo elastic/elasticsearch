@@ -19,6 +19,9 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
+import static java.util.stream.Collectors.toUnmodifiableMap;
+
 public final class JarUtils {
 
     private JarUtils() {}
@@ -67,6 +70,18 @@ public final class JarUtils {
                 jos.closeEntry();
             }
         }
+    }
+
+    /**
+     * Creates a jar file with the given entries. Entry values are converted to bytes using UTF-8.
+     *
+     * @param jarfile the jar file path
+     * @param entries map of entries to add; jar entry name to String contents
+     * @throws IOException if an I/O error occurs
+     */
+    public static void createJarWithEntriesUTF(Path jarfile, Map<String, String> entries) throws IOException {
+        var map = entries.entrySet().stream().collect(toUnmodifiableMap(Map.Entry::getKey, v -> v.getValue().getBytes(UTF_8)));
+        createJarWithEntries(jarfile, map);
     }
 
     @FunctionalInterface

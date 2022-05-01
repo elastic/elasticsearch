@@ -11,14 +11,13 @@ package org.elasticsearch.launcher;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.cli.CliToolProvider;
 import org.elasticsearch.cli.Command;
+import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 
 import java.util.Map;
-import java.util.Properties;
-import java.util.stream.Collectors;
 
 /**
  * A unified main method for Elasticsearch tools.
@@ -45,16 +44,16 @@ class CliToolLauncher {
      * @throws Exception if the tool fails with an unknown error
      */
     public static void main(String[] args) throws Exception {
-        Map<String, String> sysprops = getSystemProperties();
+        ProcessInfo pinfo = ProcessInfo.fromSystem();
 
         // configure logging as early as possible
-        configureLoggingWithoutConfig(sysprops);
+        configureLoggingWithoutConfig(pinfo.sysprops());
 
-        String toolname = getToolName(sysprops);
-        String libs = sysprops.getOrDefault("cli.libs", "");
+        String toolname = getToolName(pinfo.sysprops());
+        String libs = pinfo.sysprops().getOrDefault("cli.libs", "");
 
         Command command = CliToolProvider.load(toolname, libs).create();
-        exit(command.main(args, Terminal.DEFAULT));
+        exit(command.main(args, Terminal.DEFAULT, pinfo));
     }
 
     // package private for tests
@@ -71,12 +70,6 @@ class CliToolLauncher {
             }
         }
         return toolname;
-    }
-
-    @SuppressForbidden(reason = "collect system properties")
-    private static Map<String, String> getSystemProperties() {
-        Properties props = System.getProperties();
-        return props.entrySet().stream().collect(Collectors.toMap(e -> e.getKey().toString(), e -> e.getValue().toString()));
     }
 
     @SuppressForbidden(reason = "System#exit")

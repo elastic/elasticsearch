@@ -20,7 +20,8 @@ public record HealthIndicatorResult(
     HealthStatus status,
     String summary,
     HealthIndicatorDetails details,
-    List<HealthIndicatorImpact> impacts
+    List<HealthIndicatorImpact> impacts,
+    List<UserAction> userActions
 ) implements ToXContentObject {
 
     @Override
@@ -35,6 +36,9 @@ public record HealthIndicatorResult(
             builder.field("impacts", impacts);
         }
         // TODO 83303: Add detail / documentation
+        if (userActions != null && userActions.isEmpty() == false) {
+            builder.field("user_actions", userActions);
+        }
         return builder.endObject();
     }
 }

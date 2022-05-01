@@ -18,9 +18,6 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
-import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.CodeSigner;
 import java.security.CodeSource;
@@ -57,7 +54,7 @@ import static java.util.stream.Collectors.toUnmodifiableMap;
  * parent of an EmbeddedImplClassLoader loader. The embedded classes and resources, are located by
  * the parent loader as pure resources with a provider specific name prefix, and classes are defined
  * by the EmbeddedImplClassLoader. The list of prefixes is determined by reading the entries in the
- * MANIFEST.TXT.
+ * LISTING.TXT.
  *
  * <p> For example, the structure of the archive named x-content:
  * <pre>

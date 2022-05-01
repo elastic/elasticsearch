@@ -26,7 +26,6 @@ import java.security.CodeSigner;
 import java.security.CodeSource;
 import java.security.PrivilegedAction;
 import java.security.SecureClassLoader;
-import java.util.Collections;
 import java.util.Enumeration;
 import java.util.HashMap;
 import java.util.List;
@@ -165,7 +164,7 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
     URL findResourceForPrefixOrNull(String name, JarMeta jarMeta) {
         URL url;
         if (jarMeta.isMultiRelease) {
-            url = findVersionedResourceForPrefixOrNull(name, jarMeta.prefix());
+            url = findVersionedResourceForPrefixOrNull(jarMeta.prefix(), name);
             if (url != null) {
                 return url;
             }
@@ -173,7 +172,7 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
         return parent.getResource(jarMeta.prefix() + "/" + name);
     }
 
-    URL findVersionedResourceForPrefixOrNull(String name, String prefix) {
+    URL findVersionedResourceForPrefixOrNull(String prefix, String name) {
         for (int v = RUNTIME_VERSION_FEATURE; v >= BASE_VERSION_FEATURE; v--) {
             URL url = parent.getResource(prefix + "/" + MRJAR_VERSION_PREFIX + v + "/" + name);
             if (url != null) {
@@ -331,7 +330,7 @@ public final class EmbeddedImplClassLoader extends SecureClassLoader {
                 }
                 map.put(jam, codeSource(listingURL, jar));
             }
-            return Collections.unmodifiableMap(map);
+            return Map.copyOf(map);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

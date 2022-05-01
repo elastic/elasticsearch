@@ -72,7 +72,7 @@ public class InMemoryModuleFinderTests extends ESTestCase {
         entries.put("/a/b/foo.jar/p/Foo.class", "<empty>");
 
         Path outerJar = topLevelDir.resolve("impl.jar");
-        JarUtils.createJarWithEntries(topLevelDir.resolve("impl.jar"), entries, UTF_8);
+        JarUtils.createJarWithEntriesUTF(topLevelDir.resolve("impl.jar"), entries);
 
         try (FileSystem fileSystem = FileSystems.newFileSystem(outerJar, Map.of(), InMemoryModuleFinderTests.class.getClassLoader())) {
             Path fooRoot = fileSystem.getPath("/a/b/foo.jar");

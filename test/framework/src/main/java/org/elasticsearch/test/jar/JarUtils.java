@@ -11,7 +11,6 @@ package org.elasticsearch.test.jar;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.charset.Charset;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -20,6 +19,7 @@ import java.util.jar.JarEntry;
 import java.util.jar.JarOutputStream;
 import java.util.jar.Manifest;
 
+import static java.nio.charset.StandardCharsets.UTF_8;
 import static java.util.stream.Collectors.toUnmodifiableMap;
 
 public final class JarUtils {
@@ -73,15 +73,14 @@ public final class JarUtils {
     }
 
     /**
-     * Creates a jar file with the given entries.
+     * Creates a jar file with the given entries. Entry values are converted to bytes using UTF-8.
      *
      * @param jarfile the jar file path
      * @param entries map of entries to add; jar entry name to String contents
-     * @param charset the charset used to convert the entry values to bytes
      * @throws IOException if an I/O error occurs
      */
-    public static void createJarWithEntries(Path jarfile, Map<String, String> entries, Charset charset) throws IOException {
-        var map = entries.entrySet().stream().collect(toUnmodifiableMap(Map.Entry::getKey, v -> v.getValue().getBytes(charset)));
+    public static void createJarWithEntriesUTF(Path jarfile, Map<String, String> entries) throws IOException {
+        var map = entries.entrySet().stream().collect(toUnmodifiableMap(Map.Entry::getKey, v -> v.getValue().getBytes(UTF_8)));
         createJarWithEntries(jarfile, map);
     }
 

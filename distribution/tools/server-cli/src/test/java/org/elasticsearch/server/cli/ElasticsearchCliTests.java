@@ -182,6 +182,10 @@ public class ElasticsearchCliTests extends CommandTestCase {
         assertOk("-Epath.home=" + commandLineValue);
     }
 
+    public void testMissingEnrollmentToken() throws Exception {
+        assertUsage(containsString("Option enrollment-token requires an argument"), "--enrollment-token");
+    }
+
     public void testMultipleEnrollmentTokens() throws Exception {
         assertUsage(containsString("Multiple --enrollment-token parameters are not allowed"), "--enrollment-token",
             "some-token",

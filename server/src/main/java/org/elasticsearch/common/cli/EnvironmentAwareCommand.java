@@ -36,7 +36,7 @@ public abstract class EnvironmentAwareCommand extends Command {
     private static final String DOCKER_UPPERCASE_SETTING_PREFIX = "ES_SETTING_";
     private static final Pattern DOCKER_LOWERCASE_SETTING_REGEX = Pattern.compile("[-a-z0-9_]+(\\.[-a-z0-9_]+)+");
 
-    protected final OptionSpec<KeyValuePair> settingOption;
+    private final OptionSpec<KeyValuePair> settingOption;
 
     /**
      * Construct the command with the specified command description. This command will have logging configured without reading Elasticsearch

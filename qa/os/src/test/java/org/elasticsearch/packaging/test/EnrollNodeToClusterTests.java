@@ -100,43 +100,6 @@ public class EnrollNodeToClusterTests extends PackagingTestCase {
         Platforms.onWindows(() -> sh.chown(installation.config));
     }
 
-    public void test60MultipleValuesForEnrollmentToken() throws Exception {
-        // if invoked with --enrollment-token tokenA tokenB tokenC, only tokenA is read
-        Shell.Result result = Archives.runElasticsearchStartCommand(
-            installation,
-            sh,
-            null,
-            List.of("--enrollment-token", generateMockEnrollmentToken(), "some-other-token", "some-other-token", "some-other-token"),
-            false
-        );
-        // Assert we used the first value which is a proper enrollment token but failed because the node is already configured ( 80 )
-        // something in our tests wrap the error code to 1 on windows
-        // TODO investigate this and remove this guard
-        if (distribution.platform != Distribution.Platform.WINDOWS) {
-            assertThat(result.exitCode(), equalTo(ExitCodes.NOOP));
-        }
-    }
-
-    public void test70MultipleParametersForEnrollmentTokenAreNotAllowed() throws Exception {
-        // if invoked with --enrollment-token tokenA --enrollment-token tokenB --enrollment-token tokenC, we exit
-        Shell.Result result = Archives.runElasticsearchStartCommand(
-            installation,
-            sh,
-            null,
-            List.of(
-                "--enrollment-token",
-                "some-other-token",
-                "--enrollment-token",
-                "some-other-token",
-                "--enrollment-token",
-                generateMockEnrollmentToken()
-            ),
-            false
-        );
-        assertThat(result.stderr(), containsString("Multiple --enrollment-token parameters are not allowed"));
-        assertThat(result.exitCode(), equalTo(1));
-    }
-
     private String generateMockEnrollmentToken() throws Exception {
         EnrollmentToken enrollmentToken = new EnrollmentToken(
             "some-api-key",

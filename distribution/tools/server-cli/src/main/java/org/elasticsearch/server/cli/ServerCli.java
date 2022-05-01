@@ -153,6 +153,10 @@ class ServerCli extends EnvironmentAwareCommand {
     }
 
     private boolean runAutoConfigTool(Terminal terminal, OptionSet options, ProcessInfo processInfo, Environment env) throws Exception {
+        if (options.valuesOf(enrollmentTokenOption).size() > 1) {
+            throw new UserException(ExitCodes.USAGE, "Multiple --enrollment-token parameters are not allowed");
+        }
+
         String autoConfigLibs = "modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli";
         Command cmd = loadTool("auto-configure-node", autoConfigLibs);
         assert cmd instanceof EnvironmentAwareCommand;
@@ -215,6 +219,8 @@ class ServerCli extends EnvironmentAwareCommand {
         while ((line = reader.readLine()) != null) {
             if (line.isEmpty() == false && line.charAt(0) == USER_EXCEPTION_MARKER) {
                 userExceptionMsg.set(line.substring(1));
+                // TODO: we need to not return here, there will still be more on stderr (logs suggestion), but
+                // for some reason the process exiting isn't breaking the final readLine, we just hang indefinitely...
                 return false;
             } else if (line.isEmpty() == false && line.charAt(0) == SERVER_READY_MARKER) {
                 // The server closes stderr right after this message, but for some unknown reason

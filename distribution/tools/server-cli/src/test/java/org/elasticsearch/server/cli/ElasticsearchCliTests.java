@@ -182,6 +182,13 @@ public class ElasticsearchCliTests extends CommandTestCase {
         assertOk("-Epath.home=" + commandLineValue);
     }
 
+    public void testMultipleEnrollmentTokens() throws Exception {
+        assertUsage(containsString("Multiple --enrollment-token parameters are not allowed"), "--enrollment-token",
+            "some-token",
+            "--enrollment-token",
+            "some-other-token");
+    }
+
     interface MainMethod {
         void main(ServerArgs args, OutputStream stdout, OutputStream stderr, AtomicInteger exitCode);
     }

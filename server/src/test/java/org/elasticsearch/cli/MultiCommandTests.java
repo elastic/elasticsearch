@@ -200,6 +200,7 @@ public class MultiCommandTests extends CommandTestCase {
     }
 
     // Tests for multicommand error logging
+
     static class ErrorThrowingSubCommand extends Command {
         ErrorThrowingSubCommand() {
             super("error throwing");

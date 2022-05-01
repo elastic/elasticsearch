@@ -58,6 +58,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.IntStream;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -68,6 +69,8 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class FieldCapabilitiesIT extends ESIntegTestCase {
 
@@ -563,6 +566,53 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                 MockTransportService transportService = (MockTransportService) internalCluster().getInstance(TransportService.class, node);
                 transportService.clearAllRules();
             }
+        }
+    }
+
+    public void testManyIndicesWithSameMapping() {
+        final String mapping = """
+             {
+                 "properties": {
+                   "message_field": { "type": "text" },
+                   "value_field": { "type": "long" },
+                   "multi_field" : { "type" : "ip", "fields" : { "keyword" : { "type" : "keyword" } } },
+                   "timestamp": {"type": "date"}
+                 }
+             }
+            """;
+        String[] indices = IntStream.range(1, between(1, 9)).mapToObj(n -> "test_many_index_" + n).toArray(String[]::new);
+        for (String index : indices) {
+            assertAcked(client().admin().indices().prepareCreate(index).setMapping(mapping).get());
+        }
+        FieldCapabilitiesRequest request = new FieldCapabilitiesRequest();
+        request.indices("test_many_index_*");
+        request.fields("*");
+        if (randomBoolean()) {
+            request.includeUnmapped(randomBoolean());
+        }
+        boolean excludeMultiField = randomBoolean();
+        if (excludeMultiField) {
+            request.filters("-multifield");
+        }
+        FieldCapabilitiesResponse response = client().execute(FieldCapabilitiesAction.INSTANCE, request).actionGet();
+        assertThat(response.getIndices(), equalTo(indices));
+        assertThat(response.get().get("message_field"), hasKey("text"));
+        assertThat(response.get().get("message_field").get("text").indices(), nullValue());
+        assertTrue(response.get().get("message_field").get("text").isSearchable());
+        assertFalse(response.get().get("message_field").get("text").isAggregatable());
+
+        assertThat(response.get().get("value_field"), hasKey("long"));
+        assertThat(response.get().get("value_field").get("long").indices(), nullValue());
+        assertTrue(response.get().get("value_field").get("long").isSearchable());
+        assertTrue(response.get().get("value_field").get("long").isAggregatable());
+
+        assertThat(response.get().get("timestamp"), hasKey("date"));
+
+        assertThat(response.get().get("multi_field"), hasKey("ip"));
+        if (excludeMultiField) {
+            assertThat(response.get().get("multi_field.keyword"), not(hasKey("keyword")));
+        } else {
+            assertThat(response.get().get("multi_field.keyword"), hasKey("keyword"));
         }
     }
 

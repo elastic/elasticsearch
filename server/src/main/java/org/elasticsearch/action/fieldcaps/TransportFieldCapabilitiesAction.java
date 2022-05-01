@@ -238,6 +238,41 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             .sorted(Comparator.comparing(FieldCapabilitiesIndexResponse::getIndexName))
             .toList();
         final String[] indices = indexResponses.stream().map(FieldCapabilitiesIndexResponse::getIndexName).toArray(String[]::new);
+
+        if (isFromSingleMapping(indexResponses)) {
+            FieldCapabilitiesIndexResponse firstResponse = indexResponses.get(0);
+            final Map<String, IndexFieldCapabilities> fields = ResponseRewriter.rewriteOldResponses(
+                firstResponse.getOriginVersion(),
+                firstResponse.get(),
+                request.filters(),
+                request.types(),
+                metadataFieldPred
+            );
+            final Map<String, Map<String, FieldCapabilities>> responseMap = fields.entrySet()
+                .stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, e -> {
+                    final IndexFieldCapabilities cap = e.getValue();
+                    return Map.of(
+                        cap.getType(),
+                        new FieldCapabilities(
+                            cap.getName(),
+                            cap.getType(),
+                            cap.isMetadatafield(),
+                            cap.isSearchable(),
+                            cap.isAggregatable(),
+                            cap.isDimension(),
+                            cap.getMetricType(),
+                            null,
+                            null,
+                            null,
+                            null,
+                            null,
+                            cap.meta().entrySet().stream().collect(Collectors.toMap(Map.Entry::getKey, v -> Set.of(v.getValue())))
+                        )
+                    );
+                }));
+            return new FieldCapabilitiesResponse(indices, responseMap, failures);
+        }
         final Map<String, Map<String, FieldCapabilities.Builder>> responseMapBuilder = new HashMap<>();
         for (FieldCapabilitiesIndexResponse response : indexResponses) {
             innerMerge(responseMapBuilder, request, response);
@@ -270,6 +305,21 @@ public class TransportFieldCapabilitiesAction extends HandledTransportAction<Fie
             }
             typeMap.put("unmapped", unmapped);
         }
+    }
+
+    private boolean isFromSingleMapping(List<FieldCapabilitiesIndexResponse> indexResponses) {
+        String sharedMappingHash = null;
+        for (FieldCapabilitiesIndexResponse resp : indexResponses) {
+            if (resp.getIndexMappingHash() == null) {
+                return false;
+            }
+            if (sharedMappingHash == null) {
+                sharedMappingHash = resp.getIndexMappingHash();
+            } else if (sharedMappingHash.equals(resp.getIndexMappingHash()) == false) {
+                return false;
+            }
+        }
+        return sharedMappingHash != null;
     }
 
     private void innerMerge(

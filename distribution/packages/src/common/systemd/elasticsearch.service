@@ -6,6 +6,7 @@ After=network-online.target
 
 [Service]
 Type=notify
+NotifyAccess=exec
 RuntimeDirectory=elasticsearch
 PrivateTmp=true
 Environment=ES_HOME=/usr/share/elasticsearch

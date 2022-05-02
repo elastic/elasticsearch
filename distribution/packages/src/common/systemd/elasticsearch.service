@@ -8,7 +8,8 @@ After=network-online.target
 Type=notify
 # the main process is actually a child of that created by system, do allow it access
 # to send back the sd_notify message for readiness
-NotifyAccess=exec
+# TODO: why doesn't exec work?
+NotifyAccess=all
 RuntimeDirectory=elasticsearch
 PrivateTmp=true
 Environment=ES_HOME=/usr/share/elasticsearch

@@ -36,6 +36,7 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -90,39 +91,23 @@ class ServerCli extends EnvironmentAwareCommand {
 
         // setup security
         final SecureString keystorePassword = getKeystorePassword(env.configFile(), terminal);
-        // TODO: just for debugging!
-        logger.info("keystore password: " + keystorePassword);
-        final boolean changed;
-        try (var autoConfigTerminal = new KeystorePasswordTerminal(terminal, keystorePassword.clone())) {
-            changed = runAutoConfigTool(autoConfigTerminal, options, processInfo, env);
-        }
-        if (changed) {
-            // reload settings since auto security changed them
-            env = createEnv(options, processInfo);
-        }
+        env = autoConfigureSecurity(terminal, options, processInfo, env, keystorePassword);
 
         // start Elasticsearch
-        final Process process = createProcess(processInfo, env);
-
-        // send arguments
-        var args = createArgs(options, keystorePassword, env);
-        try (var out = new OutputStreamStreamOutput(process.getOutputStream())) {
-            args.writeTo(out);
-        } catch (IOException e) {
-            // TODO: if process dies early (we didn't get the chance to write args, pipe died)
-            // then what happens to error output? can we still read it? need to check exit code (should assert non zero?)
-            assert process.exitValue() != 0;
-            throw new UserException(process.exitValue(), null);
-        }
-        keystorePassword.close();
+        final Process process = createProcess(processInfo, env.configFile(), env.pluginsFile());
+        final ErrorPumpThread errorPump = new ErrorPumpThread(terminal, process.getErrorStream());
+        errorPump.start();
+        sendArgs(options, keystorePassword, env, process.getOutputStream());
 
         // Read from stderr until we get a signal back that ES is either ready or it had an error.
         // If we are running in the foreground, this pump will never exit.
-        AtomicReference<String> userExceptionMsg = new AtomicReference<>();
-        boolean ready = pumpStderr(terminal, process.getErrorStream(), userExceptionMsg);
+        errorPump.join();
+        if (errorPump.ioFailure != null) {
+            throw errorPump.ioFailure;
+        }
 
         // if we are daemonized and we got the all-clear signal, we can exit cleanly
-        if (ready && args.daemonize()) {
+        if (errorPump.ready && options.has(daemonizeOption)) {
             closeStreams(process);
             return;
         }
@@ -131,7 +116,7 @@ class ServerCli extends EnvironmentAwareCommand {
         // then it is a real UserException, otherwise it is just the error code and a null message.
         int code = process.waitFor();
         if (code != ExitCodes.OK) {
-            throw new UserException(code, userExceptionMsg.get());
+            throw new UserException(code, errorPump.userExceptionMsg);
         }
     }
 
@@ -164,7 +149,7 @@ class ServerCli extends EnvironmentAwareCommand {
         }
     }
 
-    private boolean runAutoConfigTool(Terminal terminal, OptionSet options, ProcessInfo processInfo, Environment env) throws Exception {
+    private Environment autoConfigureSecurity(Terminal terminal, OptionSet options, ProcessInfo processInfo, Environment env, SecureString keystorePassword) throws Exception {
         if (options.valuesOf(enrollmentTokenOption).size() > 1) {
             throw new UserException(ExitCodes.USAGE, "Multiple --enrollment-token parameters are not allowed");
         }
@@ -175,36 +160,53 @@ class ServerCli extends EnvironmentAwareCommand {
         @SuppressWarnings("raw")
         var autoConfigNode = (EnvironmentAwareCommand) cmd;
 
-        try {
-            autoConfigNode.execute(terminal, options, env, processInfo);
+        boolean changed = true;
+        try (var autoConfigTerminal = new KeystorePasswordTerminal(terminal, keystorePassword.clone())) {
+            autoConfigNode.execute(autoConfigTerminal, options, env, processInfo);
         } catch (UserException e) {
-            if (options.has(enrollmentTokenOption) == false) {
+            boolean okCode = switch (e.exitCode) {
                 // these exit codes cover the cases where auto-conf cannot run but the node should NOT be prevented from starting as usual
                 // eg the node is restarted, is already configured in an incompatible way, or the file system permissions do not allow it
-                switch (e.exitCode) {
-                    case ExitCodes.CANT_CREATE, ExitCodes.CONFIG, ExitCodes.NOOP:
-                        // we still want to print the error, just don't fail startup
-                        terminal.errorPrintln(e.getMessage());
-                        return false;
-                }
+                case ExitCodes.CANT_CREATE, ExitCodes.CONFIG, ExitCodes.NOOP -> true;
+                default -> false;
+            };
+            if (options.has(enrollmentTokenOption) == false && okCode) {
+                // we still want to print the error, just don't fail startup
+                terminal.errorPrintln(e.getMessage());
+                changed = false;
+            } else {
+                throw e;
             }
-            throw e;
         }
-        return true;
+        if (changed) {
+            // reload settings since auto security changed them
+            env = createEnv(options, processInfo);
+        }
+        return env;
+
+
     }
 
-    private ServerArgs createArgs(OptionSet options, SecureString keystorePassword, Environment env) {
+    private void sendArgs(OptionSet options, SecureString keystorePassword, Environment env, OutputStream processStdin) {
         final boolean daemonize = options.has(daemonizeOption);
         final boolean quiet = options.has(quietOption);
         final Path pidFile = pidfileOption.value(options);
+        final var args = new ServerArgs(daemonize, quiet, pidFile, keystorePassword, env.settings(), env.configFile());
 
-        return new ServerArgs(daemonize, quiet, pidFile, keystorePassword, env.settings(), env.configFile());
+        try (var out = new OutputStreamStreamOutput(processStdin)) {
+            args.writeTo(out);
+        } catch (IOException ignore) {
+            // A failure to write here means the process has problems, and it will die anyways. We let this fall through
+            // so the pump thread can complete, writing out the actual error. All we get here is the failure to write to
+            // the process pipe, which isn't helpful to print.
+        }
+        keystorePassword.close();
     }
 
-    private Process createProcess(ProcessInfo processInfo, Environment env) throws Exception {
+    private Process createProcess(ProcessInfo processInfo, Path configDir, Path pluginsDir) throws Exception {
         Map<String, String> envVars = new HashMap<>(processInfo.envVars());
         Path tempDir = TempDirectory.setup(envVars);
-        List<String> jvmOptions = getJvmOptions(env.configFile(), env.pluginsFile(), tempDir, envVars.get("ES_JAVA_OPTS"));
+        List<String> jvmOptions = getJvmOptions(configDir, pluginsDir, tempDir, envVars.get("ES_JAVA_OPTS"));
         // jvmOptions.add("-Des.path.conf=" + env.configFile());
         jvmOptions.add("-Des.distribution.type=" + processInfo.sysprops().get("es.distribution.type"));
 
@@ -246,6 +248,41 @@ class ServerCli extends EnvironmentAwareCommand {
             }
         }
         return false;
+    }
+
+    static class ErrorPumpThread extends Thread {
+        private final Terminal terminal;
+        private final BufferedReader reader;
+        private volatile boolean ready = false;
+        private volatile String userExceptionMsg;
+        private volatile IOException ioFailure;
+
+        private ErrorPumpThread(Terminal terminal, InputStream err) {
+            this.terminal = terminal;
+            this.reader = new BufferedReader(new InputStreamReader(err, StandardCharsets.UTF_8));
+        }
+
+        @Override
+        public void run() {
+            try {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    if (line.isEmpty() == false && line.charAt(0) == USER_EXCEPTION_MARKER) {
+                        userExceptionMsg = line.substring(1);
+                    } else if (line.isEmpty() == false && line.charAt(0) == SERVER_READY_MARKER) {
+                        // The server closes stderr right after this message, but for some unknown reason
+                        // the pipe closing does not close this end of the pipe, so we must explicitly
+                        // break out of this loop, or we will block forever on the next read.
+                        ready = true;
+                        return;
+                    } else {
+                        terminal.getErrorWriter().println(line);
+                    }
+                }
+            } catch (IOException e) {
+                ioFailure = e;
+            }
+        }
     }
 
     // protected to allow tests to override

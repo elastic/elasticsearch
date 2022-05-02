@@ -23,3 +23,7 @@ deprecation:
     Directory](https://www.elastic.co/guide/en/elasticsearch/reference/current/active-directory-realm.html#ad-realm-configuration).
     Configuring a bind DN without a password generates a warning in the
     deprecation logs.
+
+    *Note:* This deprecation only applies if your current LDAP or AD
+    configuration specifies a bind DN without a password. This scenario is
+    unlikely, but might impact a small subset of users.

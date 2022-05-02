@@ -106,6 +106,11 @@ class ServerCli extends EnvironmentAwareCommand {
         var args = createArgs(options, keystorePassword, env);
         try (var out = new OutputStreamStreamOutput(process.getOutputStream())) {
             args.writeTo(out);
+        } catch (IOException e) {
+            // TODO: if process dies early (we didn't get the chance to write args, pipe died)
+            // then what happens to error output? can we still read it? need to check exit code (should assert non zero?)
+            assert process.exitValue() != 0;
+            throw new UserException(process.exitValue(), null);
         }
         keystorePassword.close();
 
@@ -176,6 +181,8 @@ class ServerCli extends EnvironmentAwareCommand {
                 // eg the node is restarted, is already configured in an incompatible way, or the file system permissions do not allow it
                 switch (e.exitCode) {
                     case ExitCodes.CANT_CREATE, ExitCodes.CONFIG, ExitCodes.NOOP:
+                        // we still want to print the error, just don't fail startup
+                        terminal.errorPrintln(e.getMessage());
                         return false;
                 }
             }

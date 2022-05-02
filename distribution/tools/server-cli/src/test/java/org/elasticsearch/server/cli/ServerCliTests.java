@@ -17,6 +17,7 @@ import org.elasticsearch.cli.CommandTestCase;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.ProcessInfo;
 import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -196,19 +197,65 @@ public class ServerCliTests extends CommandTestCase {
         );
     }
 
+    public void testAutoConfigEnrollment() throws Exception {
+        autoConfigCallback = (t, options, env, processInfo) -> {
+            assertThat(options.valueOf("enrollment-token"), equalTo("mydummytoken"));
+        };
+        assertOk("--enrollment-token", "mydummytoken");
+    }
+
+    public void testAutoConfig() throws Exception {
+        autoConfigCallback = (t, options, env, processInfo) -> {
+            t.println("message from auto config");
+        };
+        assertOkWithOutput(containsString("message from auto config"));
+    }
+
+    public void testAutoConfigErrorPropagated() throws Exception {
+        autoConfigCallback = (t, options, env, processInfo) -> {
+            throw new UserException(ExitCodes.IO_ERROR, "error from auto config");
+        };
+        var e = expectThrows(UserException.class, () -> execute());
+        assertThat(e.exitCode, equalTo(ExitCodes.IO_ERROR));
+        assertThat(e.getMessage(), equalTo("error from auto config"));
+    }
+
+    public void assertAutoConfigOkError(int exitCode) throws Exception {
+        autoConfigCallback = (t, options, env, processInfo) -> {
+            throw new UserException(exitCode, "ok error from auto config");
+        };
+        int mainExitCode = executeMain();
+        assertThat(mainExitCode, equalTo(ExitCodes.OK));
+        assertThat(terminal.getErrorOutput(), containsString("ok error from auto config"));
+    }
+
+    public void testAutoConfigOkErrors() throws Exception {
+        assertAutoConfigOkError(ExitCodes.CANT_CREATE);
+        assertAutoConfigOkError(ExitCodes.CONFIG);
+        assertAutoConfigOkError(ExitCodes.NOOP);
+    }
+
     interface MainMethod {
         void main(ServerArgs args, OutputStream stdout, OutputStream stderr, AtomicInteger exitCode);
+    }
+
+    interface AutoConfigMethod {
+        void autoconfig(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws UserException;
     }
 
     MainMethod mainCallback;
     final MainMethod FAIL_MAIN = (args, stdout, stderr, exitCode) -> fail("Did not expect to run init");
 
+    AutoConfigMethod autoConfigCallback;
+    private final MockAutoConfigCli AUTO_CONFIG_CLI = new MockAutoConfigCli();
+
     @Before
     public void resetCommand() {
         mainCallback = null;
+        autoConfigCallback = null;
     }
 
-    private static class MockAutoConfigCli extends EnvironmentAwareCommand {
+    private class MockAutoConfigCli extends EnvironmentAwareCommand {
         MockAutoConfigCli() {
             super("mock auto config tool");
         }
@@ -221,7 +268,9 @@ public class ServerCliTests extends CommandTestCase {
         @Override
         public void execute(Terminal terminal, OptionSet options, Environment env, ProcessInfo processInfo) throws Exception {
             // TODO: fake errors, check password from terminal, allow tests to make elasticsearch.yml change
-
+            if (autoConfigCallback != null) {
+                autoConfigCallback.autoconfig(terminal, options, env, processInfo);
+            }
         }
     }
 
@@ -276,12 +325,13 @@ public class ServerCliTests extends CommandTestCase {
         private final Thread thread = new Thread(() -> {
             try (var in = new InputStreamStreamInput(stdin)) {
                 final ServerArgs serverArgs = new ServerArgs(in);
+
                 mainCallback.main(serverArgs, stdout, stderr, exitCode);
             } catch (IOException e) {
                 argsParsingException.set(e);
             }
             IOUtils.closeWhileHandlingException(stdin, stdout, stderr);
-        }, "dummy elasticsearch");
+        }, "mock Elasticsearch process");
 
         MockElasticsearchProcess() throws IOException {
             stdin.connect(processStdin);
@@ -340,12 +390,17 @@ public class ServerCliTests extends CommandTestCase {
             @Override
             protected Process startProcess(ProcessBuilder processBuilder) throws IOException {
                 // TODO: validate processbuilder stuff
+                if (mainCallback == null) {
+                    return new NoopProcess();
+                }
                 return new MockElasticsearchProcess();
             }
 
             @Override
             protected Command loadTool(String toolname, String libs) {
-                return new MockAutoConfigCli();
+                assertThat(toolname, equalTo("auto-configure-node"));
+                assertThat(libs, equalTo("modules/x-pack-core,modules/x-pack-security,lib/tools/security-cli"));
+                return AUTO_CONFIG_CLI;
             }
 
             @Override

@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.security.action.service.TokenInfo;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.AuthenticationType;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationResult;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.support.ValidationTests;
@@ -327,11 +328,10 @@ public class SetSecurityUserProcessorTests extends ESTestCase {
             );
         }
 
-        Authentication auth = AuthenticationTestHelper.builder()
-            .apiKey()
-            .user(new User(randomAlphaOfLengthBetween(4, 12)))
-            .metadata(authMetadata)
-            .build();
+        Authentication auth = Authentication.newApiKeyAuthentication(
+            AuthenticationResult.success(new User(randomAlphaOfLengthBetween(4, 12)), authMetadata),
+            randomAlphaOfLengthBetween(3, 8)
+        );
         auth.writeToContext(threadContext);
 
         IngestDocument ingestDocument = new IngestDocument(new HashMap<>(), new HashMap<>());

@@ -207,6 +207,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         final SystemIndices systemIndices,
         Set<IndexSettingProvider> indexSettingProviders
     ) throws Exception {
+        var metadata = simulatedState.getMetadata();
         Settings templateSettings = resolveSettings(simulatedState.metadata(), matchingTemplate);
 
         List<Map<String, AliasMetadata>> resolvedAliases = MetadataIndexTemplateService.resolveAliases(
@@ -229,7 +230,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             Settings result = provider.getAdditionalIndexSettings(
                 indexName,
                 template.getDataStreamTemplate() != null ? indexName : null,
-                template.getDataStreamTemplate() != null ? template.getDataStreamTemplate().getIndexMode() : null,
+                template.getDataStreamTemplate() != null && metadata.isTimeSeriesTemplate(template),
                 simulatedState.getMetadata(),
                 now,
                 templateSettings

@@ -13,6 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
 
+import java.io.ByteArrayInputStream;
 import java.lang.module.InvalidModuleDescriptorException;
 import java.lang.module.ModuleDescriptor.Version;
 import java.nio.file.FileSystem;
@@ -24,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.jar.Manifest;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.test.hamcrest.ModuleDescriptorMatchers.exportsOf;
@@ -137,14 +139,60 @@ public class EmbeddedModulePathTests extends ESTestCase {
         }
     }
 
-    public void testServicesBasic() throws Exception {
+    public void testExplodedPackages() throws Exception {
         Path topLevelDir = createTempDir();
-        Map<String, byte[]> entries = Map.of("/META-INF/services/a.b.c.Foo", """
+        Path jarPath = JarUtils.createJar(
+            topLevelDir,
+            "impl.jar",
+            null,
+            "META-INF/MANIFEST.MF",
+            "module-info.class",
+            "a/b/c/Foo.class",
+            "d/e/f/Bar.class",
+            "g/h/i/Baz.class",
+            "g/h/i/res1.txt",
+            "x/y/z/res2.txt",
+            "res3.txt"
+        );
+        try (FileSystem zipFileSystem = FileSystems.newFileSystem(jarPath, Map.of(), EmbeddedModulePathTests.class.getClassLoader())) {
+            Path jarRoot = zipFileSystem.getPath("/");
+            Set<String> pkgs = EmbeddedModulePath.explodedPackages(jarRoot);
+            assertThat(pkgs, containsInAnyOrder("a.b.c", "d.e.f", "g.h.i", "x.y.z"));
+        }
+    }
+
+    public void testExplodedPackagesMultiRelease() throws Exception {
+        Path topLevelDir = createTempDir();
+        Manifest manifest = new Manifest(new ByteArrayInputStream("Multi-Release: true\n".getBytes(UTF_8)));
+        Path jarPath = JarUtils.createJar(
+            topLevelDir,
+            "impl.jar",
+            manifest,
+            "META-INF/versions/9/module-info.class",
+            "META-INF/versions/11/a/b/c/Foo.class",
+            "META-INF/versions/12/d/e/f/Bar.class",
+            "META-INF/versions/17/g/h/i/Baz.class",
+            "g/h/i/res1.txt",
+            "/x/y/z/res2.txt",
+            "res3.txt"
+        );
+        try (FileSystem zipFileSystem = FileSystems.newFileSystem(jarPath, Map.of(), EmbeddedModulePathTests.class.getClassLoader())) {
+            Path jarRoot = zipFileSystem.getPath("/");
+            Set<String> pkgs = EmbeddedModulePath.explodedPackages(jarRoot);
+            assertThat(pkgs, containsInAnyOrder("a.b.c", "d.e.f", "g.h.i", "x.y.z"));
+        }
+    }
+
+    public void testServicesBasic() throws Exception {
+        Map<String, String> jarEntries = new HashMap<>();
+        jarEntries.put("/META-INF/services/a.b.c.Foo", """
             # service implementation of Foo
             d.e.f.FooImpl
-            """.getBytes(UTF_8));
+            """);
+
+        Path topLevelDir = createTempDir();
         Path outerJar = topLevelDir.resolve("impl.jar");
-        JarUtils.createJarWithEntries(topLevelDir.resolve("impl.jar"), entries);
+        JarUtils.createJarWithEntriesUTF(topLevelDir.resolve("impl.jar"), jarEntries);
 
         try (FileSystem zipFileSystem = FileSystems.newFileSystem(outerJar, Map.of(), EmbeddedModulePathTests.class.getClassLoader())) {
             Path jarRoot = zipFileSystem.getPath("/");
@@ -209,6 +257,7 @@ public class EmbeddedModulePathTests extends ESTestCase {
 
         assertThat(EmbeddedModulePath.isPackageName("a.b.1.c"), is(false));
         assertThat(EmbeddedModulePath.isPackageName("a.b. .c"), is(false));
+        assertThat(EmbeddedModulePath.isPackageName("a-b.c"), is(false));
     }
 
     public void testModuleNameFromManifestOrNull() throws Exception {

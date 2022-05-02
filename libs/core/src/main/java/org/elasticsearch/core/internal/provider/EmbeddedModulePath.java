@@ -45,12 +45,6 @@ final class EmbeddedModulePath {
     private static final int BASE_VERSION_FEATURE = 8; // lowest supported release version
     private static final int RUNTIME_VERSION_FEATURE = Runtime.version().feature();
 
-    static {
-        assert RUNTIME_VERSION_FEATURE >= BASE_VERSION_FEATURE;
-    }
-
-    private static final String MRJAR_VERSION_PREFIX = "META-INF/versions/";
-
     static boolean hasRootModuleInfo(Path path) {
         Path mi = path.resolve(MODULE_INFO);
         if (Files.exists(mi)) {
@@ -59,11 +53,23 @@ final class EmbeddedModulePath {
         return false;
     }
 
+    static final String MRJAR_PREFIX_PATH = "META-INF/versions";
+
+    static Path maybeRemoveMRJARPrefix(Path path) {
+        if (path.startsWith(MRJAR_PREFIX_PATH)) {
+            assert path.getNameCount() >= 3;
+            Path p =  path.subpath(3, path.getNameCount());
+            return p;
+        }
+        return path;
+    }
+
     static Set<String> explodedPackages(Path dir) {
         String separator = dir.getFileSystem().getSeparator();
         try {
             var fs = Files.find(dir, Integer.MAX_VALUE, ((path, attrs) -> attrs.isRegularFile()))
                 .map(path -> dir.relativize(path))
+                .map(EmbeddedModulePath::maybeRemoveMRJARPrefix)
                 .map(path -> toPackageName(path, separator))
                 .flatMap(Optional::stream)
                 .collect(Collectors.toSet());
@@ -99,13 +105,9 @@ final class EmbeddedModulePath {
     static ModuleDescriptor descriptorFor(Path path) {
         Optional<ModuleDescriptor> vmd = getModuleInfoVersioned(path);
         if (vmd.isPresent()) {
-            var md = vmd.get();
-            // todo: perform scan and verification
-            return md;
+            return vmd.get();
         } else if (hasRootModuleInfo(path)) {
-            var md = readModuleInfo(path.resolve(MODULE_INFO), path);
-            // todo: perform scan and verification
-            return md;
+            return readModuleInfo(path.resolve(MODULE_INFO), path);
         } else {
             return descriptorForAutomatic(path);
         }
@@ -137,7 +139,7 @@ final class EmbeddedModulePath {
         // scan the names of the entries in the exploded JAR
         var scan = scan(path);
 
-        // all packages are exported and open, since the auto-module bit has been set
+        // all packages are exported and open, since the auto-module bit is set
         builder.packages(
             scan.classFiles().stream().map(EmbeddedModulePath::toPackageName).flatMap(Optional::stream).collect(Collectors.toSet())
         );

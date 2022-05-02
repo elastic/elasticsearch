@@ -127,7 +127,7 @@ public class MLModelDeploymentFullClusterRestartIT extends AbstractFullClusterRe
 
     private void assertNewInfer(String modelId) throws IOException {
         Response inference = newInfer("my words", modelId);
-        assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"predicted_value\":[[1.0,1.0]]}"));
+        assertThat(EntityUtils.toString(inference.getEntity()), equalTo("{\"inference_results\":[{\"predicted_value\":[[1.0,1.0]]}]}"));
     }
 
     private void putModelDefinition(String modelId) throws IOException {

@@ -35,7 +35,7 @@ import static org.hamcrest.CoreMatchers.nullValue;
 
 public class DiffableTests extends ESTestCase {
 
-    public void testJKDMapDiff() throws IOException {
+    public void testJdkMapDiff() throws IOException {
         new JdkMapDriver<TestDiffable>() {
             @Override
             protected boolean diffableValues() {

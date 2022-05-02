@@ -54,6 +54,7 @@ class Elasticsearch {
         LogConfigurator.registerErrorListener();
 
         final Elasticsearch elasticsearch = new Elasticsearch();
+        PrintStream out = getStdout();
         PrintStream err = getStderr();
         int exitCode = 0;
         try {
@@ -70,10 +71,12 @@ class Elasticsearch {
             exitCode = ExitCodes.CONFIG;
             err.print(USER_EXCEPTION_MARKER);
             err.println(e.getMessage());
+            out.println(e.getMessage());
         } catch (UserException e) {
             exitCode = e.exitCode;
             err.print(USER_EXCEPTION_MARKER);
             err.println(e.getMessage());
+            out.println(e.getMessage());
         } catch (Exception e) {
             exitCode = 1; // mimic JDK exit code on exception
             if (System.getProperty("es.logs.base_path") != null) {
@@ -83,10 +86,13 @@ class Elasticsearch {
                 logger.error("fatal exception while booting Elasticsearch", e);
             }
             e.printStackTrace(err);
+            e.printStackTrace(out);
         }
         if (exitCode != ExitCodes.OK) {
+            out.println("EXITING with non-zero status: " + exitCode);
             printLogsSuggestion(err);
             err.flush();
+            out.flush();
             exit(exitCode);
         }
     }
@@ -94,6 +100,12 @@ class Elasticsearch {
     @SuppressForbidden(reason = "grab stderr for communication with server-cli")
     private static PrintStream getStderr() {
         return System.err;
+    }
+
+    // TODO: remove this, just for debugging
+    @SuppressForbidden(reason = "grab stdout for communication with server-cli")
+    private static PrintStream getStdout() {
+        return System.out;
     }
 
     @SuppressForbidden(reason = "main exit path")

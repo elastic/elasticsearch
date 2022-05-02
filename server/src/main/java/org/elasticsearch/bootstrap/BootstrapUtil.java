@@ -27,6 +27,7 @@ public class BootstrapUtil {
     // no construction
     private BootstrapUtil() {}
 
+    // TODO: remove this method
     /**
      * Read from an InputStream up to the first carriage return or newline,
      * returning no more than maxLength characters.

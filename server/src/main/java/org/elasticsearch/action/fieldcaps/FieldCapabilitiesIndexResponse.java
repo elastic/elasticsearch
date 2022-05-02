@@ -46,8 +46,6 @@ final class FieldCapabilitiesIndexResponse implements Writeable {
     }
 
     FieldCapabilitiesIndexResponse(FieldCapabilitiesIndexResponse resp, String indexName, String indexMappingHash) {
-        assert resp.indexMappingHash == null || Objects.equals(resp.indexMappingHash, indexMappingHash)
-            : "different index mapping hashes " + resp.indexMappingHash + " != " + indexMappingHash;
         this.indexName = indexName;
         this.indexMappingHash = indexMappingHash;
         this.responseMap = resp.responseMap;

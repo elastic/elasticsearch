@@ -38,14 +38,14 @@ public class ResetPasswordToolIT extends AbstractPasswordToolTestCase {
         final String password;
         if (randomBoolean()) {
             possiblyDecryptKeystore(mockTerminal);
-            status = resetPasswordTool.main(new String[] { "-a", "-b", "-u", user }, mockTerminal);
+            status = resetPasswordTool.main(new String[] { "-a", "-b", "-u", user }, mockTerminal, getToolProcessInfo());
             password = readPasswordFromOutput(mockTerminal.getOutput());
         } else {
             password = randomAlphaOfLengthBetween(14, 20);
             possiblyDecryptKeystore(mockTerminal);
             mockTerminal.addSecretInput(password);
             mockTerminal.addSecretInput(password);
-            status = resetPasswordTool.main(new String[] { "-i", "-b", "-u", user }, mockTerminal);
+            status = resetPasswordTool.main(new String[] { "-i", "-b", "-u", user }, mockTerminal, getToolProcessInfo());
         }
         logger.info("CLI TOOL OUTPUT:\n{}", mockTerminal.getOutput());
         assertEquals(0, status);
@@ -108,14 +108,14 @@ public class ResetPasswordToolIT extends AbstractPasswordToolTestCase {
         final String password;
         if (randomBoolean()) {
             possiblyDecryptKeystore(mockTerminal);
-            status = resetPasswordTool.main(new String[] { "-a", "-b", "-u", nativeUser }, mockTerminal);
+            status = resetPasswordTool.main(new String[] { "-a", "-b", "-u", nativeUser }, mockTerminal, getToolProcessInfo());
             password = readPasswordFromOutput(mockTerminal.getOutput());
         } else {
             password = randomAlphaOfLengthBetween(14, 20);
             possiblyDecryptKeystore(mockTerminal);
             mockTerminal.addSecretInput(password);
             mockTerminal.addSecretInput(password);
-            status = resetPasswordTool.main(new String[] { "-i", "-b", "-u", nativeUser }, mockTerminal);
+            status = resetPasswordTool.main(new String[] { "-i", "-b", "-u", nativeUser }, mockTerminal, getToolProcessInfo());
         }
         logger.info("CLI TOOL OUTPUT:\n{}", mockTerminal.getOutput());
         assertEquals(0, status);

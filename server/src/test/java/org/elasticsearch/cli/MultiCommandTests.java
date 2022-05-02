@@ -61,7 +61,7 @@ public class MultiCommandTests extends CommandTestCase {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options) throws Exception {
+        protected void execute(Terminal terminal, OptionSet options, ProcessInfo processInfo) throws Exception {
             terminal.println("Arguments: " + options.nonOptionArguments().toString());
         }
 
@@ -85,10 +85,10 @@ public class MultiCommandTests extends CommandTestCase {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options) throws Exception {
+        protected void execute(Terminal terminal, OptionSet options, ProcessInfo processInfo) throws Exception {
             final List<KeyValuePair> values = this.settingOption.values(options);
             terminal.println("Settings: " + values);
-            super.execute(terminal, options);
+            super.execute(terminal, options, processInfo);
         }
     }
 
@@ -207,7 +207,7 @@ public class MultiCommandTests extends CommandTestCase {
         }
 
         @Override
-        protected void execute(Terminal terminal, OptionSet options) throws Exception {
+        protected void execute(Terminal terminal, OptionSet options, ProcessInfo processInfo) throws Exception {
             throw new UserException(1, "Dummy error");
         }
 
@@ -227,7 +227,7 @@ public class MultiCommandTests extends CommandTestCase {
     public void testNullErrorMessageSuppressesErrorOutput() throws Exception {
         multiCommand.subcommands.put("throw", new ErrorThrowingSubCommand() {
             @Override
-            protected void execute(Terminal terminal, OptionSet options) throws Exception {
+            protected void execute(Terminal terminal, OptionSet options, ProcessInfo processInfo) throws Exception {
                 throw new UserException(1, null);
             }
         });

@@ -6,6 +6,8 @@ After=network-online.target
 
 [Service]
 Type=notify
+# the main process is actually a child of that created by system, do allow it access
+# to send back the sd_notify message for readiness
 NotifyAccess=exec
 RuntimeDirectory=elasticsearch
 PrivateTmp=true

@@ -61,14 +61,11 @@ public interface ActionListener<Response> {
     }
 
     /**
-     * Creates a listener that wraps this listener, mapping response values via the given mapping function and passing along
-     * exceptions to this instance.
+     * Creates a new listener that delegates responses to the current one applying the {@code fn} function. Failures are delegated as is.
+     * Exceptions thrown from {@code fn} will be delegated to current listener {@code onFailure}. Consider using {@code delegateFailure}
+     * if it is required to convert certain responses into failures.
      *
-     * Notice that it is considered a bug if the listener's onResponse or onFailure fails. onResponse failures will not call onFailure.
-     *
-     * If the function fails, the listener's onFailure handler will be called. The principle is that the mapped listener will handle
-     * exceptions from the mapping function {@code fn} but it is the responsibility of {@code delegate} to handle its own exceptions
-     * inside `onResponse` and `onFailure`.
+     * Exceptions thrown from the current listener {@code onResponse} or {@code onFailure} are not handled and will be re-thrown.
      *
      * @param fn Function to apply to listener response
      * @param <T> Response type of the wrapped listener
@@ -178,7 +175,9 @@ public interface ActionListener<Response> {
     }
 
     /**
-     * Creates a listener that delegates all responses it receives to this instance.
+     * Creates a new listener that delegates exceptions it receives to the current listener using custom code from {@code bc}.
+     * This approach allows to change failure type, skip the delegate call or convert a failure to a regular response.
+     * All the regular responses are passed as is to the current listener.
      *
      * @param bc BiConsumer invoked with delegate listener and exception
      * @return Delegating listener
@@ -188,7 +187,9 @@ public interface ActionListener<Response> {
     }
 
     /**
-     * Creates a listener that delegates all exceptions it receives to another listener.
+     * Creates a new listener that delegates exceptions it receives to the current listener using custom code from {@code bc}.
+     * This approach allows to change response type, skip the delegate call or convert a regular response into a failure.
+     * All the regular responses are passed as is to the current listener.
      *
      * @param bc BiConsumer invoked with delegate listener and response
      * @param <T> Type of the delegating listener's response

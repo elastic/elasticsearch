@@ -13,7 +13,7 @@ See also <<release-highlights>> and <<es-release-notes>>.
 [[breaking-changes-8.2]]
 === Breaking changes
 
-There are no breaking changes for 6.8.0
+There are no breaking changes for 8.2.0
 
 See also <<release-highlights>> and <<es-release-notes>>.
 

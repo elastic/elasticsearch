@@ -203,11 +203,11 @@ public class LicenseServiceTests extends ESTestCase {
             verify(clusterService).submitStateUpdateTask(any(), taskCaptor.capture(), any(), taskExecutorCaptor.capture());
             when(taskContext.getTask()).thenReturn(taskCaptor.getValue());
 
-            License oldLicense = sign(buildLicense(License.LicenseType.BASIC, TimeValue.timeValueDays(randomIntBetween(1, 100))));
-            // Future proofing sanity check that the license we generated has different parameters than defaults (currently guaranteed)
-            assert oldLicense.expiryDate() != LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS
-                || oldLicense.maxNodes() != LicenseService.SELF_GENERATED_LICENSE_MAX_NODES
-                : "license must have different expiryDate or maxNodes than defaults";
+            int maxNodes = randomValueOtherThan(
+                LicenseService.SELF_GENERATED_LICENSE_MAX_NODES,
+                () -> randomIntBetween(1, LicenseService.SELF_GENERATED_LICENSE_MAX_NODES)
+            );
+            License oldLicense = sign(buildLicense(License.LicenseType.BASIC, TimeValue.timeValueDays(randomIntBetween(1, 100)), maxNodes));
             ClusterState oldState = ClusterState.EMPTY_STATE.copyAndUpdateMetadata(
                 m -> m.putCustom(LicensesMetadata.TYPE, new LicensesMetadata(oldLicense, null))
             );
@@ -317,11 +317,21 @@ public class LicenseServiceTests extends ESTestCase {
         return signer.sign(license);
     }
 
+    private License buildLicense(License.LicenseType type, TimeValue expires, int maxNodes) {
+        return buildLicense(new UUID(randomLong(), randomLong()), type, expires.millis());
+    }
+
     private License buildLicense(License.LicenseType type, TimeValue expires) {
         return buildLicense(new UUID(randomLong(), randomLong()), type, expires.millis());
     }
 
     private License buildLicense(UUID licenseId, License.LicenseType type, long expires) {
+        int maxNodes = type == License.LicenseType.ENTERPRISE ? -1 : randomIntBetween(1, 500);
+        return buildLicense(licenseId, type, expires, maxNodes);
+    }
+
+    private License buildLicense(UUID licenseId, License.LicenseType type, long expires, int maxNodes) {
+        assert (type == License.LicenseType.ENTERPRISE && maxNodes != -1) == false : "enterprise license must have unlimited nodes";
         return License.builder()
             .uid(licenseId.toString())
             .type(type)
@@ -329,7 +339,7 @@ public class LicenseServiceTests extends ESTestCase {
             .issuer(randomAlphaOfLengthBetween(5, 60))
             .issuedTo(randomAlphaOfLengthBetween(5, 60))
             .issueDate(System.currentTimeMillis() - TimeUnit.MINUTES.toMillis(randomLongBetween(1, 5000)))
-            .maxNodes(type == License.LicenseType.ENTERPRISE ? -1 : randomIntBetween(1, 500))
+            .maxNodes(maxNodes)
             .maxResourceUnits(type == License.LicenseType.ENTERPRISE ? randomIntBetween(10, 500) : -1)
             .signature(null)
             .build();

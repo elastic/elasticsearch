@@ -432,7 +432,11 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 throw new ElasticsearchParseException("Field [{}] is not supported in a has_privileges request", Fields.QUERY);
             }
         }
-        return new PrivilegesToCheck(clusterPrivileges, indexPrivileges, applicationPrivileges);
+        return new PrivilegesToCheck(
+            clusterPrivileges != null ? clusterPrivileges : Strings.EMPTY_ARRAY,
+            indexPrivileges != null ? indexPrivileges : IndicesPrivileges.NONE,
+            applicationPrivileges != null ? applicationPrivileges : ApplicationResourcePrivileges.NONE
+        );
     }
 
     public static PrivilegesToCheck parsePrivilegesToCheck(String description, BytesReference source, XContentType xContentType)

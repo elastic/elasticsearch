@@ -10,13 +10,11 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
-import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 
 import java.io.IOException;
-
-import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * A request for checking a user's privileges
@@ -44,7 +42,7 @@ public class HasPrivilegesRequest extends ActionRequest implements UserRequest {
 
     @Override
     public ActionRequestValidationException validate() {
-        return validatePrivilegesToCheck(null, clusterPrivileges, indexPrivileges, applicationPrivileges);
+        return new AuthorizationEngine.PrivilegesToCheck(clusterPrivileges, indexPrivileges, applicationPrivileges).validate(null);
     }
 
     /**
@@ -100,39 +98,5 @@ public class HasPrivilegesRequest extends ActionRequest implements UserRequest {
             priv.writeTo(out);
         }
         out.writeArray(ApplicationResourcePrivileges::write, applicationPrivileges);
-    }
-
-    public static ActionRequestValidationException validatePrivilegesToCheck(
-        ActionRequestValidationException validationException,
-        String[] clusterPrivileges,
-        IndicesPrivileges[] indexPrivileges,
-        ApplicationResourcePrivileges[] applicationPrivileges
-    ) {
-        if (clusterPrivileges == null) {
-            validationException = addValidationError("clusterPrivileges must not be null", validationException);
-        }
-        if (indexPrivileges == null) {
-            validationException = addValidationError("indexPrivileges must not be null", validationException);
-        }
-        if (applicationPrivileges == null) {
-            validationException = addValidationError("applicationPrivileges must not be null", validationException);
-        } else {
-            for (ApplicationResourcePrivileges applicationPrivilege : applicationPrivileges) {
-                try {
-                    ApplicationPrivilege.validateApplicationName(applicationPrivilege.getApplication());
-                } catch (IllegalArgumentException e) {
-                    validationException = addValidationError(e.getMessage(), validationException);
-                }
-            }
-        }
-        if (clusterPrivileges != null
-            && clusterPrivileges.length == 0
-            && indexPrivileges != null
-            && indexPrivileges.length == 0
-            && applicationPrivileges != null
-            && applicationPrivileges.length == 0) {
-            validationException = addValidationError("must specify at least one privilege", validationException);
-        }
-        return validationException;
     }
 }

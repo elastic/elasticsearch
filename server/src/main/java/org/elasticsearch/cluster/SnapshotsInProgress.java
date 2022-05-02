@@ -801,7 +801,10 @@ public class SnapshotsInProgress extends AbstractNamedDiffable<Custom> implement
                 indices = Collections.unmodifiableMap(idx);
             }
             final long startTime = in.readLong();
-            final ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards = in.readImmutableOpenMap(ShardId::new, ShardSnapshotStatus::readFrom);
+            final ImmutableOpenMap<ShardId, ShardSnapshotStatus> shards = in.readImmutableOpenMap(
+                ShardId::new,
+                ShardSnapshotStatus::readFrom
+            );
             final long repositoryStateId = in.readLong();
             final String failure = in.readOptionalString();
             final Map<String, Object> userMetadata = in.readMap();

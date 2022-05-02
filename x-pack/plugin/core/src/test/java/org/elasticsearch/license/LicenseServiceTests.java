@@ -187,24 +187,22 @@ public class LicenseServiceTests extends ESTestCase {
             // If validation failed, the future might be done without calling the updater task.
             assertion.accept(future);
         } else {
-            final var task = ArgumentCaptor.forClass(StartBasicClusterTask.class);
-            final var taskExecutor = ArgumentCaptor.forClass(StartBasicClusterTask.Executor.class);
+            final var taskCaptor = ArgumentCaptor.forClass(StartBasicClusterTask.class);
+            final var taskExecutorCaptor = ArgumentCaptor.forClass(StartBasicClusterTask.Executor.class);
             @SuppressWarnings("unchecked")
-            final ArgumentCaptor<ActionListener<ClusterState>> listener = ArgumentCaptor.forClass(ActionListener.class);
-            doNothing().when(taskContext).success(listener.capture());
-            verify(clusterService).submitStateUpdateTask(any(), task.capture(), any(), taskExecutor.capture());
-            when(taskContext.getTask()).thenReturn(task.getValue());
+            final ArgumentCaptor<ActionListener<ClusterState>> listenerCaptor = ArgumentCaptor.forClass(ActionListener.class);
+            doNothing().when(taskContext).success(listenerCaptor.capture());
+            verify(clusterService).submitStateUpdateTask(any(), taskCaptor.capture(), any(), taskExecutorCaptor.capture());
+            when(taskContext.getTask()).thenReturn(taskCaptor.getValue());
 
             License oldLicense = sign(buildLicense(License.LicenseType.BASIC, TimeValue.timeValueDays(randomIntBetween(1, 100))));
             ClusterState oldState = ClusterState.EMPTY_STATE.copyAndUpdateMetadata(
                 m -> m.putCustom(LicensesMetadata.TYPE, new LicensesMetadata(oldLicense, null))
             );
-            ClusterState updatedState = taskExecutor.getValue().execute(oldState, List.of(taskContext));
 
-            ActionListener<ClusterState> gotListener = listener.getValue();
-            assertNotNull(gotListener);
+            ClusterState updatedState = taskExecutorCaptor.getValue().execute(oldState, List.of(taskContext));
             // Pass updated state to listener to trigger onResponse call to wrapped `future`
-            gotListener.onResponse(updatedState);
+            listenerCaptor.getValue().onResponse(updatedState);
             assertion.accept(future);
         }
     }

@@ -102,26 +102,25 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
 
     @Override
     public AutoscalingDeciderResult scale(Settings configuration, AutoscalingDeciderContext context) {
-        Set<ShardId> unassignedShardIds = StreamSupport.stream(context.state().getRoutingNodes().unassigned().spliterator(), false)
-            .map(ShardRouting::shardId)
-            .collect(Collectors.toSet());
-        Set<ShardId> assignedShardIds = context.state()
-            .getRoutingNodes()
-            .shards(ShardRouting::assignedToNode)
-            .stream()
-            .map(ShardRouting::shardId)
-            .collect(Collectors.toSet());
+        AllocationState allocationState = new AllocationState(context, diskThresholdSettings, allocationDeciders);
+        var assignedBytesUnmovableShards = allocationState.storagePreventsRemainOrMove0();
+        var unassignedBytesUnassignedShards = allocationState.storagePreventsAllocation0();
         AutoscalingCapacity autoscalingCapacity = context.currentCapacity();
         if (autoscalingCapacity == null || autoscalingCapacity.total().storage() == null) {
             return new AutoscalingDeciderResult(
                 null,
-                new ReactiveReason("current capacity not available", -1, -1, unassignedShardIds, assignedShardIds)
+                new ReactiveReason(
+                    "current capacity not available",
+                    -1,
+                    -1,
+                    unassignedBytesUnassignedShards.unassignedShards(),
+                    assignedBytesUnmovableShards.unmovableShards()
+                )
             );
         }
 
-        AllocationState allocationState = new AllocationState(context, diskThresholdSettings, allocationDeciders);
-        long unassignedBytes = allocationState.storagePreventsAllocation();
-        long assignedBytes = allocationState.storagePreventsRemainOrMove();
+        long unassignedBytes = unassignedBytesUnassignedShards.unassignedBytes();
+        long assignedBytes = assignedBytesUnmovableShards.assignedBytes();
         long maxShardSize = allocationState.maxShardSize();
         assert assignedBytes >= 0;
         assert unassignedBytes >= 0;
@@ -133,7 +132,13 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             .build();
         return new AutoscalingDeciderResult(
             requiredCapacity,
-            new ReactiveReason(message, unassignedBytes, assignedBytes, unassignedShardIds, assignedShardIds)
+            new ReactiveReason(
+                message,
+                unassignedBytes,
+                assignedBytes,
+                unassignedBytesUnassignedShards.unassignedShards(),
+                assignedBytesUnmovableShards.unmovableShards()
+            )
         );
     }
 
@@ -181,6 +186,10 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             return Optional.empty();
         }
     }
+
+    record UnassignedBytesUnassignedShards(long unassignedBytes, Collection<ShardRouting> unassignedShards) {}
+
+    record AssignedBytesUnmovableShards(long assignedBytes, Collection<ShardRouting> unmovableShards) {}
 
     // todo: move this to top level class.
     public static class AllocationState {
@@ -231,15 +240,23 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
         }
 
         public long storagePreventsAllocation() {
+            return storagePreventsAllocation0().unassignedBytes();
+        }
+
+        UnassignedBytesUnassignedShards storagePreventsAllocation0() {
             RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, info, shardSizeInfo, System.nanoTime());
-            return StreamSupport.stream(state.getRoutingNodes().unassigned().spliterator(), false)
+            List<ShardRouting> unassignedShards = StreamSupport.stream(state.getRoutingNodes().unassigned().spliterator(), false)
                 .filter(shard -> canAllocate(shard, allocation) == false)
                 .filter(shard -> cannotAllocateDueToStorage(shard, allocation))
-                .mapToLong(this::sizeOf)
-                .sum();
+                .toList();
+            return new UnassignedBytesUnassignedShards(unassignedShards.stream().mapToLong(this::sizeOf).sum(), unassignedShards);
         }
 
         public long storagePreventsRemainOrMove() {
+            return storagePreventsRemainOrMove0().assignedBytes();
+        }
+
+        AssignedBytesUnmovableShards storagePreventsRemainOrMove0() {
             RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, state, info, shardSizeInfo, System.nanoTime());
 
             List<ShardRouting> candidates = new LinkedList<>();
@@ -271,7 +288,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 .mapToLong(this::sizeOf)
                 .sum();
 
-            return unallocatableBytes + unmovableBytes;
+            return new AssignedBytesUnmovableShards(unallocatableBytes + unmovableBytes, unmovableShards);
         }
 
         /**
@@ -701,9 +718,19 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
             String reason,
             long unassigned,
             long assigned,
-            Set<ShardId> unassignedShardIds,
-            Set<ShardId> assignedShardIds
+            Collection<ShardRouting> unassignedShardIds,
+            Collection<ShardRouting> assignedShardIds
         ) {
+            this(
+                reason,
+                unassigned,
+                assigned,
+                unassignedShardIds.stream().map(ShardRouting::shardId).collect(Collectors.toSet()),
+                unassignedShardIds.stream().map(ShardRouting::shardId).collect(Collectors.toSet())
+            );
+        }
+
+        ReactiveReason(String reason, long unassigned, long assigned, Set<ShardId> unassignedShardIds, Set<ShardId> assignedShardIds) {
             this.reason = reason;
             this.unassigned = unassigned;
             this.assigned = assigned;

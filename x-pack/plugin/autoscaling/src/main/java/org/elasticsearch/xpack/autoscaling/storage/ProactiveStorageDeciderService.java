@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.autoscaling.storage;
 
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdSettings;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -17,7 +16,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingCapacity;
 import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderContext;
@@ -27,9 +25,6 @@ import org.elasticsearch.xpack.autoscaling.capacity.AutoscalingDeciderService;
 import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.StreamSupport;
 
 public class ProactiveStorageDeciderService implements AutoscalingDeciderService {
     public static final String NAME = "proactive_storage";
@@ -55,45 +50,37 @@ public class ProactiveStorageDeciderService implements AutoscalingDeciderService
 
     @Override
     public AutoscalingDeciderResult scale(Settings configuration, AutoscalingDeciderContext context) {
+        TimeValue forecastWindow = FORECAST_WINDOW.get(configuration);
+        ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
+            context,
+            diskThresholdSettings,
+            allocationDeciders
+        );
+        ReactiveStorageDeciderService.AllocationState allocationStateAfterForecast = allocationState.forecast(
+            forecastWindow.millis(),
+            System.currentTimeMillis()
+        );
+        var assignedBytesUnmovableShards = allocationStateAfterForecast.storagePreventsRemainOrMove0();
+        var unassignedBytesUnassignedShardsBeforeForecast = allocationState.storagePreventsAllocation0();
+
         AutoscalingCapacity autoscalingCapacity = context.currentCapacity();
         if (autoscalingCapacity == null || autoscalingCapacity.total().storage() == null) {
-            Set<ShardId> unassignedShardIds = StreamSupport.stream(context.state().getRoutingNodes().unassigned().spliterator(), false)
-                .map(ShardRouting::shardId)
-                .collect(Collectors.toSet());
-            Set<ShardId> assignedShardIds = context.state()
-                .getRoutingNodes()
-                .shards(ShardRouting::assignedToNode)
-                .stream()
-                .map(ShardRouting::shardId)
-                .collect(Collectors.toSet());
             return new AutoscalingDeciderResult(
                 null,
                 new ReactiveStorageDeciderService.ReactiveReason(
                     "current capacity not available",
                     -1,
                     -1,
-                    unassignedShardIds,
-                    assignedShardIds
+                    unassignedBytesUnassignedShardsBeforeForecast.unassignedShards(),
+                    assignedBytesUnmovableShards.unmovableShards()
                 )
             );
         }
 
-        ReactiveStorageDeciderService.AllocationState allocationState = new ReactiveStorageDeciderService.AllocationState(
-            context,
-            diskThresholdSettings,
-            allocationDeciders
-        );
-        long unassignedBytesBeforeForecast = allocationState.storagePreventsAllocation();
+        long unassignedBytesBeforeForecast = unassignedBytesUnassignedShardsBeforeForecast.unassignedBytes();
         assert unassignedBytesBeforeForecast >= 0;
-
-        TimeValue forecastWindow = FORECAST_WINDOW.get(configuration);
-        ReactiveStorageDeciderService.AllocationState allocationStateAfterForecast = allocationState.forecast(
-            forecastWindow.millis(),
-            System.currentTimeMillis()
-        );
-
         long unassignedBytes = allocationStateAfterForecast.storagePreventsAllocation();
-        long assignedBytes = allocationStateAfterForecast.storagePreventsRemainOrMove();
+        long assignedBytes = assignedBytesUnmovableShards.assignedBytes();
         long maxShardSize = allocationStateAfterForecast.maxShardSize();
         assert assignedBytes >= 0;
         assert unassignedBytes >= unassignedBytesBeforeForecast;

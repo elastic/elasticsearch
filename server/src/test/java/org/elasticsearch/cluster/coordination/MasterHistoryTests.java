@@ -66,7 +66,6 @@ public class MasterHistoryTests extends ESTestCase {
         masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
         assertNull(masterHistory.getMostRecentMaster());
         assertThat(masterHistory.getMostRecentNonNullMaster(), equalTo(node1MasterClusterState.nodes().getMasterNode()));
-        assertThat(masterHistory.getDistinctMastersSeen().size(), equalTo(3));
     }
 
     public void testHasMasterGoneNull() {
@@ -75,23 +74,25 @@ public class MasterHistoryTests extends ESTestCase {
         MasterHistory masterHistory = new MasterHistory(threadPool, clusterService);
         long oneHourAgo = System.currentTimeMillis() - (60 * 60 * 1000);
         masterHistory.nowSupplier = () -> oneHourAgo;
-        assertFalse(masterHistory.hasSameMasterGoneNullNTimes(3));
+        assertFalse(masterHistory.hasMasterGoneNullAtLeastNTimes(3));
         masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, nullMasterClusterState));
-        assertFalse(masterHistory.hasSameMasterGoneNullNTimes(3));
+        assertFalse(masterHistory.hasMasterGoneNullAtLeastNTimes(3));
         masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
-        assertFalse(masterHistory.hasSameMasterGoneNullNTimes(3));
+        assertFalse(masterHistory.hasMasterGoneNullAtLeastNTimes(3));
         masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
-        assertFalse(masterHistory.hasSameMasterGoneNullNTimes(3));
+        assertFalse(masterHistory.hasMasterGoneNullAtLeastNTimes(3));
+        masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node2MasterClusterState, nullMasterClusterState));
+        assertFalse(masterHistory.hasMasterGoneNullAtLeastNTimes(3));
+        masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node2MasterClusterState));
+        assertFalse(masterHistory.hasMasterGoneNullAtLeastNTimes(3));
         masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
-        assertFalse(masterHistory.hasSameMasterGoneNullNTimes(3));
+        assertFalse(masterHistory.hasMasterGoneNullAtLeastNTimes(3));
         masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
-        assertFalse(masterHistory.hasSameMasterGoneNullNTimes(3));
+        assertTrue(masterHistory.hasMasterGoneNullAtLeastNTimes(3));
         masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
-        assertFalse(masterHistory.hasSameMasterGoneNullNTimes(3));
-        masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
-        assertTrue(masterHistory.hasSameMasterGoneNullNTimes(3));
+        assertTrue(masterHistory.hasMasterGoneNullAtLeastNTimes(3));
         masterHistory.nowSupplier = System::currentTimeMillis;
-        assertFalse(masterHistory.hasSameMasterGoneNullNTimes(3));
+        assertFalse(masterHistory.hasMasterGoneNullAtLeastNTimes(3));
     }
 
     public void testTime() {
@@ -105,11 +106,30 @@ public class MasterHistoryTests extends ESTestCase {
         masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node2MasterClusterState, node1MasterClusterState));
         masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node3MasterClusterState, node2MasterClusterState));
         assertThat(masterHistory.getMostRecentMaster(), equalTo(node3MasterClusterState.nodes().getMasterNode()));
-        assertThat(masterHistory.getDistinctMastersSeen().size(), equalTo(3));
         masterHistory.nowSupplier = System::currentTimeMillis;
         assertThat(masterHistory.getMostRecentMaster(), equalTo(node3MasterClusterState.nodes().getMasterNode()));
-        assertThat(masterHistory.getDistinctMastersSeen().size(), equalTo(1));
         assertTrue(masterHistory.hasSeenMasterInLastNSeconds(5));
+    }
+
+    public void testGetNumberOfMasterChanges() {
+        var clusterService = mock(ClusterService.class);
+        ThreadPool threadPool = mock(ThreadPool.class);
+        MasterHistory masterHistory = new MasterHistory(threadPool, clusterService);
+        assertThat(masterHistory.getNumberOfMasterIdentityChanges(), equalTo(0));
+        masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
+        assertThat(masterHistory.getNumberOfMasterIdentityChanges(), equalTo(0)); // The first master doesn't count as a change
+        masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
+        assertThat(masterHistory.getNumberOfMasterIdentityChanges(), equalTo(0)); // Nulls don't count
+        masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
+        assertThat(masterHistory.getNumberOfMasterIdentityChanges(), equalTo(0)); // Still no change in the last non-null master
+        masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
+        assertThat(masterHistory.getNumberOfMasterIdentityChanges(), equalTo(0)); // Nulls don't count
+        masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node2MasterClusterState, node1MasterClusterState));
+        assertThat(masterHistory.getNumberOfMasterIdentityChanges(), equalTo(1)); // Finally a new non-null master
+        masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node2MasterClusterState));
+        assertThat(masterHistory.getNumberOfMasterIdentityChanges(), equalTo(1)); // Nulls don't count
+        masterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
+        assertThat(masterHistory.getNumberOfMasterIdentityChanges(), equalTo(2)); // Back to node1, but it's a change from node2
     }
 
     private static String randomNodeId() {

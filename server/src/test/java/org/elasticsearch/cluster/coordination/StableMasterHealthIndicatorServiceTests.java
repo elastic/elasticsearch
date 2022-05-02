@@ -106,8 +106,13 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
         result = service.calculate(true);
         assertThat(result.status(), equalTo(HealthStatus.GREEN));
 
-        // Change 4:
+        // Still node 3, so no change:
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node3MasterClusterState, nullMasterClusterState));
+        result = service.calculate(true);
+        assertThat(result.status(), equalTo(HealthStatus.GREEN));
+
+        // Change 4:
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node2MasterClusterState, node3MasterClusterState));
         result = service.calculate(true);
         assertThat(result.status(), equalTo(HealthStatus.YELLOW));
         assertThat(result.summary(), equalTo("The master has changed 4 times in the last 30 minutes"));
@@ -123,7 +128,7 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
         assertThat(ImpactArea.INGEST, equalTo(impact.impactAreas().get(0)));
         SimpleHealthIndicatorDetails details = (SimpleHealthIndicatorDetails) result.details();
         assertThat(2, equalTo(details.details().size()));
-        assertThat(9, equalTo(((Collection<DiscoveryNode>) details.details().get("recent_masters")).size()));
+        assertThat(10, equalTo(((Collection<DiscoveryNode>) details.details().get("recent_masters")).size()));
     }
 
     public void testMasterGoesNull() throws Exception {
@@ -156,24 +161,9 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
         result = service.calculate(true);
         assertThat(result.status(), equalTo(HealthStatus.GREEN));
         assertThat(result.summary(), equalTo("The cluster has a stable master node"));
-        /*
-         * Now it has gone null 4 times. If the remote history detects 4 or more _changes_ to master, then the status will be yellow. But
-         * 4 master nodes is only 3 changes. So at this point if we have the remote history look like the local history it will say
-         * everything is ok because there have only been 3 changes.
-         */
+
         List<DiscoveryNode> sameAsLocalHistory = localMasterHistory.getImmutableView();
         when(masterHistoryService.getRemoteMasterHistory(any())).thenReturn(sameAsLocalHistory);
-        result = service.calculate(true);
-        assertThat(result.status(), equalTo(HealthStatus.GREEN));
-        assertThat(result.summary(), equalTo("The cluster has a stable master node"));
-
-        /*
-         * Now make the remote history have another change to bring it up to 4 (the local is unchanged)
-         */
-        List<DiscoveryNode> remoteHistoryWith4Changes = new ArrayList<>(sameAsLocalHistory);
-        remoteHistoryWith4Changes.add(remoteHistoryWith4Changes.get(1)); // Adding another element to the history to make 4 changes
-
-        when(masterHistoryService.getRemoteMasterHistory(any())).thenReturn(remoteHistoryWith4Changes);
         result = service.calculate(true);
         assertThat(result.status(), equalTo(HealthStatus.YELLOW));
         assertThat(result.summary(), startsWith("The cluster's master has alternated between "));
@@ -212,21 +202,6 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
             .metadata(metadataBuilder.build())
             .nodes(nodesBuilder)
             .build();
-    }
-
-    public void testGetNumberOfMasterChanges() {
-        MasterHistoryService masterHistoryService = createMasterHistoryService();
-        MasterHistory localMasterHistory = masterHistoryService.getLocalMasterHistory();
-        StableMasterHealthIndicatorService service = createAllocationHealthIndicatorService(nullMasterClusterState, masterHistoryService);
-        assertThat(service.getNumberOfMasterChanges(localMasterHistory), equalTo(0L));
-        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
-        assertThat(service.getNumberOfMasterChanges(localMasterHistory), equalTo(0L)); // The first master doesn't count as a change
-        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
-        assertThat(service.getNumberOfMasterChanges(localMasterHistory), equalTo(0L)); // Still only 1 master
-        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
-        assertThat(service.getNumberOfMasterChanges(localMasterHistory), equalTo(1L));
-        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node2MasterClusterState, node1MasterClusterState));
-        assertThat(service.getNumberOfMasterChanges(localMasterHistory), equalTo(2L));
     }
 
     private static String randomNodeId() {

@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
@@ -32,7 +33,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.health.ServerHealthComponents.CLUSTER_COORDINATION;
 
@@ -55,6 +56,22 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     private final ClusterService clusterService;
     private final MasterHistoryService masterHistoryService;
     private static final Logger logger = LogManager.getLogger(StableMasterHealthIndicatorService.class);
+    private static final TimeValue VERY_RECENT_PAST = new TimeValue(30, TimeUnit.SECONDS);
+
+    /**
+     * This is the number of times that it is OK for the master history to show a transition from a non-null master to a null master before
+     * it starts impacting the health status.
+     */
+    private static final int ACCEPTABLE_NULL_TRANSITIONS = 3;
+    /**
+     * This is the number of times that it is OK for the master history to show a transition one non-null master to a different non-null
+     * master before it starts impacting the health status.
+     */
+    private static final int ACCEPTABLE_IDENTITY_CHANGES = 3;
+    /**
+     * The severity to use for a low-severity impact in this indicator
+     */
+    private static final int LOW_IMPACT_SEVERITY = 3;
 
     public StableMasterHealthIndicatorService(ClusterService clusterService, MasterHistoryService masterHistoryService) {
         this.clusterService = clusterService;
@@ -74,79 +91,57 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
 
     @Override
     public HealthIndicatorResult calculate(boolean includeDetails) {
-        HealthStatus stableMasterStatus;
-        String summary;
+        MasterHistory localMasterHistory = masterHistoryService.getLocalMasterHistory();
+        if (hasSeenMasterInVeryRecentPast()) {
+            return calculateWhenHaveSeenMasterRecently(localMasterHistory, includeDetails);
+        } else {
+            return calculateWhenHaveNotSeenMasterRecently(localMasterHistory, includeDetails);
+        }
+    }
+
+    private HealthIndicatorResult calculateWhenHaveSeenMasterRecently(MasterHistory localMasterHistory, boolean includeDetails) {
+        int masterChanges = localMasterHistory.getNumberOfMasterIdentityChanges();
+        logger.trace("Have seen a master in the last {}): {}", VERY_RECENT_PAST, localMasterHistory.getMostRecentNonNullMaster());
+        final HealthIndicatorResult result;
+        if (masterChanges > ACCEPTABLE_IDENTITY_CHANGES) {
+            result = calculateWhenMasterHasChangedIdentity(localMasterHistory, masterChanges, includeDetails);
+        } else if (localMasterHistory.hasMasterGoneNullAtLeastNTimes(ACCEPTABLE_NULL_TRANSITIONS + 1)) {
+            result = calculateWhenMasterHasFlappedNull(localMasterHistory, includeDetails);
+        } else {
+            result = getMasterIsStableResult(includeDetails);
+        }
+        return result;
+    }
+
+    private HealthIndicatorResult calculateWhenMasterHasChangedIdentity(
+        MasterHistory localMasterHistory,
+        int masterChanges,
+        boolean includeDetails
+    ) {
+        logger.trace("Have seen {} master changes in the last {}}", masterChanges, MasterHistory.MAX_HISTORY_AGE);
+        HealthStatus stableMasterStatus = HealthStatus.YELLOW;
+        String summary = String.format(
+            Locale.ROOT,
+            "The master has changed %d times in the last %s",
+            masterChanges,
+            MasterHistory.MAX_HISTORY_AGE
+        );
         Map<String, Object> details = new HashMap<>();
         Collection<HealthIndicatorImpact> impacts = new ArrayList<>();
         List<UserAction> userActions = new ArrayList<>();
-        MasterHistory localMasterHistory = masterHistoryService.getLocalMasterHistory();
-        if (hasSeenMasterInLast30Seconds()) {
-            long masterChanges = getNumberOfMasterChanges(localMasterHistory);
-            logger.trace("Have seen a master in the last 30 seconds: {}", localMasterHistory.getMostRecentNonNullMaster());
-            if (masterChanges > 3 && localMasterHistory.hasSameMasterGoneNullNTimes(4) == false) {
-                logger.trace("Have seen {} master changes in the last 30 minutes", masterChanges);
-                stableMasterStatus = HealthStatus.YELLOW;
-                summary = String.format(Locale.ROOT, "The master has changed %d times in the last 30 minutes", masterChanges);
-                impacts.add(
-                    new HealthIndicatorImpact(
-                        3,
-                        "The cluster currently has a master node, but having multiple master node changes in a short time is an indicator "
-                            + "that the cluster is at risk of of not being able to create, delete, or rebalance indices",
-                        List.of(ImpactArea.INGEST)
-                    )
-                );
-                if (includeDetails) {
-                    List<DiscoveryNode> mastersInLast30Minutes = localMasterHistory.getImmutableView();
-                    details.put("current_master", new DiscoveryNodeXContentObject(localMasterHistory.getMostRecentMaster()));
-                    details.put("recent_masters", mastersInLast30Minutes.stream().map(DiscoveryNodeXContentObject::new).toList());
-                }
-            } else if (localMasterHistory.hasSameMasterGoneNullNTimes(4)) {
-                DiscoveryNode master = localMasterHistory.getMostRecentNonNullMaster();
-                logger.trace("One master has gone null 4 or more times recently: " + master);
-                boolean localNodeIsMaster = clusterService.localNode().equals(master);
-                final List<DiscoveryNode> remoteHistory;
-                if (localNodeIsMaster) {
-                    remoteHistory = null; // We don't need to fetch the remote master's history if we are that remote master
-                } else {
-                    remoteHistory = masterHistoryService.getRemoteMasterHistory(master);
-                }
-                if (localNodeIsMaster || remoteHistory == null || getNumberOfMasterChanges(remoteHistory) > 3) {
-                    if (localNodeIsMaster == false && remoteHistory == null) {
-                        logger.trace("Unable to get master history from {}}", master);
-                    } else {
-                        logger.trace("The master node {} thinks it is unstable", master);
-                    }
-                    stableMasterStatus = HealthStatus.YELLOW;
-                    summary = String.format(
-                        Locale.ROOT,
-                        "The cluster's master has alternated between %s and no master multiple times in the last 30 minutes",
-                        master
-                    );
-                    impacts.add(
-                        new HealthIndicatorImpact(
-                            3,
-                            "The cluster is at risk of not being able to create, delete, or rebalance indices",
-                            List.of(ImpactArea.INGEST)
-                        )
-                    );
-                    if (includeDetails) {
-                        details.put("current_master", new DiscoveryNodeXContentObject(localMasterHistory.getMostRecentMaster()));
-                    }
-                } else {
-                    logger.trace("This node thinks the master is unstable, but the master node {} thinks it is stable", master);
-                    stableMasterStatus = HealthStatus.GREEN;
-                    summary = "The cluster has a stable master node";
-                }
-            } else {
-                logger.trace("The cluster has a stable master node");
-                stableMasterStatus = HealthStatus.GREEN;
-                summary = "The cluster has a stable master node";
-            }
-        } else {
-            stableMasterStatus = HealthStatus.RED;
-            summary = "Placeholder summary";
+        impacts.add(
+            new HealthIndicatorImpact(
+                LOW_IMPACT_SEVERITY,
+                "The cluster currently has a master node, but having multiple master node changes in a short time is an indicator "
+                    + "that the cluster is at risk of of not being able to create, delete, or rebalance indices",
+                List.of(ImpactArea.INGEST)
+            )
+        );
+        if (includeDetails) {
+            List<DiscoveryNode> recentMasters = localMasterHistory.getImmutableView();
+            details.put("current_master", new DiscoveryNodeXContentObject(localMasterHistory.getMostRecentMaster()));
+            details.put("recent_masters", recentMasters.stream().map(DiscoveryNodeXContentObject::new).toList());
         }
-
         return createIndicator(
             stableMasterStatus,
             summary,
@@ -156,22 +151,99 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         );
     }
 
-    long getNumberOfMasterChanges(MasterHistory localMasterHistory) {
-        return getNumberOfMasterChanges(localMasterHistory.getImmutableView());
+    private HealthIndicatorResult calculateWhenMasterHasFlappedNull(MasterHistory localMasterHistory, boolean includeDetails) {
+        HealthStatus stableMasterStatus;
+        String summary;
+        Map<String, Object> details = new HashMap<>();
+        Collection<HealthIndicatorImpact> impacts = new ArrayList<>();
+        List<UserAction> userActions = new ArrayList<>();
+        DiscoveryNode master = localMasterHistory.getMostRecentNonNullMaster();
+        logger.trace("One master has gone null {} or more times recently: {}", ACCEPTABLE_NULL_TRANSITIONS + 1, master);
+        boolean localNodeIsMaster = clusterService.localNode().equals(master);
+        final List<DiscoveryNode> remoteHistory;
+        if (localNodeIsMaster) {
+            remoteHistory = null; // We don't need to fetch the remote master's history if we are that remote master
+        } else {
+            remoteHistory = masterHistoryService.getRemoteMasterHistory(master);
+        }
+        if (localNodeIsMaster
+            || remoteHistory == null
+            || MasterHistory.hasMasterGoneNullAtLeastNTimes(remoteHistory, ACCEPTABLE_NULL_TRANSITIONS + 1)
+            || MasterHistory.getNumberOfMasterIdentityChanges(remoteHistory) > ACCEPTABLE_IDENTITY_CHANGES) {
+            if (localNodeIsMaster == false && remoteHistory == null) {
+                logger.trace("Unable to get master history from {}}", master);
+            } else {
+                logger.trace("The master node {} thinks it is unstable", master);
+            }
+            stableMasterStatus = HealthStatus.YELLOW;
+            summary = String.format(
+                Locale.ROOT,
+                "The cluster's master has alternated between %s and no master multiple times in the last %s",
+                master,
+                MasterHistory.MAX_HISTORY_AGE
+            );
+            impacts.add(
+                new HealthIndicatorImpact(
+                    LOW_IMPACT_SEVERITY,
+                    "The cluster is at risk of not being able to create, delete, or rebalance indices",
+                    List.of(ImpactArea.INGEST)
+                )
+            );
+            if (includeDetails) {
+                details.put("current_master", new DiscoveryNodeXContentObject(localMasterHistory.getMostRecentMaster()));
+            }
+        } else {
+            logger.trace("This node thinks the master is unstable, but the master node {} thinks it is stable", master);
+            stableMasterStatus = HealthStatus.GREEN;
+            summary = "The cluster has a stable master node";
+        }
+        return createIndicator(
+            stableMasterStatus,
+            summary,
+            includeDetails ? new SimpleHealthIndicatorDetails(details) : HealthIndicatorDetails.EMPTY,
+            impacts,
+            userActions
+        );
     }
 
-    private long getNumberOfMasterChanges(List<DiscoveryNode> masterHistory) {
-        /*
-         * We want to count all of the transitions to non-null master nodes after the first non-null master node.
-         */
-        return Math.max(0, masterHistory.stream().filter(Objects::nonNull).count() - 1);
+    private HealthIndicatorResult getMasterIsStableResult(boolean includeDetails) {
+        HealthStatus stableMasterStatus;
+        String summary;
+        Map<String, Object> details = new HashMap<>();
+        Collection<HealthIndicatorImpact> impacts = new ArrayList<>();
+        List<UserAction> userActions = new ArrayList<>();
+        logger.trace("The cluster has a stable master node");
+        stableMasterStatus = HealthStatus.GREEN;
+        summary = "The cluster has a stable master node";
+        return createIndicator(
+            stableMasterStatus,
+            summary,
+            includeDetails ? new SimpleHealthIndicatorDetails(details) : HealthIndicatorDetails.EMPTY,
+            impacts,
+            userActions
+        );
     }
 
-    private boolean hasSeenMasterInLast30Seconds() {
+    private HealthIndicatorResult calculateWhenHaveNotSeenMasterRecently(MasterHistory localMasterHistory, boolean includeDetails) {
+        HealthStatus stableMasterStatus = HealthStatus.RED;
+        String summary = "Placeholder summary";
+        Map<String, Object> details = new HashMap<>();
+        Collection<HealthIndicatorImpact> impacts = new ArrayList<>();
+        List<UserAction> userActions = new ArrayList<>();
+        return createIndicator(
+            stableMasterStatus,
+            summary,
+            includeDetails ? new SimpleHealthIndicatorDetails(details) : HealthIndicatorDetails.EMPTY,
+            impacts,
+            userActions
+        );
+    }
+
+    private boolean hasSeenMasterInVeryRecentPast() {
         if (clusterService.state().nodes().getMasterNode() != null) {
             return true;
         }
-        return masterHistoryService.getLocalMasterHistory().hasSeenMasterInLastNSeconds(30);
+        return masterHistoryService.getLocalMasterHistory().hasSeenMasterInLastNSeconds((int) VERY_RECENT_PAST.seconds());
     }
 
     /*
@@ -183,7 +255,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         DiscoveryNode currentMaster = event.state().nodes().getMasterNode();
         DiscoveryNode previousMaster = event.previousState().nodes().getMasterNode();
         if (currentMaster == null && previousMaster != null) {
-            if (masterHistoryService.getLocalMasterHistory().hasSameMasterGoneNullNTimes(4)) {
+            if (masterHistoryService.getLocalMasterHistory().hasMasterGoneNullAtLeastNTimes(ACCEPTABLE_NULL_TRANSITIONS + 1)) {
                 DiscoveryNode master = masterHistoryService.getLocalMasterHistory().getMostRecentNonNullMaster();
                 if (master != null && clusterService.localNode().equals(master) == false) {
                     masterHistoryService.requestRemoteMasterHistory(master);
@@ -197,12 +269,7 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
      * with null values in lists. This object wraps the DiscoveryNode's XContent in a start and end object, and writes out nulls as empty
      * objects.
      */
-    private static final class DiscoveryNodeXContentObject implements ToXContentObject {
-        private final DiscoveryNode master;
-
-        DiscoveryNodeXContentObject(DiscoveryNode master) {
-            this.master = master;
-        }
+    private record DiscoveryNodeXContentObject(DiscoveryNode master) implements ToXContentObject {
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

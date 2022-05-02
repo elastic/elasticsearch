@@ -20,7 +20,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
@@ -33,6 +32,10 @@ import java.util.stream.Collectors;
 public class MasterHistory implements ClusterStateListener {
     private volatile List<TimeAndMaster> masterHistory;
     Supplier<Long> nowSupplier; // Can be changed for testing
+    /**
+     * The maximum amount of time that the master history covers.
+     */
+    public static final TimeValue MAX_HISTORY_AGE = new TimeValue(30, TimeUnit.MINUTES);
 
     public MasterHistory(ThreadPool threadPool, ClusterService clusterService) {
         this.masterHistory = new ArrayList<>();
@@ -77,50 +80,72 @@ public class MasterHistory implements ClusterStateListener {
     }
 
     /**
-     * Returns true if for the life of this MasterHistory (30 minutes) only one non-null node has been master, and the master has switched
-     * from that node to null n times.
-     * @param n The number of times the non-null master must have switched to null
-     * @return True if there has been a single non-null master and it has switched to null n or more times.
+     * Returns true if for the life of this MasterHistory (30 minutes) non-null masters have transitioned to null n times.
+     * @param n The number of times a non-null master must have switched to null
+     * @return True if non-null masters have transitioned to null n or more times.
      */
-    public boolean hasSameMasterGoneNullNTimes(int n) {
-        List<TimeAndMaster> masterHistoryCopy = getMasterHistoryForLast30Minutes(masterHistory);
-        return hasSameMasterGoneNullNTimes(masterHistoryCopy.stream().map(TimeAndMaster::master).toList(), n);
+    public boolean hasMasterGoneNullAtLeastNTimes(int n) {
+        return hasMasterGoneNullAtLeastNTimes(getImmutableView(), n);
     }
 
     /**
-     * Returns true if for List of master nodes passed in only one non-null node has been master, and the master has switched
-     * from that node to null n times.
+     * Returns true if for the List of master nodes passed in non-null masters have transitioned to null n times.
      * @param masters The List of masters to use
-     * @param n The number of times the non-null master must have switched to null
-     * @return True if there has been a single non-null master and it has switched to null n or more times in the given list of masters.
+     * @param n The number of times a non-null master must have switched to null
+     * @return True if non-null masters have transitioned to null n or more timesin the given list of masters.
      */
-    public static boolean hasSameMasterGoneNullNTimes(List<DiscoveryNode> masters, int n) {
-        if (getDistinctMastersSeen(masters).size() != 1) {
-            return false;
-        }
-        boolean seenNonNull = false;
+    public static boolean hasMasterGoneNullAtLeastNTimes(List<DiscoveryNode> masters, int n) {
         int timesMasterHasGoneNull = 0;
+        boolean previousNull = true;
         for (DiscoveryNode master : masters) {
-            if (master != null) {
-                seenNonNull = true;
-            } else if (seenNonNull) {
-                timesMasterHasGoneNull++;
+            if (master == null) {
+                if (previousNull == false) {
+                    timesMasterHasGoneNull++;
+                }
+                previousNull = true;
+            } else {
+                previousNull = false;
             }
         }
         return timesMasterHasGoneNull >= n;
     }
 
-    private static Set<DiscoveryNode> getDistinctMastersSeen(List<DiscoveryNode> masters) {
-        return masters.stream().filter(Objects::nonNull).collect(Collectors.toUnmodifiableSet());
+    /**
+     * An identity change is when we get notified of a change to a non-null master that is different from the previous non-null master.
+     * So for example:
+     * node1 -> node2 is 1 identity change
+     * node1 -> node2 -> node1 is 2 identity changes
+     * node1 -> node2 -> node2 is 1 identity change
+     * node1 -> null -> node1 is 0 identity changes
+     * node1 -> null -> node2 is 1 identity change
+     * @return The number of master identity changes within the last 30 minutes for this master history, as defined above
+     */
+    public int getNumberOfMasterIdentityChanges() {
+        return getNumberOfMasterIdentityChanges(getImmutableView());
     }
 
     /**
-     * Returns the set of distinct non-null master nodes seen in this history.
-     * @return The set of all non-null master nodes seen. Could be empty
+     * An identity change is when we get notified of a change to a non-null master that is different from the previous non-null master.
+     * So for example:
+     * node1 -> node2 is 1 identity change
+     * node1 -> node2 -> node1 is 2 identity changes
+     * node1 -> node2 -> node2 is 1 identity change
+     * node1 -> null -> node1 is 0 identity changes
+     * node1 -> null -> node2 is 1 identity change
+     * @param masterHistory The list of nodes that have been master
+     * @return The number of master identity changes as defined above
      */
-    public Set<DiscoveryNode> getDistinctMastersSeen() {
-        List<TimeAndMaster> masterHistoryCopy = getMasterHistoryForLast30Minutes(masterHistory);
-        return masterHistoryCopy.stream().map(TimeAndMaster::master).filter(Objects::nonNull).collect(Collectors.toUnmodifiableSet());
+    public static int getNumberOfMasterIdentityChanges(List<DiscoveryNode> masterHistory) {
+        int identityChanges = 0;
+        List<DiscoveryNode> nonNullHistory = masterHistory.stream().filter(Objects::nonNull).toList();
+        DiscoveryNode previousNode = null;
+        for (DiscoveryNode node : nonNullHistory) {
+            if (previousNode != null && previousNode.equals(node) == false) {
+                identityChanges++;
+            }
+            previousNode = node;
+        }
+        return identityChanges;
     }
 
     /**
@@ -149,11 +174,10 @@ public class MasterHistory implements ClusterStateListener {
             return history;
         }
         long now = nowSupplier.get();
-        TimeValue thirtyMinutes = new TimeValue(30, TimeUnit.MINUTES);
-        long thirtyMinutesAgo = now - thirtyMinutes.getMillis();
+        long oldestRelevantHistoryTime = now - MAX_HISTORY_AGE.getMillis();
         TimeAndMaster mostRecent = history.isEmpty() ? null : history.get(history.size() - 1);
         List<TimeAndMaster> filteredHistory = history.stream()
-            .filter(timeAndMaster -> timeAndMaster.time > thirtyMinutesAgo)
+            .filter(timeAndMaster -> timeAndMaster.time > oldestRelevantHistoryTime)
             .collect(Collectors.toList());
         if (filteredHistory.isEmpty() && mostRecent != null) { // The most recent entry was more than 30 minutes ago
             filteredHistory.add(mostRecent);
@@ -170,13 +194,12 @@ public class MasterHistory implements ClusterStateListener {
             return new ArrayList<>(possiblyOldMasterHistory);
         }
         long now = nowSupplier.get();
-        TimeValue thirtyMinutes = new TimeValue(30, TimeUnit.MINUTES);
-        long thirtyMinutesAgo = now - thirtyMinutes.getMillis();
+        long oldestRelevantHistoryTime = now - MAX_HISTORY_AGE.getMillis();
         TimeAndMaster mostRecent = possiblyOldMasterHistory.isEmpty()
             ? null
             : possiblyOldMasterHistory.get(possiblyOldMasterHistory.size() - 1);
         List<TimeAndMaster> newMasterHistory = possiblyOldMasterHistory.stream()
-            .filter(timeAndMaster -> timeAndMaster.time >= thirtyMinutesAgo)
+            .filter(timeAndMaster -> timeAndMaster.time >= oldestRelevantHistoryTime)
             .collect(Collectors.toList());
         if (newMasterHistory.isEmpty() && mostRecent != null) { // The most recent entry was more than 30 minutes ago
             newMasterHistory.add(mostRecent);

@@ -527,7 +527,11 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             );
 
             final ClusterState clusterState = followerClient().admin().cluster().prepareState().get().getState();
-            Collection<PersistentTasksCustomMetadata.PersistentTask<?>> ccrTasks = findTasks(clusterState, ShardFollowTask.NAME);
+            PersistentTasksCustomMetadata tasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+            Collection<PersistentTasksCustomMetadata.PersistentTask<?>> ccrTasks = tasks.tasks()
+                .stream()
+                .filter(t -> t.getTaskName().equals(ShardFollowTask.NAME))
+                .toList();
             assertThat(ccrTasks, empty());
 
             ListTasksRequest listTasksRequest = new ListTasksRequest();
@@ -883,11 +887,6 @@ public abstract class CcrIntegTestCase extends ESTestCase {
             }
 
         };
-    }
-
-    public List<PersistentTasksCustomMetadata.PersistentTask<?>> findTasks(ClusterState clusterState, String taskName) {
-        PersistentTasksCustomMetadata tasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
-        return tasks.tasks().stream().filter(t -> t.getTaskName().equals(taskName)).toList();
     }
 
     static void removeCCRRelatedMetadataFromClusterState(ClusterService clusterService) throws Exception {

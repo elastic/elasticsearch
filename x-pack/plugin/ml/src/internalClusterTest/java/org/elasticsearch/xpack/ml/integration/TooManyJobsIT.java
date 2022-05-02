@@ -30,8 +30,6 @@ import org.elasticsearch.xpack.ml.utils.NativeMemoryCalculator;
 
 import java.util.List;
 
-import static org.elasticsearch.xpack.core.ml.MlTasks.JOB_TASK_NAME;
-
 public class TooManyJobsIT extends BaseMlIntegTestCase {
 
     public void testCloseFailedJob() throws Exception {
@@ -66,7 +64,7 @@ public class TooManyJobsIT extends BaseMlIntegTestCase {
         ).actionGet();
         assertEquals(statsResponse.getResponse().results().get(0).getState(), JobState.CLOSED);
         ClusterState state = client().admin().cluster().prepareState().get().getState();
-        List<PersistentTasksCustomMetadata.PersistentTask<?>> tasks = findTasks(state, JOB_TASK_NAME);
+        List<PersistentTasksCustomMetadata.PersistentTask<?>> tasks = findTasks(state, MlTasks.JOB_TASK_NAME);
         assertEquals(1, tasks.size());
         // now just double check that the first job is still opened:
         PersistentTasksCustomMetadata.PersistentTask<?> task = tasks.get(0);

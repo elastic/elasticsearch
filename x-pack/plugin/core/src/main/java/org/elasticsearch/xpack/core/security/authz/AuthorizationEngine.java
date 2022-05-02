@@ -8,7 +8,10 @@
 package org.elasticsearch.xpack.core.security.authz;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.security.action.user.GetUserPrivilegesResponse;
@@ -16,15 +19,20 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Subject;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 
+import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
  * <p>
@@ -248,10 +256,68 @@ public interface AuthorizationEngine {
     }
 
     record PrivilegesToCheck(
-        Collection<String> cluster,
-        Collection<RoleDescriptor.IndicesPrivileges> index,
-        Collection<RoleDescriptor.ApplicationResourcePrivileges> application
-    ) {}
+        String[] cluster,
+        RoleDescriptor.IndicesPrivileges[] index,
+        RoleDescriptor.ApplicationResourcePrivileges[] application
+    ) {
+        public static PrivilegesToCheck readFrom(StreamInput in) throws IOException {
+            return new PrivilegesToCheck(
+                in.readStringArray(),
+                in.readArray(RoleDescriptor.IndicesPrivileges::new, RoleDescriptor.IndicesPrivileges[]::new),
+                in.readArray(RoleDescriptor.ApplicationResourcePrivileges::new, RoleDescriptor.ApplicationResourcePrivileges[]::new)
+            );
+        }
+
+        public void writeTo(StreamOutput out) throws IOException {
+            out.writeStringArray(cluster);
+            out.writeArray(RoleDescriptor.IndicesPrivileges::write, index);
+            out.writeArray(RoleDescriptor.ApplicationResourcePrivileges::write, application);
+        }
+
+        public ActionRequestValidationException validate(ActionRequestValidationException validationException) {
+            if (cluster == null) {
+                validationException = addValidationError("cluster privileges must not be null", validationException);
+            }
+            if (index == null) {
+                validationException = addValidationError("index privileges must not be null", validationException);
+            }
+            if (application == null) {
+                validationException = addValidationError("application privileges must not be null", validationException);
+            } else {
+                for (RoleDescriptor.ApplicationResourcePrivileges applicationPrivilege : application) {
+                    try {
+                        ApplicationPrivilege.validateApplicationName(applicationPrivilege.getApplication());
+                    } catch (IllegalArgumentException e) {
+                        validationException = addValidationError(e.getMessage(), validationException);
+                    }
+                }
+            }
+            if (cluster != null
+                && cluster.length == 0
+                && index != null
+                && index.length == 0
+                && application != null
+                && application.length == 0) {
+                validationException = addValidationError("must specify at least one privilege", validationException);
+            }
+            return validationException;
+        }
+
+        @Override
+        public String toString() {
+            return getClass().getSimpleName()
+                + "{"
+                + "cluster="
+                + Arrays.toString(cluster)
+                + ","
+                + "index="
+                + Arrays.toString(index)
+                + ","
+                + "application="
+                + Arrays.toString(application)
+                + "}";
+        }
+    }
 
     record PrivilegesCheckResult(
         boolean allMatch,

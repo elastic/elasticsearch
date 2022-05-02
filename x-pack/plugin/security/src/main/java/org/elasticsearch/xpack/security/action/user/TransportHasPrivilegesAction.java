@@ -81,9 +81,9 @@ public class TransportHasPrivilegesAction extends HandledTransportAction<HasPriv
                 applicationPrivilegeDescriptors -> authorizationService.checkPrivileges(
                     subject,
                     new AuthorizationEngine.PrivilegesToCheck(
-                        Arrays.asList(request.clusterPrivileges()),
-                        Arrays.asList(request.indexPrivileges()),
-                        Arrays.asList(request.applicationPrivileges())
+                        request.clusterPrivileges(),
+                        request.indexPrivileges(),
+                        request.applicationPrivileges()
                     ),
                     applicationPrivilegeDescriptors,
                     listener.map(

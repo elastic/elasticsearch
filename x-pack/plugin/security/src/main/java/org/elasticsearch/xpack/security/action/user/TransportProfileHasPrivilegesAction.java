@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAct
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesRequest;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesResponse;
 import org.elasticsearch.xpack.core.security.authc.Subject;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
@@ -69,11 +68,6 @@ public class TransportProfileHasPrivilegesAction extends HandledTransportAction<
 
     @Override
     protected void doExecute(Task task, ProfileHasPrivilegesRequest request, ActionListener<ProfileHasPrivilegesResponse> listener) {
-        final AuthorizationEngine.PrivilegesToCheck privilegesToCheck = new AuthorizationEngine.PrivilegesToCheck(
-            Arrays.asList(request.clusterPrivileges()),
-            Arrays.asList(request.indexPrivileges()),
-            Arrays.asList(request.applicationPrivileges())
-        );
         profileService.getProfileSubjects(request.profileUids(), ActionListener.wrap(profileSubjectsAndFailures -> {
             if (profileSubjectsAndFailures.profileUidToSubject().isEmpty()) {
                 listener.onResponse(new ProfileHasPrivilegesResponse(new String[0], new String[0]));
@@ -98,7 +92,7 @@ public class TransportProfileHasPrivilegesAction extends HandledTransportAction<
                         final Subject subject = profileUidToSubject.getValue();
                         authorizationService.checkPrivileges(
                             subject,
-                            privilegesToCheck,
+                            request.privilegesToCheck(),
                             applicationPrivilegeDescriptors,
                             ActionListener.wrap(privilegesCheckResult -> {
                                 if (privilegesCheckResult.allMatch()) {
@@ -128,7 +122,7 @@ public class TransportProfileHasPrivilegesAction extends HandledTransportAction<
         ProfileHasPrivilegesRequest request,
         ActionListener<Collection<ApplicationPrivilegeDescriptor>> listener
     ) {
-        final Set<String> applications = Arrays.stream(request.applicationPrivileges())
+        final Set<String> applications = Arrays.stream(request.privilegesToCheck().application())
             .map(RoleDescriptor.ApplicationResourcePrivileges::getApplication)
             .collect(Collectors.toSet());
         privilegeStore.getPrivileges(applications, null, listener);

@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesToCheck;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.user.User;
 
@@ -492,8 +493,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
             ProfileHasPrivilegesAction.INSTANCE,
             new ProfileHasPrivilegesRequest(
                 randomList(1, 3, () -> randomAlphaOfLength(20)),
-                new RoleDescriptor(
-                    "name",
+                new PrivilegesToCheck(
                     new String[] { "monitor" },
                     new RoleDescriptor.IndicesPrivileges[0],
                     new RoleDescriptor.ApplicationResourcePrivileges[] {
@@ -501,11 +501,7 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
                             .application("test-app")
                             .resources("some/resource")
                             .privileges("write")
-                            .build() },
-                    null,
-                    null,
-                    null,
-                    null
+                            .build() }
                 )
             )
         ).actionGet();
@@ -565,7 +561,11 @@ public class ProfileIntegTests extends AbstractProfileIntegTestCase {
             ProfileHasPrivilegesAction.INSTANCE,
             new ProfileHasPrivilegesRequest(
                 List.of(profile1.uid()),
-                new RoleDescriptor("name", new String[] { "cluster:monitor/state" }, null, null, null, null, null, null)
+                new PrivilegesToCheck(
+                    new String[] { "cluster:monitor/state" },
+                    new RoleDescriptor.IndicesPrivileges[0],
+                    new RoleDescriptor.ApplicationResourcePrivileges[0]
+                )
             )
         ).actionGet();
         assertThat(profileHasPrivilegesResponse.hasPrivilegeUids(), array(equalTo(profile1.uid())));

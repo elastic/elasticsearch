@@ -26,6 +26,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesToCheck;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
@@ -380,7 +381,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         }
     }
 
-    public static RoleDescriptor parsePrivilegesCheck(String description, XContentParser parser) throws IOException {
+    public static PrivilegesToCheck parsePrivilegesToCheck(String description, XContentParser parser) throws IOException {
         if (parser.currentToken() != XContentParser.Token.START_OBJECT) {
             throw new ElasticsearchParseException(
                 "failed to parse privileges check [{}]. expected an object but found [{}] instead",
@@ -431,10 +432,10 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                 throw new ElasticsearchParseException("Field [{}] is not supported in a has_privileges request", Fields.QUERY);
             }
         }
-        return new RoleDescriptor(description, clusterPrivileges, indexPrivileges, applicationPrivileges, null, null, null, null);
+        return new PrivilegesToCheck(clusterPrivileges, indexPrivileges, applicationPrivileges);
     }
 
-    public static RoleDescriptor parsePrivilegesCheck(String description, BytesReference source, XContentType xContentType)
+    public static PrivilegesToCheck parsePrivilegesToCheck(String description, BytesReference source, XContentType xContentType)
         throws IOException {
         try (
             InputStream stream = source.streamInput();
@@ -450,7 +451,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
                     token
                 );
             }
-            return parsePrivilegesCheck(description, parser);
+            return parsePrivilegesToCheck(description, parser);
         }
     }
 

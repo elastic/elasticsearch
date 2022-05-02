@@ -526,9 +526,9 @@ public class RBACEngine implements AuthorizationEngine {
             () -> new ParameterizedMessage(
                 "Check whether role [{}] has privileges cluster=[{}] index=[{}] application=[{}]",
                 Strings.arrayToCommaDelimitedString(userRole.names()),
-                privilegesToCheck.cluster(),
-                privilegesToCheck.index(),
-                privilegesToCheck.application()
+                Arrays.toString(privilegesToCheck.cluster()),
+                Arrays.toString(privilegesToCheck.index()),
+                Arrays.toString(privilegesToCheck.application())
             )
         );
 
@@ -552,8 +552,7 @@ public class RBACEngine implements AuthorizationEngine {
 
         final Map<String, Collection<ResourcePrivileges>> privilegesByApplication = new HashMap<>();
 
-        final Set<String> applicationNames = privilegesToCheck.application()
-            .stream()
+        final Set<String> applicationNames = Arrays.stream(privilegesToCheck.application())
             .map(RoleDescriptor.ApplicationResourcePrivileges::getApplication)
             .collect(Collectors.toSet());
         for (String applicationName : applicationNames) {

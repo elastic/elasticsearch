@@ -51,10 +51,11 @@ import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.ldap.LdapRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.pki.PkiRealmSettings;
-import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesCheckResult;
-import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.PrivilegesToCheck;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
+import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.IndicesPrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissions;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition;
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
@@ -74,7 +75,6 @@ import org.junit.Before;
 import org.mockito.Mockito;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
@@ -366,10 +366,11 @@ public class RBACEngineTests extends ESTestCase {
             .build();
         RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
 
-        final AuthorizationEngine.PrivilegesToCheck privilegesToCheck = new AuthorizationEngine.PrivilegesToCheck(
-            List.of(ClusterHealthAction.NAME),
-            List.of(RoleDescriptor.IndicesPrivileges.builder().indices("academy").privileges(DeleteAction.NAME, IndexAction.NAME).build()),
-            List.of(new RoleDescriptor.ApplicationResourcePrivileges[0])
+        final PrivilegesToCheck privilegesToCheck = new PrivilegesToCheck(
+            new String[] { ClusterHealthAction.NAME },
+            new IndicesPrivileges[] {
+                IndicesPrivileges.builder().indices("academy").privileges(DeleteAction.NAME, IndexAction.NAME).build() },
+            new ApplicationResourcePrivileges[0]
         );
 
         final PlainActionFuture<PrivilegesCheckResult> future = new PlainActionFuture<>();
@@ -402,15 +403,11 @@ public class RBACEngineTests extends ESTestCase {
             .build();
         RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
 
-        final AuthorizationEngine.PrivilegesToCheck privilegesToCheck = new AuthorizationEngine.PrivilegesToCheck(
-            List.of("monitor", "manage"),
-            List.of(
-                RoleDescriptor.IndicesPrivileges.builder()
-                    .indices("academy", "initiative", "school")
-                    .privileges("delete", "index", "manage")
-                    .build()
-            ),
-            List.of(new RoleDescriptor.ApplicationResourcePrivileges[0])
+        final PrivilegesToCheck privilegesToCheck = new PrivilegesToCheck(
+            new String[] { "monitor", "manage" },
+            new IndicesPrivileges[] {
+                IndicesPrivileges.builder().indices("academy", "initiative", "school").privileges("delete", "index", "manage").build() },
+            new ApplicationResourcePrivileges[0]
         );
         final PlainActionFuture<PrivilegesCheckResult> future = new PlainActionFuture<>();
         engine.checkPrivileges(authzInfo, privilegesToCheck, Collections.emptyList(), future);
@@ -455,7 +452,7 @@ public class RBACEngineTests extends ESTestCase {
         RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
 
         final PrivilegesCheckResult response = hasPrivileges(
-            RoleDescriptor.IndicesPrivileges.builder().indices("academy").privileges("read", "write").build(),
+            IndicesPrivileges.builder().indices("academy").privileges("read", "write").build(),
             authzInfo,
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
@@ -510,50 +507,48 @@ public class RBACEngineTests extends ESTestCase {
             .build();
         RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
 
-        final AuthorizationEngine.PrivilegesToCheck privilegesToCheck = new AuthorizationEngine.PrivilegesToCheck(
-            List.of(),
-            List.of(
-                RoleDescriptor.IndicesPrivileges.builder()
+        final PrivilegesToCheck privilegesToCheck = new PrivilegesToCheck(
+            new String[0],
+            new IndicesPrivileges[] {
+                IndicesPrivileges.builder()
                     .indices("logstash-2016-*")
                     .privileges("write") // Yes, because (ALL,"logstash-*")
                     .build(),
-                RoleDescriptor.IndicesPrivileges.builder()
+                IndicesPrivileges.builder()
                     .indices("logstash-*")
                     .privileges("read") // Yes, because (ALL,"logstash-*")
                     .build(),
-                RoleDescriptor.IndicesPrivileges.builder()
+                IndicesPrivileges.builder()
                     .indices("log*")
                     .privileges("manage") // No, because "log*" includes indices that "logstash-*" does not
                     .build(),
-                RoleDescriptor.IndicesPrivileges.builder()
+                IndicesPrivileges.builder()
                     .indices("foo*", "foo?")
                     .privileges("read") // Yes, "foo?", but not "foo*", because "foo*" > "foo?"
                     .build(),
-                RoleDescriptor.IndicesPrivileges.builder()
+                IndicesPrivileges.builder()
                     .indices("abcd*")
                     .privileges("read", "write") // read = Yes, because (READ, "abc*"), write = No
                     .build(),
-                RoleDescriptor.IndicesPrivileges.builder()
+                IndicesPrivileges.builder()
                     .indices("abc*xyz")
                     .privileges("read", "write", "manage") // read = Yes ( READ "abc*"), write = Yes (WRITE, "*xyz"), manage = No
                     .build(),
-                RoleDescriptor.IndicesPrivileges.builder()
+                IndicesPrivileges.builder()
                     .indices("a*xyz")
                     .privileges("read", "write", "manage") // read = No, write = Yes (WRITE, "*xyz"), manage = No
-                    .build()
-            ),
-            List.of(
-                RoleDescriptor.ApplicationResourcePrivileges.builder()
+                    .build() },
+            new ApplicationResourcePrivileges[] {
+                ApplicationResourcePrivileges.builder()
                     .resources("*")
                     .application("kibana")
                     .privileges(Sets.union(kibanaRead.name(), kibanaWrite.name())) // read = Yes, write = No
                     .build(),
-                RoleDescriptor.ApplicationResourcePrivileges.builder()
+                ApplicationResourcePrivileges.builder()
                     .resources("space/engineering/project-*", "space/*") // project-* = Yes, space/* = Not
                     .application("kibana")
                     .privileges("space:view/dashboard")
-                    .build()
-            )
+                    .build() }
         );
 
         final PlainActionFuture<PrivilegesCheckResult> future = new PlainActionFuture<>();
@@ -604,7 +599,7 @@ public class RBACEngineTests extends ESTestCase {
         RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
 
         final PrivilegesCheckResult response = hasPrivileges(
-            RoleDescriptor.IndicesPrivileges.builder().indices("apache-2016-12", "apache-2017-01").privileges("index", "delete").build(),
+            IndicesPrivileges.builder().indices("apache-2016-12", "apache-2017-01").privileges("index", "delete").build(),
             authzInfo,
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
@@ -640,11 +635,7 @@ public class RBACEngineTests extends ESTestCase {
 
         String prePatternPrefix = patternPrefix.substring(0, randomIntBetween(1, patternPrefix.length() - 1)) + "*";
         PrivilegesCheckResult response = hasPrivileges(
-            RoleDescriptor.IndicesPrivileges.builder()
-                .indices(prePatternPrefix)
-                .allowRestrictedIndices(randomBoolean())
-                .privileges("index")
-                .build(),
+            IndicesPrivileges.builder().indices(prePatternPrefix).allowRestrictedIndices(randomBoolean()).privileges("index").build(),
             authzInfo,
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
@@ -662,11 +653,7 @@ public class RBACEngineTests extends ESTestCase {
 
         String matchesPatternPrefix = XPackPlugin.ASYNC_RESULTS_INDEX.substring(0, patternPrefix.length() + 1);
         response = hasPrivileges(
-            RoleDescriptor.IndicesPrivileges.builder()
-                .indices(matchesPatternPrefix + "*")
-                .allowRestrictedIndices(false)
-                .privileges("index")
-                .build(),
+            IndicesPrivileges.builder().indices(matchesPatternPrefix + "*").allowRestrictedIndices(false).privileges("index").build(),
             authzInfo,
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
@@ -682,11 +669,7 @@ public class RBACEngineTests extends ESTestCase {
             )
         );
         response = hasPrivileges(
-            RoleDescriptor.IndicesPrivileges.builder()
-                .indices(matchesPatternPrefix + "*")
-                .allowRestrictedIndices(true)
-                .privileges("index")
-                .build(),
+            IndicesPrivileges.builder().indices(matchesPatternPrefix + "*").allowRestrictedIndices(true).privileges("index").build(),
             authzInfo,
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
@@ -702,11 +685,7 @@ public class RBACEngineTests extends ESTestCase {
             )
         );
         response = hasPrivileges(
-            RoleDescriptor.IndicesPrivileges.builder()
-                .indices(matchesPatternPrefix)
-                .allowRestrictedIndices(randomBoolean())
-                .privileges("index")
-                .build(),
+            IndicesPrivileges.builder().indices(matchesPatternPrefix).allowRestrictedIndices(randomBoolean()).privileges("index").build(),
             authzInfo,
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
@@ -724,7 +703,7 @@ public class RBACEngineTests extends ESTestCase {
 
         final String restrictedIndexMatchingWildcard = XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2);
         response = hasPrivileges(
-            RoleDescriptor.IndicesPrivileges.builder()
+            IndicesPrivileges.builder()
                 .indices(restrictedIndexMatchingWildcard + "*")
                 .allowRestrictedIndices(true)
                 .privileges("index")
@@ -744,7 +723,7 @@ public class RBACEngineTests extends ESTestCase {
             )
         );
         response = hasPrivileges(
-            RoleDescriptor.IndicesPrivileges.builder()
+            IndicesPrivileges.builder()
                 .indices(restrictedIndexMatchingWildcard + "*")
                 .allowRestrictedIndices(false)
                 .privileges("index")
@@ -764,7 +743,7 @@ public class RBACEngineTests extends ESTestCase {
             )
         );
         response = hasPrivileges(
-            RoleDescriptor.IndicesPrivileges.builder()
+            IndicesPrivileges.builder()
                 .indices(restrictedIndexMatchingWildcard)
                 .allowRestrictedIndices(randomBoolean())
                 .privileges("index")
@@ -789,7 +768,7 @@ public class RBACEngineTests extends ESTestCase {
             .build();
         authzInfo = new RBACAuthorizationInfo(role, null);
         response = hasPrivileges(
-            RoleDescriptor.IndicesPrivileges.builder()
+            IndicesPrivileges.builder()
                 .indices(matchesPatternPrefix + "*")
                 .allowRestrictedIndices(randomBoolean())
                 .privileges("index")
@@ -821,7 +800,7 @@ public class RBACEngineTests extends ESTestCase {
 
         String explicitRestrictedIndex = randomFrom(TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         PrivilegesCheckResult response = hasPrivileges(
-            RoleDescriptor.IndicesPrivileges.builder()
+            IndicesPrivileges.builder()
                 .indices(new String[] { ".secret-non-restricted", explicitRestrictedIndex })
                 .privileges("index", "monitor")
                 .allowRestrictedIndices(false) // explicit false for test
@@ -853,7 +832,7 @@ public class RBACEngineTests extends ESTestCase {
 
         explicitRestrictedIndex = randomFrom(TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         response = hasPrivileges(
-            RoleDescriptor.IndicesPrivileges.builder()
+            IndicesPrivileges.builder()
                 .indices(new String[] { ".secret-non-restricted", explicitRestrictedIndex })
                 .privileges("index", "monitor")
                 .allowRestrictedIndices(true) // explicit true for test
@@ -892,7 +871,7 @@ public class RBACEngineTests extends ESTestCase {
         RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
 
         PrivilegesCheckResult response = hasPrivileges(
-            RoleDescriptor.IndicesPrivileges.builder().indices(".sec*", ".security*").privileges("index", "monitor").build(),
+            IndicesPrivileges.builder().indices(".sec*", ".security*").privileges("index", "monitor").build(),
             authzInfo,
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
@@ -916,11 +895,7 @@ public class RBACEngineTests extends ESTestCase {
         );
 
         response = hasPrivileges(
-            RoleDescriptor.IndicesPrivileges.builder()
-                .indices(".sec*", ".security*")
-                .privileges("index", "monitor")
-                .allowRestrictedIndices(true)
-                .build(),
+            IndicesPrivileges.builder().indices(".sec*", ".security*").privileges("index", "monitor").allowRestrictedIndices(true).build(),
             authzInfo,
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
@@ -950,7 +925,7 @@ public class RBACEngineTests extends ESTestCase {
         authzInfo = new RBACAuthorizationInfo(role, null);
 
         response = hasPrivileges(
-            RoleDescriptor.IndicesPrivileges.builder().indices(".sec*", ".security*").privileges("index", "monitor").build(),
+            IndicesPrivileges.builder().indices(".sec*", ".security*").privileges("index", "monitor").build(),
             authzInfo,
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
@@ -974,11 +949,7 @@ public class RBACEngineTests extends ESTestCase {
         );
 
         response = hasPrivileges(
-            RoleDescriptor.IndicesPrivileges.builder()
-                .indices(".sec*", ".security*")
-                .privileges("index", "monitor")
-                .allowRestrictedIndices(true)
-                .build(),
+            IndicesPrivileges.builder().indices(".sec*", ".security*").privileges("index", "monitor").allowRestrictedIndices(true).build(),
             authzInfo,
             Collections.emptyList(),
             Strings.EMPTY_ARRAY
@@ -1020,14 +991,14 @@ public class RBACEngineTests extends ESTestCase {
         RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
 
         final PrivilegesCheckResult response = hasPrivileges(
-            new RoleDescriptor.IndicesPrivileges[0],
-            new RoleDescriptor.ApplicationResourcePrivileges[] {
-                RoleDescriptor.ApplicationResourcePrivileges.builder()
+            new IndicesPrivileges[0],
+            new ApplicationResourcePrivileges[] {
+                ApplicationResourcePrivileges.builder()
                     .application("app1")
                     .resources("foo/1", "foo/bar/2", "foo/bar/baz", "baz/bar/foo")
                     .privileges("read", "write", "all")
                     .build(),
-                RoleDescriptor.ApplicationResourcePrivileges.builder()
+                ApplicationResourcePrivileges.builder()
                     .application("app2")
                     .resources("foo/1", "foo/bar/2", "foo/bar/baz", "baz/bar/foo")
                     .privileges("read", "write", "all")
@@ -1145,9 +1116,9 @@ public class RBACEngineTests extends ESTestCase {
         RBACAuthorizationInfo authzInfo = new RBACAuthorizationInfo(role, null);
 
         final PrivilegesCheckResult response = hasPrivileges(
-            new RoleDescriptor.IndicesPrivileges[0],
-            new RoleDescriptor.ApplicationResourcePrivileges[] {
-                RoleDescriptor.ApplicationResourcePrivileges.builder()
+            new IndicesPrivileges[0],
+            new ApplicationResourcePrivileges[] {
+                ApplicationResourcePrivileges.builder()
                     .application(appName)
                     .resources("user/hawkeye/name")
                     .privileges("DATA:read/user/*", "ACTION:" + action1, "ACTION:" + action2, action1, action2)
@@ -1207,15 +1178,11 @@ public class RBACEngineTests extends ESTestCase {
         );
         assertThat(
             hasPrivileges(
-                new RoleDescriptor.IndicesPrivileges[] {
-                    RoleDescriptor.IndicesPrivileges.builder().indices("read-a").privileges("read").build(),
-                    RoleDescriptor.IndicesPrivileges.builder().indices("all-b").privileges("read", "write").build() },
-                new RoleDescriptor.ApplicationResourcePrivileges[] {
-                    RoleDescriptor.ApplicationResourcePrivileges.builder()
-                        .application("kibana")
-                        .resources("*")
-                        .privileges("read")
-                        .build() },
+                new IndicesPrivileges[] {
+                    IndicesPrivileges.builder().indices("read-a").privileges("read").build(),
+                    IndicesPrivileges.builder().indices("all-b").privileges("read", "write").build() },
+                new ApplicationResourcePrivileges[] {
+                    ApplicationResourcePrivileges.builder().application("kibana").resources("*").privileges("read").build() },
                 authzInfo,
                 privs,
                 "monitor"
@@ -1224,14 +1191,10 @@ public class RBACEngineTests extends ESTestCase {
         );
         assertThat(
             hasPrivileges(
-                new RoleDescriptor.IndicesPrivileges[] { indexPrivileges("read", "read-123", "read-456", "all-999") },
-                new RoleDescriptor.ApplicationResourcePrivileges[] {
-                    RoleDescriptor.ApplicationResourcePrivileges.builder().application("kibana").resources("*").privileges("read").build(),
-                    RoleDescriptor.ApplicationResourcePrivileges.builder()
-                        .application("kibana")
-                        .resources("*")
-                        .privileges("write")
-                        .build() },
+                new IndicesPrivileges[] { indexPrivileges("read", "read-123", "read-456", "all-999") },
+                new ApplicationResourcePrivileges[] {
+                    ApplicationResourcePrivileges.builder().application("kibana").resources("*").privileges("read").build(),
+                    ApplicationResourcePrivileges.builder().application("kibana").resources("*").privileges("write").build() },
                 authzInfo,
                 privs,
                 "monitor"
@@ -1287,9 +1250,7 @@ public class RBACEngineTests extends ESTestCase {
 
         assertThat(
             response.getApplicationPrivileges(),
-            containsInAnyOrder(
-                RoleDescriptor.ApplicationResourcePrivileges.builder().application("app01").privileges("read").resources("*").build()
-            )
+            containsInAnyOrder(ApplicationResourcePrivileges.builder().application("app01").privileges("read").resources("*").build())
         );
 
         assertThat(response.getRunAs(), containsInAnyOrder("user01", "user02"));
@@ -1434,8 +1395,8 @@ public class RBACEngineTests extends ESTestCase {
         return indices.stream().filter(i -> i.getIndices().contains(name)).findFirst().get();
     }
 
-    private RoleDescriptor.IndicesPrivileges indexPrivileges(String priv, String... indices) {
-        return RoleDescriptor.IndicesPrivileges.builder().indices(indices).privileges(priv).build();
+    private IndicesPrivileges indexPrivileges(String priv, String... indices) {
+        return IndicesPrivileges.builder().indices(indices).privileges(priv).build();
     }
 
     private ApplicationPrivilege defineApplicationPrivilege(
@@ -1449,14 +1410,14 @@ public class RBACEngineTests extends ESTestCase {
     }
 
     private PrivilegesCheckResult hasPrivileges(
-        RoleDescriptor.IndicesPrivileges indicesPrivileges,
+        IndicesPrivileges indicesPrivileges,
         AuthorizationInfo authorizationInfo,
         List<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors,
         String... clusterPrivileges
     ) throws Exception {
         return hasPrivileges(
-            new RoleDescriptor.IndicesPrivileges[] { indicesPrivileges },
-            new RoleDescriptor.ApplicationResourcePrivileges[0],
+            new IndicesPrivileges[] { indicesPrivileges },
+            new ApplicationResourcePrivileges[0],
             authorizationInfo,
             applicationPrivilegeDescriptors,
             clusterPrivileges
@@ -1464,18 +1425,14 @@ public class RBACEngineTests extends ESTestCase {
     }
 
     private PrivilegesCheckResult hasPrivileges(
-        RoleDescriptor.IndicesPrivileges[] indicesPrivileges,
-        RoleDescriptor.ApplicationResourcePrivileges[] appPrivileges,
+        IndicesPrivileges[] indicesPrivileges,
+        ApplicationResourcePrivileges[] appPrivileges,
         AuthorizationInfo authorizationInfo,
         List<ApplicationPrivilegeDescriptor> applicationPrivilegeDescriptors,
         String... clusterPrivileges
     ) throws Exception {
         final PlainActionFuture<PrivilegesCheckResult> future = new PlainActionFuture<>();
-        AuthorizationEngine.PrivilegesToCheck privilegesToCheck = new AuthorizationEngine.PrivilegesToCheck(
-            Arrays.asList(clusterPrivileges),
-            Arrays.asList(indicesPrivileges),
-            Arrays.asList(appPrivileges)
-        );
+        PrivilegesToCheck privilegesToCheck = new PrivilegesToCheck(clusterPrivileges, indicesPrivileges, appPrivileges);
         engine.checkPrivileges(authorizationInfo, privilegesToCheck, applicationPrivilegeDescriptors, future);
         final PrivilegesCheckResult response = future.get();
         assertThat(response, notNullValue());

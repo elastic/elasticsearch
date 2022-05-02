@@ -2737,7 +2737,11 @@ public class AuthorizationServiceTests extends ESTestCase {
         PlainActionFuture<AuthorizationEngine.PrivilegesCheckResult> future = new PlainActionFuture<>();
         authorizationService.checkPrivileges(
             subject,
-            new AuthorizationEngine.PrivilegesToCheck(List.of(), List.of(), List.of()),
+            new AuthorizationEngine.PrivilegesToCheck(
+                new String[0],
+                new IndicesPrivileges[0],
+                new RoleDescriptor.ApplicationResourcePrivileges[0]
+            ),
             List.of(),
             future
         );

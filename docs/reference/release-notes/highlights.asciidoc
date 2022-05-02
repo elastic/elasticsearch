@@ -17,14 +17,8 @@ Other versions:
 
 // The notable-highlights tag marks entries that
 // should be featured in the Stack Installation and Upgrade Guide:
+
 // tag::notable-highlights[]
-// [discrete]
-// === Heading
-//
-// Description.
-// end::notable-highlights[]
-
-
 [discrete]
 [[integrate_filtering_support_for_approximate_nearest_neighbor_search]]
 === Integrate filtering support for approximate nearest neighbor search
@@ -58,3 +52,4 @@ exponentially accelerate their aggregations for calculations, with a slight
 trade off in accuracy, by randomly sampling documents in a statistically robust 
 manner. The random sampler aggregation can be used to accelerate any application 
 that utilizes aggregations for calculations.
+// end::notable-highlights[]

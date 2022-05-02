@@ -53,11 +53,13 @@ POST /my-index-000001/_delete_by_query
 ==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have the following
-<<privileges-list-indices,index privileges>> for the target data stream, index,
-or alias:
+<<privileges-list-indices,index privileges>> for the target data stream or index:
 
 ** `read`
 ** `delete` or `write`
+
++
+NOTE: If you are using an alias, make sure the privileges are configured at the index level.
 
 [[docs-delete-by-query-api-desc]]
 ==== {api-description-title}

@@ -94,8 +94,7 @@ public class SuggestProfilesRequest extends ActionRequest {
     }
 
     @Override
-    public Task createTask(
-        long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+    public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
         return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
     }
 

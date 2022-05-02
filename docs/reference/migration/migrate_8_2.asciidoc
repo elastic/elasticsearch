@@ -17,6 +17,6 @@ See also <<release-highlights>> and <<es-release-notes>>.
 // Installation and Upgrade Guide
 // tag::notable-breaking-changes[]
 
-coming::[8.2.0]
+There are no breaking changes for 8.2.0.
 
 // end::notable-breaking-changes[]

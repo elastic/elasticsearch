@@ -58,8 +58,10 @@ class Elasticsearch {
         PrintStream err = getStderr();
         int exitCode = 0;
         try {
+            err.println("Reading args from server-cli");
             final var in = new InputStreamStreamInput(System.in);
             final ServerArgs serverArgs = new ServerArgs(in);
+            err.println(serverArgs);
             elasticsearch.init(
                 serverArgs.daemonize(),
                 serverArgs.pidFile(),
@@ -71,12 +73,18 @@ class Elasticsearch {
             exitCode = ExitCodes.CONFIG;
             err.print(USER_EXCEPTION_MARKER);
             err.println(e.getMessage());
-            out.println(e.getMessage());
+            if (e.getMessage() != null) {
+                out.println(e.getMessage());
+            }
         } catch (UserException e) {
             exitCode = e.exitCode;
             err.print(USER_EXCEPTION_MARKER);
-            err.println(e.getMessage());
-            out.println(e.getMessage());
+            if (e.getMessage() != null) {
+                err.println(e.getMessage());
+                out.println(e.getMessage());
+            } else {
+                err.println();
+            }
         } catch (Exception e) {
             exitCode = 1; // mimic JDK exit code on exception
             if (System.getProperty("es.logs.base_path") != null) {

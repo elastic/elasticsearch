@@ -142,7 +142,7 @@ Document level security queries may depend on Lucene BitSet objects, and these a
 automatically cached to improve performance. Can be configured as a raw number
 of bytes (such as `200mb` or `1g`) or a percentage of the node's JVM heap
 memory (such as `5%`). When the default value is exceeded, the least recently
-used entries are evicted. Defaults to `10%` of the heap assigned to the node).
+used entries are evicted. Defaults to `10%` of the heap assigned to the node.
 
 [discrete]
 [[token-service-settings]]

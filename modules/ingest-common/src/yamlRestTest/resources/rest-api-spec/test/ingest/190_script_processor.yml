@@ -280,6 +280,10 @@ teardown:
 
 ---
 "Test adding circular references fails pipeline":
+  - skip:
+      version: " - 8.2.999"
+      reason: "Test causes fatal error prior to 8.3.0"
+
   - do:
       ingest.put_pipeline:
         id: "my_pipeline"

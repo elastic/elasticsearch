@@ -115,7 +115,7 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
         localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node2MasterClusterState, node3MasterClusterState));
         result = service.calculate(true);
         assertThat(result.status(), equalTo(HealthStatus.YELLOW));
-        assertThat(result.summary(), equalTo("The master has changed 4 times in the last 30 minutes"));
+        assertThat(result.summary(), equalTo("The master has changed 4 times in the last 30m"));
         assertThat(1, equalTo(result.impacts().size()));
         HealthIndicatorImpact impact = result.impacts().get(0);
         assertThat(3, equalTo(impact.severity()));
@@ -167,7 +167,7 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
         result = service.calculate(true);
         assertThat(result.status(), equalTo(HealthStatus.YELLOW));
         assertThat(result.summary(), startsWith("The cluster's master has alternated between "));
-        assertThat(result.summary(), endsWith("and no master multiple times in the last 30 minutes"));
+        assertThat(result.summary(), endsWith("and no master multiple times in the last 30m"));
         assertThat(result.impacts().size(), equalTo(1));
         HealthIndicatorImpact impact = result.impacts().get(0);
         assertThat(impact.severity(), equalTo(3));

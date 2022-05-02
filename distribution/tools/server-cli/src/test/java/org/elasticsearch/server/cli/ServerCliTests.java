@@ -26,6 +26,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.hamcrest.Matcher;
+import org.junit.AfterClass;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -38,6 +39,10 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -50,6 +55,7 @@ import static org.hamcrest.Matchers.hasItem;
 
 public class ServerCliTests extends CommandTestCase {
 
+    private static final ExecutorService mockProcessExecutor = Executors.newSingleThreadExecutor();
     Path esConfigDir;
 
     @Before
@@ -58,6 +64,11 @@ public class ServerCliTests extends CommandTestCase {
         esConfigDir = esHomeDir.resolve("config");
         Files.createDirectories(esConfigDir);
         Files.writeString(esConfigDir.resolve("jvm.options"), "");
+    }
+
+    @AfterClass
+    public static void cleanupExecutor() {
+        mockProcessExecutor.shutdown();
     }
 
     private void assertOk(String... args) throws Exception {
@@ -259,8 +270,8 @@ public class ServerCliTests extends CommandTestCase {
     }
 
     public void testKeystorePassword() throws Exception {
-        //assertKeystorePassword(null); //  no keystore exists
-        //assertKeystorePassword("");
+        assertKeystorePassword(null); //  no keystore exists
+        assertKeystorePassword("");
         assertKeystorePassword("dummypassword");
     }
 
@@ -303,43 +314,6 @@ public class ServerCliTests extends CommandTestCase {
         }
     }
 
-    // a "process" that just exits
-    private class NoopProcess extends Process {
-        private final OutputStream processStdin = OutputStream.nullOutputStream();
-        private final InputStream processStdout = InputStream.nullInputStream();
-        private final InputStream processStderr = InputStream.nullInputStream();
-
-        @Override
-        public OutputStream getOutputStream() {
-            return processStdin;
-        }
-
-        @Override
-        public InputStream getInputStream() {
-            return processStdout;
-        }
-
-        @Override
-        public InputStream getErrorStream() {
-            return processStderr;
-        }
-
-        @Override
-        public int waitFor() {
-            return 0;
-        }
-
-        @Override
-        public int exitValue() {
-            return 0;
-        }
-
-        @Override
-        public void destroy() {
-            fail("Tried to kill ES process");
-        }
-    }
-
     // a "process" that is really another thread
     private class MockElasticsearchProcess extends Process {
         private final PipedOutputStream processStdin = new PipedOutputStream();
@@ -351,22 +325,23 @@ public class ServerCliTests extends CommandTestCase {
 
         private final AtomicInteger exitCode = new AtomicInteger();
         private final AtomicReference<IOException> argsParsingException = new AtomicReference<>();
-        private final Thread thread = new Thread(() -> {
-            try (var in = new InputStreamStreamInput(stdin)) {
-                final ServerArgs serverArgs = new ServerArgs(in);
-
-                mainCallback.main(serverArgs, stdout, stderr, exitCode);
-            } catch (IOException e) {
-                argsParsingException.set(e);
-            }
-            IOUtils.closeWhileHandlingException(stdin, stdout, stderr);
-        }, "mock Elasticsearch process");
+        private final Future<?> main;
 
         MockElasticsearchProcess() throws IOException {
             stdin.connect(processStdin);
             stdout.connect(processStdout);
             stderr.connect(processStderr);
-            thread.start();
+            this.main = mockProcessExecutor.submit(() -> {
+                try (var in = new InputStreamStreamInput(stdin)) {
+                    final ServerArgs serverArgs = new ServerArgs(in);
+                    if (mainCallback != null) {
+                        mainCallback.main(serverArgs, stdout, stderr, exitCode);
+                    }
+                } catch (IOException e) {
+                    argsParsingException.set(e);
+                }
+                IOUtils.closeWhileHandlingException(stdin, stdout, stderr);
+            });
         }
 
         @Override
@@ -386,7 +361,11 @@ public class ServerCliTests extends CommandTestCase {
 
         @Override
         public int waitFor() throws InterruptedException {
-            thread.join();
+            try {
+                main.get();
+            } catch (ExecutionException e) {
+                throw new AssertionError(e);
+            }
             if (argsParsingException.get() != null) {
                 throw new AssertionError("Reading server args failed", argsParsingException.get());
             }
@@ -395,7 +374,7 @@ public class ServerCliTests extends CommandTestCase {
 
         @Override
         public int exitValue() {
-            if (thread.isAlive()) {
+            if (main.isDone() == false) {
                 throw new IllegalThreadStateException(); // match spec
             }
             return exitCode.get();
@@ -419,9 +398,6 @@ public class ServerCliTests extends CommandTestCase {
             @Override
             protected Process startProcess(ProcessBuilder processBuilder) throws IOException {
                 // TODO: validate processbuilder stuff
-                if (mainCallback == null) {
-                    return new NoopProcess();
-                }
                 return new MockElasticsearchProcess();
             }
 

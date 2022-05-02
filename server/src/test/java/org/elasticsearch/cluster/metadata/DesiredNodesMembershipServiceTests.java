@@ -176,6 +176,45 @@ public class DesiredNodesMembershipServiceTests extends DesiredNodesTestCase {
         }
     }
 
+    public void testTrackerIsAddedWithExistingClusterState() {
+        applyClusterState("add new nodes", this::withNewNodes);
+        applyClusterState("add desired nodes", this::desiredNodesWithAllClusterNodes);
+
+        final var tracker = DesiredNodesMembershipService.create(clusterService);
+
+        final var desiredNodes = DesiredNodes.latestFromClusterState(clusterService.state());
+
+        applyClusterState("Unrelated update", clusterState -> ClusterState.builder(clusterState).incrementVersion().build());
+
+        for (DesiredNode desiredNode : desiredNodes) {
+            assertThat(tracker.isMember(desiredNode), is(equalTo(true)));
+        }
+    }
+
+    public void testRemoveDesiredNodes() {
+        final var tracker = DesiredNodesMembershipService.create(clusterService);
+
+        applyClusterState("add new nodes", this::withNewNodes);
+        applyClusterState("add desired nodes", this::desiredNodesWithAllClusterNodes);
+
+        final var desiredNodes = DesiredNodes.latestFromClusterState(clusterService.state());
+
+        for (DesiredNode desiredNode : desiredNodes) {
+            assertThat(tracker.isMember(desiredNode), is(true));
+        }
+
+        applyClusterState(
+            "Remove desired nodes",
+            clusterState -> ClusterState.builder(clusterState)
+                .metadata(Metadata.builder(clusterState.metadata()).removeCustom(DesiredNodesMetadata.TYPE))
+                .build()
+        );
+
+        for (DesiredNode desiredNode : desiredNodes) {
+            assertThat(tracker.isMember(desiredNode), is(false));
+        }
+    }
+
     private ClusterState withNewNodes(ClusterState clusterState) {
         final var discoveryNodes = DiscoveryNodes.builder(clusterState.nodes());
         for (DiscoveryNode newNode : randomList(5, 10, this::newNode)) {

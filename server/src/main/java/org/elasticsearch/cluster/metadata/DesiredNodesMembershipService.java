@@ -35,6 +35,10 @@ public class DesiredNodesMembershipService implements ClusterStateListener {
         final var clusterState = event.state();
         final var desiredNodes = DesiredNodes.latestFromClusterState(clusterState);
         if (desiredNodes == null) {
+            final var previousDesiredNodes = DesiredNodes.latestFromClusterState(event.previousState());
+            if (previousDesiredNodes != null) {
+                members.clear();
+            }
             return;
         }
 
@@ -47,7 +51,7 @@ public class DesiredNodesMembershipService implements ClusterStateListener {
                     members.add(desiredNode);
                 }
             }
-        } else if (event.changedCustomMetadataSet().contains(DesiredNodesMetadata.TYPE)) {
+        } else if (event.changedCustomMetadataSet().contains(DesiredNodesMetadata.TYPE) || latestHistoryId == null) {
             if (desiredNodes.historyID().equals(latestHistoryId) == false) {
                 members.clear();
             }

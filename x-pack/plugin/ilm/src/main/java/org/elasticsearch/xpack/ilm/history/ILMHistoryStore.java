@@ -59,12 +59,14 @@ public class ILMHistoryStore implements Closeable {
         ).getBytes()
     );
 
-    private final boolean ilmHistoryEnabled;
+    private boolean ilmHistoryEnabled;
     private final BulkProcessor processor;
     private final ThreadPool threadPool;
 
     public ILMHistoryStore(Settings nodeSettings, Client client, ClusterService clusterService, ThreadPool threadPool) {
-        this.ilmHistoryEnabled = LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.get(nodeSettings);
+        this.setIlmHistoryEnabled(LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.get(nodeSettings));
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING, this::setIlmHistoryEnabled);
+
         this.threadPool = threadPool;
 
         this.processor = BulkProcessor.builder(new OriginSettingClient(client, INDEX_LIFECYCLE_ORIGIN)::bulk, new BulkProcessor.Listener() {
@@ -185,5 +187,9 @@ public class ILMHistoryStore implements Closeable {
         } catch (InterruptedException e) {
             logger.warn("failed to shut down ILM history bulk processor after 10 seconds", e);
         }
+    }
+
+    public void setIlmHistoryEnabled(boolean ilmHistoryEnabled) {
+        this.ilmHistoryEnabled = ilmHistoryEnabled;
     }
 }

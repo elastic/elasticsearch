@@ -38,12 +38,13 @@ public class SnapshotHistoryStore {
 
     private final Client client;
     private final ClusterService clusterService;
-    private final boolean slmHistoryEnabled;
+    private boolean slmHistoryEnabled;
 
     public SnapshotHistoryStore(Settings nodeSettings, Client client, ClusterService clusterService) {
         this.client = client;
         this.clusterService = clusterService;
-        slmHistoryEnabled = SLM_HISTORY_INDEX_ENABLED_SETTING.get(nodeSettings);
+        this.setSlmHistoryEnabled(SLM_HISTORY_INDEX_ENABLED_SETTING.get(nodeSettings));
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(SLM_HISTORY_INDEX_ENABLED_SETTING, this::setSlmHistoryEnabled);
     }
 
     /**
@@ -99,5 +100,9 @@ public class SnapshotHistoryStore {
                 exception
             );
         }
+    }
+
+    public void setSlmHistoryEnabled(boolean slmHistoryEnabled) {
+        this.slmHistoryEnabled = slmHistoryEnabled;
     }
 }

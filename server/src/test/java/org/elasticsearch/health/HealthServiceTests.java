@@ -30,6 +30,7 @@ public class HealthServiceTests extends ESTestCase {
         var indicator3 = new HealthIndicatorResult("indicator3", "component2", GREEN, null, null, null, null);
 
         var service = new HealthService(
+            Collections.emptyList(),
             List.of(
                 createMockHealthIndicatorService(indicator1),
                 createMockHealthIndicatorService(indicator2),
@@ -94,6 +95,7 @@ public class HealthServiceTests extends ESTestCase {
         var indicator3 = new HealthIndicatorResult("indicator3", "component2", GREEN, null, null, null, null);
 
         var service = new HealthService(
+            Collections.emptyList(),
             List.of(
                 createMockHealthIndicatorService(indicator1),
                 createMockHealthIndicatorService(indicator2),

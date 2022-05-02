@@ -11,25 +11,38 @@ package org.elasticsearch.health;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.core.Nullable;
 
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.collectingAndThen;
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.toList;
+import static java.util.stream.Collectors.toMap;
 
 /**
  * This service collects health indicators from all modules and plugins of elasticsearch
  */
 public class HealthService {
 
+    private final List<HealthIndicatorService> preflightHealthIndicatorServices;
     private final List<HealthIndicatorService> healthIndicatorServices;
 
-    public HealthService(List<HealthIndicatorService> healthIndicatorServices) {
+    /**
+     * @param preflightHealthIndicatorServices indicators that are run first and block health calculation until GREEN.
+     * @param healthIndicatorServices indicators that are run if the cluster-stable indicators return GREEN results.
+     */
+    public HealthService(
+        List<HealthIndicatorService> preflightHealthIndicatorServices,
+        List<HealthIndicatorService> healthIndicatorServices
+    ) {
+        this.preflightHealthIndicatorServices = preflightHealthIndicatorServices;
         this.healthIndicatorServices = healthIndicatorServices;
     }
 
@@ -47,11 +60,46 @@ public class HealthService {
     public List<HealthComponentResult> getHealth(@Nullable String componentName, @Nullable String indicatorName, boolean computeDetails) {
         final boolean shouldDrillDownToIndicatorLevel = indicatorName != null;
         final boolean showRolledUpComponentStatus = shouldDrillDownToIndicatorLevel == false;
+
+        // Determine if cluster is stable enough to determine health before running other indicators
+        List<HealthIndicatorResult> preflightResults = preflightHealthIndicatorServices.stream()
+            .map(service -> service.calculate(computeDetails))
+            .toList();
+
+        // If any of these are not GREEN, then we cannot obtain health from other indicators
+        boolean clusterHealthIsObtainable = preflightResults.isEmpty() || preflightResults.stream()
+            .anyMatch(result -> HealthStatus.GREEN.equals(result.status()) == false);
+
+        // Filter indicators by component name and indicator name if present before calculating their results
+        Stream<HealthIndicatorService> filteredIndicators = healthIndicatorServices.stream()
+            .filter(service -> componentName == null || service.component().equals(componentName))
+            .filter(service -> indicatorName == null || service.name().equals(indicatorName));
+
+        Stream<HealthIndicatorResult> filteredIndicatorResults;
+        if (clusterHealthIsObtainable) {
+            // Calculate remaining indicators
+            filteredIndicatorResults = filteredIndicators.map(indicatorService -> indicatorService.calculate(computeDetails));
+        } else {
+            // Mark remaining indicators as UNKNOWN
+            HealthIndicatorDetails unknownDetails = determineHealthUnknownReason(preflightResults, computeDetails);
+            filteredIndicatorResults = filteredIndicators.map(indicatorService ->
+                indicatorService.createIndicator(
+                    HealthStatus.UNKNOWN,
+                    "Could not determine indicator state",
+                    unknownDetails,
+                    Collections.emptyList()
+                )
+            );
+        }
+
+        // Filter the cluster indicator results by component name and indicator name if present
+        Stream<HealthIndicatorResult> filteredPreflightResults = preflightResults.stream()
+            .filter(result -> componentName == null || result.component().equals(componentName))
+            .filter(result -> indicatorName == null || result.name().equals(indicatorName));
+
+        // Combine indicator results
         List<HealthComponentResult> components = List.copyOf(
-            healthIndicatorServices.stream()
-                .filter(service -> componentName == null || service.component().equals(componentName))
-                .filter(service -> indicatorName == null || service.name().equals(indicatorName))
-                .map(service -> service.calculate(computeDetails))
+            Stream.concat(filteredPreflightResults, filteredIndicatorResults)
                 .collect(
                     groupingBy(
                         HealthIndicatorResult::component,
@@ -74,6 +122,28 @@ public class HealthService {
             throw new ResourceNotFoundException(errorMessage);
         }
         return components;
+    }
+
+    /**
+     * Return details to include on health indicator results when health information cannot be obtained due to unstable cluster.
+     * @param preflightResults Results of indicators used to determine if health checks can happen.
+     * @param computeDetails If details should be calculated on which indicators are causing the UNKNOWN state.
+     * @return Details explaining why results are UNKNOWN, or an empty detail set if computeDetails is false.
+     */
+    private HealthIndicatorDetails determineHealthUnknownReason(List<HealthIndicatorResult> preflightResults, boolean computeDetails) {
+        assert preflightResults.isEmpty() == false : "Requires at least one non-GREEN preflight result";
+        HealthIndicatorDetails unknownDetails;
+        if (computeDetails) {
+            // Determine why the cluster is not stable enough for running remaining indicators
+            Map<String, String> clusterUnstableReasons = preflightResults.stream()
+                .filter(result -> HealthStatus.GREEN.equals(result.status()) == false)
+                .collect(toMap(HealthIndicatorResult::name, result -> result.status().xContentValue()));
+            assert clusterUnstableReasons.isEmpty() == false : "Requires at least one non-GREEN preflight result";
+            unknownDetails = new SimpleHealthIndicatorDetails(Map.of("reasons", clusterUnstableReasons));
+        } else {
+            unknownDetails = HealthIndicatorDetails.EMPTY;
+        }
+        return unknownDetails;
     }
 
     // Non-private for testing purposes

@@ -157,7 +157,6 @@ public class LicenseServiceTests extends ESTestCase {
             assertThat(response.status(), equalTo(LicensesStatus.EXPIRED));
         });
     }
-
     public void testStartBasicStartsNewBasicLicenseOnDifferentFields() throws Exception {
         final Settings settings = Settings.builder()
             .put("path.home", createTempDir())
@@ -196,6 +195,10 @@ public class LicenseServiceTests extends ESTestCase {
             when(taskContext.getTask()).thenReturn(taskCaptor.getValue());
 
             License oldLicense = sign(buildLicense(License.LicenseType.BASIC, TimeValue.timeValueDays(randomIntBetween(1, 100))));
+            // Future proofing sanity check that the license we generated has different parameters than defaults (currently guaranteed)
+            assert oldLicense.expiryDate() != LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS
+                || oldLicense.maxNodes() != LicenseService.SELF_GENERATED_LICENSE_MAX_NODES
+                : "license must have different expiryDate or maxNodes than defaults";
             ClusterState oldState = ClusterState.EMPTY_STATE.copyAndUpdateMetadata(
                 m -> m.putCustom(LicensesMetadata.TYPE, new LicensesMetadata(oldLicense, null))
             );

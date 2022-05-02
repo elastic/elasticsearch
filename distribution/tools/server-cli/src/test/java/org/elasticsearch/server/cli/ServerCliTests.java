@@ -20,6 +20,7 @@ import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
+import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.env.Environment;
@@ -64,7 +65,6 @@ public class ServerCliTests extends CommandTestCase {
     }
 
     private void assertOkWithOutput(Matcher<String> matcher, String... args) throws Exception {
-        terminal.reset();
         int status = executeMain(args);
         assertThat(status, equalTo(ExitCodes.OK));
         assertThat(terminal.getErrorOutput(), emptyString());
@@ -107,7 +107,9 @@ public class ServerCliTests extends CommandTestCase {
             containsString(expectedBuildOutput),
             containsString("JVM: " + JvmInfo.jvmInfo().version())
         );
+        terminal.reset();
         assertOkWithOutput(versionOutput, "-V");
+        terminal.reset();
         assertOkWithOutput(versionOutput, "--version");
     }
 
@@ -211,28 +213,55 @@ public class ServerCliTests extends CommandTestCase {
         assertOkWithOutput(containsString("message from auto config"));
     }
 
-    public void testAutoConfigErrorPropagated() throws Exception {
+    public void assertAutoConfigError(int autoConfigExitCode, int expectedMainExitCode, String... args) throws Exception {
+        terminal.reset();
         autoConfigCallback = (t, options, env, processInfo) -> {
-            throw new UserException(ExitCodes.IO_ERROR, "error from auto config");
+            throw new UserException(autoConfigExitCode, "message from auto config");
         };
-        var e = expectThrows(UserException.class, () -> execute());
-        assertThat(e.exitCode, equalTo(ExitCodes.IO_ERROR));
-        assertThat(e.getMessage(), equalTo("error from auto config"));
+        int gotMainExitCode = executeMain(args);
+        assertThat(gotMainExitCode, equalTo(expectedMainExitCode));
+        assertThat(terminal.getErrorOutput(), containsString("message from auto config"));
     }
 
-    public void assertAutoConfigOkError(int exitCode) throws Exception {
-        autoConfigCallback = (t, options, env, processInfo) -> {
-            throw new UserException(exitCode, "ok error from auto config");
-        };
-        int mainExitCode = executeMain();
-        assertThat(mainExitCode, equalTo(ExitCodes.OK));
-        assertThat(terminal.getErrorOutput(), containsString("ok error from auto config"));
+    public void testAutoConfigErrorPropagated() throws Exception {
+        assertAutoConfigError(ExitCodes.IO_ERROR, ExitCodes.IO_ERROR);
+        terminal.reset();
+        assertAutoConfigError(ExitCodes.CONFIG, ExitCodes.CONFIG, "--enrollment-token", "mytoken");
     }
 
     public void testAutoConfigOkErrors() throws Exception {
-        assertAutoConfigOkError(ExitCodes.CANT_CREATE);
-        assertAutoConfigOkError(ExitCodes.CONFIG);
-        assertAutoConfigOkError(ExitCodes.NOOP);
+        assertAutoConfigError(ExitCodes.CANT_CREATE, ExitCodes.OK);
+        assertAutoConfigError(ExitCodes.CONFIG, ExitCodes.OK);
+        assertAutoConfigError(ExitCodes.NOOP, ExitCodes.OK);
+    }
+
+    public void assertKeystorePassword(String password) throws Exception {
+        terminal.reset();
+        if (password != null && password.isEmpty() == false) {
+            terminal.addSecretInput(password);
+        }
+        Path configDir = esHomeDir.resolve("config");
+        Files.createDirectories(configDir);
+        if (password != null) {
+            try (KeyStoreWrapper keystore = KeyStoreWrapper.create()) {
+                keystore.save(configDir, password.toCharArray(), false);
+            }
+        }
+        String expectedPassword = password == null ? "" : password;
+        mainCallback = (args, stdout, stderr, exitCode) -> {
+            assertThat(args.keystorePassword().toString(), equalTo(expectedPassword));
+        };
+        autoConfigCallback = (t, options, env, processInfo) -> {
+            char[] gotPassword = t.readSecret("keystore password");
+            assertThat(gotPassword, equalTo(expectedPassword.toCharArray()));
+        };
+        assertOk();
+    }
+
+    public void testKeystorePassword() throws Exception {
+        //assertKeystorePassword(null); //  no keystore exists
+        //assertKeystorePassword("");
+        assertKeystorePassword("dummypassword");
     }
 
     interface MainMethod {

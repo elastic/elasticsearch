@@ -92,7 +92,7 @@ class ServerCli extends EnvironmentAwareCommand {
         final SecureString keystorePassword = getKeystorePassword(env.configFile(), terminal);
         // TODO: just for debugging!
         logger.info("keystore password: " + keystorePassword);
-        var autoConfigTerminal = new KeystorePasswordTerminal(terminal, keystorePassword);
+        var autoConfigTerminal = new KeystorePasswordTerminal(terminal, keystorePassword.clone());
         boolean changed = runAutoConfigTool(autoConfigTerminal, options, processInfo, env);
         if (changed) {
             // reload settings since auto security changed them

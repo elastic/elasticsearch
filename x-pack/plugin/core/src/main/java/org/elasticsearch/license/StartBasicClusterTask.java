@@ -11,18 +11,19 @@ import org.apache.logging.log4j.message.ParameterizedMessage;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterStateTaskExecutor;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.core.XPackPlugin;
 
 import java.time.Clock;
-import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.atomic.AtomicReference;
 
-public class StartBasicClusterTask extends ClusterStateUpdateTask {
+public class StartBasicClusterTask implements ClusterStateTaskListener {
 
     private static final String ACKNOWLEDGEMENT_HEADER = "This license update requires acknowledgement. To acknowledge the license, "
         + "please read the following messages and call /start_basic again, this time with the \"acknowledge=true\" parameter:";
@@ -33,7 +34,6 @@ public class StartBasicClusterTask extends ClusterStateUpdateTask {
     private final String description;
     private final ActionListener<PostStartBasicResponse> listener;
     private final Clock clock;
-    private AtomicReference<Map<String, String[]>> ackMessages = new AtomicReference<>(Collections.emptyMap());
 
     StartBasicClusterTask(
         Logger logger,
@@ -53,43 +53,50 @@ public class StartBasicClusterTask extends ClusterStateUpdateTask {
 
     @Override
     public void clusterStateProcessed(ClusterState oldState, ClusterState newState) {
-        LicensesMetadata oldLicensesMetadata = oldState.metadata().custom(LicensesMetadata.TYPE);
-        logger.debug("license prior to starting basic license: {}", oldLicensesMetadata);
-        License oldLicense = LicensesMetadata.extractLicense(oldLicensesMetadata);
-        Map<String, String[]> acknowledgeMessages = ackMessages.get();
-        if (acknowledgeMessages.isEmpty() == false) {
-            listener.onResponse(
-                new PostStartBasicResponse(PostStartBasicResponse.Status.NEED_ACKNOWLEDGEMENT, acknowledgeMessages, ACKNOWLEDGEMENT_HEADER)
-            );
-        } else if (oldLicense != null && License.LicenseType.isBasic(oldLicense.type())) {
-            listener.onResponse(new PostStartBasicResponse(PostStartBasicResponse.Status.ALREADY_USING_BASIC));
-        } else {
-            listener.onResponse(new PostStartBasicResponse(PostStartBasicResponse.Status.GENERATED_BASIC));
-        }
+        assert false : "never called";
     }
 
-    @Override
-    public ClusterState execute(ClusterState currentState) throws Exception {
-        XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
-        LicensesMetadata currentLicensesMetadata = currentState.metadata().custom(LicensesMetadata.TYPE);
+    public LicensesMetadata execute(
+        LicensesMetadata currentLicensesMetadata,
+        DiscoveryNodes discoveryNodes,
+        ClusterStateTaskExecutor.TaskContext<StartBasicClusterTask> taskContext
+    ) throws Exception {
+        assert taskContext.getTask() == this;
+        final var listener = ActionListener.runBefore(
+            this.listener,
+            () -> logger.debug("license prior to starting basic license: {}", currentLicensesMetadata)
+        );
         License currentLicense = LicensesMetadata.extractLicense(currentLicensesMetadata);
+        final LicensesMetadata updatedLicensesMetadata;
         if (shouldGenerateNewBasicLicense(currentLicense)) {
-            License selfGeneratedLicense = generateBasicLicense(currentState);
+            License selfGeneratedLicense = generateBasicLicense(discoveryNodes);
             if (request.isAcknowledged() == false && currentLicense != null) {
                 Map<String, String[]> ackMessageMap = LicenseService.getAckMessages(selfGeneratedLicense, currentLicense);
                 if (ackMessageMap.isEmpty() == false) {
-                    this.ackMessages.set(ackMessageMap);
-                    return currentState;
+                    taskContext.success(
+                        listener.delegateFailure(
+                            (delegate, ignored) -> delegate.onResponse(
+                                new PostStartBasicResponse(
+                                    PostStartBasicResponse.Status.NEED_ACKNOWLEDGEMENT,
+                                    ackMessageMap,
+                                    ACKNOWLEDGEMENT_HEADER
+                                )
+                            )
+                        )
+                    );
+                    return currentLicensesMetadata;
                 }
             }
             Version trialVersion = currentLicensesMetadata != null ? currentLicensesMetadata.getMostRecentTrialVersion() : null;
-            LicensesMetadata newLicensesMetadata = new LicensesMetadata(selfGeneratedLicense, trialVersion);
-            Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
-            mdBuilder.putCustom(LicensesMetadata.TYPE, newLicensesMetadata);
-            return ClusterState.builder(currentState).metadata(mdBuilder).build();
+            updatedLicensesMetadata = new LicensesMetadata(selfGeneratedLicense, trialVersion);
         } else {
-            return currentState;
+            updatedLicensesMetadata = currentLicensesMetadata;
         }
+        final var responseStatus = currentLicense != null && License.LicenseType.isBasic(currentLicense.type())
+            ? PostStartBasicResponse.Status.ALREADY_USING_BASIC
+            : PostStartBasicResponse.Status.GENERATED_BASIC;
+        taskContext.success(listener.delegateFailure((l, s) -> l.onResponse(new PostStartBasicResponse(responseStatus))));
+        return updatedLicensesMetadata;
     }
 
     @Override
@@ -105,7 +112,7 @@ public class StartBasicClusterTask extends ClusterStateUpdateTask {
             || LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS != LicenseService.getExpiryDate(currentLicense);
     }
 
-    private License generateBasicLicense(ClusterState currentState) {
+    private License generateBasicLicense(DiscoveryNodes discoveryNodes) {
         final License.Builder specBuilder = License.builder()
             .uid(UUID.randomUUID().toString())
             .issuedTo(clusterName)
@@ -114,10 +121,29 @@ public class StartBasicClusterTask extends ClusterStateUpdateTask {
             .type(License.LicenseType.BASIC)
             .expiryDate(LicenseService.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS);
 
-        return SelfGeneratedLicense.create(specBuilder, currentState.nodes());
+        return SelfGeneratedLicense.create(specBuilder, discoveryNodes);
     }
 
     public String getDescription() {
         return description;
+    }
+
+    static class Executor implements ClusterStateTaskExecutor<StartBasicClusterTask> {
+        @Override
+        public ClusterState execute(ClusterState currentState, List<TaskContext<StartBasicClusterTask>> taskContexts) throws Exception {
+            XPackPlugin.checkReadyForXPackCustomMetadata(currentState);
+            final LicensesMetadata originalLicensesMetadata = currentState.metadata().custom(LicensesMetadata.TYPE);
+            var currentLicensesMetadata = originalLicensesMetadata;
+            for (final var taskContext : taskContexts) {
+                currentLicensesMetadata = taskContext.getTask().execute(currentLicensesMetadata, currentState.nodes(), taskContext);
+            }
+            if (currentLicensesMetadata == originalLicensesMetadata) {
+                return currentState;
+            } else {
+                return ClusterState.builder(currentState)
+                    .metadata(Metadata.builder(currentState.metadata()).putCustom(LicensesMetadata.TYPE, currentLicensesMetadata))
+                    .build();
+            }
+        }
     }
 }

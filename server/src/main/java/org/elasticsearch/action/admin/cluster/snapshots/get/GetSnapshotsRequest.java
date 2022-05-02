@@ -52,6 +52,8 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
 
     private static final Version SORT_BY_SHARDS_OR_REPO_VERSION = Version.V_7_16_0;
 
+    private static final Version INDICES_FLAG_VERSION = Version.V_8_3_0;
+
     public static final int NO_LIMIT = -1;
 
     /**
@@ -83,6 +85,8 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
     private boolean ignoreUnavailable;
 
     private boolean verbose = DEFAULT_VERBOSE_MODE;
+
+    private boolean includeIndexNames = true;
 
     public GetSnapshotsRequest() {}
 
@@ -129,6 +133,9 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             }
             if (in.getVersion().onOrAfter(FROM_SORT_VALUE_VERSION)) {
                 fromSortValue = in.readOptionalString();
+            }
+            if (in.getVersion().onOrAfter(INDICES_FLAG_VERSION)) {
+                includeIndexNames = in.readBoolean();
             }
         }
     }
@@ -183,6 +190,9 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
             out.writeOptionalString(fromSortValue);
         } else if (fromSortValue != null) {
             throw new IllegalArgumentException("can't use after-value in snapshot request with node version [" + out.getVersion() + "]");
+        }
+        if (out.getVersion().onOrAfter(INDICES_FLAG_VERSION)) {
+            out.writeBoolean(includeIndexNames);
         }
     }
 
@@ -322,6 +332,15 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
     public GetSnapshotsRequest verbose(boolean verbose) {
         this.verbose = verbose;
         return this;
+    }
+
+    public GetSnapshotsRequest includeIndexNames(boolean indices) {
+        this.includeIndexNames = indices;
+        return this;
+    }
+
+    public boolean includeIndexNames() {
+        return includeIndexNames;
     }
 
     public After after() {

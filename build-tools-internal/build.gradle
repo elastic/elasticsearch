@@ -211,6 +211,11 @@ configurations {
 }
 dependencies {
   components.all(JacksonAlignmentRule)
+  constraints {
+    // ensuring brought asm version brought in by spock is up-to-date
+    testImplementation 'org.ow2.asm:asm:9.3'
+    integTestImplementation 'org.ow2.asm:asm:9.3'
+  }
   // Forcefully downgrade the jackson platform as used in production
   api enforcedPlatform("com.fasterxml.jackson:jackson-bom:${versions.getProperty('jackson')}")
   api localGroovy()
@@ -267,11 +272,11 @@ dependencies {
     because 'allows tests to run from IDEs that bundle older version of launcher'
   }
 
-  testImplementation platform("org.spockframework:spock-bom:2.0-groovy-3.0")
+  testImplementation platform("org.spockframework:spock-bom:2.1-groovy-3.0")
   testImplementation("org.spockframework:spock-core") {
     exclude module: "groovy"
   }
-  integTestImplementation platform("org.spockframework:spock-bom:2.0-groovy-3.0")
+  integTestImplementation platform("org.spockframework:spock-bom:2.1-groovy-3.0")
   integTestImplementation("org.spockframework:spock-core") {
     exclude module: "groovy"
   }

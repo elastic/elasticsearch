@@ -20,7 +20,6 @@ import org.junit.Before;
 
 import java.nio.file.Path;
 import java.util.Locale;
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -142,14 +141,14 @@ public class ElasticsearchCliTests extends CommandTestCase {
 
     public void testPathHome() throws Exception {
         AtomicReference<String> expectedHomeDir = new AtomicReference<>();
-        expectedHomeDir.set(homeDir.toString());
+        expectedHomeDir.set(esHomeDir.toString());
         initCallback = (d, p, q, e) -> {
             Settings settings = e.settings();
             assertThat(settings.get("path.home"), equalTo(expectedHomeDir.get()));
             assertThat(settings.keySet(), hasItem("path.logs")); // added by env initialization
         };
         assertOk();
-        homeDir = null;
+        sysprops.remove("es.path.home");
         final String commandLineValue = createTempDir().toString();
         expectedHomeDir.set(commandLineValue);
         assertOk("-Epath.home=" + commandLineValue);
@@ -159,26 +158,17 @@ public class ElasticsearchCliTests extends CommandTestCase {
         void init(boolean daemonize, Path pidFile, boolean quiet, Environment initialEnv);
     }
 
-    Path homeDir;
     InitMethod initCallback;
     final InitMethod FAIL_INIT = (d, p, q, e) -> fail("Did not expect to run init");
 
     @Before
     public void resetCommand() {
-        homeDir = createTempDir();
         initCallback = null;
     }
 
     @Override
     protected Command newCommand() {
         return new Elasticsearch() {
-            @Override
-            protected Map<String, String> captureSystemProperties() {
-                if (homeDir == null) {
-                    return Map.of("es.path.conf", createTempDir().toString());
-                }
-                return mockSystemProperties(homeDir);
-            }
 
             @Override
             void init(boolean daemonize, Path pidFile, boolean quiet, Environment initialEnv) {

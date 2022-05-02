@@ -104,6 +104,11 @@ repositories {
 }
 
 dependencies {
+    constraints {
+        // ensuring brought asm version brought in by spock is up-to-date
+        testFixturesApi 'org.ow2.asm:asm:9.3'
+        integTestImplementation 'org.ow2.asm:asm:9.3'
+    }
     reaper project('reaper')
 
     api localGroovy()
@@ -111,15 +116,15 @@ dependencies {
     api 'org.apache.commons:commons-compress:1.21'
     api 'org.apache.ant:ant:1.10.8'
     api 'commons-io:commons-io:2.2'
-    implementation 'org.ow2.asm:asm-tree:9.2'
-    implementation 'org.ow2.asm:asm:9.2'
+    implementation 'org.ow2.asm:asm-tree:9.3'
+    implementation 'org.ow2.asm:asm:9.3'
 
     testFixturesApi "junit:junit:${versions.getProperty('junit')}"
     testFixturesApi "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.getProperty('randomizedrunner')}"
     testFixturesApi gradleApi()
     testFixturesApi gradleTestKit()
     testFixturesApi 'com.github.tomakehurst:wiremock-jre8-standalone:2.23.2'
-    testFixturesApi platform("org.spockframework:spock-bom:2.0-groovy-3.0")
+    testFixturesApi platform("org.spockframework:spock-bom:2.1-groovy-3.0")
     testFixturesApi("org.spockframework:spock-core") {
         exclude module: "groovy"
     }

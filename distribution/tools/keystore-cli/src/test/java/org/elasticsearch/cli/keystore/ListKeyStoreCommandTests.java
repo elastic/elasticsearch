@@ -18,6 +18,7 @@ import org.elasticsearch.env.Environment;
 import java.util.List;
 
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -44,7 +45,7 @@ public class ListKeyStoreCommandTests extends KeyStoreCommandTestCase {
         createKeystore(password);
         terminal.addSecretInput(password);
         execute();
-        assertThat(terminal.getOutput(), equalTo("keystore.seed" + System.lineSeparator()));
+        assertThat(terminal.getOutput().lines().toList(), contains("keystore.seed"));
     }
 
     public void testOne() throws Exception {

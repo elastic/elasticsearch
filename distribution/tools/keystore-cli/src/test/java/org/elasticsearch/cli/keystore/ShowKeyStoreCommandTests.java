@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.KeyStoreWrapper;
 import org.elasticsearch.env.Environment;
 
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -125,7 +126,7 @@ public class ShowKeyStoreCommandTests extends KeyStoreCommandTestCase {
         // Not prompted for a password
 
         if (console) {
-            assertThat(terminal.getOutput(), equalTo(value + System.lineSeparator()));
+            assertThat(terminal.getOutput().lines().toList(), contains(value));
         } else {
             assertThat(terminal.getOutput(), equalTo(value));
         }

@@ -56,6 +56,9 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
     private final ClusterService clusterService;
     private final MasterHistoryService masterHistoryService;
     private static final Logger logger = LogManager.getLogger(StableMasterHealthIndicatorService.class);
+    /**
+     * This is the amount of time we use to make the initial decision -- have we seen a master node in the very recent past?
+     */
     private static final TimeValue VERY_RECENT_PAST = new TimeValue(30, TimeUnit.SECONDS);
 
     /**
@@ -99,6 +102,12 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         }
     }
 
+    /**
+     * Returns the health result for the case when we have seen a master recently (at some point in the last 30 seconds).
+     * @param localMasterHistory The master history as seen from the local machine
+     * @param includeDetails Whether to calculate and include the details in the result
+     * @return The HealthIndicatorResult for the given localMasterHistory
+     */
     private HealthIndicatorResult calculateWhenHaveSeenMasterRecently(MasterHistory localMasterHistory, boolean includeDetails) {
         int masterChanges = localMasterHistory.getNumberOfMasterIdentityChanges();
         logger.trace("Have seen a master in the last {}): {}", VERY_RECENT_PAST, localMasterHistory.getMostRecentNonNullMaster());
@@ -108,11 +117,19 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         } else if (localMasterHistory.hasMasterGoneNullAtLeastNTimes(ACCEPTABLE_NULL_TRANSITIONS + 1)) {
             result = calculateWhenMasterHasFlappedNull(localMasterHistory, includeDetails);
         } else {
-            result = getMasterIsStableResult(includeDetails);
+            result = getMasterIsStableResult();
         }
         return result;
     }
 
+    /**
+     * Returns the health result when we have detected locally that the master has changed identity repeatedly (more than 3 times in the
+     * last 30 minutes)
+     * @param localMasterHistory The master history as seen from the local machine
+     * @param masterChanges The number of times that the local machine has seen the master identity change in the last 30 minutes
+     * @param includeDetails Whether to calculate and include the details in the result
+     * @return The HealthIndicatorResult for the given localMasterHistory
+     */
     private HealthIndicatorResult calculateWhenMasterHasChangedIdentity(
         MasterHistory localMasterHistory,
         int masterChanges,
@@ -151,6 +168,13 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         );
     }
 
+    /**
+     * Returns the health result when we have detected locally that the master has changed to null repeatedly (more than 3 times in the last
+     * 30 minutes)
+     * @param localMasterHistory The master history as seen from the local machine
+     * @param includeDetails Whether to calculate and include the details in the result
+     * @return The HealthIndicatorResult for the given localMasterHistory
+     */
     private HealthIndicatorResult calculateWhenMasterHasFlappedNull(MasterHistory localMasterHistory, boolean includeDetails) {
         HealthStatus stableMasterStatus;
         String summary;
@@ -206,25 +230,27 @@ public class StableMasterHealthIndicatorService implements HealthIndicatorServic
         );
     }
 
-    private HealthIndicatorResult getMasterIsStableResult(boolean includeDetails) {
-        HealthStatus stableMasterStatus;
-        String summary;
-        Map<String, Object> details = new HashMap<>();
+    /**
+     * Returns a HealthIndicatorResult for the case when the master is seen as stable
+     * @return A HealthIndicatorResult for the case when the master is seen as stable (GREEN status, no impacts or details)
+     */
+    private HealthIndicatorResult getMasterIsStableResult() {
+        HealthStatus stableMasterStatus = HealthStatus.GREEN;
+        String summary = "The cluster has a stable master node";
         Collection<HealthIndicatorImpact> impacts = new ArrayList<>();
         List<UserAction> userActions = new ArrayList<>();
         logger.trace("The cluster has a stable master node");
-        stableMasterStatus = HealthStatus.GREEN;
-        summary = "The cluster has a stable master node";
-        return createIndicator(
-            stableMasterStatus,
-            summary,
-            includeDetails ? new SimpleHealthIndicatorDetails(details) : HealthIndicatorDetails.EMPTY,
-            impacts,
-            userActions
-        );
+        return createIndicator(stableMasterStatus, summary, HealthIndicatorDetails.EMPTY, impacts, userActions);
     }
 
+    /**
+     * Returns the health result for the case when we have NOT seen a master recently (at some point in the last 30 seconds).
+     * @param localMasterHistory The master history as seen from the local machine
+     * @param includeDetails Whether to calculate and include the details in the result
+     * @return The HealthIndicatorResult for the given localMasterHistory
+     */
     private HealthIndicatorResult calculateWhenHaveNotSeenMasterRecently(MasterHistory localMasterHistory, boolean includeDetails) {
+        // NOTE: The logic in this method will be implemented in a future PR
         HealthStatus stableMasterStatus = HealthStatus.RED;
         String summary = "Placeholder summary";
         Map<String, Object> details = new HashMap<>();

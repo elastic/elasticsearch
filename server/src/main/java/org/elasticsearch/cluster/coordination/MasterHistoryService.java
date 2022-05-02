@@ -41,12 +41,7 @@ public class MasterHistoryService {
     private final Map<DiscoveryNode, List<DiscoveryNode>> nodeToHistoryMap = new ConcurrentHashMap<>();
     private static final Logger logger = LogManager.getLogger(MasterHistoryService.class);
 
-    public MasterHistoryService(
-        TransportService transportService,
-        Coordinator coordinator,
-        ThreadPool threadPool,
-        ClusterService clusterService
-    ) {
+    public MasterHistoryService(TransportService transportService, ThreadPool threadPool, ClusterService clusterService) {
         this.transportService = transportService;
         this.localMasterHistory = new MasterHistory(threadPool, clusterService);
         this.clusterService = clusterService;
@@ -76,13 +71,15 @@ public class MasterHistoryService {
 
     /**
      * This method attempts to fetch the master history from the requested node. If we are able to successfully fetch it, it will be
-     * available in a later call to getRemoteMasterHistory. This method only fetches the remote master history once, and it is never
-     * updated unless this method is called again.
+     * available in a later call to getRemoteMasterHistory. The client is not notified if or when the remote history is successfully
+     * retrieved. This method only fetches the remote master history once, and it is never updated unless this method is called again.
+     * This is a remote call, so clients should avoid calling it any more often than necessary.
      * @param node The node whose view of the master history we want to fetch
      */
     public void requestRemoteMasterHistory(DiscoveryNode node) {
         long startTime = System.nanoTime();
         transportService.openConnection(
+            // Note: This connection is explicitly closed onResponse or onFailure of the request below
             node,
             ConnectionProfile.buildDefaultConnectionProfile(clusterService.getSettings()),
             new ActionListener<>() {
@@ -99,11 +96,7 @@ public class MasterHistoryService {
                             public void onResponse(MasterHistoryAction.Response response) {
                                 connection.close();
                                 long endTime = System.nanoTime();
-                                logger.trace(
-                                    "Received history from {} in {} ms",
-                                    node,
-                                    TimeValue.timeValueNanos(endTime - startTime).getMillis()
-                                );
+                                logger.trace("Received history from {} in {}", node, TimeValue.timeValueNanos(endTime - startTime));
                                 nodeToHistoryMap.put(node, response.getMasterHistory());
                             }
 

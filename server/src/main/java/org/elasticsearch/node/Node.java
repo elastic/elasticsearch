@@ -901,12 +901,7 @@ public class Node implements Closeable {
                 clusterService.getClusterSettings()
             );
 
-            MasterHistoryService masterHistoryService = new MasterHistoryService(
-                transportService,
-                discoveryModule.getCoordinator(),
-                threadPool,
-                clusterService
-            );
+            MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
             HealthService healthService = createHealthService(clusterService, clusterModule, masterHistoryService);
 
             modules.add(b -> {

@@ -29,7 +29,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.junit.Before;
 
-import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -44,6 +43,9 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
+    DiscoveryNode node1;
+    DiscoveryNode node2;
+    DiscoveryNode node3;
     private ClusterState nullMasterClusterState;
     private ClusterState node1MasterClusterState;
     private ClusterState node2MasterClusterState;
@@ -52,9 +54,9 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
 
     @Before
     public void setup() throws Exception {
-        String node1 = randomNodeId();
-        String node2 = randomNodeId();
-        String node3 = randomNodeId();
+        node1 = new DiscoveryNode(randomNodeId(), buildNewFakeTransportAddress(), Version.CURRENT);
+        node2 = new DiscoveryNode(randomNodeId(), buildNewFakeTransportAddress(), Version.CURRENT);
+        node3 = new DiscoveryNode(randomNodeId(), buildNewFakeTransportAddress(), Version.CURRENT);
         nullMasterClusterState = createClusterState(null);
         node1MasterClusterState = createClusterState(node1);
         node2MasterClusterState = createClusterState(node2);
@@ -132,6 +134,15 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testMasterGoesNull() throws Exception {
+        /*
+         * On the local node:
+         *   node1 -> null -> node1 -> null -> node1 -> null -> node1 -> null -> node1
+         * On the master node:
+         *   node1 -> null -> node1 -> null -> node1 -> null -> node1-> null -> node1
+         * In this case, the master identity changed 0 times as seen from the local node. The same master went null 4 times as seen from
+         * my the local node. So we check the remote history. The remote history sees that the master went to null 4 times, the status is
+         * YELLOW.
+         */
         MasterHistoryService masterHistoryService = createMasterHistoryService();
         MasterHistory localMasterHistory = masterHistoryService.getLocalMasterHistory();
         StableMasterHealthIndicatorService service = createAllocationHealthIndicatorService(nullMasterClusterState, masterHistoryService);
@@ -188,14 +199,102 @@ public class StableMasterHealthIndicatorServiceTests extends ESTestCase {
 
     }
 
-    private static ClusterState createClusterState(String masterNodeId) throws UnknownHostException {
+    public void testMasterGoesNullLocallyButRemotelyChangesIdentity() throws Exception {
+        /*
+         * On the local node:
+         *   node1 -> null -> node1 -> null -> node1 -> null -> node1 -> null -> node1
+         * On the master node:
+         *   node1 -> null -> node1 -> node2 -> node3 -> node2 -> node3
+         * In this case, the master identity changed 0 times as seen from the local node. The same master went null 4 times as seen from
+         * my the local node. So we check the remote history. The master only went null here one time, but it changed identity 4 times. So
+         * we still get a status of YELLOW. (Note: This scenario might not be possible in the real world for a couple of reasons7, but it
+         * tests edge cases)
+         */
+        MasterHistoryService masterHistoryService = createMasterHistoryService();
+        MasterHistory localMasterHistory = masterHistoryService.getLocalMasterHistory();
+        List<DiscoveryNode> remoteMasterHistory = new ArrayList<>();
+        remoteMasterHistory.add(node1);
+        remoteMasterHistory.add(null);
+        remoteMasterHistory.add(node1);
+        remoteMasterHistory.add(node2);
+        remoteMasterHistory.add(node3);
+        remoteMasterHistory.add(node2);
+        remoteMasterHistory.add(node3);
+        when(masterHistoryService.getRemoteMasterHistory(any())).thenReturn(remoteMasterHistory);
+        StableMasterHealthIndicatorService service = createAllocationHealthIndicatorService(nullMasterClusterState, masterHistoryService);
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, nullMasterClusterState));
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
+        HealthIndicatorResult result = service.calculate(true);
+        assertThat(result.status(), equalTo(HealthStatus.YELLOW));
+    }
+
+    public void testMultipleChangesButIdentityNeverChanges() throws Exception {
+        /*
+         * On the local node:
+         *   node1 -> node1 -> node1 -> node1 -> node1
+         * On the master node:
+         *   node1 -> node1 -> node1 -> node1 -> node1
+         * In this case, the master changed 4 times but there are 0 identity changes since there is only ever node1. So we never even
+         * check the remote master, and get a status of GREEN. (Note: This scenario is not possible in the real world because we would
+         * see null values in between, so it is just here to test an edge case)
+         */
+        MasterHistoryService masterHistoryService = createMasterHistoryService();
+        MasterHistory localMasterHistory = masterHistoryService.getLocalMasterHistory();
+        when(masterHistoryService.getRemoteMasterHistory(any())).thenThrow(new RuntimeException("Should never call this"));
+        StableMasterHealthIndicatorService service = createAllocationHealthIndicatorService(nullMasterClusterState, masterHistoryService);
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, node1MasterClusterState));
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, node1MasterClusterState));
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, node1MasterClusterState));
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, node1MasterClusterState));
+        HealthIndicatorResult result = service.calculate(true);
+        assertThat(result.status(), equalTo(HealthStatus.GREEN));
+        assertThat(result.summary(), equalTo("The cluster has a stable master node"));
+    }
+
+    public void testMixOfChanges() throws Exception {
+        /*
+         * On the local node:
+         *   node1 -> null -> node1 -> null -> node1 -> null -> node2 -> null -> node1 -> null -> node1
+         * On the master node:
+         *   node1 -> null -> node1 -> null -> node1 -> null -> node2 -> null -> node1 -> null -> node1
+         * In this case we detect 2 identity changes (node1 -> node2, and node2 -> node1). We detect that node1 has gone to 5 times. So
+         * we get a status of YELLOW.
+         */
+        MasterHistoryService masterHistoryService = createMasterHistoryService();
+        MasterHistory localMasterHistory = masterHistoryService.getLocalMasterHistory();
+        StableMasterHealthIndicatorService service = createAllocationHealthIndicatorService(nullMasterClusterState, masterHistoryService);
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node2MasterClusterState, nullMasterClusterState));
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node2MasterClusterState));
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, nullMasterClusterState, node1MasterClusterState));
+        localMasterHistory.clusterChanged(new ClusterChangedEvent(TEST_SOURCE, node1MasterClusterState, nullMasterClusterState));
+        List<DiscoveryNode> remoteHistory = localMasterHistory.getImmutableView();
+        when(masterHistoryService.getRemoteMasterHistory(any())).thenReturn(remoteHistory);
+        HealthIndicatorResult result = service.calculate(true);
+        assertThat(result.status(), equalTo(HealthStatus.YELLOW));
+    }
+
+    private static ClusterState createClusterState(DiscoveryNode masterNode) {
         var routingTableBuilder = RoutingTable.builder();
         Metadata.Builder metadataBuilder = Metadata.builder();
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
-        if (masterNodeId != null) {
-            DiscoveryNode node = new DiscoveryNode(masterNodeId, buildNewFakeTransportAddress(), Version.CURRENT);
-            nodesBuilder.masterNodeId(masterNodeId);
-            nodesBuilder.add(node);
+        if (masterNode != null) {
+            nodesBuilder.masterNodeId(masterNode.getId());
+            nodesBuilder.add(masterNode);
         }
         return ClusterState.builder(new ClusterName("test-cluster"))
             .routingTable(routingTableBuilder.build())

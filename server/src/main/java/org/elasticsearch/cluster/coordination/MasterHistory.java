@@ -59,7 +59,7 @@ public class MasterHistory implements ClusterStateListener {
      * @return The node that has been most recently seen as the master, which could be null if no master exists
      */
     public @Nullable DiscoveryNode getMostRecentMaster() {
-        List<TimeAndMaster> masterHistoryCopy = getMasterHistoryForLast30Minutes(masterHistory);
+        List<TimeAndMaster> masterHistoryCopy = getRecentMasterHistory(masterHistory);
         return masterHistoryCopy.isEmpty() ? null : masterHistoryCopy.get(masterHistoryCopy.size() - 1).master;
     }
 
@@ -69,7 +69,7 @@ public class MasterHistory implements ClusterStateListener {
      * @return The most recent non-null master seen, or null if there has been no master seen.
      */
     public @Nullable DiscoveryNode getMostRecentNonNullMaster() {
-        List<TimeAndMaster> masterHistoryCopy = getMasterHistoryForLast30Minutes(masterHistory);
+        List<TimeAndMaster> masterHistoryCopy = getRecentMasterHistory(masterHistory);
         Collections.reverse(masterHistoryCopy);
         for (TimeAndMaster timeAndMaster : masterHistoryCopy) {
             if (timeAndMaster.master != null) {
@@ -89,7 +89,14 @@ public class MasterHistory implements ClusterStateListener {
     }
 
     /**
-     * Returns true if for the List of master nodes passed in non-null masters have transitioned to null n times.
+     * Returns true if for the List of master nodes passed in, non-null masters have transitioned to null n times.
+     * So for example:
+     * node1 -> null is 1 transition to null
+     * node1 -> null -> null is 1 transition to null
+     * null -> node1 -> null is 1 transition to null
+     * node1 -> null -> node1 is 1 transition to null
+     * node1 -> null -> node1 -> null is 2 transitions to null
+     * node1 -> null -> node2 -> null is 2 transitions to null
      * @param masters The List of masters to use
      * @param n The number of times a non-null master must have switched to null
      * @return True if non-null masters have transitioned to null n or more timesin the given list of masters.
@@ -129,8 +136,8 @@ public class MasterHistory implements ClusterStateListener {
      * So for example:
      * node1 -> node2 is 1 identity change
      * node1 -> node2 -> node1 is 2 identity changes
-     * node1 -> node2 -> node2 is 1 identity change
-     * node1 -> null -> node1 is 0 identity changes
+     * node1 -> node2 -> node2 is 1 identity change (transitions from a node to itself do not count)
+     * node1 -> null -> node1 is 0 identity changes (transitions from a node to itself, even with null in the middle, do not count)
      * node1 -> null -> node2 is 1 identity change
      * @param masterHistory The list of nodes that have been master
      * @return The number of master identity changes as defined above
@@ -155,7 +162,7 @@ public class MasterHistory implements ClusterStateListener {
      * @return true if the current master is non-null or if a non-null master was seen in the last n seconds
      */
     public boolean hasSeenMasterInLastNSeconds(int n) {
-        List<TimeAndMaster> masterHistoryCopy = getMasterHistoryForLast30Minutes(masterHistory);
+        List<TimeAndMaster> masterHistoryCopy = getRecentMasterHistory(masterHistory);
         long now = nowSupplier.get();
         TimeValue nSeconds = new TimeValue(n, TimeUnit.SECONDS);
         long nSecondsAgo = now - nSeconds.getMillis();
@@ -166,10 +173,10 @@ public class MasterHistory implements ClusterStateListener {
     }
 
     /*
-     * This method creates a copy of masterHistory that only has entries from more than 30 minutes before now (but leaves the newest
-     * entry in even if it is more than 30 minutes old).
+     * This method creates a copy of masterHistory that only has entries from more than MAX_HISTORY_AGE before now (but leaves the newest
+     * entry in even if it is more than MAX_HISTORY_AGE).
      */
-    private List<TimeAndMaster> getMasterHistoryForLast30Minutes(List<TimeAndMaster> history) {
+    private List<TimeAndMaster> getRecentMasterHistory(List<TimeAndMaster> history) {
         if (history.size() < 2) {
             return history;
         }
@@ -186,8 +193,8 @@ public class MasterHistory implements ClusterStateListener {
     }
 
     /**
-     * Returns a new MasterHistory with nothing from more than 30 minutes before now (but leaves the newest entry in even if it is
-     * more than 30 minutes old).
+     * Returns a new MasterHistory with nothing from more than MAX_HISTORY_AGE before now (but leaves the newest entry in even if it is
+     * more than MAX_HISTORY_AGE).
      */
     private List<TimeAndMaster> removeOldMasterHistory(List<TimeAndMaster> possiblyOldMasterHistory) {
         if (possiblyOldMasterHistory.size() < 2) {
@@ -201,18 +208,20 @@ public class MasterHistory implements ClusterStateListener {
         List<TimeAndMaster> newMasterHistory = possiblyOldMasterHistory.stream()
             .filter(timeAndMaster -> timeAndMaster.time >= oldestRelevantHistoryTime)
             .collect(Collectors.toList());
-        if (newMasterHistory.isEmpty() && mostRecent != null) { // The most recent entry was more than 30 minutes ago
+        if (newMasterHistory.isEmpty() && mostRecent != null) { // The most recent entry was more than MAX_HISTORY_AGE ago
             newMasterHistory.add(mostRecent);
         }
         return newMasterHistory;
     }
 
     /**
-     * This method returns an immutable view of this master history, typically for sending over the wire to another node.
+     * This method returns an immutable view of this master history, typically for sending over the wire to another node. The returned List
+     * is ordered by when the master was seen, with the earliest-seen masters being first. The List can contain null values. Times are
+     * intentionally not included because they cannot be compared across machines.
      * @return An immutable view of this master history
      */
     public List<DiscoveryNode> getImmutableView() {
-        List<TimeAndMaster> masterHistoryCopy = getMasterHistoryForLast30Minutes(masterHistory);
+        List<TimeAndMaster> masterHistoryCopy = getRecentMasterHistory(masterHistory);
         return masterHistoryCopy.stream().map(TimeAndMaster::master).toList();
     }
 

@@ -53,7 +53,7 @@ POST /my-index-000001/_delete_by_query
 ==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have the following
-<<privileges-list-indices,index privileges>> for the target data stream, index:
+<<privileges-list-indices,index privileges>> for the target data stream or index:
 
 ** `read`
 ** `delete` or `write`

@@ -38,19 +38,21 @@ final class FieldCapabilitiesIndexResponse implements Writeable {
         Map<String, IndexFieldCapabilities> responseMap,
         boolean canMatch
     ) {
+        this(indexName, indexMappingHash, responseMap, canMatch, Version.CURRENT);
+    }
+
+    private FieldCapabilitiesIndexResponse(
+        String indexName,
+        @Nullable String indexMappingHash,
+        Map<String, IndexFieldCapabilities> responseMap,
+        boolean canMatch,
+        Version originVersion
+    ) {
         this.indexName = indexName;
         this.indexMappingHash = indexMappingHash;
         this.responseMap = responseMap;
         this.canMatch = canMatch;
-        this.originVersion = Version.CURRENT;
-    }
-
-    FieldCapabilitiesIndexResponse(FieldCapabilitiesIndexResponse resp, String indexName, String indexMappingHash) {
-        this.indexName = indexName;
-        this.indexMappingHash = indexMappingHash;
-        this.responseMap = resp.responseMap;
-        this.canMatch = resp.canMatch;
-        this.originVersion = resp.originVersion;
+        this.originVersion = originVersion;
     }
 
     FieldCapabilitiesIndexResponse(StreamInput in) throws IOException {
@@ -63,6 +65,10 @@ final class FieldCapabilitiesIndexResponse implements Writeable {
         } else {
             this.indexMappingHash = null;
         }
+    }
+
+    FieldCapabilitiesIndexResponse newSharedResponse(String indexName) {
+        return new FieldCapabilitiesIndexResponse(indexName, indexMappingHash, responseMap, canMatch, originVersion);
     }
 
     @Override

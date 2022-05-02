@@ -158,42 +158,31 @@ public class LicenseServiceTests extends ESTestCase {
         });
     }
 
-    public void testStartBasicWithDifferentFields() throws Exception {
+    public void testStartBasicStartsNewBasicLicenseOnDifferentFields() throws Exception {
         final Settings settings = Settings.builder()
             .put("path.home", createTempDir())
             .put(DISCOVERY_TYPE_SETTING.getKey(), SINGLE_NODE_DISCOVERY_TYPE) // So we skip TLS checks
             .build();
 
-        final ClusterState clusterState = mock(ClusterState.class);
-        Mockito.when(clusterState.metadata()).thenReturn(Metadata.EMPTY_METADATA);
-        Mockito.when(clusterState.getClusterName()).thenReturn(ClusterName.DEFAULT);
-
-        final ClusterService clusterService = mock(ClusterService.class);
-        Mockito.when(clusterService.state()).thenReturn(clusterState);
-        Mockito.when(clusterService.getClusterName()).thenReturn(ClusterName.DEFAULT);
-
+        final ClusterService clusterService = mockDefaultClusterService();
         final Clock clock = randomBoolean() ? Clock.systemUTC() : Clock.systemDefaultZone();
-        final Environment env = TestEnvironment.newEnvironment(settings);
-        final ResourceWatcherService resourceWatcherService = mock(ResourceWatcherService.class);
-        final XPackLicenseState licenseState = mock(XPackLicenseState.class);
-        final ThreadPool threadPool = mock(ThreadPool.class);
         final LicenseService service = new LicenseService(
             settings,
-            threadPool,
+            mock(ThreadPool.class),
             clusterService,
             clock,
-            env,
-            resourceWatcherService,
-            licenseState
+            TestEnvironment.newEnvironment(settings),
+            mock(ResourceWatcherService.class),
+            mock(XPackLicenseState.class)
         );
 
         final Consumer<PlainActionFuture<PostStartBasicResponse>> assertion = future -> {
             PostStartBasicResponse response = future.actionGet();
             assertThat(response.getStatus(), equalTo(PostStartBasicResponse.Status.GENERATED_BASIC));
         };
-        final PostStartBasicRequest request = new PostStartBasicRequest();
         final PlainActionFuture<PostStartBasicResponse> future = new PlainActionFuture<>();
-        service.startBasicLicense(request, future);
+        service.startBasicLicense(new PostStartBasicRequest(), future);
+
         if (future.isDone()) {
             // If validation failed, the future might be done without calling the updater task.
             assertion.accept(future);
@@ -206,28 +195,29 @@ public class LicenseServiceTests extends ESTestCase {
             verify(clusterService).submitStateUpdateTask(any(), task.capture(), any(), taskExecutor.capture());
             when(taskContext.getTask()).thenReturn(task.getValue());
 
-            ClusterState oldState = ClusterState.EMPTY_STATE;
-
-            UUID licenseId = UUID.fromString("12345678-abcd-0000-0000-000000000000"); // Special test UUID
-            License testLicense = buildLicense(
-                licenseId,
-                License.LicenseType.BASIC,
-                TimeValue.timeValueDays(randomIntBetween(1, 100)).millis()
+            License oldLicense = sign(buildLicense(License.LicenseType.BASIC, TimeValue.timeValueDays(randomIntBetween(1, 100))));
+            ClusterState oldState = ClusterState.EMPTY_STATE.copyAndUpdateMetadata(
+                m -> m.putCustom(LicensesMetadata.TYPE, new LicensesMetadata(oldLicense, null))
             );
-            testLicense = sign(testLicense);
-            LicensesMetadata metadata = new LicensesMetadata(testLicense, null);
-            oldState = ClusterState.builder(oldState)
-                .metadata(Metadata.builder(oldState.metadata()).putCustom(LicensesMetadata.TYPE, metadata))
-                .build();
+            ClusterState updatedState = taskExecutor.getValue().execute(oldState, List.of(taskContext));
 
-            ClusterState gotState = taskExecutor.getValue().execute(oldState, List.of(taskContext));
-
-            // Pass result state to trigger onResponse call to future
             ActionListener<ClusterState> gotListener = listener.getValue();
             assertNotNull(gotListener);
-            gotListener.onResponse(gotState);
+            // Pass updated state to listener to trigger onResponse call to wrapped `future`
+            gotListener.onResponse(updatedState);
             assertion.accept(future);
         }
+    }
+
+    private ClusterService mockDefaultClusterService() {
+        final ClusterState clusterState = mock(ClusterState.class);
+        Mockito.when(clusterState.metadata()).thenReturn(Metadata.EMPTY_METADATA);
+        Mockito.when(clusterState.getClusterName()).thenReturn(ClusterName.DEFAULT);
+
+        final ClusterService clusterService = mock(ClusterService.class);
+        Mockito.when(clusterService.state()).thenReturn(clusterState);
+        Mockito.when(clusterService.getClusterName()).thenReturn(ClusterName.DEFAULT);
+        return clusterService;
     }
 
     private void assertRegisterValidLicense(Settings baseSettings, License.LicenseType licenseType) throws IOException {
@@ -262,12 +252,7 @@ public class LicenseServiceTests extends ESTestCase {
             .put(DISCOVERY_TYPE_SETTING.getKey(), SINGLE_NODE_DISCOVERY_TYPE) // So we skip TLS checks
             .build();
 
-        final ClusterState clusterState = mock(ClusterState.class);
-        Mockito.when(clusterState.metadata()).thenReturn(Metadata.EMPTY_METADATA);
-
-        final ClusterService clusterService = mock(ClusterService.class);
-        Mockito.when(clusterService.state()).thenReturn(clusterState);
-
+        final ClusterService clusterService = mockDefaultClusterService();
         final Clock clock = randomBoolean() ? Clock.systemUTC() : Clock.systemDefaultZone();
         final Environment env = TestEnvironment.newEnvironment(settings);
         final ResourceWatcherService resourceWatcherService = mock(ResourceWatcherService.class);

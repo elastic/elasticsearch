@@ -58,7 +58,7 @@ final class EmbeddedModulePath {
     static Path maybeRemoveMRJARPrefix(Path path) {
         if (path.startsWith(MRJAR_PREFIX_PATH)) {
             assert path.getNameCount() >= 3;
-            Path p =  path.subpath(3, path.getNameCount());
+            Path p = path.subpath(3, path.getNameCount());
             return p;
         }
         return path;

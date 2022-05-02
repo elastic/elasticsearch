@@ -122,20 +122,6 @@ public class MasterHistory implements ClusterStateListener {
      * So for example:
      * node1 -> node2 is 1 identity change
      * node1 -> node2 -> node1 is 2 identity changes
-     * node1 -> node2 -> node2 is 1 identity change
-     * node1 -> null -> node1 is 0 identity changes
-     * node1 -> null -> node2 is 1 identity change
-     * @return The number of master identity changes within the last 30 minutes for this master history, as defined above
-     */
-    public int getNumberOfMasterIdentityChanges() {
-        return getNumberOfMasterIdentityChanges(getImmutableView());
-    }
-
-    /**
-     * An identity change is when we get notified of a change to a non-null master that is different from the previous non-null master.
-     * So for example:
-     * node1 -> node2 is 1 identity change
-     * node1 -> node2 -> node1 is 2 identity changes
      * node1 -> node2 -> node2 is 1 identity change (transitions from a node to itself do not count)
      * node1 -> null -> node1 is 0 identity changes (transitions from a node to itself, even with null in the middle, do not count)
      * node1 -> null -> node2 is 1 identity change

@@ -38,7 +38,6 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -54,6 +53,7 @@ import java.util.function.Consumer;
  * - For field-caps requests with index-filter, the dispatcher sends every shard-level request (one per shard-id) of an index in
  * each round because: (1) the result can't be shared with other indices when they don't match the index-filter; (2) we want to
  * avoid execute many rounds for indices that have many shards and most of them don't match the index-filter.
+ * TODO: Add can_match phase for requests with index_filter to eliminate unmatched shards so we can have a single execution mode here.
  */
 final class RequestDispatcher {
     static final Logger LOGGER = LogManager.getLogger(RequestDispatcher.class);
@@ -112,15 +112,15 @@ final class RequestDispatcher {
             } else if (withIndexFilter) {
                 final GroupShardsIterator<ShardIterator> shardIts = clusterService.operationRouting()
                     .searchShards(clusterState, new String[] { index }, null, null);
-                groups.add(new Group(List.of(index), indexMetadata.mapping().getSha256(), shardIts));
+                groups.add(new Group(List.of(index), shardIts));
             } else {
                 mappingHashToIndices.computeIfAbsent(indexMetadata.mapping().getSha256(), k -> new ArrayList<>()).add(index);
             }
         }
-        for (Map.Entry<String, List<String>> e : mappingHashToIndices.entrySet()) {
+        for (List<String> groupedIndices : mappingHashToIndices.values()) {
             final GroupShardsIterator<ShardIterator> shardIts = clusterService.operationRouting()
-                .searchShards(clusterState, e.getValue().toArray(String[]::new), null, null);
-            groups.add(new Group(e.getValue(), e.getKey(), shardIts));
+                .searchShards(clusterState, groupedIndices.toArray(String[]::new), null, null);
+            groups.add(new Group(groupedIndices, shardIts));
         }
         for (Group group : groups) {
             if (group.nodeToShards.isEmpty()) {
@@ -271,15 +271,13 @@ final class RequestDispatcher {
      */
     private static class Group {
         private final List<String> indices;
-        private final String mappingHash;
         private final Map<String, List<ShardRouting>> nodeToShards = new HashMap<>();
         private final Set<ShardId> unmatchedShardIds = new HashSet<>();
         private final Map<ShardId, Exception> failures = new HashMap<>();
         private final AtomicBoolean completed = new AtomicBoolean();
 
-        Group(List<String> indices, String mappingHash, GroupShardsIterator<ShardIterator> shardIts) {
+        Group(List<String> indices, GroupShardsIterator<ShardIterator> shardIts) {
             this.indices = indices;
-            this.mappingHash = Objects.requireNonNull(mappingHash);
             for (ShardIterator shardIt : shardIts) {
                 for (ShardRouting shard : shardIt) {
                     nodeToShards.computeIfAbsent(shard.currentNodeId(), node -> new ArrayList<>()).add(shard);

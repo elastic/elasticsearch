@@ -374,22 +374,26 @@ public class ReactiveStorageDeciderDecisionTests extends AutoscalingTestCase {
     }
 
     private static void verifyScale(ClusterState state, long expectedDifference, String reason, AllocationDecider... allocationDeciders) {
+        AllocationDeciders ad = createAllocationDeciders(allocationDeciders);
         ReactiveStorageDeciderService decider = new ReactiveStorageDeciderService(
             Settings.EMPTY,
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-            createAllocationDeciders(allocationDeciders)
+            ad
         );
         TestAutoscalingDeciderContext context = createContext(state, Set.of(DiscoveryNodeRole.DATA_HOT_NODE_ROLE));
         AutoscalingDeciderResult result = decider.scale(Settings.EMPTY, context);
+        ReactiveStorageDeciderService.ReactiveReason resultReason = (ReactiveStorageDeciderService.ReactiveReason) result.reason();
+
+        // TODO how to verify unassignedShardsIds and assignedShardIds?
         if (context.currentCapacity != null) {
             assertThat(
                 result.requiredCapacity().total().storage().getBytes() - context.currentCapacity.total().storage().getBytes(),
                 equalTo(expectedDifference)
             );
-            assertThat(result.reason().summary(), equalTo(reason));
+            assertThat(resultReason.summary(), equalTo(reason));
         } else {
             assertThat(result.requiredCapacity(), is(nullValue()));
-            assertThat(result.reason().summary(), equalTo("current capacity not available"));
+            assertThat(resultReason.summary(), equalTo("current capacity not available"));
         }
     }
 

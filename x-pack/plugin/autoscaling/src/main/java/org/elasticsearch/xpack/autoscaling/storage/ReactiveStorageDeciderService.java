@@ -726,7 +726,7 @@ public class ReactiveStorageDeciderService implements AutoscalingDeciderService 
                 unassigned,
                 assigned,
                 unassignedShardIds.stream().map(ShardRouting::shardId).collect(Collectors.toSet()),
-                unassignedShardIds.stream().map(ShardRouting::shardId).collect(Collectors.toSet())
+                assignedShardIds.stream().map(ShardRouting::shardId).collect(Collectors.toSet())
             );
         }
 

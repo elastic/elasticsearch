@@ -22,6 +22,7 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.ql.TestNode;
 import org.elasticsearch.xpack.ql.TestNodes;
 import org.elasticsearch.xpack.sql.qa.rest.BaseRestSqlTestCase;
+import org.elasticsearch.xpack.sql.session.Cursors;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -157,6 +158,7 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
     }
 
     public void testCursorFromOldNodeWorksOnNewNode() throws IOException {
+        assumeBackwardsCompatibility();
         assertCursorCompatibleAcrossVersions(oldNodes, newNodes);
     }
 
@@ -172,6 +174,7 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
     }
 
     public void testCursorFromOldNodeCanCloseOnNewNode() throws IOException {
+        assumeBackwardsCompatibility();
         assertCursorCloseWorksAcrossVersions(oldNodes, newNodes);
     }
 
@@ -197,6 +200,7 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
     }
 
     public void testIndexAllocatedOnOldNodeWithOldCursorWorksOnNewNode() throws IOException {
+        assumeBackwardsCompatibility();
         assertCursorCompatibleWithIndexAllocatedOnSubsetOfNodes(oldNodes, oldNodes, newNodes);
     }
 
@@ -205,6 +209,7 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
     }
 
     public void testIndexAllocatedOnOldNodeWithNewCursorWorksOnNewNode() throws IOException {
+        assumeBackwardsCompatibility();
         assertCursorCompatibleWithIndexAllocatedOnSubsetOfNodes(oldNodes, newNodes, newNodes);
     }
 
@@ -213,6 +218,7 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
     }
 
     public void testIndexAllocatedOnNewNodeWithOldCursorWorksOnNewNode() throws IOException {
+        assumeBackwardsCompatibility();
         assertCursorCompatibleWithIndexAllocatedOnSubsetOfNodes(newNodes, oldNodes, newNodes);
     }
 
@@ -254,6 +260,7 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
     }
 
     public void testTextCursorFromOldNodeWorksOnNewNode() throws IOException {
+        assumeBackwardsCompatibility();
         assertTextCursorCompatibleAcrossVersions(bwcVersion, oldNodesClient, newNodesClient);
     }
 
@@ -282,6 +289,7 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
     }
 
     public void testTextCursorFromOldNodeCanCloseOnNewNode() throws IOException {
+        assumeBackwardsCompatibility();
         assertTextCursorCloseWorksAcrossVersions(bwcVersion, oldNodesClient, newNodesClient);
     }
 
@@ -361,6 +369,13 @@ public class SqlCompatIT extends BaseRestSqlTestCase {
         try (InputStream content = response.getEntity().getContent()) {
             return XContentHelper.convertToMap(JsonXContent.jsonXContent, content, false);
         }
+    }
+
+    private void assumeBackwardsCompatibility() {
+        assumeTrue(
+            "cursor backwards compatibility not available for bwc version",
+            bwcVersion.onOrAfter(Cursors.CURSOR_BACKWARDS_COMPATIBILITY_VERSION)
+        );
     }
 
 }

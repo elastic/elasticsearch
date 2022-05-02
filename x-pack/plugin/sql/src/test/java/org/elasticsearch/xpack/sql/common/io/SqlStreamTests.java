@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.sql.SqlIllegalArgumentException;
+import org.elasticsearch.xpack.sql.session.Cursors;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -63,7 +64,12 @@ public class SqlStreamTests extends ESTestCase {
             )
         );
 
-        assertThat(ex.getMessage(), containsString("Unsupported cursor version [7.15.1], expected [" + Version.CURRENT + "]"));
+        assertThat(
+            ex.getMessage(),
+            containsString(
+                "Unsupported cursor version [7.15.1], expected [" + Cursors.CURSOR_BACKWARDS_COMPATIBILITY_VERSION + "] or later"
+            )
+        );
     }
 
     public void testVersionCanBeReadByOldNodes() throws IOException {

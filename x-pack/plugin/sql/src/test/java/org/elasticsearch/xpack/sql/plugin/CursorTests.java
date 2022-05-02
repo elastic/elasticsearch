@@ -110,7 +110,6 @@ public class CursorTests extends ESTestCase {
         String withFormatter = attachFormatter(encoded, formatter);
 
         assertEquals(formatter, Cursors.decodeFormatter(withFormatter));
-        assertEquals(Tuple.tuple(cursor, zone), Cursors.decodeFromStringWithZone(withFormatter, WRITEABLE_REGISTRY));
     }
 
     private BasicFormatter randomFormatter() {

@@ -39,6 +39,7 @@ public final class Cursors {
 
     private static final NamedWriteableRegistry WRITEABLE_REGISTRY = new NamedWriteableRegistry(getNamedWriteables());
     private static final Version VERSION = Version.CURRENT;
+    public static final Version CURSOR_BACKWARDS_COMPATIBILITY_VERSION = Version.V_8_2_0;
 
     private Cursors() {}
 

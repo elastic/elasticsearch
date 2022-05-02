@@ -1048,12 +1048,12 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }, maxWaitTimeMs, TimeUnit.MILLISECONDS);
     }
 
-    public List<PersistentTasksCustomMetadata.PersistentTask<?>> findTasks(ClusterState clusterState, String taskName) {
+    public static List<PersistentTasksCustomMetadata.PersistentTask<?>> findTasks(ClusterState clusterState, String taskName) {
         PersistentTasksCustomMetadata tasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
         return tasks.tasks().stream().filter(t -> t.getTaskName().equals(taskName)).toList();
     }
 
-    public List<PersistentTasksCustomMetadata.PersistentTask<?>> findTasks(ClusterState clusterState, Set<String> taskNames) {
+    public static List<PersistentTasksCustomMetadata.PersistentTask<?>> findTasks(ClusterState clusterState, Set<String> taskNames) {
         PersistentTasksCustomMetadata tasks = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
         return tasks.tasks().stream().filter(t -> taskNames.contains(t.getTaskName())).toList();
     }

@@ -218,17 +218,13 @@ public class ServerCliTests extends CommandTestCase {
     }
 
     public void testAutoConfig() throws Exception {
-        autoConfigCallback = (t, options, env, processInfo) -> {
-            t.println("message from auto config");
-        };
+        autoConfigCallback = (t, options, env, processInfo) -> { t.println("message from auto config"); };
         assertOkWithOutput(containsString("message from auto config"));
     }
 
     public void assertAutoConfigError(int autoConfigExitCode, int expectedMainExitCode, String... args) throws Exception {
         terminal.reset();
-        autoConfigCallback = (t, options, env, processInfo) -> {
-            throw new UserException(autoConfigExitCode, "message from auto config");
-        };
+        autoConfigCallback = (t, options, env, processInfo) -> { throw new UserException(autoConfigExitCode, "message from auto config"); };
         int gotMainExitCode = executeMain(args);
         assertThat(gotMainExitCode, equalTo(expectedMainExitCode));
         assertThat(terminal.getErrorOutput(), containsString("message from auto config"));
@@ -259,9 +255,7 @@ public class ServerCliTests extends CommandTestCase {
             }
         }
         String expectedPassword = password == null ? "" : password;
-        mainCallback = (args, stdout, stderr, exitCode) -> {
-            assertThat(args.keystorePassword().toString(), equalTo(expectedPassword));
-        };
+        mainCallback = (args, stdout, stderr, exitCode) -> { assertThat(args.keystorePassword().toString(), equalTo(expectedPassword)); };
         autoConfigCallback = (t, options, env, processInfo) -> {
             char[] gotPassword = t.readSecret("keystore password");
             assertThat(gotPassword, equalTo(expectedPassword.toCharArray()));
@@ -270,7 +264,7 @@ public class ServerCliTests extends CommandTestCase {
     }
 
     public void testKeystorePassword() throws Exception {
-        assertKeystorePassword(null); //  no keystore exists
+        assertKeystorePassword(null); // no keystore exists
         assertKeystorePassword("");
         assertKeystorePassword("dummypassword");
     }

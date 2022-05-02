@@ -62,6 +62,7 @@ import org.elasticsearch.search.sort.BucketedSort.ExtraData;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.FieldMaskingReader;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -657,12 +658,18 @@ public abstract class MapperServiceTestCase extends ESTestCase {
                 String syntheticSource = loader.leaf(getOnlyLeafReader(reader)).source(null, 0).utf8ToString();
                 try (Directory roundTripDirectory = newDirectory()) {
                     RandomIndexWriter roundTripIw = new RandomIndexWriter(random(), roundTripDirectory);
-                    roundTripIw.addDocument(mapper.parse(source(build)).rootDoc());
+                    roundTripIw.addDocument(
+                        mapper.parse(new SourceToParse("1", new BytesArray(syntheticSource), XContentType.JSON, null, Map.of())).rootDoc()
+                    );
                     roundTripIw.close();
-                    try (DirectoryReader roundTripReader = DirectoryReader.open(directory)) {
+                    try (DirectoryReader roundTripReader = DirectoryReader.open(roundTripDirectory)) {
                         String roundTripSyntheticSource = loader.leaf(getOnlyLeafReader(reader)).source(null, 0).utf8ToString();
                         assertThat(roundTripSyntheticSource, equalTo(syntheticSource));
-                        assertReaderEquals("round trip " + syntheticSource, reader, roundTripReader);
+                        assertReaderEquals(
+                            "round trip " + syntheticSource,
+                            new FieldMaskingReader(SourceFieldMapper.RECOVERY_SOURCE_NAME, reader),
+                            new FieldMaskingReader(SourceFieldMapper.RECOVERY_SOURCE_NAME, roundTripReader)
+                        );
                     }
                 }
                 return syntheticSource;

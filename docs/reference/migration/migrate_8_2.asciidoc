@@ -15,8 +15,6 @@ See also <<release-highlights>> and <<es-release-notes>>.
 
 There are no breaking changes for 8.2.0
 
-See also <<release-highlights>> and <<es-release-notes>>.
-
 // NOTE: The notable-breaking-changes tagged regions are re-used in the
 // Installation and Upgrade Guide
 // tag::notable-breaking-changes[]

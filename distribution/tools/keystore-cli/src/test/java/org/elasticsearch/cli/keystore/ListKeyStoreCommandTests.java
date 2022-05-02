@@ -45,7 +45,7 @@ public class ListKeyStoreCommandTests extends KeyStoreCommandTestCase {
         createKeystore(password);
         terminal.addSecretInput(password);
         execute();
-        assertThat(terminal.getOutput().lines().toList(), contains("keystore.seed"));
+        assertThat(terminal.getOutput(), containsString("keystore.seed"));
     }
 
     public void testOne() throws Exception {

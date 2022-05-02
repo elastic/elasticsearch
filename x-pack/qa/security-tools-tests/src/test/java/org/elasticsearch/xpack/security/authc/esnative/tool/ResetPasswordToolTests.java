@@ -292,7 +292,7 @@ public class ResetPasswordToolTests extends CommandTestCase {
 
     public void testAutoBatchSilent() throws Exception {
         execute(randomFrom("--silent", "-s"), randomFrom("--batch", "-b"), randomFrom("-u", "--username"), user);
-        assertThat(terminal.getOutput().lines().findFirst().orElse(null), hasLength(20));
+        assertThat(terminal.getOutput(), hasLength(20 + System.lineSeparator().length())); // password + new line char
         assertThat(terminal.getErrorOutput(), is(emptyString()));
     }
 

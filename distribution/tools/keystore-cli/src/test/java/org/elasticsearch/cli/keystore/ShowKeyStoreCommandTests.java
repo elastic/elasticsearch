@@ -63,7 +63,7 @@ public class ShowKeyStoreCommandTests extends KeyStoreCommandTestCase {
         createKeystore(password, "reindex.ssl.keystore.password", value);
         terminal.addSecretInput(password);
         execute("reindex.ssl.keystore.password");
-        assertThat(terminal.getOutput(), equalTo(value + System.lineSeparator()));
+        assertThat(terminal.getOutput().lines().toList(), contains(value));
     }
 
     public void testShowBinaryValue() throws Exception {

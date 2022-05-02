@@ -11,7 +11,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateTaskConfig;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -159,7 +158,6 @@ public class LicenseServiceTests extends ESTestCase {
         });
     }
 
-    @SuppressWarnings("unchecked")
     public void testStartBasicWithDifferentFields() throws Exception {
         final Settings settings = Settings.builder()
             .put("path.home", createTempDir())
@@ -201,17 +199,33 @@ public class LicenseServiceTests extends ESTestCase {
             assertion.accept(future);
         } else {
             final var task = ArgumentCaptor.forClass(StartBasicClusterTask.class);
-            final var taskConfig = ArgumentCaptor.forClass(ClusterStateTaskConfig.class);
             final var taskExecutor = ArgumentCaptor.forClass(StartBasicClusterTask.Executor.class);
-            verify(clusterService).submitStateUpdateTask(any(), task.capture(), taskConfig.capture(), taskExecutor.capture());
+            @SuppressWarnings("unchecked")
+            final ArgumentCaptor<ActionListener<ClusterState>> listener = ArgumentCaptor.forClass(ActionListener.class);
+            doNothing().when(taskContext).success(listener.capture());
+            verify(clusterService).submitStateUpdateTask(any(), task.capture(), any(), taskExecutor.capture());
             when(taskContext.getTask()).thenReturn(task.getValue());
-            final var l = ArgumentCaptor.forClass(ActionListener.class);
-            doNothing().when(taskContext).success(l.capture());
 
-            ClusterState gotState = taskExecutor.getValue().execute(ClusterState.EMPTY_STATE, List.of(taskContext));
-            verify(taskContext).success(any(ActionListener.class));
-            l.getValue().onResponse(gotState);
+            ClusterState oldState = ClusterState.EMPTY_STATE;
 
+            UUID licenseId = UUID.fromString("12345678-abcd-0000-0000-000000000000"); // Special test UUID
+            License testLicense = buildLicense(
+                licenseId,
+                License.LicenseType.BASIC,
+                TimeValue.timeValueDays(randomIntBetween(1, 100)).millis()
+            );
+            testLicense = sign(testLicense);
+            LicensesMetadata metadata = new LicensesMetadata(testLicense, null);
+            oldState = ClusterState.builder(oldState)
+                .metadata(Metadata.builder(oldState.metadata()).putCustom(LicensesMetadata.TYPE, metadata))
+                .build();
+
+            ClusterState gotState = taskExecutor.getValue().execute(oldState, List.of(taskContext));
+
+            // Pass result state to trigger onResponse call to future
+            ActionListener<ClusterState> gotListener = listener.getValue();
+            assertNotNull(gotListener);
+            gotListener.onResponse(gotState);
             assertion.accept(future);
         }
     }
